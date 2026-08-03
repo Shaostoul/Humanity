@@ -9150,36 +9150,15 @@ mod native_app {
                                         state.planet_patch_free_slots.push(mesh_idx);
                                     }
                                 }
-                                // END OF PATCH BUILD. The guard opened ~170
-                                // lines above used to live until the whole
-                                // `if chunked_on` block closed - about 2,030
-                                // lines - so `cpu.patch_build` was also
-                                // charging the patch draw batching, the
-                                // near-tree loader, the glTF parses, the
-                                // procedural fallbacks, the cluster-sprite
-                                // bake, grass, the far-tree card sheet and the
-                                // water shell.
-                                //
-                                // That mis-scoping cost a whole investigation
-                                // (2026-08-03): a ONE-TIME ~2.4 s world-entry
-                                // bake landed in a per-frame stage, the frame
-                                // EMA smeared it over ~20 frames, and it read
-                                // as a 35 ms per-frame REGRESSION against a
-                                // baseline that had none. A release was held
-                                // for it. The measurement was of a stage that
-                                // was not what its name said.
-                                //
-                                // Now the name is true: build + eviction only.
-                                // Everything after this point is charged to
-                                // `cpu.chunk_veg_and_draws`, which is still a
-                                // bucket rather than an attribution - the
-                                // follow-up is to split it into
-                                // cpu.patch_draws / cpu.near_trees /
-                                // cpu.veg_bake / cpu.far_cards /
-                                // cpu.water_shell. Note `cpu.near_tree_harvest`
-                                // and `cpu.grass_harvest` nest inside it and
-                                // are therefore double-counted; that goes away
-                                // with the same split.
+                                // END OF PATCH BUILD - the guard stops HERE so
+                                // `cpu.patch_build` means what its name says.
+                                // It used to run to the end of the whole
+                                // `if chunked_on` block (~2,030 lines): BUG-066.
+                                // The rest is `cpu.chunk_veg_and_draws`, still
+                                // a bucket - split it into patch_draws /
+                                // near_trees / veg_bake / far_cards /
+                                // water_shell, which also ends the double-count
+                                // of the harvest stages nested inside it.
                                 drop(_cost_patch_build);
                                 let _cost_chunk_rest = crate::renderer::frame_costs::stage(
                                     "cpu.chunk_veg_and_draws",
@@ -9622,33 +9601,19 @@ mod native_app {
                                             .parse_gltf_mesh_with_texture(&rel);
                                         tree_parse_ms +=
                                             t_parse.elapsed().as_secs_f32() * 1000.0;
-                                        // SCAN-STRETCH GUARD (v0.1101). The draw
-                                        // site scales a photoscan by
-                                        // species_height / model_height, applied
-                                        // uniformly to EVERY triangle. The fir and
-                                        // pine assets are scans of ~1 m SAPLINGS
-                                        // standing in for 22 m and 16 m mature
-                                        // trees, so that factor ran 17-35x and
-                                        // inflated each 3-7 cm needle spray into a
-                                        // 0.5-1.9 m sheet - the operator's "large
-                                        // pale blades lying in the grass".
-                                        //
-                                        // A sapling is not a small mature tree:
-                                        // its branching architecture, taper and
-                                        // needle density are all different, so no
-                                        // scale factor makes one into the other.
-                                        // Past a modest stretch the honest move is
-                                        // to GROW the species instead, which the
-                                        // procedural conifer already does at the
-                                        // right height.
-                                        //
-                                        // Rejection reuses the existing missing-
-                                        // asset path (sentinel + procedural twin,
-                                        // BUG-058) rather than adding a second
-                                        // fallback: one road, already tested, and
-                                        // it is the road the SHIPPED build has
-                                        // always taken - which is why this only
-                                        // ever showed in dev checkouts.
+                                        // SCAN-STRETCH GUARD (v0.1101, BUG-063).
+                                        // The draw site scales a photoscan by
+                                        // species_height / model_height applied
+                                        // uniformly to EVERY triangle, so a scan
+                                        // of a sapling standing in for a mature
+                                        // tree inflates its leaves to match. No
+                                        // scale factor turns a sapling into a
+                                        // mature tree - the architecture differs,
+                                        // not just the size - so past a modest
+                                        // stretch we GROW the species instead.
+                                        // Rejection reuses the missing-asset path
+                                        // (sentinel + procedural twin, BUG-058)
+                                        // rather than adding a second fallback.
                                         if let Ok((cpu, _)) = &parsed {
                                             let mut lo = f32::MAX;
                                             let mut hi = f32::MIN;

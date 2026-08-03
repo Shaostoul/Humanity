@@ -35,6 +35,32 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1103 (lib.rs, no budget change): the gate FIRED at 18_333 (+33) and
+///   was paid back honestly rather than raised. Two ~30-line INCIDENT
+///   NARRATIVES had accreted in comments (the BUG-063 sapling-scan story and
+///   the BUG-066 mis-scoped-timer story), both already written up properly in
+///   docs/BUGS.md. Source comments should say what the code does and why it is
+///   shaped that way, and point at the bug log for the story; duplicating the
+///   narrative is exactly the accretion this ratchet exists to catch. Trimmed
+///   to pointers: 18_333 -> 18_298.
+///   THE REAL EXTRACTION IS STILL OWED, and this is the second increment in a
+///   row to nibble instead: the NEAR-TREE MODEL LOADER (the glTF parse, the
+///   scan-stretch guard, the procedural fallback and their material
+///   registration, ~250 lines around the `for name in &tree_names` loop) is a
+///   coherent cluster with one job. The next increment that wants room in
+///   lib.rs should move it to `src/terrain/near_tree_models.rs` rather than
+///   find another comment to shorten.
+/// - v0.1103: the extraction the v0.1100 note below ASKED FOR landed, and the
+///   ratchet is why. A card-form increment took tree_mesh.rs to 6_531 (+81 over
+///   budget), and instead of raising the number the author moved the 678 lines
+///   of species architecture - `limb` and the four crown builders - into
+///   `renderer/tree_species.rs`, leaving tree_mesh.rs as the geometry kernel
+///   (tubes, rings, junctions, welds, flare) plus its gates. 6_531 -> 6_343,
+///   back under budget with the new content still in. The new file joins at
+///   750 (measured 721 + slack). Note it is a `#[path]` CHILD module of
+///   tree_mesh, not a sibling: a sibling would have needed `pub(crate)` on
+///   dozens of kernel internals, where a child sees them through one
+///   `use super::*` - and that is also why `renderer/mod.rs` was untouched.
 /// - v0.1100: new watch-list entry `renderer/tree_mesh.rs` at 6_450. It is
 ///   6_267 lines today and was NOT on the list while the whole junction saga
 ///   (v0.1096-v0.1100: surface roots, collars, the pipe model, directional
@@ -98,6 +124,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/renderer/mod.rs", 3_883),
     ("src/renderer/materials.rs", 500),
     ("src/renderer/tree_mesh.rs", 6_450),
+    ("src/renderer/tree_species.rs", 750),
 ];
 
 #[test]

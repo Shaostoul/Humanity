@@ -1487,9 +1487,13 @@ fn build_at_density(
     let mut b = TreeParts::new(def, h);
     let mut rng = Rng::new(seed as u64 ^ 0x7ee_5eed);
     match def.form.as_str() {
-        "conifer" => conifer(&mut b, def, h, density, &mut rng),
-        "umbrella" => umbrella(&mut b, def, h, density, &mut rng),
-        "palm" => palm(&mut b, def, h, density, &mut rng),
+        // EVERY form records its twigs (v0.1102). Through v0.1101 only
+        // `broadleaf` was handed this vector, so the other three forms emitted
+        // no cluster cards for any species, ever - see
+        // `every_form_emits_cards_when_given_a_cluster_block`.
+        "conifer" => conifer(&mut b, def, h, density, &mut rng, twigs),
+        "umbrella" => umbrella(&mut b, def, h, density, &mut rng, twigs),
+        "palm" => palm(&mut b, def, h, density, &mut rng, twigs),
         // Unknown forms fall back to broadleaf so a new data row always renders.
         _ => broadleaf(&mut b, def, h, density, &mut rng, twigs),
     }
@@ -2378,11 +2382,67 @@ fn emit_cluster_cards(
 /// builders so a cluster sprite is baked from exactly the leaves the tree
 /// grows - a sprite drawn at a different leaf scale from the near geometry
 /// would pop at the handoff.
+///
+/// ── ONE SPRIG MUST FIT ONE CARD (v0.1102) ────────────────────────────────
+///
+/// A carded species' foliage facts are not free: `cluster_sprite_geometry`
+/// bakes a BALL OF THESE SPRIGS into the sprite a card samples, and the baker
+/// frames on the geometry, so a sprig bigger than the card is not clipped - it
+/// is SHRUNK, and every needle on the tree silently renders at the wrong scale.
+///
+/// THE MEASUREMENT, all from this file's `dump_crown_png` on 2026-08-03. Write
+/// `reach = sprig_span + leaf`: what one sprig adds beyond its own root. The
+/// baked sprite's extent against the card the LAI fit settles on:
+///
+///   species  reach   card    reach/card   baked sprite   sprite/card
+///   oak      0.495   1.72        0.29        1.78 m          1.04
+///   sakura   0.225   0.67        0.34        0.68 m          1.02
+///   birch    0.385   1.07        0.36        1.11 m          1.04
+///   acacia   0.576   1.06        0.54        1.41 m          1.33
+///   pine     0.500   0.75        0.67        1.13 m          1.51  REJECTED
+///   fir      0.660   1.02        0.65        1.57 m          1.54  REJECTED
+///   palm     3.264   0.67        4.87        5.73 m          8.55  REJECTED
+///
+/// It is not linear: past `reach/card ~ 0.4` the sprig scatter radius hits its
+/// own floor and the extent runs away with `reach` instead of with the card.
+/// The three shipped broadleaves all sit at 0.29-0.36 and bake within 4% of
+/// their card, so that is the band to design into; `cluster_sprite_geometry_
+/// fits_its_card` rejects at 1.5x, which `reach/card >= 0.65` reaches.
+///
+/// So a CARDED conifer and umbrella draw a different element from an uncarded
+/// one, exactly as `limb` already draws a different NUMBER of sprigs for a
+/// carded species (3 against 16): once cards carry the canopy, the blade layer
+/// is close-range parallax detail and its unit is the real botanical one.
+///   conifer  a 0.10-0.15 m BRANCHLET (a fir's last-year shoot) rather than a
+///            0.30-0.50 m needle SPRAY -> reach 0.40 m on a 22 m fir against a
+///            ~1.02 m card, i.e. 0.39, just outside the broadleaf band.
+///            Uncarded it KEEPS the spray, because with no cards that layer is
+///            the canopy and its area per triangle goes as element length
+///            squared - shrinking it 3.7x with nothing to replace it would thin
+///            the crown 13-fold.
+///   umbrella the element (a 0.10-0.20 m bipinnate PINNA) was always right; the
+///            SPRIG was not, at 14 pinnae strung over a 1.0 m run. 4 -> reach
+///            0.43 m against a ~1.06 m card. Uncarded it keeps 14, which is
+///            what its unspent triangle budget bought (see the acacia note in
+///            `data/vegetation/trees.ron`, whose second blocker this closes).
+///
+/// NOTE FOR THE NEXT PERSON: `per_sprig` is NOT the knob that compensates for a
+/// smaller element. It multiplies `sprig_span` directly, so raising it walks
+/// straight back into the rejected rows above (8 per sprig was tried and baked
+/// fir at 1.54x its card). What buys back the lost leaf area is the number of
+/// SPRIGS in the sprite (`leaf.sprite_elements`, data) and the number of cards,
+/// neither of which touches the sprig's own size.
 fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
+    // Cards change what the blade layer IS, so they change what it draws.
+    let carded = def.clusters.is_some();
     match def.form.as_str() {
         "conifer" => Foliage {
             clump: h * 0.050,
-            leaf: (h * 0.022).clamp(0.30, 0.50),
+            leaf: if carded {
+                (h * 0.0060).clamp(0.10, 0.15)
+            } else {
+                (h * 0.022).clamp(0.30, 0.50)
+            },
             wid: 0.40,
             per_sprig: 4,
             density,
@@ -2391,7 +2451,7 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
             clump: h * 0.080,
             leaf: (h * 0.016).clamp(0.10, 0.20),
             wid: 0.58,
-            per_sprig: 14,
+            per_sprig: if carded { 4 } else { 14 },
             density,
         },
         // A palm builds its foliage inside `pinnate_frond` rather than through
@@ -3335,599 +3395,14 @@ fn fork_child_radius(parent_tip_r: f32, siblings: u32) -> f32 {
     parent_tip_r * (siblings.max(1) as f32).powf(-1.0 / FORK_AREA_EXP)
 }
 
-/// Recursive limb. Emits a tapered segment, then either children or foliage.
-///
-/// `parent` describes the surface this limb grows out of; the limb's spine
-/// starts ON that surface (`surface_root`) and `TreeParts::weld_child` skins
-/// the collar that closes the join. Nothing is buried - see the block comment
-/// above `FORK_GATE_RINGS` for why the burial had to go.
-#[allow(clippy::too_many_arguments)]
-fn limb(
-    b: &mut TreeParts,
-    def: &TreeDef,
-    parent: Junction,
-    dir: [f32; 3],
-    len: f32,
-    r0: f32,
-    depth: u32,
-    max_depth: u32,
-    fol: Foliage,
-    rng: &mut Rng,
-    twigs: &mut Vec<Twig>,
-) {
-    if b.tri_count() > MAX_TRIS || len < 0.05 {
-        return;
-    }
-    // Taper toward a REAL twig, not by a flat ratio - see `limb_tip_radius`.
-    let r1 = limb_tip_radius(r0, depth, max_depth);
-    // A limb is a CURVED SPINE, not one straight frustum (v0.1067). Real
-    // branches bow: they leave the parent at an angle, then gravity pulls the
-    // far end down while the tip reaches back toward the light. Drawing that as
-    // a single cone gave every junction a hard kink and every branch a dead
-    // straight silhouette, which is most of what read as "early 2000s".
-    let segs = segments_for(depth);
-    let sides = sides_for(depth);
-    let shape = LimbShape::new(parent, dir, len, r0, r1, sides);
-    // The join: spine start ON the parent's surface, collar skinned across.
-    // `reps` is this limb's ONE bark repeat count, opened by the weld and used
-    // by every segment below, root to tip (v0.1100).
-    let (start, reps) = b.weld_child(parent, shape, def.trunk_color);
-    let mut p = start;
-    let mut d = dir;
-    // Taper measured from the root ring, which is now the first VISIBLE ring:
-    // with nothing buried the two are the same thing.
-    let taper = |x: f32| (x / len.max(1e-4)).clamp(0.0, 1.0);
-    let mut tube_far = start;
-    let mut tube_dir = d;
-    let mut tube_r = r0;
-    // The flare at the LAST ring drawn, so the end cap closes exactly the
-    // ellipse the tube ended on (v0.1100).
-    let mut tube_flare = shape.at(0.0);
-    // Ring stations: the uniform ones the bow is sampled at, PLUS rings packed
-    // into the base flare so the profile is drawn rather than stepped over.
-    let stations = ring_stations(len, r0, segs, b.flare_min_r);
-    b.flare_tris += (stations.len() - 1).saturating_sub(segs as usize) * sides as usize * 2;
-    let nominal = len / segs as f32;
-    for w in 0..stations.len() - 1 {
-        let (xa, xb) = (stations[w], stations[w + 1]);
-        let seg_len = xb - xa;
-        let to = add(p, d, seg_len);
-        // PLAIN taper radii; the directional flare rides on top of them per
-        // vertex inside `bark_tube`, at the PROFILE stations `xa`/`xb` rather
-        // than at the overshot geometry (v0.1100).
-        let (ra, rb) = (shape.base_radius_at(xa), shape.base_radius_at(xb));
-        // Overshoot the joint by a fraction of the radius so the kink between
-        // two spine segments cannot open a slit on the outside of the bow. The
-        // spine itself still advances by exactly `seg_len`.
-        //
-        // CAPPED AT HALF THE SEGMENT (v0.1099): the flare's rings are a
-        // fraction of a radius apart, and a fixed 0.7-radius overshoot there
-        // would draw each little frustum five times past its own end - which
-        // stretches the flare's radius fall over the wrong distance and lands
-        // the next ring inside the previous tube at a different width. Half a
-        // segment still overlaps far more than the sub-degree kink needs.
-        // v runs from the root ring, so a bowing limb's bark is one continuous
-        // run across its spine joints (v0.1089).
-        tube_far = add(p, d, seg_len + (rb * 0.7).min(seg_len * 0.5));
-        tube_dir = d;
-        tube_r = rb;
-        tube_flare = shape.at(xb);
-        let seg = BarkSeg { reps, v0_m: xa, near: shape.at(xa), far: shape.at(xb) };
-        b.bark_tube(p, tube_far, ra, rb, sides, def.trunk_color, seg);
-        // The gate reads the leading rings of every limb straight off the
-        // geometry that was drawn, so record them here and nowhere else.
-        if w == 0 {
-            b.note_fork_ring(p, d, ra, sides, shape.at(xa));
-        }
-        b.note_fork_ring(tube_far, d, rb, sides, shape.at(xb));
-        p = to;
-        // Bow: droop grows toward the tip, and the trunk stays straighter than
-        // the twigs (a bole that sagged would read as a sick tree). Scaled by
-        // the step's share of a nominal segment so that adding flare rings
-        // near the root cannot bend the limb any further than it used to.
-        let droop = if depth == 0 { 0.04 } else { 0.10 } * taper(xb) * (seg_len / nominal);
-        d = norm([d[0], d[1] - droop, d[2]]);
-    }
-    let to = p;
+/// The crown builders, one per `form`: their own file since v0.1102 (see the
+/// module header there). `#[path]` keeps them a CHILD module of this one, so
+/// they reach the kernel's private geometry through `use super::*` without
+/// widening any of it.
+#[path = "tree_species.rs"]
+mod tree_species;
+use tree_species::{broadleaf, conifer, palm, umbrella};
 
-    // Foliage on the outer TWO generations, not just the tips: one generation
-    // of leaf clumps leaves a crown you can see straight through. And on ANY
-    // limb already tapered to a shoot, whatever generation it happens to be -
-    // see `FOLIAGE_TIP_R_M` for why a generation number stopped being a usable
-    // rule once laterals started carrying their own `max_depth`.
-    if depth + 1 >= max_depth || r1 <= FOLIAGE_TIP_R_M {
-        let blossom = def.blossom_frac > 0.0 && rng.range(0.0, 1.0) < def.blossom_frac;
-        let color = if blossom { def.blossom_color } else { def.leaf_color };
-        let tip = depth >= max_depth;
-        let at = if tip { to } else { add(start, dir, len * 0.72) };
-        let f = if tip { fol } else { fol.with_clump(0.78) };
-        // The twig sleeve cluster cards ride on (v0.1088). Recorded here, not
-        // re-derived later, because "the outer two generations" is exactly the
-        // set that carries foliage and the two must never disagree. `from` is
-        // the limb's ROOT RING (v0.1098) - the sleeve covers drawn wood, and
-        // drawn wood now begins on the parent's surface rather than inside it.
-        twigs.push(Twig { from: start, dir, end: to, len, tip, tube_end: tube_far, tip_r: tube_r });
-        // A clustered species keeps a much thinner blade layer: the cards are
-        // the canopy now, and blades only earn their triangles inside ~2 m.
-        // v0.1090 cuts it again, and pulls it IN: 6% of sakura's blade faces
-        // were standing proud of the card mass on their own twig, which at
-        // range is a fringe of raw triangles round the silhouette of every
-        // blossom cluster.
-        let (sprigs, f) = match def.clusters.as_ref() {
-            Some(cd) => (if tip { 3 } else { 2 }, f.with_clump(near_blade_clump_k(cd, f))),
-            None => (if tip { 16 } else { 8 }, f),
-        };
-        leaf_cluster(&mut b.foliage, at, dir, f, color, sprigs, rng);
-        if tip {
-            return;
-        }
-    }
-
-    // Children, fanned by the golden angle so they do not stack.
-    //
-    // A 3-WAY FORK ONLY AT THE LATERAL'S OWN BASE (v0.1096). Real branch
-    // architecture is overwhelmingly bifurcating; a 45% chance of three
-    // children at EVERY generation, which is what this was, multiplies the
-    // twig count by 2.45 per level instead of 2. That was affordable while a
-    // broadleaf had three limbs planned to a fixed depth of 3; it is not once
-    // the crown has six scaffold limbs shed up a leader, because the twig
-    // count is what the cluster-card planner spends and overrunning
-    // CARD_TRI_BUDGET makes the stretch backstop thin every sleeve to one
-    // station. Keeping the trefoil at the base is where it reads anyway - the
-    // first fork of a big limb is the one you see from the ground.
-    let coin = rng.range(0.0, 1.0);
-    let n = if depth == 0 && coin < 0.45 { 3 } else { 2 };
-    // This limb is about to become a fork, so close its open end ONCE - not
-    // once per child, which would stack coplanar discs and z-fight. The hole
-    // this closes is the same hole the v0.1086 burial used to plug from the
-    // inside.
-    b.bark_cap(tube_far, tube_dir, tube_r, sides, def.trunk_color, tube_flare);
-    // The surface every child of this limb welds onto: the far end of the last
-    // drawn ring, facing the way that ring faced. Its radius is the PLAIN
-    // taper, which is what the drawn ring is to within the flare's residual -
-    // under 1% of the shaft this far out, because a limb is always many shaft
-    // radii long (`FLARE_SPAN` is 3) - and the plain radius is the one a child
-    // can project its collar feet onto as a cylinder.
-    let fork = Junction { axis: tube_far, up: tube_dir, r: tube_r, tip: true };
-    // WOOD IS CONSERVED ACROSS A FORK (v0.1099), not duplicated. Through
-    // v0.1098 each child started at exactly `r1`, so a two-way fork carried
-    // TWICE the parent's cross-sectional area out of it and a three-way three
-    // times - which is the "gets very wide shortly after" half of the operator's
-    // report, and it compounds every generation. The pipe model splits it:
-    // 0.74 of `r1` for two children, 0.62 for three. The directional flare then
-    // brings the crotch side of the WELD back to 0.93 (two-way) or 0.78
-    // (three-way) of the parent's tip, so the fork reads as continuous wood
-    // that never stands proud of what feeds it.
-    let child_r0 = fork_child_radius(r1, n);
-    for k in 0..n {
-        let phase = k as f32 * 2.399_963 + rng.range(-0.5, 0.5) + depth as f32;
-        let spread = rng.range(22.0, 42.0) - if depth == 0 { 6.0 } else { 0.0 };
-        let d = tilt(dir, spread, phase);
-        // Phototropism: every generation bends back toward vertical, which is
-        // what rounds a crown instead of leaving it a flat fan.
-        let d = norm([d[0], d[1] + 0.22, d[2]]);
-        // Twigs shorten faster than limbs, so foliage clumps sit close together
-        // instead of leaving long bare runs between them.
-        let child_len = len * if depth + 2 >= max_depth { rng.range(0.42, 0.56) } else { rng.range(0.62, 0.78) };
-        limb(b, def, fork, d, child_len, child_r0, depth + 1, max_depth, fol.with_clump(0.86), rng, twigs);
-    }
-}
-
-/// A DECURRENT BROADLEAF: a clear bole, then a continuing leader that sheds
-/// laterals at stations up through the crown zone (v0.1096).
-///
-/// WHAT THIS REPLACES AND WHY. Through v0.1095 this function put a short bole
-/// down and then spawned all three primaries from ONE point - the bole top -
-/// with every limb planned to the same `max_depth = 3` and foliage emitted only
-/// on generations 2 and 3. Traced at species means for an 8 m sakura that put
-/// every foliage-bearing twig end between y 6.3 and 6.8 m, so the whole crown
-/// occupied roughly y 5.6-7.6: a live crown ratio of 0.25 against a 7 m spread,
-/// aspect 3.5:1. On screen that is a mushroom cap with a STRAIGHT-CUT
-/// underside, every cap in the stand bottoms out at the same world height, and
-/// below that line the frame is bare trunks you can see the horizon through for
-/// hundreds of metres. It reads as a planted orchard, not a forest.
-///
-/// REAL BEHAVIOUR. Live crown ratio (crown length over total height) is
-/// 0.35-0.60 for forest-grown dominant and codominant temperate broadleaves
-/// (forestry management targets >= 0.40 for oak), and an OPEN-GROWN
-/// Prunus x yedoensis carries foliage from a 1.5-2.5 m crown base to the apex,
-/// i.e. 0.7-0.8. That depth comes from the vertical distribution of branch
-/// ORIGINS along the stem - laterals shed over 1-3 m of it, the older and lower
-/// ones longer and inserted closer to horizontal - not from one whorl. It is
-/// also why a real crown's lower boundary is a ragged lobed sheath rather than
-/// a horizontal cut, and why you cannot see through a cherry orchard at eye
-/// level.
-///
-/// SO: one leader to ~0.85 H, `LATERALS` shed at stations spanning the crown
-/// zone, length falling linearly with station height, insertion angle rising
-/// toward vertical with height, and one terminal limb continuing the leader.
-/// Each lateral gets its OWN generation count from its OWN length
-/// (`generations_for`), which is what stops a 1.2 m upper lateral costing the
-/// same subtree as a 3 m lower one. Foliage is keyed on shoot radius rather
-/// than on a generation number (`FOLIAGE_TIP_R_M`), because with per-lateral
-/// depths a generation number no longer describes anything physical.
-///
-/// The LAI fit needs no change: `emit_cluster_cards` solves the card side
-/// against `crown_of`'s envelope, so a deeper crown simply gets more cards at
-/// the same target.
-fn broadleaf(
-    b: &mut TreeParts,
-    def: &TreeDef,
-    h: f32,
-    density: f32,
-    rng: &mut Rng,
-    twigs: &mut Vec<Twig>,
-) {
-    // Crown base: where the lowest lateral leaves the stem. Cherry and maple
-    // branch low; a forest oak higher. Kept at the low end of the v0.1095 band
-    // because live crown ratio is measured from HERE.
-    let bole_frac = rng.range(0.24, 0.32);
-    // Where the leader stops and hands over to its terminal limb. A decurrent
-    // broadleaf loses apical dominance in the crown, so the leader thins hard
-    // and the topmost laterals close over it.
-    let leader_frac = rng.range(0.82, 0.88);
-    let r_base = h * 0.030;
-    let lean = norm([rng.range(-0.06, 0.06), 1.0, rng.range(-0.06, 0.06)]);
-    let stem_len = h * leader_frac;
-    // r_top_frac 0.26: chosen so the stem still reads 0.74 of its base radius
-    // at the OLD bole top (~0.36 of this stem's length), i.e. the part of the
-    // trunk you stand next to is unchanged and only the new upper run is new.
-    // 10 segments rather than 6 because the stem is about three times longer.
-    let (stem, stem_end) = trunk(b, def, [0.0, 0.0, 0.0], lean, stem_len, r_base, 0.26, h * 0.09, 10);
-    // Clumps stay at ~10% of tree height (the clump SHAPE is unchanged), but a
-    // clump is filled with real leaves instead of being one. Leaf length rides
-    // on the species height so an oak leaf is bigger than a maple leaf without
-    // inventing a data field, and it sits at the TOP of the real range for
-    // each: an oak leaf is 0.10-0.22 m and a big-leaf oak more, so 0.20 m is
-    // honest, and every square centimetre of honest leaf is canopy coverage
-    // that costs no extra triangle. The 0.09 m floor is where cherry and maple
-    // land, and they are genuinely that small.
-    let fol = foliage_of(def, h, density);
-
-    // 6 shed laterals plus the leader's own terminal limb = 7 scaffold limbs,
-    // against the 3 of v0.1095. Not more: the cost of a crown is its TWIG
-    // count (that is what the card planner spends), and 7 limbs at the depths
-    // `generations_for` picks lands ~30% above the v0.1095 twig count, which
-    // the card budget absorbs without the stretch backstop biting.
-    const LATERALS: u32 = 6;
-    // Crown zone as a fraction OF THE STEM (not of the tree): the lowest
-    // lateral sits at the crown base, the highest just under the leader top.
-    let zone_lo = (bole_frac / leader_frac).clamp(0.05, 0.9);
-    let crown_len = h - h * bole_frac;
-    for k in 0..=LATERALS {
-        // u = 0 at the crown base, 1 at the leader top.
-        let u = k as f32 / LATERALS as f32;
-        let terminal = k == LATERALS;
-        let sf = zone_lo + (1.0 - zone_lo) * u;
-        let s = stem_at(&stem, sf);
-        // LENGTH falls linearly with station height: the oldest, lowest
-        // lateral is the longest, which is what a decurrent crown looks like
-        // and what makes its lower boundary lobed instead of level. The
-        // coefficient is LOWER than the v0.1095 primaries' 0.40-0.52 on
-        // purpose: the crown zone is three times as tall now, so the crown
-        // fills by being deep rather than by every limb reaching further. At
-        // 0.44-0.56 the measured spread came out 5.24 m of RADIUS on an 8 m
-        // sakura - a 10.5 m crown, back to a 2:1 plate, just a bigger one.
-        let len = crown_len * rng.range(0.34, 0.44) * (1.0 - 0.55 * u);
-        // INSERTION ANGLE rises toward vertical with height: wide at the crown
-        // base, a steep fork at the top.
-        //
-        // NOT as wide as the anatomy alone would suggest, and the reason is
-        // the bare inner run. Foliage rides on the outer generations, so a
-        // lateral's FIRST generation is bare wood by construction - about 1.5-2
-        // m of it. Through v0.1095 that run was hidden because all three
-        // primaries pointed UP at 26-46 deg and sat inside the crown mass; the
-        // first cut of this function put laterals out at 52-62 deg and the
-        // probe capture came back with long bare arms silhouetted against sky
-        // on every tree. 44-56 keeps the crown decurrent while tucking the bare
-        // run back inside the foliage shell of its neighbours.
-        let spread_deg = if terminal { rng.range(8.0, 18.0) } else { rng.range(44.0, 56.0) - 26.0 * u };
-        // Golden angle between successive stations - real phyllotaxis, and it
-        // stops two laterals stacking in one azimuth.
-        let phase = k as f32 * 2.399_963 + rng.range(-0.35, 0.35);
-        let d = tilt(s.dir, spread_deg, phase);
-        // Phototropism, same as inside `limb`: every lateral bends back toward
-        // the light, which rounds the crown instead of leaving a flat fan.
-        let d = norm([d[0], d[1] + 0.10, d[2]]);
-        // A lateral is thinner than the stem it leaves; the terminal limb
-        // inherits the leader's tip radius outright.
-        let r0 = if terminal { s.r * 0.92 } else { s.r * rng.range(0.52, 0.68) };
-        let llen = len.max(0.3);
-        // WHERE THE ROOT RING GOES (v0.1098). A shed lateral leaves the FLANK
-        // of a stem that keeps going, so its junction is a side junction and
-        // its spine starts on the bark at that height. The terminal limb takes
-        // over from the leader, so its junction is the leader's END PLANE - and
-        // that plane gets a real cap rather than being plugged by burying the
-        // limb through it. `stem_end` is the DRAWN end, past the last spine
-        // point by the joint overshoot.
-        let j = if terminal {
-            Junction { axis: stem_end, up: s.dir, r: s.r, tip: true }
-        } else {
-            Junction { axis: s.p, up: s.dir, r: s.r, tip: false }
-        };
-        if terminal {
-            // The stem has no directional flare (its root flare is radial, and
-            // it has decayed to nothing this far up), so the cap is a circle.
-            b.bark_cap(stem_end, s.dir, s.r, 8, def.trunk_color, None);
-        }
-        limb(b, def, j, d, llen, r0, 0, generations_for(llen), fol, rng, twigs);
-    }
-}
-
-fn conifer(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
-    // A single straight leader with whorls of short, steeply drooping branches
-    // that shorten toward the top: the classic conical silhouette.
-    let r_base = h * 0.022;
-    let top = [0.0, h, 0.0];
-    // Leader radius at height fraction `f`, so a whorl branch can size itself
-    // against the trunk it leaves instead of against the trunk BASE. With the
-    // old flat `r_base * 0.22`, the topmost whorl's root ring (0.22 r_base) was
-    // FATTER than the leader there (0.194 r_base) and stuck out through it.
-    let leader_r = |f: f32| r_base * (1.0 + (0.16 - 1.0) * f);
-    // The leader and its apex cone are ONE limb, so they share one bark repeat
-    // count taken from the butt (v0.1100) - the apex used to round to its own
-    // and step the plate scale right where the two meet.
-    let leader_reps = b.open_bark_run(r_base);
-    b.bark_tube(
-        [0.0, 0.0, 0.0],
-        top,
-        r_base,
-        r_base * 0.16,
-        8,
-        def.trunk_color,
-        BarkSeg { reps: leader_reps, v0_m: 0.0, near: None, far: None },
-    );
-    // Close the leader's open apex ring with a short cone (16 triangles). It is
-    // the one hole on a conifer you look straight down into from the air. Its
-    // bark v continues from the leader's top so the pattern does not restart.
-    b.bark_tube(
-        top,
-        [0.0, h + h * 0.012, 0.0],
-        r_base * 0.16,
-        0.0,
-        8,
-        def.trunk_color,
-        BarkSeg { reps: leader_reps, v0_m: h, near: None, far: None },
-    );
-    let whorls = 9;
-    // A conifer's drawn element is a NEEDLE SPRAY, not a single needle: one
-    // 30 mm needle would be far below a pixel and there is no budget for the
-    // ~200k of them a real fir carries. 0.30-0.50 m of narrow strap is the
-    // honest unit, and it is 3x smaller than the 1.2 m kite it replaces.
-    let fol = foliage_of(def, h, density);
-    for w in 0..whorls {
-        let f = 0.22 + 0.74 * (w as f32 / (whorls - 1) as f32);
-        let y = h * f;
-        let lr = leader_r(f);
-        // Branch length tapers linearly to the apex.
-        let blen = h * 0.30 * (1.0 - f) + h * 0.03;
-        let per = 5;
-        for k in 0..per {
-            let phase = (w * per + k) as f32 * 2.399_963;
-            let d = tilt([0.0, 1.0, 0.0], rng.range(74.0, 96.0), phase);
-            let d = norm([d[0], d[1] - 0.30, d[2]]);
-            // Rooted ON THE BARK of the leader, not on its axis (v0.1098). The
-            // old axis rooting never poked out the back - a whorl branch is
-            // thin and nearly perpendicular - but it ran a quarter-metre of
-            // wood through the inside of the trunk on every one of the 45
-            // branches, and the collar closes the join without it.
-            let j = Junction { axis: [0.0, y, 0.0], up: [0.0, 1.0, 0.0], r: lr, tip: false };
-            // One flared run (v0.1099): a whorl branch leaves a fir's leader
-            // with the same swollen collar every other junction has. The
-            // whorl's radius fractions are left alone - a conifer sheds ~45
-            // branches off ONE continuous leader rather than forking, so the
-            // pipe model has nothing to say here and 0.42 of the local leader
-            // is already a measured-looking stub.
-            let (root, tip) =
-                b.flared_run(j, LimbShape::new(j, d, blen, lr * 0.42, lr * 0.14, 4), def.trunk_color);
-            leaf_cluster(&mut b.foliage, tip, d, fol, def.leaf_color, 10, rng);
-            // A second clump midway keeps the branch from reading as a bare stick.
-            let mid = add(root, d, blen * 0.55);
-            leaf_cluster(&mut b.foliage, mid, d, fol.with_clump(0.8), def.leaf_color, 7, rng);
-        }
-    }
-}
-
-fn umbrella(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
-    // Acacia: a tall bare bole, then limbs that flatten hard into a wide,
-    // level crown. The giveaway is that the crown is WIDER than the tree is
-    // tall and its underside is flat.
-    let bole = h * rng.range(0.52, 0.62);
-    let r_base = h * 0.034;
-    let top = [0.0, bole, 0.0];
-    let bole_reps = b.open_bark_run(r_base);
-    b.bark_tube(
-        [0.0, 0.0, 0.0],
-        top,
-        r_base,
-        r_base * 0.66,
-        8,
-        def.trunk_color,
-        BarkSeg { reps: bole_reps, v0_m: 0.0, near: None, far: None },
-    );
-    let n = 5;
-    // An acacia leaf is bipinnate: what reads at any real distance is a pinna,
-    // a 0.10-0.18 m feather of leaflets, not a metre-wide blade. Acacia was the
-    // most under-spent form in the tree budget (13% of MAX_TRIS), so it can
-    // afford by far the densest sprigs, which is also what its flat crown wants.
-    let fol = foliage_of(def, h, density);
-    // The bole ends at `top` and every primary forks off that plane, so close
-    // it once (v0.1098). Through v0.1097 the hole was plugged by burying the
-    // primaries 1.4 radii back down the bole - which, at the 58-74 deg
-    // insertion an acacia uses, put the buried ring a full radius sideways and
-    // straight out through the far side of the trunk.
-    let bole_r = r_base * 0.66;
-    b.bark_cap(top, [0.0, 1.0, 0.0], bole_r, 8, def.trunk_color, None);
-    let bole = Junction { axis: top, up: [0.0, 1.0, 0.0], r: bole_r, tip: true };
-    // WOOD IS CONSERVED ACROSS THIS FORK (v0.1099), and this is the form where
-    // getting it wrong was loudest - the operator's field report is an acacia.
-    //
-    // Through v0.1098 each of the FIVE primaries left the bole at exactly the
-    // bole's own tip radius: five limbs each as thick as the trunk they came
-    // out of, i.e. five times the cross-sectional area of the wood feeding
-    // them. On a 9 m acacia that is a 0.40 m bole splitting into five 0.40 m
-    // limbs, and no flare, collar or poly count can make that read as a tree -
-    // it reads as a pipe manifold, which is exactly "gets very wide shortly
-    // after". The pipe model gives 5^(-1/2.3) = 0.50, so a primary's SHAFT is
-    // 0.20 m across where it was 0.40, and its flared weld is 0.29 m - visibly
-    // narrower than the bole it leaves, which is what a real umbrella crown
-    // looks like from underneath. The tip/base ratios of the primary (0.52) and
-    // the fan (0.35) are unchanged, so the limbs still taper as they did.
-    let primary_tip_frac = 0.52;
-    let fan_tip_frac = 0.35;
-    for k in 0..n {
-        let phase = k as f32 * 2.399_963 + rng.range(-0.3, 0.3);
-        // Steeply out, barely up.
-        let d = tilt([0.0, 1.0, 0.0], rng.range(58.0, 74.0), phase);
-        let seg = h * rng.range(0.30, 0.40);
-        let p_r0 = fork_child_radius(bole_r, n);
-        let p_r1 = p_r0 * primary_tip_frac;
-        let p_shape = LimbShape::new(bole, d, seg, p_r0, p_r1, 5);
-        let (_, mid) = b.flared_run(bole, p_shape, def.trunk_color);
-        // The crown layer: near-horizontal fans of foliage, forking off the
-        // primary's own end plane. The cap closes the primary's LAST ring, so
-        // it takes that ring's flare station (v0.1100).
-        b.bark_cap(mid, d, p_r1, 5, def.trunk_color, p_shape.at(seg));
-        let elbow = Junction { axis: mid, up: d, r: p_r1, tip: true };
-        for j in 0..3 {
-            let p2 = phase + j as f32 * 1.9;
-            let d2 = tilt([0.0, 1.0, 0.0], rng.range(80.0, 94.0), p2);
-            let flen = h * rng.range(0.16, 0.26);
-            let f_r0 = fork_child_radius(p_r1, 3);
-            let (_, tip) = b.flared_run(
-                elbow,
-                LimbShape::new(elbow, d2, flen, f_r0, f_r0 * fan_tip_frac, 4),
-                def.trunk_color,
-            );
-            leaf_cluster(&mut b.foliage, tip, [0.0, 1.0, 0.0], fol, def.leaf_color, 16, rng);
-        }
-    }
-}
-
-fn palm(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
-    // No branches at all and no secondary thickening: a palm is a single
-    // unbranched stem with a crown of fronds at the top, and an old palm is
-    // not a fatter palm. Modelled as a gently curved stack of segments.
-    let segs = 7;
-    let r_base = h * 0.028;
-    let curve = rng.range(-0.10, 0.10);
-    let mut p = [0.0f32, 0.0, 0.0];
-    let mut d = norm([curve, 1.0, rng.range(-0.08, 0.08)]);
-    // Running arc length: a palm stem is one continuous column of leaf scars,
-    // so its bark v must not restart at each of the seven segments (v0.1089).
-    let mut v = 0.0f32;
-    // A palm stem is one limb, so one repeat count from its butt (v0.1100).
-    // It barely tapers (0.70 of base at the crown), so the plates foreshorten
-    // by well under half a cell over the whole 12 m column.
-    let reps = b.open_bark_run(r_base);
-    for i in 0..segs {
-        let f = i as f32 / segs as f32;
-        let seg = h / segs as f32;
-        let to = add(p, d, seg);
-        b.bark_tube(
-            p,
-            to,
-            r_base * (1.0 - f * 0.35),
-            r_base * (1.0 - (f + 0.15) * 0.35),
-            7,
-            def.trunk_color,
-            BarkSeg { reps, v0_m: v, near: None, far: None },
-        );
-        p = to;
-        v += seg;
-        d = norm([d[0] + curve * 0.06, d[1], d[2]]);
-    }
-    // Cap the stem's open top ring; the crown hides it from the side but not
-    // from above, and a palm is a thing you fly over.
-    let cap_r = r_base * 0.65;
-    b.bark_tube(
-        p,
-        add(p, d, cap_r * 0.8),
-        cap_r,
-        0.0,
-        7,
-        def.trunk_color,
-        BarkSeg { reps, v0_m: v, near: None, far: None },
-    );
-    // Crown: long fronds arching out and down. A frond is PINNATE - a rachis
-    // carrying two ranks of strap leaflets - not one solid blade. The old code
-    // drew each of 15 fronds as a single `b.leaf`, i.e. a 4 m x 1 m sheet, and
-    // that is the giant-kite defect in its purest form. Palm was also the most
-    // under-spent form in the whole generator at 4% of MAX_TRIS.
-    let frond = h * 0.34;
-    for k in 0..28 {
-        let phase = k as f32 * 2.399_963;
-        let dd = tilt([0.0, 1.0, 0.0], rng.range(46.0, 92.0), phase);
-        let dd = norm([dd[0], dd[1] - 0.28, dd[2]]);
-        // The frond stays on the FOLIAGE mesh, deliberately: its rachis carries
-        // `leaf_color`, not `trunk_color`, so routing it onto the bark material
-        // would paint 28 green rachises per palm bark-brown and tile a
-        // trunk-scale bark texture onto a 3 cm stalk.
-        pinnate_frond(&mut b.foliage, p, dd, frond, density, def.leaf_color, rng);
-    }
-}
-
-/// One palm frond: an arching rachis with two ranks of leaflets.
-///
-/// Leaflet length is ~20% of the frond, which on a 12 m palm is 0.8 m - the
-/// real figure for a coconut pinna, and 5x smaller than the sheet it replaces.
-#[allow(clippy::too_many_arguments)]
-fn pinnate_frond(
-    b: &mut PlantMeshBuilder,
-    base: [f32; 3],
-    dir: [f32; 3],
-    len: f32,
-    density: f32,
-    color: [f32; 3],
-    rng: &mut Rng,
-) {
-    const SEGS: usize = 4;
-    let mut pts = [[0.0f32; 3]; SEGS + 1];
-    let mut q = base;
-    let mut d = dir;
-    pts[0] = q;
-    for s in 0..SEGS {
-        let seg = len / SEGS as f32;
-        let r = |f: f32| len * 0.018 * (1.0 - f) + len * 0.003;
-        let (ra, rb) = (r(s as f32 / SEGS as f32), r((s + 1) as f32 / SEGS as f32));
-        // Joint overshoot, same trick as the limb spine.
-        b.tube(q, add(q, d, seg + rb * 0.8), ra, rb, 3, color);
-        q = add(q, d, seg);
-        pts[s + 1] = q;
-        // The rachis arches over: a straight frond reads as a plank.
-        d = norm([d[0], d[1] - 0.15, d[2]]);
-    }
-    let leaflet = len * 0.20;
-    // Leaflet pairs are the palm's density knob. A real coconut frond carries
-    // ~100 leaflets a side, so there is no honest ceiling short of the budget.
-    let pairs = ((26.0 * density).round() as usize).clamp(6, 70);
-    for i in 0..pairs {
-        let f = (i as f32 + 0.5) / pairs as f32;
-        let t = f * SEGS as f32;
-        let si = (t as usize).min(SEGS - 1);
-        let ft = t - si as f32;
-        let a = pts[si];
-        let bb = pts[si + 1];
-        let node = [
-            a[0] + (bb[0] - a[0]) * ft,
-            a[1] + (bb[1] - a[1]) * ft,
-            a[2] + (bb[2] - a[2]) * ft,
-        ];
-        let axis = norm([bb[0] - a[0], bb[1] - a[1], bb[2] - a[2]]);
-        let up = if axis[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
-        let side = norm(cross(axis, up));
-        // Leaflets shorten toward the tip and sweep forward along the rachis.
-        let ll = leaflet * (1.0 - 0.45 * f) * rng.range(0.85, 1.12);
-        for rank in [-1.0f32, 1.0] {
-            let ld = norm([
-                axis[0] * 0.42 + side[0] * rank * 0.9,
-                axis[1] * 0.42 + side[1] * rank * 0.9 - 0.42,
-                axis[2] * 0.42 + side[2] * rank * 0.9,
-            ]);
-            blade(b, node, ld, ll, 0.16, color, rng);
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -4217,43 +3692,161 @@ mod tests {
         }
     }
 
-    /// Conifer needle sprays are the coarser unit (a single 30 mm needle is
-    /// below a pixel and there is no budget for 200k of them), but they still
-    /// have to be sprays, not 1.2 m blades.
-    #[test]
-    fn conifer_needle_sprays_are_sub_half_metre() {
+    /// Mean and longest drawn foliage element on one built tree, metres, plus
+    /// the face count.
+    fn drawn_element_len(t: &TreeDef, seed: u32) -> (f32, f32, usize) {
         const ORGAN_BIT_LEAF: u32 = 524_288;
+        let mut b = PlantMeshBuilder::new();
+        build_tree(&mut b, t, t.height_m, seed);
+        let (mut sum, mut n, mut longest) = (0.0f64, 0usize, 0.0f32);
+        for f in b.indices.chunks(3) {
+            let uv = b.vertices[f[0] as usize].uv;
+            if (uv[0].max(0.0).round() as u32) & ORGAN_BIT_LEAF == 0 {
+                continue;
+            }
+            let p = [
+                b.vertices[f[0] as usize].position,
+                b.vertices[f[1] as usize].position,
+                b.vertices[f[2] as usize].position,
+            ];
+            let l = face_blade_len(p);
+            sum += l as f64;
+            longest = longest.max(l);
+            n += 1;
+        }
+        (if n == 0 { 0.0 } else { (sum / n as f64) as f32 }, longest, n)
+    }
+
+    /// A conifer's drawn element is a SHOOT, and WHICH shoot depends on whether
+    /// cards carry the canopy.
+    ///
+    /// Renamed from `conifer_needle_sprays_are_sub_half_metre` in v0.1102, and
+    /// the rename is half the fix: the old name said "sub half metre", its
+    /// failure message said "the 0.3-0.5 m target band", and its assert
+    /// admitted 0.20-0.62 - three different claims, none of which mentioned
+    /// that the per-blade jitter takes a 0.484 m spray to 0.605 m. All of it
+    /// states the same numbers now, and BOTH arms of `foliage_of` are checked:
+    ///
+    ///   UNCARDED (fir and pine as they ship today): a 0.30-0.50 m NEEDLE
+    ///   SPRAY. One 30 mm needle is below a pixel and there is no budget for
+    ///   the ~200k a real fir carries, so the spray is the honest coarse unit -
+    ///   and with no cards, that layer IS the canopy.
+    ///
+    ///   CARDED: a 0.10-0.15 m BRANCHLET, the real last-year shoot, because the
+    ///   cards are the canopy then and ONE SPRIG MUST FIT ONE CARD (see the
+    ///   measurement block above `foliage_of`).
+    #[test]
+    fn conifer_needle_sprays_are_shoot_scale_carded_or_not() {
         let r = registry();
+        let lent = borrowed_cluster_def();
         let conifers: Vec<TreeDef> =
             r.trees.iter().filter(|t| t.form == "conifer").map(as_procedural).collect();
         assert!(!conifers.is_empty(), "no conifer rows to test");
-        for t in &conifers {
-            let mut b = PlantMeshBuilder::new();
-            build_tree(&mut b, t, t.height_m, shipped_seed(0));
-            let mut sum = 0.0f64;
-            let mut n = 0usize;
-            for f in b.indices.chunks(3) {
-                let uv = b.vertices[f[0] as usize].uv;
-                if (uv[0].max(0.0).round() as u32) & ORGAN_BIT_LEAF == 0 {
-                    continue;
+        for base in &conifers {
+            for carded in [false, true] {
+                let mut t = base.clone();
+                if carded {
+                    t.clusters = Some(lent.clone());
                 }
-                let p = [
-                    b.vertices[f[0] as usize].position,
-                    b.vertices[f[1] as usize].position,
-                    b.vertices[f[2] as usize].position,
-                ];
-                sum += face_blade_len(p) as f64;
-                n += 1;
+                let (mean, longest, n) = drawn_element_len(&t, shipped_seed(0));
+                // Authored 0.30-0.50 m x 1.25 jitter = 0.625 m; authored
+                // 0.10-0.15 m x 1.25 = 0.1875 m. The bands below say exactly
+                // that and nothing else.
+                let (lo, hi, max) = if carded { (0.09, 0.16, 0.19) } else { (0.28, 0.52, 0.63) };
+                let arm = if carded { "carded  " } else { "uncarded" };
+                eprintln!(
+                    "[leafscale] {:>7} conifer {arm}: {n} faces, mean {mean:.3} m, longest \
+                     {longest:.3} m (band {lo:.2}-{hi:.2} m, ceiling {max:.2} m)",
+                    t.id
+                );
+                assert!(n > 200, "{}: only {n} needle faces", t.id);
+                assert!(
+                    (lo..=hi).contains(&mean),
+                    "{} ({arm}): mean drawn element {mean:.3} m is outside the {lo:.2}-{hi:.2} m \
+                     band this arm of `foliage_of` authors",
+                    t.id
+                );
+                assert!(
+                    longest <= max,
+                    "{} ({arm}): longest drawn element {longest:.3} m over the {max:.2} m \
+                     ceiling (the authored maximum plus its 1.25x jitter)",
+                    t.id
+                );
             }
-            assert!(n > 200, "{}: only {n} needle faces", t.id);
-            let mean = (sum / n as f64) as f32;
-            eprintln!("[leafscale] {:>7} conifer: mean spray {mean:.3} m", t.id);
-            assert!(
-                (0.20..=0.62).contains(&mean),
-                "{}: mean needle spray {mean:.3} m is outside the 0.3-0.5 m target band",
-                t.id
-            );
         }
+    }
+
+    /// EVERY procedural species must DRAW the element it AUTHORS, and no
+    /// species may draw one the eye reads as a tarpaulin.
+    ///
+    /// Two failures, one gate, and neither was covered before v0.1102:
+    ///
+    ///   (a) DRAWN == AUTHORED. `foliage_of` is the single statement of what a
+    ///   species' foliage element is, and it is also what the CLUSTER SPRITE is
+    ///   baked from - so a tree that draws something else disagrees with its own
+    ///   baked card and the near-to-far handoff pops. Measured against
+    ///   `foliage_of` itself rather than a hand-written table, so the two cannot
+    ///   drift apart.
+    ///
+    ///   (b) AN ABSOLUTE CEILING, argued from angular size rather than taste.
+    ///   The near-tree path draws these from ~1 m away; at 2560 px across a
+    ///   90 deg FOV that is ~1280 px per metre, so a 1 m element is a THOUSAND
+    ///   PIXELS of one flat triangle. The largest honest element in the
+    ///   registry is a 0.91 m coconut leaflet, which is why the ceiling sits
+    ///   just above it.
+    ///
+    /// COVERAGE was the real hole: `broadleaf_leaves_are_drawn_at_real_scale`
+    /// filters to `form == "broadleaf"` and the conifer gate to `"conifer"`, so
+    /// umbrella and palm - half the forms, and one of them the species in the
+    /// operator's capture - had no element-scale gate of any kind.
+    #[test]
+    fn every_species_draws_the_foliage_element_it_authored() {
+        /// Metres; see (b) above.
+        const CEILING_M: f32 = 1.00;
+        let r = registry();
+        let mut seen = 0usize;
+        for t in r.trees.iter().map(as_procedural) {
+            for v in 0..t.variants.max(1) {
+                let (mean, longest, n) = drawn_element_len(&t, shipped_seed(v));
+                let authored = foliage_of(&t, t.height_m, 1.0).leaf;
+                assert!(n > 100, "{} v{v}: only {n} foliage faces", t.id);
+                eprintln!(
+                    "[element] {:>7} v{v} ({:>9}): authored {authored:.3} m, drawn mean \
+                     {mean:.3} m ({:.2}x), longest {longest:.3} m ({:.2}x)",
+                    t.id,
+                    t.form,
+                    mean / authored,
+                    longest / authored
+                );
+                // 0.55 at the bottom because a palm frond tapers its leaflets
+                // to 0.55 of the base length toward the tip; 1.15 at the top is
+                // the 1.25x per-blade jitter's own mean plus slack.
+                assert!(
+                    (0.55..=1.15).contains(&(mean / authored)),
+                    "{} v{v}: draws a {mean:.3} m element while `foliage_of` authors \
+                     {authored:.3} m - the tree and the cluster sprite baked for it are built \
+                     from different leaves",
+                    t.id
+                );
+                assert!(
+                    longest <= authored * 1.30,
+                    "{} v{v}: longest drawn element {longest:.3} m against an authored \
+                     {authored:.3} m (the 1.25x jitter allows {:.3} m)",
+                    t.id,
+                    authored * 1.25
+                );
+                assert!(
+                    longest <= CEILING_M,
+                    "{} v{v}: one drawn element reaches {longest:.2} m. The near-tree path draws \
+                     these from ~1 m, where that is ~{:.0} px of a single flat triangle at 2560 \
+                     wide - the deltoid-dart artifact",
+                    t.id,
+                    longest * 1280.0
+                );
+                seen += 1;
+            }
+        }
+        assert!(seen >= 8, "only {seen} (species, variant) pairs measured");
     }
 
     /// MIDRIB ROLL (rung A, second half). Leaf plane normals must be spread
@@ -5143,6 +4736,258 @@ mod tests {
         build_tree_and_cards(t, height_m, seed).cards
     }
 
+    /// SPECIES THAT SHIP WITHOUT A `clusters` BLOCK, and are therefore skipped
+    /// by every card gate below. Dated, visible and asserted in both
+    /// directions, because an entry here is a species rendering with no canopy
+    /// layer at all - never a preference, always a debt.
+    ///
+    /// 2026-08-03 (v0.1102): fir, pine, acacia, palm. Their FORMS became
+    /// card-capable in this increment - `every_form_emits_cards_when_given_a_
+    /// cluster_block` proves each one emits cards on a measured crown with a
+    /// sprig that fits its card - and what is still missing is only the data
+    /// row, which lives in `data/vegetation/trees.ron`, another lane. Delete a
+    /// name the moment its row gains a `clusters:` block; `assert_card_gate_
+    /// coverage` FAILS on a name that has one, so this list cannot rot in
+    /// either direction.
+    const UNCARDED_SPECIES: &[&str] = &["fir", "pine", "acacia", "palm"];
+
+    /// THE NON-VACUITY GUARD every card gate needs.
+    ///
+    /// A card gate opens with `let Some(cd) = t.clusters else { continue }`, so
+    /// it certifies nothing about a species that has no block - and through
+    /// v0.1101 that was HALF THE REGISTRY (fir, pine, acacia, palm), including
+    /// every species in the operator's bare-sticks capture. A skip that nobody
+    /// counts is a gate that cannot fail for exactly the species that need it.
+    ///
+    /// So: assert the gate saw someone, assert every skip is a KNOWN skip, and
+    /// assert every known skip is still genuinely uncarded. The pattern is the
+    /// one `crown_depth_is_a_real_live_crown_ratio` already uses for its
+    /// broadleaf filter (`assert!(seen > 0)`), carried to its full form.
+    fn assert_card_gate_coverage(gate: &str, seen: usize, skipped: &[String]) {
+        assert!(
+            seen > 0,
+            "{gate} certified NOTHING: every species was skipped, so this gate cannot fail"
+        );
+        for id in skipped {
+            assert!(
+                UNCARDED_SPECIES.contains(&id.as_str()),
+                "{gate} silently skipped `{id}`: it carries no `clusters` block and is not on \
+                 UNCARDED_SPECIES, so it renders with no card canopy AND no card gate looked at \
+                 it. Give it a block, or add it to that list with a dated reason"
+            );
+        }
+        let r = registry();
+        for id in UNCARDED_SPECIES {
+            let i = r
+                .index_of(id)
+                .unwrap_or_else(|| panic!("UNCARDED_SPECIES names `{id}`, which is not a row"));
+            assert!(
+                r.get(i).and_then(|t| t.clusters.as_ref()).is_none(),
+                "`{id}` has gained a `clusters` block - take it off UNCARDED_SPECIES so the card \
+                 gates start binding on it"
+            );
+        }
+    }
+
+    /// Every distinct `form` the registry ships, in a stable order.
+    ///
+    /// Read off the data rather than written out, so a form added to
+    /// `data/vegetation/trees.ron` tomorrow is covered by the gates below
+    /// without anyone remembering to widen a list here.
+    fn shipped_forms() -> Vec<String> {
+        let mut f: Vec<String> = registry().trees.iter().map(|t| t.form.clone()).collect();
+        f.sort();
+        f.dedup();
+        f
+    }
+
+    /// The first cluster block the registry ships, to LEND to a species that
+    /// has none yet. Data, not a literal: a hand-written `ClusterDef` here
+    /// would drift from the shipped shape the moment the struct grows a field.
+    fn borrowed_cluster_def() -> ClusterDef {
+        registry()
+            .trees
+            .iter()
+            .find_map(|t| t.clusters.clone())
+            .expect("the registry ships at least one cluster block to lend")
+    }
+
+    /// A `ClusterDef` ON ANY FORM MUST ACTUALLY PRODUCE CARDS.
+    ///
+    /// THE HOLE THIS CLOSES (v0.1102). Every other card gate in this file opens
+    /// with `let Some(cd) = t.clusters else { continue }`, so a species with no
+    /// cluster block is silently exempt from all of them - and a FORM that
+    /// structurally cannot record a `Twig` is exempt for every species it will
+    /// ever carry. That is a check which cannot fail for exactly the species
+    /// that most need it. Measured before the fix: `conifer`, `umbrella` and
+    /// `palm` never pushed a `Twig`, so fir, pine, acacia and palm emitted ZERO
+    /// cards against a degenerate `crown_of` fallback of radius 1.0 m - while
+    /// every card gate in the file stayed green, because none of them ran.
+    ///
+    /// So this gate supplies the missing half itself: it takes one
+    /// representative species of every form the registry ships, LENDS it a real
+    /// cluster block, and asserts the form answers with cards on a measured
+    /// crown. It needs no data row to exist, which is the entire point - the
+    /// capability is proven before the data lands, not after it fails.
+    #[test]
+    fn every_form_emits_cards_when_given_a_cluster_block() {
+        let r = registry();
+        let cd = borrowed_cluster_def();
+        let forms = shipped_forms();
+        assert!(forms.len() >= 4, "only {} forms in the registry: {forms:?}", forms.len());
+        for form in &forms {
+            let base = r
+                .trees
+                .iter()
+                .find(|t| &t.form == form)
+                .unwrap_or_else(|| panic!("no species of form {form}"));
+            let mut t = as_procedural(base);
+            t.clusters = Some(cd.clone());
+            let seed = shipped_seed(0);
+            let twigs = twigs_of(&t, seed);
+            let built = build_tree_and_cards(&t, t.height_m, seed);
+            let crown = crown_envelope(&t, t.height_m, seed);
+            let cards: u32 = built.cards.iter().map(|c| c.cards).sum();
+            let card_tris: usize = built.cards.iter().map(|c| c.mesh.indices.len() / 3).sum();
+            let tris = (built.mesh.indices.len() + built.wood.indices.len()) / 3 + card_tris;
+            eprintln!(
+                "[formcards] {form:>9} ({:>7}): {} twigs, {cards} cards at {:.2} m, crown r \
+                 {:.2} m / spread {:.2} m / depth {:.2} m, {tris} tris ({card_tris} card)",
+                t.id,
+                twigs.len(),
+                built.cards.iter().map(|c| c.card_side_m).fold(0.0f32, f32::max),
+                crown.radius_m,
+                crown.spread_m,
+                crown.depth_m
+            );
+            assert!(
+                !twigs.is_empty(),
+                "{form} ({}): the form records no Twig, so cluster cards can never sleeve it - \
+                 this is the conifer/umbrella/palm blocker, back again",
+                t.id
+            );
+            assert!(
+                !built.cards.is_empty() && cards >= 20,
+                "{form} ({}): a species carrying a cluster block emitted {cards} cards - the \
+                 card layer is silently absent and every other card gate skips it",
+                t.id
+            );
+            // A REAL crown, not `crown_of`'s empty-twig fallback. Without this
+            // the gate above could be satisfied by one stray twig while the LAI
+            // fit spends a 1 m fictional crown.
+            assert!(
+                crown.radius_m > 0.5 && crown.spread_m > 0.5 && crown.depth_m > 0.5,
+                "{form} ({}): crown measures r {:.2} / spread {:.2} / depth {:.2} m - that is \
+                 the r=1.0 empty-twig fallback, so the LAI fit is solving against a fiction",
+                t.id,
+                crown.radius_m,
+                crown.spread_m,
+                crown.depth_m
+            );
+
+            // THE SPRITE MUST FIT THE CARD - the other half of "this form can
+            // carry cards", and the half `cluster_sprite_geometry_fits_its_card`
+            // cannot check for a species with no data row yet. Same 0.35-1.5x
+            // band that gate uses, measured the same way (the baker frames on
+            // the geometry's own AABB, so a sprite bigger than its card is not
+            // clipped - it is SHRUNK, and every element on the tree silently
+            // renders at the wrong scale).
+            //
+            // PALM IS EXEMPT, dated 2026-08-03, and the reason is botanical
+            // rather than a shrug: its drawn element is a 0.82 m COCONUT
+            // LEAFLET, which is life size (a real pinna is 0.6-0.9 m), so a
+            // palm card is a ~2 m chunk of frond and the 0.50 m block lent here
+            // is not a fair stand-in. Remove this exemption in the increment
+            // that gives palm its own `clusters` block, and size that block so
+            // the fit lands at 1.9 m or more (its sprite measures 5.73 m).
+            let side = built.cards.iter().map(|c| c.card_side_m).fold(0.0f32, f32::max);
+            let fol = foliage_of(&t, t.height_m, 1.0);
+            let sprite = cluster_sprite_geometry(&t, ClusterLayer::Leaf, t.height_m)
+                .expect("a lent cluster block always yields sprite geometry");
+            let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]);
+            for v in &sprite.vertices {
+                for i in 0..3 {
+                    mn[i] = mn[i].min(v.position[i]);
+                    mx[i] = mx[i].max(v.position[i]);
+                }
+            }
+            let ext = (mx[0] - mn[0]).max(mx[2] - mn[2]).max(mx[1] - mn[1]);
+            eprintln!(
+                "            sprig reach {:.3} m ({:.2} of card), sprite {ext:.2} m in a \
+                 {side:.2} m card ({:.2}x)",
+                fol.sprig_span() + fol.leaf,
+                (fol.sprig_span() + fol.leaf) / side,
+                ext / side
+            );
+            if form != "palm" {
+                assert!(
+                    ext > side * 0.35 && ext < side * 1.5,
+                    "{form} ({}): its cluster sprite bakes {ext:.2} m into a {side:.2} m card \
+                     ({:.2}x). One sprig reaches {:.2} m; see the measured table above \
+                     `foliage_of` - the shipped broadleaves sit at 0.29-0.36 of their card and \
+                     bake within 4% of it",
+                    t.id,
+                    ext / side,
+                    fol.sprig_span() + fol.leaf
+                );
+            }
+
+            // AND THE BLADES MUST LIVE INSIDE THE CARD MASS, the same measure
+            // `near_blades_stay_inside_the_card_shell` applies to the carded
+            // broadleaves - which, again, it cannot apply to a species with no
+            // data row. Only `limb` shrank its blade clump for a carded species
+            // before v0.1102, so `conifer` and `umbrella` scattered blades to a
+            // full clump radius (1.10 m on a 22 m fir) around twigs whose card
+            // shell ends at 0.82 m: a fringe of raw triangles round every
+            // silhouette, which is exactly what the operator's capture shows.
+            const ORGAN_BIT_LEAF: u32 = 524_288;
+            let shell = side * (CLUSTER_SLEEVE_OFFSET + 0.5);
+            let (mut blades, mut outside, mut worst) = (0usize, 0usize, 0.0f32);
+            for f in built.mesh.indices.chunks(3) {
+                if (built.mesh.vertices[f[0] as usize].uv[0].max(0.0).round() as u32)
+                    & ORGAN_BIT_LEAF
+                    == 0
+                {
+                    continue;
+                }
+                blades += 1;
+                let far = f
+                    .iter()
+                    .map(|&i| {
+                        let p = built.mesh.vertices[i as usize].position;
+                        twigs
+                            .iter()
+                            .map(|w| point_segment_dist(p, w.from, w.end))
+                            .fold(f32::MAX, f32::min)
+                    })
+                    .fold(0.0f32, f32::max);
+                worst = worst.max(far);
+                if far > shell {
+                    outside += 1;
+                }
+            }
+            let frac = outside as f32 / blades.max(1) as f32;
+            eprintln!(
+                "            {blades} blade faces, {outside} ({:.1}%) outside the {shell:.2} m \
+                 card mass, worst {worst:.2} m",
+                frac * 100.0
+            );
+            assert!(blades > 20, "{form} ({}): only {blades} blade faces", t.id);
+            // Palm exempt for the SAME reason as the sprite check above, and it
+            // is the same arithmetic: its 0.82 m leaflet cannot sit inside a
+            // shell derived from a 0.67 m borrowed card. On the ~2 m card its
+            // own block will settle at, the shell is 1.6 m and the measured
+            // worst blade (0.66 m) is comfortably inside it.
+            assert!(
+                frac < 0.02 || form == "palm",
+                "{form} ({}): {:.0}% of blade faces stand proud of the {shell:.2} m card mass \
+                 (worst {worst:.2} m) - raw triangles poking out of the crown",
+                t.id,
+                frac * 100.0
+            );
+        }
+    }
+
     // ── Wind coverage (v0.1089) ──────────────────────────────────────────
 
     /// A tree is now up to four materials - photoscan (19), foliage (20),
@@ -5531,6 +5376,76 @@ mod tests {
         }
     }
 
+    /// Bark brown, foliage green, cluster-card green: the three tints the
+    /// software dev aids draw with, so a dumped frame is readable as wood
+    /// against blades against cards without any material system.
+    // theme-exempt: a debug rasteriser's own palette, never a UI colour.
+    const WOOD_TINT: [f32; 3] = [1.0, 0.86, 0.66];
+    // theme-exempt: as above.
+    const BLADE_TINT: [f32; 3] = [0.42, 1.0, 0.34];
+    // theme-exempt: as above.
+    const CARD_TINT: [f32; 3] = [0.20, 0.72, 0.26];
+
+    /// THE SOFTWARE RASTERISER the dev aids share: draw one mesh
+    /// orthographically into an RGBA buffer, depth-tested, flat-lambert shaded
+    /// against the view direction plus a vertical key so a face turned away
+    /// still reads.
+    ///
+    /// No GPU, so it runs on any build machine in milliseconds and never takes
+    /// the operator's one GPU (the ONE GPU rule in CLAUDE.md). `project` maps
+    /// world to (pixel x, pixel y, depth-toward-camera, smaller is nearer).
+    fn raster_mesh(
+        buf: &mut [u8],
+        depth: &mut [f32],
+        px: usize,
+        m: &PlantMeshBuilder,
+        project: &dyn Fn([f32; 3]) -> (f32, f32, f32),
+        fwd: [f32; 3],
+        tint: [f32; 3],
+    ) {
+        for tri in m.indices.chunks(3) {
+            let v: Vec<_> = tri.iter().map(|&i| m.vertices[i as usize]).collect();
+            let s: Vec<_> = v.iter().map(|q| project(q.position)).collect();
+            let n = v[0].normal;
+            let l = (-dot(n, fwd) * 0.45 + n[1] * 0.30 + 0.48).clamp(0.18, 1.0);
+            let (lo_x, hi_x) = (
+                s.iter().fold(f32::MAX, |a, q| a.min(q.0)).floor().max(0.0) as usize,
+                s.iter().fold(f32::MIN, |a, q| a.max(q.0)).ceil().min(px as f32 - 1.0) as usize,
+            );
+            let (lo_y, hi_y) = (
+                s.iter().fold(f32::MAX, |a, q| a.min(q.1)).floor().max(0.0) as usize,
+                s.iter().fold(f32::MIN, |a, q| a.max(q.1)).ceil().min(px as f32 - 1.0) as usize,
+            );
+            let area =
+                (s[1].0 - s[0].0) * (s[2].1 - s[0].1) - (s[2].0 - s[0].0) * (s[1].1 - s[0].1);
+            if area.abs() < 1e-6 {
+                continue;
+            }
+            for yy in lo_y..=hi_y {
+                for xx in lo_x..=hi_x {
+                    let (fx, fy) = (xx as f32 + 0.5, yy as f32 + 0.5);
+                    let w0 = ((s[1].0 - fx) * (s[2].1 - fy) - (s[2].0 - fx) * (s[1].1 - fy))
+                        / area;
+                    let w1 = ((s[2].0 - fx) * (s[0].1 - fy) - (s[0].0 - fx) * (s[2].1 - fy))
+                        / area;
+                    let w2 = 1.0 - w0 - w1;
+                    if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                        continue;
+                    }
+                    let z = w0 * s[0].2 + w1 * s[1].2 + w2 * s[2].2;
+                    let i = yy * px + xx;
+                    if z >= depth[i] {
+                        continue;
+                    }
+                    depth[i] = z;
+                    for c in 0..3 {
+                        buf[i * 4 + c] = (l * 255.0 * tint[c]).clamp(0.0, 255.0) as u8;
+                    }
+                }
+            }
+        }
+    }
+
     /// DEV AID (permanent): render the BARE WOOD of a species around its
     /// biggest junction, from four sides, to `debug/fork_<id>_<view>.png`.
     ///
@@ -5610,55 +5525,7 @@ mod tests {
                     let y = 0.5 - dot(rel, cam_up) / span * 0.5;
                     (x * px as f32, y * px as f32, -dot(rel, fwd))
                 };
-                for tri in parts.wood.indices.chunks(3) {
-                    let v: Vec<_> =
-                        tri.iter().map(|&i| parts.wood.vertices[i as usize]).collect();
-                    let s: Vec<_> = v.iter().map(|q| project(q.position)).collect();
-                    let n = v[0].normal;
-                    // Flat lambert against the view direction plus a key, so
-                    // a surface facing away from the camera still reads.
-                    let l = (-dot(n, fwd) * 0.45 + n[1] * 0.30 + 0.48).clamp(0.18, 1.0);
-                    let (lo_x, hi_x) = (
-                        s.iter().fold(f32::MAX, |a, q| a.min(q.0)).floor().max(0.0) as usize,
-                        s.iter().fold(f32::MIN, |a, q| a.max(q.0)).ceil().min(px as f32 - 1.0)
-                            as usize,
-                    );
-                    let (lo_y, hi_y) = (
-                        s.iter().fold(f32::MAX, |a, q| a.min(q.1)).floor().max(0.0) as usize,
-                        s.iter().fold(f32::MIN, |a, q| a.max(q.1)).ceil().min(px as f32 - 1.0)
-                            as usize,
-                    );
-                    let area = (s[1].0 - s[0].0) * (s[2].1 - s[0].1)
-                        - (s[2].0 - s[0].0) * (s[1].1 - s[0].1);
-                    if area.abs() < 1e-6 {
-                        continue;
-                    }
-                    for yy in lo_y..=hi_y {
-                        for xx in lo_x..=hi_x {
-                            let (fx, fy) = (xx as f32 + 0.5, yy as f32 + 0.5);
-                            let w0 = ((s[1].0 - fx) * (s[2].1 - fy)
-                                - (s[2].0 - fx) * (s[1].1 - fy))
-                                / area;
-                            let w1 = ((s[2].0 - fx) * (s[0].1 - fy)
-                                - (s[0].0 - fx) * (s[2].1 - fy))
-                                / area;
-                            let w2 = 1.0 - w0 - w1;
-                            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
-                                continue;
-                            }
-                            let z = w0 * s[0].2 + w1 * s[1].2 + w2 * s[2].2;
-                            let i = yy * px + xx;
-                            if z >= depth[i] {
-                                continue;
-                            }
-                            depth[i] = z;
-                            let c = l * 255.0;
-                            buf[i * 4] = c as u8;
-                            buf[i * 4 + 1] = (c * 0.86) as u8;
-                            buf[i * 4 + 2] = (c * 0.66) as u8;
-                        }
-                    }
-                }
+                raster_mesh(&mut buf, &mut depth, px, &parts.wood, &project, fwd, WOOD_TINT);
                 let path = dir.join(format!("fork_{}_{name}.png", t.id));
                 image::RgbaImage::from_raw(px as u32, px as u32, buf)
                     .expect("size")
@@ -5696,6 +5563,114 @@ mod tests {
                 dot(sub(f.start, f.parent.axis), f.parent.up),
                 t.id
             );
+        }
+    }
+
+    /// DEV AID (permanent): render a WHOLE TREE of every form - wood, near
+    /// blades and cluster cards, colour-coded - to `debug/crown_<id>.png`,
+    /// beside its baked cluster sprite at `debug/sprite_<id>.png`, and print
+    /// the four numbers that decide whether a form's card layer can work: the
+    /// card side the LAI fit settles on, the sprite's extent against that card,
+    /// the sprite's measured ALPHA COVERAGE, and its triangle count.
+    ///
+    /// WHY IT EXISTS (v0.1102). "Does a fir read as a fir" is a question only a
+    /// picture answers, and the only pictures available before this were a GPU
+    /// boot or a probe sweep - both far too heavy to run per iteration while
+    /// tuning a foliage element, and both contending for the operator's ONE GPU
+    /// (see CLAUDE.md). This is `dump_fork_png`'s rasteriser plus
+    /// `billboard_bake`'s CPU twin of the sprite bake, so what it reports is
+    /// what the GPU would have baked, in about a second, on any machine.
+    ///
+    /// A species with no cluster block of its own is LENT one, which is the
+    /// whole point: it shows what the form does the moment the data lands.
+    ///
+    /// `cargo test --features native --lib dump_crown_png -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn dump_crown_png() {
+        use crate::renderer::billboard_bake::{
+            cpu_cluster_sprite, CLUSTER_BAKE_PX, CLUSTER_SPRITE_PX,
+        };
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        std::fs::create_dir_all(&dir).expect("debug dir");
+        let r = registry();
+        let lent = borrowed_cluster_def();
+        for form in shipped_forms() {
+            for base in r.trees.iter().filter(|t| t.form == form) {
+                let mut t = as_procedural(base);
+                let borrowed = t.clusters.is_none();
+                if borrowed {
+                    t.clusters = Some(lent.clone());
+                }
+                let seed = shipped_seed(0);
+                let built = build_tree_and_cards(&t, t.height_m, seed);
+                let side = mean_card_side(&t, ClusterLayer::Leaf);
+                let sprite = cluster_sprite_geometry(&t, ClusterLayer::Leaf, t.height_m)
+                    .expect("every species here carries a cluster block");
+                let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]);
+                for v in &sprite.vertices {
+                    for i in 0..3 {
+                        mn[i] = mn[i].min(v.position[i]);
+                        mx[i] = mx[i].max(v.position[i]);
+                    }
+                }
+                let cpu = cpu_cluster_sprite(
+                    &t,
+                    ClusterLayer::Leaf,
+                    CLUSTER_BAKE_PX,
+                    CLUSTER_SPRITE_PX,
+                );
+                let fol = foliage_of(&t, t.height_m, 1.0);
+                let cards: u32 = built.cards.iter().map(|c| c.cards).sum();
+                eprintln!(
+                    "[crown] {:>9} {:>7}{}: element {:.3} m x{} per sprig (reach {:.3} m), \
+                     {cards} cards at {side:.2} m, sprite {:.2} x {:.2} m, coverage {:.3}, \
+                     {} sprite tris -> debug/crown_{}.png",
+                    form,
+                    t.id,
+                    if borrowed { " (lent)" } else { "" },
+                    fol.leaf,
+                    fol.per_sprig,
+                    fol.sprig_span() + fol.leaf,
+                    mx[0] - mn[0],
+                    mx[1] - mn[1],
+                    cpu.as_ref().map(|c| c.coverage).unwrap_or(0.0),
+                    cpu.as_ref().map(|c| c.triangles).unwrap_or(0),
+                    t.id
+                );
+                if let Some(c) = cpu {
+                    let img =
+                        image::RgbaImage::from_raw(c.sprite_px, c.sprite_px, c.rgba).expect("size");
+                    img.save(dir.join(format!("sprite_{}.png", t.id))).expect("write png");
+                }
+
+                // The whole tree, side on, framed on its full height.
+                let px = 700usize;
+                let fwd = [1.0f32, 0.0, 0.0];
+                let right = norm(cross([0.0, 1.0, 0.0], fwd));
+                let cam_up = cross(fwd, right);
+                let centre = [0.0, t.height_m * 0.52, 0.0];
+                let span = t.height_m * 1.12;
+                let mut buf = vec![18u8, 22, 34, 255].repeat(px * px);
+                let mut depth = vec![f32::MAX; px * px];
+                let project = |p: [f32; 3]| {
+                    let rel = sub(p, centre);
+                    (
+                        (dot(rel, right) / span * 0.5 + 0.5) * px as f32,
+                        (0.5 - dot(rel, cam_up) / span * 0.5) * px as f32,
+                        -dot(rel, fwd),
+                    )
+                };
+                raster_mesh(&mut buf, &mut depth, px, &built.wood, &project, fwd, WOOD_TINT);
+                raster_mesh(&mut buf, &mut depth, px, &built.mesh, &project, fwd, BLADE_TINT);
+                for c in &built.cards {
+                    raster_mesh(&mut buf, &mut depth, px, &c.mesh, &project, fwd, CARD_TINT);
+                }
+                image::RgbaImage::from_raw(px as u32, px as u32, buf)
+                    .expect("size")
+                    .save(dir.join(format!("crown_{}.png", t.id)))
+                    .expect("write png");
+            }
         }
     }
 
@@ -5820,8 +5795,13 @@ mod tests {
     #[test]
     fn cluster_cards_reach_target_lai_and_fit_the_budget() {
         let r = registry();
+        let (mut seen, mut skipped) = (0usize, Vec::new());
         for t in r.trees.iter().map(as_procedural) {
-            let Some(cd) = t.clusters.clone() else { continue };
+            let Some(cd) = t.clusters.clone() else {
+                skipped.push(t.id.clone());
+                continue;
+            };
+            seen += 1;
             for v in 0..t.variants.max(1) {
                 let seed = shipped_seed(v);
                 let built = build_tree_and_cards(&t, t.height_m, seed);
@@ -5886,6 +5866,11 @@ mod tests {
                 );
             }
         }
+        assert_card_gate_coverage(
+            "cluster_cards_reach_target_lai_and_fit_the_budget",
+            seen,
+            &skipped,
+        );
     }
 
     /// Cards must SLEEVE the twigs, not float in a clump volume.
@@ -5960,10 +5945,13 @@ mod tests {
     #[test]
     fn cluster_cards_envelop_every_twig_tip() {
         let r = registry();
+        let (mut seen, mut skipped) = (0usize, Vec::new());
         for t in r.trees.iter().map(as_procedural) {
             if t.clusters.is_none() {
+                skipped.push(t.id.clone());
                 continue;
             }
+            seen += 1;
             for v in 0..t.variants.max(1) {
                 let seed = shipped_seed(v);
                 let twigs = twigs_of(&t, seed);
@@ -6034,6 +6022,7 @@ mod tests {
                 );
             }
         }
+        assert_card_gate_coverage("cluster_cards_envelop_every_twig_tip", seen, &skipped);
     }
 
     /// THE NEAR-BLADE SILHOUETTE GATE (v0.1090).
@@ -6054,10 +6043,13 @@ mod tests {
     fn near_blades_stay_inside_the_card_shell() {
         const ORGAN_BIT_LEAF: u32 = 524_288;
         let r = registry();
+        let (mut seen, mut skipped) = (0usize, Vec::new());
         for t in r.trees.iter().map(as_procedural) {
             if t.clusters.is_none() {
+                skipped.push(t.id.clone());
                 continue;
             }
+            seen += 1;
             for v in 0..t.variants.max(1) {
                 let seed = shipped_seed(v);
                 let twigs = twigs_of(&t, seed);
@@ -6116,6 +6108,7 @@ mod tests {
                 );
             }
         }
+        assert_card_gate_coverage("near_blades_stay_inside_the_card_shell", seen, &skipped);
     }
 
     /// A cherry flowers BEFORE it leafs out, so a sakura in bloom must not
@@ -6246,8 +6239,13 @@ mod tests {
     #[test]
     fn cluster_sprite_geometry_fits_its_card() {
         let r = registry();
+        let (mut seen, mut skipped) = (0usize, Vec::new());
         for t in r.trees.iter() {
-            let Some(cd) = t.clusters.as_ref() else { continue };
+            let Some(cd) = t.clusters.as_ref() else {
+                skipped.push(t.id.clone());
+                continue;
+            };
+            seen += 1;
             for layer in ClusterLayer::ALL {
                 let b = cluster_sprite_geometry(t, layer, t.height_m).expect("sprite geometry");
                 assert!(!b.vertices.is_empty(), "{} {}: empty sprite", t.id, layer.key());
@@ -6285,6 +6283,7 @@ mod tests {
                 );
             }
         }
+        assert_card_gate_coverage("cluster_sprite_geometry_fits_its_card", seen, &skipped);
     }
 
     /// Flower morphology, from the data the sprite is built out of: a Yoshino
