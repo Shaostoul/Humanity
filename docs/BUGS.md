@@ -672,3 +672,69 @@ filter broken by veg_density mismatch); the same measurement at operator
 settings separated 0.905 vs 1.018. A rig verdict is a verdict about the
 rig's settings - probe-sweep now records graphics settings in its manifest
 and offers --operator-config.
+
+## BUG-063: Sapling photoscans stretched 19x into metre-wide leaves (fixed v0.1101.0)
+
+The operator's v0.1100 captures showed large pale blades lying flat across the
+grass, roughly a metre long, plus black slivers of the same shape and
+near-black fronds against the sky.
+
+All one asset: the fir and pine PHOTOSCANS. They are scans of ~1 m saplings,
+and trees.ron gives those species 22 m and 16 m, so the draw site's uniform
+scale (species_height / model_height) ran 13.7-19.2x and multiplied EVERY
+triangle - each 3-7 cm needle spray became a 0.5-1.9 m sheet. Measured from
+the capture by calibrating against the authored grass height band: blades
+0.72-1.74 m where co-located grass tufts read 0.30-0.54 m.
+
+The pale/black split was a SECOND bug in the same asset: material type 19 had
+no transmission term at all, while the sun term is shadow-gated, the fill is
+N.L-gated and the ambient floor is 0.005. So a face pointing away from the sun
+rendered at 1/255. The pixel population was bimodal - thousands of blown-out
+and thousands of exactly (1,1,0), almost no mid-tones - which is the signature
+of a missing transmission term, not of a shading gradient.
+
+Fix: the near-tree loader computes each scan's AABB height and REJECTS one
+whose species would stretch it past MAX_MODEL_STRETCH (3.0), falling back to
+the existing BUG-058 procedural path. Type 19 gained the type-20 leaf
+transmission, gated on params.w so furniture and machines sharing the type do
+not transmit.
+
+LESSON: this was invisible to every release-path check because the SHIPPED
+build has no assets/models/ and has always taken the procedural fallback. A
+dev-checkout-only artifact survives exactly as long as verification only ever
+runs the shipped path. Also: no scale factor turns a sapling into a mature
+tree - the branching architecture differs, not just the size - so "we have a
+scan of that species" is not the same as "we can use it at that height".
+
+## BUG-064: BUG-060's shadow gate reached two of three foliage branches (fixed v0.1101.0)
+
+BUG-060 (v0.1095) established that no sun-derived term may skip the shadow map
+- a leaf in shadow receives no sun to transmit. The fix was applied to the
+type-20 procedural leaf and type-23 grass branches. The type-21 CLUSTER CARD
+branch has the same backlit term and did not get it, so cards standing inside
+another tree's shadow kept emitting at full strength and shaded crowns glowed.
+
+Found by an adversarial review of an unrelated diagnosis, not by any gate.
+
+Fix: type 21's backlit term now multiplies by sun_shadow, same as its twins.
+
+LESSON: a fix applied by search-and-edit stops at the occurrences you happened
+to search for. When a rule is "every X must do Y", enumerate every X - and
+prefer a shared helper the branches call over three copies of a formula.
+
+## BUG-065: Cluster cards never used the mip chain built for them (fixed v0.1101.0)
+
+v0.1090 gave foliage cluster cards a full alpha-coverage-preserving mip chain,
+a trilinear sampler and anisotropy_clamp 8, specifically to stop them crawling
+at distance, and recorded that as fixed. The shader fetch was
+textureSampleLevel(..., 0.0) - an explicit LOD 0, which bypasses both the mip
+chain and the anisotropy. Type 19 had the same forced-LOD-0 fetch against
+1024x1024 photoscan atlases.
+
+Fix: both branches sample with textureSampleGrad using the gradients already
+computed in uniform control flow at the top of the fragment shader.
+
+LESSON: the evidence for "cards now carry their full mip chain" was the UPLOAD
+code. Nothing verified that the shader asked for a mip. When a fix spans a
+CPU-side resource and a GPU-side fetch, the claim is only true if BOTH ends
+were checked - and the checkable end is the rendered result, not the setup.
