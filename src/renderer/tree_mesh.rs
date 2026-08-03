@@ -575,6 +575,16 @@ pub(crate) struct TreeParts {
     pub wood_packed: PlantMeshBuilder,
     /// Metres per bark texture tile for this species.
     tile_m: f32,
+    /// Shaft radius above which a junction earns extra flare rings and a
+    /// two-strip collar. Scales with the INSTANCE height, not the species
+    /// default, so a sapling's small junctions are not resolved as if they were
+    /// a mature tree's. See `FLARE_RING_MIN_H_FRAC`.
+    flare_min_r: f32,
+    /// Triangles this build spent RESOLVING base flares: the extra rings packed
+    /// into flare runs plus the second collar strip. Instrumentation, so "what
+    /// did the flare cost" is a CI number per species rather than an estimate
+    /// (the flare gate prints it).
+    flare_tris: usize,
     /// Every branch junction this build made, in emission order (v0.1098).
     ///
     /// Permanent instrumentation, not debug scaffolding: the back-poke gate
@@ -586,12 +596,14 @@ pub(crate) struct TreeParts {
 }
 
 impl TreeParts {
-    fn new(def: &TreeDef) -> Self {
+    fn new(def: &TreeDef, height_m: f32) -> Self {
         TreeParts {
             foliage: PlantMeshBuilder::new(),
             wood: PlantMeshBuilder::new(),
             wood_packed: PlantMeshBuilder::new(),
             tile_m: bark_tile_m(def),
+            flare_min_r: height_m.max(0.5) * FLARE_RING_MIN_H_FRAC,
+            flare_tris: 0,
             forks: Vec::new(),
         }
     }
@@ -722,63 +734,141 @@ impl TreeParts {
     /// join now that no child geometry is buried, and it is the anatomically
     /// real thing too - a branch collar is a swelling of parent tissue around
     /// the branch base, not a stick pushed into a hole.
-    fn weld_child(
-        &mut self,
-        j: Junction,
-        dir: [f32; 3],
-        r0: f32,
-        sides: u32,
-        color: [f32; 3],
-    ) -> [f32; 3] {
-        let start = surface_root(j, dir, r0);
-        self.forks.push(Fork { parent: j, start, dir, r0, sides: sides.max(3), rings: Vec::new() });
-        let (side, up) = ring_basis(dir);
-        let n = sides.max(3);
+    /// THE COLLAR MEETS THE FLARE (v0.1099). The limb's first ring is now the
+    /// FLARED radius (`flared_weld_radius`), so the skirt's outer edge grows
+    /// with it and the whole join gets wider rather than pinching. The root is
+    /// placed with the flared radius too - `surface_root`'s clearance is what
+    /// keeps the drawn ring out of the parent's wood, so it has to be given the
+    /// radius that is actually drawn or the back-poke guarantee is void.
+    ///
+    /// A junction big enough to resolve (`flare_min_r`) gets TWO strips instead
+    /// of one, with the middle ring pushed out along the average of the two
+    /// surface normals. One strip meets the flared ring at a hard shoulder -
+    /// the skirt is a straight cone and the limb's own profile is curving hard
+    /// there, so the silhouette breaks at exactly the place the operator was
+    /// looking. The bulged middle ring is the fillet that closes that angle,
+    /// and it is anatomy rather than fudge: a branch collar is a rounded
+    /// swelling of parent tissue, convex on the underside and filling the axil
+    /// above.
+    fn weld_child(&mut self, j: Junction, s: LimbShape, color: [f32; 3]) -> [f32; 3] {
+        let n = s.sides.max(3);
+        // What gets DRAWN at the weld, and therefore what has to clear the
+        // parent's wood.
+        let rw = s.radius_at(0.0);
+        let start = surface_root(j, s.dir, rw);
+        self.forks.push(Fork {
+            parent: j,
+            start,
+            shape: LimbShape { sides: n, ..s },
+            weld_r: rw,
+            rings: Vec::new(),
+        });
+        let (side, up) = ring_basis(s.dir);
         let tile = self.tile_m.max(1e-3);
-        let reps = ((std::f32::consts::TAU * r0) / tile).round().max(1.0);
+        let reps = ((std::f32::consts::TAU * rw) / tile).round().max(1.0);
+        let steps = if s.r0 >= self.flare_min_r { 2usize } else { 1 };
+        self.flare_tris += (steps - 1) * n as usize * 2;
+        // Rows of the skirt, from the feet on the parent out to the limb's own
+        // first ring. Each entry is (position, normal, v in tiles).
+        let mut rows: Vec<Vec<([f32; 3], [f32; 3], f32)>> = Vec::with_capacity(steps + 1);
+        for _ in 0..=steps {
+            rows.push(Vec::with_capacity(n as usize));
+        }
         for i in 0..n {
-            let a0 = (i as f32) / (n as f32) * std::f32::consts::TAU;
-            let a1 = ((i + 1) as f32) / (n as f32) * std::f32::consts::TAU;
-            let v0 = ring_point(start, side, up, a0, r0);
-            let v1 = ring_point(start, side, up, a1, r0);
-            let f0 = j.project(v0);
-            let f1 = j.project(v1);
+            let a = (i as f32) / (n as f32) * std::f32::consts::TAU;
             // Shading continuity at both edges: the collar's outer edge takes
             // the child's radial normal (so it lights as one surface with the
             // limb) and its inner edge takes the parent's, so the skirt melts
             // into the trunk instead of ringing it with a hard rim.
-            let n0 = norm([
-                side[0] * a0.cos() + up[0] * a0.sin(),
-                side[1] * a0.cos() + up[1] * a0.sin(),
-                side[2] * a0.cos() + up[2] * a0.sin(),
+            let v = ring_point(start, side, up, a, rw);
+            let nv = norm([
+                side[0] * a.cos() + up[0] * a.sin(),
+                side[1] * a.cos() + up[1] * a.sin(),
+                side[2] * a.cos() + up[2] * a.sin(),
             ]);
-            let n1 = norm([
-                side[0] * a1.cos() + up[0] * a1.sin(),
-                side[1] * a1.cos() + up[1] * a1.sin(),
-                side[2] * a1.cos() + up[2] * a1.sin(),
-            ]);
-            let m0 = j.surface_normal(f0);
-            let m1 = j.surface_normal(f1);
-            let (u0, u1) = ((i as f32) / (n as f32) * reps, ((i + 1) as f32) / (n as f32) * reps);
+            let f = j.project(v);
+            let nf = j.surface_normal(f);
+            let mut pos: Vec<[f32; 3]> = Vec::with_capacity(steps + 1);
+            let mut nrm: Vec<[f32; 3]> = Vec::with_capacity(steps + 1);
+            pos.push(f);
+            nrm.push(nf);
+            for k in 1..steps {
+                let t = k as f32 / steps as f32;
+                // The two normals cancel where the parent's surface and the
+                // limb's face each other - the rear azimuth of a perpendicular
+                // branch, which is buried in the parent and invisible - so fall
+                // back to the limb's own rather than normalising noise.
+                let blend = mix3(nf, nv, t);
+                let nm = if length(blend) > 1e-3 { norm(blend) } else { nv };
+                // The fillet: bulge out along the blended normal by a fraction
+                // of the skirt's own height, peaking mid-span.
+                pos.push(add(mix3(f, v, t), nm, dist(f, v) * 0.16 * (t * (1.0 - t) * 4.0)));
+                nrm.push(nm);
+            }
+            pos.push(v);
+            nrm.push(nv);
             // v runs BACKWARDS from the limb's own v=0 by the collar's real
-            // height, so the bark pattern flows out of the trunk and into the
-            // branch instead of restarting at the joint.
-            let (h0, h1) = (dist(f0, v0) / tile, dist(f1, v1) / tile);
-            // Same winding as `tube` with the foot ring as `from`.
-            self.wood_packed.tri_smooth([f0, v0, v1], [m0, n0, n1], color);
-            self.wood_packed.tri_smooth([f0, v1, f1], [m0, n1, m1], color);
-            self.wood.card_tri(
-                [f0, v0, v1],
-                [m0, n0, n1],
-                [[u0, -h0], [u0, 0.0], [u1, 0.0]],
-            );
-            self.wood.card_tri(
-                [f0, v1, f1],
-                [m0, n1, m1],
-                [[u0, -h0], [u1, 0.0], [u1, -h1]],
-            );
+            // ARC LENGTH, so the bark pattern flows out of the trunk and into
+            // the branch instead of restarting at the joint - and so a bulged
+            // fillet measures its own longer path rather than the chord, which
+            // is what keeps world-space texel density exact through the weld.
+            let mut vt = vec![0.0f32; steps + 1];
+            for k in (0..steps).rev() {
+                vt[k] = vt[k + 1] - dist(pos[k], pos[k + 1]) / tile;
+            }
+            for k in 0..=steps {
+                rows[k].push((pos[k], nrm[k], vt[k]));
+            }
+        }
+        for k in 0..steps {
+            for i in 0..n as usize {
+                let ii = (i + 1) % n as usize;
+                let (a0, a1) = (rows[k][i], rows[k][ii]);
+                let (b0, b1) = (rows[k + 1][i], rows[k + 1][ii]);
+                let (u0, u1) =
+                    ((i as f32) / (n as f32) * reps, ((i + 1) as f32) / (n as f32) * reps);
+                // Same winding as `tube` with the inner ring as `from`.
+                self.wood_packed.tri_smooth([a0.0, b0.0, b1.0], [a0.1, b0.1, b1.1], color);
+                self.wood_packed.tri_smooth([a0.0, b1.0, a1.0], [a0.1, b1.1, a1.1], color);
+                self.wood.card_tri(
+                    [a0.0, b0.0, b1.0],
+                    [a0.1, b0.1, b1.1],
+                    [[u0, a0.2], [u0, b0.2], [u1, b1.2]],
+                );
+                self.wood.card_tri(
+                    [a0.0, b1.0, a1.0],
+                    [a0.1, b1.1, a1.1],
+                    [[u0, a0.2], [u1, b1.2], [u1, a1.2]],
+                );
+            }
         }
         start
+    }
+
+    /// One straight run of flared limb, welded onto `j`: the collar, then a
+    /// tube whose rings follow `limb_radius_at` and are densified through the
+    /// flare (`ring_stations`). Returns (root ring centre, drawn far end).
+    ///
+    /// The forms that draw a branch as a single frustum - the conifer's whorl
+    /// branches, the acacia's primaries and fans - go through here rather than
+    /// calling `bark_tube` themselves, so there is exactly ONE radius law in
+    /// the generator. `limb` runs the same law over a bowed spine.
+    fn flared_run(&mut self, j: Junction, s: LimbShape, color: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+        let root = self.weld_child(j, s, color);
+        let stations = ring_stations(s.len, s.r0, 1, self.flare_min_r);
+        self.flare_tris += (stations.len() - 2) * s.sides.max(3) as usize * 2;
+        let mut prev = root;
+        for w in stations.windows(2) {
+            let (ra, rb) = (s.radius_at(w[0]), s.radius_at(w[1]));
+            let to = add(root, s.dir, w[1]);
+            self.bark_tube(prev, to, ra, rb, s.sides, color, w[0]);
+            if w[0] == 0.0 {
+                self.note_fork_ring(prev, s.dir, ra, s.sides);
+            }
+            self.note_fork_ring(to, s.dir, rb, s.sides);
+            prev = to;
+        }
+        (root, prev)
     }
 
     /// Record one ring of the limb that most recently welded itself on, for the
@@ -1243,7 +1333,7 @@ fn build_at_density(
     density: f32,
     twigs: &mut Vec<Twig>,
 ) -> TreeParts {
-    let mut b = TreeParts::new(def);
+    let mut b = TreeParts::new(def, h);
     let mut rng = Rng::new(seed as u64 ^ 0x7ee_5eed);
     match def.form.as_str() {
         "conifer" => conifer(&mut b, def, h, density, &mut rng),
@@ -2406,7 +2496,14 @@ pub fn cluster_sprite_geometry(
 // its_parent` proves it over every species and variant.
 
 /// How many of a child's leading rings the back-poke gate checks.
-const FORK_GATE_RINGS: usize = 3;
+///
+/// Raised 3 -> 8 in v0.1099, and the reason is coverage rather than appetite:
+/// a limb's first rings are now packed into its base flare (`FLARE_RINGS`), so
+/// keeping the count at 3 would have shrunk the gate's reach from half the limb
+/// to about three shaft radii. Eight keeps every flare ring AND the first
+/// uniform spine stations under the gate, which is strictly more geometry
+/// checked than v0.1098 examined.
+const FORK_GATE_RINGS: usize = 8;
 
 /// The parent surface a child limb leaves from.
 #[derive(Clone, Copy, Debug)]
@@ -2468,14 +2565,46 @@ impl Junction {
     }
 }
 
-/// One recorded junction: what the child was welded to, and where its leading
-/// rings ended up. Read by the back-poke gate.
+/// The limb a junction is about to grow: everything both the weld and the tube
+/// need, so the collar and the first ring can never be sized differently.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LimbShape {
+    pub dir: [f32; 3],
+    pub len: f32,
+    /// SHAFT radius - what the limb settles at past its base flare.
+    pub r0: f32,
+    /// Tip radius.
+    pub r1: f32,
+    pub sides: u32,
+    /// Base flare, already capped against the parent (`flare_gain_at`). Carried
+    /// on the shape rather than recomputed per call site so the collar and the
+    /// tube cannot possibly disagree about how wide the weld is.
+    pub gain: f32,
+}
+
+impl LimbShape {
+    /// The limb `j` is about to grow, with its base flare resolved against the
+    /// parent it leaves.
+    fn new(j: Junction, dir: [f32; 3], len: f32, r0: f32, r1: f32, sides: u32) -> Self {
+        LimbShape { dir, len, r0, r1, sides: sides.max(3), gain: flare_gain_at(r0, j.r) }
+    }
+
+    /// This limb's radius `x` metres along its own spine.
+    fn radius_at(&self, x: f32) -> f32 {
+        limb_radius_at(x, self.len, self.r0, self.r1, self.gain)
+    }
+}
+
+/// One recorded junction: what the child was welded to, the limb it grew, and
+/// where its leading rings ended up. Read by the back-poke and flare gates.
 pub(crate) struct Fork {
     pub parent: Junction,
     pub start: [f32; 3],
-    pub dir: [f32; 3],
-    pub r0: f32,
-    pub sides: u32,
+    pub shape: LimbShape,
+    /// The radius the limb is actually DRAWN at where it welds on: its shaft
+    /// radius plus the base flare (`flared_weld_radius`). This is the collar's
+    /// outer edge and the limb's first ring, to the bit.
+    pub weld_r: f32,
     pub rings: Vec<ForkRing>,
 }
 
@@ -2623,6 +2752,176 @@ fn limb_tip_radius(r0: f32, depth: u32, max_depth: u32) -> f32 {
     (r0 * ratio.powf(1.0 / (left + 1) as f32)).max(TWIG_TIP_R_M)
 }
 
+// ── THE BRANCH BASE FLARE (v0.1099) ──────────────────────────────────────
+//
+// THE FIELD REPORT. "Skinny at the connection point and then gets very wide
+// shortly after and then tapers down." That is not poly count, it is the
+// RADIUS PROFILE, and through v0.1098 it was a straight lerp: `r0 + (r1 - r0)
+// * x/len`, monotonic from `r0` at the root ring. So a limb was already at its
+// MAXIMUM radius the instant it left the parent's bark, and the only thing
+// bridging the parent's surface to that full-width ring was the collar skirt -
+// a few centimetres of skirt read as a pinch, then the branch snapped to full
+// width. Read off the v0.1098 fork renders: the acacia's bole is 0.40 m across,
+// each of its five primaries is ALSO 0.40 m across from its very first ring,
+// and the only join geometry is a 2 cm wedge.
+//
+// WHAT A REAL BRANCH DOES IS THE OPPOSITE. The junction is the WIDEST part of
+// the branch. A branch collar is a swelling of parent tissue that wraps the
+// base, and the branch flares smoothly out of it and then tapers monotonically
+// for the rest of its length. Every tree generator in the industry models this
+// the same way - a profile curve with a base flare multiplying the taper - and
+// this file already contains the technique, applied to the ONE junction that
+// had it: `trunk` flares the stem where it meets the ground (v0.1067, "the
+// detail that reads as 'a tree grew here'"). This generalises it to every
+// junction in the tree.
+//
+// THE LAW: `radius(x) = base_taper(x) * (1 + FLARE_GAIN * exp(-x / (FLARE_DECAY
+// * r0)))`, with x measured from the root ring. It is monotone non-increasing
+// for any `r1 <= r0` by construction (both a non-positive slope and a strictly
+// decreasing positive factor), which is the property the CI gate asserts.
+//
+// THE OTHER HALF, and the reason a flare alone would have made the report
+// WORSE: a fork's children were sized at exactly their parent's tip radius, so
+// two children already carried 2x the parent's cross-sectional AREA and the
+// acacia's five carried 5x. Flaring on top of that would have put 1.45x the
+// parent's radius at every weld - a bulge. Wood is conserved instead
+// (`fork_child_radius`), which thins the SHAFT by n^(-1/2.3) and lets the flare
+// bring the WELD back to ~1.0x the parent. Net at the junction: the silhouette
+// is what it was; net a few radii out: the branch is honestly thinner. That is
+// exactly the defect the operator described, removed from both ends.
+
+/// How much wider than its own shaft a limb is where it welds on.
+///
+/// 0.45 puts the weld at 1.45x the shaft radius. Paired with the pipe-model
+/// split at a two-way fork (0.74x), the weld lands at 1.07x the parent's tip -
+/// i.e. wood reads continuous across the fork with the slight proudness of a
+/// real branch collar - and the shaft settles 26% thinner a few radii out.
+const FLARE_GAIN: f32 = 0.45;
+
+/// e-folding distance of the flare, in SHAFT RADII.
+///
+/// Forced, not chosen: the flare has to be within 2% of the plain taper by 3
+/// shaft radii (past that a branch is just a branch), and `GAIN * exp(-3/DECAY)
+/// < 0.02` with GAIN 0.45 needs DECAY < 0.96. At 0.9 the excess runs 45% at the
+/// weld, 15% at one radius, 4.9% at two and 1.6% at three. Anatomically that is
+/// right too: a branch collar's swelling extends about one branch DIAMETER.
+const FLARE_DECAY: f32 = 0.9;
+
+/// How far out the flare is resolved with extra rings, in shaft radii.
+const FLARE_SPAN: f32 = 3.0;
+
+/// Extra rings packed into the flare run, front-loaded (see `ring_stations`).
+///
+/// FOUR, because that is where the error stops mattering. The stations land at
+/// 0.19, 0.75, 1.69 and 3.0 shaft radii, and a straight frustum between
+/// consecutive stations tracks the true exponential to better than 1% of the
+/// shaft radius anywhere in the run - well under one pixel at any distance the
+/// junction is a junction rather than a smudge. More rings would be measurably
+/// unnecessary; fewer (the uniform spacing this replaces, which puts the next
+/// ring 10-40 shaft radii out) cannot resolve the flare AT ALL, which is the
+/// honest half of the operator's "is it poly count" question: the profile was
+/// wrong, and the sampling could not have drawn it even if it had been right.
+const FLARE_RINGS: u32 = 4;
+
+/// Junctions worth spending extra rings on, as a fraction of TREE HEIGHT.
+///
+/// Self-scaling instead of an absolute metre threshold: a broadleaf's stem base
+/// is ~0.030 of its height, so this is "the top quarter of the tree's own
+/// radius range" - the structural forks you can walk up to. On an 8 m sakura
+/// that is 0.06 m of shaft (12 cm across), on a 22 m fir 0.165 m, on a 9 m
+/// acacia 0.068 m. Below it the flare still applies to the profile (it costs
+/// nothing to make the first ring wider), it is simply drawn as one straight
+/// ramp rather than a resolved curve, because a 2 cm twig's collar is a
+/// sub-pixel feature and the crown needs those triangles for leaves.
+const FLARE_RING_MIN_H_FRAC: f32 = 0.0075;
+
+/// The flare a limb of shaft radius `r0` actually gets off a parent of radius
+/// `parent_r`: THE WELD IS NEVER WIDER THAN THE PARENT IT LEAVES.
+///
+/// Found by the back-poke gate rather than by taste. A broadleaf's terminal
+/// limb is not a fork at all - it is the leader CONTINUING, sized at 0.92 of
+/// the leader's tip - and giving a continuation the full 45% collar swelling
+/// put its base 33% proud of the stem's own rim: a mushroom lip on top of every
+/// tree, and 24 ring vertices overhanging the back of the parent (sakura seed
+/// 0, 20.7 mm). Real wood does not do that, and the rule that stops it is the
+/// one nature uses: the surface is continuous across the join, so a limb's weld
+/// swells up to - and never past - the wood feeding it. A genuine two-way fork
+/// (child 0.74 of parent) lands exactly ON the parent's radius; a small lateral
+/// off a big stem gets the full swelling; a continuation gets almost none.
+fn flare_gain_at(r0: f32, parent_r: f32) -> f32 {
+    let cap = parent_r.max(r0) / r0.max(1e-5) - 1.0;
+    FLARE_GAIN.min(cap.max(0.0))
+}
+
+/// A limb's radius `x` metres along its own spine from the root ring.
+///
+/// `r0` is the SHAFT radius (what the limb settles at once the flare has
+/// decayed), `r1` its tip radius, `len` its length, `gain` its base flare from
+/// `flare_gain_at`. See the block comment.
+fn limb_radius_at(x: f32, len: f32, r0: f32, r1: f32, gain: f32) -> f32 {
+    let t = (x / len.max(1e-4)).clamp(0.0, 1.0);
+    let base = r0 + (r1 - r0) * t;
+    base * (1.0 + gain * (-x / (FLARE_DECAY * r0.max(1e-5))).exp())
+}
+
+/// Where along a limb its rings go: the uniform spine stations, plus rings
+/// packed into the flare run so the curve is actually drawn.
+///
+/// The extra stations are QUADRATICALLY front-loaded (`(k/n)^2` of the span),
+/// which is the geometric-in-spirit spacing the flare wants: the profile falls
+/// fastest in the first half radius, so that is where the rings go. Returns a
+/// sorted list from 0 to `len`; stations closer together than a quarter of the
+/// flare's own finest step are merged, because a sliver ring costs triangles
+/// and buys no silhouette.
+///
+/// `min_r` is the shaft radius below which no extra rings are spent
+/// (`FLARE_RING_MIN_H_FRAC`); pass 0 to always densify.
+fn ring_stations(len: f32, r0: f32, segs: u32, min_r: f32) -> Vec<f32> {
+    let segs = segs.max(1);
+    let len = len.max(1e-4);
+    let uniform = |i: u32| len * i as f32 / segs as f32;
+    if r0 < min_r || r0 <= 0.0 {
+        return (0..=segs).map(uniform).collect();
+    }
+    // Never spend more than the first half of a short limb on its own flare.
+    let span = (FLARE_SPAN * r0).min(len * 0.5);
+    let n = FLARE_RINGS.max(1);
+    let mut xs: Vec<f32> = (0..=segs).map(uniform).collect();
+    xs.extend((1..=n).map(|k| span * (k as f32 / n as f32).powi(2)));
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let gap = span / n as f32 * 0.25;
+    let mut out: Vec<f32> = Vec::with_capacity(xs.len());
+    for x in xs.into_iter().filter(|&x| x < len - gap) {
+        if out.last().is_none_or(|&p| x - p > gap) {
+            out.push(x);
+        }
+    }
+    if out.first().is_none_or(|&f| f > 0.0) {
+        out.insert(0, 0.0);
+    }
+    // The tip station is structural - the limb ends there and the next junction
+    // welds onto it - so it is appended rather than merged.
+    out.push(len);
+    out
+}
+
+/// Exponent of the pipe model (da Vinci's rule): the cross-sectional area of a
+/// limb equals the summed area of the limbs it forks into, so
+/// `r_parent^D = sum(r_child^D)`.
+///
+/// D = 2.0 is exact area conservation (Leonardo's own statement, and the pipe
+/// model of Shinozaki 1964); field measurements on temperate trees put it a
+/// little higher, 2.0-2.5, because a fork also has to be mechanically stiff.
+/// 2.3 is the middle of the measured band: a two-way fork's children are 0.74
+/// of the parent, a three-way 0.62, the acacia's five-way 0.50.
+const FORK_AREA_EXP: f32 = 2.3;
+
+/// Shaft radius of one of `siblings` limbs forking off a limb that ended at
+/// `parent_tip_r`.
+fn fork_child_radius(parent_tip_r: f32, siblings: u32) -> f32 {
+    parent_tip_r * (siblings.max(1) as f32).powf(-1.0 / FORK_AREA_EXP)
+}
+
 /// Recursive limb. Emits a tapered segment, then either children or foliage.
 ///
 /// `parent` describes the surface this limb grows out of; the limb's spine
@@ -2655,42 +2954,55 @@ fn limb(
     // straight silhouette, which is most of what read as "early 2000s".
     let segs = segments_for(depth);
     let sides = sides_for(depth);
+    let shape = LimbShape::new(parent, dir, len, r0, r1, sides);
     // The join: spine start ON the parent's surface, collar skinned across.
-    let start = b.weld_child(parent, dir, r0, sides, def.trunk_color);
+    let start = b.weld_child(parent, shape, def.trunk_color);
     let mut p = start;
     let mut d = dir;
-    let mut x = 0.0f32; // distance travelled from the root ring
     // Taper measured from the root ring, which is now the first VISIBLE ring:
     // with nothing buried the two are the same thing.
     let taper = |x: f32| (x / len.max(1e-4)).clamp(0.0, 1.0);
     let mut tube_far = start;
     let mut tube_dir = d;
     let mut tube_r = r0;
-    for s in 0..segs {
-        let seg_len = len / segs as f32;
+    // Ring stations: the uniform ones the bow is sampled at, PLUS rings packed
+    // into the base flare so the profile is drawn rather than stepped over.
+    let stations = ring_stations(len, r0, segs, b.flare_min_r);
+    b.flare_tris += (stations.len() - 1).saturating_sub(segs as usize) * sides as usize * 2;
+    let nominal = len / segs as f32;
+    for w in 0..stations.len() - 1 {
+        let (xa, xb) = (stations[w], stations[w + 1]);
+        let seg_len = xb - xa;
         let to = add(p, d, seg_len);
-        let ra = r0 + (r1 - r0) * taper(x);
-        let rb = r0 + (r1 - r0) * taper(x + seg_len);
+        let (ra, rb) = (shape.radius_at(xa), shape.radius_at(xb));
         // Overshoot the joint by a fraction of the radius so the kink between
         // two spine segments cannot open a slit on the outside of the bow. The
         // spine itself still advances by exactly `seg_len`.
+        //
+        // CAPPED AT HALF THE SEGMENT (v0.1099): the flare's rings are a
+        // fraction of a radius apart, and a fixed 0.7-radius overshoot there
+        // would draw each little frustum five times past its own end - which
+        // stretches the flare's radius fall over the wrong distance and lands
+        // the next ring inside the previous tube at a different width. Half a
+        // segment still overlaps far more than the sub-degree kink needs.
         // v runs from the root ring, so a bowing limb's bark is one continuous
         // run across its spine joints (v0.1089).
-        tube_far = add(p, d, seg_len + rb * 0.7);
+        tube_far = add(p, d, seg_len + (rb * 0.7).min(seg_len * 0.5));
         tube_dir = d;
         tube_r = rb;
-        b.bark_tube(p, tube_far, ra, rb, sides, def.trunk_color, x);
+        b.bark_tube(p, tube_far, ra, rb, sides, def.trunk_color, xa);
         // The gate reads the leading rings of every limb straight off the
         // geometry that was drawn, so record them here and nowhere else.
-        if s == 0 {
+        if w == 0 {
             b.note_fork_ring(p, d, ra, sides);
         }
         b.note_fork_ring(tube_far, d, rb, sides);
         p = to;
-        x += seg_len;
         // Bow: droop grows toward the tip, and the trunk stays straighter than
-        // the twigs (a bole that sagged would read as a sick tree).
-        let droop = if depth == 0 { 0.04 } else { 0.10 } * taper(x);
+        // the twigs (a bole that sagged would read as a sick tree). Scaled by
+        // the step's share of a nominal segment so that adding flare rings
+        // near the root cannot bend the limb any further than it used to.
+        let droop = if depth == 0 { 0.04 } else { 0.10 } * taper(xb) * (seg_len / nominal);
         d = norm([d[0], d[1] - droop, d[2]]);
     }
     let to = p;
@@ -2750,6 +3062,16 @@ fn limb(
     // The surface every child of this limb welds onto: the far end of the last
     // drawn ring, facing the way that ring faced.
     let fork = Junction { axis: tube_far, up: tube_dir, r: tube_r, tip: true };
+    // WOOD IS CONSERVED ACROSS A FORK (v0.1099), not duplicated. Through
+    // v0.1098 each child started at exactly `r1`, so a two-way fork carried
+    // TWICE the parent's cross-sectional area out of it and a three-way three
+    // times - which is the "gets very wide shortly after" half of the operator's
+    // report, and it compounds every generation. The pipe model splits it:
+    // 0.74 of `r1` for two children, 0.62 for three. The base flare then brings
+    // the WELD back to 1.07 (two-way) or 0.90 (three-way) of the parent's tip,
+    // so the fork itself still reads as continuous wood - it is the SHAFT a few
+    // radii out that is honestly thinner now.
+    let child_r0 = fork_child_radius(r1, n);
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.5, 0.5) + depth as f32;
         let spread = rng.range(22.0, 42.0) - if depth == 0 { 6.0 } else { 0.0 };
@@ -2760,9 +3082,7 @@ fn limb(
         // Twigs shorten faster than limbs, so foliage clumps sit close together
         // instead of leaving long bare runs between them.
         let child_len = len * if depth + 2 >= max_depth { rng.range(0.42, 0.56) } else { rng.range(0.62, 0.78) };
-        // The child's radius equals the parent's tip radius: wood is continuous
-        // across a fork.
-        limb(b, def, fork, d, child_len, r1, depth + 1, max_depth, fol.with_clump(0.86), rng, twigs);
+        limb(b, def, fork, d, child_len, child_r0, depth + 1, max_depth, fol.with_clump(0.86), rng, twigs);
     }
 }
 
@@ -2951,11 +3271,14 @@ fn conifer(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng
             // wood through the inside of the trunk on every one of the 45
             // branches, and the collar closes the join without it.
             let j = Junction { axis: [0.0, y, 0.0], up: [0.0, 1.0, 0.0], r: lr, tip: false };
-            let root = b.weld_child(j, d, lr * 0.42, 4, def.trunk_color);
-            let tip = add(root, d, blen);
-            b.bark_tube(root, tip, lr * 0.42, lr * 0.14, 4, def.trunk_color, 0.0);
-            b.note_fork_ring(root, d, lr * 0.42, 4);
-            b.note_fork_ring(tip, d, lr * 0.14, 4);
+            // One flared run (v0.1099): a whorl branch leaves a fir's leader
+            // with the same swollen collar every other junction has. The
+            // whorl's radius fractions are left alone - a conifer sheds ~45
+            // branches off ONE continuous leader rather than forking, so the
+            // pipe model has nothing to say here and 0.42 of the local leader
+            // is already a measured-looking stub.
+            let (root, tip) =
+                b.flared_run(j, LimbShape::new(j, d, blen, lr * 0.42, lr * 0.14, 4), def.trunk_color);
             leaf_cluster(&mut b.foliage, tip, d, fol, def.leaf_color, 10, rng);
             // A second clump midway keeps the branch from reading as a bare stick.
             let mid = add(root, d, blen * 0.55);
@@ -2983,40 +3306,48 @@ fn umbrella(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rn
     // primaries 1.4 radii back down the bole - which, at the 58-74 deg
     // insertion an acacia uses, put the buried ring a full radius sideways and
     // straight out through the far side of the trunk.
-    b.bark_cap(top, [0.0, 1.0, 0.0], r_base * 0.66, 8, def.trunk_color);
-    let bole = Junction { axis: top, up: [0.0, 1.0, 0.0], r: r_base * 0.66, tip: true };
+    let bole_r = r_base * 0.66;
+    b.bark_cap(top, [0.0, 1.0, 0.0], bole_r, 8, def.trunk_color);
+    let bole = Junction { axis: top, up: [0.0, 1.0, 0.0], r: bole_r, tip: true };
+    // WOOD IS CONSERVED ACROSS THIS FORK (v0.1099), and this is the form where
+    // getting it wrong was loudest - the operator's field report is an acacia.
+    //
+    // Through v0.1098 each of the FIVE primaries left the bole at exactly the
+    // bole's own tip radius: five limbs each as thick as the trunk they came
+    // out of, i.e. five times the cross-sectional area of the wood feeding
+    // them. On a 9 m acacia that is a 0.40 m bole splitting into five 0.40 m
+    // limbs, and no flare, collar or poly count can make that read as a tree -
+    // it reads as a pipe manifold, which is exactly "gets very wide shortly
+    // after". The pipe model gives 5^(-1/2.3) = 0.50, so a primary's SHAFT is
+    // 0.20 m across where it was 0.40, and its flared weld is 0.29 m - visibly
+    // narrower than the bole it leaves, which is what a real umbrella crown
+    // looks like from underneath. The tip/base ratios of the primary (0.52) and
+    // the fan (0.35) are unchanged, so the limbs still taper as they did.
+    let primary_tip_frac = 0.52;
+    let fan_tip_frac = 0.35;
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.3, 0.3);
         // Steeply out, barely up.
         let d = tilt([0.0, 1.0, 0.0], rng.range(58.0, 74.0), phase);
         let seg = h * rng.range(0.30, 0.40);
-        // WOOD IS CONTINUOUS ACROSS A FORK: the primary starts at exactly the
-        // radius the bole ended at. Through v0.1097 it started FATTER (0.70 vs
-        // 0.66) so that it would still be wider than the hole where it crossed
-        // the bole's end plane on its way out of the burial - a fudge that only
-        // existed to serve the burial, and one that left the primary's rearmost
-        // root vertex overhanging the bole's rim. `limb` has always sized a
-        // child at its parent's tip radius; this now matches.
-        let root = b.weld_child(bole, d, r_base * 0.66, 5, def.trunk_color);
-        let mid = add(root, d, seg);
-        b.bark_tube(root, mid, r_base * 0.66, r_base * 0.34, 5, def.trunk_color, 0.0);
-        b.note_fork_ring(root, d, r_base * 0.66, 5);
-        b.note_fork_ring(mid, d, r_base * 0.34, 5);
+        let p_r0 = fork_child_radius(bole_r, n);
+        let p_r1 = p_r0 * primary_tip_frac;
+        let (_, mid) =
+            b.flared_run(bole, LimbShape::new(bole, d, seg, p_r0, p_r1, 5), def.trunk_color);
         // The crown layer: near-horizontal fans of foliage, forking off the
         // primary's own end plane.
-        b.bark_cap(mid, d, r_base * 0.34, 5, def.trunk_color);
-        let elbow = Junction { axis: mid, up: d, r: r_base * 0.34, tip: true };
+        b.bark_cap(mid, d, p_r1, 5, def.trunk_color);
+        let elbow = Junction { axis: mid, up: d, r: p_r1, tip: true };
         for j in 0..3 {
             let p2 = phase + j as f32 * 1.9;
             let d2 = tilt([0.0, 1.0, 0.0], rng.range(80.0, 94.0), p2);
             let flen = h * rng.range(0.16, 0.26);
-            // Same continuity as the primary above: the fan leaves at the
-            // radius the primary ended at, not the old 0.38 burial fudge.
-            let froot = b.weld_child(elbow, d2, r_base * 0.34, 4, def.trunk_color);
-            let tip = add(froot, d2, flen);
-            b.bark_tube(froot, tip, r_base * 0.34, r_base * 0.12, 4, def.trunk_color, 0.0);
-            b.note_fork_ring(froot, d2, r_base * 0.34, 4);
-            b.note_fork_ring(tip, d2, r_base * 0.12, 4);
+            let f_r0 = fork_child_radius(p_r1, 3);
+            let (_, tip) = b.flared_run(
+                elbow,
+                LimbShape::new(elbow, d2, flen, f_r0, f_r0 * fan_tip_frac, 4),
+                def.trunk_color,
+            );
             leaf_cluster(&mut b.foliage, tip, [0.0, 1.0, 0.0], fol, def.leaf_color, 16, rng);
         }
     }
@@ -3584,8 +3915,8 @@ mod tests {
                 let mut per_tree = 0usize;
                 for f in &parts.forks {
                     let j = f.parent;
-                    let out = j.outward(f.dir);
-                    for ring in &f.rings {
+                    let out = j.outward(f.shape.dir);
+                    for (ri, ring) in f.rings.iter().enumerate() {
                         for v in ring.vertices() {
                             let rel = sub(v, j.axis);
                             let radial = sub(rel, mul(j.up, dot(rel, j.up)));
@@ -3602,7 +3933,16 @@ mod tests {
                             let over = length(radial) - j.r;
                             if over > worst {
                                 worst = over;
-                                worst_at = format!("{} seed {seed}", t.id);
+                                worst_at = format!(
+                                    "{} seed {seed}, ring {ri} of {} (parent r {:.3} tip={}, \
+                                     limb shaft r {:.3} len {:.2} m)",
+                                    t.id,
+                                    f.rings.len(),
+                                    j.r,
+                                    j.tip,
+                                    f.shape.r0,
+                                    f.shape.len
+                                );
                             }
                         }
                     }
@@ -3620,6 +3960,166 @@ mod tests {
             "[back-poke] {checked} leading-ring vertices across {} species x 6 variants: \
              {violations} on the far side of their parent",
             r.trees.len()
+        );
+    }
+
+    /// THE FLARE GATE (v0.1099). The operator's field report as a measurement:
+    /// "skinny at the connection point and then gets very wide shortly after
+    /// and then tapers down" is a radius profile that rises after the junction,
+    /// so the gate is that no limb's profile ever rises anywhere.
+    ///
+    /// Four properties, over every species x variant x junction:
+    ///   1. MONOTONE. The radius is non-increasing from the weld to the tip -
+    ///      the junction is the widest part of the limb and nothing downstream
+    ///      of it is wider. Checked on the law at 200 stations AND on the rings
+    ///      that were actually drawn, because a correct law drawn wrong is
+    ///      still a wrong tree.
+    ///   2. FLARED. The weld is 1.3-1.7x the shaft radius wherever the parent
+    ///      has room for it, never more than 1.7x, and never wider than the
+    ///      parent itself (`flare_gain_at` - a continuation like the leader's
+    ///      terminal limb is 0.92 of its parent and can only swell 8%). The
+    ///      value drawn is the value the law says, so the collar and the tube
+    ///      never hold a second opinion about how wide the join is.
+    ///   3. DECAYED. By three shaft radii out the flare is within 2% of the
+    ///      plain taper, so it is a base swelling and not a fat branch.
+    ///   4. RESOLVED. A junction thick enough to earn extra rings has at least
+    ///      four of them inside the flare run - the honest half of "is it poly
+    ///      count": the profile is only as real as its sampling.
+    #[test]
+    fn branch_radius_profile_is_monotonic_and_flared() {
+        let r = registry();
+        let (mut junctions, mut resolved, mut flared) = (0usize, 0usize, 0usize);
+        let (mut lo_ratio, mut hi_ratio) = (f32::MAX, f32::MIN);
+        let mut worst_excess = 0.0f32;
+        for t in r.trees.iter().map(as_procedural) {
+            let min_r = t.height_m.max(0.5) * FLARE_RING_MIN_H_FRAC;
+            for seed in 0..6u32 {
+                let (parts, _) = build_accepted(&t, t.height_m, shipped_seed(seed));
+                if seed == 0 {
+                    // WHAT THE FLARE COSTS, per species, measured rather than
+                    // estimated: the extra rings inside flare runs plus the
+                    // second collar strip, against the wood the tree draws.
+                    let wood = parts.wood.indices.len() / 3;
+                    eprintln!(
+                        "[flare-cost] {:>7}: +{} tris of {wood} wood ({:.1}%), {} junctions, \
+                         {} resolved",
+                        t.id,
+                        parts.flare_tris,
+                        parts.flare_tris as f32 / wood.max(1) as f32 * 100.0,
+                        parts.forks.len(),
+                        parts.forks.iter().filter(|f| f.shape.r0 >= min_r).count(),
+                    );
+                }
+                for f in &parts.forks {
+                    let s = f.shape;
+                    assert!(
+                        s.len > 0.0 && s.r0 > 0.0 && s.r1 > 0.0,
+                        "{}: a junction recorded no limb ({s:?}) - the weld and the tube \
+                         disagree about what is being drawn",
+                        t.id
+                    );
+                    junctions += 1;
+
+                    // 2. FLARED, and drawn at the flared radius.
+                    let weld = s.radius_at(0.0);
+                    let ratio = weld / s.r0;
+                    lo_ratio = lo_ratio.min(ratio);
+                    hi_ratio = hi_ratio.max(ratio);
+                    assert!(
+                        (1.0..=1.7).contains(&ratio),
+                        "{}: junction is {ratio}x its shaft radius, outside 1.0-1.7 - a real \
+                         branch collar is the widest part of the limb but not a bulb",
+                        t.id
+                    );
+                    assert!(
+                        weld <= f.parent.r.max(s.r0) * 1.001,
+                        "{}: a {weld} m weld stands proud of the {} m parent it leaves - wood \
+                         does not get wider crossing a join",
+                        t.id,
+                        f.parent.r
+                    );
+                    if f.parent.r >= s.r0 * (1.0 + FLARE_GAIN) {
+                        // Room for the full collar swelling: it must be there.
+                        assert!(
+                            (1.3..=1.7).contains(&ratio),
+                            "{}: junction is only {ratio}x its shaft radius with a {} m parent \
+                             to swell into - the flare is dead and the join reads pinched",
+                            t.id,
+                            f.parent.r
+                        );
+                        flared += 1;
+                    }
+
+                    // 1. MONOTONE, on the law.
+                    let mut prev = f32::MAX;
+                    for i in 0..=200 {
+                        let x = s.len * i as f32 / 200.0;
+                        let rr = s.radius_at(x);
+                        assert!(
+                            rr <= prev + 1e-7,
+                            "{}: radius RISES to {rr} m at {x} m along a {} m limb (was {prev}) \
+                             - this is the defect: skinny, then suddenly wide",
+                            t.id,
+                            s.len
+                        );
+                        prev = rr;
+                    }
+                    // 1. MONOTONE, on the rings that shipped.
+                    let mut prev = f32::MAX;
+                    for ring in &f.rings {
+                        assert!(
+                            ring.r <= prev + 1e-6,
+                            "{}: a drawn ring is {} m where the one before it was {prev} m",
+                            t.id,
+                            ring.r
+                        );
+                        prev = ring.r;
+                    }
+
+                    // 3. DECAYED by three shaft radii.
+                    let x3 = (FLARE_SPAN * s.r0).min(s.len);
+                    let base = s.r0 + (s.r1 - s.r0) * (x3 / s.len).clamp(0.0, 1.0);
+                    let excess = s.radius_at(x3) / base - 1.0;
+                    worst_excess = worst_excess.max(excess);
+                    assert!(
+                        excess < 0.02,
+                        "{}: {:.1}% of flare is still left {x3} m out - a base flare that has \
+                         not decayed is just a fat branch",
+                        t.id,
+                        excess * 100.0
+                    );
+
+                    // 4. RESOLVED where it is worth resolving.
+                    if s.r0 >= min_r {
+                        let near = f
+                            .rings
+                            .iter()
+                            .filter(|r| dist(r.centre, f.start) <= FLARE_SPAN * s.r0 * 1.6)
+                            .count();
+                        assert!(
+                            near >= 4,
+                            "{}: a {} m junction is drawn with only {near} rings inside its \
+                             flare run - the profile is right and the sampling cannot draw it",
+                            t.id,
+                            s.r0
+                        );
+                        resolved += 1;
+                    }
+                }
+            }
+        }
+        assert!(junctions > 2_500, "only {junctions} junctions reached the flare gate");
+        assert!(
+            flared * 3 > junctions,
+            "only {flared} of {junctions} junctions had room for the full collar swelling - \
+             either the forms stopped conserving wood or the cap is eating the flare"
+        );
+        eprintln!(
+            "[flare] {junctions} junctions across {} species x 6 variants: weld {lo_ratio:.3}-\
+             {hi_ratio:.3}x shaft ({flared} with full room to swell), worst residual at 3 r0 \
+             {:.2}%, {resolved} resolved with extra rings",
+            r.trees.len(),
+            worst_excess * 100.0
         );
     }
 
@@ -3659,10 +4159,13 @@ mod tests {
                 parts.wood.vertices.iter().map(|v| key(v.position)).collect();
             for f in &parts.forks {
                 let j = f.parent;
-                let (side, up) = ring_basis(f.dir);
-                for i in 0..f.sides {
-                    let a = i as f32 / f.sides as f32 * std::f32::consts::TAU;
-                    let v = ring_point(f.start, side, up, a, f.r0);
+                let (side, up) = ring_basis(f.shape.dir);
+                for i in 0..f.shape.sides {
+                    let a = i as f32 / f.shape.sides as f32 * std::f32::consts::TAU;
+                    // `weld_r` is the FLARED radius the limb is drawn at where
+                    // it welds on (v0.1099) - the collar's outer edge tracks
+                    // the flare, so the identity check has to use it too.
+                    let v = ring_point(f.start, side, up, a, f.weld_r);
                     let foot = j.project(v);
                     let rel = sub(foot, j.axis);
                     let radial = length(sub(rel, mul(j.up, dot(rel, j.up))));
@@ -4346,7 +4849,7 @@ mod tests {
             else {
                 continue;
             };
-            let out = f.parent.outward(f.dir);
+            let out = f.parent.outward(f.shape.dir);
             let across = norm(cross(out, f.parent.up));
             // Six parent radii of frame, centred on the JOIN rather than on the
             // parent's axis: a few millimetres of overhang is then several
@@ -4358,11 +4861,22 @@ mod tests {
             // back-poke is three-quarter rear: the trunk's silhouette edge is
             // in frame and anything protruding through it is unmissable.
             let rear3q = norm(add(mul(out, -1.0), across, 0.9));
-            for (name, eye) in [
-                ("behind", mul(out, -1.0)),
-                ("rear3q", rear3q),
-                ("side", across),
-                ("under", norm([out[0] * 0.5, -1.0, out[2] * 0.5])),
+            // THE PROFILE SHOT (v0.1099). The four poses above are framed on the
+            // PARENT, which is the right frame for "does anything poke out the
+            // back" and the wrong one for "what shape is the join": at six
+            // parent radii the first few shaft radii of the branch - the entire
+            // base flare - are a dozen pixels. This one is framed on the branch
+            // BASE and looks square across the limb, so the silhouette the
+            // operator described (pinch, then a sudden full-width shaft) is
+            // what fills the frame.
+            let collar_at = add(f.start, f.shape.dir, f.weld_r * 1.6);
+            let collar_span = f.weld_r * 7.0;
+            for (name, eye, centre, span) in [
+                ("behind", mul(out, -1.0), centre, span),
+                ("rear3q", rear3q, centre, span),
+                ("side", across, centre, span),
+                ("under", norm([out[0] * 0.5, -1.0, out[2] * 0.5]), centre, span),
+                ("collar", across, collar_at, collar_span),
             ] {
                 let px = 420usize;
                 let fwd = norm(eye);
@@ -4433,13 +4947,15 @@ mod tests {
                     .expect("write png");
             }
             eprintln!(
-                "[fork] {}: parent r {:.3} at {:?} tip={} | child r {:.3} starts {:?} \
-                 ({:.3} m out, {:.3} m up) -> debug/fork_{}_*.png",
+                "[fork] {}: parent r {:.3} at {:?} tip={} | child shaft r {:.3} welds at \
+                 {:.3} ({:.2}x) starts {:?} ({:.3} m out, {:.3} m up) -> debug/fork_{}_*.png",
                 t.id,
                 f.parent.r,
                 f.parent.axis,
                 f.parent.tip,
-                f.r0,
+                f.shape.r0,
+                f.weld_r,
+                f.weld_r / f.shape.r0,
                 f.start,
                 dot(sub(f.start, f.parent.axis), out),
                 dot(sub(f.start, f.parent.axis), f.parent.up),
