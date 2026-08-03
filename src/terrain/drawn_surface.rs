@@ -79,6 +79,16 @@ impl VertexMemo {
         let n = 1 << 16;
         Self { slots: vec![(0, DVec3::ZERO, 0.0); n], mask: n - 1 }
     }
+    /// A memo sized for ONE query (v0.1108). The table above is right for a
+    /// harvest asking thousands of questions; a single-point caller - the walk
+    /// clamp, which asks exactly one per frame - measured 597 us of
+    /// allocate-and-zero for a 0.25 us question: a per-frame page-fault storm
+    /// over 2.6 MB that is freed again the same frame. 64 slots covers the
+    /// three lattice vertices one `radius_at` actually touches.
+    fn small() -> Self {
+        let n = 64;
+        Self { slots: vec![(0, DVec3::ZERO, 0.0); n], mask: n - 1 }
+    }
     #[inline]
     fn slot(&self, key: u64) -> usize {
         let mut h = key;
@@ -142,6 +152,34 @@ impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
             pkeys: Vec::with_capacity(depth as usize + 1),
             base_level: 0,
             memo: VertexMemo::new(),
+            samples: 0,
+        }
+    }
+
+    /// `new`, but for a caller asking ONE question per construction.
+    ///
+    /// Behaviourally identical - only the memo size differs, and that
+    /// difference measured 597 us per frame for the walk clamp, which
+    /// constructs one of these per frame to ask exactly one question. See
+    /// `VertexMemo::small`.
+    pub fn new_single_shot(
+        def: &'a PlanetDef,
+        source: &'a ElevationSource<'b>,
+        depth: u8,
+    ) -> Self {
+        let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
+        Self {
+            def,
+            source,
+            depth,
+            bathymetric,
+            face: u8::MAX,
+            path: Vec::with_capacity(depth as usize),
+            corners: Vec::with_capacity(depth as usize + 1),
+            mids: Vec::with_capacity(depth as usize + 1),
+            pkeys: Vec::with_capacity(depth as usize + 1),
+            base_level: 0,
+            memo: VertexMemo::small(),
             samples: 0,
         }
     }

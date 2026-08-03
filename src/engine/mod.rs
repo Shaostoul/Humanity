@@ -16,6 +16,8 @@ pub mod home_spawn;
 pub mod ipc;
 pub mod ipc_parse;
 pub mod launch_focus;
+/// Near-tree model cache + sprite-atlas bake (extracted from lib.rs, v0.1108).
+pub mod near_tree_models;
 pub mod net_route;
 pub mod registries;
 pub mod state;

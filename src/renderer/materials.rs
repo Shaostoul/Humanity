@@ -32,7 +32,7 @@
 //! carry every binding.
 
 use super::pipeline::MaterialUniforms;
-use super::{billboard_bake, tree_mesh, Material, Renderer};
+use super::{billboard_bake, tree_mesh, AlbedoBindGroup, Material, Renderer};
 use wgpu::util::DeviceExt;
 
 impl Renderer {
@@ -94,6 +94,7 @@ impl Renderer {
             metallic,
             roughness,
             emissive,
+            material_type,
             buffer,
             bind_group,
             albedo_bind_group: None,
@@ -106,7 +107,7 @@ impl Renderer {
     /// automatically -- the whole material pipeline is linear; the sRGB
     /// encode happens once, on store to the sRGB render target. The bind
     /// group keeps the texture + view alive internally.
-    fn build_albedo_bind_group(&self, rgba: &[u8], width: u32, height: u32) -> wgpu::BindGroup {
+    fn build_albedo_bind_group(&self, rgba: &[u8], width: u32, height: u32) -> AlbedoBindGroup {
         self.build_material_texture_bind_group(&[rgba], width, height, &self.albedo_sampler)
     }
 
@@ -119,6 +120,14 @@ impl Renderer {
     /// still every binding 0..15, which is the invariant the v0.1029-v0.1038
     /// incident was about. Level count and sampler are texture/bind-group
     /// state, not layout state.
+    ///
+    /// Returns BOTH group-3 flavours (v0.1108): the colour-pass group and its
+    /// shadow-safe twin. The entry list is written ONCE, in a closure whose
+    /// only parameter is the binding-6 texture view, so "identical except at
+    /// binding 6" is a property of the code's shape rather than something a
+    /// test has to re-check - and so a future binding added to the layout
+    /// cannot be added to one group and missed on the other (that is the
+    /// v0.1029 incident class, one level down).
     // `pub(super)` restores EXACTLY the visibility this had in mod.rs: private
     // there meant "renderer and all its descendants", which is how the sibling
     // `billboard_bake::cluster_sprite_material` calls it. Private HERE would
@@ -129,7 +138,7 @@ impl Renderer {
         width: u32,
         height: u32,
         sampler: &wgpu::Sampler,
-    ) -> wgpu::BindGroup {
+    ) -> AlbedoBindGroup {
         assert!(!levels.is_empty(), "a material texture needs at least one level");
         assert_eq!(
             levels[0].len(),
@@ -167,86 +176,95 @@ impl Renderer {
             );
         }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Material Albedo Bind Group"),
-            layout: &self.pipeline.texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(sampler),
-                },
-                // Shared cloud-noise volumes (clouds increment 3): every
-                // group-3 bind group carries the same engine-global views.
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&self.cloud_shape_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&self.cloud_detail_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Sampler(&self.cloud_tile_sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 5,
-                    resource: wgpu::BindingResource::TextureView(&self.weather_map_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 6,
-                    resource: wgpu::BindingResource::TextureView(&self.shadow_map_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 7,
-                    resource: wgpu::BindingResource::Sampler(&self.shadow_comparison_sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 8,
-                    resource: self.shadow_uniform_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 9,
-                    resource: wgpu::BindingResource::TextureView(&self.ground_textures.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 10,
-                    resource: wgpu::BindingResource::Sampler(&self.ground_textures.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 11,
-                    resource: wgpu::BindingResource::TextureView(&self.atmo_trans_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 12,
-                    resource: wgpu::BindingResource::TextureView(&self.atmo_ms_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 13,
-                    resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 14,
-                    resource: wgpu::BindingResource::TextureView(&self.tree_atlas_view),
-                },
-                // v0.1039 CRASH FIX: binding 15 (FFT ocean tile) was added
-                // to the LAYOUT in v0.1029 but this per-material creation
-                // site was missed - the other two sites were updated, and
-                // menu-only boot-verifies never create a textured material,
-                // so every world entry on v0.1029-v0.1038 panicked with
-                // "15 bindings vs 16 in layout" (operator: "insta crashes
-                // when I press esc"). Every texture_bind_group_layout
-                // create_bind_group site MUST carry every binding.
-                wgpu::BindGroupEntry {
-                    binding: 15,
-                    resource: wgpu::BindingResource::TextureView(&self.water_fft_view),
-                },
-            ],
-        })
+        // ONE entry list, two bind groups. `depth6` is the ONLY difference:
+        // the real sun map for colour passes, the 1x1 dummy for the shadow
+        // pass (which writes the real one and so may not sample it).
+        let build = |depth6: &wgpu::TextureView, label: &str| {
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(label),
+                layout: &self.pipeline.texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(sampler),
+                    },
+                    // Shared cloud-noise volumes (clouds increment 3): every
+                    // group-3 bind group carries the same engine-global views.
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&self.cloud_shape_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::TextureView(&self.cloud_detail_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: wgpu::BindingResource::Sampler(&self.cloud_tile_sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(&self.weather_map_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 6,
+                        resource: wgpu::BindingResource::TextureView(depth6),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 7,
+                        resource: wgpu::BindingResource::Sampler(&self.shadow_comparison_sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 8,
+                        resource: self.shadow_uniform_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 9,
+                        resource: wgpu::BindingResource::TextureView(&self.ground_textures.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 10,
+                        resource: wgpu::BindingResource::Sampler(&self.ground_textures.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 11,
+                        resource: wgpu::BindingResource::TextureView(&self.atmo_trans_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 12,
+                        resource: wgpu::BindingResource::TextureView(&self.atmo_ms_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 13,
+                        resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 14,
+                        resource: wgpu::BindingResource::TextureView(&self.tree_atlas_view),
+                    },
+                    // v0.1039 CRASH FIX: binding 15 (FFT ocean tile) was added
+                    // to the LAYOUT in v0.1029 but this per-material creation
+                    // site was missed - the other two sites were updated, and
+                    // menu-only boot-verifies never create a textured material,
+                    // so every world entry on v0.1029-v0.1038 panicked with
+                    // "15 bindings vs 16 in layout" (operator: "insta crashes
+                    // when I press esc"). Every texture_bind_group_layout
+                    // create_bind_group site MUST carry every binding.
+                    wgpu::BindGroupEntry {
+                        binding: 15,
+                        resource: wgpu::BindingResource::TextureView(&self.water_fft_view),
+                    },
+                ],
+            })
+        };
+        AlbedoBindGroup {
+            colour: build(&self.shadow_map_view, "Material Albedo Bind Group"),
+            shadow: build(&self.dummy_depth_view, "Material Albedo BG (shadow pass)"),
+        }
     }
 
     /// Register a material that carries a real albedo texture at group 3
@@ -361,11 +379,15 @@ impl Renderer {
         material_type: f32,
         emissive: f32,
     ) {
-        if let Some(mat) = self.materials.get(idx) {
+        if let Some(mat) = self.materials.get_mut(idx) {
             let uniforms = MaterialUniforms {
                 base_color,
                 params: [metallic, roughness, material_type, emissive],
             };
+            // The CPU-side copy tracks the uniform (v0.1108). A slot reused
+            // for a different type - the machine rebuild does exactly this -
+            // must not keep the old type's shadow-PSO choice.
+            mat.material_type = material_type;
             self.queue
                 .write_buffer(&mat.buffer, 0, bytemuck::bytes_of(&uniforms));
         }

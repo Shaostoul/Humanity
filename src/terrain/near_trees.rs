@@ -217,7 +217,7 @@ pub fn near_tree_instances_on_drawn(
                 s ^= s << 17;
                 s
             };
-            for _ in 0..count {
+            for item in 0..count {
                 let r0 = next();
                 let r1 = next();
                 let r2 = next();
@@ -261,8 +261,14 @@ pub fn near_tree_instances_on_drawn(
                     }
                     continue;
                 }
+                // v0.1108: the biome gate is a DENSITY WEIGHT now, thinned by
+                // the item's index in the cell stream. MUST stay byte-identical
+                // to the card bake's copy in `build_patch_mesh` - the model has
+                // to hide its own card, so if the two streams disagree about
+                // which items survive, a tree and its billboard both draw.
                 let sc = surface_color(def, albedo, dir.as_vec3(), e);
-                if !veg_biome_ok(sc) {
+                let vw = veg_biome_weight(sc);
+                if vw < VEG_WEIGHT_MIN || (item as f32) >= count as f32 * vw {
                     n_green += 1;
                     if green_samples.len() < 4 {
                         green_samples.push(sc);

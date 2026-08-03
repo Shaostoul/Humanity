@@ -20,6 +20,10 @@ pub mod bloom;
 pub mod godrays;
 pub mod ssao;
 pub mod camera;
+/// Frame + texture readback to PNG (screenshot command, hi-res capture, the
+/// probe rig). Extracted from mod.rs in v0.1108 - see the file's header for
+/// why this cluster and not another.
+pub mod capture;
 /// Non-blocking swapchain readback for live streaming (v0.853). The screenshot path
 /// stalls the GPU on purpose; a stream must never do that. See stream_capture.rs.
 ///
@@ -48,6 +52,9 @@ pub mod particles;
 pub mod particles_gpu;
 pub mod pipeline;
 pub mod shader_loader;
+/// Which material types can DISCARD in the sun shadow pass, and the test that
+/// keeps that answer equal to the shader's (v0.1108).
+pub mod shadow_cutout;
 pub mod stars;
 pub mod water;
 
@@ -108,19 +115,74 @@ pub struct RenderObject {
     pub fade: f32,
 }
 
+/// A textured material's group-3 bind groups: the SAME entry list built twice,
+/// differing at binding 6 only (v0.1108).
+///
+/// The colour passes bind the real `shadow_map_view` there, because a lit
+/// surface samples the sun map to shade itself. The SUN SHADOW pass cannot:
+/// that texture is the pass's own depth attachment, and wgpu merges the two
+/// uses into RESOURCE | DEPTH_STENCIL_WRITE, which is an exclusive-usage
+/// conflict rejected at bind time. So the shadow pass needs a twin whose
+/// binding 6 is the 1x1 dummy depth, and everything else identical.
+///
+/// WHY BOTH LIVE IN ONE STRUCT rather than two `Option` fields: through
+/// v0.1107 the shadow pass had no per-material group at all, so `fs_shadow`'s
+/// type-19 and type-21 discards sampled the pass-wide 1x1 WHITE fallback
+/// (alpha 1) and never fired - near-tree foliage kept stamping solid quads
+/// into the sun map while the shader read as if the job were done. A pair that
+/// cannot be half-populated makes that failure unrepresentable: there is no
+/// way to build the colour group without its shadow-safe twin, because
+/// `materials::build_material_texture_bind_group` is the only constructor and
+/// it returns both from one entry list.
+pub struct AlbedoBindGroup {
+    /// Colour passes. Binding 6 = the real shadow map.
+    colour: wgpu::BindGroup,
+    /// The sun shadow pass. Binding 6 = the 1x1 dummy depth.
+    shadow: wgpu::BindGroup,
+}
+
 /// Material properties for PBR-lite rendering.
 pub struct Material {
     pub base_color: [f32; 4],
     pub metallic: f32,
     pub roughness: f32,
     pub emissive: f32,
+    /// The shader's `material.params.z` - the type dispatch in
+    /// 90-fragment-main.wgsl. Kept on the CPU side (v0.1108) so the shadow
+    /// pass can pick the depth-only PSO for OPAQUE textured materials (bark,
+    /// planet imagery) instead of paying a fragment stage that discards
+    /// nothing. MUST be rewritten by every path that rewrites the uniform, or
+    /// the selector below drifts from what the shader actually does; the two
+    /// writers are `add_material_full` and `update_material_full`.
+    material_type: f32,
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
-    /// Group-3 texture bind group for materials that carry real imagery
+    /// Group-3 texture bind groups for materials that carry real imagery
     /// (v0.811: per-pixel planet albedo). None = the renderer binds its 1x1
     /// white fallback instead, so every draw satisfies the shared pipeline
-    /// layout. The bind group internally keeps its texture + view alive.
-    albedo_bind_group: Option<wgpu::BindGroup>,
+    /// layout. The bind groups internally keep their texture + view alive.
+    albedo_bind_group: Option<AlbedoBindGroup>,
+}
+
+impl Material {
+    /// Group 3 for a COLOUR pass, or None to use the renderer's fallback.
+    fn albedo_group(&self) -> Option<&wgpu::BindGroup> {
+        self.albedo_bind_group.as_ref().map(|a| &a.colour)
+    }
+
+    /// Group 3 for the SUN SHADOW pass (dummy depth at binding 6), or None to
+    /// use `shadow_pass_texture_bind_group`.
+    fn shadow_albedo_group(&self) -> Option<&wgpu::BindGroup> {
+        self.albedo_bind_group.as_ref().map(|a| &a.shadow)
+    }
+
+    /// True when `fs_shadow` can DISCARD for this material, i.e. when this
+    /// caster must draw with the alpha-cutout shadow PSO instead of the
+    /// depth-only one. See `shadow_cutout::type_casts_cutout_shadow` for the
+    /// type bands and the test that keeps them equal to the shader's.
+    fn casts_cutout_shadow(&self) -> bool {
+        shadow_cutout::type_casts_cutout_shadow(self.material_type)
+    }
 }
 
 /// Groups objects sharing the same mesh and material for instanced drawing.
@@ -275,6 +337,12 @@ pub struct Renderer {
     /// shadow map as its depth attachment, and wgpu forbids sampling a
     /// texture in the same pass that writes it (exclusive usage).
     shadow_pass_texture_bind_group: wgpu::BindGroup,
+    /// The 1x1 Depth32Float view that stands in for the shadow map at binding
+    /// 6 inside the shadow pass. Kept on the struct since v0.1108 because
+    /// per-material group-3 bind groups are built LAZILY (whenever a textured
+    /// material first loads, long after `new`), and each one needs its own
+    /// shadow-safe twin - see `AlbedoBindGroup`.
+    dummy_depth_view: wgpu::TextureView,
     light_camera_bind_group: wgpu::BindGroup,
     shadow_comparison_sampler: wgpu::Sampler,
     ground_textures: ground_textures::GroundTextures,
@@ -1409,6 +1477,7 @@ impl Renderer {
             light_camera_buffer,
             light_camera_bind_group,
             shadow_pass_texture_bind_group,
+            dummy_depth_view,
             ground_textures,
             sky_view: sky_view_pass,
             sky_view_uniform: None,
@@ -1967,164 +2036,6 @@ impl Renderer {
         self.cur_fill = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
     }
 
-    /// Whether the swapchain surface was configured with `COPY_SRC`, i.e. whether
-    /// `capture_current_frame` can succeed on this backend. (v0.639)
-    pub fn supports_frame_capture(&self) -> bool {
-        self.supports_frame_capture
-    }
-
-    /// Capture `texture` (the swapchain texture of the frame just rendered, BEFORE
-    /// `present()`) to a PNG at `path` (v0.639, the live in-game screenshot command). Reuses the
-    /// copy-texture-to-buffer-to-PNG technique `ui_snapshots.rs::render_page_png` already uses
-    /// for offscreen snapshots, adapted for the live swapchain: the surface format is not
-    /// necessarily `Rgba8*` (Windows/DX12 commonly configures `Bgra8UnormSrgb`), so a BGRA
-    /// surface has its R/B channels swapped back before the `image` crate (which expects RGBA)
-    /// writes the file. Returns a plain error string (not a panic) if this backend's swapchain
-    /// doesn't support `COPY_SRC` -- checked once at `init` via `supports_frame_capture`.
-    pub fn capture_current_frame(&self, texture: &wgpu::Texture, path: &std::path::Path) -> Result<(), String> {
-        if !self.supports_frame_capture {
-            return Err("swapchain surface has no COPY_SRC usage on this backend -- frame capture unavailable".to_string());
-        }
-        let (w, h) = (self.config.width, self.config.height);
-        if w == 0 || h == 0 {
-            return Err("zero-sized surface -- nothing to capture".to_string());
-        }
-        self.read_texture_to_png(texture, w, h, path)
-    }
-
-    /// Largest texture edge this device supports (v0.810, hi-res screenshot capture).
-    /// Queried live from the device limits so the capture path's size clamp never
-    /// hardcodes a backend-specific number.
-    pub fn max_texture_dimension_2d(&self) -> u32 {
-        self.device.limits().max_texture_dimension_2d
-    }
-
-    /// Create an offscreen color target for a one-frame hi-res capture (v0.810).
-    /// Uses the SWAPCHAIN's format so every existing scene pipeline (they were all
-    /// built against `surface_format`) renders to it unchanged, plus COPY_SRC for
-    /// the PNG readback. Caller renders the normal passes to the returned view,
-    /// then hands the texture to `read_texture_to_png`.
-    pub fn create_capture_target(&self, width: u32, height: u32) -> (wgpu::Texture, wgpu::TextureView) {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("HiRes Capture Target"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: self.config.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        (texture, view)
-    }
-
-    /// Recreate the shared DEPTH buffer at an arbitrary size (v0.810). The hi-res
-    /// offscreen capture re-runs the normal scene passes, which all bind
-    /// `depth_view`, so the depth buffer must match the capture target's size for
-    /// that one frame; the caller calls this again with the window size right
-    /// after to restore. Deliberately does NOT reconfigure the swapchain (that
-    /// belongs to the window) and does not touch scene_texture/bloom (they are
-    /// not part of the live frame path).
-    pub fn set_depth_target_size(&mut self, width: u32, height: u32) {
-        if width == 0 || height == 0 {
-            return;
-        }
-        let (tex, view) = Self::create_depth_texture(&self.device, width, height);
-        self.depth_texture = tex;
-        self.depth_view = view;
-    }
-
-    /// Read a rendered texture (must have COPY_SRC and the swapchain's format)
-    /// back to a PNG at `path` (v0.810; generalized from the v0.639 swapchain
-    /// capture so the hi-res offscreen target uses the same proven path). After
-    /// writing, the file's header is re-read and its dimensions must match
-    /// `width` x `height` exactly, or this returns Err -- a capture that
-    /// silently shipped a bad file must never report ok (project lesson).
-    pub fn read_texture_to_png(
-        &self,
-        texture: &wgpu::Texture,
-        width: u32,
-        height: u32,
-        path: &std::path::Path,
-    ) -> Result<(), String> {
-        let (w, h) = (width, height);
-        if w == 0 || h == 0 {
-            return Err("zero-sized texture -- nothing to capture".to_string());
-        }
-        let bytes_per_row = ((w * 4 + 255) / 256) * 256;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frame_capture_readback"),
-            size: (bytes_per_row * h) as u64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("frame_capture_encoder"),
-        });
-        encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo {
-                texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
-                    rows_per_image: Some(h),
-                },
-            },
-            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
-        );
-        self.queue.submit([encoder.finish()]);
-
-        let slice = buffer.slice(..);
-        slice.map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::Maintain::Wait);
-        let data = slice.get_mapped_range();
-        let bgra = matches!(
-            self.config.format,
-            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
-        );
-        let mut pixels = Vec::with_capacity((w * h * 4) as usize);
-        for row in 0..h {
-            let start = (row * bytes_per_row) as usize;
-            let row_bytes = &data[start..start + (w * 4) as usize];
-            if bgra {
-                for px in row_bytes.chunks_exact(4) {
-                    pixels.extend_from_slice(&[px[2], px[1], px[0], px[3]]);
-                }
-            } else {
-                pixels.extend_from_slice(row_bytes);
-            }
-        }
-        drop(data);
-        buffer.unmap();
-
-        let img = image::RgbaImage::from_raw(w, h, pixels)
-            .ok_or_else(|| "captured pixel buffer size mismatch".to_string())?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        img.save(path).map_err(|e| e.to_string())?;
-        // Self-verify the written file (v0.810): decode the PNG header off disk and
-        // require the actual dimensions to match the capture request before
-        // reporting success. A writer that silently ships nothing (or a truncated
-        // file) must surface as an error, never an ok:true.
-        let (dw, dh) = image::image_dimensions(path)
-            .map_err(|e| format!("wrote {} but could not verify it: {e}", path.display()))?;
-        if (dw, dh) != (w, h) {
-            return Err(format!(
-                "PNG verification failed: requested {w}x{h} but {} decodes as {dw}x{dh}",
-                path.display()
-            ));
-        }
-        Ok(())
-    }
-
     /// Render a frame with the given camera and objects.
     /// Batched object-uniform upload (v0.891): build every per-object uniform
     /// block in ONE staging vec and issue ONE queue.write_buffer, instead of a
@@ -2298,10 +2209,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -2394,10 +2302,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -2488,10 +2393,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -2562,10 +2464,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -2995,9 +2894,17 @@ impl Renderer {
                 // Slot 1: zero per-instance data for classic draws (increment 2).
                 pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 pass.set_bind_group(0, &self.light_camera_bind_group, &[]);
-                // ONE group-3 for the whole pass: the dummy-depth variant (the
-                // real shadow map is this pass's write target; wgpu rejects
-                // sampling it here). fs_shadow reads binding 14 from it.
+                // Group 3 for casters with NO texture of their own: the
+                // dummy-depth variant (the real shadow map is this pass's
+                // write target; wgpu rejects sampling it here). fs_shadow
+                // reads binding 14, the tree atlas, from it.
+                //
+                // v0.1108: a TEXTURED caster now rebinds its own shadow-safe
+                // group below. Until it did, fs_shadow's type-19 and type-21
+                // branches sampled the 1x1 WHITE fallback at binding 0 - alpha
+                // 1 everywhere, so neither discard could ever fire and every
+                // near-tree cluster card still stamped a solid quad into the
+                // sun map. The branches existed; the texture did not.
                 pass.set_bind_group(3, &self.shadow_pass_texture_bind_group, &[]);
                 let uniform_align = 256_u64;
                 let mut bound_material = usize::MAX;
@@ -3025,14 +2932,38 @@ impl Renderer {
                         None => continue,
                     };
                     // v0.1106 (why + cost: Pipeline::shadow_for): a crossfading LOD
-                    // dithers and a textured caster may alpha-discard, so those two
+                    // dithers and a cutout caster may alpha-discard, so those two
                     // take fs_shadow; the rest keep the depth-only fast path.
-                    pass.set_pipeline(self.pipeline.shadow_for(obj.fade != 0.0 || material.albedo_bind_group.is_some()));
+                    //
+                    // v0.1108 narrowed the second half from "has an albedo
+                    // texture" to "fs_shadow actually has a discard for this
+                    // material TYPE". The old test was wrong in both
+                    // directions: baked bark (22) and textured planet meshes
+                    // are opaque and paid a fragment stage that can never
+                    // discard, while an untextured terrain-patch material (12)
+                    // took the depth-only path even though its sprite tree
+                    // cards discard on the atlas alpha.
+                    pass.set_pipeline(
+                        self.pipeline
+                            .shadow_for(obj.fade != 0.0 || material.casts_cutout_shadow()),
+                    );
                     let dynamic_offset = (uniform_align as u32) * (i as u32);
                     pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                     if bound_material != obj.material {
                         bound_material = obj.material;
                         pass.set_bind_group(2, &material.bind_group, &[]);
+                        // Group 3 follows the material, so it rides the same
+                        // change check: the material's SHADOW-SAFE albedo when
+                        // it has one, the pass-wide fallback otherwise. This is
+                        // the bind that makes the type-19 / type-21 discards in
+                        // fs_shadow read real texels for the first time.
+                        pass.set_bind_group(
+                            3,
+                            material
+                                .shadow_albedo_group()
+                                .unwrap_or(&self.shadow_pass_texture_bind_group),
+                            &[],
+                        );
                     }
                     pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -3082,6 +3013,17 @@ impl Renderer {
                         if bound_material != obj.material {
                             bound_material = obj.material;
                             pass.set_bind_group(2, &material.bind_group, &[]);
+                            // Group 3 explicitly (v0.1108): the classic loop
+                            // above may have left a cluster card's group bound,
+                            // and water must read binding 15 - the FFT tile -
+                            // from a group it chose, not one it inherited.
+                            pass.set_bind_group(
+                                3,
+                                material
+                                    .shadow_albedo_group()
+                                    .unwrap_or(&self.shadow_pass_texture_bind_group),
+                                &[],
+                            );
                         }
                         pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                         pass.set_index_buffer(
@@ -3098,10 +3040,21 @@ impl Renderer {
                     let arena = self.patch_arena.as_ref().expect("patch_batch_n > 0");
                     pass.set_pipeline(&self.pipeline.patch_shadow_pipeline);
                     pass.set_bind_group(1, &arena.bind_group, &[]);
-                    // Group 2 explicitly: the classic caster loop above may
-                    // not have bound any material (zero classic casters).
+                    // Groups 2 and 3 explicitly: the classic caster loop above
+                    // may not have bound any material (zero classic casters),
+                    // and if it did, the group 3 left bound belongs to whatever
+                    // drew last. The patch PSO always runs fs_shadow, so its
+                    // group 3 matters - binding 0 for a textured planet's
+                    // type-12 cutout, binding 14 for the sprite tree cards.
                     if let Some(material) = self.materials.get(self.patch_batch_material) {
                         pass.set_bind_group(2, &material.bind_group, &[]);
+                        pass.set_bind_group(
+                            3,
+                            material
+                                .shadow_albedo_group()
+                                .unwrap_or(&self.shadow_pass_texture_bind_group),
+                            &[],
+                        );
                     }
                     pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
                     pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
@@ -3203,10 +3156,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -3232,10 +3182,7 @@ impl Renderer {
                     render_pass.set_bind_group(2, &material.bind_group, &[]);
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }
@@ -3366,10 +3313,7 @@ impl Renderer {
                         // loop.
                         render_pass.set_bind_group(
                             3,
-                            material
-                                .albedo_bind_group
-                                .as_ref()
-                                .unwrap_or(&self.default_texture_bind_group),
+                            material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                             &[],
                         );
                     }
@@ -3797,10 +3741,7 @@ impl Renderer {
                     // SOMETHING bound here.
                     render_pass.set_bind_group(
                         3,
-                        material
-                            .albedo_bind_group
-                            .as_ref()
-                            .unwrap_or(&self.default_texture_bind_group),
+                        material.albedo_group().unwrap_or(&self.default_texture_bind_group),
                         &[],
                     );
                 }

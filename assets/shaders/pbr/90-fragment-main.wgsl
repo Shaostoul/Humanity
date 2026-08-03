@@ -1956,20 +1956,23 @@ fn fs_shadow(in: VertexOutput) {
 
     // ── 2. TYPE 19: photoscanned foliage ─────────────────────────────────
     // ── 3. TYPE 21: baked cluster card ───────────────────────────────────
-    // BOTH READ THE PER-MATERIAL ALBEDO AT group(3) binding 0, AND THE
-    // SHADOW PASS DOES NOT BIND IT YET. `shadow_pass_texture_bind_group`
-    // (renderer/mod.rs) carries the 1x1 WHITE fallback there, because the
-    // per-material group-3 bind group also carries the real shadow map at
-    // binding 6 and wgpu rejects sampling a texture that is the same pass's
-    // depth attachment (RESOURCE + DEPTH_STENCIL_WRITE is an exclusive-usage
-    // conflict). White has alpha 1, so as of v0.1106 these two branches
-    // execute and never discard: near-tree foliage still casts its quad.
-    // They are written now so the fix is one bind away, and the missing
-    // half is a shadow-safe per-material group 3 (same entries, dummy depth
-    // at binding 6) selected per draw in the classic caster loop. DO NOT
-    // read these two branches as evidence that foliage cutout shadows work -
-    // that is the "check that cannot fail" shape. The sprite-card branch
-    // below IS live: binding 14 is the real tree atlas in both passes.
+    // BOTH READ THE PER-MATERIAL ALBEDO AT group(3) binding 0, and as of
+    // v0.1108 the shadow pass BINDS IT: the classic caster loop selects the
+    // material's shadow-safe group 3 (renderer::AlbedoBindGroup - the same
+    // entries as the colour group, with a 1x1 dummy depth at binding 6,
+    // because the real shadow map is this pass's own depth attachment and
+    // wgpu rejects RESOURCE + DEPTH_STENCIL_WRITE on one texture).
+    //
+    // Through v0.1107 the pass bound one 1x1 WHITE group for every draw, so
+    // both discards below read alpha 1 and could never fire - written, but
+    // inert, and near-tree foliage kept stamping solid quads.
+    //
+    // TWO THINGS KEEP THEM LIVE, and BOTH are required: the bind above, and
+    // the caster drawing with the PSO that HAS a fragment stage
+    // (renderer::shadow_cutout::type_casts_cutout_shadow, whose type bands
+    // are parsed back out of THIS function by its test). Adding a fifth
+    // cutout here without adding its type band there gives you an inert
+    // branch again; that test fails if you try.
     if (material_type >= 18.5 && material_type < 19.5) {
         let mesh_tex = textureSampleGrad(
             albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);

@@ -374,10 +374,23 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
             camera.light2_cone_inner.z,
             camera.light2_cone_inner.w,
         );
-        // Vertical optical depth through the weather layer. The slant cap IS
-        // the layer thickness the surface path integrates through.
+        // SLANT optical depth, the SAME integral the surface path uses
+        // (v0.1108). This used to be the layer thickness straight, with no
+        // view dependence at all - so in heavy weather the sea integrated
+        // `cap / sin(elevation)` and saturated (2286 m of fog for a horizon
+        // ray at an 80 m cap) while the sky integrated a flat 80 m and stayed
+        // crisp. Measured at the operator's fog_density: sea 99.7% fog, sky
+        // 18.8%, clouds 0%. The frame then reads as "the water is broken",
+        // when in fact the water was the only surface telling the truth about
+        // the weather. One fog, one integral, or they cannot agree.
         let layer = max(camera.light1_cone_inner.z, 1.0);
-        let w_fog = clamp(1.0 - exp(-fog_sigma * layer), 0.0, 1.0);
+        let sky_up = normalize(vec3<f32>(
+            camera.light3_cone_inner.y,
+            camera.light3_cone_inner.z,
+            camera.light3_cone_inner.w,
+        ));
+        let sky_updot = abs(dot(rd, sky_up));
+        let w_fog = clamp(1.0 - exp(-fog_sigma * (layer / max(sky_updot, 0.035))), 0.0, 1.0);
         radiance_fog = mix(radiance_sky, fog_rgb, w_fog);
     }
     let aces_a = 2.51;

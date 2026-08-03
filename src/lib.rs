@@ -157,7 +157,7 @@ mod native_app {
     // call sites below keep their bare names across the staged extraction.
     #[allow(unused_imports)]
     use crate::engine::{
-        color::*, dm::*, editor::*, frame_lock::*, geom::*, home_meshes::*, home_spawn::*, ipc::*, ipc_parse::*, net_route::*, registries::*, world_load::*,
+        color::*, dm::*, editor::*, frame_lock::*, geom::*, home_meshes::*, home_spawn::*, ipc::*, ipc_parse::*, near_tree_models::*, net_route::*, registries::*, world_load::*,
         state::*,
     };
     use crate::assets::AssetManager;
@@ -4238,12 +4238,43 @@ mod native_app {
                             if tangential.length() > RADIAL_WISH_EPS {
                                 anchor += tangential.normalize() * step;
                             }
-                            // Ground radius at the (possibly moved) surface point,
-                            // INCLUDING the drawn detail relief.
+                            // Ground radius at the (possibly moved) surface point.
+                            // v0.1108, THE 2.5 m STILT: the eye now rests on the
+                            // DRAWN patch face, the same reference grass (v0.1091)
+                            // and near trees (v0.1097) moved onto, instead of on
+                            // the elevation FIELD plus 2.5 m of slop to cover the
+                            // difference. Depth proxy = the finest patch the
+                            // renderer drew last frame, exactly what those two
+                            // harvests use, so player, grass and trees stand on
+                            // one surface. ground_radius_m stays the fallback (and
+                            // the altitude reference) for the frames before any
+                            // selection exists, and above DRAWN_GROUND_MAX_ALT_M,
+                            // where the drawn face costs 0.6 ms a frame to place
+                            // a floor nobody is standing on (see the measured
+                            // note on walk_ground_radius).
                             let dir1 = anchor.normalize_or_zero();
                             let tiles_for_clamp =
                                 (lock_body == "earth").then_some(&state.terrain_tiles);
-                            let mut g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1);
+                            let ocean_for_clamp = (lock_body == "earth")
+                                .then_some(state.ocean_mask.as_ref())
+                                .flatten();
+                            let drawn_depth = state
+                                .planet_chunk_states
+                                .get(&lock_body)
+                                .and_then(|cs| cs.last_drawn.iter().map(|p| p.depth).max())
+                                .unwrap_or(0);
+                            let (g0, clearance) = crate::surface_walk::walk_ground_radius(
+                                ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1),
+                                def,
+                                hm,
+                                detail.as_ref(),
+                                tiles_for_clamp,
+                                ocean_for_clamp,
+                                drawn_depth,
+                                alt,
+                                dir1,
+                            );
+                            let mut g = g0;
                             // Real water (v0.876 Stage 1): over connected
                             // ocean the terrain mesh is the SEAFLOOR, but the
                             // player floats on the drawn water shell -- sea
@@ -4356,6 +4387,7 @@ mod native_app {
                             let rest = crate::surface_walk::rest_radius(
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
+                                clearance,
                             );
                             let mut r = anchor.length();
                             // Dead zone (v0.880, operator: "pressing W I start
@@ -4437,6 +4469,7 @@ mod native_app {
                                 r,
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
+                                clearance,
                             );
                             anchor = dir1 * r;
                             state.frame_lock_anchor = anchor;
@@ -9409,424 +9442,23 @@ mod native_app {
                                             alt_over
                                         );
                                     }
-                                    // Lazy-load all six conifer shapes (3 fir +
-                                    // 3 pine variants) plus their _bark trunk
-                                    // parts (v0.913 - the trunk carries its own
-                                    // bark texture now, so it no longer
-                                    // alpha-discards into invisibility).
-                                    let mut tree_names: Vec<String> = Vec::new();
-                                    for base in ["fir_sapling", "pine_sapling_small"] {
-                                        for v in 1..=3 {
-                                            for suffix in ["", "_bark"] {
-                                                tree_names.push(format!("{base}_v{v}{suffix}"));
-                                            }
-                                        }
-                                    }
-                                    // v0.1066: PROCEDURAL species from
-                                    // data/vegetation/trees.ron are built here
-                                    // instead of loaded. One mesh per (species,
-                                    // variant) - roughly 18 meshes total - then
-                                    // instanced by transform, so a forest costs
-                                    // meshes, not one per tree. These are the
-                                    // only trees a RELEASE build has, because
-                                    // the bundle does not ship assets/models/.
-                                    // v0.1083: every CPU mesh built or parsed
-                                    // in this block is ALSO handed to the card
-                                    // bake below, so nothing is generated or
-                                    // parsed twice. Before this, the bake
-                                    // re-parsed the same 12 glTF files (each
-                                    // pine bark paying a 2048->1024 texture
-                                    // downscale, 220-275 ms apiece in the log)
-                                    // - that redundant second parse, not the
-                                    // GPU bake, was the dominant cost of the
-                                    // world-entry freeze the bake was blamed
-                                    // for.
-                                    let mut bake_models: std::collections::HashMap<
-                                        String,
-                                        crate::renderer::billboard_bake::BakeCpuModel,
-                                    > = std::collections::HashMap::new();
-                                    let mut tree_parse_ms = 0.0f32;
-                                    // Cluster sprites baked up front (v0.1088): the
-                                    // card MATERIALS need the sprite textures at
-                                    // mesh-build time. BUG-059 (v0.1088.3): this
-                                    // whole block is PER-FRAME (the moved>12 m
-                                    // hysteresis closes above it, not around it),
-                                    // and the original unconditional call here ran
-                                    // the ~90 ms blocking bake EVERY FRAME - 1671+
-                                    // [Cluster] lines per session on three rigs,
-                                    // costing the whole frame budget. Bake ONLY
-                                    // when a clustered species still lacks its
-                                    // card cache entry (i.e. once, at world entry,
-                                    // and again only if new species stream in).
-                                    let need_sprites = {
-                                        use crate::renderer::tree_mesh;
-                                        tree_mesh::registry().trees.iter().any(|t| {
-                                            t.is_procedural()
-                                                && t.clusters.is_some()
-                                                && !state.decoration_mesh_cache.contains_key(
-                                                    &format!("proc:{}_v0:card0", t.id),
-                                                )
-                                        })
-                                    };
-                                    let cluster_sprites = if need_sprites {
-                                        state.renderer.bake_cluster_sprites(None)
-                                    } else {
-                                        Vec::new()
-                                    };
-                                    {
-                                        use crate::renderer::tree_mesh;
-                                        let reg = tree_mesh::registry();
-                                        for t in reg.trees.iter().filter(|t| t.is_procedural()) {
-                                            for v in 0..t.variants.max(1) {
-                                                let key = format!("proc:{}_v{v}", t.id);
-                                                if state.decoration_mesh_cache.contains_key(&key) {
-                                                    continue;
-                                                }
-                                                // Built at the species' nominal
-                                                // height; per-tree height rides
-                                                // on the instance scale below.
-                                                // Clustered species also return
-                                                // their card layers (v0.1088) -
-                                                // the crown mass lives on those.
-                                                let tb = tree_mesh::build_tree_and_cards(
-                                                    t,
-                                                    t.height_m,
-                                                    v.wrapping_mul(2_654_435_761),
-                                                );
-                                                for (ci, card) in tb.cards.iter().enumerate() {
-                                                    let Some(spr) = cluster_sprites.iter().find(
-                                                        |s| s.species == t.id && s.layer == card.layer,
-                                                    ) else {
-                                                        continue;
-                                                    };
-                                                    let cmesh = crate::renderer::mesh::Mesh::from_vertices(
-                                                        &state.renderer.device,
-                                                        &card.mesh.vertices,
-                                                        &card.mesh.indices,
-                                                    );
-                                                    let cmi = state.renderer.add_mesh(cmesh);
-                                                    // Type 21 = cluster card (sprite
-                                                    // texture, AO-coded UVs, foliage
-                                                    // transmission in the shader).
-                                                    // Carries the sprite's FULL MIP
-                                                    // CHAIN behind a trilinear clamped
-                                                    // sampler (v0.1090): the chain was
-                                                    // already baked and the old
-                                                    // add_textured_material upload
-                                                    // threw it away, so every cluster
-                                                    // card crawled as it minified.
-                                                    let cma =
-                                                        state.renderer.cluster_sprite_material(spr);
-                                                    state.decoration_mesh_cache.insert(
-                                                        format!("proc:{}_v{v}:card{ci}", t.id),
-                                                        (cmi, cma),
-                                                    );
-                                                }
-                                                // WOOD (v0.1089): the bark is
-                                                // its own mesh with real
-                                                // cylindrical UVs on material
-                                                // type 22, sampling the
-                                                // species' baked bark texture
-                                                // through the per-material
-                                                // albedo slot - the same slot
-                                                // the cards above use, so no
-                                                // bind-group layout changes.
-                                                // The material is memoized per
-                                                // SPECIES inside the renderer.
-                                                if !tb.wood.indices.is_empty() {
-                                                    let wmesh = crate::renderer::mesh::Mesh::from_vertices(
-                                                        &state.renderer.device,
-                                                        &tb.wood.vertices,
-                                                        &tb.wood.indices,
-                                                    );
-                                                    let wmi = state.renderer.add_mesh(wmesh);
-                                                    let wma = state.renderer.bark_material(t);
-                                                    state.decoration_mesh_cache.insert(
-                                                        format!("proc:{}_v{v}:wood", t.id),
-                                                        (wmi, wma),
-                                                    );
-                                                }
-                                                let mesh = crate::renderer::mesh::Mesh::from_vertices(
-                                                    &state.renderer.device,
-                                                    &tb.mesh.vertices,
-                                                    &tb.mesh.indices,
-                                                );
-                                                let mi = state.renderer.add_mesh(mesh);
-                                                // Type 20 = packed per-face
-                                                // colour + the close-range leaf
-                                                // shading (venation, wax,
-                                                // backlit transmission).
-                                                let ma = state.renderer.add_material_typed(
-                                                    [1.0, 1.0, 1.0, 1.0],
-                                                    0.0,
-                                                    0.9,
-                                                    20.0,
-                                                );
-                                                state
-                                                    .decoration_mesh_cache
-                                                    .insert(key, (mi, ma));
-                                                // The card baker wants the same
-                                                // geometry; hand it over rather
-                                                // than regenerating it there.
-                                                bake_models.insert(
-                                                    crate::renderer::billboard_bake::proc_key(
-                                                        &t.id, v,
-                                                    ),
-                                                    crate::renderer::billboard_bake::BakeCpuModel {
-                                                        // The SINGLE-MESH form
-                                                        // (foliage + the wood's
-                                                        // packed-colour twin):
-                                                        // the atlas bake shader
-                                                        // knows only the packed
-                                                        // decode, so it must not
-                                                        // be handed the
-                                                        // UV-carrying wood.
-                                                        vertices: tb.bake.vertices,
-                                                        indices: tb.bake.indices,
-                                                        texture: None,
-                                                    },
-                                                );
-                                            }
-                                        }
-                                    }
-                                    for name in &tree_names {
-                                        let name = name.as_str();
-                                        if state.decoration_mesh_cache.contains_key(name) {
-                                            continue;
-                                        }
-                                        let stem = name.strip_suffix("_bark").unwrap_or(name);
-                                        let base =
-                                            stem.rfind("_v").map(|i| &stem[..i]).unwrap_or(stem);
-                                        let rel = format!(
-                                            "assets/models/plants/{}/{}.gltf",
-                                            base, name
-                                        );
-                                        let t_parse = std::time::Instant::now();
-                                        let mut parsed = state
-                                            .asset_manager
-                                            .parse_gltf_mesh_with_texture(&rel);
-                                        tree_parse_ms +=
-                                            t_parse.elapsed().as_secs_f32() * 1000.0;
-                                        // SCAN-STRETCH GUARD (v0.1101, BUG-063).
-                                        // The draw site scales a photoscan by
-                                        // species_height / model_height applied
-                                        // uniformly to EVERY triangle, so a scan
-                                        // of a sapling standing in for a mature
-                                        // tree inflates its leaves to match. No
-                                        // scale factor turns a sapling into a
-                                        // mature tree - the architecture differs,
-                                        // not just the size - so past a modest
-                                        // stretch we GROW the species instead.
-                                        // Rejection reuses the missing-asset path
-                                        // (sentinel + procedural twin, BUG-058)
-                                        // rather than adding a second fallback.
-                                        if let Ok((cpu, _)) = &parsed {
-                                            let mut lo = f32::MAX;
-                                            let mut hi = f32::MIN;
-                                            for v in &cpu.vertices {
-                                                lo = lo.min(v.position[1]);
-                                                hi = hi.max(v.position[1]);
-                                            }
-                                            let model_h = (hi - lo).max(1.0e-3);
-                                            let target_h = crate::renderer::tree_mesh::registry()
-                                                .trees
-                                                .iter()
-                                                .find(|t| t.model == base)
-                                                .map(|t| t.height_m)
-                                                .unwrap_or(model_h);
-                                            let stretch = target_h / model_h;
-                                            let max_stretch = crate::MAX_MODEL_STRETCH;
-                                            if stretch > max_stretch {
-                                                log::warn!(
-                                                    "[NearTree] {name} REJECTED: the scan is \
-                                                     {model_h:.2} m and the species is \
-                                                     {target_h:.1} m, a {stretch:.1}x uniform \
-                                                     stretch (limit {max_stretch:.1}x). \
-                                                     Every leaf would be {stretch:.1}x too big. \
-                                                     Growing this species procedurally instead."
-                                                );
-                                                parsed = Err(format!(
-                                                    "scan stretch {stretch:.1}x exceeds \
-                                                     {max_stretch:.1}x"
-                                                ));
-                                            }
-                                        }
-                                        match parsed {
-                                            Ok((cpu, tex)) => {
-                                                let mesh =
-                                                    crate::renderer::mesh::Mesh::from_vertices(
-                                                        &state.renderer.device,
-                                                        &cpu.vertices,
-                                                        &cpu.indices,
-                                                    );
-                                                let mi = state.renderer.add_mesh(mesh);
-                                                if let Some((rgba, w, h)) = &tex {
-                                                    let clear = rgba
-                                                        .chunks_exact(4)
-                                                        .filter(|p| p[3] < 128)
-                                                        .count();
-                                                    log::info!(
-                                                        "[NearTree] {name}: texture {w}x{h}, {}% transparent texels",
-                                                        clear * 100 / (rgba.len() / 4).max(1)
-                                                    );
-                                                }
-                                                let ma = match &tex {
-                                                    Some((rgba, w, h)) => {
-                                                        state.renderer.add_textured_material(
-                                                            [1.0, 1.0, 1.0, 1.0],
-                                                            0.0,
-                                                            0.9,
-                                                            19.0,
-                                                            // WIND CLASS, not
-                                                            // emissive (v0.1089):
-                                                            // params.w is free on
-                                                            // type 19 (the shader
-                                                            // zeroes emissive for
-                                                            // this type) and the
-                                                            // vertex stage reads
-                                                            // it as the wind
-                                                            // class. 1.0 = woody.
-                                                            // It is set HERE and
-                                                            // nowhere else on
-                                                            // purpose: type 19
-                                                            // also draws furniture
-                                                            // and machine glTFs
-                                                            // (home_meshes.rs) and
-                                                            // world decorations
-                                                            // (world_load.rs),
-                                                            // which must stay
-                                                            // rigid.
-                                                            1.0,
-                                                            rgba,
-                                                            *w,
-                                                            *h,
-                                                        )
-                                                    }
-                                                    None => state.renderer.add_material_full(
-                                                        [0.2, 0.35, 0.15, 1.0],
-                                                        0.0,
-                                                        0.9,
-                                                        0.0,
-                                                        0.0,
-                                                    ),
-                                                };
-                                                state
-                                                    .decoration_mesh_cache
-                                                    .insert(name.to_string(), (mi, ma));
-                                                bake_models.insert(
-                                                    rel,
-                                                    crate::renderer::billboard_bake::BakeCpuModel {
-                                                        vertices: cpu.vertices,
-                                                        indices: cpu.indices,
-                                                        texture: tex,
-                                                    },
-                                                );
-                                            }
-                                            Err(e) => {
-                                                // Sentinel so a missing asset logs
-                                                // once, not per frame. The sentinel
-                                                // is ALSO the shipped-build fallback
-                                                // marker: the draw site sees
-                                                // mi == usize::MAX on the model key
-                                                // and switches the species to its
-                                                // procedural twin (use_proc).
-                                                log::warn!(
-                                                    "near-tree model {name} failed: {e}"
-                                                );
-                                                state.decoration_mesh_cache.insert(
-                                                    name.to_string(),
-                                                    (usize::MAX, usize::MAX),
-                                                );
-                                                // SHIPPED-BUILD FALLBACK (v0.1086,
-                                                // BUG-058): release bundles carry no
-                                                // assets/models/, so fir and pine
-                                                // rendered NOTHING at any distance.
-                                                // Build the species procedurally,
-                                                // exactly like the is_procedural()
-                                                // loop above - AT THE SPECIES
-                                                // HEIGHT, so the draw site's
-                                                // use_proc scale stays ~1.0. (Doing
-                                                // this at model scale and keeping
-                                                // the TREE_MODEL_H divisor would
-                                                // draw a 381 m fir - the critic's
-                                                // trap, journaled 2026-08-01.)
-                                                if !name.ends_with("_bark") {
-                                                    if let Some(vn) = stem
-                                                        .rfind("_v")
-                                                        .and_then(|i| stem[i + 2..].parse::<u32>().ok())
-                                                    {
-                                                        let va = vn.saturating_sub(1);
-                                                        let reg = crate::renderer::tree_mesh::registry();
-                                                        if let Some(t) =
-                                                            reg.trees.iter().find(|t| t.model == base)
-                                                        {
-                                                            let key = format!("proc:{}_v{va}", t.id);
-                                                            if !state
-                                                                .decoration_mesh_cache
-                                                                .contains_key(&key)
-                                                            {
-                                                                let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
-                                                                crate::renderer::tree_mesh::build_tree(
-                                                                    &mut b,
-                                                                    t,
-                                                                    t.height_m,
-                                                                    va.wrapping_mul(2_654_435_761),
-                                                                );
-                                                                let mesh = crate::renderer::mesh::Mesh::from_vertices(
-                                                                    &state.renderer.device,
-                                                                    &b.vertices,
-                                                                    &b.indices,
-                                                                );
-                                                                let mi = state.renderer.add_mesh(mesh);
-                                                                let ma = state.renderer.add_material_typed(
-                                                                    [1.0, 1.0, 1.0, 1.0],
-                                                                    0.0,
-                                                                    0.9,
-                                                                    20.0,
-                                                                );
-                                                                state
-                                                                    .decoration_mesh_cache
-                                                                    .insert(key, (mi, ma));
-                                                                bake_models.insert(
-                                                                    crate::renderer::billboard_bake::proc_key(&t.id, va),
-                                                                    crate::renderer::billboard_bake::BakeCpuModel {
-                                                                        vertices: b.vertices,
-                                                                        indices: b.indices,
-                                                                        texture: None,
-                                                                    },
-                                                                );
-                                                                log::info!(
-                                                                    "[NearTree] {}: procedural fallback built (shipped-build path)",
-                                                                    t.id
-                                                                );
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    // Sprite atlas bake (v0.961 increment 2;
-                                    // registry-driven since v0.1083): once per
-                                    // session, render EVERY (species, variant)
-                                    // in data/vegetation/trees.ron side-on
-                                    // into its atlas tile, so the terrain card
-                                    // stage textures its quads with the SAME
-                                    // trees the near field draws in 3D.
-                                    // Procedural species build their mesh
-                                    // inside the baker (no files); model
-                                    // species come from the parse cache above,
-                                    // and a missing model just leaves its tile
-                                    // transparent instead of aborting the
-                                    // whole atlas the way it used to.
-                                    if !state.renderer.tree_atlas_ready && !state.tree_atlas_attempted {
-                                        state.tree_atlas_attempted = true;
-                                        state.renderer.bake_tree_atlas_from_registry(
-                                            &bake_models,
-                                            tree_parse_ms,
-                                            None,
-                                        );
-                                    }
+                                    // Near-tree MODEL CACHE + sprite atlas
+                                    // bake (extracted to
+                                    // engine/near_tree_models.rs, v0.1108):
+                                    // ~420 lines with one job and no frame
+                                    // inputs at all. Called every frame on
+                                    // purpose - every branch inside is
+                                    // guarded by a cache lookup, so a species
+                                    // that streams in later still gets its
+                                    // mesh. Four named borrows rather than
+                                    // &mut state: cs (above) holds
+                                    // planet_chunk_states.
+                                    ensure_near_tree_models(
+                                        &mut state.renderer,
+                                        &state.asset_manager,
+                                        &mut state.decoration_mesh_cache,
+                                        &mut state.tree_atlas_attempted,
+                                    );
                                     // Per-variant model heights from the split
                                     // report (metres): scale = target / model.
                                     const TREE_MODEL_H: [[f32; 3]; 2] =

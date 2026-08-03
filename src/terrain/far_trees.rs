@@ -29,7 +29,7 @@ use glam::DVec3;
 use super::planet::PlanetDef;
 use super::planet_albedo::PlanetAlbedo;
 use super::planet_heightmap::PlanetHeightmap;
-use super::planet_chunks::{veg_biome_ok, TREELINE_M, TREE_CELL_RAD};
+use super::planet_chunks::{veg_biome_weight, TREELINE_M, TREE_CELL_RAD, VEG_WEIGHT_MIN};
 use super::planet_surface::{surface_color, SurfaceMeshData, SurfaceVertexData};
 
 /// Inner edge of the sheet: the patch-baked cards + models own the space
@@ -166,7 +166,7 @@ pub fn build_far_tree_sheet(
                 let mut next = cell_stream(ix, iy);
                 let r0 = next();
                 let r1 = next();
-                let _r2 = next();
+                let r2 = next();
                 let r3 = next();
                 let _r4 = next();
                 let r5 = next();
@@ -186,7 +186,18 @@ pub fn build_far_tree_sheet(
                     continue;
                 }
                 let sc = surface_color(def, albedo, dir.as_vec3(), e);
-                if !veg_biome_ok(sc) {
+                // Biome edges are GRADIENTS, not cliffs (v0.1108), and the far
+                // sheet has to agree with the near harvest or the ~1200 m
+                // handoff shows a density step: distant trees at full density
+                // right up to a line, near trees fading across it.
+                //
+                // This stream draws ONE representative per cell rather than a
+                // count loop, so the weight thins REPRESENTATIVES instead of
+                // items - and it uses `r2`, which the fixed-six draw already
+                // spends and nothing else reads, so the stream discipline that
+                // keeps this sheet aligned with the bake is untouched.
+                let vw = veg_biome_weight(sc);
+                if vw < VEG_WEIGHT_MIN || ((r2 % 4096) as f32 / 4096.0) >= vw {
                     continue;
                 }
                 let r_m = radius * super::planet_surface::displaced_radius_f64(def, e as f64);

@@ -35,6 +35,19 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1108: `src/lib.rs` 18_300 -> 18_100, because THE OWED EXTRACTION
+///   FINALLY LANDED. Three increments in a row trimmed comments instead; this
+///   one moved the near-tree MODEL LOADER (glTF parse, scan-stretch guard,
+///   procedural fallback and their material registration - 418 lines,
+///   verbatim) to `src/engine/near_tree_models.rs`. Note it went to `engine/`
+///   rather than the `terrain/` the older note guessed: it needs the wgpu
+///   renderer and the asset manager, both native-only, while `terrain/` is
+///   ungated and compiles into the relay build. 18_300 -> 17_932, so 200 of
+///   the 368 lines are banked and 168 stay as working room. THE FILE NO LONGER
+///   HAS A NAMED NEXT EXTRACTION - whoever next needs room should name one
+///   rather than nibble. New watch entry `src/surface_walk.rs` at 1_150: it
+///   went 450 -> 1_066 landing the drawn-ground stand, about 620 of that being
+///   its gate suite, which is load-bearing and NOT the thing to extract.
 /// - v0.1103 (lib.rs, no budget change): the gate FIRED at 18_333 (+33) and
 ///   was paid back honestly rather than raised. Two ~30-line INCIDENT
 ///   NARRATIVES had accreted in comments (the BUG-063 sapling-scan story and
@@ -111,7 +124,8 @@ fn repo() -> &'static Path {
 ///   cannot quietly reabsorb it and the new file cannot quietly grow into a
 ///   second monolith.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 18_300),
+    ("src/lib.rs", 18_100),
+    ("src/surface_walk.rs", 1_150),
     ("src/gui/pages/chat.rs", 8_000),
     ("src/gui/mod.rs", 7_050),
     ("src/relay/relay.rs", 6_500),
@@ -124,6 +138,8 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/relay/api.rs", 4_200),
     ("src/renderer/mod.rs", 3_883),
     ("src/renderer/materials.rs", 500),
+    ("src/renderer/capture.rs", 300),
+    ("src/renderer/shadow_cutout.rs", 250),
     ("src/renderer/tree_mesh.rs", 6_450),
     ("src/renderer/tree_species.rs", 750),
     ("src/renderer/tree_allometry.rs", 560),

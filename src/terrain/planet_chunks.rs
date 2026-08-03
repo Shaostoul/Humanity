@@ -453,8 +453,102 @@ impl DetailNoise {
 /// stays barren with a wide margin: Gobi r/g 1.44, Tibet 1.47, Spain
 /// meseta 1.55, Sahara 1.69, Outback 3.12 (see biome_gate_separates_
 /// vegetated_from_barren, measured over the shipped albedo).
+/// ── WHY THIS IS A WEIGHT AND NOT A YES/NO (v0.1108) ──────────────────────
+///
+/// `data/planets/earth_albedo.bin` is 4096 x 2048, which is **9.78 km per
+/// texel** at the equator. A grass harvest disc is ~30 m across and a tree
+/// harvest disc ~240 m, so an entire disc lives inside ONE bilinear texel
+/// cell: measured along a 1,150 m walk at the Fuji vantage the r/g ratio
+/// moves from 0.4196 to 0.4311, i.e. 3.0e-4 across any 50 m step. The colour
+/// field under a harvest is, for practical purposes, CONSTANT.
+///
+/// Put a hard threshold on a field like that and the gate stops being a
+/// per-plant question and becomes a single verdict for the whole disc. Walk
+/// across the threshold contour and every tree and every blade of grass in
+/// the world switches off along a line - which is exactly the operator's
+/// "weird chunks that wouldn't spawn trees visually". This is not a rare
+/// corner: measured over the shipped grid there are **13,966 adjacent land
+/// texel pairs that straddle the old 1.25 cut** with healthy green/blue on
+/// both sides, **19.62% of non-ice land sits inside the 1.10..1.40 ramp
+/// band**, and **6.12% sits within +/-0.05 of the old cut** - and one texel
+/// is 9.8 km wide, so those are broad regions, not speckle.
+///
+/// A forest does not stop at a line, so the gate returns a 0..1 DENSITY
+/// WEIGHT and the callers multiply it into their density. Biome edges become
+/// gradients kilometres wide, which is what they are on real ground.
+///
+/// ── WHERE THE EDGES COME FROM (measured, not adopted) ────────────────────
+///
+/// Pooled over land texels in a +/-1.5 deg window around 12 known-vegetated
+/// and 8 known-barren sites, in the GRADED space this function receives:
+///
+/// | ratio | vegetated p25/p50/p75/p90 | barren p05/p25/p50/p75 |
+/// |-------|---------------------------|------------------------|
+/// | r/g   | 0.494 / 0.634 / 1.055 / 1.319 | 1.000 / 1.359 / 1.467 / 1.658 |
+/// | g/b   | 3.104 / 4.816 / 6.048 / 6.772 | 1.000 / 1.680 / 2.072 / 2.453 |
+///
+/// r/g is the discriminator: a cut sweep peaks at 1.30 (71.6 points of
+/// vegetated-minus-barren separation) and the barren population turns over
+/// hard from 1.35 (23%) to 1.50 (56%), so the ramp spans 1.10 (77% of
+/// vegetated already below it) to 1.40 (92% below, barren still only 34%).
+///
+/// g/b is NOT a vegetation discriminator - at any cut from 0.90 to 1.35 it
+/// keeps ~98% of vegetated AND ~87% of barren. Its real job is rejecting
+/// water, snow and ice, which sit at a hard cliff around 1.00 (Greenland ice
+/// measures g/b 1.000 exactly, a perfectly grey texel). So its ramp is
+/// deliberately narrow: only 0.2% of vegetated land lies inside 0.97..1.11.
+///
+/// Both ramps are centred on the OLD cuts (1.25 and 1.04), so the mean weight
+/// retained over known-vegetated land is 84.2% against the old bool's 84.4% -
+/// a 0.3 point change. Realised coverage, and therefore the grass LAI gates,
+/// do not move; only the EDGES do. Barren rises 3.0% -> 4.9%, entirely at
+/// partial weight, which is the soft fringe this exists to create.
+///
+/// ── ON GRADED VS RAW SAMPLES (the `ground_ungrade` question) ─────────────
+///
+/// The ground-material classifier in `assets/shaders/pbr/20-surface-detail.wgsl`
+/// had to un-grade its samples because its thresholds are ABSOLUTE (luminance
+/// bands, `img.r - img.b`), and the bake's `land_gain` had silently moved them.
+/// This gate does NOT have that bug, and the reason is structural: both tests
+/// are pure RATIOS, and `land_gain` is a single hue-preserving SCALAR, so it
+/// divides straight out of r/g and g/b.
+///
+/// The residual is the `.min(1.0)` clip in `grade_albedo`, which is not
+/// scale-free. MEASURED over 319,853 land texels: 33.2% clip in some channel,
+/// worst ratio drift 0.189 (r/g) and 0.289 (g/b), and the gate's verdict
+/// differs between raw and graded on **0.0988% of land texels** (316 of
+/// 319,853). Real but second order, and the constants above were calibrated in
+/// graded space precisely so that residual is already inside them. Do not
+/// "fix" this by un-grading without re-measuring the table above in raw space.
+pub const VEG_RG_FULL: f32 = 1.10;
+pub const VEG_RG_ZERO: f32 = 1.40;
+pub const VEG_GB_ZERO: f32 = 0.97;
+pub const VEG_GB_FULL: f32 = 1.11;
+/// Below this weight a site is barren enough that carrying the instance costs
+/// more than it draws. The ONLY hard rejection left in the gate.
+pub const VEG_WEIGHT_MIN: f32 = 0.05;
+
+fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+    let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Vegetation density weight in 0..1 for one surface colour. See the block
+/// above for the measurements behind every constant.
+pub fn veg_biome_weight(sc: [f32; 3]) -> f32 {
+    let rg = sc[0] / sc[1].max(1e-6);
+    let gb = sc[1] / sc[2].max(1e-6);
+    smoothstep(VEG_RG_ZERO, VEG_RG_FULL, rg) * smoothstep(VEG_GB_ZERO, VEG_GB_FULL, gb)
+}
+
+/// The old boolean, preserved EXACTLY where a caller still needs one: both
+/// ramps are centred on the cuts this used to test (r/g < 1.25, g/b > 1.04)
+/// and `smoothstep` is monotone with value 0.5 at its midpoint, so
+/// `weight >= 0.5` is the same question. `far_trees.rs` is the remaining
+/// caller; it should take the weight too (see the wiring note in the commit),
+/// but it is a different lane and a bool keeps it bit-identical meanwhile.
 pub fn veg_biome_ok(sc: [f32; 3]) -> bool {
-    sc[0] < sc[1] * 1.25 && sc[1] > sc[2] * 1.04
+    veg_biome_weight(sc) >= 0.5
 }
 
 /// Pick the tree species for a spawn cell from `data/vegetation/trees.ron`
@@ -1962,7 +2056,7 @@ pub fn build_patch_mesh(
                         s ^= s << 17;
                         s
                     };
-                    for _ in 0..count {
+                    for item in 0..count {
                         let r0 = next();
                         let r1 = next();
                         let r2 = next();
@@ -2002,8 +2096,17 @@ pub fn build_patch_mesh(
                         // where the surface COLOR reads vegetated - the same
                         // imagery/ramp the ground renders with. Real Earth
                         // imagery is the planet-wide biome map for free.
+                        // v0.1108: a WEIGHT, not a verdict. Thinned by the
+                        // item's own index in the cell stream - the same
+                        // `index < count * p` rule the grass layer accepts on -
+                        // so it needs no seventh random and stays identical in
+                        // the near-model mirror, which walks the same stream
+                        // with the same index. Index and position are
+                        // uncorrelated (position comes from r0/r1), so the
+                        // survivors are a spatially uniform subset.
                         let sc = surface_color(def, albedo, dir.as_vec3(), e);
-                        if !veg_biome_ok(sc) {
+                        let vw = veg_biome_weight(sc);
+                        if vw < VEG_WEIGHT_MIN || (item as f32) >= count as f32 * vw {
                             continue;
                         }
                         // ON THIS PATCH'S OWN DRAWN FACE (v0.1097). The card is

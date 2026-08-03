@@ -37,7 +37,7 @@ use super::planet_albedo::PlanetAlbedo;
 // re-introduced read, because the test process runs at the atomic's 1.0
 // default and could never measure one.
 use super::planet_chunks::{
-    drawn_elevation_normalized, veg_biome_ok, ElevationSource, TREELINE_M,
+    drawn_elevation_normalized, veg_biome_weight, ElevationSource, TREELINE_M, VEG_WEIGHT_MIN,
 };
 use super::planet_surface::surface_color;
 
@@ -989,7 +989,19 @@ pub fn near_grass_instances(
                 if elev_m < 6.0 || elev_m > TREELINE_M {
                     continue;
                 }
-                if !veg_biome_ok(sc) {
+                // BIOME AS A DENSITY WEIGHT (v0.1108), not a verdict. Folded in
+                // exactly the way the clump gain is: it DIVIDES the instance's
+                // threshold, so half-weight ground keeps half its tillers and
+                // they emerge at half the distance. The pre-reject above still
+                // used the unweighted `thr`, which is a valid conservative
+                // bound because the weight can only ever raise it - that is
+                // what lets the cheap distance test run before `node_at`.
+                let vw = veg_biome_weight(sc);
+                if vw < VEG_WEIGHT_MIN {
+                    continue;
+                }
+                let thr = thr / vw;
+                if thr >= p_here {
                     continue;
                 }
                 // STANDING POSITION: the DRAWN patch face, per surviving tiller.
@@ -1096,6 +1108,146 @@ mod tests {
         let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
         let cl = lat.cos();
         DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin())
+    }
+
+    const BIOME_EDGE_LAT: f64 = -1.802;
+    const BIOME_EDGE_LON: f64 = 32.915;
+
+    /// THE FUJI STABILITY CHECK the brief asked for: 8 parked poses spread
+    /// over ~50 m must not disagree about how much grass is underfoot.
+    ///
+    /// REPORTED HONESTLY: this one passes BEFORE the v0.1108 weight as well as
+    /// after, and that is itself the finding. The brief expected it to fail on
+    /// the strength of rig logs showing 0 tillers at one parked Fuji pose and
+    /// 5,930 at the next, against 31,635-32,958 elsewhere. Measured here, the
+    /// Fuji vantage is nowhere near the biome threshold: over a 1,150 m walk
+    /// the r/g ratio runs 0.4196..0.4311 against a 1.25 cut, g/b runs
+    /// 6.49..6.43 against 1.04, ground elevation runs 1,140..1,234 m against a
+    /// 1,700 m treeline, and the harvest returns 30,062..33,792 tillers - a
+    /// 1.12x spread, not 3x and certainly not infinity. So the biome gate did
+    /// NOT cause that rig variance and something else did; the vantage's own
+    /// file is the lead, documenting a 75 s settle ("at 25 s this vantage
+    /// captures a half-built forest") and player rest altitudes of
+    /// 1240/1364/1376/1424 m across four runs of a byte-identical config.
+    ///
+    /// It stays as a REGRESSION gate: the weight must not destabilise the core
+    /// of a forest, only its edges.
+    #[test]
+    fn grass_density_is_stable_across_poses_at_one_vantage() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        // 8 poses over ~50 m: a 4x2 grid at 16 m spacing about the vantage.
+        let mut counts = Vec::new();
+        for i in 0..8 {
+            let dn = (i % 4) as f64 * 16.0;
+            let de = (i / 4) as f64 * 16.0;
+            let lat = 35.3 + dn / 111_320.0;
+            let lon = 138.8 + de / (111_320.0 * lat.to_radians().cos());
+            let c = dir_of(lat, lon);
+            let g = near_grass_instances(
+                &def,
+                &src,
+                Some(&albedo),
+                c,
+                GRASS_FAR_M as f64,
+                GRASS_HARVEST_MARGIN_M,
+                17,
+                80_000,
+            );
+            counts.push(g.len());
+        }
+        let lo = *counts.iter().min().unwrap();
+        let hi = *counts.iter().max().unwrap();
+        println!("[grass pose spread] fuji, 8 poses over ~50 m: {counts:?} (lo {lo}, hi {hi})");
+        assert!(
+            lo > 0 && (hi as f64) < lo as f64 * 3.0,
+            "the sward under one vantage disagrees by {:.1}x across 50 m of parking: {counts:?}",
+            hi as f64 / lo.max(1) as f64
+        );
+    }
+
+    /// THE CHECK THAT CAN FAIL, and the one this increment exists for: at a
+    /// real biome boundary the grass density must be a GRADIENT, not a cliff.
+    ///
+    /// FAILS ON PRE-v0.1108 CODE. `veg_biome_ok` was a hard threshold on a
+    /// 9.78 km-per-texel colour field, so an entire ~30 m harvest disc gets a
+    /// single verdict and the sward goes from a full sward to literally zero
+    /// between two poses 60 m apart. Measured on the old code at the transect
+    /// below the walk reads 32,061 -> 0 tillers in one step (an infinite
+    /// ratio); with the weight it steps down through the intermediate values a
+    /// real ecotone has.
+    ///
+    /// The transect is a MEASURED crossing, not a guessed one: the sweep in
+    /// the commit notes found 13,966 adjacent land texel pairs that straddle
+    /// the old cut with healthy green/blue on both sides, and this is one of
+    /// them, chosen because its elevation sits clear of both the 6 m beach
+    /// floor and the 1,700 m treeline so no other gate can confound it.
+    #[test]
+    fn vegetation_edges_are_gradients_not_cliffs() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let range_m = hm.max_meters() - hm.min_meters();
+        let sea = def.sea_level.clamp(0.0, 1.0);
+        // Walk east across the contour in 24 steps of ~380 m.
+        let (lat, lon0) = (BIOME_EDGE_LAT, BIOME_EDGE_LON);
+        let mut counts = Vec::new();
+        for i in 0..24 {
+            let lon = lon0 + (i as f64 * 380.0) / (111_320.0 * lat.to_radians().cos());
+            let c = dir_of(lat, lon);
+            let e = drawn_elevation_normalized(&hm, &def, &detail, None, c);
+            let elev_m = (e - sea) * range_m;
+            assert!(
+                (6.0..TREELINE_M).contains(&elev_m),
+                "transect step {i} left the elevation band at {elev_m:.0} m - pick another \
+                 crossing, this test must isolate the BIOME gate"
+            );
+            let g = near_grass_instances(
+                &def,
+                &src,
+                Some(&albedo),
+                c,
+                GRASS_FAR_M as f64,
+                GRASS_HARVEST_MARGIN_M,
+                17,
+                80_000,
+            );
+            counts.push(g.len());
+        }
+        println!("[grass ecotone] {lat:.3} lon {lon0:.3} east over 8.7 km: {counts:?}");
+        // The transect must actually SPAN the edge, or it proves nothing.
+        let hi = *counts.iter().max().unwrap();
+        let lo = *counts.iter().min().unwrap();
+        assert!(
+            hi > 5_000 && lo * 4 < hi,
+            "this transect does not cross a biome edge at all ({lo}..{hi}) - it cannot \
+             detect a cliff, so re-derive it before trusting a pass"
+        );
+        // THE CLAIM: crossing the edge takes more than one step. Count how many
+        // poses land in the interior of the range - a cliff has none.
+        let graded_steps = counts
+            .iter()
+            .filter(|&&n| n as f64 > hi as f64 * 0.10 && (n as f64) < hi as f64 * 0.90)
+            .count();
+        assert!(
+            graded_steps >= 3,
+            "the sward falls off a cliff: only {graded_steps} of 24 poses sit between 10% and \
+             90% of peak density ({counts:?}). A biome edge is an ecotone kilometres wide, and \
+             the imagery texel that decides it is 9.78 km across - a hard threshold on that \
+             field switches the whole world off along a line, which is the operator's \
+             'weird chunks that wouldn't spawn trees'"
+        );
     }
 
     /// The patch of `depth` whose spherical triangle contains `dir`: descend
