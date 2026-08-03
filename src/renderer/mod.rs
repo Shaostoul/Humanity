@@ -387,6 +387,9 @@ pub struct Renderer {
     /// buffer currently holds; zero means the layer draws nothing at all,
     /// which is the state everywhere except standing on vegetated ground.
     grass_mesh: Option<Mesh>,
+    /// Detail rung the resident `grass_mesh` was built at, so a Settings
+    /// change rebuilds it. See `terrain::grass::grass_detail_key`.
+    grass_mesh_key: u32,
     grass_material: usize,
     grass_instance_buf: Option<wgpu::Buffer>,
     grass_instance_cap: usize,
@@ -1368,6 +1371,7 @@ impl Renderer {
             patch_indirect,
             dummy_instance_buf,
             grass_mesh: None,
+            grass_mesh_key: 0,
             grass_material: usize::MAX,
             grass_instance_buf: None,
             grass_instance_cap: 0,
@@ -1587,22 +1591,36 @@ impl Renderer {
     /// callers are expected to just call it whenever grass is wanted rather
     /// than track readiness themselves.
     pub fn ensure_grass_mesh(&mut self) {
-        if self.grass_mesh.is_some() {
+        // NOT first-call-wins any more (v0.1105): the tiller mesh's blade and
+        // segment counts now follow the Settings vegetation slider, so a cache
+        // that never invalidated would make the slider LOOK like it worked -
+        // the harvest responds instantly - while the OLD mesh stayed on screen
+        // until the next restart. That is a bug shaped exactly like the fix,
+        // which is the kind that survives longest.
+        let key = crate::terrain::planet_chunks::grass_detail_key();
+        if self.grass_mesh.is_some() && self.grass_mesh_key == key {
             return;
         }
+        let first = self.grass_mesh.is_none();
         let (builder, stats) = crate::terrain::planet_chunks::grass_tiller_mesh();
         self.grass_mesh = Some(Mesh::from_vertices(
             &self.device,
             &builder.vertices,
             &builder.indices,
         ));
-        // Type 23: the grass arm of the plant wind family. base_color is
-        // unused (the per-instance packed colour rules); params.w must stay
-        // 0 so the type-19 wind opt-in cannot be misread.
-        self.grass_material = self.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.92, 23.0);
+        self.grass_mesh_key = key;
+        if first {
+            // Type 23: the grass arm of the plant wind family. base_color is
+            // unused (the per-instance packed colour rules); params.w must stay
+            // 0 so the type-19 wind opt-in cannot be misread. Registered ONCE -
+            // a rebuild must not allocate a second material slot.
+            self.grass_material =
+                self.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.92, 23.0);
+        }
         log::info!(
-            "[Grass] shared tiller mesh: {} blades, {} triangles, {} verts",
+            "[Grass] shared tiller mesh: {} blades x {} segments, {} triangles, {} verts",
             stats.blades,
+            stats.segments,
             stats.triangles,
             builder.vertices.len()
         );

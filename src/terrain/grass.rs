@@ -30,8 +30,14 @@ use glam::DVec3;
 
 use super::planet::PlanetDef;
 use super::planet_albedo::PlanetAlbedo;
+// NOTE the absence of `veg_density`: since v0.1103 nothing in this file may
+// read the quality slider. Coverage is derived from `GRASS_TARGET_LAI`; the
+// slider is interpreted exactly once, in `grass_mesh::grass_detail_for`. The
+// CI twin `near_grass_density_matches_a_real_sward` scans this file for a
+// re-introduced read, because the test process runs at the atomic's 1.0
+// default and could never measure one.
 use super::planet_chunks::{
-    drawn_elevation_normalized, veg_biome_ok, veg_density, ElevationSource, TREELINE_M,
+    drawn_elevation_normalized, veg_biome_ok, ElevationSource, TREELINE_M,
 };
 use super::planet_surface::surface_color;
 
@@ -40,6 +46,14 @@ use super::planet_surface::surface_color;
 /// `planet_chunks`'s glob, everywhere it was ever reached from) because it
 /// was grass's own type for two releases and every call site says `grass::`.
 pub use super::drawn_surface::DrawnPatchSurface;
+
+/// The shared tiller MESH and the detail ladder that sizes it (v0.1103), a
+/// `#[path]` CHILD module rather than a sibling so every existing
+/// `planet_chunks::grass_tiller_mesh` / `GRASS_BLADES_*` path still resolves
+/// through this re-export and `terrain/mod.rs` needed no edit.
+#[path = "grass_mesh.rs"]
+mod grass_mesh;
+pub use grass_mesh::*;
 
 // ── Near-field grass STRANDS (v0.1090) ────────────────────────────────────
 // The baked grass card is deleted, not deprecated. What it was: two crossed
@@ -82,25 +96,74 @@ pub const GRASS_FIELD_RAD: f64 = 1.2557e-6;
 /// printed by `near_grass_density_matches_a_real_sward`; measure there
 /// rather than reasoning about it.
 pub const GRASS_CELL_RAD: f64 = 4.7087e-7;
-/// Peak tiller density (tillers per m^2 of ground) inside `GRASS_NEAR_M`,
-/// before `veg_density()` scales it. 45 x the shipped 0.6 density setting =
-/// 27 tillers/m^2 = 189 drawn blades/m^2.
+/// LEAF AREA INDEX of the near sward: one-sided leaf area per unit ground,
+/// counting BOTH populations. THE AUTHORED QUANTITY of this whole layer, and
+/// the thing the quality slider is no longer allowed to touch (v0.1103).
+///
+/// WHY THIS REPLACED A TILLER COUNT. Coverage and detail used to be one
+/// number: `veg_density` multiplied the tiller stream, so a player who turned
+/// quality down turned the ground BALD. Measured at the operator's live 0.1039
+/// setting: LAI 0.58, against 3.33 at the 0.6 default - the sward read as
+/// isolated dark spikes scattered on a lawn, and a large part of what was
+/// reported as grass defects (the "rings", the "grass only appears a few feet
+/// in front of me") was that. Leaf area is what the eye reads as "is this
+/// ground covered", so it is authored here and the tiller count is DERIVED
+/// from it; the slider moves blade detail instead (`grass_detail_for`), with
+/// blade width rising as blade count falls so projected leaf area is
+/// conserved. Standard practice: Jahrmann & Wimmer, "Responsive Real-Time
+/// Grass Rendering for General 3D Scenes" (I3D 2017).
+///
+/// 3.11 is inside the measured turfgrass range (LAI 1.9-6.0, PLOS One
+/// 10.1371/journal.pone.0188080) and is the value that reproduces the SHIPPED
+/// 0.6 default exactly: it derives 27.0 tillers/m^2, which is what
+/// `GRASS_PEAK_PER_M2 45.0 * 0.6` used to give. Grass is erectophile
+/// (extinction ~0.3-0.5), so it needs MORE leaf area than a horizontal-leaf
+/// canopy for the same light interception.
+pub const GRASS_TARGET_LAI: f32 = 3.11;
+/// MEAN OF height^2 over the emitted tussock population, m^2 - the factor that
+/// turns a unit-height mesh's leaf area into a real instance's. MEASURED off
+/// the emitter (the height field x the per-tiller jitter, clamped to
+/// `GRASS_HEIGHT_MIN_M..MAX`), not derived, because the clamp makes it not the
+/// square of the mean. If the height range or field changes, the CI twin
+/// `near_grass_density_matches_a_real_sward` fires and this is re-measured.
+pub const GRASS_MEAN_H2_M2: f32 = 0.130;
+/// The FILLER class's share of the canopy's leaf area, as a fraction of the
+/// tussock class's: `GRASS_FILLER_FRACTION` x 0.615 (the mean of the clump
+/// field's complement) x 0.281 (the mean of the filler height scale SQUARED).
+/// Folded into the derivation below so `GRASS_TARGET_LAI` means the TOTAL
+/// canopy, which is what the eye and the CI twin both measure.
+pub const GRASS_FILLER_LAI_SHARE: f32 = 0.0365;
+/// Density at `GRASS_MID_M` as a FRACTION of the peak. The ramp's SHAPE, kept
+/// separate from its magnitude so `grass_appear_distance` stays a pure const
+/// inverse that no derived density has to be threaded through.
+pub const GRASS_MID_FRACTION: f32 = 14.0 / 45.0;
+
+/// Peak tiller density (tillers per m^2 of ground) inside `GRASS_NEAR_M`.
+/// DERIVED from `GRASS_TARGET_LAI`, not authored, and NOT scaled by
+/// `veg_density` - that is the whole v0.1103 change. Works out to 27.0/m^2,
+/// which is 243 drawn blades/m^2 at the default rung.
 ///
 /// WHY THIS IS NOT A REAL SHOOT COUNT, stated plainly so nobody "corrects" it
 /// later: a real turf carries 3,000-30,000 SHOOTS/m^2, which no renderer
-/// draws as geometry. Each blade here is a BUNDLE - it stands for roughly
-/// 5-8 real blades and carries their combined projected area, which is why
-/// its base is centimetres wide rather than the 3-5 mm of a single ryegrass
-/// blade. The quantity that has to be right is the one the eye reads, which
-/// is leaf AREA per ground area (LAI), not shoot count; the CI twin
+/// draws as geometry. Each drawn blade is a BUNDLE (see
+/// `GRASS_LEAF_AREA_UNIT`). The quantity that has to be right is the one the
+/// eye reads, which is leaf AREA per ground area; the CI twin
 /// `near_grass_density_matches_a_real_sward` measures LAI off the real
-/// emitted geometry rather than trusting this comment.
-pub const GRASS_PEAK_PER_M2: f32 = 45.0;
-/// Density at `GRASS_MID_M`, before `veg_density()`.
-pub const GRASS_MID_PER_M2: f32 = 14.0;
+/// emitted geometry at EVERY slider position rather than trusting this
+/// comment.
+#[inline]
+pub fn grass_peak_per_m2() -> f32 {
+    GRASS_TARGET_LAI
+        / (GRASS_LEAF_AREA_UNIT * GRASS_MEAN_H2_M2 * (1.0 + GRASS_FILLER_LAI_SHARE))
+}
+/// Density at `GRASS_MID_M`, tillers per m^2.
+#[inline]
+pub fn grass_mid_per_m2() -> f32 {
+    grass_peak_per_m2() * GRASS_MID_FRACTION
+}
 /// Full density out to here (metres of surface distance from the camera).
 pub const GRASS_NEAR_M: f32 = 6.0;
-/// Mid ring: `GRASS_PEAK_PER_M2` ramps linearly to `GRASS_MID_PER_M2` here.
+/// Mid ring: the peak ramps linearly to `GRASS_MID_FRACTION` of itself here.
 pub const GRASS_MID_M: f32 = 12.0;
 /// Density reaches ZERO here. Nothing takes over past it - the ground
 /// texture carries the far field - so the ramp has to reach zero smoothly or
@@ -108,40 +171,44 @@ pub const GRASS_MID_M: f32 = 12.0;
 /// they were the geometry this increment deletes, and keeping them would
 /// have meant maintaining both a strand layer and a card layer plus a
 /// hide-radius handshake between them.
+///
+/// THIS IS NOT WHAT BOUNDED THE VISIBLE FIELD (v0.1103, operator: "grass
+/// appears in front of me by only a few feet"). Nothing gates grass on a short
+/// radius; 22 m is the ramp's end and there are only two other limits, both
+/// slack - the harvest's `max_n` (70,000 in lib.rs, against a 31,000-instance
+/// superset) and the per-frame re-gate, which is the ramp again. What actually
+/// ended the field early was DENSITY: at the operator's 0.1039 the ramp gave
+/// 4.7 tillers/m^2 at the camera, 1.5 at 12 m and 0.5 at 18 m, so past ~10 m
+/// there was nothing left to see. Deriving coverage from LAI puts 27, 8.4 and
+/// 3.4 there instead, a 5.8x thicker far field, and the layer should now read
+/// out to its full 22 m without this constant moving.
+///
+/// PUSHING IT FURTHER, costed so the decision is informed rather than a guess:
+/// integrating the ramp over the disc, 22 -> 35 m takes the drawn set from
+/// 12,755 to 20,645 tillers (+62%) and roughly doubles the cell walk
+/// ((35+6)^2 / (22+6)^2 = 2.1x). The principled way to buy that is the
+/// technique the quality ladder already implements - bucket the instance list
+/// by distance and draw each bucket with its own rung, so a tiller at 30 m
+/// costs 30 triangles instead of 90 (Jahrmann & Wimmer, I3D 2017). That needs
+/// a second mesh slot and a second instanced draw in the renderer; nothing in
+/// this file has to change for it.
 pub const GRASS_FAR_M: f32 = 22.0;
 /// Ceiling on `grass_clump_gain`. Two things depend on it: the per-cell item
 /// budget (a cell sitting entirely inside a clump must have enough items in
 /// its stream to fill it) and the acceptance probability (which divides by
 /// this, so it can never exceed 1).
 pub const GRASS_CLUMP_GAIN_MAX: f32 = 2.6;
-/// Blades on one tiller. 5-9 is the real range for a perennial-ryegrass
-/// tiller; 7 is the middle and it is a SHARED mesh, so the variety between
-/// tillers comes from yaw, height, lean and colour instead of blade count.
-pub const GRASS_BLADES_PER_TILLER: usize = 9;
-/// TUSSOCK CROWN RADIUS, as a fraction of unit height: the disc over which
-/// one tiller's blades actually ROOT. Min and max of the per-blade draw.
-///
-/// WHY THIS EXISTS (operator field report, v0.1091.1): with every blade
-/// rising from ONE crown point the sward read as "a bunch of bundles tied
-/// together - like someone went around, grabbed a handful of grass and put a
-/// rubber band around them". That is exactly what a nine-blade fan from a
-/// single origin IS. A real tussock is a spread base: daughter shoots ring
-/// the parent crown, so the blades leave the ground over centimetres and
-/// neighbouring tussocks interleave into a mat instead of standing as
-/// readable bouquets with bare ground between them.
-///
-/// Expressed against UNIT HEIGHT because the mesh is shared and the instance
-/// scale is uniform (the shader scales x, y and z by `height_m`), so a
-/// tussock's crown grows with the tiller the way a real one does: at the
-/// 0.24-0.52 m height range these are 1.7-13.5 cm of crown radius, centred on
-/// 2.7-9.9 cm for a mean 0.38 m tiller.
-pub const GRASS_ROOT_SPREAD_MIN: f32 = 0.07;
-pub const GRASS_ROOT_SPREAD_MAX: f32 = 0.26;
-/// FILLER STUBBLE density (instances per m^2 of ground) at the point where
-/// the clump field is at its emptiest, before `veg_density()` and before the
-/// distance ramp. The realised mean is about 61% of this, because the class
-/// rides the COMPLEMENT of `grass_clump_gain` (see `grass_filler_gain`) and
-/// that complement averages 0.61 over the clump field.
+// The tiller MESH constants (`GRASS_BLADES_*`, `GRASS_ROOT_SPREAD_*`, the
+// blade width profile and `GRASS_LEAF_AREA_UNIT`) live in the `grass_mesh`
+// child module above and are re-exported from here, so every path that ever
+// said `grass::GRASS_BLADES_PER_TILLER` still resolves.
+
+/// FILLER STUBBLE density as a FRACTION of the tussock peak, so the two
+/// populations keep their shipped ratio now that the peak is derived rather
+/// than authored (9.5 / 45.0 - the two constants this replaced). The realised
+/// mean is about 61% of the product, because the class rides the COMPLEMENT of
+/// `grass_clump_gain` (see `grass_filler_gain`) and that complement averages
+/// 0.61 over the clump field.
 ///
 /// The second population exists because a clumped field is bare between its
 /// clumps: at a clump gain of 0.2 the tussock density is a fifth of nominal,
@@ -153,13 +220,19 @@ pub const GRASS_ROOT_SPREAD_MAX: f32 = 0.26;
 /// SIZED BY THE TRIANGLE BUDGET, not by botany: a filler instance draws the
 /// same shared mesh as a tussock (one mesh, one draw - see
 /// `grass_tiller_mesh`), so it costs a full tiller's triangles however small
-/// it is drawn. 9.5 puts the realised addition near 13% of the tussock
-/// population, which `near_grass_density_matches_a_real_sward` prints as a
-/// triangle count. A genuinely 1-2 blade filler mesh would cost a ninth of
-/// that and is a renderer-side follow-up (a second mesh + a second instanced
-/// draw); nothing here has to change when it lands, only the mesh the filler
-/// class is drawn with.
-pub const GRASS_FILLER_PER_M2: f32 = 9.5;
+/// it is drawn. 0.2111 of the peak puts the realised addition near 13% of the
+/// tussock population, which `near_grass_density_matches_a_real_sward` prints
+/// as a triangle count. A genuinely 1-2 blade filler mesh would cost a ninth
+/// of that and is a renderer-side follow-up (a second mesh + a second
+/// instanced draw); nothing here has to change when it lands, only the mesh
+/// the filler class is drawn with.
+pub const GRASS_FILLER_FRACTION: f32 = 9.5 / 45.0;
+/// Filler instances per m^2 where the clump field is emptiest, before the
+/// distance ramp.
+#[inline]
+pub fn grass_filler_per_m2() -> f32 {
+    grass_peak_per_m2() * GRASS_FILLER_FRACTION
+}
 /// Height of a filler instance as a fraction of the tussock height the same
 /// spot would grow. 0.40-0.65 of a 0.24-0.52 m sward is 10-34 cm, i.e.
 /// distinctly a short shoot between the tussocks rather than another tussock.
@@ -277,7 +350,7 @@ pub struct NearGrass {
     pub phase: f32,
     /// This tiller's place in its cell's acceptance order, expressed as the
     /// NORMALIZED DENSITY at which it starts to exist: it is drawn exactly
-    /// while `grass_density_at(live distance) / GRASS_PEAK_PER_M2 > thr`,
+    /// while `grass_ramp_at(live distance) > thr`,
     /// i.e. inside `grass_appear_distance(thr)` of the camera.
     ///
     /// This is the whole reason the layer has no population ring. The CPU
@@ -317,7 +390,7 @@ pub fn grass_appear_distance(thr: f32) -> f32 {
     if thr <= 0.0 {
         return GRASS_FAR_M;
     }
-    let m = GRASS_MID_PER_M2 / GRASS_PEAK_PER_M2;
+    let m = GRASS_MID_FRACTION;
     if thr >= m {
         // On the peak-to-mid leg: density/PEAK falls 1 -> m over NEAR..MID.
         let t = (thr - 1.0) / (m - 1.0);
@@ -346,29 +419,55 @@ pub fn grass_live_emerge(thr: f32, d_m: f32) -> f32 {
     ((grass_appear_distance(thr) - d_m) / GRASS_EMERGE_LEN_M).clamp(0.0, 1.0)
 }
 
-/// Tillers per m^2 of ground at `d_m` surface metres from the camera, BEFORE
-/// `veg_density()`. Piecewise linear: full density inside `GRASS_NEAR_M`,
-/// down to `GRASS_MID_PER_M2` at `GRASS_MID_M`, then to zero at
-/// `GRASS_FAR_M`.
+/// The distance ramp's SHAPE, normalized to 1.0 at the peak: full inside
+/// `GRASS_NEAR_M`, down to `GRASS_MID_FRACTION` at `GRASS_MID_M`, then to
+/// zero at `GRASS_FAR_M`.
 ///
-/// Why a ramp at all: this is what makes the layer ringless. The bake gated
-/// on patch DEPTH, so the field ended wherever the LOD selector happened to
-/// stop refining - a hard edge that moved with the camera and lit up at
-/// grazing sun (the v0.999 report). A density that reaches zero smoothly has
-/// no edge to see.
+/// Normalized rather than absolute because it is the only form the harvest
+/// and the per-frame draw gate actually want (both divide by the peak), and
+/// because it keeps the ramp a pure const function now that the peak is
+/// derived from a target LAI.
+///
+/// Why a ramp at all: this is what makes the layer ringless AT ITS EDGE. The
+/// bake gated on patch DEPTH, so the field ended wherever the LOD selector
+/// happened to stop refining - a hard edge that moved with the camera and lit
+/// up at grazing sun (the v0.999 report). A density that reaches zero smoothly
+/// has no edge to see.
+///
+/// KNOWN RESIDUAL, measured not guessed (v0.1103): the ramp is C0 but not C1.
+/// Its slope jumps at all three anchors - 0 to -3.10 tillers/m^2/m at
+/// `GRASS_NEAR_M`, -3.10 to -0.84 at `GRASS_MID_M`, and -0.84 to 0 at
+/// `GRASS_FAR_M` - and a first-derivative discontinuity in a density field is
+/// a Mach band: three faint concentric rings at 6 m, 12 m and 22 m that move
+/// with the player. That is the strongest remaining candidate for the
+/// operator's "they still look like rings" once coverage is fixed. It is NOT
+/// fixed here because every C1 profile through the same three anchors costs
+/// instances: a squared-cosine bump (`(1-u^2)^2` over NEAR..FAR) draws 18,979
+/// tillers against this ramp's 12,755 (+49%), and a parabola pair that is C1
+/// at the knee forces either `GRASS_MID_M` to 17.0 m or `GRASS_MID_FRACTION`
+/// to 0.625 (+25%). The cheap fix is a parabolic FILLET of half-width ~1.5 m
+/// at each knee: mass-neutral to second order, still invertible in closed form
+/// (one sqrt), and it is what the next increment here should do.
 #[inline]
-pub fn grass_density_at(d_m: f32) -> f32 {
+pub fn grass_ramp_at(d_m: f32) -> f32 {
     if d_m <= GRASS_NEAR_M {
-        GRASS_PEAK_PER_M2
+        1.0
     } else if d_m < GRASS_MID_M {
         let t = (d_m - GRASS_NEAR_M) / (GRASS_MID_M - GRASS_NEAR_M);
-        GRASS_PEAK_PER_M2 + (GRASS_MID_PER_M2 - GRASS_PEAK_PER_M2) * t
+        1.0 + (GRASS_MID_FRACTION - 1.0) * t
     } else if d_m < GRASS_FAR_M {
         let t = (d_m - GRASS_MID_M) / (GRASS_FAR_M - GRASS_MID_M);
-        GRASS_MID_PER_M2 * (1.0 - t)
+        GRASS_MID_FRACTION * (1.0 - t)
     } else {
         0.0
     }
+}
+
+/// Tillers per m^2 of ground at `d_m` surface metres from the camera. NOT
+/// scaled by `veg_density` since v0.1103 - see `GRASS_TARGET_LAI`.
+#[inline]
+pub fn grass_density_at(d_m: f32) -> f32 {
+    grass_peak_per_m2() * grass_ramp_at(d_m)
 }
 
 /// Hash a planet-fixed integer lattice node to 0..1. Pure, no state, no RNG
@@ -445,7 +544,7 @@ pub fn grass_clump_gain(lat: f64, lon: f64) -> f32 {
 /// tussocks here - and the clump field already answers it, so a second noise
 /// field would only let the two drift out of register and leave gaps that no
 /// population fills. At the clump field's mean (gain 1.0) this returns 0.61,
-/// which is why the realised filler density is ~61% of `GRASS_FILLER_PER_M2`;
+/// which is why the realised filler density is ~61% of `grass_filler_per_m2`;
 /// in a bare scrape (gain 0) it returns 1.0 and the stubble is at its
 /// thickest; inside the fattest clump (gain `GRASS_CLUMP_GAIN_MAX`) it
 /// returns 0 and the class disappears, so a tussock stays a tussock.
@@ -553,9 +652,20 @@ struct GrassGroundNode {
 ///
 /// COST, and the known follow-up: this runs INLINE on the frame thread,
 /// once per `GRASS_REHARVEST_M` of camera movement. MEASURED in release at
-/// `veg_density` 1.0, 47,000 tillers: 27 ms at Fuji depth 17, 31 ms at
-/// Amazon depth 20 (roughly 16 and 18 at the shipped 0.6 density). That is
-/// one doubled frame every few seconds of walking - real, and the honest
+/// the old `veg_density` 1.0, 47,000 tillers: 27 ms at Fuji depth 17, 31 ms
+/// at Amazon depth 20 (roughly 16 and 18 at the shipped 0.6 density).
+///
+/// SINCE v0.1103 THAT COST IS THE SAME AT EVERY SLIDER POSITION, because the
+/// tiller count is now derived from `GRASS_TARGET_LAI` instead of scaled by
+/// the slider, and the derived peak is exactly what 0.6 used to give. So the
+/// default player pays what they always paid (~16 ms), max quality got
+/// CHEAPER (it was 27 ms), and the floor of the slider got dearer (it was
+/// ~2.8 ms at the operator's 0.1039, on a canopy of LAI 0.58 - i.e. it was
+/// cheap because there was almost no grass, which is the defect). Holding
+/// leaf area constant is what holds this number constant; the slider now buys
+/// its frame time back in the DRAW, not in the harvest.
+///
+/// That is one doubled frame every few seconds of walking - real, and the honest
 /// next increment is to TIME-SLICE it: the cell walk is sorted nearest-first
 /// and every cell is independent, so it can be resumed across frames with
 /// the previous superset still live (which the margin already guarantees is
@@ -601,7 +711,12 @@ pub fn near_grass_instances(
     let cell = GRASS_CELL_RAD;
     ground.set_region(center, ang + cell);
     let salt: u64 = 0x9A55_77EE_0F5A_11D5;
-    let density_scale = veg_density();
+    // COVERAGE IS NOT A QUALITY SETTING (v0.1103): both peaks are derived from
+    // `GRASS_TARGET_LAI` and `veg_density` is not read anywhere in this
+    // function. Turning quality down costs blade DETAIL (`grass_detail_for`),
+    // never ground cover.
+    let peak_tussock = grass_peak_per_m2();
+    let peak_filler = grass_filler_per_m2();
     // Metres per radian of latitude; longitude is this times cos(lat).
     let m_per_rad = def.radius.max(1.0);
     let coslat = lat_c.cos().max(0.05);
@@ -726,8 +841,7 @@ pub fn near_grass_instances(
         // can stop there instead of running the full cell. The superset
         // margin (see the fn doc) enters here as a distance discount, which
         // is what makes the bound valid for any camera within it.
-        let p_ceiling =
-            (grass_density_at((near_m - margin_m).max(0.0) as f32) / GRASS_PEAK_PER_M2).min(1.0);
+        let p_ceiling = grass_ramp_at((near_m - margin_m).max(0.0) as f32).min(1.0);
         // ── TWO POPULATIONS PER CELL (v0.1093) ──
         // Class 0 = TUSSOCKS, the clumped main sward. Class 1 = FILLER
         // STUBBLE, short shoots riding the COMPLEMENT of the clump field so
@@ -755,14 +869,14 @@ pub fn near_grass_instances(
             // vegetation slider. For tussocks the GRASS_CLUMP_GAIN_MAX headroom
             // is what lets a clump genuinely exceed the nominal density instead
             // of saturating at it (a gain that can only ever thin would drag the
-            // mean below GRASS_PEAK_PER_M2 and make that constant a lie); for
+            // mean below grass_peak_per_m2 and make that number a lie); for
             // the filler class the gain is already normalized to a 1.0 ceiling.
             let (peak, gain_max) = if filler {
-                (GRASS_FILLER_PER_M2, 1.0f32)
+                (peak_filler, 1.0f32)
             } else {
-                (GRASS_PEAK_PER_M2, GRASS_CLUMP_GAIN_MAX)
+                (peak_tussock, GRASS_CLUMP_GAIN_MAX)
             };
-            let count = ((peak * density_scale * gain_max) as f64 * area_m2).round() as u32;
+            let count = ((peak * gain_max) as f64 * area_m2).round() as u32;
             if count == 0 {
                 continue;
             }
@@ -831,11 +945,28 @@ pub fn near_grass_instances(
                 // the acceptance rule `item < count * (density/PEAK) * gain/GMAX`
                 // to get a per-instance constant that carries no camera distance
                 // at all, so the draw-time gate can re-evaluate the ramp live.
+                //
+                // WHY THIS IS NOT A LADDER, and why an attempt to stratify it
+                // was measured and then REVERTED (v0.1103). `item / count` on
+                // its own would be one: `grass_appear_distance` is monotone in
+                // the threshold, so evenly-spaced thresholds are evenly-spaced
+                // emergence RADII, and whole cohorts of blades would grow in
+                // together at fixed distances from the camera - concentric arcs
+                // of half-height grass, a plausible reading of the operator's
+                // "they still look like rings". The `gain_max / gain` factor is
+                // what saves it: gain is a per-ITEM function of position on a
+                // field whose fine octave is 0.72 m, well inside this ~3 m cell,
+                // so two items on the same index rung land at different radii.
+                // MEASURED, not argued: `grass_appear_distances_are_not_a_ladder`
+                // scores the spread of within-cell threshold gaps at ~0.98 as
+                // shipped and 0.00 with the gain factor removed. A stratified
+                // `(item + hash01)` offset was written and measured to move that
+                // statistic by nothing, so it was dropped rather than shipped -
+                // it would have moved every tiller in the world for no gain.
                 let thr = (item as f32 / count as f32) * (gain_max / gain);
                 // SUPERSET acceptance: discount the distance by the margin, so
                 // any camera within it still finds this tiller in the set.
-                let p_here = grass_density_at(((d_m as f64 - margin_m).max(0.0)) as f32)
-                    / GRASS_PEAK_PER_M2;
+                let p_here = grass_ramp_at(((d_m as f64 - margin_m).max(0.0)) as f32);
                 if thr >= p_here {
                     continue;
                 }
@@ -919,229 +1050,6 @@ pub fn near_grass_instances(
     out
 }
 
-/// Metadata the caller needs about the shared tiller mesh, returned beside it
-/// so nothing has to re-derive it from the vertex buffer.
-#[derive(Clone, Copy, Debug)]
-pub struct GrassTillerStats {
-    /// ONE-SIDED leaf area of the whole tiller at unit height, m^2. The mesh
-    /// is emitted double-sided (the opaque pipeline back-culls and a blade
-    /// must be visible from behind), so this is half the raw triangle area.
-    /// Scale by height^2 for a real instance.
-    pub one_sided_area_unit: f32,
-    pub blades: usize,
-    pub triangles: usize,
-    /// Horizontal reach of the widest vertex from the tussock axis, at unit
-    /// height: the radius of ground one instance's blades hang over. Scale by
-    /// `height_m` for a real instance. Measured off the built mesh rather
-    /// than derived from the constants, so it tracks any shape change, and
-    /// used by the sward tests to measure how much ground the layer actually
-    /// covers (which is the quantity the "bare ground between bundles"
-    /// report was about).
-    pub footprint_unit: f32,
-}
-
-/// Deterministic per-blade jitter, 0..1, from an integer hash of the blade
-/// index and a salt.
-///
-/// WHY A HASH AND NOT ANOTHER SINE (v0.1093): the first fan drew every varying
-/// quantity from `(k * c).sin()` - the azimuth wobble from one multiplier, the
-/// tip height AND the outward reach from a single shared `vary` term. Sines of
-/// the same argument are smooth functions of `k`, and driving two quantities
-/// from ONE of them makes them perfectly rank-correlated: the blade that stood
-/// tallest was always the blade that reached furthest, so the tussock resolved
-/// into a tidy fountain with a smooth outline. Measured on the shipped mesh:
-/// Pearson(tip height, reach) = 1.000, with tip heights spanning only
-/// 0.785-0.844 of unit height. A hash decorrelates them by construction
-/// (measured 0.26 across nine blades, tip heights 0.704-0.935) and is still a
-/// pure function of `k`, so the mesh is identical from run to run.
-#[inline]
-fn blade_jitter01(k: usize, salt: u32) -> f32 {
-    let mut h = (k as u32).wrapping_mul(0x9E37_79B9) ^ salt.wrapping_mul(0x85EB_CA6B);
-    h ^= h >> 15;
-    h = h.wrapping_mul(0x2545_F491);
-    h ^= h >> 13;
-    h = h.wrapping_mul(0xC2B2_AE35);
-    h ^= h >> 16;
-    (h >> 8) as f32 / 16_777_216.0
-}
-
-/// The ONE mesh every grass instance draws: `GRASS_BLADES_PER_TILLER` arching,
-/// tapered blades rooted across a SPREAD CROWN, built at UNIT height in a
-/// canonical Y-up frame so an instance's uniform scale IS its height in metres.
-///
-/// Shape, from the real plant rather than from convenience:
-///   * The blades ROOT OVER A DISC, not at a point (v0.1093). This is the
-///     single most important thing about the silhouette and it was wrong until
-///     the operator named it: "looks like a bunch of bundles tied together -
-///     like someone went around, grabbed a handful of grass and put a rubber
-///     band around them". Nine blades from one origin IS a bound bouquet, and
-///     a field of bouquets has readable bare ground between them. A real
-///     tussock's daughter shoots ring the parent crown, so its base is
-///     centimetres across and neighbouring tussocks interleave into a mat.
-///     Root radius per blade is `GRASS_ROOT_SPREAD_MIN..MAX` of unit height
-///     (2.7-9.9 cm on a mean 0.38 m tiller), area-weighted so the outer ring
-///     is not under-populated.
-///   * A blade emerges near-vertical and ARCHES over. A straight blade reads
-///     as wheat stubble or a bristle brush; the arch is the entire reason a
-///     sward reads as a soft mass. The midrib follows a quadratic Bezier from
-///     its own root to a tip that has fallen outward and down.
-///   * It LEANS AWAY FROM THE TUSSOCK CENTRE, loosely. A spread base with
-///     random lean directions reads as a tangle; a spread base leaning outward
-///     reads as a tussock, because that is the geometry that makes the crown
-///     open and the tips ring it.
-///   * It TAPERS to a point. The old card had a ruler-straight top edge, which
-///     is what made the tufts photograph as pieces of pale tape.
-///   * Tip height, outward reach and how early the blade bends are drawn
-///     INDEPENDENTLY (`blade_jitter01`), so the outline is ragged rather than
-///     a neat fountain.
-///
-/// Shading, all of it free because the vertices exist anyway:
-///   * PER-CORNER NORMALS blended half-way between the blade's own facing and
-///     the crown's radial up. That gives a real lit side and a shaded side
-///     across one tiller (the deleted card pinned every normal to the radial
-///     up, so every tuft on the planet lit identically), while structurally
-///     preventing N.L from reaching zero - which is what the v0.896 radial pin
-///     was protecting against. It is the same 0.5 spherification the cluster
-///     cards use.
-///   * The LEAF ORGAN BIT on every face, so the shipped `is_leaf` transmission
-///     path lights a backlit blade as thin tissue. Green is the band leaf
-///     tissue transmits best; a sward with the sun behind it glows.
-///   * A VERTICAL SHADE RAMP, dark at the crown and full at the tips. This is
-///     Beer-Lambert, not decoration: at LAI 2-4 with grass's low extinction
-///     the base of a sward sits at 20-30% of the top-of-canopy irradiance,
-///     and a uniformly lit blade is a large part of what reads as a sticker.
-///
-/// THE MESH CARRIES NO COLOUR, and must not be given one. It is drawn ONCE,
-/// instanced, for every tiller in the field; the moment its packed UV holds a
-/// tint it stops being shareable and becomes one mesh per tiller, which is
-/// the thing this design exists to avoid. So the packed channel carries the
-/// GREY RAMP (0.30 at the crown to 1.00 at the tip) and the per-instance
-/// albedo in `NearGrass::color` multiplies it in the fragment stage. That
-/// multiply is part of the new material type's wiring - see the WIRING note
-/// on `near_grass_instances`.
-pub fn grass_tiller_mesh(
-) -> (crate::renderer::plant_mesh::PlantMeshBuilder, GrassTillerStats) {
-    use crate::renderer::plant_mesh::{Organ, PlantMeshBuilder};
-    use glam::Vec3;
-    let mut b = PlantMeshBuilder::new();
-    b.set_organ(Organ::Leaf);
-    // Cross-sections along a blade at t = 0, 1/3, 2/3, 1(tip). Widths are
-    // fractions of unit height; see the GRASS_PEAK_PER_M2 note on why a drawn
-    // blade is a BUNDLE and therefore centimetres wide, not millimetres.
-    const SEG_W: [f32; 3] = [0.209, 0.115, 0.041];
-    let up = Vec3::Y;
-    let blades = GRASS_BLADES_PER_TILLER;
-    let mut one_sided = 0.0f32;
-    for k in 0..blades {
-        // ── ROOT: where this blade leaves the ground ──
-        // The golden angle rings the crown without ever repeating an azimuth,
-        // and a per-blade wobble keeps two neighbours from looking like a
-        // mirrored pair. The radius is area-weighted (sqrt of the draw), so
-        // the outer ring of the crown carries as many shoots per unit area as
-        // the middle - a linear draw crowds the centre and puts the pinch
-        // back.
-        let kf = k as f32;
-        let ra = kf * 2.399_963_2 + (blade_jitter01(k, 1) - 0.5) * 1.1;
-        let rr = GRASS_ROOT_SPREAD_MIN
-            + (GRASS_ROOT_SPREAD_MAX - GRASS_ROOT_SPREAD_MIN) * blade_jitter01(k, 2).sqrt();
-        let root = Vec3::new(ra.cos() * rr, 0.0, ra.sin() * rr);
-        // ── LEAN: loosely away from the tussock centre ──
-        // Not exactly outward (that is a parasol) and not free (that is a
-        // tangle): +-34 degrees of the root's own bearing.
-        let az = ra + (blade_jitter01(k, 3) - 0.5) * 1.2;
-        let side = Vec3::new(az.cos(), 0.0, az.sin());
-        // ── SPLAY: three INDEPENDENT draws ──
-        // Tip height, outward reach and the bend point come from different
-        // hash salts, so a tall blade is not automatically the far-reaching
-        // one. See `blade_jitter01` for what the shipped single-`vary` fan
-        // measured (correlation 1.000, tip heights inside a 6% band).
-        let tip_h = 0.68 + blade_jitter01(k, 4) * 0.28; // 0.68..0.96 of unit height
-        let reach = 0.14 + blade_jitter01(k, 5) * 0.48; // outward fall of the tip
-        let bend = 0.70 + blade_jitter01(k, 6) * 0.20; // how late it arches over
-        // Quadratic Bezier control point: high and close in, so the blade
-        // leaves its root near-vertical and only bends over near the tip.
-        let p0 = root;
-        let p1 = root + up * (tip_h * bend);
-        let p2 = root + up * tip_h + side * reach;
-        let at = |t: f32| -> Vec3 {
-            let u = 1.0 - t;
-            p0 * (u * u) + p1 * (2.0 * u * t) + p2 * (t * t)
-        };
-        // Blade-plane frame: `side` is the fall direction, so the blade's
-        // WIDTH runs across it.
-        let across = up.cross(side).normalize();
-        let ts = [0.0f32, 1.0 / 3.0, 2.0 / 3.0, 1.0];
-        let mids: Vec<Vec3> = ts.iter().map(|t| at(*t)).collect();
-        // Per-corner normal: the blade's own facing (perpendicular to the
-        // blade plane) blended HALF-WAY toward the crown's radial up. Capped
-        // at 0.5 so N.L can never reach 0 - the black-slab guard.
-        let facing = across.cross(mids[3] - mids[0]).normalize_or_zero();
-        let mut facing = if facing.length_squared() < 0.5 { side } else { facing };
-        // The blade's UPPER surface faces the sky, so orient the facing
-        // upward before blending. Without this the cross product's sign flips
-        // with the fan azimuth and half the blades ship an inverted normal
-        // (measured: n.y = -0.55 on the first pass), which at grazing sun is
-        // the black-slab defect the v0.896 radial pin was fighting.
-        if facing.y < 0.0 {
-            facing = -facing;
-        }
-        let nrm = (facing * 0.5 + up * 0.5).normalize();
-        // Vertical Beer-Lambert ramp, packed as a GREY (see the no-colour
-        // note above). Flat-interpolated, so it is per-FACE - one shade per
-        // segment, which is exactly the resolution a 3-segment blade carries.
-        let shade = |t: f32| -> [f32; 3] {
-            let k = 0.30 + 0.70 * t; // crown 30% of tip irradiance
-            [k, k, k]
-        };
-        for s in 0..3 {
-            let (m0, m1) = (mids[s], mids[s + 1]);
-            let w0 = SEG_W[s] * 0.5;
-            let w1 = if s == 2 { 0.0 } else { SEG_W[s + 1] * 0.5 };
-            let c = shade((ts[s] + ts[s + 1]) * 0.5);
-            let a0 = m0 - across * w0;
-            let a1 = m0 + across * w0;
-            if s == 2 {
-                // Pointed tip: one triangle, no top edge.
-                b.tri_smooth(
-                    [a0.to_array(), a1.to_array(), m1.to_array()],
-                    [nrm.to_array(); 3],
-                    c,
-                );
-                b.tri_smooth(
-                    [a0.to_array(), m1.to_array(), a1.to_array()],
-                    [(-nrm).to_array(); 3],
-                    c,
-                );
-                one_sided += 0.5 * (a1 - a0).length() * (m1 - m0).length();
-            } else {
-                let b0 = m1 - across * w1;
-                let b1 = m1 + across * w1;
-                for (p, n) in [
-                    ([a0, a1, b1], nrm),
-                    ([a0, b1, b0], nrm),
-                    ([a0, b1, a1], -nrm),
-                    ([a0, b0, b1], -nrm),
-                ] {
-                    b.tri_smooth(
-                        [p[0].to_array(), p[1].to_array(), p[2].to_array()],
-                        [n.to_array(); 3],
-                        c,
-                    );
-                }
-                one_sided += 0.5 * ((a1 - a0).length() + (b1 - b0).length())
-                    * (m1 - m0).length();
-            }
-        }
-    }
-    b.set_organ(Organ::Stem);
-    let triangles = b.indices.len() / 3;
-    let footprint_unit = b
-        .vertices
-        .iter()
-        .map(|v| (v.position[0] * v.position[0] + v.position[2] * v.position[2]).sqrt())
-        .fold(0.0f32, f32::max);
-    (b, GrassTillerStats { one_sided_area_unit: one_sided, blades, triangles, footprint_unit })
-}
 
 #[cfg(test)]
 mod tests {
@@ -1451,7 +1359,10 @@ mod tests {
             tiles: None,
             ocean: None,
         };
-        let (_, stats) = grass_tiller_mesh();
+        // Cost is quoted at the SHIPPED DEFAULT rung, not at whatever the test
+        // process's atomic holds, so the printed triangle count is the one the
+        // default player pays.
+        let (_, stats) = grass_tiller_mesh_at(grass_detail_for(0.6));
         // FULL-COST harvest, exactly as lib.rs runs it: the whole ramp plus
         // the superset margin, at the depth each site's LOD really reaches.
         // Printed, not asserted - debug and release differ by more than an
@@ -1501,11 +1412,22 @@ mod tests {
                 t0.elapsed().as_secs_f64() * 1000.0
             );
         }
-        // The shipped Settings default is 0.6; tests run at the 1.0 the atomic
-        // initialises to. Density is exactly linear in it (`count` is a
-        // product), so the shipped figure is the measured one scaled.
-        let dens = veg_density();
-        let shipped = 0.6_f64 / dens as f64;
+        // ── THE WHOLE SLIDER, not one position (v0.1103) ──
+        //
+        // The gate this replaces asserted the band at EXACTLY ONE setting: it
+        // measured LAI at whatever `veg_density` the test process happened to
+        // hold, then scaled by `0.6 / dens` on the (then correct) assumption
+        // that density was exactly linear in the slider. That is precisely why
+        // the defect shipped - it validated the default and said nothing about
+        // the 0.1039 the operator was actually running, where the same
+        // arithmetic gives LAI 0.58 and the ground reads as spikes on a lawn.
+        //
+        // Coverage no longer depends on the slider at all, so the harvest runs
+        // ONCE per site and the loop re-measures leaf area against the mesh
+        // each rung would build. Both halves of the decoupling are under test:
+        // the realised-density check catches a harvest that reads the slider
+        // again, and the LAI band catches a rung whose mesh stops conserving
+        // leaf area.
         for (name, lat, lon) in [
             ("fuji", 35.3_f64, 138.8_f64),
             ("amazon", -3.0, -60.0),
@@ -1528,41 +1450,103 @@ mod tests {
             let n = g.len() as f64;
             let nf = g.iter().filter(|t| t.filler).count() as f64;
             let tillers_m2 = n / area;
-            let blades_m2 = tillers_m2 * stats.blades as f64;
-            // LAI: one-sided leaf area per unit ground. The mesh is built at
-            // unit height, so an instance carries area * height^2 - and the
-            // height is the LIVE one, exactly what the renderer scales by.
-            let leaf: f64 = g
+            // The height^2 sum is the site's whole contribution to LAI that
+            // does NOT depend on the mesh: pull it out once, then each rung is
+            // one multiply. The height is the LIVE one, exactly what the
+            // renderer scales by.
+            let h2: f64 = g
                 .iter()
                 .map(|t| {
-                    let h = (t.height_m
-                        * grass_live_emerge(t.thr, surf_d(&def, c, t.dir)))
-                        as f64;
-                    stats.one_sided_area_unit as f64 * h * h
+                    let h =
+                        (t.height_m * grass_live_emerge(t.thr, surf_d(&def, c, t.dir))) as f64;
+                    h * h
                 })
                 .sum();
-            let lai = leaf / area;
-            println!(
-                "[grass sward] {name}: {n} instances ({:.0} tussocks + {nf} filler), \
-                 {tillers_m2:.1}/m2, {blades_m2:.0} blades/m2, LAI {lai:.2} (at veg_density \
-                 {dens:.2}); shipped 0.6 -> {:.0} blades/m2, LAI {:.2}",
-                n - nf,
-                blades_m2 * shipped,
-                lai * shipped
-            );
+            // COVERAGE IS THE DERIVED QUANTITY and must match what
+            // `grass_peak_per_m2` claims, within the clump field's site-to-site
+            // spread (its mean is 1.0 by construction, but one 6 m disc can sit
+            // on thick or thin ground).
+            let want_t = (grass_peak_per_m2() + grass_filler_per_m2() * 0.615) as f64;
             assert!(
-                blades_m2 * shipped >= 150.0,
-                "{name}: {:.0} blades/m2 at the shipped density - a sward is a mat, not a \
-                 scatter (the deleted bake managed 0.5)",
-                blades_m2 * shipped
+                tillers_m2 > want_t * 0.75 && tillers_m2 < want_t * 1.30,
+                "{name}: {tillers_m2:.1} instances/m2 against the {want_t:.1} the target LAI \
+                 derives - coverage has drifted off the authored number"
             );
-            let lai_shipped = lai * shipped;
+            let mut lo = f64::MAX;
+            let mut hi = 0.0f64;
+            let mut q = GRASS_QUALITY_MIN;
+            while q <= 1.0001 {
+                let (_, ms) = grass_tiller_mesh_at(grass_detail_for(q));
+                // LAI: one-sided leaf area per unit ground. The mesh is built
+                // at unit height, so an instance carries area * height^2.
+                let lai = ms.one_sided_area_unit as f64 * h2 / area;
+                let blades_m2 = tillers_m2 * ms.blades as f64;
+                println!(
+                    "[grass sward] {name} @ quality {q:.2}: {n} instances ({:.0} tussocks + \
+                     {nf} filler), {tillers_m2:.1}/m2, {} blades x {} segs, {blades_m2:.0} \
+                     blades/m2, {:.0} tris/m2, LAI {lai:.2}",
+                    n - nf,
+                    ms.blades,
+                    ms.segments,
+                    tillers_m2 * ms.triangles as f64
+                );
+                // A SANITY FLOOR, not the coverage gate. Blade COUNT is
+                // allowed to fall with quality now - that is the exchange, and
+                // the width rises to match - so the quantity that must hold is
+                // the LAI below. This still catches the class of defect the
+                // deleted bake was (0.5 blades/m^2, 200x under this) without
+                // re-asserting the coupling this increment removed.
+                assert!(
+                    blades_m2 >= 100.0,
+                    "{name} @ quality {q:.2}: {blades_m2:.0} blades/m2 - a sward is a mat, not \
+                     a scatter (the deleted bake managed 0.5)"
+                );
+                assert!(
+                    (1.5..=5.0).contains(&lai),
+                    "{name} @ quality {q:.2}: LAI {lai:.2}, wanted 1.5..5.0 against the \
+                     measured turf range 1.9-6.0. A QUALITY setting is changing how much \
+                     canopy there is again - it may only change how finely it is built"
+                );
+                lo = lo.min(lai);
+                hi = hi.max(lai);
+                q += 0.05;
+            }
+            // And the SPREAD, which is the actual claim: the authored canopy
+            // is invariant under the slider, not merely in band at each end.
             assert!(
-                (1.5..=5.0).contains(&lai_shipped),
-                "{name}: effective LAI {lai_shipped:.2} at the shipped density, wanted \
-                 1.5..5.0 against the measured turf range 1.9-6.0"
+                hi < lo * 1.05,
+                "{name}: LAI runs {lo:.2}..{hi:.2} across the slider - that is a {:.0}% swing \
+                 in ground cover from a QUALITY setting",
+                (hi / lo - 1.0) * 100.0
             );
         }
+        // THE STRUCTURAL HALF, because the loop above cannot see it: the
+        // harvest must not read the quality slider at all. Every number it uses
+        // is derived from GRASS_TARGET_LAI, and the test process runs at the
+        // atomic's 1.0 default, so a re-introduced slider multiply would be
+        // invisible to any measurement made here.
+        let src_txt = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
+        )
+        .expect("read grass.rs");
+        // The needle is assembled at runtime so this scanner's own source line
+        // is not an offender - the first draft of it flagged itself.
+        let needle = format!("{}{}", "veg_", "density(");
+        let offenders: Vec<usize> = src_txt
+            .lines()
+            .enumerate()
+            .filter(|(_, l)| {
+                let t = l.trim_start();
+                !t.starts_with("//") && t.contains(&needle)
+            })
+            .map(|(i, _)| i + 1)
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "the quality slider is read in the coverage path at grass.rs line(s) {offenders:?} \
+             - coverage is derived from GRASS_TARGET_LAI, and the slider belongs in \
+             grass_detail_for and nowhere else"
+        );
     }
 
     /// CI TWIN for "grass is scattered as an exact Poisson process": the bake
@@ -1673,20 +1657,20 @@ mod tests {
              patches."
         );
         // Sanity on the other side: the clump gain is meant to have mean 1, so
-        // the realised TUSSOCK density must still be the one GRASS_PEAK_PER_M2
+        // the realised TUSSOCK density must still be the one grass_peak_per_m2
         // claims. Measured on the tussock class alone - the filler class is a
         // second population with its own constant and would otherwise inflate
         // this into a false pass.
-        let want = (GRASS_PEAK_PER_M2 * veg_density()) as f64;
+        let want = grass_peak_per_m2() as f64;
         assert!(
             tmean > want * 0.75 && tmean < want * 1.25,
             "mean {tmean:.1} tussocks/m2 against the nominal {want:.1} - grass_clump_gain's \
-             mean has drifted off 1.0, so GRASS_PEAK_PER_M2 no longer means what it says"
+             mean has drifted off 1.0, so grass_peak_per_m2 no longer means what it says"
         );
         // And the filler class must land near ITS constant: the complement of
         // a mean-1.0 clump field averages (GAIN_MAX - 1)/GAIN_MAX = 0.615, so
-        // the realised stubble density is 61.5% of GRASS_FILLER_PER_M2.
-        let want_f = (GRASS_FILLER_PER_M2 * veg_density()) as f64
+        // the realised stubble density is 61.5% of grass_filler_per_m2.
+        let want_f = grass_filler_per_m2() as f64
             * ((GRASS_CLUMP_GAIN_MAX - 1.0) / GRASS_CLUMP_GAIN_MAX) as f64;
         assert!(
             fmean > want_f * 0.7 && fmean < want_f * 1.3,
@@ -1836,7 +1820,7 @@ mod tests {
         // (14.5%) and is meant to: its ground averages a clump gain of 0.85,
         // and thin ground is exactly where the stubble belongs. So the gate
         // here is a budget ceiling with room for a thin site, not the
-        // expectation - the expectation is pinned against GRASS_FILLER_PER_M2
+        // expectation - the expectation is pinned against grass_filler_per_m2
         // in the clustering test.
         assert!(
             frac < 0.20,
@@ -1966,314 +1950,6 @@ mod tests {
         );
     }
 
-    /// The shared tiller mesh has to be a fan of ARCHING, TAPERED blades with
-    /// per-corner normals and the leaf organ bit - every one of those is a
-    /// specific defect the deleted card had (ruler-straight edges, a normal
-    /// pinned to the radial up so every tuft on the planet lit identically,
-    /// and no transmission path at all because it went through the type-12
-    /// terrain branch).
-    #[test]
-    fn grass_tiller_is_a_fan_of_arching_tapered_blades() {
-        use crate::terrain::planet_surface::unpack_uv_to_color;
-        use glam::Vec3;
-        let (b, stats) = grass_tiller_mesh();
-        assert_eq!(stats.blades, GRASS_BLADES_PER_TILLER);
-        assert_eq!(stats.triangles, b.indices.len() / 3);
-        // 3 segments/blade: 2 quads (4 tris) + 1 tip tri = 5, doubled because
-        // the opaque pipeline back-culls and a blade must be visible from
-        // behind. 90 triangles for 9 blades.
-        assert_eq!(stats.triangles, GRASS_BLADES_PER_TILLER * 10);
-        // THE VERTEX LAYOUT the per-blade checks below index into:
-        // `tri_smooth` pushes three fresh vertices per triangle (no sharing),
-        // and blade k emits its ten triangles in one uninterrupted run, so
-        // blade k owns vertices 30k..30k+30. Asserted rather than assumed,
-        // because everything after this reads the mesh through that layout.
-        assert_eq!(
-            b.vertices.len(),
-            GRASS_BLADES_PER_TILLER * 30,
-            "the mesh is no longer 30 vertices per blade - the per-blade slices below are \
-             reading the wrong geometry"
-        );
-        assert!(
-            stats.triangles <= 96,
-            "{} triangles per tiller - MEASURED at v0.1090, a 22 m harvest is ~20,800 \
-             tillers at veg_density 1.0 (~12,500 at the shipped 0.6), so every triangle \
-             here is multiplied by five figures and again by the shadow pass",
-            stats.triangles
-        );
-        // Every face carries the LEAF organ bit (shader `is_leaf`), so a
-        // backlit sward glows instead of being shaded as bark.
-        for v in &b.vertices {
-            let packed = v.uv[0].round().max(0.0) as u32;
-            assert!(
-                packed & 524_288 != 0,
-                "a grass face is not tagged as leaf tissue - it would shade as stem"
-            );
-        }
-        // ARCH + TAPER, measured PER BLADE from its OWN root (v0.1093).
-        //
-        // The shipped version of this check compared the widest vertex radius
-        // near the top of the mesh against the widest near the bottom, which
-        // only worked while every blade rose from the origin. With a SPREAD
-        // CROWN a blade rooted 0.26 out and standing straight up would pass
-        // that test on its root offset alone, so the arch is now measured
-        // where it lives: how far each tip has fallen from the root of its
-        // own blade.
-        let blade = |k: usize| -> (Vec3, Vec3, f32) {
-            let v = |i: usize| {
-                let p = b.vertices[k * 30 + i].position;
-                Vec3::new(p[0], p[1], p[2])
-            };
-            // Root corners are the first cross-section's two vertices; the tip
-            // is the apex of the first tip-segment triangle (blade-local
-            // triangle 8 => vertex 26). See the layout assertion above.
-            let (a0, a1) = (v(0), v(1));
-            (((a0 + a1) * 0.5), v(26), (a1 - a0).length())
-        };
-        let mut fall = Vec::new();
-        for k in 0..stats.blades {
-            let (root, tip, w) = blade(k);
-            let horiz = ((tip.x - root.x).powi(2) + (tip.z - root.z).powi(2)).sqrt();
-            assert!(
-                w > 0.05,
-                "blade {k}'s root cross-section is {w:.3} wide - the crown has lost its taper"
-            );
-            assert!(
-                tip.y > 0.5,
-                "blade {k}'s tip stands at {:.3} of unit height - the mesh no longer reaches \
-                 the height its instance scale claims",
-                tip.y
-            );
-            fall.push(horiz / tip.y);
-        }
-        let mean_fall = fall.iter().sum::<f32>() / fall.len() as f32;
-        println!(
-            "[grass mesh] blade tip fall / height: min {:.2} max {:.2} mean {mean_fall:.2}; \
-             footprint {:.3} of unit height",
-            fall.iter().cloned().fold(f32::MAX, f32::min),
-            fall.iter().cloned().fold(0.0, f32::max),
-            stats.footprint_unit
-        );
-        assert!(
-            fall.iter().all(|f| *f > 0.10) && mean_fall > 0.30,
-            "blade tips fall outward by {mean_fall:.2} of their height on average (min {:.2}) - \
-             the blades are not arching, they are standing straight up like bristles",
-            fall.iter().cloned().fold(f32::MAX, f32::min)
-        );
-        // NORMALS: not all identical (the card's defect - every tuft on the
-        // planet lit the same because `nrm = up`), and never more than
-        // half-way from the radial up toward the blade facing (the v0.896
-        // black-slab guard: N.L must not be able to reach 0). Undersides
-        // carry the mirrored normal, which is correct thin-tissue geometry,
-        // so the guard is on the MAGNITUDE.
-        let tops: Vec<_> = b.vertices.iter().filter(|v| v.normal[1] > 0.0).collect();
-        assert!(!tops.is_empty(), "no upward-facing grass normals at all");
-        let n0 = tops[0].normal;
-        assert!(
-            tops.iter()
-                .any(|v| (v.normal[0] - n0[0]).abs() + (v.normal[2] - n0[2]).abs() > 0.3),
-            "every corner carries the same normal - one tiller has no lit side and no \
-             shaded side, which is exactly what the deleted card did"
-        );
-        for v in &b.vertices {
-            assert!(
-                v.normal[1].abs() >= 0.35,
-                "a grass normal has tipped past half-way toward the blade facing \
-                 (n.y {:.2}); at grazing sun that face goes black",
-                v.normal[1]
-            );
-        }
-        // BEER-LAMBERT RAMP: the crown segment must be markedly darker than
-        // the tip segment. Colour rides the packed UV, one shade per face.
-        //
-        // Selected by SEGMENT (the blade-local triangle run) rather than by a
-        // band of absolute height, which is what it used to be: with tip
-        // heights now drawn independently per blade, a height band mixes one
-        // blade's mid segment with another's tip and dilutes the very thing
-        // being measured.
-        let seg_shade = |tri_lo: usize, tri_hi: usize| -> f32 {
-            let mut sum = 0.0;
-            let mut n = 0.0;
-            for k in 0..stats.blades {
-                for t in tri_lo..tri_hi {
-                    let (c, _) = unpack_uv_to_color(b.vertices[k * 30 + t * 3].uv);
-                    sum += c[1];
-                    n += 1.0;
-                }
-            }
-            sum / n
-        };
-        let (baseg, tipg) = (seg_shade(0, 4), seg_shade(8, 10));
-        assert!(
-            baseg > 0.0 && tipg > 0.0,
-            "no faces found in the base/tip bands ({baseg}, {tipg})"
-        );
-        assert!(
-            baseg < tipg * 0.60,
-            "sward base reads {baseg:.3} against tips {tipg:.3} - a real sward's base sits \
-             at 20-30% of top-of-canopy irradiance; a uniformly lit blade is a sticker"
-        );
-    }
-
-    /// THE RUBBER-BAND GATE (v0.1093), CI twin for the operator's field report
-    /// at v0.1091.1: the sward "looks like a bunch of bundles tied together -
-    /// like someone went around, grabbed a handful of grass, put a rubber band
-    /// around them".
-    ///
-    /// That is a geometric fact about the mesh, not a lighting or density
-    /// problem: every blade rose from ONE crown point, which IS a bound
-    /// bouquet, and a field of bouquets has readable bare ground between them
-    /// however many you scatter. A real tussock's shoots ring the parent
-    /// crown, so its base is centimetres across and neighbouring tussocks
-    /// interleave.
-    ///
-    /// The gate is stated in METRES ON THE GROUND, at the mean tiller height,
-    /// because that is the scale the eye judges: the mesh is unit-height and
-    /// the instance scale is uniform, so a unit-space radius of 0.13 is 5 cm
-    /// on a 0.38 m tiller. Nothing here may be satisfied by a wider blade -
-    /// it is measured on the blade ROOT MIDPOINTS, so a fan of nine
-    /// wide-based blades sharing one origin still fails.
-    #[test]
-    fn grass_tussock_blades_root_over_a_spread_crown() {
-        use glam::Vec3;
-        let (b, stats) = grass_tiller_mesh();
-        assert_eq!(b.vertices.len(), stats.blades * 30, "unexpected mesh layout");
-        // Blade k's root is the midpoint of its first cross-section.
-        let roots: Vec<Vec3> = (0..stats.blades)
-            .map(|k| {
-                let v = |i: usize| {
-                    let p = b.vertices[k * 30 + i].position;
-                    Vec3::new(p[0], p[1], p[2])
-                };
-                (v(0) + v(1)) * 0.5
-            })
-            .collect();
-        for (k, r) in roots.iter().enumerate() {
-            assert!(
-                r.y.abs() < 1.0e-5,
-                "blade {k} roots at y {:.4} instead of on the ground plane - a crown that \
-                 starts above the ground hovers when the instance is planted",
-                r.y
-            );
-        }
-        // Mean tiller height: the scale a unit-space radius is judged at.
-        let h = ((GRASS_HEIGHT_MIN_M + GRASS_HEIGHT_MAX_M) * 0.5) as f32;
-        let centroid = roots.iter().fold(Vec3::ZERO, |a, r| a + *r) / roots.len() as f32;
-        let radii: Vec<f32> = roots
-            .iter()
-            .map(|r| ((r.x - centroid.x).powi(2) + (r.z - centroid.z).powi(2)).sqrt() * h)
-            .collect();
-        let (mut min_pair, mut sum_pair, mut n_pair) = (f32::MAX, 0.0f32, 0usize);
-        for i in 0..roots.len() {
-            for j in (i + 1)..roots.len() {
-                let d = ((roots[i].x - roots[j].x).powi(2) + (roots[i].z - roots[j].z).powi(2))
-                    .sqrt()
-                    * h;
-                min_pair = min_pair.min(d);
-                sum_pair += d;
-                n_pair += 1;
-            }
-        }
-        let mean_pair = sum_pair / n_pair as f32;
-        let max_r = radii.iter().cloned().fold(0.0, f32::max);
-        let mean_r = radii.iter().sum::<f32>() / radii.len() as f32;
-        println!(
-            "[grass crown] {} blades on a {:.2} m tiller: root radius mean {:.1} cm, max \
-             {:.1} cm; pairwise root separation min {:.1} cm, mean {:.1} cm",
-            stats.blades,
-            h,
-            mean_r * 100.0,
-            max_r * 100.0,
-            min_pair * 100.0,
-            mean_pair * 100.0
-        );
-        // THE PINCH GUARD. A point crown scores 0 on every one of these.
-        assert!(
-            radii.iter().filter(|r| **r > 0.02).count() >= stats.blades * 2 / 3,
-            "{} of {} blades root within 2 cm of the tussock centre - that is the rubber-band \
-             bundle the field report named",
-            radii.iter().filter(|r| **r <= 0.02).count(),
-            stats.blades
-        );
-        assert!(
-            (0.03..=0.14).contains(&mean_r),
-            "mean root radius {:.1} cm - a tussock crown is centimetres across; under ~3 cm it \
-             reads as a bound bundle and past ~14 cm the blades stop belonging to one plant",
-            mean_r * 100.0
-        );
-        assert!(
-            min_pair > 0.01,
-            "two blades root {:.1} cm apart - they will read as one doubled blade rather than \
-             as two shoots",
-            min_pair * 100.0
-        );
-        assert!(
-            mean_pair > 0.05,
-            "blade roots average {:.1} cm apart - the crown is still effectively a point",
-            mean_pair * 100.0
-        );
-    }
-
-    /// SPLAY DECORRELATION (v0.1093). A spread crown is not enough on its own:
-    /// the shipped fan drew tip height AND outward reach from ONE `vary` term
-    /// (both `(k*3.1).sin()`-derived), so the tallest blade was always the
-    /// furthest-reaching one and the tussock resolved into a tidy fountain
-    /// with a smooth outline. Measured on the shipped mesh: Pearson 1.000,
-    /// with every tip inside a 0.785-0.844 band of unit height, i.e. a 6%
-    /// spread of heights across nine blades.
-    ///
-    /// Measured off the built mesh, not off the constants, so a future
-    /// "simplification" back to one shared jitter term fails here.
-    #[test]
-    fn grass_tussock_outline_is_ragged_not_a_fountain() {
-        use glam::Vec3;
-        let (b, stats) = grass_tiller_mesh();
-        let mut heights = Vec::new();
-        let mut reaches = Vec::new();
-        for k in 0..stats.blades {
-            let v = |i: usize| {
-                let p = b.vertices[k * 30 + i].position;
-                Vec3::new(p[0], p[1], p[2])
-            };
-            let root = (v(0) + v(1)) * 0.5;
-            let tip = v(26);
-            heights.push(tip.y);
-            reaches.push(((tip.x - root.x).powi(2) + (tip.z - root.z).powi(2)).sqrt());
-        }
-        let mean = |a: &[f32]| a.iter().sum::<f32>() / a.len() as f32;
-        let (mh, mr) = (mean(&heights), mean(&reaches));
-        let (mut num, mut d1, mut d2) = (0.0f32, 0.0f32, 0.0f32);
-        for k in 0..stats.blades {
-            num += (heights[k] - mh) * (reaches[k] - mr);
-            d1 += (heights[k] - mh).powi(2);
-            d2 += (reaches[k] - mr).powi(2);
-        }
-        let pearson = num / (d1 * d2).sqrt().max(1.0e-9);
-        let hspread = (heights.iter().cloned().fold(0.0, f32::max)
-            - heights.iter().cloned().fold(f32::MAX, f32::min))
-            / mh;
-        println!(
-            "[grass splay] tip heights {:.3}..{:.3} (spread {:.0}% of mean), reaches \
-             {:.3}..{:.3}, pearson(height, reach) {pearson:+.3}",
-            heights.iter().cloned().fold(f32::MAX, f32::min),
-            heights.iter().cloned().fold(0.0, f32::max),
-            hspread * 100.0,
-            reaches.iter().cloned().fold(f32::MAX, f32::min),
-            reaches.iter().cloned().fold(0.0, f32::max),
-        );
-        assert!(
-            pearson.abs() < 0.6,
-            "tip height and outward reach are correlated at {pearson:+.3} across the blades - \
-             they are being driven by one jitter term again, which draws a neat fountain"
-        );
-        assert!(
-            hspread > 0.20,
-            "the tallest blade is only {:.0}% taller than the shortest - the outline is a \
-             smooth dome, not a ragged tussock",
-            hspread * 100.0
-        );
-    }
-
     /// The drawn ground must be SMOOTH at the scale a 30 cm blade stands on.
     /// It is, on gentle terrain - and it is NOT on a steep flank, which this
     /// test measures and prints because it is the single biggest limit on how
@@ -2394,9 +2070,9 @@ mod tests {
     /// which is the whole reason the depth gate had to go.
     #[test]
     fn grass_density_ramp_has_no_edge() {
-        assert_eq!(grass_density_at(0.0), GRASS_PEAK_PER_M2);
-        assert_eq!(grass_density_at(GRASS_NEAR_M), GRASS_PEAK_PER_M2);
-        assert!((grass_density_at(GRASS_MID_M) - GRASS_MID_PER_M2).abs() < 1e-3);
+        assert_eq!(grass_density_at(0.0), grass_peak_per_m2());
+        assert_eq!(grass_density_at(GRASS_NEAR_M), grass_peak_per_m2());
+        assert!((grass_density_at(GRASS_MID_M) - grass_mid_per_m2()).abs() < 1e-3);
         assert_eq!(grass_density_at(GRASS_FAR_M), 0.0);
         assert_eq!(grass_density_at(GRASS_FAR_M + 5.0), 0.0);
         // No step anywhere: the biggest jump between 10 cm samples must stay
@@ -2411,8 +2087,104 @@ mod tests {
             d += 0.1;
         }
         assert!(
-            worst < GRASS_PEAK_PER_M2 * 0.02,
+            worst < grass_peak_per_m2() * 0.02,
             "the ramp steps by {worst:.2} tillers/m2 in 10 cm - that is an edge"
+        );
+    }
+
+    /// THE LADDER GATE (v0.1103), written while chasing the operator's "they
+    /// still look like rings" report and kept as a regression guard after it
+    /// REFUTED the hypothesis it was written for.
+    ///
+    /// The worry: a tiller's threshold is `item / count * GAIN_MAX / gain`, and
+    /// `grass_appear_distance` is monotone in it, so an evenly-spaced set of
+    /// thresholds is an evenly-spaced set of emergence RADII. Cohorts of blades
+    /// would then grow in together at fixed distances from the camera and the
+    /// field would band into concentric arcs of half-height grass - exactly
+    /// what an arc artifact looks like.
+    ///
+    /// The measurement says it does not happen, and says WHY: `gain` is a
+    /// per-ITEM function of position on a field whose fine octave is 0.72 m,
+    /// well inside the ~3 m stream cell, so items sharing an index rung do NOT
+    /// share a radius. Scored as the coefficient of variation of the sorted
+    /// within-cell threshold gaps: 0.98 as shipped, and 0.00 (a perfect ladder)
+    /// when the gain factor is dropped from the threshold, which is what this
+    /// gate now protects. Thresholds, not distances, because the ramp's own 4x
+    /// slope change between its two legs puts irregularity into the distances
+    /// that has nothing to do with the ladder (a forced-ladder probe still
+    /// scored 0.62 that way, so the distance version could not tell the two
+    /// apart).
+    #[test]
+    fn grass_appear_distances_are_not_a_ladder() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let c = dir_of(48.2, 8.2);
+        let g = near_grass_instances(&def, &src, Some(&albedo), c, GRASS_FAR_M as f64, 0.0, 20, 60_000);
+        assert!(g.len() > 5_000, "only {} instances - not a field to measure", g.len());
+        // Group by STREAM CELL: the ladder is a per-cell artifact (count and
+        // gain are shared within one), and pooling cells with different gains
+        // would smear it and let the defect pass.
+        use std::collections::HashMap;
+        let mut cells: HashMap<(i64, i64), Vec<f32>> = HashMap::new();
+        for t in &g {
+            if t.filler {
+                continue; // one class at a time: they have different counts
+            }
+            let d = t.dir.normalize();
+            let (lat, lon) = (d.y.clamp(-1.0, 1.0).asin(), (-d.z).atan2(d.x));
+            let key = (
+                (lat / GRASS_CELL_RAD).floor() as i64,
+                (lon / GRASS_CELL_RAD).floor() as i64,
+            );
+            cells.entry(key).or_default().push(t.thr);
+        }
+        // THE RUNG WIDTH this cell's stream would have. A ladder's smallest
+        // threshold gap is exactly one rung (two adjacent indices); a field
+        // whose thresholds are smeared by a per-item multiplier puts many
+        // instances INSIDE a rung, so its smallest gap is a small fraction of
+        // one. That ratio is the statistic, and it is scale-free.
+        let cell_m = GRASS_CELL_RAD * def.radius;
+        let area_m2 = cell_m * cell_m * 48.2_f64.to_radians().cos();
+        let count = (grass_peak_per_m2() * GRASS_CLUMP_GAIN_MAX) as f64 * area_m2;
+        let rung = 1.0 / count;
+        let mut ratios: Vec<f64> = Vec::new();
+        for v in cells.values_mut() {
+            if v.len() < 24 {
+                continue;
+            }
+            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let min_gap = v
+                .windows(2)
+                .map(|w| (w[1] - w[0]) as f64)
+                .fold(f64::MAX, f64::min);
+            ratios.push(min_gap / rung);
+        }
+        assert!(ratios.len() > 40, "only {} cells were populous enough to measure", ratios.len());
+        ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median = ratios[ratios.len() / 2];
+        println!(
+            "[grass ladder] {} cells, rung {rung:.5} of normalized density: smallest \
+             within-cell threshold gap as a fraction of one rung - median {median:.2}, p10 \
+             {:.2}, p90 {:.2}",
+            ratios.len(),
+            ratios[ratios.len() / 10],
+            ratios[ratios.len() * 9 / 10]
+        );
+        // A perfect ladder scores 1.00 by construction (adjacent indices, no
+        // smearing) and MEASURED 1.00 when the gain factor is dropped from the
+        // threshold. The shipped field measures 0.03. 0.5 is a wide margin
+        // either way.
+        assert!(
+            median < 0.5,
+            "the smallest within-cell threshold gap is {median:.2} of a full index rung - the \
+             thresholds are a regular ladder, so cohorts of blades emerge together at fixed \
+             radii from the camera and the field bands into concentric arcs"
         );
     }
 

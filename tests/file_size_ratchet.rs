@@ -118,6 +118,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/relay/handlers/msg_handlers.rs", 4_800),
     ("src/terrain/planet_chunks.rs", 4_820),
     ("src/terrain/grass.rs", 2_645),
+    ("src/terrain/grass_mesh.rs", 1_000),
     ("src/terrain/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 4_200),
