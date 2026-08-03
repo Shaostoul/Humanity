@@ -225,6 +225,11 @@
    "date": "2026-08-03",
    "decision": "v0.1099.0/1 SHIPPED: branch basal flare (exponential, CI-capped so welds never exceed the parent) + the da Vinci pipe model at every fork (area exp 2.3). The operator junction report was two stacked defects - no flare AND 2x area conservation per fork; the acacia was feeding 5x its bole area into bole-width primaries. Now junctions are the widest point of each branch, shafts run ~30 percent thinner, acacia matches real Vachellia field numbers. Back-poke gate widened to 39,559 vertices, zero violations. Probed at 2560, 24.3 fps, panics=0. Taskbar refreshed.",
    "why": "Junction system now: surface roots + collars + flare + pipe model, all CI-gated. Remaining tree wants: dorito species ClusterDefs, bark_scale_m data field, bark_tube reps rounding across the flare (logged). Queue: operator eye on v0.1099, pies allocate, celestial 14.3ms, pause state, vehicle frame."
+  },
+  {
+   "date": "2026-08-03",
+   "decision": "Operator v0.1099.1 close-up report, four items: (1) flare still too bulky - radially symmetric sleeve; real collars are ASYMMETRIC (crotch + underside compression wood, near-flush topside) - directional-flare writer dispatched (peak 1.45 -> ~1.25 strong side / 1.05 flush); (2) voronoi cells jump size at ring seams - the logged bark_tube reps-rounding bug, now operator-visible - same writer threads one reference radius per limb; (3) tree AURA recoloring grass behind silhouettes - screen-space artifact, diagnosis critic dispatched (SSAO halo prime suspect - check bilateral blur depth-awareness, A/B with ssao off if GPU free); (4) dorito species still triangle leaves - ClusterDef + sprites QUEUED behind the flare writer (shared files). Answered the operator two-textures question: ONE baked texture per species; the two visible scales = the UV repeat stepping between segments + relief shading derived from the same height channel.",
+   "why": "Junction realism converging by operator-eye iteration; each report is a permanent gate."
   }
  ],
  "active_scopes_to_avoid": [
