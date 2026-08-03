@@ -153,7 +153,13 @@ pub const GRASS_MID_FRACTION: f32 = 14.0 / 45.0;
 /// comment.
 #[inline]
 pub fn grass_peak_per_m2() -> f32 {
-    GRASS_TARGET_LAI
+    // `grass_density` is the COVERAGE knob (v0.1106) and is the one thing in
+    // this file allowed to scale the target. It is not the quality slider that
+    // v0.1105 removed: quality now lives in `grass_detail` and changes blades
+    // per tiller with width compensating, so it cannot move leaf area at all.
+    // The distinction is the whole point - the operator wanted thick grass and
+    // thin forest, and one slider could not express that.
+    GRASS_TARGET_LAI * crate::terrain::planet_chunks::grass_density()
         / (GRASS_LEAF_AREA_UNIT * GRASS_MEAN_H2_M2 * (1.0 + GRASS_FILLER_LAI_SHARE))
 }
 /// Density at `GRASS_MID_M`, tillers per m^2.
@@ -1531,7 +1537,13 @@ mod tests {
         .expect("read grass.rs");
         // The needle is assembled at runtime so this scanner's own source line
         // is not an offender - the first draft of it flagged itself.
-        let needle = format!("{}{}", "veg_", "density(");
+        //
+        // v0.1106: the forbidden name is now the QUALITY knob specifically.
+        // `grass_density()` IS allowed here and is read by `grass_peak_per_m2`
+        // on purpose - it is the coverage control, not a quality setting. What
+        // must never come back is coverage following a knob whose job is to buy
+        // frames, which is what `grass_detail` is for.
+        let needle = format!("{}{}", "grass_", "detail(");
         let offenders: Vec<usize> = src_txt
             .lines()
             .enumerate()

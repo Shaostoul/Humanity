@@ -23,7 +23,7 @@
 use glam::Vec3;
 
 use crate::renderer::plant_mesh::{Organ, PlantMeshBuilder};
-use crate::terrain::planet_chunks::veg_density;
+use crate::terrain::planet_chunks::grass_detail;
 
 /// Blades on one tiller at the SHIPPED DEFAULT quality (0.6), and the width
 /// reference the whole ladder is normalized against. 5-9 is the real range for
@@ -179,7 +179,7 @@ pub fn grass_detail_for(quality: f32) -> GrassDetail {
 
 /// The detail rung the live Settings slider asks for.
 pub fn grass_tiller_detail() -> GrassDetail {
-    grass_detail_for(veg_density())
+    grass_detail_for(grass_detail())
 }
 
 /// CACHE KEY for the shared GPU mesh, and the reason it is public.

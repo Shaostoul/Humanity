@@ -2146,10 +2146,22 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, "Vegetation: forest density", &mut state.settings.veg_density, 0.1..=1.0) {
+        // TREES, GRASS COVER and GRASS DETAIL are three separate controls
+        // (v0.1106). They used to be one "vegetation" slider, which meant a
+        // player who wanted thick grass under thin forest could not ask for it,
+        // and turning quality down secretly stripped ground cover.
+        if widgets::labeled_slider(ui, theme, "Trees: forest density", &mut state.settings.tree_density, 0.1..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How thickly trees and grass populate the land. 1.0 is the old full-density forest; the default 0.6 keeps woodland feeling like woodland while costing far less GPU. Rebuilds terrain as you move, so the change appears patch by patch.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland. Rebuilds terrain as you move, so the change appears patch by patch.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, 0.1..=3.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts. This is about how the world LOOKS, not how fast it runs.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Grass: blade detail", &mut state.settings.grass_detail, 0.1..=1.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How finely each tuft of grass is modelled. Turn this DOWN for frames: blades get fewer but wider, so the ground keeps exactly as much grass on it and only the close-up sharpness changes.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Water: wave mesh detail (14-20)", &mut state.settings.water_detail_depth, 14.0..=20.0) {
             state.settings_dirty = true;
         }

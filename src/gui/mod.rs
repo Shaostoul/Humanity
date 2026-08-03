@@ -6607,7 +6607,15 @@ pub struct SettingsState {
     /// free up GPU). Scales TREES_PER_CELL at patch build and GRASS_PEAK_PER_M2
     /// in the near-field strand harvest;
     /// 1.0 = the historical full density, default 0.6.
-    pub veg_density: f32,
+    /// TREES per cell, 0.1..1.0. Was one "vegetation" slider that also drove
+    /// grass, which meant nobody could ask for thick grass under thin forest.
+    pub tree_density: f32,
+    /// GRASS COVERAGE, 0.1..3.0 as a multiplier on the authored leaf-area
+    /// target. The artistic knob: how much grass is on the ground.
+    pub grass_density: f32,
+    /// GRASS DETAIL, 0.1..1.0. The performance knob: blades per tiller and
+    /// segments per blade, with width compensating so cover never changes.
+    pub grass_detail: f32,
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff in metres -
     /// the card stage's outer distance. More ladder stages follow.
     pub veg_tree_card_m: f32,
@@ -6783,7 +6791,9 @@ impl Default for SettingsState {
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
             tree_model_distance: crate::lod_registry::category("tree").map(|c| c.model_m).unwrap_or(120.0),
-            veg_density: 0.6,
+            tree_density: 0.6,
+            grass_density: 1.0,
+            grass_detail: 0.6,
             veg_tree_card_m: crate::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
             water_detail_depth: 20.0,
             sun_shadows: true,

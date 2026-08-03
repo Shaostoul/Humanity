@@ -433,8 +433,12 @@ pub struct AppConfig {
     /// Vegetation spawn density multiplier: scales trees + grass per terrain
     /// cell. 0.6 default (v0.1083) -- the historical 1.0 forest measured
     /// 131-162 ms/frame at max settings once the perf counters were honest.
-    #[serde(default = "default_veg_density")]
-    pub veg_density: f32,
+    #[serde(default = "default_tree_density")]
+    pub tree_density: f32,
+    #[serde(default = "default_grass_density")]
+    pub grass_density: f32,
+    #[serde(default = "default_grass_detail")]
+    pub grass_detail: f32,
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff (m).
     #[serde(default = "default_veg_tree_card_m")]
     pub veg_tree_card_m: f32,
@@ -761,7 +765,11 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
 fn default_tree_model_distance() -> f32 { 120.0 }
-fn default_veg_density() -> f32 { 0.6 }
+fn default_tree_density() -> f32 { 0.6 }
+/// 1.0 = a real turf (LAI ~3.3). This is COVERAGE, not quality.
+fn default_grass_density() -> f32 { 1.0 }
+/// 0.6 = the shipped tiller mesh, 9 blades x 3 segments.
+fn default_grass_detail() -> f32 { 0.6 }
 fn default_gpu_particles() -> bool { true }
 fn default_veg_tree_card_m() -> f32 { 1500.0 }
 fn default_aerial_strength() -> f32 { 1.0 }
@@ -1086,7 +1094,9 @@ impl AppConfig {
             terrain_patch_budget: state.settings.terrain_patch_budget,
             terrain_detail_distance: state.settings.terrain_detail_distance,
             tree_model_distance: state.settings.tree_model_distance,
-            veg_density: state.settings.veg_density,
+            tree_density: state.settings.tree_density,
+            grass_density: state.settings.grass_density,
+            grass_detail: state.settings.grass_detail,
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
             shadow_strength: state.settings.shadow_strength,
@@ -1251,7 +1261,9 @@ impl AppConfig {
         state.settings.terrain_detail_distance =
             self.terrain_detail_distance.clamp(0.5, 3.0);
         state.settings.tree_model_distance = self.tree_model_distance.clamp(0.0, 400.0);
-        state.settings.veg_density = self.veg_density.clamp(0.1, 1.0);
+        state.settings.tree_density = self.tree_density.clamp(0.1, 1.0);
+        state.settings.grass_density = self.grass_density.clamp(0.1, 3.0);
+        state.settings.grass_detail = self.grass_detail.clamp(0.1, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, 3000.0);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;

@@ -10130,7 +10130,7 @@ mod native_app {
                                 // eye height, jumping and standing on a rock.
                                 let grass_on = chunked_drawn
                                     && above_ground < 60.0
-                                    && state.gui_state.settings.veg_density > 0.001;
+                                    && state.gui_state.settings.grass_density > 0.001;
                                 if grass_on {
                                     // The drawn ground's own LOD: the finest
                                     // patch on screen is the one under the
@@ -11903,8 +11903,16 @@ mod native_app {
                             // builds pick it up; existing patches keep their
                             // density until they rebuild, so a slider change
                             // appears patch by patch as you move.
-                            crate::terrain::planet_chunks::VEG_DENSITY_BITS.store(
-                                state.gui_state.settings.veg_density.to_bits(),
+                            crate::terrain::planet_chunks::TREE_DENSITY_BITS.store(
+                                state.gui_state.settings.tree_density.to_bits(),
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
+                            crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
+                                state.gui_state.settings.grass_density.to_bits(),
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
+                            crate::terrain::planet_chunks::GRASS_DETAIL_BITS.store(
+                                state.gui_state.settings.grass_detail.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
                             );
                             let s = state.gui_state.settings.aerial_strength.clamp(0.0, 2.0);
