@@ -661,36 +661,99 @@
             // this species looked worst of all as a solid triangle.
             leaf_shape: "bipinnate",
             leaf_aspect: 0.72,
-            // 5 pinna pairs of 7 leaflet pairs = 140 leaflets on one frond.
-            // A real tortilis carries 4-10 pinna pairs of 10-20 leaflet pairs;
-            // this is the low end on both counts, because at the sprite's
-            // ~1.2 mm per texel a full-count frond would bake as a smear and
-            // cost triangles for detail that never resolves.
-            leaf_lobes: 5,
-            leaf_leaflets: 7,
-            // NO `clusters` BLOCK, and this is a MEASURED blocker rather than
-            // an omission. Two things in the "umbrella" form stop the cluster
-            // card layer reaching this species, and both live in
-            // `renderer::tree_mesh`, not here:
+            // 4 pinna pairs of 5 leaflet pairs = 40 leaflets on one frond.
+            // A real tortilis carries 4-10 pinna pairs of 10-20 leaflet pairs,
+            // so this is below the low end on both counts, and deliberately.
+            // At 5x7 the sprite bake measured 1.75 MILLION triangles against
+            // sakura's 76,884 - and at the sprite's ~1.2 mm per texel a
+            // 20-leaflet frond is indistinguishable from a 40-leaflet one, so
+            // the extra 100 leaflets were paying for detail no pixel resolves.
+            // Feathery-with-sky-between is a silhouette property, not a count.
+            leaf_lobes: 4,
+            leaf_leaflets: 5,
+            // NO `clusters` BLOCK YET - but the reason CHANGED in v0.1103 and
+            // the new one is worth more than the old one.
             //
-            //   1. Cards sleeve TWIGS, and a `Twig` is only recorded by the
-            //      recursive `branch()` that the broadleaf and conifer forms
-            //      use. `umbrella()` lays out its own bole, primaries and
-            //      horizontal fans and calls `leaf_cluster` directly, so it
-            //      pushes no twigs at all - an acacia given this block builds
-            //      ZERO cards and trips `cluster_cards_reach_target_lai`
-            //      ("a clustered species emitted no cards").
-            //   2. `foliage_of("umbrella")` carries 14 elements per sprig
-            //      against a broadleaf's 3, so one sprig SPANS
-            //      0.144 * 14 * 0.5 = 1.0 m. The cluster sprite bakes a ball
-            //      of those, which measured 1.88 m across against the 0.45 m
-            //      card meant to sample it - `cluster_sprite_geometry_fits_
-            //      its_card` catches it exactly.
+            // The two FORM blockers are closed: `umbrella` now records a Twig
+            // per foliage-bearing fan, and a carded umbrella draws 4 elements
+            // per sprig instead of 14 so its sprite fits its card. Measured
+            // with a block lent: 15 twigs, crown spread 5.51 m, card at
+            // 1.11 m, sprite 1.16x, 0% of blades outside the card mass. All
+            // good.
             //
-            // The `leaf_*` fields above are still correct and still land the
-            // moment the form supports cards: they are read by the sprite
-            // bake, and with no cluster block no sprite is baked, so they sit
-            // inert rather than wrong. See the wiring note in the arc report.
+            // What stops it now is TAPER, and it is a real defect rather than
+            // a gate being fussy: `cluster_cards_envelop_every_twig_tip` fails
+            // with "terminal twigs end at 11.3 mm radius (23 mm across) - a
+            // real last-year shoot is ~5 mm across". Our twigs are ~4.5x too
+            // fat. The same measurement on fir finds whorl-branch tips at
+            // 55 mm against a 10 mm rule, and a 22 m fir built with a 0.484 m
+            // trunk RADIUS where a real one is 0.25-0.30 m.
+            //
+            // That is the "branches look like plumbing" report, and it is
+            // upstream of everything here: a card is sized to sleeve a twig,
+            // so a twig 4.5x too fat demands a card too big for its own
+            // foliage. Fixing the radius/taper model is its own increment;
+            // this block lands the moment it does, with the values below
+            // (which were measured and are kept verbatim for that hand-off).
+            //
+            // clusters: Some((
+            /*
+            (
+                DEFERRED - see the taper note above. Verbatim values, measured.
+                // 2.0, the sparsest crown in the registry, and it should be.
+                // A savanna acacia is an open parasol - the whole silhouette
+                // is sky seen through a thin horizontal plate of feathery
+                // leaf. Tortilis stands measure LAI 1-3 against a temperate
+                // broadleaf's 3-5. This also drops the card to ~0.90 m, which
+                // is what keeps the flat-topped crown from reading as a solid
+                // green disc.
+                target_lai: 2.0,
+                leaf: (
+                    // Nominal - the LAI fit solves the real card side. A
+                    // tortilis frond is 3-8 cm, but the CARD samples a
+                    // clump of them, which is what this number describes.
+                    size_m: 0.42,
+                    // MEASURED by the CPU bake twin at 0.523 - already
+                    // broadleaf-class, and higher than it looks like it
+                    // should be for such an airy tree. Same reading as the
+                    // birch above: coverage is how solid ONE card is, LAI is
+                    // how many card-loads the crown carries. Bipinnate fronds
+                    // pack densely within a clump and the clumps are far
+                    // apart. High coverage at the lowest LAI here is the
+                    // cheapest combination in the file - overdraw is
+                    // LAI/coverage, so acacia pays 3.8 alpha-test layers
+                    // against birch's 4.8 and oak's 7.8.
+                    coverage: 0.52,
+                    cards_per_sleeve: 4,
+                    // 0.30 m against a broadleaf's 0.24: an acacia's foliage
+                    // rides long horizontal fans, so its sleeves are strung
+                    // out along the plate rather than bunched at twig tips.
+                    sleeve_spacing_m: 0.30,
+                    sprite_elements: 84,
+                    sprite_runs: 1,
+                ),
+                // Inert (`blossom_frac: 0.0`), but real: acacia flowers as
+                // small cream-white spherical puffs of stamens, ~1 cm.
+                blossom: (
+                    size_m: 0.10,
+                    coverage: 0.18,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.08,
+                    sprite_elements: 8,
+                    sprite_runs: 4,
+                ),
+                flower_size_m: 0.010,
+                flowers_per_umbel: 30,
+                umbel_spacing_m: 0.012,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.06,
+                // 0.35 - a little under the broadleaves' 0.45. The near-field
+                // blade layer is parallax detail INSIDE the card mass, and an
+                // acacia's card mass is a thin plate, so there is less depth
+                // for it to be hidden in.
+                near_blade_tri_frac: 0.35,
+            )
+            */
         ),
         // Wet-tropics palm.
         (
