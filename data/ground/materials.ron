@@ -1,0 +1,185 @@
+// Ground PBR material table (v0.1101).
+//
+// The set of close-range surface materials the planet terrain blends between
+// underfoot. This file is THE source of truth: `src/renderer/ground_textures.rs`
+// reads it (on-disk copy first, embedded copy as the shipped fallback) and bakes
+// one texture-array layer pair per entry, and the WGSL constants in
+// `assets/shaders/pbr/20-surface-detail.wgsl` mirror it. The lockstep test
+// `shipped_ground_materials_match_the_shader` fails the build if they drift.
+//
+// ADDING A MATERIAL
+//   1. Append an entry here with its layer indices (see LAYER LAYOUT below).
+//   2. Bump GROUND_MAT_COUNT and extend the four `var<private>` tables in
+//      20-surface-detail.wgsl to match.
+//   3. Give it a weight in `ground_material_weights` (the imagery classifier).
+//   Run `just validate-data`; the lockstep test tells you exactly what drifted.
+//
+// LAYER LAYOUT (append-only, never renumber)
+//   0..3   colour  grass / dirt / rock / sand   (the original v0.907 quartet)
+//   4..7   normal  grass / dirt / rock / sand
+//   8      ocean wave tile (procedural, generated at load - not a material)
+//   9..    additional materials, appended as (colour, normal) PAIRS
+// Indices are explicit per entry so an append can never silently shift an
+// existing layer out from under a shader that still refers to it.
+//
+// FIELD REFERENCE
+//   color_file / normal_file  PNG under assets/textures/ground/. Both optional;
+//                             a missing file bakes a NEUTRAL layer, which is an
+//                             exact no-op in the shader (a build with no asset
+//                             pack renders as if the material were absent).
+//   procedural                Name of a generator in ground_textures.rs to bake
+//                             the material instead of loading files. "" = none.
+//   tile_m                    World size of one texture repeat, in metres. MUST
+//                             divide 64 (the camera-anchor modulus) or the tile
+//                             phase jumps when the anchor re-snaps: use 1, 2, 4,
+//                             8, 16, 32 or 64. Enforced by a unit test.
+//   detail_gain               Contrast of the albedo multiplier, 1.0 = as
+//                             scanned. Below 1 tames a high-dynamic-range scan,
+//                             above 1 lifts a flat one. Energy-neutral at any
+//                             value (the normalization is geometric).
+//   chroma_keep               How much of the scan's OWN hue survives in the
+//                             multiplier, 0 = pure luminance structure. Hue
+//                             belongs to `tint` below, not to the multiplier.
+//   tint_linear               The material's own colour, LINEAR RGB. Used as a
+//                             unit-luminance chromaticity: it shifts the ground's
+//                             hue without touching its brightness, so it can
+//                             never blow out or darken a biome.
+//   tint_strength             How far toward that chromaticity the ground moves,
+//                             0..1, at full detail presence.
+//   base_roughness            Perceptual roughness (the shader's GGX input) of
+//                             the flat material.
+//   roughness_range           Extra roughness the baked micro-detail adds where
+//                             the surface is busiest. Also the headroom the
+//                             Toksvig mip term uses as detail averages away.
+//   height_contrast           Depth of the height-aware blend, 0..1. High values
+//                             give crisp interlocking edges (stones, leaves),
+//                             low values give soft washes (sand, soil).
+//   normal_strength           Multiplier on the tangent-space bump.
+(
+    // Presence octave (metres) the whole ground-detail layer fades against, and
+    // the multiple of tile_m used for the macro repeat-breaking sample.
+    presence_octave_m: 4.0,
+    macro_tile_mult: 8.0,
+    materials: [
+        (
+            id: "grass",
+            // ambientCG Grass001 (CC0) - short dense fresh lawn, ~1.4 m coverage.
+            color_file: "grass_color.png",
+            normal_file: "grass_normal.png",
+            procedural: "",
+            color_layer: 0,
+            normal_layer: 4,
+            tile_m: 2.0,
+            detail_gain: 1.0,
+            chroma_keep: 0.35,
+            tint_linear: (0.061, 0.107, 0.021),
+            tint_strength: 0.12,
+            base_roughness: 0.92,
+            roughness_range: 0.06,
+            height_contrast: 0.35,
+            normal_strength: 0.85,
+        ),
+        (
+            id: "dirt",
+            // ambientCG Ground048 (CC0) - plain brown soil, photogrammetry.
+            color_file: "dirt_color.png",
+            normal_file: "dirt_normal.png",
+            procedural: "",
+            color_layer: 1,
+            normal_layer: 5,
+            tile_m: 2.0,
+            // Ground048's dry clods run ~20:1 in LINEAR space inside one tile,
+            // which is more dynamic range than a MULTIPLIER on the imagery can
+            // carry (the byte ceiling is a 2.0x multiply). 0.75 compresses that
+            // to a sane detail range; measured flat-topping at the ceiling
+            // drops from 21% to under 1%.
+            detail_gain: 0.75,
+            chroma_keep: 0.35,
+            tint_linear: (0.0908, 0.0498, 0.0343),
+            tint_strength: 0.18,
+            base_roughness: 0.9,
+            roughness_range: 0.08,
+            height_contrast: 0.3,
+            normal_strength: 0.9,
+        ),
+        (
+            id: "rock",
+            // ambientCG Rock035 (CC0) - dark grey/black cliff stone.
+            color_file: "rock_color.png",
+            normal_file: "rock_normal.png",
+            procedural: "",
+            color_layer: 2,
+            normal_layer: 6,
+            // Cliff scans read as gravel when tiled at 2 m; 4 m keeps the
+            // fracture scale believable on a real rock face.
+            tile_m: 4.0,
+            // The most extreme scan in the pack by far: bright quartz veins
+            // over near-black basalt, ~30:1 linear inside one tile. 0.6 is what
+            // it takes to keep the veins ORDERED rather than a white blotch,
+            // and it still leaves rock the second-highest contrast material.
+            detail_gain: 0.6,
+            chroma_keep: 0.5,
+            tint_linear: (0.0075, 0.0185, 0.0231),
+            // The strongest tint of the four on purpose: a cliff under forest
+            // imagery must read as stone, not as green cliff.
+            tint_strength: 0.28,
+            base_roughness: 0.72,
+            roughness_range: 0.18,
+            height_contrast: 0.55,
+            normal_strength: 1.0,
+        ),
+        (
+            id: "sand",
+            // ambientCG Ground033 (CC0) - light sandy beach ground.
+            color_file: "sand_color.png",
+            normal_file: "sand_normal.png",
+            procedural: "",
+            color_layer: 3,
+            normal_layer: 7,
+            tile_m: 2.0,
+            // The flattest scan of the four (multiplier sd 0.11); lifted so
+            // ripples and grain survive the triplanar blend.
+            detail_gain: 1.15,
+            chroma_keep: 0.35,
+            tint_linear: (0.6939, 0.5029, 0.3005),
+            tint_strength: 0.15,
+            base_roughness: 0.8,
+            roughness_range: 0.1,
+            height_contrast: 0.25,
+            normal_strength: 0.7,
+        ),
+        (
+            id: "forest_litter",
+            // Procedural (no CC0 scan of a forest floor is in the asset pack,
+            // and downloading one is not something a build can do). Baked by
+            // ground_textures::forest_litter_layer: broadleaf + needle + twig
+            // primitives depth-sorted onto a humus substrate, so the leaves
+            // genuinely overlap and occlude instead of cross-fading.
+            color_file: "",
+            normal_file: "",
+            procedural: "forest_litter",
+            color_layer: 9,
+            normal_layer: 10,
+            tile_m: 2.0,
+            detail_gain: 1.0,
+            // The one material whose own colour IS the point: it keeps all of
+            // its hue structure, so the rust/olive/tan spread of a real leaf
+            // fall survives into the multiplier instead of being flattened to
+            // brightness alone. (Safe here in a way it is not for a photoscan:
+            // this texture is generated, so its palette is deliberate.)
+            chroma_keep: 0.75,
+            tint_linear: (0.127, 0.086, 0.043),
+            // Closed-canopy forest imagery is dark green; the ground under it
+            // is brown leaf mat. This is the single biggest biome correction
+            // in the table.
+            tint_strength: 0.55,
+            // Dry leaves are waxy - a real forest floor throws a low sheen
+            // back at a low sun, which is exactly the grazing-angle cue that
+            // separates it from painted carpet.
+            base_roughness: 0.78,
+            roughness_range: 0.14,
+            height_contrast: 0.5,
+            normal_strength: 1.0,
+        ),
+    ],
+)

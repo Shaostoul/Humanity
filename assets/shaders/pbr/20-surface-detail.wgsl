@@ -184,8 +184,14 @@ fn micro_noise(p: vec3<f32>, period: f32) -> f32 {
 // ── Ground PBR texturing (v0.907) ──
 // Triplanar sample of one ground_tex layer in the camera-relative
 // planet-pinned metre domain (micro_noise's anchor domain, so tiles stay
-// seamless across the 64 m anchor jumps -- GROUND_TILE_M divides 64).
-const GROUND_TILE_M: f32 = 2.0;
+// seamless across the 64 m anchor jumps -- the tile size divides 64).
+//
+// LEGACY (v0.907) entry point. `ground_detail` below supersedes it and every
+// new caller should use that; this stays only until the type-12 branch in
+// 90-fragment-main.wgsl is moved over, so the two can land in separate
+// commits without a broken frame in between. Delete both this constant and
+// `ground_triplanar_grad` in the same change that rewires the call site.
+const GROUND_LEGACY_TILE_M: f32 = 2.0;
 
 // Gradient sampling (v0.977, the grazing-angle smear fix): the old
 // explicit-LOD form picked ONE isotropic mip from the analytic footprint,
@@ -205,12 +211,424 @@ fn ground_triplanar_grad(
     gx: vec3<f32>,
     gy: vec3<f32>,
 ) -> vec3<f32> {
-    let uv_x = p.yz / GROUND_TILE_M;
-    let uv_y = p.xz / GROUND_TILE_M;
-    let uv_z = p.xy / GROUND_TILE_M;
-    return textureSampleGrad(ground_tex, ground_samp, uv_x, layer, gx.yz / GROUND_TILE_M, gy.yz / GROUND_TILE_M).rgb * w.x
-        + textureSampleGrad(ground_tex, ground_samp, uv_y, layer, gx.xz / GROUND_TILE_M, gy.xz / GROUND_TILE_M).rgb * w.y
-        + textureSampleGrad(ground_tex, ground_samp, uv_z, layer, gx.xy / GROUND_TILE_M, gy.xy / GROUND_TILE_M).rgb * w.z;
+    let uv_x = p.yz / GROUND_LEGACY_TILE_M;
+    let uv_y = p.xz / GROUND_LEGACY_TILE_M;
+    let uv_z = p.xy / GROUND_LEGACY_TILE_M;
+    return textureSampleGrad(ground_tex, ground_samp, uv_x, layer, gx.yz / GROUND_LEGACY_TILE_M, gy.yz / GROUND_LEGACY_TILE_M).rgb * w.x
+        + textureSampleGrad(ground_tex, ground_samp, uv_y, layer, gx.xz / GROUND_LEGACY_TILE_M, gy.xz / GROUND_LEGACY_TILE_M).rgb * w.y
+        + textureSampleGrad(ground_tex, ground_samp, uv_z, layer, gx.xy / GROUND_LEGACY_TILE_M, gy.xy / GROUND_LEGACY_TILE_M).rgb * w.z;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  GROUND SURFACE DETAIL (v0.1101) -- full PBR under the planet imagery
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// What this replaces: a linear 4-way average of four colour scans, one
+// dominant-material bump map, and no roughness at all. Underfoot that renders
+// as a flat tinted carpet, which is exactly what the operator's fuji-forest
+// capture shows -- the single largest non-vegetation gap between our frames
+// and a photograph.
+//
+// The technique, and why it is the one a 2030 release uses:
+//
+//  1. HEIGHT-AWARE SPLATTING (Mishkinis, "Advanced Terrain Texture Splatting",
+//     the standard successor to linear alpha blending). Each material carries
+//     a real height field in its colour layer's alpha, and the blend keeps
+//     whichever material is physically ON TOP at that texel instead of
+//     cross-fading them. Gravel pokes through sand, leaves lie over soil, and
+//     material boundaries stop looking like airbrush. Linear blending of
+//     photoscans is the number one reason splatted terrain reads as mud.
+//
+//  2. FULL PBR, NOT A DIFFUSE TINT. Albedo, tangent-space normal, per-texel
+//     ROUGHNESS and a cavity AO term all come out of the same blend. The
+//     roughness is baked with the Toksvig/LEAN variance rule at every mip
+//     (renderer::ground_textures::toksvig_roughness), so as the normal detail
+//     averages away with distance the specular lobe widens to match. That is
+//     what makes strong ground normals safe: without it, a bump map this
+//     strong shimmers viciously at exactly the grazing sun angles that make
+//     ground interesting.
+//
+//  3. TWO-SCALE TILING. A second sample of the dominant material at 8x the
+//     tile modulates the fine one, so the 2 m repeat stops reading as a grid.
+//     Contrast is preserved because the macro octave modulates rather than
+//     averages (averaging two octaves is what flattens the usual "detail
+//     texture" approach).
+//
+//  4. THE PROJECTION IS SHARPENED, NOT BLURRED. The old triplanar spread its
+//     weight across all three planes with a pow-4 falloff; at a typical ground
+//     direction that is a 3-way overlay of the same texture at different UVs,
+//     which destroys about 40% of the scan's contrast before it is ever lit.
+//     GROUND_TRIPLANAR_POW makes one plane dominate on near-flat ground (it
+//     recovers the contrast AND costs fewer samples, because the sub-threshold
+//     planes are skipped), while cliffs still get a real 2-3 plane blend.
+//
+// f32-AT-PLANET-SCALE (CLAUDE.md defect class): every UV here is computed from
+// `pt`, the CAMERA-ANCHORED planet-pinned metre domain built by the caller as
+// anchor + inv_model * (world_position - eye). Both terms are small, so there
+// is no planet-radius magnitude anywhere in this file's UV math, and the
+// anchor's jumps are exact 64 m steps -- which is why every GROUND_TILE_M
+// entry must DIVIDE 64 (enforced by ground_textures::shipped_ground_materials
+// _parse). Nothing here derives a UV or a phase from a unit direction.
+//
+// ── MIRRORS data/ground/materials.ron ────────────────────────────────────
+// That file is the source of truth; these tables are its GPU-side copy, and
+// `ground_textures::shipped_ground_materials_match_the_shader` fails the
+// build the moment they drift. Order is the RON's order:
+//   0 grass   1 dirt   2 rock   3 sand   4 forest_litter
+const GROUND_MAT_COUNT: i32 = 5;
+// Layer 8 is the procedural ocean wave tile, not a material; materials append
+// around it (colour 0..3 / normal 4..7 are the original quartet, extras from
+// 9) so an added material can never shift an existing layer.
+const GROUND_LAYER_OCEAN: i32 = 8;
+var<private> GROUND_COLOR_LAYER: array<i32, 5> = array<i32, 5>(0, 1, 2, 3, 9);
+var<private> GROUND_NORMAL_LAYER: array<i32, 5> = array<i32, 5>(4, 5, 6, 7, 10);
+var<private> GROUND_TILE_M: array<f32, 5> = array<f32, 5>(2.0, 2.0, 4.0, 2.0, 2.0);
+var<private> GROUND_HEIGHT_CONTRAST: array<f32, 5> =
+    array<f32, 5>(0.35, 0.30, 0.55, 0.25, 0.50);
+var<private> GROUND_NORMAL_STRENGTH: array<f32, 5> =
+    array<f32, 5>(0.85, 0.90, 1.00, 0.70, 1.00);
+var<private> GROUND_TINT_STRENGTH: array<f32, 5> =
+    array<f32, 5>(0.12, 0.18, 0.28, 0.15, 0.55);
+// Unit-LUMINANCE chromaticities (tint_linear / its luminance, computed by
+// GroundMaterialDef::tint_chromaticity). Mixing toward one of these rotates
+// hue without touching brightness, so a tint can never darken or blow out a
+// biome -- the failure that made v0.907 strip hue from the materials outright.
+var<private> GROUND_TINT_RGB: array<vec3<f32>, 5> = array<vec3<f32>, 5>(
+    vec3<f32>(0.73105, 1.28233, 0.25167),
+    vec3<f32>(1.50600, 0.82598, 0.56890),
+    vec3<f32>(0.47663, 1.17569, 1.46803),
+    vec3<f32>(1.29233, 0.93661, 0.55966),
+    vec3<f32>(1.36037, 0.92119, 0.46060),
+);
+// Presence octave (metres): the whole layer fades against this like every
+// other detail octave, so distant terrain is bit-identical to the no-detail
+// path and nothing can pop at an LOD split.
+const GROUND_PRESENCE_M: f32 = 4.0;
+// Macro (repeat-breaking) octave as a multiple of each material's tile.
+const GROUND_MACRO_MULT: f32 = 8.0;
+
+// Triplanar sharpness. 4.0 (v0.907) spreads weight over all three planes even
+// on flat ground; 12.0 gives the best-aligned plane ~85% and lets the other
+// two be skipped entirely.
+const GROUND_TRIPLANAR_POW: f32 = 12.0;
+// Planes and materials below these weights contribute less than the sampling
+// costs; skipping them is most of what pays for the extra maps.
+const GROUND_PLANE_CUT: f32 = 0.02;
+const GROUND_MAT_CUT: f32 = 0.012;
+// Height-blend transition width, in the same units as the weights. Small =
+// crisp interlocking edges, large = soft. 0.22 keeps leaf and stone edges
+// readable without the single-texel popping a hard threshold gives.
+const GROUND_BLEND_DEPTH: f32 = 0.22;
+// How far the macro octave is allowed to swing local brightness.
+const GROUND_MACRO_AMP: f32 = 0.55;
+// Cavity AO from the blended height. 0.5 at the mean height leaves the ground
+// energy-neutral; crevices go down, ridges up.
+const GROUND_AO_AMOUNT: f32 = 0.75;
+
+// Classifier thresholds. There is no per-fragment biome ID on this path, so
+// the NASA imagery IS the biome map -- the same principle the vegetation
+// scatter already uses ("Real Earth imagery is the planet-wide biome map for
+// free", planet_chunks.rs). Measured against the shipped earth_albedo.bin:
+// closed canopy (Fuji, Amazon, Congo, taiga) sits at linear luminance
+// 0.015-0.027 and is green-dominant; grassland, savanna and farmland sit at
+// 0.056-0.14 and are RED-dominant; desert runs 0.14-0.39. So luminance
+// separates forest floor from meadow, and the red/green ratio separates
+// vegetated from arid.
+const GROUND_GREEN_LO: f32 = 1.02;
+const GROUND_GREEN_HI: f32 = 1.14;
+const GROUND_CANOPY_LUM_LO: f32 = 0.030;
+const GROUND_CANOPY_LUM_HI: f32 = 0.055;
+const GROUND_DRY_LUM_LO: f32 = 0.04;
+const GROUND_DRY_LUM_HI: f32 = 0.09;
+const GROUND_DRY_FADE_LO: f32 = 0.13;
+const GROUND_DRY_FADE_HI: f32 = 0.22;
+const GROUND_DRY_GRASS_MIX: f32 = 0.45;
+const GROUND_SAND_WARM_LO: f32 = 0.02;
+const GROUND_SAND_WARM_HI: f32 = 0.08;
+const GROUND_SAND_LUM_LO: f32 = 0.18;
+const GROUND_SAND_LUM_HI: f32 = 0.32;
+const GROUND_ROCK_STEEP_LO: f32 = 0.20;
+const GROUND_ROCK_STEEP_HI: f32 = 0.50;
+// Snow and ice keep the pure photo: there is no snow scan in the pack, and a
+// dirt tile over bright ice reads as mud.
+const GROUND_SNOW_LUM_LO: f32 = 0.50;
+const GROUND_SNOW_LUM_HI: f32 = 0.68;
+
+/// Everything the ground detail contributes at one fragment.
+struct GroundDetail {
+    /// Multiply straight into albedo. Exactly vec3(1) when faded out.
+    albedo_mul: vec3<f32>,
+    /// World-space normal with the tangent-space bump folded in.
+    normal: vec3<f32>,
+    /// Absolute perceptual roughness of the ground material here. Blend the
+    /// caller's own roughness toward it by `presence`.
+    roughness: f32,
+    /// Cavity occlusion, 1 = open. Already faded.
+    ao: f32,
+    /// 0..1 detail presence. 0 means nothing changed and every other field
+    /// is its identity, so a caller can skip the whole block on it.
+    presence: f32,
+};
+
+/// Triplanar sample of one layer, RGBA, skipping planes below the cut and
+/// renormalising by what was actually taken.
+///
+/// `p` and the gradients are in the pinned metre domain; the caller has
+/// already rotated the fs_main-top dpdx/dpdy of world_position into it, which
+/// is exact because pt = anchor + inv_m * (wp - eye) with anchor/eye constant
+/// per draw. Passing true gradients (rather than one analytic LOD) is what
+/// engages the x8 anisotropic filter, without which a flat sightline smears.
+fn ground_tri4(
+    layer: i32,
+    p: vec3<f32>,
+    w: vec3<f32>,
+    gx: vec3<f32>,
+    gy: vec3<f32>,
+    tile: f32,
+) -> vec4<f32> {
+    let it = 1.0 / tile;
+    var acc = vec4<f32>(0.0);
+    var wsum = 0.0;
+    if (w.x > GROUND_PLANE_CUT) {
+        acc = acc + w.x * textureSampleGrad(
+            ground_tex, ground_samp, p.yz * it, layer, gx.yz * it, gy.yz * it);
+        wsum = wsum + w.x;
+    }
+    if (w.y > GROUND_PLANE_CUT) {
+        acc = acc + w.y * textureSampleGrad(
+            ground_tex, ground_samp, p.xz * it, layer, gx.xz * it, gy.xz * it);
+        wsum = wsum + w.y;
+    }
+    if (w.z > GROUND_PLANE_CUT) {
+        acc = acc + w.z * textureSampleGrad(
+            ground_tex, ground_samp, p.xy * it, layer, gx.xy * it, gy.xy * it);
+        wsum = wsum + w.z;
+    }
+    return acc / max(wsum, 0.0001);
+}
+
+/// One-plane sample (the dominant plane only) -- used for the macro octave,
+/// where a full triplanar would triple the cost for a low-frequency term
+/// nobody can localise anyway.
+fn ground_plane4(
+    layer: i32,
+    p: vec3<f32>,
+    axis: i32,
+    gx: vec3<f32>,
+    gy: vec3<f32>,
+    tile: f32,
+) -> vec4<f32> {
+    let it = 1.0 / tile;
+    if (axis == 0) {
+        return textureSampleGrad(
+            ground_tex, ground_samp, p.yz * it, layer, gx.yz * it, gy.yz * it);
+    }
+    if (axis == 1) {
+        return textureSampleGrad(
+            ground_tex, ground_samp, p.xz * it, layer, gx.xz * it, gy.xz * it);
+    }
+    return textureSampleGrad(
+        ground_tex, ground_samp, p.xy * it, layer, gx.xy * it, gy.xy * it);
+}
+
+/// Material weights from the imagery colour and the local slope. See the
+/// GROUND_* classifier constants above for the measurements behind each
+/// threshold. Returns weights summing to 1.
+fn ground_material_weights(img: vec3<f32>, lum: f32, steep: f32) -> array<f32, 5> {
+    let w_rock = smoothstep(GROUND_ROCK_STEEP_LO, GROUND_ROCK_STEEP_HI, steep);
+    let flat = 1.0 - w_rock;
+    // Green dominance: the imagery's own green channel against its strongest
+    // other channel, which is stable under the exposure differences between
+    // imagery tiles in a way an absolute green threshold is not.
+    let gr = img.g / max(max(img.r, img.b), 0.003);
+    let green = smoothstep(GROUND_GREEN_LO, GROUND_GREEN_HI, gr);
+    // Dark AND green = closed canopy. The ground beneath is leaf and needle
+    // mat, not lawn -- this is the correction that stops a Japanese conifer
+    // forest floor rendering as a golf course.
+    let canopy = 1.0 - smoothstep(GROUND_CANOPY_LUM_LO, GROUND_CANOPY_LUM_HI, lum);
+    let sand = smoothstep(GROUND_SAND_WARM_LO, GROUND_SAND_WARM_HI, img.r - img.b)
+        * smoothstep(GROUND_SAND_LUM_LO, GROUND_SAND_LUM_HI, lum);
+    // Warm mid-luminance land is prairie/steppe/stubble: dry grass standing
+    // in soil, so grass structure height-blends up through the dirt rather
+    // than the whole biome being bare earth.
+    let dry = smoothstep(GROUND_DRY_LUM_LO, GROUND_DRY_LUM_HI, lum)
+        * (1.0 - smoothstep(GROUND_DRY_FADE_LO, GROUND_DRY_FADE_HI, lum))
+        * (1.0 - green)
+        * (1.0 - sand);
+    var w: array<f32, 5>;
+    w[0] = flat * (green * (1.0 - canopy) + GROUND_DRY_GRASS_MIX * dry);
+    w[2] = w_rock;
+    w[3] = flat * sand * (1.0 - green);
+    w[4] = flat * green * canopy;
+    w[1] = max(1.0 - w[0] - w[2] - w[3] - w[4], 0.0);
+    return w;
+}
+
+/// The ground detail layer. `img` is the RAW imagery colour at this fragment
+/// (before any detail modulation), `pt` the pinned-domain position, `dir` the
+/// planet-local radial unit direction, `up_w` the world-space radial up.
+fn ground_detail(
+    img: vec3<f32>,
+    pt: vec3<f32>,
+    dir: vec3<f32>,
+    normal_w: vec3<f32>,
+    up_w: vec3<f32>,
+    g_x: vec3<f32>,
+    g_y: vec3<f32>,
+    footprint_m: f32,
+) -> GroundDetail {
+    var out: GroundDetail;
+    out.albedo_mul = vec3<f32>(1.0);
+    out.normal = normal_w;
+    out.roughness = 1.0;
+    out.ao = 1.0;
+    out.presence = 0.0;
+
+    let lum = dot(img, vec3<f32>(0.299, 0.587, 0.114));
+    let snowy = smoothstep(GROUND_SNOW_LUM_LO, GROUND_SNOW_LUM_HI, lum);
+    let keep = detail_octave_fade(GROUND_PRESENCE_M, footprint_m) * (1.0 - snowy);
+    if (keep <= 0.003) {
+        return out;
+    }
+
+    let steep = 1.0 - clamp(dot(normal_w, up_w), 0.0, 1.0);
+    // Bound to a `var` deliberately: the loops below index this with a runtime
+    // counter, and a function-scope var is the form every backend lowers to a
+    // plain local array.
+    var w = ground_material_weights(img, lum, steep);
+
+    // Triplanar plane weights from the RADIAL direction, never the surface
+    // normal: `dir` is smooth over the whole globe, so the projection cannot
+    // swim when a slope changes or an LOD split moves a vertex.
+    let aw = pow(abs(dir), vec3<f32>(GROUND_TRIPLANAR_POW));
+    let tw = aw / max(aw.x + aw.y + aw.z, 0.0001);
+    var axis = 0;
+    var apk = tw.x;
+    if (tw.y > apk) { axis = 1; apk = tw.y; }
+    if (tw.z > apk) { axis = 2; apk = tw.z; }
+
+    // Pass 1: colour + height for the materials that are actually present,
+    // and pick the dominant one for the macro octave.
+    var cs: array<vec4<f32>, 5>;
+    var dom = 0;
+    var dom_w = -1.0;
+    for (var i = 0; i < GROUND_MAT_COUNT; i = i + 1) {
+        if (w[i] <= GROUND_MAT_CUT) {
+            cs[i] = vec4<f32>(0.5, 0.5, 0.5, 0.5);
+            continue;
+        }
+        cs[i] = ground_tri4(GROUND_COLOR_LAYER[i], pt, tw, g_x, g_y, GROUND_TILE_M[i]);
+        if (w[i] > dom_w) {
+            dom = i;
+            dom_w = w[i];
+        }
+    }
+
+    // Macro octave: the same material 8x larger, one plane, faded on its own
+    // pixel coverage. It shifts the height field (so the blend itself varies
+    // over metres, not just the colour) and swings local brightness, which is
+    // what stops the fine tile from reading as a grid.
+    let macro_tile = GROUND_TILE_M[dom] * GROUND_MACRO_MULT;
+    let macro_fade = detail_octave_fade(macro_tile, footprint_m);
+    var macro_h = 0.0;
+    var macro_l = 1.0;
+    if (macro_fade > 0.01) {
+        let ms = ground_plane4(GROUND_COLOR_LAYER[dom], pt, axis, g_x, g_y, macro_tile);
+        macro_h = (ms.a - 0.5) * macro_fade;
+        let ml = dot(ms.rgb, vec3<f32>(0.299, 0.587, 0.114)) * 2.0;
+        macro_l = mix(1.0, clamp(ml, 0.45, 1.9), GROUND_MACRO_AMP * macro_fade);
+    }
+
+    // Height-aware weights (Mishkinis). Each material's presence is offset by
+    // its own relief, then only those within GROUND_BLEND_DEPTH of the tallest
+    // survive -- so the winner is whatever is physically on top, and the
+    // boundary follows the material's real edges instead of a soft ramp.
+    var hb: array<f32, 5>;
+    var hmax = -1000.0;
+    for (var i = 0; i < GROUND_MAT_COUNT; i = i + 1) {
+        if (w[i] <= GROUND_MAT_CUT) {
+            hb[i] = -1000.0;
+            continue;
+        }
+        hb[i] = w[i] + (cs[i].a + macro_h) * GROUND_HEIGHT_CONTRAST[i];
+        hmax = max(hmax, hb[i]);
+    }
+    // The weights are a partition of unity, so one is always >= 1/5 and this
+    // cannot trigger today -- but if a future classifier ever broke that, the
+    // subtraction below would hand every material an equal share of garbage.
+    if (hmax < -900.0) {
+        return out;
+    }
+    var tot = 0.0;
+    for (var i = 0; i < GROUND_MAT_COUNT; i = i + 1) {
+        hb[i] = max(hb[i] - hmax + GROUND_BLEND_DEPTH, 0.0);
+        tot = tot + hb[i];
+    }
+    let inv_tot = 1.0 / max(tot, 0.0001);
+
+    // Pass 2: combine. Normals and roughness are sampled only for materials
+    // that survived the height blend, which is usually one or two.
+    var col = vec3<f32>(0.0);
+    var bump = vec2<f32>(0.0);
+    var rough = 0.0;
+    var hgt = 0.0;
+    var tint = vec3<f32>(0.0);
+    var tstr = 0.0;
+    for (var i = 0; i < GROUND_MAT_COUNT; i = i + 1) {
+        let f = hb[i] * inv_tot;
+        if (f <= 0.001) {
+            continue;
+        }
+        col = col + f * cs[i].rgb;
+        hgt = hgt + f * cs[i].a;
+        tint = tint + f * GROUND_TINT_STRENGTH[i] * GROUND_TINT_RGB[i];
+        tstr = tstr + f * GROUND_TINT_STRENGTH[i];
+        let ns = ground_tri4(GROUND_NORMAL_LAYER[i], pt, tw, g_x, g_y, GROUND_TILE_M[i]);
+        // xy is the tangent bump slope; z is implied by the frame below. The
+        // ALPHA is the Toksvig-corrected roughness for this mip -- the reason
+        // the strong bump above does not shimmer at distance.
+        bump = bump + f * (ns.xy * 2.0 - 1.0) * GROUND_NORMAL_STRENGTH[i];
+        rough = rough + f * ns.a;
+    }
+
+    // The colour layers are energy-neutral multipliers around 0.5 (geometric
+    // mean, baked that way in ground_textures::pack_color_layer), so tex * 2
+    // is a multiplier whose average is exactly 1: the imagery keeps owning the
+    // large-scale colour and the scan contributes pure structure.
+    let mul = clamp(col * 2.0 * macro_l, vec3<f32>(0.28), vec3<f32>(2.2));
+    // Hue: rotate toward the blended material chromaticity at CONSTANT
+    // luminance. This is what puts brown leaf mat under dark green canopy
+    // imagery, and it is incapable of darkening or blowing out a biome.
+    let base = img * mul;
+    let bl = max(dot(base, vec3<f32>(0.299, 0.587, 0.114)), 0.00001);
+    let tint_n = tint / max(tstr, 0.0001);
+    let shifted = mix(base, tint_n * bl, clamp(tstr, 0.0, 1.0));
+    // Handed back as a MULTIPLIER (not a colour) so the caller's own detail
+    // layers -- the land noise octaves and the micro noise -- stay independent
+    // multiplicative terms instead of being overwritten. The guard on `img`
+    // matters: a near-black imagery channel would otherwise divide out to a
+    // huge ratio.
+    let mul_out = clamp(
+        shifted / max(img, vec3<f32>(0.0001)),
+        vec3<f32>(0.15),
+        vec3<f32>(3.0),
+    );
+    // Exactly vec3(1) at keep = 0, so the far field is bit-identical to the
+    // no-detail path and nothing can pop at an LOD split.
+    out.albedo_mul = mix(vec3<f32>(1.0), mul_out, keep);
+
+    // Tangent frame around the radial up. For rough ground the bump
+    // ORIENTATION is arbitrary, only its consistency across neighbouring
+    // fragments matters, and a frame built from `up_w` is smooth everywhere
+    // the pole guard is not straddled.
+    let ref_a = select(vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), abs(up_w.y) > 0.9);
+    let t1 = normalize(cross(up_w, ref_a));
+    let t2 = cross(up_w, t1);
+    out.normal = normalize(normal_w + (bump.x * t1 + bump.y * t2) * keep);
+    out.roughness = clamp(rough, 0.04, 1.0);
+    out.ao = mix(1.0, clamp(0.55 + 0.9 * hgt, 0.35, 1.15), keep * GROUND_AO_AMOUNT);
+    out.presence = keep;
+    return out;
 }
 
 fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
@@ -328,11 +746,11 @@ fn ocean_tex_gradient(p_anch: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32)
     let lod_a = clamp(log2(max(footprint_m * 2048.0 / 16.0, 1.0)), 0.0, 11.0);
     let s_a = textureSampleLevel(
         ground_tex, ground_samp,
-        uv_m / 16.0 + vec2<f32>(t * 0.021, t * 0.009), 8, lod_a);
+        uv_m / 16.0 + vec2<f32>(t * 0.021, t * 0.009), GROUND_LAYER_OCEAN, lod_a);
     let lod_b = clamp(log2(max(footprint_m * 2048.0 / 64.0, 1.0)), 0.0, 11.0);
     let s_b = textureSampleLevel(
         ground_tex, ground_samp,
-        uv_m / 64.0 + vec2<f32>(-t * 0.0035, t * 0.0055), 8, lod_b);
+        uv_m / 64.0 + vec2<f32>(-t * 0.0035, t * 0.0055), GROUND_LAYER_OCEAN, lod_b);
     let g_a = s_a.rg * 2.0 - 1.0;
     let g_b = s_b.rg * 2.0 - 1.0;
     let g2 = g_a * 0.80 + g_b * 0.55;

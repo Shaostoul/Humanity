@@ -1151,78 +1151,27 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 mf = mf + 0.07 * detail_octave_fade(0.32, footprint)
                     * (2.0 * micro_noise(pt / 0.32, 200.0) - 1.0);
                 albedo = albedo * clamp(1.0 + mf, 0.7, 1.3);
-                // ── Ground PBR textures (v0.907, ambientCG CC0) ──
-                // Real photoscanned material detail under the NASA photo:
-                // grass/dirt/rock/sand picked by slope + the imagery's own
-                // color, triplanar-tiled in the same pinned domain, fading
-                // back to pure imagery with distance (a 4 m detail octave).
-                let gt_presence = detail_octave_fade(4.0, footprint);
-                if (gt_presence > 0.003) {
-                    // Material weights. Steep slopes read rock; the photo
-                    // classifies the flats: green => grass, bright warm =>
-                    // sand, else dirt. Snow/ice keeps the pure photo (no
-                    // CC0 snow set yet, and bright ice under a dirt tile
-                    // would read as mud).
-                    let up_w = normalize(in.world_position - material.base_color.xyz);
-                    let steep = 1.0 - clamp(dot(normal, up_w), 0.0, 1.0);
-                    let lum = dot(img, vec3<f32>(0.299, 0.587, 0.114));
-                    let green = smoothstep(1.02, 1.18, img.g / max(max(img.r, img.b), 0.003));
-                    let warm = smoothstep(0.02, 0.08, img.r - img.b)
-                        * smoothstep(0.18, 0.32, lum);
-                    let snowy = smoothstep(0.5, 0.68, lum);
-                    let w_rock = smoothstep(0.20, 0.5, steep);
-                    let w_grass = green * (1.0 - w_rock);
-                    let w_sand = warm * (1.0 - green) * (1.0 - w_rock);
-                    let w_dirt = max(1.0 - w_rock - w_grass - w_sand, 0.0);
-                    let keep = gt_presence * (1.0 - snowy);
-                    // Triplanar plane weights from the radial direction
-                    // (smooth on a sphere; the surface normal would swim
-                    // on every slope change).
-                    let aw = pow(abs(dir), vec3<f32>(4.0));
-                    let tw = aw / max(aw.x + aw.y + aw.z, 0.0001);
-                    // Pinned-domain gradients: pt = anchor + inv_m*(wp - eye)
-                    // with anchor/eye constant per draw, so d(pt) is exactly
-                    // inv_m * d(wp) - the fs_main-top derivatives rotated.
-                    let g_x = (inv_m * vec4<f32>(wp_dx, 0.0)).xyz;
-                    let g_y = (inv_m * vec4<f32>(wp_dy, 0.0)).xyz;
-                    var det = vec3<f32>(0.0);
-                    if (w_grass > 0.01) {
-                        det = det + w_grass * ground_triplanar_grad(0, pt, tw, g_x, g_y);
-                    }
-                    if (w_dirt > 0.01) {
-                        det = det + w_dirt * ground_triplanar_grad(1, pt, tw, g_x, g_y);
-                    }
-                    if (w_rock > 0.01) {
-                        det = det + w_rock * ground_triplanar_grad(2, pt, tw, g_x, g_y);
-                    }
-                    if (w_sand > 0.01) {
-                        det = det + w_sand * ground_triplanar_grad(3, pt, tw, g_x, g_y);
-                    }
-                    // Detail-albedo modulation: tex * 2 around its neutral
-                    // 0.5 grey keeps the photo's large-scale color
-                    // authoritative while the texture carries the fine
-                    // structure. Neutral fallback layers make this an
-                    // exact no-op.
-                    let modf = clamp(det * 2.0, vec3<f32>(0.3), vec3<f32>(2.0));
-                    albedo = albedo * mix(vec3<f32>(1.0), modf, keep);
-                    // Normal perturbation from the DOMINANT material's map.
-                    // The tangent basis is an arbitrary-but-smooth frame
-                    // around radial up: for rough ground the bump direction
-                    // convention doesn't matter, only its consistency.
-                    var dom = 0;
-                    var wmax = w_grass;
-                    if (w_dirt > wmax) { dom = 1; wmax = w_dirt; }
-                    if (w_rock > wmax) { dom = 2; wmax = w_rock; }
-                    if (w_sand > wmax) { dom = 3; wmax = w_sand; }
-                    let nm = ground_triplanar_grad(4 + dom, pt, tw, g_x, g_y) * 2.0 - 1.0;
-                    let ref_a = select(
-                        vec3<f32>(0.0, 1.0, 0.0),
-                        vec3<f32>(1.0, 0.0, 0.0),
-                        abs(up_w.y) > 0.9,
-                    );
-                    let t1 = normalize(cross(up_w, ref_a));
-                    let t2 = cross(up_w, t1);
-                    normal = normalize(normal + (nm.x * t1 + nm.y * t2) * 0.7 * keep);
+                // ── Ground PBR detail (v0.1101) ──
+                // Height-blended photoscanned materials + a procedural forest
+                // litter layer, with per-texel roughness and cavity AO. The
+                // technique lives entirely in 20-surface-detail.wgsl; this
+                // site supplies the frame and consumes the result.
+                // Pinned-domain gradients: pt = anchor + inv_m*(wp - eye) with
+                // anchor/eye constant per draw, so d(pt) is exactly
+                // inv_m * d(wp) - the fs_main-top derivatives rotated.
+                let up_w = normalize(in.world_position - material.base_color.xyz);
+                let g_x = (inv_m * vec4<f32>(wp_dx, 0.0)).xyz;
+                let g_y = (inv_m * vec4<f32>(wp_dy, 0.0)).xyz;
+                let gd = ground_detail(img, pt, dir, normal, up_w, g_x, g_y, footprint);
+                if (gd.presence > 0.003) {
+                    // AO multiplies albedo rather than the ambient term: the
+                    // shared PBR tail has no AO input on this path (that needs
+                    // the depth prepass tracked in PRIORITIES), and folding
+                    // centimetre-scale cavity occlusion into albedo is the
+                    // standard cheap stand-in.
+                    albedo = albedo * gd.albedo_mul * gd.ao;
+                    normal = gd.normal;
+                    roughness = mix(roughness, gd.roughness, gd.presence);
                 }
             }
         }
