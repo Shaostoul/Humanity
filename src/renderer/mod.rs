@@ -9,6 +9,11 @@ pub mod billboard_bake;
 pub mod atmo_luts;
 /// Sky-view LUT offscreen pass (sky arc stage 3b-2).
 pub mod sky_view;
+/// CPU twin + calibration of the megashader's indirect-light terms (v0.1104).
+/// Pure math, no wgpu, so it compiles and tests under the relay feature too.
+pub mod sky_ambient;
+/// The engine's key lights (moonlight fill), extracted from lib.rs v0.1104.
+pub mod key_lights;
 /// Screen-tile light binning (clustering L1).
 pub mod light_tiles;
 pub mod bloom;
@@ -45,6 +50,15 @@ pub mod pipeline;
 pub mod shader_loader;
 pub mod stars;
 pub mod water;
+
+/// Sun shadow map resolution, texels per side. Module constants (v0.1104)
+/// rather than locals inside the render loop, because the megashader's
+/// normal-offset needs the WORLD size of one texel and pins it as a literal
+/// (`SHADOW_TEXEL_M` in 00-bindings-vertex.wgsl). `sky_ambient`'s lockstep
+/// test compares the two.
+pub const SUN_SHADOW_MAP_SIZE: f32 = 4096.0;
+/// Half-extent of the sun shadow map's ortho box, in metres.
+pub const SUN_SHADOW_EXTENT_M: f32 = 1500.0;
 
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
@@ -285,6 +299,18 @@ pub struct Renderer {
     /// Sun shadows on/off (max-graphics default on; zero cost when the sun
     /// is absent - the pass and the shader lookup both self-gate).
     pub sun_shadows: bool,
+    /// How dark a fully occluded fragment gets, 0..1 (v0.1104). Consumed as
+    /// `mix(1 - strength, 1, pcf)` in the megashader, so 1.0 means an occluded
+    /// fragment keeps NO direct sun and is lit by sky irradiance alone.
+    ///
+    /// Was a hardcoded 0.6 from v0.899 to v0.1103, which left every shadow
+    /// holding 40% of full sun IN THE SUN'S OWN WARM COLOUR: measured
+    /// shadow/sunlit ratios of 0.412-0.432 against a physical clear-sky
+    /// expectation of 0.10-0.20 and blue. That constant was doing the job of
+    /// the indirect light the engine did not have; now that sky_ambient exists
+    /// (measured: 12.8% of sunlit, sky-blue), the correct value is 1.0 and the
+    /// shadows fill from the sky instead of from the sun.
+    pub shadow_strength: f32,
     /// Screen-space ambient occlusion (v0.901): contact shading in the
     /// celestial slot. Strength 0 disables the pass entirely.
     ssao: ssao::SsaoPass,
@@ -1389,6 +1415,7 @@ impl Renderer {
             atmo_lut_params: None,
             shadow_comparison_sampler,
             sun_shadows: true,
+            shadow_strength: 1.0,
         }
     }
 
@@ -2770,8 +2797,8 @@ impl Renderer {
         // sample it. Texel-snapped so a drifting camera never swims the map.
         let shadow_on = self.sun_shadows && sun_dir != Vec3::ZERO;
         {
-            const SHADOW_MAP_SIZE: f32 = 4096.0;
-            let extent = 1500.0_f32;
+            const SHADOW_MAP_SIZE: f32 = SUN_SHADOW_MAP_SIZE;
+            let extent = SUN_SHADOW_EXTENT_M;
             let sun = sun_dir.normalize();
             let center = camera.effective_position();
             let up = if sun.y.abs() > 0.95 { Vec3::Z } else { Vec3::Y };
@@ -2856,7 +2883,7 @@ impl Renderer {
             let mut su = [0.0_f32; 24];
             su[..16].copy_from_slice(&vp.to_cols_array());
             su[16] = if shadow_on { 1.0 } else { 0.0 };
-            su[17] = 0.6; // shadow strength
+            su[17] = self.shadow_strength.clamp(0.0, 1.0);
             su[18] = 1.0 / SHADOW_MAP_SIZE;
             // params.w (v0.912): the tree-model radius - terrain tree CARDS
             // hide inside it so the real 3D conifers replace them cleanly.

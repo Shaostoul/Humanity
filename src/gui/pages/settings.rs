@@ -2179,6 +2179,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Shadow strength", &mut state.settings.shadow_strength, 0.0..=1.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How dark a full shadow gets. 1 = realistic (no direct sun in shadow, only sky light, which reads cool and blue). Lower leaks warm sunlight into shadows and flattens the scene.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Aerial haze strength", &mut state.settings.aerial_strength, 0.0..=2.0) {
             state.settings_dirty = true;
         }

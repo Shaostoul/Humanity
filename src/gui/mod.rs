@@ -6617,6 +6617,10 @@ pub struct SettingsState {
     pub water_detail_depth: f32,
     /// Sun shadow map on/off (v0.907, Settings > Planets).
     pub sun_shadows: bool,
+    /// How dark a full sun shadow gets, 0..1 (v0.1104). 1.0 = no direct sun
+    /// reaches a shadowed surface and the sky-irradiance term fills it, which
+    /// is what real shadows are. Lower values leak warm sunlight into shadow.
+    pub shadow_strength: f32,
     /// Aerial perspective strength (v0.916): how strongly distant land and
     /// sea fade toward sky color. 0 = off, 1 = earthlike.
     pub aerial_strength: f32,
@@ -6783,6 +6787,7 @@ impl Default for SettingsState {
             veg_tree_card_m: crate::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
             water_detail_depth: 20.0,
             sun_shadows: true,
+            shadow_strength: 1.0,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
             ssao_strength: 0.55,

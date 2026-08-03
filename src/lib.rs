@@ -11911,7 +11911,18 @@ mod native_app {
                             let mut sigma = 0.0f32;
                             let mut cap = 25_000.0f32;
                             let mut sky = [0.0f32; 3];
+                            // Local radial up, published for EVERY frame-locked
+                            // draw as of v0.1104 (was set only inside the aerial
+                            // branch below, so a zero haze slider left it at a
+                            // world-fixed [0,1,0]). The megashader's sky_ambient
+                            // reads this same pad as the local up of every
+                            // non-planet surface.
+                            let up_w = glam::DQuat::from_rotation_y(state.current_spin)
+                                * state.frame_lock_anchor.normalize_or_zero();
                             let mut up = [0.0f32, 1.0, 0.0];
+                            if up_w.length_squared() > 0.5 {
+                                up = [up_w.x as f32, up_w.y as f32, up_w.z as f32];
+                            }
                             if s > 0.001 {
                                 if let Some((d, _ac)) = state
                                     .frame_lock_body
@@ -11927,10 +11938,6 @@ mod native_app {
                                     // strength 1.
                                     sigma = s * 2.2e-5 * dens;
                                     cap = h_m * 3.0;
-                                    let up_w = glam::DQuat::from_rotation_y(
-                                        state.current_spin,
-                                    ) * state.frame_lock_anchor.normalize_or_zero();
-                                    up = [up_w.x as f32, up_w.y as f32, up_w.z as f32];
                                     let mu = up_w.dot(sun_dir) as f32;
                                     let day = ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
                                     // Hue from the sunset-tinted sun light,
@@ -12067,6 +12074,18 @@ mod native_app {
                         // The fill is otherwise set once at init; re-assert it each frame so the GI
                         // toggle is authoritative (restores the default when GI is back on).
                         //
+                        // THE DAYLIGHT FILL IS DELETED (v0.1104). It was a
+                        // WORLD-FIXED (-0.5, 0.3, -0.3) blue at intensity 0.6 -
+                        // ~12.4% of the sun and the closest thing this engine had
+                        // to indirect light - so on a spinning planet it sank
+                        // below the local horizon over a day, and being an
+                        // evaluate_light call it also painted a meaningless
+                        // specular lobe. Real sky irradiance now comes per
+                        // fragment from sky_ambient (see renderer::sky_ambient);
+                        // keeping both would double-count ~27% onto every
+                        // up-facing surface. Moonlight below is untouched - that
+                        // one is a real key light tracking the real Moon.
+                        //
                         // MOONLIGHT (v0.1052). The terrain terminator gate that
                         // ships alongside this correctly stops a below-horizon
                         // sun from lighting the ground - and that leaves a
@@ -12084,70 +12103,24 @@ mod native_app {
                         // fault. Phase is real though: full moon is bright, new
                         // moon is not, and it tracks the true Moon position, so
                         // moonlight comes from where the Moon actually is.
-                        let (fill_dir, fill_rgb, fill_i) = {
-                            // The anchor is PLANET-LOCAL; world up needs the
-                            // planet's current spin applied, exactly as the
-                            // aerial-perspective block above does. Without the
-                            // rotation mu_sun and mu_moon are both meaningless
-                            // (measured: night never triggered at all).
-                            let up = (glam::DQuat::from_rotation_y(state.current_spin)
+                        //
+                        // The math moved to renderer::key_lights in v0.1104 so
+                        // it could be unit-tested (the anchor is PLANET-LOCAL, so
+                        // world up needs the spin applied exactly as the
+                        // aerial-perspective block above does - without that,
+                        // both the sunset and the moonrise test are meaningless
+                        // and night never triggers at all).
+                        let fill = crate::renderer::key_lights::moon_fill(
+                            (glam::DQuat::from_rotation_y(state.current_spin)
                                 * state.frame_lock_anchor.normalize_or_zero())
-                                .normalize_or_zero();
-                            let have_ground = up.length_squared() > 0.5;
-                            let moon_dir = (moon_rel_earth_m - state.ship_world_pos)
-                                .normalize_or_zero();
-                            let day_dir = Vec3::new(-0.5, 0.3, -0.3);
-                            let day_rgb = [0.4f32, 0.5, 0.7];
-                            if !have_ground || moon_dir.length_squared() < 0.5 {
-                                (day_dir, day_rgb, 0.6f32)
-                            } else {
-                                // How far past sunset we are, at this spot.
-                                let mu_sun = up.dot(
-                                    glam::DVec3::new(
-                                        sun_dir.x as f64,
-                                        sun_dir.y as f64,
-                                        sun_dir.z as f64,
-                                    ),
-                                ) as f32;
-                                let night = 1.0
-                                    - ((mu_sun + 0.05) / 0.15).clamp(0.0, 1.0);
-                                // Moon above the local horizon, and how full it
-                                // is (sun-moon elongation as seen from here).
-                                let mu_moon = up.dot(moon_dir) as f32;
-                                let risen = ((mu_moon + 0.02) / 0.12).clamp(0.0, 1.0);
-                                let elong = moon_dir.dot(glam::DVec3::new(
-                                    sun_dir.x as f64,
-                                    sun_dir.y as f64,
-                                    sun_dir.z as f64,
-                                )) as f32;
-                                // elong = +1 at new moon (Moon toward the Sun),
-                                // -1 at full. Illuminated fraction = (1-e)/2.
-                                let phase = ((1.0 - elong) * 0.5).clamp(0.0, 1.0);
-                                // Floor of 0.12 so a moonless or set-moon night
-                                // is still navigable rather than a black screen -
-                                // starlight and airglow do light the ground a
-                                // little, and a game has to be playable.
-                                let moon_i = 0.12 + 0.26 * risen * phase;
-                                let d = Vec3::new(
-                                    moon_dir.x as f32,
-                                    moon_dir.y as f32,
-                                    moon_dir.z as f32,
-                                );
-                                (
-                                    if night > 0.5 { d } else { day_dir },
-                                    [
-                                        day_rgb[0] + (0.62 - day_rgb[0]) * night,
-                                        day_rgb[1] + (0.68 - day_rgb[1]) * night,
-                                        day_rgb[2] + (0.90 - day_rgb[2]) * night,
-                                    ],
-                                    0.6 + (moon_i - 0.6) * night,
-                                )
-                            }
-                        };
+                            .normalize_or_zero(),
+                            (moon_rel_earth_m - state.ship_world_pos).normalize_or_zero(),
+                            glam::DVec3::new(sun_dir.x as f64, sun_dir.y as f64, sun_dir.z as f64),
+                        );
                         state.renderer.set_fill_light(
-                            fill_dir,
-                            fill_rgb,
-                            if gi { fill_i } else { 0.0 },
+                            fill.dir,
+                            fill.rgb,
+                            if gi { fill.intensity } else { 0.0 },
                         );
                     }
 
@@ -17034,6 +17007,8 @@ mod native_app {
                                 // Settings > Planets apply every frame.
                                 state.renderer.sun_shadows =
                                     state.gui_state.settings.sun_shadows;
+                                state.renderer.shadow_strength =
+                                    state.gui_state.settings.shadow_strength.clamp(0.0, 1.0);
                                 state.renderer.godray_intensity =
                                     state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
                                 // Underwater extinction (v0.1054): only

@@ -1266,71 +1266,333 @@ mod tests {
         }
     }
 
+    // ── The classifier twin (v0.1103 rewrite) ────────────────────────────
+    //
+    // WHY THIS TEST WAS REWRITTEN. The v0.1101 version hardcoded seven raw
+    // linear colours "measured out of earth_albedo.bin" and fed them straight
+    // to a copy of the classifier. It passed, and it proved nothing, because
+    // the SHADER is not fed raw imagery -- it samples the GRADED bake. The
+    // twin therefore agreed with the classifier in a space the classifier
+    // never sees, and a defect that made `forest_litter` unreachable
+    // everywhere on Earth sailed through a green test. (This is the repo's
+    // dominant defect class: a check whose evidence is its own setup.)
+    //
+    // The rewrite closes both halves of that gap:
+    //   * the sample colours are READ OUT of the shipped grid at named
+    //     coordinates instead of being copied into a literal, so they cannot
+    //     drift from the imagery;
+    //   * they are then pushed through the REAL bake
+    //     (`planet_surface::grade_albedo`) before the classifier sees them,
+    //     which is exactly what happens on the GPU.
+    // Delete either half and the test stops being able to fail.
+
+    fn ss(a: f32, b: f32, x: f32) -> f32 {
+        let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    }
+
+    fn lum3(c: [f32; 3]) -> f32 {
+        0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+    }
+
+    /// Twin of `ground_ungrade` in 20-surface-detail.wgsl: the closed-form
+    /// inverse of `planet_surface::land_gain`.
+    fn ungrade(img: [f32; 3]) -> [f32; 3] {
+        const GAIN: f32 = 1.6;
+        const KNEE: f32 = 0.15;
+        let lg = lum3(img);
+        if lg <= 1.0e-6 {
+            return img;
+        }
+        let greenness = ((img[1] - img[0].max(img[2])) / img[1].max(0.001)).clamp(0.0, 1.0);
+        let vt = ((greenness - 0.1) / 0.5).clamp(0.0, 1.0);
+        let a = GAIN * (1.0 + 0.5 * (vt * vt * (3.0 - 2.0 * vt)));
+        let l_raw =
+            if lg < KNEE * a { (lg * lg) / (a * a * KNEE) } else { lg / a };
+        let s = l_raw / lg;
+        [img[0] * s, img[1] * s, img[2] * s]
+    }
+
+    /// Twin of `ground_detail`'s snow gate. Takes the GRADED sample, i.e.
+    /// what the GPU reads.
+    fn snow_gate(graded: [f32; 3]) -> f32 {
+        ss(0.50, 0.68, lum3(ungrade(graded)))
+    }
+
+    /// Twin of `ground_material_weights`, entered the way the shader enters
+    /// it: with the GRADED texture sample. Order: grass, dirt, rock, sand,
+    /// litter. The `ungrade` call on the first line is the fix under test --
+    /// remove it and this file's own biome expectations fail.
+    fn weights(graded: [f32; 3], steep: f32) -> [f32; 5] {
+        let img = ungrade(graded);
+        let lum = lum3(img);
+        let w_rock = ss(0.20, 0.50, steep);
+        let flat = 1.0 - w_rock;
+        let gr = img[1] / img[0].max(img[2]).max(0.003);
+        let green = ss(1.02, 1.14, gr);
+        let canopy = 1.0 - ss(0.030, 0.055, lum);
+        let sand = ss(0.02, 0.08, img[0] - img[2]) * ss(0.18, 0.32, lum);
+        let dry =
+            ss(0.04, 0.09, lum) * (1.0 - ss(0.13, 0.22, lum)) * (1.0 - green) * (1.0 - sand);
+        let mut w = [0.0f32; 5];
+        w[0] = flat * (green * (1.0 - canopy) + 0.45 * dry);
+        w[2] = w_rock;
+        w[3] = flat * sand * (1.0 - green);
+        w[4] = flat * green * canopy;
+        w[1] = (1.0 - w[0] - w[2] - w[3] - w[4]).max(0.0);
+        w
+    }
+
+    const GRASS: usize = 0;
+    const DIRT: usize = 1;
+    const ROCK: usize = 2;
+    const SAND: usize = 3;
+    const LITTER: usize = 4;
+
+    fn repo_file(rel: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
+    }
+
+    /// Earth's def, straight off disk. Panics loudly rather than skipping: a
+    /// checkout without it cannot verify anything this module claims.
+    fn earth_def() -> crate::terrain::planet::PlanetDef {
+        let p = repo_file("data/planets/earth.ron");
+        let text = std::fs::read_to_string(&p)
+            .unwrap_or_else(|e| panic!("{} must be readable ({e})", p.display()));
+        ron::from_str(&text).expect("data/planets/earth.ron must parse as a PlanetDef")
+    }
+
+    /// The colour the GPU actually samples at a place: the shipped imagery,
+    /// pushed through the shipped bake. `grade_albedo` is the single source of
+    /// truth the texture bake itself uses, so this cannot drift from it.
+    fn graded_sample_at(
+        al: &crate::terrain::planet_albedo::PlanetAlbedo,
+        def: &crate::terrain::planet::PlanetDef,
+        lat: f32,
+        lon: f32,
+    ) -> ([f32; 3], [f32; 3]) {
+        // Median of a 5x5 texel box (~0.44 deg) so one cloud, river or lake
+        // texel cannot decide a biome's expectation.
+        let mut ch: [Vec<f32>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+        for dy in -2..=2 {
+            for dx in -2..=2 {
+                let c =
+                    al.sample_linear_latlon(lat + dy as f32 * 0.088, lon + dx as f32 * 0.088);
+                for k in 0..3 {
+                    ch[k].push(c[k]);
+                }
+            }
+        }
+        let mut raw = [0.0f32; 3];
+        for k in 0..3 {
+            ch[k].sort_by(f32::total_cmp);
+            raw[k] = ch[k][ch[k].len() / 2];
+        }
+        // Well above sea level and clear of the shore de-blue band, which is
+        // the regime every walkable land fragment is in.
+        let sea = def.sea_level.clamp(0.0, 1.0);
+        let graded = crate::terrain::planet_surface::grade_albedo(
+            def,
+            raw,
+            sea + 0.05,
+            (lat.to_radians()).sin().abs(),
+        );
+        (raw, graded)
+    }
+
+    /// (place, lat, lon, slope, dominant material). Coordinates chosen for
+    /// box agreement: 25/25 texels of the 5x5 box classify identically at
+    /// every site except Fuji (24/25) and the Pacific NW (21/25).
+    const BIOME_CASES: &[(&str, f32, f32, f32, usize)] = &[
+        ("Fuji conifer forest", 35.36, 138.73, 0.05, LITTER),
+        ("Amazon rainforest", -4.5, -63.0, 0.05, LITTER),
+        ("Congo rainforest", 0.5, 22.0, 0.05, LITTER),
+        ("Siberian taiga", 60.0, 100.0, 0.05, LITTER),
+        ("Pacific NW forest", 47.5, -122.9, 0.05, LITTER),
+        ("Iowa cropland", 42.0, -93.5, 0.05, LITTER),
+        ("Kansas high plains", 39.5, -100.5, 0.05, DIRT),
+        ("Serengeti savanna", -2.3, 34.8, 0.05, DIRT),
+        ("Sahara desert", 25.0, 5.0, 0.05, SAND),
+        ("Fuji forest on a cliff", 35.36, 138.73, 0.7, ROCK),
+    ];
+
     /// The classifier is the ONLY biome signal on this path, so its behaviour
-    /// against the real shipped imagery is a contract, not a detail. These are
-    /// the linear colours measured out of `data/planets/earth_albedo.bin` at
-    /// each named place; the expectations below are what the ground under them
-    /// should actually be made of.
+    /// against the real shipped imagery is a contract, not a detail.
     #[test]
     fn imagery_classifier_puts_the_right_material_under_each_biome() {
-        fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
-            let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
-            t * t * (3.0 - 2.0 * t)
-        }
-        // A faithful CPU twin of `ground_material_weights` in
-        // 20-surface-detail.wgsl. Order: grass, dirt, rock, sand, litter.
-        fn weights(img: [f32; 3], steep: f32) -> [f32; 5] {
-            let lum = 0.299 * img[0] + 0.587 * img[1] + 0.114 * img[2];
-            let w_rock = smoothstep(0.20, 0.50, steep);
-            let flat = 1.0 - w_rock;
-            let gr = img[1] / img[0].max(img[2]).max(0.003);
-            let green = smoothstep(1.02, 1.14, gr);
-            let canopy = 1.0 - smoothstep(0.030, 0.055, lum);
-            let sand = smoothstep(0.02, 0.08, img[0] - img[2]) * smoothstep(0.18, 0.32, lum);
-            let dry = smoothstep(0.04, 0.09, lum)
-                * (1.0 - smoothstep(0.13, 0.22, lum))
-                * (1.0 - green)
-                * (1.0 - sand);
-            let mut w = [0.0f32; 5];
-            w[0] = flat * (green * (1.0 - canopy) + 0.45 * dry);
-            w[2] = w_rock;
-            w[3] = flat * sand * (1.0 - green);
-            w[4] = flat * green * canopy;
-            w[1] = (1.0 - w[0] - w[2] - w[3] - w[4]).max(0.0);
-            w
-        }
-        const GRASS: usize = 0;
-        const DIRT: usize = 1;
-        const ROCK: usize = 2;
-        const SAND: usize = 3;
-        const LITTER: usize = 4;
-        // (place, linear imagery RGB, slope, dominant material)
-        let cases: &[(&str, [f32; 3], f32, usize)] = &[
-            ("Fuji conifer forest", [0.013, 0.023, 0.005], 0.05, LITTER),
-            ("Amazon rainforest", [0.024, 0.033, 0.007], 0.05, LITTER),
-            ("Congo rainforest", [0.010, 0.022, 0.003], 0.05, LITTER),
-            ("Siberian taiga", [0.010, 0.019, 0.004], 0.05, LITTER),
-            ("Great Plains grassland", [0.103, 0.083, 0.030], 0.05, DIRT),
-            ("Sahara desert", [0.570, 0.347, 0.154], 0.05, SAND),
-            ("Fuji forest on a cliff", [0.013, 0.023, 0.005], 0.7, ROCK),
-        ];
-        for &(name, img, steep, want) in cases {
-            let w = weights(img, steep);
+        let def = earth_def();
+        let al_rel = def.albedo.clone().expect("earth.ron must ship an albedo grid");
+        let al = crate::terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
+            "data/{al_rel}"
+        )))
+        .expect("the shipped Earth albedo grid must load");
+
+        for &(name, lat, lon, steep, want) in BIOME_CASES {
+            let (raw, graded) = graded_sample_at(&al, &def, lat, lon);
+            let w = weights(graded, steep);
             let got = (0..5).max_by(|a, b| w[*a].total_cmp(&w[*b])).unwrap();
-            assert_eq!(got, want, "{name}: weights {w:?}");
-        }
-        // Prairie must carry REAL dry grass over the soil, not bare earth.
-        let plains = weights([0.103, 0.083, 0.030], 0.05);
-        assert!(
-            plains[GRASS] > 0.3 && plains[DIRT] > 0.3,
-            "prairie should blend dry grass into soil, got {plains:?}"
-        );
-        // Every case must be a partition of unity or the height blend is
-        // normalising against a lie.
-        for &(name, img, steep, _) in cases {
-            let s: f32 = weights(img, steep).iter().sum();
+            assert_eq!(
+                got, want,
+                "{name}: raw {raw:?} (lum {:.4}) -> graded {graded:?} (lum {:.4}) -> weights {w:?}",
+                lum3(raw),
+                lum3(graded)
+            );
+            // Partition of unity, or the height blend normalises against a lie.
+            let s: f32 = w.iter().sum();
             assert!((s - 1.0).abs() < 1e-4, "{name}: weights sum to {s}");
         }
+
+        // Savanna must carry REAL dry grass over the soil, not bare earth.
+        let (_, serengeti) = graded_sample_at(&al, &def, -2.3, 34.8);
+        let sav = weights(serengeti, 0.05);
+        assert!(
+            sav[GRASS] > 0.3 && sav[DIRT] > 0.3,
+            "savanna should blend dry grass into soil, got {sav:?}"
+        );
+
+        // The forest floor is the whole reason forest_litter exists. Assert
+        // the WEIGHT, not just the argmax: a 51% win would still render as
+        // half lawn.
+        for &(name, lat, lon, steep, want) in BIOME_CASES {
+            if want != LITTER {
+                continue;
+            }
+            let (_, graded) = graded_sample_at(&al, &def, lat, lon);
+            let w = weights(graded, steep);
+            assert!(
+                w[LITTER] > 0.9,
+                "{name}: closed canopy must be almost pure leaf mat, got {w:?}"
+            );
+        }
+    }
+
+    /// The snow gate switches the ENTIRE ground layer off (`keep *= 1 -
+    /// snowy`), so reading it in the wrong space is not a tint bug, it is an
+    /// off switch. Shipped v0.1101 fed it the graded value and the Sahara
+    /// measured 0.89 "snow" -- 89% of the desert's ground PBR, gone.
+    #[test]
+    fn the_snow_gate_does_not_switch_off_the_desert() {
+        let def = earth_def();
+        let al_rel = def.albedo.clone().expect("earth.ron must ship an albedo grid");
+        let al = crate::terrain::planet_albedo::PlanetAlbedo::load(&repo_file(&format!(
+            "data/{al_rel}"
+        )))
+        .expect("the shipped Earth albedo grid must load");
+        for &(name, lat, lon) in
+            &[("Sahara", 25.0f32, 5.0f32), ("Arabian desert", 21.0, 46.0)]
+        {
+            let (raw, graded) = graded_sample_at(&al, &def, lat, lon);
+            let g = snow_gate(graded);
+            assert!(
+                g < 0.01,
+                "{name} must not read as snow: raw lum {:.4}, graded lum {:.4}, gate {g:.3}",
+                lum3(raw),
+                lum3(graded)
+            );
+        }
+    }
+
+    /// The shader's un-grade is a CLOSED FORM inverse of `land_gain`, so it is
+    /// only correct while `land_gain` keeps its shape. This is the lockstep
+    /// guard: sweep the whole colour domain the bake can produce, forward
+    /// through the REAL `grade_albedo`, back through the twin, and require the
+    /// raw value to come back. Any edit to the gain, the knee, the exponent or
+    /// the vegetation lift fails here rather than silently un-selecting a
+    /// material six months later.
+    #[test]
+    fn ground_ungrade_exactly_inverts_the_shipped_bake() {
+        use crate::terrain::planet_surface as ps;
+        // The closed form squares the graded luminance to undo the shadow
+        // lift, which is only the inverse of a SQUARE ROOT.
+        assert!(
+            (ps::LAND_SHADOW_EXP - 0.5).abs() < 1e-6,
+            "20-surface-detail.wgsl's ground_ungrade assumes LAND_SHADOW_EXP == 0.5; \
+             it is now {}. Re-derive the inverse (l_raw = (lg / (a*knee^e))^(1/(1-e)) * knee) \
+             before changing this constant.",
+            ps::LAND_SHADOW_EXP
+        );
+        let src = crate::renderer::shader_loader::assembled_pbr_source();
+        assert!(
+            (wgsl_const(src, "GROUND_LAND_GAIN", "f32") - ps::LAND_ALBEDO_GAIN).abs() < 1e-6,
+            "GROUND_LAND_GAIN drifted from planet_surface::LAND_ALBEDO_GAIN"
+        );
+        assert!(
+            (wgsl_const(src, "GROUND_LAND_KNEE", "f32") - ps::LAND_SHADOW_KNEE).abs() < 1e-6,
+            "GROUND_LAND_KNEE drifted from planet_surface::LAND_SHADOW_KNEE"
+        );
+
+        let def = earth_def();
+        let sea = def.sea_level.clamp(0.0, 1.0);
+        let mut worst = 0.0f32;
+        let mut worst_at = [0.0f32; 3];
+        // Sweep brightness across four decades and hue from red-dominant
+        // (desert) through neutral to strongly green-dominant (canopy), which
+        // spans every regime of land_gain including both sides of its knee.
+        for i in 0..40 {
+            let base = 0.001 * (10.0f32).powf(i as f32 / 13.0);
+            for j in 0..9 {
+                let g_bias = 0.6 + 0.2 * j as f32;
+                let raw = [base, (base * g_bias).min(1.0), base * 0.45];
+                let graded = ps::grade_albedo(&def, raw, sea + 0.05, 0.3);
+                // A channel that clipped at 1.0 is unrecoverable by
+                // construction (information destroyed at bake); the snow gate
+                // owns that regime.
+                if graded.iter().any(|&c| c >= 0.999) {
+                    continue;
+                }
+                let back = ungrade(graded);
+                let err = (lum3(back) - lum3(raw)).abs() / lum3(raw).max(1e-9);
+                if err > worst {
+                    worst = err;
+                    worst_at = raw;
+                }
+            }
+        }
+        assert!(
+            worst < 2.0e-3,
+            "ground_ungrade no longer inverts grade_albedo: {:.4}% error at raw {worst_at:?}",
+            worst * 100.0
+        );
+    }
+
+    /// `ground_ungrade` is applied UNCONDITIONALLY, which is only sound
+    /// because every planet that can reach the ground classifier is a graded
+    /// one. The chain: the classifier needs `has_tex`, `has_tex` needs a baked
+    /// albedo texture, and `engine::net_route` only bakes one when the planet
+    /// ships BOTH a heightmap and an albedo grid -- and `grade_albedo` returns
+    /// raw imagery untouched when `has_water` is false.
+    ///
+    /// So the day someone gives Mars a heightmap, the Mars ground would be
+    /// un-graded a second time and lose ~91% of its sand (measured against
+    /// mars_albedo.bin). This test is the tripwire for that day. If it fires,
+    /// the fix is to pass a "was graded" flag into `ground_detail` rather than
+    /// to weaken the assertion.
+    #[test]
+    fn only_graded_planets_can_reach_the_ground_classifier() {
+        let dir = repo_file("data/planets");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).expect("data/planets must exist") {
+            let path = entry.expect("readable dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("ron") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(def) = ron::from_str::<crate::terrain::planet::PlanetDef>(&text) else {
+                continue;
+            };
+            checked += 1;
+            if def.heightmap.is_some() && def.albedo.is_some() {
+                assert!(
+                    def.has_water,
+                    "{}: ships both grids, so it reaches ground_detail, but has_water is \
+                     false -- its imagery is NOT land-gain graded and ground_ungrade would \
+                     corrupt its classification. See the note on ground_ungrade in \
+                     assets/shaders/pbr/20-surface-detail.wgsl.",
+                    path.display()
+                );
+            }
+        }
+        assert!(checked >= 4, "expected to inspect every planet def, saw {checked}");
     }
 
     /// The whole point of the geometric normalization: whatever the material's

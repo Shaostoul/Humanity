@@ -1,5 +1,109 @@
 // ── Fragment Shader ──
 
+// ══ SKY IRRADIANCE (v0.1104) ═════════════════════════════════════════════
+// The engine had NO indirect light. Every surface not facing the sun fell to
+// `albedo * 0.005` - a silhouette floor, 0.6% of a lit face - plus one
+// N.L-gated fill light whose direction was a WORLD-FIXED constant
+// (-0.5, 0.3, -0.3), so on a rotating true-scale planet it swung below the
+// local horizon over a day and lit whole classes of surface not at all. That
+// single missing term is why shaded sides read as black holes rather than as
+// sky-blue shade, and it is upstream of most of the rest of the look.
+//
+// WHAT REPLACES IT. The sky-view LUT for THIS frame is already bound at
+// @group(3) @binding(13) (Hillaire table, rendered per frame from
+// renderer::sky_view, CPU twin `atmo_luts::sky_view_radiance`). It IS the
+// distant-sky radiance at the camera's altitude and sun elevation. A
+// Lambertian surface under a hemisphere of radiance L reflects exactly
+// `albedo * L` (E = pi*L, reflected = rho*E/pi), so the sky's own table is
+// the physically correct source for indirect light - no new binding, no new
+// pass, no new uniform.
+//
+// TWO-LOBE HEMISPHERIC, AND WHY THAT IS A RUNG AND NOT A PLACEHOLDER. The end
+// state is 3-band spherical harmonics projected from the same table on the CPU
+// (Ramamoorthi + Hanrahan, "An Efficient Representation for Irradiance
+// Environment Maps", SIGGRAPH 2001): 9 RGB coefficients, one uniform write per
+// frame, evaluated at THIS call site against THIS normal. The hemispheric form
+// below is the order-1 truncation of exactly that expansion, from exactly that
+// data, at exactly that site - upgrading it means replacing the two taps with
+// a 9-coefficient evaluation and changing nothing else. It is a rung of the
+// real architecture, which is the only kind of intermediate this project
+// accepts (CLAUDE.md, realistic-first).
+//
+// EXPOSURE, DERIVED NOT GUESSED. The DRAWN sky uses SKY_LUT_EXPOSURE = 15,
+// which is a display choice tuned so the sky looks right after ACES, not a
+// lighting calibration - taken literally it would deliver 65% of the sun's
+// peak diffuse as ambient and flatten the world. The lighting exposure comes
+// from the sun instead:
+//   - a white Lambert face in full sun returns 2.5/PI = 0.796 (evaluate_light)
+//   - real clear-sky diffuse horizontal irradiance is ~15% of direct at high
+//     sun (~150 W/m^2 against ~850), so the ambient should return ~0.119
+//   - the 2-tap hemisphere average of the raw table at a noon sun measures
+//     0.03256 green (renderer::sky_ambient::tests, run against the CPU twin)
+//   - 0.119 / 0.03256 = 3.66, so the LIGHTING exposure is 3.6, i.e. 0.24x the
+//     drawn-sky exposure. That is this constant.
+// Measured consequence: a fully shadowed up-facing surface at noon keeps
+// 12.8% of its sunlit value, and does so in SKY BLUE - the physical target
+// (0.10-0.20, blue) that the 0.6 shadow strength used to miss at 0.41-0.43.
+const SKY_AMBIENT_LUT_SCALE: f32 = 0.24; // = 3.6 / SKY_LUT_EXPOSURE(15.0)
+// Cosine-weighted share of the upper hemisphere carried by the zenith tap; the
+// rest is the horizon band. A Lambert surface weights the zenith ~2x the
+// horizon, and the horizon tap is what carries the sunset colour into the
+// shade (measured: 0.19/0.15/0.11 warm at an 8 degree sun, against a
+// 0.06/0.11/0.14 blue zenith at the same moment).
+const SKY_ZENITH_W: f32 = 0.65;
+// Ground-bounce lobe = sky irradiance times a mean terrestrial hemispherical
+// albedo. 0.22 is the global land mean (vegetation 0.15-0.25, soil 0.20-0.30);
+// snow and sand are higher, which is a per-material refinement the SH upgrade
+// can carry properly.
+const SKY_GROUND_BOUNCE: f32 = 0.22;
+// The pre-v0.1104 ambient, kept EXACTLY, as a floor. Not nostalgia: the sky
+// pads are written only by the celestial pass, so ship interiors and deep
+// space have no sky term at all, and a bare replacement would set their
+// ambient to zero and delete the deliberate silhouette floor that keeps unlit
+// faces from vanishing into tone-mapping artefacts against the starfield.
+const AMBIENT_FLOOR: vec3<f32> = vec3<f32>(0.005, 0.005, 0.006);
+
+// Cosine-weighted mean sky radiance arriving at a surface with normal `n`
+// under local up `up`, in the same render units the sun light uses.
+// Returns EXACTLY zero when there is no sky (no table this frame, or no local
+// up - see the floor above).
+fn sky_ambient(n: vec3<f32>, up: vec3<f32>) -> vec3<f32> {
+    // params2.y = "the sky-view table was rendered this frame", the same gate
+    // the atmosphere and the water mirror use.
+    if (shadow_u.params2.y < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    // No local up means this draw is not under a sky: the interior passes'
+    // full uniform write zeroes the pad that carries it (which is also why
+    // rooms never fog). Rooms and space keep the floor.
+    if (dot(up, up) < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    let up_n = normalize(up);
+    // Horizon tap at 90 degrees of azimuth from the sun: the azimuthal MEAN of
+    // the horizon band. Taking it toward the sun instead over-weights the
+    // forward-scatter lobe and turns a sunset's shade 7:1 orange.
+    let sun = normalize(camera.sun_direction.xyz);
+    let sun_h = sun - up_n * dot(sun, up_n);
+    let ref_a = select(vec3<f32>(0.0, 0.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), abs(up_n.z) > 0.9);
+    var hor = normalize(cross(up_n, ref_a));
+    if (dot(sun_h, sun_h) > 1.0e-8) {
+        hor = normalize(cross(up_n, normalize(sun_h)));
+    }
+    // water_sky_lut is the ONE sky-table fetch in this shader (part 20). Reuse
+    // it rather than open a third copy of the Hillaire parameterization - the
+    // two that exist already carry a LOCKSTEP note. Its own exposure is the
+    // drawn-sky one, so scale to the lighting exposure derived above.
+    let l_zen = water_sky_lut(up_n, up_n) * SKY_AMBIENT_LUT_SCALE;
+    let l_hor = water_sky_lut(hor, up_n) * SKY_AMBIENT_LUT_SCALE;
+    let sky = l_zen * SKY_ZENITH_W + l_hor * (1.0 - SKY_ZENITH_W);
+    let ground = sky * SKY_GROUND_BOUNCE;
+    // Order-1 SH in disguise: up-facing sees the sky, down-facing sees the
+    // bounce, everything between interpolates.
+    let w = 0.5 + 0.5 * clamp(dot(normalize(n), up_n), -1.0, 1.0);
+    return ground + (sky - ground) * w;
+}
+
 // ── Aerial perspective, shared (v0.1053) ──
 // Was inline in fs_main's tail only, which meant the WATER shell never got it:
 // the type-16 branch early-returns hundreds of lines earlier. So distant waves
@@ -42,7 +146,42 @@ fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
         camera.light2_cone_inner.z,
         camera.light2_cone_inner.w,
     );
-    return color_in * t_aer + sky_aer * (1.0 - t_aer);
+    // ── MIE PHASE FUNCTION ON THE IN-SCATTER (v0.1104) ──
+    // Until now the in-scattered term was ONE CPU constant per frame, so the
+    // haze looking INTO the sun and the haze 180 degrees away were bit-
+    // identical. The only view dependence in the whole path was the
+    // azimuthally symmetric slant cap above. Real fog and dust are strongly
+    // forward-scattering (Mie asymmetry g ~ 0.85), the forward lobe runs 10-100x
+    // the backward one, and that asymmetry IS the bright halo around the sun
+    // that makes fog read as fog rather than as flat grey paint.
+    //
+    // ENERGY-CONSERVING BY CONSTRUCTION, which is what keeps this safe.
+    // cloud_phase is the engine's dual-lobe Henyey-Greenstein written in
+    // RELATIVE normalization, so its average over the sphere is exactly 1.0
+    // (verified numerically: 1.00000 over 400k samples; forward:back = 9.12).
+    // Multiplying by it therefore REDISTRIBUTES the in-scattered energy by
+    // direction without changing how much there is.
+    //
+    // THE TRAP THIS AVOIDS. sky_aer is the sole carrier of the per-condition
+    // weather tint (src/lib.rs: Fog grey-blue, Sandstorm 0.62/0.46/0.28, Snow,
+    // Storm, Rain) AND of the day factor that makes night fog black
+    // (BUG-057 #4). Any formulation that MIXES it away against a freshly built
+    // ambient+direct pair renders a sandstorm blue and undoes v0.1060. Here it
+    // is a multiplicand and can never be mixed away: tint, day factor and
+    // total energy are all bit-preserved when the phase gain is 1.
+    let vdir = aer_vec / aer_dist;
+    let phase = cloud_phase(dot(vdir, normalize(camera.sun_direction.xyz)));
+    // Only the SINGLY scattered fraction still remembers where the sun is;
+    // light that has bounced several times arrives isotropically. Optically
+    // thin clear air is mostly single-scatter, dense fog is not - so the halo
+    // is crisp in haze and soft in a whiteout, which is how it looks in life.
+    // Clear-air sigma is 2.2e-5 /m; fog sigma is ln(50)/60 = 0.065 /m.
+    let dense = smoothstep(1.0e-4, 5.0e-3, aer_sigma);
+    let ss_frac = mix(0.55, 0.30, dense);
+    // Gains at these fractions: 3.5x straight at the sun, 0.79x opposite it
+    // (clear air); 2.4x / 0.88x (dense fog).
+    let dir_gain = 1.0 + (phase - 1.0) * ss_frac;
+    return color_in * t_aer + sky_aer * dir_gain * (1.0 - t_aer);
 }
 
 // ── Underwater extinction (v0.1054) ──
@@ -574,6 +713,28 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // the planet-surface branch sets it (v0.1052 terminator gate); everything
     // else - ship interiors, props, the other bodies - is unaffected.
     var sun_gate = 1.0;
+    // ── AMBIENT OCCLUSION, OFF ALBEDO (v0.1104) ──
+    // Two branches used to fold their cavity occlusion straight into albedo
+    // (ground detail, baked bark), both with a comment admitting why: "the
+    // shared PBR tail has no AO input on this path". It has one now. Darkening
+    // albedo attenuates the SUN exactly as much as it attenuates the sky,
+    // which no occlusion term should ever do - a crevice is shielded from the
+    // hemisphere, not from a collimated beam it happens to face. This is
+    // consumed by the indirect term at the bottom of fs_main and by nothing
+    // else. (SSAO into the same slot is a separate job: it needs the SSAO
+    // texture bound into group 3, i.e. three create_bind_group sites.)
+    var ao = 1.0;
+    // Local up for this fragment, for the sky-irradiance term. Default is the
+    // camera's radial up (light3_cone_inner.yzw, published every frame by
+    // lib.rs) which is right for anything within a few km of the camera -
+    // trees, props, grass, machines. The planet-surface branch overwrites it
+    // per fragment, because that one pass draws the whole disc from orbit and
+    // a single camera-relative up would be wrong across most of it.
+    var frag_up = vec3<f32>(
+        camera.light3_cone_inner.y,
+        camera.light3_cone_inner.z,
+        camera.light3_cone_inner.w,
+    );
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
     // Emissive strength normally rides in params.w -- but material type 12
@@ -779,12 +940,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // banding uniformly, which is the other half of reading as bark.
         roughness = clamp(0.98 - 0.30 * bk.a, 0.55, 0.99);
         // Contact-scale ambient occlusion, straight off the height channel.
-        // Multiplying albedo (rather than an ambient-only term) is deliberate
-        // and stated: it darkens sun and sky identically, so the pattern is
-        // visible in both the lit and the shaded thirds of a trunk and cannot
-        // deepen on the sunlit side. The trade is that a separately-controlled
-        // ambient-only AO would need a second channel, i.e. a second texture.
-        albedo = albedo * (0.72 + 0.28 * bk.a);
+        // v0.1104: this used to multiply ALBEDO, with a comment defending that
+        // as deliberate ("it darkens sun and sky identically"). It is not
+        // defensible now that the tail has a real AO input and a real indirect
+        // term: darkening albedo makes a fissure absorb less DIRECT sun, which
+        // no occlusion does. A fissure is shielded from the sky and lit
+        // normally by whatever beam reaches it, and the relief normals above
+        // already shade it correctly against the sun.
+        ao = 0.72 + 0.28 * bk.a;
     }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
@@ -974,7 +1137,12 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         {
             let rad_w = in.world_position - material.base_color.xyz;
             let rl = max(length(rad_w), 1.0);
-            let mu_geo = dot(rad_w / rl, normalize(camera.sun_direction.xyz));
+            // PER-FRAGMENT up (v0.1104): the same radial the terminator gate
+            // needs is exactly what the sky-irradiance term needs, and this is
+            // the one place in the shader where a planet-scale fragment knows
+            // its own up. rl is at least 1, so this is already unit length.
+            frag_up = rad_w / rl;
+            let mu_geo = dot(frag_up, normalize(camera.sun_direction.xyz));
             sun_gate = smoothstep(TERRAIN_TERMINATOR_LO, TERRAIN_TERMINATOR_HI, mu_geo);
         }
         // params.w REPURPOSED for this type as a BIT FIELD (v0.816; a
@@ -1164,12 +1332,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 let g_y = (inv_m * vec4<f32>(wp_dy, 0.0)).xyz;
                 let gd = ground_detail(img, pt, dir, normal, up_w, g_x, g_y, footprint);
                 if (gd.presence > 0.003) {
-                    // AO multiplies albedo rather than the ambient term: the
-                    // shared PBR tail has no AO input on this path (that needs
-                    // the depth prepass tracked in PRIORITIES), and folding
-                    // centimetre-scale cavity occlusion into albedo is the
-                    // standard cheap stand-in.
-                    albedo = albedo * gd.albedo_mul * gd.ao;
+                    // v0.1104: gd.ao now goes to the tail's `ao` input instead
+                    // of into albedo. Folding it into albedo dimmed the DIRECT
+                    // sun by the same factor as the sky, which is wrong for
+                    // every fragment in sunlight - a millimetre-deep cavity
+                    // that faces the sun is fully lit and only loses part of
+                    // its sky. The visible effect is smaller than it used to
+                    // be, and that is the correct outcome: indirect light is
+                    // ~13% of a sunlit surface, so cavity occlusion should be
+                    // a subtle shading cue, not a paint layer.
+                    albedo = albedo * gd.albedo_mul;
+                    ao = gd.ao;
                     normal = gd.normal;
                     roughness = mix(roughness, gd.roughness, gd.presence);
                 }
@@ -1568,7 +1741,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     var lo = evaluate_light(
         camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
         normal, view_dir, albedo, metallic, roughness, f0)
-        * sun_shadow(in.world_position, sun_ndl)
+        * sun_shadow_offset(in.world_position, sun_ndl, normal)
         * sun_gate;
 
     // Evaluate fill light (from camera uniforms)
@@ -1649,11 +1822,16 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         }
     }
 
-    // Ambient (near-zero so space is truly black and the sun is the only
-    // light source). A thin floor prevents absolute black so unlit faces
-    // still have a subtle silhouette against the starfield instead of
-    // vanishing into artefacts from tone mapping.
-    let ambient = albedo * vec3<f32>(0.005, 0.005, 0.006);
+    // ── INDIRECT LIGHT (v0.1104) ──
+    // Real sky irradiance from the per-frame sky-view table (see sky_ambient
+    // at the top of this file), floored at the old constant so ship interiors
+    // and deep space - where there is no sky and the pads that carry it are
+    // zeroed - keep exactly the silhouette floor they had. With sky = 0 this
+    // expression is bit-identical to the pre-v0.1104 line it replaces; the
+    // Rust twin renderer::sky_ambient asserts that.
+    //
+    // AO multiplies ONLY this term. It is occlusion of the HEMISPHERE.
+    let ambient = albedo * max(sky_ambient(normal, frag_up), AMBIENT_FLOOR) * ao;
 
     var color = ambient + lo;
 

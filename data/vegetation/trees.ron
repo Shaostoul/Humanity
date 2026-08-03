@@ -199,6 +199,9 @@
             leaf_color: (0.12, 0.28, 0.13),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // Scots pine carries a more slender bole than fir.
+            slenderness: 48.0,
             // Pinus, the two-needle group (sylvestris / densiflora / nigra),
             // which is what a 16 m unspecified "Pine" on a global lat band is.
             // NOTHING about this is the fir with different numbers:
@@ -267,6 +270,9 @@
             leaf_color: (0.22, 0.40, 0.18),
             blossom_color: (0.97, 0.72, 0.80),
             blossom_frac: 0.82,
+            // Height/diameter ratio, overriding the growth form default.
+            // Yoshino cherry is stout for its height - short and wide-crowned.
+            slenderness: 32.0,
             // Prunus x yedoensis: ovate-lanceolate, 8-12 cm long by 4-5 cm
             // wide (aspect ~0.45, NOT the 0.70 the generic broadleaf width
             // gave it), widest just below the middle, sharply serrate margin,
@@ -377,6 +383,9 @@
             leaf_color: (0.30, 0.34, 0.12),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // Acer palmatum is fine-stemmed.
+            slenderness: 38.0,
             // Acer palmatum. THE most recognisable leaf outline of any tree in
             // this registry, and the reason "palmate" exists as a shape: 5-7
             // lobes radiating from the petiole, each lanceolate and drawn to a
@@ -465,6 +474,9 @@
             leaf_color: (0.16, 0.34, 0.13),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // The canonical stout, open-grown, spreading oak.
+            slenderness: 32.0,
             // Quercus robur. Pinnately lobed: one blade cut into 4-6 pairs of
             // ROUNDED lobes with deep sinuses, widest well ABOVE the middle
             // (obovate - this is the cue that reads as "oak" even in
@@ -584,6 +596,11 @@
             leaf_color: (0.26, 0.45, 0.16),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // Betula pendula is the slenderest bole in the registry (real
+            // 0.20-0.28 m DBH at 14 m). The broadleaf default of 35 gives 0.40 m
+            // - an oak wearing birch bark.
+            slenderness: 58.0,
             // Betula pendula. Ovate-TRIANGULAR: broad and almost straight
             // across near the base, then two nearly straight sides converging
             // to a long drawn-out point, with a doubly serrate margin (big
@@ -671,6 +688,9 @@
             leaf_color: (0.20, 0.32, 0.12),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // Vachellia tortilis: a short stout bole under a flat crown.
+            slenderness: 26.0,
             // Vachellia (Acacia) tortilis. NOT one blade at all: the whole
             // leaf is a BIPINNATE FROND - a central rachis carrying pinna
             // pairs, and every pinna carrying its own row of leaflet pairs a
@@ -711,14 +731,14 @@
             // That is the "branches look like plumbing" report, and it is
             // upstream of everything here: a card is sized to sleeve a twig,
             // so a twig 4.5x too fat demands a card too big for its own
-            // foliage. Fixing the radius/taper model is its own increment;
-            // this block lands the moment it does, with the values below
-            // (which were measured and are kept verbatim for that hand-off).
+            // foliage. Fixing the radius/taper model is its own increment.
             //
-            // clusters: Some((
-            /*
-            (
-                DEFERRED - see the taper note above. Verbatim values, measured.
+            // THAT INCREMENT LANDED (v0.1103, real allometry): acacia terminal
+            // twigs now measure 4.0 mm radius / 8 mm across, against the
+            // gate's 10 mm ceiling and the ~5 mm of a real last-year shoot.
+            // So the block below is live, exactly the values measured during
+            // the deferral.
+            clusters: Some((
                 // 2.0, the sparsest crown in the registry, and it should be.
                 // A savanna acacia is an open parasol - the whole silhouette
                 // is sky seen through a thin horizontal plate of feathery
@@ -754,15 +774,23 @@
                 // Inert (`blossom_frac: 0.0`), but real: acacia flowers as
                 // small cream-white spherical puffs of stamens, ~1 cm.
                 blossom: (
-                    size_m: 0.10,
+                    // 0.18, not 0.10. The bake measured the sprite at 0.166 m
+                    // against a 0.100 m card - 1.66x, over the 1.5x fit gate.
+                    // A puff cluster is simply bigger than one puff.
+                    size_m: 0.18,
                     coverage: 0.18,
                     cards_per_sleeve: 3,
                     sleeve_spacing_m: 0.08,
-                    sprite_elements: 8,
+                    sprite_elements: 6,
                     sprite_runs: 4,
                 ),
                 flower_size_m: 0.010,
-                flowers_per_umbel: 30,
+                // 14, not 30. A real tortilis puff carries far more stamens
+                // than that, but the bake measured 34,560 triangles for a
+                // layer that never renders (blossom_frac 0.0) and whose
+                // stamens are sub-texel at any card size. Count is not the
+                // silhouette here; the round puff is.
+                flowers_per_umbel: 14,
                 umbel_spacing_m: 0.012,
                 leaf_off_above_blossom_frac: 0.50,
                 bloom_leaf_area_share: 0.06,
@@ -771,8 +799,7 @@
                 // acacia's card mass is a thin plate, so there is less depth
                 // for it to be hidden in.
                 near_blade_tri_frac: 0.35,
-            )
-            */
+            )),
         ),
         // Wet-tropics palm.
         (
@@ -791,6 +818,9 @@
             leaf_color: (0.16, 0.36, 0.14),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Height/diameter ratio, overriding the growth form default.
+            // Coconut-class stem.
+            slenderness: 34.0,
         ),
     ],
 )

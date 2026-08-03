@@ -125,6 +125,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/renderer/materials.rs", 500),
     ("src/renderer/tree_mesh.rs", 6_450),
     ("src/renderer/tree_species.rs", 750),
+    ("src/renderer/tree_allometry.rs", 560),
 ];
 
 #[test]

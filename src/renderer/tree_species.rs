@@ -253,7 +253,10 @@ pub(super) fn broadleaf(
     // broadleaf loses apical dominance in the crown, so the leader thins hard
     // and the topmost laterals close over it.
     let leader_frac = rng.range(0.82, 0.88);
-    let r_base = h * 0.030;
+    // Real allometry, not a flat fraction of height (v0.1103): an 18 m oak
+    // gets a 0.51 m DBH where `h * 0.030` gave it 1.08 m. `trunk` adds the
+    // root flare on top, so the DRAWN butt is `TRUNK_FLARE_PEAK` of this.
+    let r_base = stem_base_radius(def, h);
     let lean = norm([rng.range(-0.06, 0.06), 1.0, rng.range(-0.06, 0.06)]);
     let stem_len = h * leader_frac;
     // r_top_frac 0.26: chosen so the stem still reads 0.74 of its base radius
@@ -351,7 +354,8 @@ pub(super) fn conifer(
 ) {
     // A single straight leader with whorls of short, steeply drooping branches
     // that shorten toward the top: the classic conical silhouette.
-    let r_base = h * 0.022;
+    // v0.1103: a 22 m fir is a 0.50 m DBH, not the 0.97 m `h * 0.022` drew.
+    let r_base = stem_base_radius(def, h);
     let top = [0.0, h, 0.0];
     // Leader radius at height fraction `f`, so a whorl branch can size itself
     // against the trunk it leaves instead of against the trunk BASE. With the
@@ -407,14 +411,20 @@ pub(super) fn conifer(
             // branches, and the collar closes the join without it.
             let j = Junction { axis: [0.0, y, 0.0], up: [0.0, 1.0, 0.0], r: lr, tip: false };
             // One flared run (v0.1099): a whorl branch leaves a fir's leader
-            // with the same swollen collar every other junction has. The
-            // whorl's radius fractions are left alone - a conifer sheds ~45
-            // branches off ONE continuous leader rather than forking, so the
-            // pipe model has nothing to say here and 0.42 of the local leader
-            // is already a measured-looking stub.
-            let tip_r = lr * 0.14;
+            // with the same swollen collar every other junction has.
+            //
+            // SIZED FROM ITS OWN LENGTH, NOT FROM THE LEADER (v0.1103). A
+            // whorl branch is a LATERAL - the leader keeps going and loses no
+            // wood to it - so the pipe model applies to the leaf area the
+            // branch itself carries, making basal diameter proportional to
+            // branch length (`lateral_branch_radius`). Measured: the `lr * 0.42`
+            // this replaces gave a 22 m fir's bottom branch a 331 mm base
+            // against a real 81, and `lr * 0.14` ended them at 110 mm where a
+            // real branch tip is 8.
+            let br = lateral_branch_radius(blen, lr, 0.6);
+            let tip_r = limb_tip_radius(br, 0, 0);
             let (root, tip) =
-                b.flared_run(j, LimbShape::new(j, d, blen, lr * 0.42, tip_r, 4), def.trunk_color);
+                b.flared_run(j, LimbShape::new(j, d, blen, br, tip_r, 4), def.trunk_color);
             // THE TWIG A WHORL BRANCH IS (v0.1102). Same contract `limb` fills,
             // field for field, because the card planner must not be able to
             // tell the forms apart: `from` is the ROOT RING on the leader's
@@ -468,7 +478,8 @@ pub(super) fn umbrella(
     // level crown. The giveaway is that the crown is WIDER than the tree is
     // tall and its underside is flat.
     let bole = h * rng.range(0.52, 0.62);
-    let r_base = h * 0.034;
+    // v0.1103: a 9 m tortilis is a 0.32 m DBH, not the 0.61 m `h * 0.034` drew.
+    let r_base = stem_base_radius(def, h);
     let top = [0.0, bole, 0.0];
     let bole_reps = b.open_bark_run(r_base);
     b.bark_tube(
@@ -499,17 +510,19 @@ pub(super) fn umbrella(
     //
     // Through v0.1098 each of the FIVE primaries left the bole at exactly the
     // bole's own tip radius: five limbs each as thick as the trunk they came
-    // out of, i.e. five times the cross-sectional area of the wood feeding
-    // them. On a 9 m acacia that is a 0.40 m bole splitting into five 0.40 m
-    // limbs, and no flare, collar or poly count can make that read as a tree -
-    // it reads as a pipe manifold, which is exactly "gets very wide shortly
-    // after". The pipe model gives 5^(-1/2.3) = 0.50, so a primary's SHAFT is
-    // 0.20 m across where it was 0.40, and its flared weld is 0.29 m - visibly
-    // narrower than the bole it leaves, which is what a real umbrella crown
-    // looks like from underneath. The tip/base ratios of the primary (0.52) and
-    // the fan (0.35) are unchanged, so the limbs still taper as they did.
+    // out of, five times the cross-sectional area of the wood feeding them - a
+    // pipe manifold, which is exactly "gets very wide shortly after". The pipe
+    // model gives 5^(-1/2.3) = 0.50, so a primary's shaft is half the bole's
+    // width and its flared weld is visibly narrower than the bole it leaves.
+    //
+    // The PRIMARY keeps its 0.52 tip ratio (v0.1103): a 3 m structural limb
+    // with a whole fan of crown still to feed must not taper to a shoot, and
+    // 0.105 m across at the bole falling to 0.055 m at the elbow is a real
+    // acacia scaffold. The FAN's 0.35 did NOT survive - it ended a crown fan at
+    // 11.3 mm of radius against a real last-year shoot at 3-8 mm ACROSS - so
+    // the fan goes through `limb_tip_radius` like every other terminal limb,
+    // which is what unblocks this species' cluster cards.
     let primary_tip_frac = 0.52;
-    let fan_tip_frac = 0.35;
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.3, 0.3);
         // Steeply out, barely up.
@@ -529,7 +542,7 @@ pub(super) fn umbrella(
             let d2 = tilt([0.0, 1.0, 0.0], rng.range(80.0, 94.0), p2);
             let flen = h * rng.range(0.16, 0.26);
             let f_r0 = fork_child_radius(p_r1, 3);
-            let f_r1 = f_r0 * fan_tip_frac;
+            let f_r1 = limb_tip_radius(f_r0, 0, 0);
             let (root, tip) = b.flared_run(
                 elbow,
                 LimbShape::new(elbow, d2, flen, f_r0, f_r1, 4),
@@ -579,7 +592,10 @@ pub(super) fn palm(
     // unbranched stem with a crown of fronds at the top, and an old palm is
     // not a fatter palm. Modelled as a gently curved stack of segments.
     let segs = 7;
-    let r_base = h * 0.028;
+    // v0.1103: a 12 m palm is a 0.33 m stem, not the 0.67 m `h * 0.028` drew -
+    // and because a palm has no secondary thickening, a TALLER one of the same
+    // species is not a thicker one (`form_diameter_exponent` is 0 here alone).
+    let r_base = stem_base_radius(def, h);
     let curve = rng.range(-0.10, 0.10);
     let mut p = [0.0f32, 0.0, 0.0];
     let mut d = norm([curve, 1.0, rng.range(-0.08, 0.08)]);
@@ -676,7 +692,13 @@ fn pinnate_frond(
     let mut tube_r = 0.0f32;
     for s in 0..SEGS {
         let seg = len / SEGS as f32;
-        let r = |f: f32| len * 0.018 * (1.0 - f) + len * 0.003;
+        // THE RACHIS IS A STALK, NOT A BRANCH (v0.1103). `len * 0.021` at the
+        // base put a 4 m coconut frond's stalk 17 cm ACROSS - a small tree -
+        // and `len * 0.003` ended it at 24 mm where a real rachis tip is 5-8.
+        // A coconut petiole is 8-10 cm across at the sheath and tapers to a few
+        // millimetres: 1% of frond length at the base, shoot scale at the tip.
+        let tip_r = TWIG_TIP_R_M * 0.75;
+        let r = |f: f32| (len * 0.010 - tip_r).max(0.0) * (1.0 - f) + tip_r;
         let (ra, rb) = (r(s as f32 / SEGS as f32), r((s + 1) as f32 / SEGS as f32));
         // Joint overshoot, same trick as the limb spine.
         tube_far = add(q, d, seg + rb * 0.8);

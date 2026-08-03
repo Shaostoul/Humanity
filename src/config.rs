@@ -442,6 +442,8 @@ pub struct AppConfig {
     /// by the sun. Off = the pre-v0.899 unshadowed look (cheaper).
     #[serde(default = "default_true")]
     pub sun_shadows: bool,
+    #[serde(default = "default_shadow_strength")]
+    pub shadow_strength: f32,
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
     pub godray_intensity: f32,
@@ -753,6 +755,11 @@ fn default_terrain_split_px() -> f32 { 4.0 }
 fn default_terrain_patch_budget() -> f32 { 3072.0 }
 fn default_terrain_detail_distance() -> f32 { 1.5 }
 fn default_godray_intensity() -> f32 { 0.55 }
+/// 1.0 = a full shadow receives NO direct sun and is lit by the sky-irradiance
+/// term alone, which is what a real shadow is. Was hardcoded at 0.6 until
+/// v0.1104, which left 40% of full sunlight - in the sun's own warm colour -
+/// inside every shadow, and no way to change it.
+fn default_shadow_strength() -> f32 { 1.0 }
 fn default_tree_model_distance() -> f32 { 120.0 }
 fn default_veg_density() -> f32 { 0.6 }
 fn default_gpu_particles() -> bool { true }
@@ -1082,6 +1089,7 @@ impl AppConfig {
             veg_density: state.settings.veg_density,
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
+            shadow_strength: state.settings.shadow_strength,
             godray_intensity: state.settings.godray_intensity,
             aerial_strength: state.settings.aerial_strength,
             ssao_strength: state.settings.ssao_strength,
@@ -1246,6 +1254,7 @@ impl AppConfig {
         state.settings.veg_density = self.veg_density.clamp(0.1, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, 3000.0);
         state.settings.sun_shadows = self.sun_shadows;
+        state.settings.shadow_strength = self.shadow_strength;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
         state.settings.aerial_strength = self.aerial_strength.clamp(0.0, 2.0);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);

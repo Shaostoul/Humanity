@@ -54,6 +54,18 @@ pub struct TreeDef {
     pub blossom_color: [f32; 3],
     /// Fraction of leaf clusters replaced by blossom clusters (0 = never).
     pub blossom_frac: f32,
+    /// STEM SLENDERNESS, `H/D` - height over diameter at breast height, both
+    /// in the same units. Forestry's h/d ratio, and the one number that says
+    /// how thick this species' trunk is (v0.1103). 0, the default, falls back
+    /// to the GROWTH FORM's law; see `tree_allometry::stem_base_radius`.
+    ///
+    /// It belongs in `data/vegetation/trees.ron` beside `height_m` because it
+    /// is a measurement of a species, not of a form: a savanna acacia (22-30),
+    /// an open-grown oak (25-40), a dominant fir (40-60) and a birch (55-75)
+    /// are four different trees, and that spread is most of what makes a mixed
+    /// stand read as a stand rather than as one tree at four scales.
+    #[serde(default)]
+    pub slenderness: f32,
     /// Cluster-card foliage (v0.1088). Absent = this species carries only the
     /// geometric blade layer, exactly as it did through v0.1087.
     #[serde(default)]
@@ -1563,7 +1575,7 @@ fn trunk(
     // a longer run - a short sharp flare reads as a rocket fin, not buttress
     // roots.
     let radius = |f: f32| {
-        let flare = 1.0 + 0.28 * (1.0 - (f / run).min(1.0)).powi(2);
+        let flare = 1.0 + (TRUNK_FLARE_PEAK - 1.0) * (1.0 - (f / run).min(1.0)).powi(2);
         r_base * (1.0 + (r_top_frac - 1.0) * f) * flare
     };
     // ONE bark repeat count for the whole stem, from its widest ring - the
@@ -2944,86 +2956,9 @@ fn surface_root(j: Junction, dir: [f32; 3], r0: f32) -> [f32; 3] {
     }
 }
 
-/// Radius the OUTERMOST generation of shoots ends at, metres (v0.1090).
-///
-/// A cherry, maple, oak or birch last-year shoot is 5-10 mm ACROSS. Through
-/// v0.1089 every limb tapered by a flat 0.68 per generation from a
-/// trunk-derived base, and nothing anywhere said what a twig is: an 8 m sakura
-/// ended its terminal shoots at 38 mm of RADIUS - 76 mm across, ten times life
-/// size, branch-sized plumbing. That is the single loudest reason the
-/// operator's v0.1088.4 close-up reads as bare tubes speared through the
-/// blossom instead of as one object: no amount of card cover hides a pipe that
-/// thick, and three of them fanning out of one junction visibly interpenetrate
-/// for their first 15 cm.
-///
-/// 0.004 m of radius = 8 mm across, the middle of the real range.
-const TWIG_TIP_R_M: f32 = 0.004;
-
-/// A limb this thin at its tip is a SHOOT, and shoots carry foliage (v0.1096).
-///
-/// Through v0.1095 foliage was keyed on `depth + 1 >= max_depth` - a GENERATION
-/// NUMBER - which only works while every limb in the tree is planned to the
-/// same depth. Once laterals get their own `max_depth` from their own length
-/// (see `generations_for`), a generation number stops meaning anything: a 4 m
-/// lower lateral's third generation is a 1.4 m branch and a 1.2 m upper
-/// lateral's third generation is a 30 cm shoot. Radius is the physical fact
-/// that does mean something, so it is what the rule reads. This is a WIDENING
-/// of the old rule, never a narrowing: the last two generations still carry
-/// foliage exactly as they did, and any limb that thins to a shoot earlier now
-/// carries it too, which is what fills a deep crown's interior instead of
-/// leaving a bald cone inside a shell of tips.
-const FOLIAGE_TIP_R_M: f32 = TWIG_TIP_R_M * 2.0;
-
-/// Length a terminal shoot should come out at, metres. See `generations_for`.
-const TERMINAL_SHOOT_M: f32 = 0.55;
-
-/// Mean length ratio between a limb and its children, measured off `limb`'s own
-/// `child_len` draws (0.62-0.78 early, 0.42-0.56 for the last two generations).
-const CHILD_LEN_MEAN: f32 = 0.60;
-
-/// How many generations a limb of `len_m` needs to end in a real shoot.
-///
-/// Length falls by roughly `CHILD_LEN_MEAN` per generation, so the count that
-/// lands on `TERMINAL_SHOOT_M` is `ln(len / shoot) / ln(1 / ratio)`. A 3 m
-/// lower lateral wants 3, a 1.3 m upper one wants 2 - which is the whole point
-/// of shedding laterals up a leader instead of fanning three equal primaries
-/// off one point: a short high lateral must not be subdivided as if it were a
-/// long low one, or the crown costs four times the wood for the same silhouette.
-///
-/// Clamped to 3 at the top ON PURPOSE, not for realism: each extra generation
-/// multiplies the twig count by ~2.45, and the twig count is what the cluster
-/// card planner spends. At 4 the card layer overruns `CARD_TRI_BUDGET` and the
-/// stretch backstop thins every sleeve to one station, which is exactly the
-/// bare-wood-at-the-junction defect v0.1090 removed. Measured, not guessed -
-/// the `[lai]` line in `cluster_cards_reach_target_lai_and_fit_the_budget`
-/// prints the card triangles every CI run.
-fn generations_for(len_m: f32) -> u32 {
-    let ratio = 1.0 / CHILD_LEN_MEAN;
-    let g = (len_m.max(TERMINAL_SHOOT_M) / TERMINAL_SHOOT_M).ln() / ratio.ln();
-    g.round().clamp(2.0, 3.0) as u32
-}
-
-/// Tip radius of a limb at `depth` whose base radius is `r0`.
-///
-/// GEOMETRIC toward `TWIG_TIP_R_M` across the generations that are left, so the
-/// species' own trunk scale still decides how thick a PRIMARY limb is while
-/// every tree, at every size, ends in a real twig. `max_depth` is the last
-/// generation built, so `max_depth - depth` generations follow this one.
-///
-/// On an 8 m sakura this runs 35 -> 14 -> 5.4 -> 2.0 -> 0.8 cm ACROSS, which is
-/// a cherry; on an 18 m oak, 80 -> 25 -> 8 -> 2.5 -> 0.8 cm, which is an oak.
-/// The flat 0.68 it replaces produced 26 -> 18 -> 12 -> 8 cm on the cherry:
-/// every generation nearly as fat as the one before it, which is a pipe organ.
-fn limb_tip_radius(r0: f32, depth: u32, max_depth: u32) -> f32 {
-    let left = max_depth.saturating_sub(depth);
-    if left == 0 {
-        // The terminal shoot itself: land ON the physical twig radius, and
-        // never taper UP if a species is small enough to start below it.
-        return TWIG_TIP_R_M.min(r0 * 0.55);
-    }
-    let ratio = (TWIG_TIP_R_M / r0.max(1e-4)).clamp(1e-4, 1.0);
-    (r0 * ratio.powf(1.0 / (left + 1) as f32)).max(TWIG_TIP_R_M)
-}
+// The radius and taper LAWS - what a stem, a limb, a fork and a shoot measure
+// in metres - live in `tree_allometry.rs` since v0.1103. This file is the
+// geometry kernel that draws them.
 
 // ── THE BRANCH BASE FLARE (v0.1099) ──────────────────────────────────────
 //
@@ -3179,15 +3114,22 @@ const FLARE_RINGS: u32 = 4;
 
 /// Junctions worth spending extra rings on, as a fraction of TREE HEIGHT.
 ///
-/// Self-scaling instead of an absolute metre threshold: a broadleaf's stem base
-/// is ~0.030 of its height, so this is "the top quarter of the tree's own
-/// radius range" - the structural forks you can walk up to. On an 8 m sakura
-/// that is 0.06 m of shaft (12 cm across), on a 22 m fir 0.165 m, on a 9 m
-/// acacia 0.068 m. Below it the flare still applies to the profile (it costs
-/// nothing to make the first ring wider), it is simply drawn as one straight
-/// ramp rather than a resolved curve, because a 2 cm twig's collar is a
-/// sub-pixel feature and the crown needs those triangles for leaves.
-const FLARE_RING_MIN_H_FRAC: f32 = 0.0075;
+/// Self-scaling instead of an absolute metre threshold: it is "the top quarter
+/// of the tree's own radius range" - the structural forks you can walk up to.
+/// Below it the flare still applies to the profile (it costs nothing to make
+/// the first ring wider), it is simply drawn as one straight ramp rather than
+/// a resolved curve, because a 2 cm twig's collar is a sub-pixel feature and
+/// the crown needs those triangles for leaves.
+///
+/// 0.0075 -> 0.0036 in v0.1103, and the constant did not change MEANING, only
+/// units: it was pinned to the old flat `r_base = height * 0.030`, and a real
+/// broadleaf stem (`stem_base_radius`) is 0.0143 of its height. Same quarter,
+/// same junctions resolved, same triangle cost - measured, the resolved count
+/// per species is unchanged. Leaving it at 0.0075 would have resolved NOTHING
+/// on any species (a sakura's biggest limb shaft is 0.053 m against a 0.060 m
+/// threshold), silently dropping every collar to one strip and taking gate 6
+/// of the flare gate with it.
+const FLARE_RING_MIN_H_FRAC: f32 = 0.0036;
 
 /// The flare a limb of shaft radius `r0` actually gets off a parent of radius
 /// `parent_r`: THE WELD IS NEVER WIDER THAN THE PARENT IT LEAVES.
@@ -3206,18 +3148,6 @@ const FLARE_RING_MIN_H_FRAC: f32 = 0.0075;
 fn flare_gain_at(r0: f32, parent_r: f32) -> f32 {
     let cap = parent_r.max(r0) / r0.max(1e-5) - 1.0;
     FLARE_GAIN.min(cap.max(0.0))
-}
-
-/// A limb's PLAIN TAPER radius `x` metres along its own spine from the root
-/// ring: what it would be with no base flare at all.
-///
-/// `r0` is the SHAFT radius (what the limb settles at once the flare has
-/// decayed), `r1` its tip radius, `len` its length. The flare rides on top of
-/// this per VERTEX (`Flare::mul`) rather than per station, because a real
-/// branch base is an ellipse - see the block comment.
-fn limb_base_radius_at(x: f32, len: f32, r0: f32, r1: f32) -> f32 {
-    let t = (x / len.max(1e-4)).clamp(0.0, 1.0);
-    r0 + (r1 - r0) * t
 }
 
 /// ONE LIMB'S DIRECTIONAL BASE FLARE: the ellipse its junction is drawn as.
@@ -3378,22 +3308,14 @@ fn ring_stations(len: f32, r0: f32, segs: u32, min_r: f32) -> Vec<f32> {
     out
 }
 
-/// Exponent of the pipe model (da Vinci's rule): the cross-sectional area of a
-/// limb equals the summed area of the limbs it forks into, so
-/// `r_parent^D = sum(r_child^D)`.
-///
-/// D = 2.0 is exact area conservation (Leonardo's own statement, and the pipe
-/// model of Shinozaki 1964); field measurements on temperate trees put it a
-/// little higher, 2.0-2.5, because a fork also has to be mechanically stiff.
-/// 2.3 is the middle of the measured band: a two-way fork's children are 0.74
-/// of the parent, a three-way 0.62, the acacia's five-way 0.50.
-const FORK_AREA_EXP: f32 = 2.3;
-
-/// Shaft radius of one of `siblings` limbs forking off a limb that ended at
-/// `parent_tip_r`.
-fn fork_child_radius(parent_tip_r: f32, siblings: u32) -> f32 {
-    parent_tip_r * (siblings.max(1) as f32).powf(-1.0 / FORK_AREA_EXP)
-}
+/// The RADIUS AND TAPER MODEL: how thick wood is, in metres. Its own file
+/// since v0.1103 (see the module header there for the allometry and its
+/// sources). A CHILD module for the same reason `tree_species` is - it needs
+/// `TreeDef`, and `tree_species` needs it - and re-exported here privately so
+/// both this file and `tree_species` name the laws the same way.
+#[path = "tree_allometry.rs"]
+mod tree_allometry;
+use tree_allometry::*;
 
 /// The crown builders, one per `form`: their own file since v0.1102 (see the
 /// module header there). `#[path]` keeps them a CHILD module of this one, so
@@ -3408,7 +3330,7 @@ use tree_species::{broadleaf, conifer, palm, umbrella};
 mod tests {
     use super::*;
 
-    fn registry() -> TreeRegistry {
+    pub(super) fn registry() -> TreeRegistry {
         let text = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/vegetation/trees.ron"),
         )
@@ -3599,7 +3521,7 @@ mod tests {
     /// Exactly the seed the two call sites use (`lib.rs` near-mesh build and
     /// `billboard_bake::bake_tree_atlas_from_registry`). Testing a species at a
     /// seed nobody ships would prove nothing about the meshes that ship.
-    fn shipped_seed(variant: u32) -> u32 {
+    pub(super) fn shipped_seed(variant: u32) -> u32 {
         variant.wrapping_mul(2_654_435_761)
     }
 
@@ -3611,7 +3533,7 @@ mod tests {
     /// conifer would have shipped unnoticed the moment a row flipped to
     /// procedural (and the release bundle, which carries no assets/models/,
     /// is exactly where that flip has to happen).
-    fn as_procedural(t: &TreeDef) -> TreeDef {
+    pub(super) fn as_procedural(t: &TreeDef) -> TreeDef {
         TreeDef { model: String::new(), ..t.clone() }
     }
 
@@ -4787,7 +4709,15 @@ mod tests {
     /// name the moment its row gains a `clusters:` block; `assert_card_gate_
     /// coverage` FAILS on a name that has one, so this list cannot rot in
     /// either direction.
-    const UNCARDED_SPECIES: &[&str] = &["fir", "pine", "acacia", "palm"];
+    /// Species with no `clusters` block, dated so the exemption cannot become
+    /// permanent by inattention. ACACIA CAME OFF THIS LIST in v0.1103: real
+    /// allometry took its terminal twigs from 11.3 mm radius to 4.0 mm, which
+    /// is what `cluster_cards_envelop_every_twig_tip` was rightly refusing.
+    /// Fir and pine are next and are blocked only on authoring their
+    /// needle-shoot ClusterDefs; palm needs its card sized deliberately (its
+    /// drawn element is a life-size 0.82 m coconut leaflet, so a palm card is
+    /// a ~2 m chunk of frond).
+    const UNCARDED_SPECIES: &[&str] = &["fir", "pine", "palm"];
 
     /// THE NON-VACUITY GUARD every card gate needs.
     ///
@@ -5570,6 +5500,38 @@ mod tests {
                     .save(&path)
                     .expect("write png");
             }
+            // THE BARE SKELETON (v0.1103): the whole tree, WOOD ONLY, framed on
+            // its own height at a fixed metres-per-pixel. It lives here rather
+            // than in `dump_crown_png` for two reasons: this test runs in 12 s
+            // where that one spends 5 minutes in sprite bakes, and that one
+            // draws the card layer OVER the wood, so the branches it is meant
+            // to show are hidden behind foliage in every shot.
+            //
+            // This is the view that answers "are the branches plumbing", and
+            // the one the radius work of this increment was judged on. Framed
+            // on `height_m` (not on a junction), so two runs at different
+            // constants are directly comparable pixel for pixel.
+            let px = 700usize;
+            let fwd = [1.0f32, 0.0, 0.0];
+            let right = norm(cross([0.0, 1.0, 0.0], fwd));
+            let cam_up = cross(fwd, right);
+            let (centre, span) = ([0.0, t.height_m * 0.5, 0.0], t.height_m * 0.58);
+            let mut buf = vec![18u8, 22, 34, 255].repeat(px * px);
+            let mut depth = vec![f32::MAX; px * px];
+            let project = |p: [f32; 3]| {
+                let rel = sub(p, centre);
+                (
+                    (dot(rel, right) / span * 0.5 + 0.5) * px as f32,
+                    (0.5 - dot(rel, cam_up) / span * 0.5) * px as f32,
+                    -dot(rel, fwd),
+                )
+            };
+            raster_mesh(&mut buf, &mut depth, px, &parts.wood, &project, fwd, WOOD_TINT);
+            image::RgbaImage::from_raw(px as u32, px as u32, buf)
+                .expect("size")
+                .save(dir.join(format!("wood_{}.png", t.id)))
+                .expect("write png");
+
             // The three numbers that say whether the flare is DIRECTIONAL, on
             // the drawn ring: the crotch, the flank, and the mean, each as a
             // multiple of the shaft radius.

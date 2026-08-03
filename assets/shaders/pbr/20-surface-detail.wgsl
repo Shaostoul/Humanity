@@ -325,15 +325,46 @@ const GROUND_MACRO_AMP: f32 = 0.55;
 // energy-neutral; crevices go down, ridges up.
 const GROUND_AO_AMOUNT: f32 = 0.75;
 
+// ── DEFERRED: make the grass TEXTURE agree with the grass STRANDS ─────────
+// The 3D sward is placed by `terrain::grass::grass_clump_gain`, so the ground
+// texture underneath it currently clumps somewhere else entirely: tufts stand
+// where the scatter says, and the painted grass modulates on its own macro
+// octave. Driving GROUND_TILE_M[0]'s macro term from the SAME field would
+// make the two agree and is the real next increment for forest/meadow floors.
+//
+// It does NOT fall out of this change, and mirroring the field naively here
+// would be the f32-at-planet-scale defect (CLAUDE.md) in its purest form.
+// `grass_clump_gain` is a value noise on a lat/lon lattice in RADIANS:
+// GRASS_FIELD_RAD = 1.2557e-6, coarse cell 0.22x = 2.76e-7 rad, fine cell
+// 0.09x = 1.13e-7 rad. One f32 ULP of longitude near the antimeridian is
+// 2.38e-7 rad -- 2.1x the ENTIRE fine cell and 1.2 ULP for the coarse one.
+// A WGSL mirror could not sample that lattice at all; it would alias.
+//
+// The real fix is to move the clump field itself off lat/lon radians and onto
+// the camera-anchored 64 m-modulus metre domain this file already uses (any
+// period dividing 64 m stays seamless across an anchor re-snap), so the CPU
+// scatter and the shader evaluate one identical field. That is an edit to
+// src/terrain/grass.rs plus a CPU/GPU lockstep test, and it MOVES EVERY CLUMP
+// ON THE PLANET, so it needs its own increment rather than riding this one.
+
 // Classifier thresholds. There is no per-fragment biome ID on this path, so
 // the NASA imagery IS the biome map -- the same principle the vegetation
 // scatter already uses ("Real Earth imagery is the planet-wide biome map for
-// free", planet_chunks.rs). Measured against the shipped earth_albedo.bin:
-// closed canopy (Fuji, Amazon, Congo, taiga) sits at linear luminance
-// 0.015-0.027 and is green-dominant; grassland, savanna and farmland sit at
-// 0.056-0.14 and are RED-dominant; desert runs 0.14-0.39. So luminance
-// separates forest floor from meadow, and the red/green ratio separates
-// vegetated from arid.
+// free", planet_chunks.rs).
+//
+// ── THESE LIVE IN *RAW* IMAGERY SPACE. READ ground_ungrade BELOW. ─────────
+// Measured directly out of the shipped data/planets/earth_albedo.bin (linear,
+// before any grading): closed canopy sits at luminance 0.009-0.028 and is
+// green-dominant (Fuji 0.0090, Pacific NW 0.0107, Congo 0.0157, taiga 0.0161,
+// Iowa 0.0284); grassland and savanna sit at 0.055-0.115 and are RED-dominant
+// (Great Plains 0.0553, Serengeti 0.0913, France 0.1146); desert runs to 0.42
+// (Sahara 0.4249). So luminance separates forest floor from meadow, and the
+// red/green ratio separates vegetated from arid.
+//
+// What the GPU actually samples is NOT that. `albedo_texture` holds the
+// GRADED bake, and the classifier undoes the grading before comparing. Do not
+// "recalibrate" these numbers against a graded measurement -- that is the
+// v0.1101 defect this block now documents (see ground_ungrade).
 const GROUND_GREEN_LO: f32 = 1.02;
 const GROUND_GREEN_HI: f32 = 1.14;
 const GROUND_CANOPY_LUM_LO: f32 = 0.030;
@@ -353,6 +384,97 @@ const GROUND_ROCK_STEEP_HI: f32 = 0.50;
 // dirt tile over bright ice reads as mud.
 const GROUND_SNOW_LUM_LO: f32 = 0.50;
 const GROUND_SNOW_LUM_HI: f32 = 0.68;
+
+// ── Undoing the orbital grading before classifying (v0.1103) ─────────────
+//
+// THE BUG THIS FIXES. `albedo_texture` does not hold raw Blue Marble. The
+// bake (`terrain::planet_surface::grade_albedo`) multiplies every above-sea
+// land texel by `land_gain(raw)` -- a calibrated 1.6x, times a shadow lift
+// that pulls dark land up a square-root curve, times up to +50% more for
+// green-dominant cover. Measured on the shipped grid that total ranges from
+// 1.60 (Sahara) to 9.00 (Fuji): a 5.6x spread, and it is a FUNCTION of the
+// very luminance being classified. The v0.1101 classifier compared that
+// graded value against thresholds measured in RAW space, so:
+//
+//   * `canopy` was identically ZERO for any raw luminance above ~0.004, and
+//     every vegetated texel on Earth measures 0.009-0.13. Across the whole
+//     globe, canopy survived on 93.60% of green texels in raw space and on
+//     0.19% in graded space -- so forest_litter could never be selected and
+//     Fuji, the Congo, the taiga and the Pacific NW all rendered at grass
+//     weight 1.000. That is the "mown park" the operator reported, and it is
+//     exactly what the classifier comment claimed to prevent.
+//   * the SNOW gate (0.50-0.68) caught the Sahara: raw 0.4249 -> graded
+//     0.6798, so snowy = 1.00 and `keep` went to zero, switching the entire
+//     ground PBR layer OFF across the desert.
+//   * the SAND band (0.18-0.32) reached down into temperate farmland: France
+//     47N raw 0.1146 -> graded 0.2097, i.e. 12% desert sand under Europe.
+//
+// WHY INVERT RATHER THAN RETUNE. Re-deriving the thresholds in graded space
+// cannot work with one threshold set: the gain is not a constant, it depends
+// on the sample's own luminance AND its greenness, so a raw band maps to a
+// different graded interval at every chromaticity. Worse, GROUND_SAND_WARM is
+// a DIFFERENCE (img.r - img.b) which scales by that same varying gain, so no
+// constant rebase exists for it at all. And every retuned number would have
+// to be re-derived by hand whenever anyone touched one of four constants in
+// a file this shader does not own. The inverse, by contrast, is exact
+// (measured 0.00% round-trip error at all ten sample sites) and self-
+// maintaining: `ground_textures::wgsl_land_grading_constants_match_the_bake`
+// fails the build if the Rust constants move.
+//
+// THE INVERSE. grade_albedo scales all three channels by ONE scalar, so
+// chromaticity survives it untouched -- which is why `gr` (a ratio) was
+// always fine and only the luminance tests broke. Greenness is a ratio too,
+// so the veg lift is recoverable exactly from the graded colour, and the
+// remaining map on luminance is piecewise and continuous at the knee:
+//     l >= knee : graded = l * a           -> l = graded / a
+//     l <  knee : graded = a * sqrt(knee*l) -> l = graded^2 / (a^2 * knee)
+// with a = LAND_GAIN * veg_lift.
+//
+// PRECONDITION, and the gate that guards it. This is applied unconditionally
+// because every planet that can reach `ground_detail` is a graded one: the
+// path needs `has_tex`, which needs a baked albedo texture, which the loader
+// only builds when the planet ships BOTH a heightmap and an albedo grid, and
+// Earth is the only def that ships a heightmap. Mars, the Moon and Pluto have
+// `heightmap: None` and `has_water: false`, so their imagery is passed
+// through UNGRADED and never reaches this code -- which matters, because
+// un-grading them unconditionally would cost Mars 91% of its sand. That
+// precondition is not left as a comment: `ground_textures::
+// only_graded_planets_can_reach_the_ground_classifier` fails the moment any
+// `has_water: false` def gains a heightmap.
+//
+// Mirrors terrain::planet_surface::{LAND_ALBEDO_GAIN, LAND_SHADOW_KNEE,
+// LAND_SHADOW_EXP} and the veg-lift block inside `land_gain`.
+const GROUND_LAND_GAIN: f32 = 1.6;
+const GROUND_LAND_KNEE: f32 = 0.15;
+const GROUND_LAND_VEG_LO: f32 = 0.1;
+const GROUND_LAND_VEG_BAND: f32 = 0.5;
+const GROUND_LAND_VEG_AMP: f32 = 0.5;
+
+fn ground_ungrade(img: vec3<f32>) -> vec3<f32> {
+    let lg = dot(img, vec3<f32>(0.299, 0.587, 0.114));
+    if (lg <= 1.0e-6) {
+        return img;
+    }
+    // Greenness is a RATIO, so the bake's scalar gain divides straight out of
+    // it: computing it here from the GRADED colour returns the same number
+    // land_gain computed from the raw one. (The 0.001 floor in the divisor is
+    // the one term that is not scale-free, and it only binds on a texel whose
+    // green channel is already blacker than a millionth of daylight.)
+    let greenness = clamp((img.g - max(img.r, img.b)) / max(img.g, 0.001), 0.0, 1.0);
+    let vt = clamp((greenness - GROUND_LAND_VEG_LO) / GROUND_LAND_VEG_BAND, 0.0, 1.0);
+    let a = GROUND_LAND_GAIN * (1.0 + GROUND_LAND_VEG_AMP * (vt * vt * (3.0 - 2.0 * vt)));
+    // Above the knee the bake was a plain scale; below it a square root. The
+    // two agree exactly at lg = knee * a, so the branch is seamless.
+    var l_raw = lg / a;
+    if (lg < GROUND_LAND_KNEE * a) {
+        l_raw = (lg * lg) / (a * a * GROUND_LAND_KNEE);
+    }
+    // Rescale at constant chromaticity. Texels whose graded value CLIPPED at
+    // 1.0 (only fresh snow and ice do) come back short -- they are gated out
+    // by GROUND_SNOW_LUM anyway, which now reads the raw value it was
+    // measured against.
+    return img * (l_raw / lg);
+}
 
 /// Everything the ground detail contributes at one fragment.
 struct GroundDetail {
@@ -434,6 +556,11 @@ fn ground_plane4(
 /// Material weights from the imagery colour and the local slope. See the
 /// GROUND_* classifier constants above for the measurements behind each
 /// threshold. Returns weights summing to 1.
+///
+/// `img` and `lum` MUST be in RAW imagery space -- the caller runs the sample
+/// through `ground_ungrade` first. Two of the four tests here (the luminance
+/// bands, and `img.r - img.b`) are absolute, so feeding them the graded bake
+/// silently disables the material this whole classifier exists to select.
 /// Material weights, as a STRUCT rather than `array<f32, 5>`.
 ///
 /// WGSL permits returning an array and naga validates it happily, but the HLSL
@@ -480,9 +607,17 @@ fn ground_material_weights(img: vec3<f32>, lum: f32, steep: f32) -> GroundWeight
     return out;
 }
 
-/// The ground detail layer. `img` is the RAW imagery colour at this fragment
-/// (before any detail modulation), `pt` the pinned-domain position, `dir` the
+/// The ground detail layer. `pt` is the pinned-domain position, `dir` the
 /// planet-local radial unit direction, `up_w` the world-space radial up.
+///
+/// `img` is the imagery colour at this fragment BEFORE any detail modulation
+/// -- which is the GRADED bake, not raw Blue Marble (the raw grid does not
+/// exist on the GPU). The two roles it plays are therefore in two different
+/// spaces and must not be confused, which is precisely the v0.1101 defect:
+///   * CLASSIFICATION uses `ground_ungrade(img)`, because the thresholds were
+///     measured on the raw grid;
+///   * the COLOUR math keeps `img` itself, because the multiplier handed back
+///     is applied by the caller to the graded value it already has.
 fn ground_detail(
     img: vec3<f32>,
     pt: vec3<f32>,
@@ -500,7 +635,11 @@ fn ground_detail(
     out.ao = 1.0;
     out.presence = 0.0;
 
-    let lum = dot(img, vec3<f32>(0.299, 0.587, 0.114));
+    // Everything from here to the end of the classifier runs on the RAW
+    // imagery estimate, the space GROUND_* was measured in. `img` (graded)
+    // resumes at the colour blend below.
+    let img_c = ground_ungrade(img);
+    let lum = dot(img_c, vec3<f32>(0.299, 0.587, 0.114));
     let snowy = smoothstep(GROUND_SNOW_LUM_LO, GROUND_SNOW_LUM_HI, lum);
     let keep = detail_octave_fade(GROUND_PRESENCE_M, footprint_m) * (1.0 - snowy);
     if (keep <= 0.003) {
@@ -512,7 +651,7 @@ fn ground_detail(
     // below index it with a runtime counter, and a local var array is the form
     // every backend lowers cleanly. The struct exists only to cross the
     // function RETURN, which HLSL cannot do with an array.
-    let gw = ground_material_weights(img, lum, steep);
+    let gw = ground_material_weights(img_c, lum, steep);
     var w: array<f32, 5>;
     w[0] = gw.w.x;
     w[1] = gw.w.y;

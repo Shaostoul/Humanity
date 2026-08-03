@@ -183,14 +183,45 @@ struct ShadowUniforms {
 // flag beside the ground anchor in .yzw).
 @group(3) @binding(15) var water_fft_tex: texture_2d<f32>;
 
-// 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
-// Fragments outside the ortho box (or with shadows off) return fully lit,
-// so the effect fades to the status quo beyond the near field.
-fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
+// WORLD SIZE OF ONE SHADOW TEXEL, in metres. LOCKSTEP with renderer::mod's
+// SUN_SHADOW_EXTENT_M / SUN_SHADOW_MAP_SIZE (2 * 1500 / 4096); the test
+// renderer::sky_ambient::tests::shadow_texel_constant_matches_the_shader
+// fails if either side drifts. Not a uniform because ShadowUniforms has no
+// free slot left (params.xyzw and params2.xyzw are all spoken for) and adding
+// one is a layout change - and this repo lost ten releases to a bind-group
+// layout change (v0.1029-v0.1038).
+const SHADOW_TEXEL_M: f32 = 0.732421875;
+
+// 3x3 PCF visibility of the sun from a world-space point, with a NORMAL
+// OFFSET (v0.1104, Holbert's normal-offset shadow mapping).
+// Shadow acne is the depth ramp WITHIN one texel: at a grazing sun a single
+// 0.73 m texel spans metres of depth, and the one depth value it stores
+// cannot be right for the whole footprint. Nudging the LOOKUP along the
+// surface normal, scaled by the sine of the incidence angle, moves the sample
+// off that ramp instead of paying for it with more depth bias - which is the
+// mechanism that also causes peter-panning.
+//
+// Deliberately HALF a texel, and the depth bias below is UNCHANGED. v0.1104
+// takes the shadow strength from 0.6 to 1.0, which raises the contrast of
+// every shadow-map artefact by 1.67x, so this is the monotone half of the
+// retune: at grazing it adds at most 0.37 m of contact detachment on top of
+// an existing ~8 m depth bias (+4.6%) while removing the artefact class that
+// bias is worst at. Rebalancing the bias itself needs measured captures, not
+// arithmetic, and is deliberately NOT done blind here.
+//
+// Pass vec3(0) for `n` to opt out (cards and blades, whose normals are not
+// the geometry the shadow map rasterised).
+fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
     if (shadow_u.params.x < 0.5) {
         return 1.0;
     }
-    let lc = shadow_u.light_vp * vec4<f32>(world_pos, 1.0);
+    var sample_pos = world_pos;
+    if (dot(n, n) > 0.5) {
+        let ndl = clamp(n_dot_l, 0.0, 1.0);
+        let slope = sqrt(max(1.0 - ndl * ndl, 0.0)); // sin of the incidence angle
+        sample_pos = world_pos + normalize(n) * (SHADOW_TEXEL_M * 0.5 * slope);
+    }
+    let lc = shadow_u.light_vp * vec4<f32>(sample_pos, 1.0);
     let ndc = lc.xyz / lc.w;
     if (abs(ndc.x) > 0.99 || abs(ndc.y) > 0.99 || ndc.z <= 0.001 || ndc.z >= 0.999) {
         return 1.0;
@@ -210,6 +241,13 @@ fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
     }
     lit = lit / 9.0;
     return mix(1.0 - shadow_u.params.y, 1.0, lit);
+}
+
+// Plain entry point: fragments outside the ortho box (or with shadows off)
+// return fully lit, so the effect fades to the status quo beyond the near
+// field. Opts out of the normal offset by passing a zero normal.
+fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
+    return sun_shadow_offset(world_pos, n_dot_l, vec3<f32>(0.0));
 }
 
 struct VertexInput {
