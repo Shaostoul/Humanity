@@ -350,10 +350,19 @@ impl Renderer {
                 // Procedural: reuse the near-model loader's CPU buffers when it
                 // already generated this (species, variant) - it builds the
                 // identical mesh moments earlier - otherwise generate here.
-                let cached_proc = t
-                    .is_procedural()
-                    .then(|| models.get(&proc_key(&t.id, v)))
-                    .flatten();
+                //
+                // The lookup is UNCONDITIONAL (v0.1101.2), not gated on
+                // `is_procedural()`: a species can be procedural by DATA (empty
+                // `model`) or procedural BY FALLBACK - its scan failed to load,
+                // or the v0.1101 scan-stretch guard rejected it - and in the
+                // fallback case the near loader has already parked a perfectly
+                // good procedural mesh under this exact key while
+                // `is_procedural()` still reads false. Gating on the data flag
+                // meant fir and pine baked SIX EMPTY ATLAS TILES, so their
+                // far-field cards drew nothing at all. `is_procedural()` still
+                // gates whether we GENERATE a mesh below; it has no business
+                // gating whether we look for one.
+                let cached_proc = models.get(&proc_key(&t.id, v));
                 let proc_mesh = (t.is_procedural() && cached_proc.is_none()).then(|| {
                     let mut b = PlantMeshBuilder::new();
                     tree_mesh::build_tree(&mut b, t, t.height_m, v.wrapping_mul(2_654_435_761));

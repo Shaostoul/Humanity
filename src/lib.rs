@@ -9150,6 +9150,40 @@ mod native_app {
                                         state.planet_patch_free_slots.push(mesh_idx);
                                     }
                                 }
+                                // END OF PATCH BUILD. The guard opened ~170
+                                // lines above used to live until the whole
+                                // `if chunked_on` block closed - about 2,030
+                                // lines - so `cpu.patch_build` was also
+                                // charging the patch draw batching, the
+                                // near-tree loader, the glTF parses, the
+                                // procedural fallbacks, the cluster-sprite
+                                // bake, grass, the far-tree card sheet and the
+                                // water shell.
+                                //
+                                // That mis-scoping cost a whole investigation
+                                // (2026-08-03): a ONE-TIME ~2.4 s world-entry
+                                // bake landed in a per-frame stage, the frame
+                                // EMA smeared it over ~20 frames, and it read
+                                // as a 35 ms per-frame REGRESSION against a
+                                // baseline that had none. A release was held
+                                // for it. The measurement was of a stage that
+                                // was not what its name said.
+                                //
+                                // Now the name is true: build + eviction only.
+                                // Everything after this point is charged to
+                                // `cpu.chunk_veg_and_draws`, which is still a
+                                // bucket rather than an attribution - the
+                                // follow-up is to split it into
+                                // cpu.patch_draws / cpu.near_trees /
+                                // cpu.veg_bake / cpu.far_cards /
+                                // cpu.water_shell. Note `cpu.near_tree_harvest`
+                                // and `cpu.grass_harvest` nest inside it and
+                                // are therefore double-counted; that goes away
+                                // with the same split.
+                                drop(_cost_patch_build);
+                                let _cost_chunk_rest = crate::renderer::frame_costs::stage(
+                                    "cpu.chunk_veg_and_draws",
+                                );
                                 // Draw patches only once the visible surface
                                 // is FULLY covered; until then (the first
                                 // frames after activation, while the 20 roots
