@@ -35,6 +35,17 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1100: new watch-list entry `renderer/tree_mesh.rs` at 6_450. It is
+///   6_267 lines today and was NOT on the list while the whole junction saga
+///   (v0.1096-v0.1100: surface roots, collars, the pipe model, directional
+///   flare, continuous bark UVs) grew it - exactly the blind spot this
+///   ratchet exists to close, caught only because a lint pass noticed the
+///   file was bigger than several watched ones. Roughly a third of it is the
+///   gate suite, which is load-bearing and should NOT be the thing extracted.
+///   The next increment that wants room should move the SPECIES ARCHITECTURE
+///   (the conifer/umbrella/palm/broadleaf crown builders and their constants)
+///   into `renderer/tree_species.rs`, leaving tree_mesh.rs as the geometry
+///   kernel - tubes, rings, junctions, welds, flare - plus its gates.
 /// - v0.1097: `terrain/grass.rs` 2_470 -> 2_645, and a new watch-list entry
 ///   `terrain/drawn_surface.rs` at 1_100. THE ONE NUMBER HERE THAT GOES UP,
 ///   with the reason, because the rule above says never to raise one quietly:
@@ -86,6 +97,7 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/relay/api.rs", 4_200),
     ("src/renderer/mod.rs", 3_883),
     ("src/renderer/materials.rs", 500),
+    ("src/renderer/tree_mesh.rs", 6_450),
 ];
 
 #[test]

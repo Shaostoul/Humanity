@@ -412,6 +412,22 @@ pub(crate) fn ring_basis(ax: [f32; 3]) -> ([f32; 3], [f32; 3]) {
     (side, cross(side, ax))
 }
 
+/// The OUTWARD RADIAL UNIT at angle `ang` in the frame `ring_basis` returns.
+///
+/// Split out in v0.1100 because a ring is no longer always a circle: a branch
+/// base carries a DIRECTIONAL flare, so its radius is a function of this
+/// direction, and the tube, the collar skin and the CI gates all have to feed
+/// that function the identical vector or they draw three different ellipses.
+/// Passing `ang + PI/2` gives the ring TANGENT (`dm/da`), which is what the
+/// flared surface normal needs.
+pub(crate) fn ring_dir(side: [f32; 3], up: [f32; 3], ang: f32) -> [f32; 3] {
+    [
+        side[0] * ang.cos() + up[0] * ang.sin(),
+        side[1] * ang.cos() + up[1] * ang.sin(),
+        side[2] * ang.cos() + up[2] * ang.sin(),
+    ]
+}
+
 /// The vertex at angle `ang` on a ring of radius `r` centred at `at`, in the
 /// frame `ring_basis` returns. Same expression `tube` inlines.
 pub(crate) fn ring_point(at: [f32; 3], side: [f32; 3], up: [f32; 3], ang: f32, r: f32) -> [f32; 3] {
