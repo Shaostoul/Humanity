@@ -81,12 +81,10 @@ pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync:
 /// sapling into a mature tree - the architecture differs, not just the size.
 const MAX_MODEL_STRETCH: f32 = 3.0;
 
-/// Ceiling on the grass harvest superset. Sized so the walk never truncates
-/// at the maximum "Grass: ground cover" setting: the superset integrates to
-/// ~93k tillers at slider 3.0, and the walk is nearest-first with a break on
-/// the cap, so a cap that binds always removes the FAR EDGE and leaves a hard
-/// circle. Logged when it binds (see the harvest site) so it can never truncate
-/// silently again.
+/// Ceiling on the grass harvest superset. The superset integrates to ~93k
+/// tillers at the maximum "Grass: ground cover" setting (3.0), and the walk is
+/// nearest-first with a break on the cap - so a cap that binds removes the FAR
+/// EDGE and leaves a hard circle rather than thinning. Warns when it binds.
 const GRASS_HARVEST_CAP: usize = 200_000;
 
 /// The resolved data dir (or "data" if not yet set).
@@ -10195,18 +10193,6 @@ mod native_app {
                                             chunks::GRASS_FAR_M as f64,
                                             chunks::GRASS_HARVEST_MARGIN_M,
                                             draw_depth,
-                                            // 200k, not 70k (v0.1107). The new
-                                            // "Grass: ground cover" slider goes
-                                            // to 3.0, and at 3.0 the superset
-                                            // integrates to ~93k - so the cap
-                                            // truncated the OUTER RIM and ended
-                                            // the field in a hard circle at
-                                            // 11-17 m, which is the exact ring
-                                            // artifact the whole density ramp
-                                            // exists to prevent. The walk is
-                                            // nearest-first and breaks on the
-                                            // cap, so the loss is always the
-                                            // far edge, never a thinning.
                                             crate::GRASS_HARVEST_CAP,
                                         );
                                         state.near_grass_center = cam_local;
@@ -10220,11 +10206,10 @@ mod native_app {
                                             t0.elapsed().as_secs_f64() * 1000.0,
                                             above_ground
                                         );
-                                        // A bound cap does not thin the field,
-                                        // it CUTS THE FAR EDGE OFF - the walk
-                                        // is nearest-first and breaks. Say so
-                                        // loudly rather than letting a hard
-                                        // circle look like a design choice.
+                                        // A bound cap cuts the FAR EDGE off (the
+                                        // walk is nearest-first and breaks), so
+                                        // say so rather than let a hard circle
+                                        // look like a design choice.
                                         if state.near_grass.len() >= crate::GRASS_HARVEST_CAP {
                                             log::warn!(
                                                 "[Grass] harvest TRUNCATED at the {} cap - the \
