@@ -6603,6 +6603,24 @@ pub struct SettingsState {
     /// Near-field real tree model distance in metres (v0.911; 0 = cards
     /// only). Grass/tree silhouette cards continue past this range.
     pub tree_model_distance: f32,
+    /// How many near-field 3D tree MODELS may be drawn at once, nearest first
+    /// (v0.1109; was the hardcoded NEAR_TREE_DRAW_BUDGET). This and
+    /// `tree_model_distance` have to move together: the budget bounds the
+    /// model stage no matter how far the distance reaches, so raising the
+    /// distance alone just packs the same models into a tighter ring and lets
+    /// silhouette cards carry the difference.
+    pub near_tree_budget: f32,
+    /// Grass draw distance in metres (v0.1109; was terrain::grass::GRASS_FAR_M):
+    /// the surface distance at which the density ramp reaches zero. The near
+    /// (6 m) and mid (12 m) anchors stay put, so raising this stretches the
+    /// fade rather than sliding the whole field out, which also thickens the
+    /// middle distance. Cost rises with the SQUARE of it.
+    pub grass_far_m: f32,
+    /// Ceiling on how many grass tillers one CPU harvest may emit (v0.1109;
+    /// was the hardcoded GRASS_HARVEST_CAP). The harvest walks nearest-first
+    /// and breaks at the cap, so hitting it cuts the field's FAR EDGE off in a
+    /// hard circle. Exposed so the ceiling is a setting, not a code edit.
+    pub grass_harvest_cap: f32,
     /// Vegetation spawn density multiplier (v0.1083, operator: fewer trees,
     /// free up GPU). Scales TREES_PER_CELL at patch build and GRASS_PEAK_PER_M2
     /// in the near-field strand harvest;
@@ -6791,6 +6809,11 @@ impl Default for SettingsState {
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
             tree_model_distance: crate::lod_registry::category("tree").map(|c| c.model_m).unwrap_or(120.0),
+            // v0.1109: defaults are the shipped engine constants, so exposing
+            // these three changed nothing about how the world looks.
+            near_tree_budget: crate::config::NEAR_TREE_BUDGET_DEFAULT,
+            grass_far_m: crate::terrain::grass::GRASS_FAR_M,
+            grass_harvest_cap: crate::config::GRASS_HARVEST_CAP_DEFAULT,
             tree_density: 0.6,
             grass_density: 1.0,
             grass_detail: 0.6,

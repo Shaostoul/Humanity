@@ -319,8 +319,24 @@ const GROUND_MAT_CUT: f32 = 0.012;
 // crisp interlocking edges, large = soft. 0.22 keeps leaf and stone edges
 // readable without the single-texel popping a hard threshold gives.
 const GROUND_BLEND_DEPTH: f32 = 0.22;
-// How far the macro octave is allowed to swing local brightness.
-const GROUND_MACRO_AMP: f32 = 0.55;
+// How far the macro octave is allowed to swing local BRIGHTNESS.
+//
+// 0.30, not 0.55 (v0.1108.2). Measured on a real capture, the >= 8 m band was
+// running at 13.5% of the strip's mean luma while the 2 m photoscan tile it is
+// meant to be modulating contributed 1.2% - so the variation read as a separate
+// overlay rather than as the ground varying. Halving it, together with the
+// anisotropic fade at the use site, is what brings the two back into the same
+// order of magnitude.
+//
+// The deeper point, worth keeping when someone tunes this again: large-scale
+// ground variation in the real world is MOISTURE AND LITTER COVER, which change
+// hue and gloss far more than they change brightness. A luminance-only swing is
+// the wrong channel for the phenomenon, which is why it has to be kept small to
+// avoid looking painted on. Routing most of this amplitude into the tint mix and
+// into roughness instead - and, further out, replacing the whole octave with
+// histogram-preserving stochastic tiling (Heitz & Neyret 2018, HPG) so the
+// repeat never needs hiding - is the direction this should go.
+const GROUND_MACRO_AMP: f32 = 0.30;
 // Cavity AO from the blended height. 0.5 at the mean height leaves the ground
 // energy-neutral; crevices go down, ridges up.
 const GROUND_AO_AMOUNT: f32 = 0.75;
@@ -690,8 +706,29 @@ fn ground_detail(
     // pixel coverage. It shifts the height field (so the blend itself varies
     // over metres, not just the colour) and swings local brightness, which is
     // what stops the fine tile from reading as a grid.
+    // FADED ON THE ANISOTROPIC FOOTPRINT, not the isotropic estimate
+    // (v0.1108.2). This is the whole bug the operator photographed as "a large
+    // low detail voronoi cell texture laying over a smaller higher detail
+    // texture", and it is a broken invariant rather than a taste problem: A
+    // REPEAT-BREAKING OCTAVE MUST NEVER OUTLIVE THE REPEAT IT HIDES.
+    //
+    // At a grazing ground pixel 35 m out, one pixel covers 0.05 m across the
+    // sightline and 1.04 m ALONG it - 21:1, past the ground sampler's
+    // anisotropy clamp - so the hardware drops to a coarse isotropic mip and
+    // the 2 m photoscan tile averages to near-flat. The 16 m macro octave is
+    // longer than that footprint and survives untouched. Meanwhile
+    // `footprint_m` is the ISOTROPIC analytic estimate (dist * 0.0008 = 0.028 m
+    // there), 36x smaller than the truth, so the fade believed everything was
+    // fully resolved and held the macro at full amplitude over a tile that had
+    // already vanished. Measured on a real capture: the >= 8 m band ran 11.6
+    // luma against the fine tile's 0.99 - the anti-tiling was 11.7x LOUDER than
+    // the tiling it exists to hide.
+    //
+    // The gradients are right here and already used for the texture fetches, so
+    // the honest footprint costs two `length()` calls.
     let macro_tile = GROUND_TILE_M[dom] * GROUND_MACRO_MULT;
-    let macro_fade = detail_octave_fade(macro_tile, footprint_m);
+    let aniso_fp_m = max(max(length(g_x), length(g_y)), footprint_m);
+    let macro_fade = detail_octave_fade(macro_tile, aniso_fp_m);
     var macro_h = 0.0;
     var macro_l = 1.0;
     if (macro_fade > 0.01) {

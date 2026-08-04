@@ -2137,15 +2137,55 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(6.0);
         ui.label(RichText::new("Detail distances by item type").color(theme.text_primary()).size(theme.font_size_body).strong());
         ui.label(RichText::new("How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.").color(theme.text_muted()).size(theme.font_size_small));
+        // v0.1109 (operator: "sliders or maybe just number selectors so we can
+        // go to any value ... then I wouldn't have to ask you to increase the
+        // ceiling"): every distance here is a slider PLUS a number box. The
+        // slider covers the band worth dragging; the box goes all the way to
+        // the engine ceiling, so an experiment past the band is a typed number
+        // rather than a code edit. Ceilings live in one place
+        // (config::TREE_MODEL_MAX_M and friends) precisely so the box, the
+        // saved config and the engine's own clamp cannot drift apart again.
+        ui.label(RichText::new("Each distance below is a slider plus a number box. Drag the slider for the everyday range, or click the number and type to go past it, right up to the engine's own limit. Values that cost a lot say so underneath.").color(theme.text_muted()).size(theme.font_size_small));
+        if !VEG_AWAITING_WIRING.is_empty() {
+            // Better a blunt notice than a control that quietly does nothing.
+            // This block deletes itself the moment the engine reads them; a
+            // test fails if it is left standing after that.
+            let names: Vec<&str> = VEG_AWAITING_WIRING.iter().map(|(_, label)| *label).collect();
+            ui.label(RichText::new(format!(
+                "NOT CONNECTED YET: {}. These save and reload correctly and the cost estimates below are real, but the renderer does not read them yet, so moving them will not change what you see.",
+                names.join(", ")
+            )).color(theme.warning()).size(theme.font_size_small));
+        }
         let tree_label = crate::lod_registry::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
-        if widgets::labeled_slider(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=300.0) {
+        if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=400.0, crate::config::TREE_MODEL_MAX_M, 2.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("The closest, prettiest tree stage: real photoscanned trees stand within this range. Lower if forests cost too much GPU; 0 turns the stage off (silhouettes only).").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, &format!("{tree_label}: silhouettes out to (m)"), &mut state.settings.veg_tree_card_m, 100.0..=3000.0) {
+        ui.label(RichText::new("The closest, prettiest tree stage: real photoscanned trees stand within this range. 0 turns the stage off (silhouettes only). COST: each model is 120,000 to 190,000 triangles, and doubling this radius quadruples how many trees fall inside it, so this is the most expensive control on the page. It is bounded by the draw budget below, not by itself.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: 3D models drawn at once"), &mut state.settings.near_tree_budget, 32.0..=1024.0, crate::config::NEAR_TREE_BUDGET_MAX, 4.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        {
+            // The honest bit: the budget, not the distance, is what usually
+            // ends the model stage, and the engine handles running out
+            // GRACEFULLY (it tracks how far models actually reached and hands
+            // over to cards exactly there). Say that plainly so a distance that
+            // "did nothing" is understood rather than reported as a bug.
+            let budget = state.settings.near_tree_budget.max(1.0);
+            let tris_m = budget * 155_000.0 / 1.0e6;
+            ui.label(RichText::new(format!(
+                "How many of those 3D models may be drawn at the same time, nearest to you first. This is the real ceiling on the model stage: if the budget runs out before the distance does, the models form a tight ring around you and silhouette cards carry everything past it. Raise this and the distance together. COST: about {tris_m:.1} million triangles at this budget."
+            )).color(theme.text_muted()).size(theme.font_size_small));
+        }
+        if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: silhouettes out to (m)"), &mut state.settings.veg_tree_card_m, 100.0..=3000.0, crate::config::TREE_CARD_MAX_M, 10.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. COST: cards are cheap per tree but there are a lot of them, so this spends fill rate, roughly with the square of the distance.").color(theme.text_muted()).size(theme.font_size_small));
+        if state.settings.veg_tree_card_m > 3000.0 {
+            // A real ceiling that is NOT this slider: cards are baked into
+            // terrain patches at the 215 m detail level, so past where that
+            // level is resident there is nothing for this number to reveal.
+            ui.label(RichText::new("Past about 3 km this may show nothing on its own. Silhouette cards only exist on ground built at the 215 m detail level, so to see trees further out you also have to lower 'Terrain sharpness (px per triangle)' and raise 'Terrain patch budget' until that level reaches further.").color(theme.warning()).size(theme.font_size_small));
+        }
         // TREES, GRASS COVER and GRASS DETAIL are three separate controls
         // (v0.1106). They used to be one "vegetation" slider, which meant a
         // player who wanted thick grass under thin forest could not ask for it,
@@ -2154,6 +2194,47 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland. Rebuilds terrain as you move, so the change appears patch by patch.").color(theme.text_muted()).size(theme.font_size_small));
+        // GRASS DRAW DISTANCE (v0.1109). The operator's headline ask: "I would
+        // like to see how the game performs when I extend the grass to render
+        // further away." Raising this stretches the density ramp's last leg, so
+        // it does not only add a thin outer fringe, it also thickens the middle
+        // distance (the fade now has further to travel). Everything under it is
+        // a live estimate rather than a static sentence, because the two costs
+        // that matter (instance count and harvest walk) both depend on the
+        // COVERAGE slider below as well as on this one.
+        if widgets::labeled_slider_entry(ui, theme, "Grass: draw distance (m)", &mut state.settings.grass_far_m, 12.0..=80.0, crate::config::GRASS_FAR_MAX_M, 0.5) {
+            state.settings_dirty = true;
+        }
+        {
+            let far = state.settings.grass_far_m;
+            let cover = state.settings.grass_density;
+            let drawn = grass_drawn_estimate(far, cover);
+            let harvest = grass_harvest_estimate(far, cover);
+            let walk = grass_harvest_walk_multiple(far);
+            let cap = state.settings.grass_harvest_cap;
+            ui.label(RichText::new(format!(
+                "How far grass reaches before it fades out completely. The 6 m and 12 m density steps stay put, so raising this stretches the fade rather than sliding the whole field outward, which thickens the middle distance too. COST: it buys area, so doubling the distance costs roughly two and a half times as many tufts near the default and closer to four times once you are out past 100 m. At {far:.0} m and this ground-cover setting: about {} tufts drawn (roughly {} triangles at full blade detail), harvested from about {} candidates. The harvest runs on the frame thread and its ground walk is a plain disc, so it is exactly {walk:.1}x the cost it has at the default 22 m; that shows up as a hitch every few metres of walking rather than as a lower frame rate.",
+                thousands(drawn),
+                thousands(drawn * 90.0),
+                thousands(harvest),
+            )).color(theme.text_muted()).size(theme.font_size_small));
+            if harvest >= cap {
+                // The defect class this whole increment is guarding against: a
+                // control that looks like it worked. The harvest walks
+                // nearest-first and BREAKS at the cap, so the field ends in a
+                // hard circle instead of fading.
+                ui.label(RichText::new(format!(
+                    "TOO FAR FOR THE CURRENT INSTANCE CAP. About {} tufts are needed but the cap below stops the harvest at {}. The harvest fills nearest-first and then stops, so the grass will end in a hard circle instead of fading out. Raise the instance cap, lower the ground cover, or pull this back to about {:.0} m.",
+                    thousands(harvest),
+                    thousands(cap),
+                    grass_far_within_cap(cap, cover),
+                )).color(theme.warning()).size(theme.font_size_small));
+            }
+        }
+        if widgets::labeled_slider_entry(ui, theme, "Grass: instance cap", &mut state.settings.grass_harvest_cap, 50_000.0..=500_000.0, crate::config::GRASS_HARVEST_CAP_MAX, 500.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("The hard ceiling on how many tufts one harvest may produce. It exists so a bad combination of distance and ground cover cannot lock the game up; it is exposed so raising it is your decision rather than a code change. COST: memory and harvest time, both straight-line with the number. Grass stops looking better long before this stops rising.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, 0.1..=3.0) {
             state.settings_dirty = true;
         }
@@ -3137,4 +3218,454 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             }
         }
     });
+}
+
+// Vegetation LOD cost model (v0.1109).
+//
+// Every control in "Detail distances by item type" trades frames for view
+// distance, and the operator changes them specifically to measure that trade
+// (2026-08-03: "I would like to see how the game performs when I extend the
+// grass to render further away"). A slider with no cost attached makes that a
+// guessing game, and worse, two of these ranges run into HARD ENGINE CAPS that
+// truncate silently. So the page prints an estimate and warns before the cap,
+// and these are the functions behind it.
+//
+// The model is not a guess: it integrates the SAME piecewise-linear density
+// ramp the harvest uses (terrain::grass::grass_ramp_at) over the disc, and it
+// is calibrated against the two numbers the shipped code already reports.
+// See `cost_model_matches_the_shipped_measurements` below.
+
+// ── What the engine actually honours, right now ────────────────────────────
+// A control that moves, saves, reloads and changes NOTHING is the worst
+// outcome available here, and it is the outcome this repo keeps producing: the
+// tree-model slider stopped at 300 m while the engine allowed 400, and nobody
+// noticed for a year. The Settings page therefore states, in the UI, exactly
+// where the engine's own limit sits, and the constants below are checked
+// against `src/lib.rs` by `the_page_tells_the_truth_about_what_the_engine_reads`
+// so they cannot rot the moment the engine changes.
+//
+// These live in settings.rs rather than config.rs on purpose: config.rs owns
+// what the app WANTS to allow (the ceilings), this owns what the engine
+// currently DOES. When the two agree, everything below disappears.
+
+/// Vegetation LOD settings the engine does not read at all yet, with the UI
+/// label to name in the warning. They save and reload correctly; they simply do
+/// not reach the renderer until their consumer lands in `src/lib.rs` and
+/// `src/terrain/grass.rs`. Empty this list in the same change that wires them.
+const VEG_AWAITING_WIRING: &[(&str, &str)] = &[];
+
+
+/// Realised filler-class population as a fraction of the tussock population.
+///
+/// `GRASS_FILLER_FRACTION` (9.5/45) is the NOMINAL ratio, but the filler class
+/// rides the COMPLEMENT of the clump field and that complement averages 0.615
+/// over the field, so the count that actually lands is the product. Both
+/// numbers are stated in the doc comments on `terrain::grass`
+/// (`GRASS_FILLER_LAI_SHARE` names the 0.615; `GRASS_FILLER_FRACTION` states
+/// the realised result is "near 13% of the tussock population"). This is a UI
+/// estimate, so approximating the field mean by its documented constant is
+/// fine; the calibration test below is what keeps it honest.
+const GRASS_CLUMP_COMPLEMENT_MEAN: f32 = 0.615;
+
+/// Peak-density-equivalent ground AREA in m^2 under a three-anchor grass
+/// density ramp: full density inside `near`, falling linearly to
+/// `GRASS_MID_FRACTION` of peak at `mid`, then linearly to zero at `far`.
+///
+/// Multiply by a peak density (tillers per m^2) to get an instance count.
+/// Closed form because the ramp is piecewise linear, which makes this exact
+/// rather than a sampled sum.
+pub fn grass_ramp_area_m2(near: f32, mid: f32, far: f32) -> f32 {
+    let frac = crate::terrain::grass::GRASS_MID_FRACTION;
+    let n = near.max(0.0);
+    let m = mid.max(n + 0.001);
+    let f = far.max(m + 0.001);
+    let tau = std::f32::consts::TAU;
+    // Inner disc, all at peak.
+    let a1 = std::f32::consts::PI * n * n;
+    // near..mid, density = 1 + s(d - n): integral of that times 2*pi*d.
+    let s = (frac - 1.0) / (m - n);
+    let a2 = tau * ((1.0 - s * n) * (m * m - n * n) / 2.0 + s * (m * m * m - n * n * n) / 3.0);
+    // mid..far, density = frac + s2(d - m), reaching zero at f.
+    let s2 = -frac / (f - m);
+    let a3 = tau * ((frac - s2 * m) * (f * f - m * m) / 2.0 + s2 * (f * f * f - m * m * m) / 3.0);
+    a1 + a2 + a3
+}
+
+/// Peak tiller density (per m^2 of ground) at a given COVERAGE setting.
+///
+/// Mirrors `terrain::grass::grass_peak_per_m2` but takes coverage as an
+/// argument instead of reading the live atomic, so the Settings page can cost
+/// a value the player is still dragging (the atomic is only written by the
+/// render loop, one frame later).
+pub fn grass_peak_at_cover(cover: f32) -> f32 {
+    use crate::terrain::grass::{
+        GRASS_FILLER_LAI_SHARE, GRASS_LEAF_AREA_UNIT, GRASS_MEAN_H2_M2, GRASS_TARGET_LAI,
+    };
+    GRASS_TARGET_LAI * cover
+        / (GRASS_LEAF_AREA_UNIT * GRASS_MEAN_H2_M2 * (1.0 + GRASS_FILLER_LAI_SHARE))
+}
+
+/// Estimated grass instances DRAWN at a given draw distance and coverage:
+/// tussocks plus the realised filler class.
+pub fn grass_drawn_estimate(far_m: f32, cover: f32) -> f32 {
+    use crate::terrain::grass::{GRASS_FILLER_FRACTION, GRASS_MID_M, GRASS_NEAR_M};
+    let filler = 1.0 + GRASS_FILLER_FRACTION * GRASS_CLUMP_COMPLEMENT_MEAN;
+    grass_peak_at_cover(cover) * filler * grass_ramp_area_m2(GRASS_NEAR_M, GRASS_MID_M, far_m)
+}
+
+/// Estimated grass instances the CPU HARVEST emits, which is the number the
+/// instance cap actually bounds.
+///
+/// The harvest is a SUPERSET: it keeps every tiller that any camera within
+/// `GRASS_HARVEST_MARGIN_M` of the harvest centre could want, so the ramp is
+/// SHIFTED outward by the margin (all three anchors move), not stretched.
+/// Getting that distinction right is worth roughly a factor of two: at the
+/// shipped settings the stretched model predicts ~18k and the shifted model
+/// ~31k, and the engine logs ~31k.
+pub fn grass_harvest_estimate(far_m: f32, cover: f32) -> f32 {
+    use crate::terrain::grass::{
+        GRASS_FILLER_FRACTION, GRASS_HARVEST_MARGIN_M, GRASS_MID_M, GRASS_NEAR_M,
+    };
+    let margin = GRASS_HARVEST_MARGIN_M as f32;
+    let filler = 1.0 + GRASS_FILLER_FRACTION * GRASS_CLUMP_COMPLEMENT_MEAN;
+    grass_peak_at_cover(cover)
+        * filler
+        * grass_ramp_area_m2(GRASS_NEAR_M + margin, GRASS_MID_M + margin, far_m + margin)
+}
+
+/// Relative cost of the harvest's CELL WALK against the shipped 22 m default.
+///
+/// The walk covers a disc of radius `far_m + margin`, so its cost is that
+/// radius squared. Reported as a multiple because the absolute figure depends
+/// on the machine, but the shipped one is measured (about 16 ms at Fuji), and
+/// the walk runs INLINE on the frame thread once per few metres of movement,
+/// which is why a big number here reads as a stutter rather than a lower FPS.
+pub fn grass_harvest_walk_multiple(far_m: f32) -> f32 {
+    let margin = crate::terrain::grass::GRASS_HARVEST_MARGIN_M as f32;
+    let base = crate::terrain::grass::GRASS_FAR_M + margin;
+    let r = far_m.max(0.0) + margin;
+    (r * r) / (base * base).max(1.0)
+}
+
+/// The largest grass draw distance whose harvest still fits under `cap` at the
+/// given coverage, in metres.
+///
+/// This is the number the warning actually needs: telling somebody "too far"
+/// without telling them how far is fine is half an answer. Bisection rather
+/// than an inverse because the ramp integral is a cubic in the far distance and
+/// a closed-form root brings a branch-and-sign problem for no benefit; twenty
+/// halvings of a 250 m range settle to well under a millimetre and this runs
+/// only while the warning is on screen.
+pub fn grass_far_within_cap(cap: f32, cover: f32) -> f32 {
+    let mid_m = crate::terrain::grass::GRASS_MID_M;
+    let mut lo = mid_m + 1.0;
+    let mut hi = crate::config::GRASS_FAR_MAX_M;
+    if grass_harvest_estimate(lo, cover) >= cap {
+        return lo;
+    }
+    if grass_harvest_estimate(hi, cover) < cap {
+        return hi;
+    }
+    for _ in 0..20 {
+        let mid = 0.5 * (lo + hi);
+        if grass_harvest_estimate(mid, cover) < cap {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
+}
+
+/// Format an instance count for a help line: 12,755 reads better than 12755
+/// and much better than 1.2755e4.
+fn thousands(v: f32) -> String {
+    let n = v.max(0.0).round() as u64;
+    let s = n.to_string();
+    let b = s.as_bytes();
+    let mut out = String::with_capacity(s.len() + s.len() / 3);
+    for (i, c) in b.iter().enumerate() {
+        if i > 0 && (b.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(*c as char);
+    }
+    out
+}
+
+#[cfg(test)]
+mod veg_lod_range_tests {
+    use super::*;
+    use crate::config;
+    use crate::terrain::grass;
+
+    /// The cost model has to predict the two numbers the shipped code already
+    /// reports, or every warning built on it is decoration.
+    ///
+    /// Both references come from the engine's own comments/logs at the shipped
+    /// settings (22 m ramp, coverage 1.0): `grass.rs` states the ramp draws
+    /// 12,755 TUSSOCKS, and it states the harvest superset is about 31,000
+    /// INSTANCES. Those are different populations on purpose (drawn tussocks
+    /// vs harvested tussocks + filler), which is exactly the pair that catches
+    /// a model that got the filler class or the margin shift wrong.
+    #[test]
+    fn cost_model_matches_the_shipped_measurements() {
+        let cover = 1.0;
+        // Peak density: the file derives 27.0 per m^2 at coverage 1.0.
+        let peak = grass_peak_at_cover(cover);
+        assert!(
+            (peak - 27.0).abs() < 0.2,
+            "peak density {peak} should be the derived 27.0/m^2"
+        );
+        // Drawn TUSSOCKS = peak * ramp area, no filler.
+        let tussocks =
+            peak * grass_ramp_area_m2(grass::GRASS_NEAR_M, grass::GRASS_MID_M, grass::GRASS_FAR_M);
+        assert!(
+            (tussocks - 12_755.0).abs() / 12_755.0 < 0.02,
+            "drawn tussock estimate {tussocks} should be within 2% of the \
+             12,755 stated in terrain::grass"
+        );
+        // Harvested SUPERSET, tussocks + filler, ramp shifted by the margin.
+        let harvest = grass_harvest_estimate(grass::GRASS_FAR_M, cover);
+        assert!(
+            (harvest - 31_000.0).abs() / 31_000.0 < 0.10,
+            "harvest estimate {harvest} should be within 10% of the ~31,000 \
+             superset terrain::grass reports at the shipped settings"
+        );
+    }
+
+    /// The whole point of the increment: every new range must reach values the
+    /// shipped constants cannot express. A control that can only say what the
+    /// code already said is a control that does nothing.
+    #[test]
+    fn every_range_reaches_past_the_shipped_constant() {
+        assert!(
+            config::GRASS_FAR_MAX_M > grass::GRASS_FAR_M,
+            "grass draw distance must reach past the shipped {} m ramp end, \
+             otherwise 'extend the grass further' is unreachable",
+            grass::GRASS_FAR_M
+        );
+        // And past it by enough to be an experiment, not a rounding error: the
+        // area cost model is only interesting once the radius has doubled.
+        assert!(
+            config::GRASS_FAR_MAX_M >= grass::GRASS_FAR_M * 4.0,
+            "grass draw distance ceiling {} m barely moves off the shipped {} m",
+            config::GRASS_FAR_MAX_M,
+            grass::GRASS_FAR_M
+        );
+        assert!(
+            config::NEAR_TREE_BUDGET_MAX > config::NEAR_TREE_BUDGET_DEFAULT,
+            "the near-tree draw budget ceiling must exceed the shipped 256, or \
+             raising the tree distance still just packs the same models tighter"
+        );
+        assert!(
+            config::GRASS_HARVEST_CAP_MAX > config::GRASS_HARVEST_CAP_DEFAULT,
+            "the grass instance cap must be raisable past the shipped 200,000, \
+             or the operator still has to ask for a code edit to lift it"
+        );
+        // The two PRE-EXISTING controls had ceilings below their own code
+        // clamps: the tree-model slider stopped at 300 m while config and
+        // lib.rs both allowed 400 m.
+        assert!(
+            config::TREE_MODEL_MAX_M > 400.0,
+            "tree model distance ceiling must exceed the old 400 m code clamp"
+        );
+        assert!(
+            config::TREE_CARD_MAX_M > 3000.0,
+            "tree card ceiling must exceed the old 3000 m code clamp"
+        );
+    }
+
+    /// A gate that cannot fire is not a gate. The instance-cap warning has to
+    /// be REACHABLE inside the range the operator can actually set, and it has
+    /// to be QUIET at the shipped defaults, or it is either decoration or
+    /// noise. This asserts both ends.
+    #[test]
+    fn the_instance_cap_warning_is_reachable_and_quiet_by_default() {
+        let cap = config::GRASS_HARVEST_CAP_DEFAULT;
+        // Quiet where it ships.
+        let shipped = grass_harvest_estimate(grass::GRASS_FAR_M, 1.0);
+        assert!(
+            shipped < cap * 0.5,
+            "the shipped settings ({shipped} instances) must sit well under the \
+             {cap} cap, or the warning cries wolf on a fresh install"
+        );
+        // Reachable: at deep-meadow coverage the cap binds well inside the
+        // range the number box accepts. Find where.
+        let mut binds_at = None;
+        let mut d = grass::GRASS_FAR_M;
+        while d <= config::GRASS_FAR_MAX_M {
+            if grass_harvest_estimate(d, 3.0) >= cap {
+                binds_at = Some(d);
+                break;
+            }
+            d += 1.0;
+        }
+        let binds_at = binds_at.expect(
+            "the 200,000 instance cap must be reachable by raising the grass \
+             draw distance inside its range, otherwise the warning is dead code",
+        );
+        assert!(
+            binds_at < config::GRASS_FAR_MAX_M * 0.5,
+            "the cap should bind in the middle of the usable range, not at its \
+             extreme; measured {binds_at} m at coverage 3.0"
+        );
+    }
+
+    /// Raising a ceiling is worthless if the value cannot survive a restart:
+    /// `apply_to_gui_state` used to clamp to local literals (400 m, 3000 m), which
+    /// silently reverted anything typed above them on the next launch.
+    #[test]
+    fn values_past_the_old_clamps_survive_a_config_round_trip() {
+        let mut cfg = config::AppConfig::default();
+        cfg.tree_model_distance = 1200.0;
+        cfg.veg_tree_card_m = 6000.0;
+        cfg.grass_far_m = 120.0;
+        cfg.near_tree_budget = 2048.0;
+        cfg.grass_harvest_cap = 900_000.0;
+        let mut state = crate::gui::GuiState::default();
+        cfg.apply_to_gui_state(&mut state);
+        assert_eq!(state.settings.tree_model_distance, 1200.0);
+        assert_eq!(state.settings.veg_tree_card_m, 6000.0);
+        assert_eq!(state.settings.grass_far_m, 120.0);
+        assert_eq!(state.settings.near_tree_budget, 2048.0);
+        assert_eq!(state.settings.grass_harvest_cap, 900_000.0);
+        // And the ceilings still bite: nothing is unbounded.
+        let mut wild = config::AppConfig::default();
+        wild.grass_far_m = 1.0e9;
+        wild.apply_to_gui_state(&mut state);
+        assert_eq!(state.settings.grass_far_m, config::GRASS_FAR_MAX_M);
+    }
+
+    /// The help text makes two SEPARATE cost claims and they scale
+    /// differently, which is exactly the sort of thing that gets flattened
+    /// into one wrong sentence:
+    ///
+    /// - the HARVEST WALK covers a plain disc, so it is exactly quadratic;
+    /// - the INSTANCE COUNT integrates a ramp that falls to zero at the far
+    ///   edge, so a doubling costs about 2.6x at 30 to 60 m and only
+    ///   approaches 4x once the outer leg dominates the disc.
+    ///
+    /// The first draft of the help text said "square of the number" for both.
+    /// This test is why it does not any more.
+    #[test]
+    fn grass_cost_is_quadratic_in_the_walk_and_approaches_it_in_the_count() {
+        // The walk: exactly quadratic, and exactly 1.0x where it ships.
+        let walk = grass_harvest_walk_multiple(grass::GRASS_FAR_M);
+        assert!(
+            (walk - 1.0).abs() < 1.0e-3,
+            "the walk multiple must read 1.0x at the shipped distance, got {walk}"
+        );
+        let margin = grass::GRASS_HARVEST_MARGIN_M as f32;
+        let w1 = grass_harvest_walk_multiple(60.0 - margin);
+        let w2 = grass_harvest_walk_multiple(120.0 - margin);
+        assert!(
+            (w2 / w1 - 4.0).abs() < 0.01,
+            "the harvest walk is a disc and must be exactly quadratic, got {}x",
+            w2 / w1
+        );
+        // The count: clearly superlinear near the default, and closer to
+        // quadratic further out.
+        let near = grass_drawn_estimate(60.0, 1.0) / grass_drawn_estimate(30.0, 1.0);
+        assert!(
+            near > 2.2 && near < 3.0,
+            "doubling 30 m to 60 m should cost about 2.6x, measured {near}x"
+        );
+        let far = grass_drawn_estimate(200.0, 1.0) / grass_drawn_estimate(100.0, 1.0);
+        assert!(
+            far > near && far > 3.4 && far < 4.0,
+            "far out the count should approach the disc's 4x, measured {far}x"
+        );
+    }
+
+    /// The warning tells the operator a distance that WILL fit. That advice has
+    /// to be true on both sides: fitting at the number given, and not fitting a
+    /// hair past it (otherwise it is needlessly pessimistic advice, which is
+    /// how a control quietly loses range again).
+    #[test]
+    fn the_suggested_distance_is_the_largest_one_that_fits() {
+        for cover in [0.5f32, 1.0, 2.0, 3.0] {
+            let cap = config::GRASS_HARVEST_CAP_DEFAULT;
+            let d = grass_far_within_cap(cap, cover);
+            assert!(
+                grass_harvest_estimate(d, cover) <= cap * 1.001,
+                "suggested {d} m does not actually fit under the cap at cover {cover}"
+            );
+            if d < config::GRASS_FAR_MAX_M - 0.01 {
+                assert!(
+                    grass_harvest_estimate(d + 0.5, cover) > cap,
+                    "suggested {d} m at cover {cover} is pessimistic: half a \
+                     metre further still fits"
+                );
+            }
+        }
+    }
+
+    /// The page makes three claims about the ENGINE, and all three are the
+    /// kind that rot silently:
+    ///
+    /// 1. that certain settings are not read by the renderer yet;
+    /// 2. that `tree_model_distance` is clamped at 400 m before use;
+    /// 3. that `veg_tree_card_m` is clamped at 3000 m before use.
+    ///
+    /// Each is checked against the actual text of `src/lib.rs`, in BOTH
+    /// directions. Wire a setting up and forget to delete its warning, and this
+    /// fails because the page is now lying the other way. That two-sided check
+    /// is the point: a one-sided one would let the notice outlive its reason,
+    /// which is how "known issue" comments become folklore.
+    #[test]
+    fn the_page_tells_the_truth_about_what_the_engine_reads() {
+        let lib = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"),
+        )
+        .expect("read src/lib.rs");
+        let grass_src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
+        )
+        .expect("read src/terrain/grass.rs");
+        let engine = format!("{lib}\n{grass_src}");
+
+        // 1. Every setting on the "not connected" list must really be absent
+        //    from the engine, and every setting NOT on it must really be there.
+        for field in ["grass_far_m", "grass_harvest_cap", "near_tree_budget"] {
+            let consumed = engine.contains(&format!("settings.{field}"));
+            let listed = VEG_AWAITING_WIRING.iter().any(|(f, _)| *f == field);
+            assert_ne!(
+                consumed, listed,
+                "`{field}`: the engine {} it, but the Settings page says it {}. \
+                 Either wire it up or fix VEG_AWAITING_WIRING; a control that \
+                 silently does nothing is the defect this list exists to prevent.",
+                if consumed { "reads" } else { "does not read" },
+                if listed { "is not connected" } else { "is connected" },
+            );
+        }
+
+        // 2 + 3. The engine clamps used to be LOWER than what the page
+        //    offered, so the page carried a warning and this test pinned the
+        //    two together. v0.1108.2 wired the ceilings to one source
+        //    (`config::TREE_MODEL_MAX_M` / `TREE_CARD_MAX_M`, read by both the
+        //    control and `src/lib.rs`), which makes the warning unreachable by
+        //    construction - so both it and its assertions are gone rather than
+        //    left as text that can never fire. What replaces them is the
+        //    stronger claim below: the engine must clamp against the SHARED
+        //    constant, not a literal that can drift away from it again.
+        for (field, konst) in [
+            ("tree_model_distance", "TREE_MODEL_MAX_M"),
+            ("veg_tree_card_m", "TREE_CARD_MAX_M"),
+        ] {
+            assert!(
+                lib.contains(&format!("crate::config::{konst}")),
+                "src/lib.rs no longer clamps {field} against config::{konst}.                  If it went back to a literal, the control's ceiling and the                  renderer's can drift apart again - which is exactly how the                  300-400 m band of this slider was unreachable for releases                  without anyone noticing."
+            );
+        }
+    }
+
+    #[test]
+    fn thousands_separates_groups_of_three() {
+        assert_eq!(thousands(0.0), "0");
+        assert_eq!(thousands(999.0), "999");
+        assert_eq!(thousands(12_755.0), "12,755");
+        assert_eq!(thousands(200_000.0), "200,000");
+        assert_eq!(thousands(1_234_567.0), "1,234,567");
+    }
 }

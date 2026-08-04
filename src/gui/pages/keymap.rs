@@ -98,3 +98,36 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &GuiState) {
                 });
         });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The SHIPPED keymap file must actually parse. `load_keymaps` swallows a
+    /// RON error and silently returns the one-line `fallback()`, so a typo in
+    /// data/keymaps.ron neither crashes nor warns - the F1 overlay just quietly
+    /// stops listing anything, which nobody notices until they need it. This
+    /// gate is the only thing standing between a stray comma and that.
+    #[test]
+    fn shipped_keymaps_parse_and_cover_the_world_context() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let text = std::fs::read_to_string(dir.join("keymaps.ron")).expect("keymaps.ron reads");
+        let maps: Vec<KeymapContext> =
+            ron::from_str(&text).expect("data/keymaps.ron must parse as Vec<KeymapContext>");
+        let world = maps
+            .iter()
+            .find(|c| c.context == "World")
+            .expect("a World context must exist - it is what the FPS view shows");
+        assert!(world.binds.len() > 10, "the World keymap lost most of its rows");
+        // Every dev hotkey the raw winit handler owns is DESCRIBED here, since
+        // this list is the only place a player can discover them (v0.1109
+        // added F9 = dev flight; the file header says to keep them in sync).
+        for key in ["F1 (hold)", "F2", "F6", "F9", "F11", "F12"] {
+            assert!(
+                world.binds.iter().any(|b| b.keys == key),
+                "the World keymap does not mention {key}; the F1 overlay is the \
+                 discovery surface for it, so an unlisted hotkey is invisible"
+            );
+        }
+    }
+}

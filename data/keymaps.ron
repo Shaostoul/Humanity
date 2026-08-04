@@ -32,6 +32,7 @@
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
+        (action: "Dev flight on / off (hover, no gravity)", keys: "F9"),
         (action: "Weather panel (presets, wind = sea state)", keys: "F11"),
         (action: "Debug console", keys: "F12"),
     ]),

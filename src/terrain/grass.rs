@@ -199,6 +199,27 @@ pub const GRASS_MID_M: f32 = 12.0;
 /// a second mesh slot and a second instanced draw in the renderer; nothing in
 /// this file has to change for it.
 pub const GRASS_FAR_M: f32 = 22.0;
+
+/// LIVE grass draw distance, f32 bits in an atomic (the harvest runs on worker
+/// threads - same pattern as `GRASS_DENSITY_BITS`). `GRASS_FAR_M` above stays
+/// the DEFAULT and the shipped picture; this is what the ramp and the harvest
+/// actually read, written each frame from the Settings control.
+///
+/// The operator asked for this directly: "I would like to see how the game
+/// performs when I extend the grass to render further away... then I wouldn't
+/// have to ask you to increase the ceiling."
+pub static GRASS_FAR_BITS: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0x41B0_0000); // 22.0f32
+
+/// The ramp's zero point. Floored just past `GRASS_MID_M` so the last leg can
+/// never invert, and ceilinged at the same 250 m the Settings control offers
+/// (duplicated as a literal because `config` is native-gated and this file is
+/// not).
+#[inline]
+pub fn grass_far_m() -> f32 {
+    f32::from_bits(GRASS_FAR_BITS.load(std::sync::atomic::Ordering::Relaxed))
+        .clamp(GRASS_MID_M + 1.0, 250.0)
+}
 /// Ceiling on `grass_clump_gain`. Two things depend on it: the per-cell item
 /// budget (a cell sitting entirely inside a clump must have enough items in
 /// its stream to fill it) and the acceptance probability (which divides by
@@ -394,7 +415,7 @@ pub fn grass_appear_distance(thr: f32) -> f32 {
         return 0.0;
     }
     if thr <= 0.0 {
-        return GRASS_FAR_M;
+        return grass_far_m();
     }
     let m = GRASS_MID_FRACTION;
     if thr >= m {
@@ -404,7 +425,7 @@ pub fn grass_appear_distance(thr: f32) -> f32 {
     } else {
         // On the mid-to-zero leg: density/PEAK falls m -> 0 over MID..FAR.
         let t = 1.0 - thr / m;
-        GRASS_MID_M + (GRASS_FAR_M - GRASS_MID_M) * t
+        GRASS_MID_M + (grass_far_m() - GRASS_MID_M) * t
     }
 }
 
@@ -461,8 +482,8 @@ pub fn grass_ramp_at(d_m: f32) -> f32 {
     } else if d_m < GRASS_MID_M {
         let t = (d_m - GRASS_NEAR_M) / (GRASS_MID_M - GRASS_NEAR_M);
         1.0 + (GRASS_MID_FRACTION - 1.0) * t
-    } else if d_m < GRASS_FAR_M {
-        let t = (d_m - GRASS_MID_M) / (GRASS_FAR_M - GRASS_MID_M);
+    } else if d_m < grass_far_m() {
+        let t = (d_m - GRASS_MID_M) / (grass_far_m() - GRASS_MID_M);
         GRASS_MID_FRACTION * (1.0 - t)
     } else {
         0.0
@@ -697,10 +718,10 @@ pub fn near_grass_instances(
         return out;
     }
     let lon_c = (-center.z).atan2(center.x);
-    let margin_m = margin_m.clamp(0.0, GRASS_FAR_M as f64);
+    let margin_m = margin_m.clamp(0.0, grass_far_m() as f64);
     // The superset reaches `margin_m` further than the ramp does: a camera
     // that far from the harvest centre still sees the last of the ramp.
-    let far_m = far_m.clamp(1.0, GRASS_FAR_M as f64) + margin_m;
+    let far_m = far_m.clamp(1.0, grass_far_m() as f64) + margin_m;
     let ang = far_m / def.radius.max(1.0);
     let cos_ang = ang.cos();
     let sea = def.sea_level.clamp(0.0, 1.0);

@@ -278,11 +278,20 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // above x1k the SHIP flies (ship_world_pos, f64) so crossing an AU
         // takes seconds without wrecking f32 camera precision.
         ui.horizontal(|ui| {
-            ui.checkbox(&mut state.dev_fly_mode, "Fly mode");
+            ui.checkbox(&mut state.dev_fly_mode, "Fly mode")
+                .on_hover_text(
+                    "F9 toggles this from inside the world. On: no gravity, no ground \
+                     clamp, and the camera holds its altitude when you let go of the \
+                     keys - park at any height for a scenery shot. Off: normal walk / \
+                     run with gravity.",
+                );
             ui.label(
-                RichText::new("no gravity, no walls; W flies where you look")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
+                RichText::new(
+                    "F9 - no gravity, no walls; W flies where you look, altitude holds \
+                     when idle",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
             );
         });
         ui.horizontal(|ui| {

@@ -430,6 +430,23 @@ pub struct AppConfig {
     /// only, higher = photoscanned conifers further out, more GPU).
     #[serde(default = "default_tree_model_distance")]
     pub tree_model_distance: f32,
+    /// How many near-field 3D tree models may be DRAWN at once, nearest
+    /// first (v0.1109). Was the hardcoded NEAR_TREE_DRAW_BUDGET in lib.rs,
+    /// which meant raising `tree_model_distance` just packed the same 256
+    /// models into a tighter ring instead of covering more ground.
+    #[serde(default = "default_near_tree_budget")]
+    pub near_tree_budget: f32,
+    /// Grass draw distance in metres (v0.1109): the surface distance at which
+    /// the density ramp reaches zero. Was the hardcoded
+    /// terrain::grass::GRASS_FAR_M.
+    #[serde(default = "default_grass_far_m")]
+    pub grass_far_m: f32,
+    /// Ceiling on how many grass tillers ONE harvest may emit (v0.1109). Was
+    /// the hardcoded GRASS_HARVEST_CAP in lib.rs. Exposed because hitting it
+    /// truncates the field's far edge into a hard circle, and the only way to
+    /// raise it used to be a code edit.
+    #[serde(default = "default_grass_harvest_cap")]
+    pub grass_harvest_cap: f32,
     /// Vegetation spawn density multiplier: scales trees + grass per terrain
     /// cell. 0.6 default (v0.1083) -- the historical 1.0 forest measured
     /// 131-162 ms/frame at max settings once the perf counters were honest.
@@ -764,7 +781,49 @@ fn default_godray_intensity() -> f32 { 0.55 }
 /// v0.1104, which left 40% of full sunlight - in the sun's own warm colour -
 /// inside every shadow, and no way to change it.
 fn default_shadow_strength() -> f32 { 1.0 }
+// ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
+// The OUTER limit of each vegetation-LOD control, in ONE place, because the
+// same number has to be known by three files: the Settings number box (so it
+// will accept the value), `apply_to_state` (so a saved value survives a
+// restart), and the engine's own clamp at the point of use. Before this they
+// were three unrelated literals and they had already drifted: the Settings
+// slider stopped at 300 m while both clamps allowed 400 m, so the top 100 m
+// of the tree-model range was unreachable from the UI.
+//
+// These are CEILINGS, not recommendations. Everything above the slider band is
+// deliberately reachable only by typing, and the Settings page prints what each
+// one costs. Operator, 2026-08-03: "then I wouldn't have to ask you to increase
+// the ceiling."
+/// Ceiling for `tree_model_distance`. 2 km is far past playable (the draw
+/// budget runs out first) and is here so the budget, not the UI, is the thing
+/// the operator measures.
+pub const TREE_MODEL_MAX_M: f32 = 2000.0;
+/// Ceiling for `veg_tree_card_m`. Cards only exist on terrain patches built at
+/// the 215 m detail level (terrain::planet_chunks::TREE_MIN_DEPTH), so pushing
+/// this past where that level reaches does nothing on its own; the Settings
+/// help text says so and names the two terrain sliders that move it.
+pub const TREE_CARD_MAX_M: f32 = 8000.0;
+/// Shipped near-field 3D tree draw budget (the pre-v0.1109 constant).
+pub const NEAR_TREE_BUDGET_DEFAULT: f32 = 256.0;
+/// Ceiling for `near_tree_budget`. Each model is 120-190k triangles, so this
+/// is a triangle budget in disguise; 8192 exists to let the operator find the
+/// knee, not because it will run.
+pub const NEAR_TREE_BUDGET_MAX: f32 = 8192.0;
+/// Ceiling for `grass_far_m`. The CPU harvest runs inline on the frame thread
+/// and its cell walk grows with the square of this, so the useful experiment
+/// range ends long before 250 m; the Settings page prints the estimate.
+pub const GRASS_FAR_MAX_M: f32 = 250.0;
+/// Shipped grass harvest instance cap (the pre-v0.1109 constant).
+pub const GRASS_HARVEST_CAP_DEFAULT: f32 = 200_000.0;
+/// Ceiling for `grass_harvest_cap`. At 90 triangles per tiller this is 180M
+/// triangles; it is a ceiling on the ceiling, nothing more.
+pub const GRASS_HARVEST_CAP_MAX: f32 = 2_000_000.0;
+
 fn default_tree_model_distance() -> f32 { 120.0 }
+fn default_near_tree_budget() -> f32 { NEAR_TREE_BUDGET_DEFAULT }
+/// The shipped ramp end, so the default is the shipped picture exactly.
+fn default_grass_far_m() -> f32 { crate::terrain::grass::GRASS_FAR_M }
+fn default_grass_harvest_cap() -> f32 { GRASS_HARVEST_CAP_DEFAULT }
 fn default_tree_density() -> f32 { 0.6 }
 /// 1.0 = a real turf (LAI ~3.3). This is COVERAGE, not quality.
 fn default_grass_density() -> f32 { 1.0 }
@@ -1094,6 +1153,9 @@ impl AppConfig {
             terrain_patch_budget: state.settings.terrain_patch_budget,
             terrain_detail_distance: state.settings.terrain_detail_distance,
             tree_model_distance: state.settings.tree_model_distance,
+            near_tree_budget: state.settings.near_tree_budget,
+            grass_far_m: state.settings.grass_far_m,
+            grass_harvest_cap: state.settings.grass_harvest_cap,
             tree_density: state.settings.tree_density,
             grass_density: state.settings.grass_density,
             grass_detail: state.settings.grass_detail,
@@ -1260,11 +1322,24 @@ impl AppConfig {
         state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 12288.0);
         state.settings.terrain_detail_distance =
             self.terrain_detail_distance.clamp(0.5, 3.0);
-        state.settings.tree_model_distance = self.tree_model_distance.clamp(0.0, 400.0);
+        // Vegetation LOD (v0.1109): clamp to the shared ceilings, not to a
+        // local literal. The old 400 m / 3000 m literals here were the reason
+        // a typed value could never outlive a restart.
+        state.settings.tree_model_distance =
+            self.tree_model_distance.clamp(0.0, TREE_MODEL_MAX_M);
+        state.settings.near_tree_budget =
+            self.near_tree_budget.clamp(1.0, NEAR_TREE_BUDGET_MAX);
+        // Floor is the ramp's mid anchor plus a metre: a far edge at or inside
+        // the mid anchor would invert the last leg of the ramp.
+        state.settings.grass_far_m = self
+            .grass_far_m
+            .clamp(crate::terrain::grass::GRASS_MID_M + 1.0, GRASS_FAR_MAX_M);
+        state.settings.grass_harvest_cap =
+            self.grass_harvest_cap.clamp(1000.0, GRASS_HARVEST_CAP_MAX);
         state.settings.tree_density = self.tree_density.clamp(0.1, 1.0);
         state.settings.grass_density = self.grass_density.clamp(0.1, 3.0);
         state.settings.grass_detail = self.grass_detail.clamp(0.1, 1.0);
-        state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, 3000.0);
+        state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
@@ -1682,6 +1757,11 @@ mod pbkdf2_migration_tests {
         // whenever a config regenerated).
         assert_eq!(c.tree_model_distance, 120.0);
         assert_eq!(c.veg_tree_card_m, 1500.0);
+        // v0.1109 vegetation LOD ranges: the DEFAULTS must be the shipped
+        // engine constants exactly, so exposing them changed no picture.
+        assert_eq!(c.near_tree_budget, NEAR_TREE_BUDGET_DEFAULT);
+        assert_eq!(c.grass_far_m, crate::terrain::grass::GRASS_FAR_M);
+        assert_eq!(c.grass_harvest_cap, GRASS_HARVEST_CAP_DEFAULT);
         assert!(c.planet_atmo_scatter);
         assert!(c.planet_surface_detail);
         assert_eq!(c.cloud_quality, "high");

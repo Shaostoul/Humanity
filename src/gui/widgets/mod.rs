@@ -394,7 +394,11 @@ fn custom_slider_with_width(
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let center_y = rect.center().y;
-        let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { (*value - min) / (max - min) };
+        // PAINT position only, clamped to the track. `labeled_slider_entry`
+        // lets a value be TYPED past the slider's right edge; without this
+        // clamp the thumb and the gradient fill would be drawn outside the
+        // allocated rect and paint over the widget to its right.
+        let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { ((*value - min) / (max - min)).clamp(0.0, 1.0) };
         let thumb_x = rect.left() + t * rect.width();
         let rounding = Rounding::same((track_h / 2.0) as u8);
 
@@ -486,6 +490,61 @@ pub fn labeled_slider(ui: &mut Ui, theme: &Theme, label: &str, value: &mut f32, 
             format!("{:.0}", *value)
         };
         ui.label(RichText::new(value_text).color(theme.text_muted()).size(theme.font_size_small));
+    });
+    changed
+}
+
+/// Labeled slider PLUS a typed number box, for settings whose useful range is
+/// far wider than one slider can show at a useful resolution.
+///
+/// Layout: `[settings_label][slider track][number box]`. The slider covers the
+/// COMMON band (`slider_range`). The number box accepts anything from that
+/// band's floor up to `hard_max`, including values the slider cannot reach:
+/// drag it, or click it and type. Past the band the thumb pins at the track's
+/// right edge and the box keeps showing the true value; clicking the track
+/// afterwards pulls the value back into the band, which is a deliberate action
+/// rather than a silent clamp.
+///
+/// WHY this exists rather than just widening the slider: the vegetation LOD
+/// ranges are logarithmic in practice (grass is interesting from 12 m to 250 m,
+/// tree models from 0 m to 2 km), and a slider stretched over the whole span
+/// gives one pixel per several metres exactly where the defaults live. Operator
+/// request, 2026-08-03: "sliders or maybe just number selectors so we can go to
+/// any value to adjust the different ranges for LODs of trees/grass. Then I
+/// wouldn't have to ask you to increase the ceiling."
+///
+/// `speed` is metres (or units) per pixel of drag on the number box.
+pub fn labeled_slider_entry(
+    ui: &mut Ui,
+    theme: &Theme,
+    label: &str,
+    value: &mut f32,
+    slider_range: std::ops::RangeInclusive<f32>,
+    hard_max: f32,
+    speed: f32,
+) -> bool {
+    let mut changed = false;
+    let lo = *slider_range.start();
+    let hi = hard_max.max(*slider_range.end());
+    settings_row(ui, theme, label, |ui| {
+        // The number box is the wide-range control, so it gets fixed room and
+        // the slider takes what is left (same reserve trick as labeled_slider,
+        // which exists because the value text used to paint over the track).
+        const ENTRY_RESERVE: f32 = 92.0;
+        if custom_slider_capped(ui, theme, value, slider_range.clone(), ENTRY_RESERVE) {
+            changed = true;
+        }
+        let mut typed = *value;
+        let resp = ui.add(
+            egui::DragValue::new(&mut typed)
+                .speed(speed as f64)
+                .range(lo..=hi)
+                .max_decimals(2),
+        );
+        if resp.changed() && (typed - *value).abs() > f32::EPSILON {
+            *value = typed;
+            changed = true;
+        }
     });
     changed
 }

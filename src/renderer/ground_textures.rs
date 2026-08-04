@@ -1124,9 +1124,20 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Linear,
-        // x8: engaged because the shader samples with textureSampleGrad; the
-        // old explicit-LOD path bypassed aniso entirely (the grazing smear).
-        anisotropy_clamp: 8,
+        // x16, raised from x8 (v0.1108.2). Engaged at all because the shader
+        // samples with textureSampleGrad; the old explicit-LOD path bypassed
+        // aniso entirely (the grazing smear).
+        //
+        // 8 was measurably too low for the geometry this ground is viewed at: a
+        // pixel on flat ground 35 m from a 1.7 m eye covers 0.05 m across the
+        // sightline and 1.04 m along it, an anisotropy of 21:1. Past the clamp
+        // the hardware falls back to a coarser isotropic mip, so the fine
+        // photoscan tile smears to near-flat exactly where the low-frequency
+        // variation octaves are still at full strength - which is the operator's
+        // "large low detail texture laying over a smaller higher detail
+        // texture". 16 is the common hardware maximum and costs bandwidth only
+        // on the grazing pixels that were losing the detail.
+        anisotropy_clamp: 16,
         ..Default::default()
     });
 

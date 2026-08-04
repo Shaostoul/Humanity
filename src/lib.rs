@@ -41,6 +41,11 @@ pub mod dev_travel;
 /// like `dev_travel`, so its unit tests run under every feature set. See
 /// `src/surface_walk.rs`.
 pub mod surface_walk;
+/// The player's surface MOVEMENT MODEL (v0.1109): walk vs dev flight, the
+/// tangential/radial wish split, and the per-mode vertical integration. Split
+/// out of the frame-lock block in lib.rs so it is testable headless; ungated
+/// like `surface_walk`. See `src/surface_move.rs`.
+pub mod surface_move;
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
 /// Reaction emoji palette (data/reactions.json): one source for the native
@@ -81,11 +86,6 @@ pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync:
 /// sapling into a mature tree - the architecture differs, not just the size.
 const MAX_MODEL_STRETCH: f32 = 3.0;
 
-/// Ceiling on the grass harvest superset. The superset integrates to ~93k
-/// tillers at the maximum "Grass: ground cover" setting (3.0), and the walk is
-/// nearest-first with a break on the cap - so a cap that binds removes the FAR
-/// EDGE and leaves a hard circle rather than thinning. Warns when it binds.
-const GRASS_HARVEST_CAP: usize = 200_000;
 
 /// The resolved data dir (or "data" if not yet set).
 pub(crate) fn data_dir() -> std::path::PathBuf {
@@ -2085,6 +2085,38 @@ mod native_app {
                         // stood and looked, instead of staring into the dirt.
                         if key == KeyCode::F6 && pressed {
                             state.bookmark_save_requested = true;
+                            return;
+                        }
+                        // F9 (v0.1109, operator request): toggle DEV FLIGHT
+                        // without leaving the world for the Dev page. OFF is
+                        // the normal walk/run model (gravity + ground clamp);
+                        // ON removes both and HOLDS the altitude when nothing
+                        // is held, so you can park at "5,000 feet or whatever"
+                        // for a scenery shot and press F9 again to fall
+                        // normally. Same flag the Dev page checkbox and the
+                        // HUD's FLY indicator use - there is no second mode.
+                        // Cheats-gated like every other dev-travel affordance
+                        // (the per-frame sync at the top of the loop would
+                        // force it back off anyway; refusing here says why).
+                        if key == KeyCode::F9 && pressed {
+                            if state.gui_state.dev_cheats_active(&state.theme) {
+                                let on = !state.gui_state.dev_fly_mode;
+                                state.gui_state.dev_fly_mode = on;
+                                state.controller.fly_mode = on; // effective this frame
+                                // Leaving flight starts a FRESH fall rather
+                                // than inheriting whatever the last airborne
+                                // moment left behind.
+                                state.surface_vr = 0.0;
+                                log::info!(
+                                    "[DevFlight] F9: {}",
+                                    if on { "ON (no gravity, altitude held)" } else { "OFF (walking)" }
+                                );
+                            } else {
+                                log::info!(
+                                    "[DevFlight] F9 ignored: dev tools are off (Settings > \
+                                     Gameplay > Play mode, plus the cheats switch)"
+                                );
+                            }
                             return;
                         }
 
@@ -4125,6 +4157,14 @@ mod native_app {
                             // exactly like FTL above it: W with the nose down
                             // descends, no separate descend key needed.
                             let dir0 = anchor.normalize_or_zero();
+                            // ── MOVEMENT MODEL (v0.1109) ── Walk or dev
+                            // flight; see src/surface_move.rs for the report
+                            // this split exists for. It is a VIEW of the
+                            // existing dev-flight flag (F9 / Dev page), so
+                            // the HUD word and the physics read one bit.
+                            let move_mode = crate::surface_move::MoveMode::from_dev_flight(
+                                state.controller.fly_mode,
+                            );
                             // v0.1006 (operator: "I'm flying perpendicularly
                             // to the surface but I seem to just be in
                             // constant freefall"): DEV FLY MODE flies where
@@ -4132,10 +4172,7 @@ mod native_app {
                             // walking wish is for feet on the ground, and
                             // forcing it below 10 km made nose-down + W do
                             // nothing vertical while gravity pulled.
-                            let wish = if in_walk_band
-                                && !submerged
-                                && !state.controller.fly_mode
-                            {
+                            let wish = if move_mode.uses_tangent_wish(in_walk_band, submerged) {
                                 state.controller.surface_wish_dir(&state.camera)
                             } else {
                                 // Flight band above, SWIMMING below (v0.903):
@@ -4153,8 +4190,14 @@ mod native_app {
                             };
                             let wish_unrot = glam::DQuat::from_rotation_y(-spin)
                                 * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
-                            let radial_wish = wish_unrot.dot(dir0);
-                            let tangential = wish_unrot - dir0 * radial_wish;
+                            // WALK quantises the radial share to exactly
+                            // {-1, 0, +1} so forward input can NEVER lift
+                            // (operator v0.1109: "while I press W I
+                            // immediately start flying"); dev flight keeps
+                            // the analog share so W still flies where you
+                            // look. See surface_move::split_wish.
+                            let (tangential, radial_wish) =
+                                crate::surface_move::split_wish(wish_unrot, dir0, move_mode);
                             // ── Unified flight speed (v0.880, operator stuck
                             // at the 100 km boundary + "speed resets") ──
                             // WALK band: the wheel stays bounded (~10 km/s) so
@@ -4236,7 +4279,7 @@ mod native_app {
                             // root of every "I move parallel to the Earth
                             // on takeoff" report. Same deliberate-input
                             // dead zone as the radial axis.
-                            if tangential.length() > RADIAL_WISH_EPS {
+                            if tangential.length() > crate::surface_move::RADIAL_WISH_EPS {
                                 anchor += tangential.normalize() * step;
                             }
                             // Ground radius at the (possibly moved) surface point.
@@ -4404,101 +4447,49 @@ mod native_app {
                                 state.last_clearance += d.clamp(-step, step);
                                 state.last_clearance
                             };
-                            let rest = crate::surface_walk::rest_radius(
-                                g,
-                                crate::surface_walk::EYE_HEIGHT_M,
-                                clearance,
-                            );
-                            let mut r = anchor.length();
-                            // Dead zone (v0.880, operator: "pressing W I start
-                            // floating up into the air"): surface_wish_dir
-                            // strips WASD to the tangent plane, but the
-                            // projection leaves ~1e-7 of float noise on the
-                            // radial axis - and ANY positive residue used to
-                            // take the lift branch at full walk speed. A real
-                            // ascend/descend key contributes ~1.0; require a
-                            // deliberate input.
-                            const RADIAL_WISH_EPS: f64 = 0.05;
+                            // Standing height AND the ground clamp - they are
+                            // the same floor by construction, so radial_step
+                            // only needs this one number.
+                            let rest = crate::surface_move::rest_height(g, clearance);
+                            let r0 = anchor.length();
                             // Band entry / teleport never inherits a stale
                             // fall speed from a previous surface session.
                             if just_engaged {
                                 state.surface_vr = 0.0;
                             }
-                            if in_walk_band && !submerged {
-                                // ── REAL vertical ballistics (v0.1005,
-                                // operator: "It's not remotely like gravity.
-                                // The up speed is super slow while the down
-                                // speed is always very fast") ── the old
-                                // settle_radius exponential yanked kilometre
-                                // falls down in ~a second. Now: thrust ramps
-                                // the radial velocity toward the commanded
-                                // climb rate at ~3g, release coasts a real
-                                // ballistic arc, free fall builds at the
-                                // planet's own g and caps at human terminal
-                                // velocity. Walking keeps a short-range
-                                // settle "glue" (<0.5 m gap) so downhill
-                                // strides track the terrain instead of
-                                // micro-falling between every step.
-                                let g_accel =
-                                    def.map(|d| d.gravity as f64).unwrap_or(9.81).max(0.01);
-                                let thrusting = radial_wish.abs() > RADIAL_WISH_EPS;
-                                if !thrusting
-                                    && state.surface_vr <= 0.0
-                                    && (r - rest) < 0.5
-                                {
-                                    state.surface_vr = 0.0;
-                                    r = crate::surface_walk::settle_radius(
-                                        r,
-                                        rest,
-                                        dt as f64,
-                                        SURFACE_SETTLE_RATE,
-                                    );
-                                } else {
-                                    let climb_rate = step / (dt as f64).max(1e-6);
-                                    let thrust = if thrusting {
-                                        climb_rate * radial_wish
-                                    } else {
-                                        0.0
-                                    };
-                                    let vs = crate::surface_walk::vertical_step(
-                                        r,
-                                        state.surface_vr,
-                                        rest,
-                                        g_accel,
-                                        dt as f64,
-                                        thrust,
-                                        crate::surface_walk::TERMINAL_FALL_MPS,
-                                    );
-                                    r = vs.r;
-                                    state.surface_vr = vs.v_r;
-                                }
-                            } else {
-                                // Flight band (10-100 km): aircraft altitude
-                                // hold - deliberate climb/descend only (also
-                                // keeps parked aerial rig cameras from
-                                // sinking). Submerged: neutral buoyancy
-                                // (v0.903). Neither carries ballistic speed.
-                                state.surface_vr = 0.0;
-                                if radial_wish > RADIAL_WISH_EPS {
-                                    r += (step * radial_wish).max(1.0 * dt as f64);
-                                } else if radial_wish < -RADIAL_WISH_EPS {
-                                    r += radial_wish * step;
-                                }
-                            }
-                            r = crate::surface_walk::clamp_above_ground(
-                                r,
-                                g,
-                                crate::surface_walk::EYE_HEIGHT_M,
-                                clearance,
+                            // ── ONE FRAME OF RADIAL MOTION (v0.1109) ──
+                            // Extracted whole to surface_move::radial_step so
+                            // the three regimes (walking ballistics + settle
+                            // glue, flight-band altitude hold, DEV FLIGHT
+                            // hover) can be gated headless. Dev flight takes
+                            // no gravity and no ground clamp and holds its
+                            // altitude bit-exactly with the stick still, which
+                            // is what the operator asked F9 for: "maintaining
+                            // some arbitrary height, like 5,000 feet or
+                            // whatever" for a hovering scenery shot.
+                            let vs = crate::surface_move::radial_step(
+                                move_mode,
+                                in_walk_band,
+                                submerged,
+                                r0,
+                                state.surface_vr,
+                                rest,
+                                def.map(|d| d.gravity as f64).unwrap_or(9.81).max(0.01),
+                                SURFACE_SETTLE_RATE,
+                                dt as f64,
+                                radial_wish,
+                                step,
                             );
+                            let r = vs.r;
+                            state.surface_vr = vs.v_r;
                             anchor = dir1 * r;
                             state.frame_lock_anchor = anchor;
                             state.frame_lock_last_spin = spin;
                             // Grounded = standing within a boot's reach of the
                             // rest height (v0.996): the footstep gate. Airborne
-                            // (jump thrust, falling, swimming) is silent.
-                            state.on_ground_planet =
-                                in_walk_band && !submerged && (r - rest).abs() < 0.35;
+                            // (jump thrust, falling, swimming, hovering in dev
+                            // flight) is silent - radial_step decides.
+                            state.on_ground_planet = vs.grounded;
                             state.gui_state.underwater = submerged && lock_body == "earth";
                             // v0.907: metres below sea level for the tint's
                             // depth grading + HUD readout (planet def radius
@@ -9372,7 +9363,7 @@ mod native_app {
                                     .gui_state
                                     .settings
                                     .tree_model_distance
-                                    .clamp(0.0, 400.0) as f64;
+                                    .clamp(0.0, crate::config::TREE_MODEL_MAX_M) as f64;
                                 let alt_over = cam_local.length() - d.radius;
                                 // Default: no card hiding unless the model
                                 // loop below actually covered a radius.
@@ -9510,12 +9501,21 @@ mod native_app {
                                     // VIEW-INDEPENDENT, so coverage is a stable
                                     // ~70 m ring and cards take over exactly
                                     // where the models end.
-                                    const NEAR_TREE_DRAW_BUDGET: u32 = 256;
+                                    // Was a const 256 (v0.1108.2). The
+                                    // operator asked to stop having to request
+                                    // ceiling raises, and this one bounds how
+                                    // many 3D trees can draw at ANY distance -
+                                    // so raising the distance without it just
+                                    // packs the same 256 into a tighter ring.
+                                    let near_tree_draw_budget: u32 =
+                                        state.gui_state.settings.near_tree_budget
+                                            .clamp(1.0, crate::config::NEAR_TREE_BUDGET_MAX)
+                                            as u32;
                                     let now_s = state.start_time.elapsed().as_secs_f32();
                                     let fade_in =
                                         ((now_s - state.near_tree_born_s) / 0.35).clamp(0.0, 1.0);
                                     for (ti, tr) in state.near_trees.iter().enumerate() {
-                                        if drawn >= NEAR_TREE_DRAW_BUDGET {
+                                        if drawn >= near_tree_draw_budget {
                                             break;
                                         }
                                         let base_local = tr.dir * tr.r_m;
@@ -9834,6 +9834,15 @@ mod native_app {
                                         let t0 = std::time::Instant::now();
                                         let _cost_grass_harvest =
                                             crate::renderer::frame_costs::stage("cpu.grass_harvest");
+                                        // Instance ceiling, now a setting
+                                        // (v0.1108.2). It BINDS at large draw
+                                        // distances - the superset grows with
+                                        // the area - and when it binds it cuts
+                                        // the far rim off rather than thinning,
+                                        // so the warning below is not optional.
+                                        let grass_cap = state.gui_state.settings.grass_harvest_cap
+                                            .clamp(1000.0, crate::config::GRASS_HARVEST_CAP_MAX)
+                                            as usize;
                                         state.near_grass = chunks::near_grass_instances(
                                             d,
                                             &src,
@@ -9842,10 +9851,10 @@ mod native_app {
                                                 .get(&b.id)
                                                 .map(|a| a.as_ref()),
                                             cam_local.normalize(),
-                                            chunks::GRASS_FAR_M as f64,
+                                            chunks::grass_far_m() as f64,
                                             chunks::GRASS_HARVEST_MARGIN_M,
                                             draw_depth,
-                                            crate::GRASS_HARVEST_CAP,
+                                            grass_cap,
                                         );
                                         state.near_grass_center = cam_local;
                                         state.near_grass_depth = draw_depth;
@@ -9862,13 +9871,13 @@ mod native_app {
                                         // walk is nearest-first and breaks), so
                                         // say so rather than let a hard circle
                                         // look like a design choice.
-                                        if state.near_grass.len() >= crate::GRASS_HARVEST_CAP {
+                                        if state.near_grass.len() >= grass_cap {
                                             log::warn!(
                                                 "[Grass] harvest TRUNCATED at the {} cap - the \
                                                  field is cut off at its outer rim and will end \
                                                  in a hard circle. Lower 'Grass: ground cover' \
-                                                 or raise GRASS_HARVEST_CAP.",
-                                                crate::GRASS_HARVEST_CAP
+                                                 or raise the harvest cap beside it.",
+                                                grass_cap
                                             );
                                         }
                                     }
@@ -11580,6 +11589,10 @@ mod native_app {
                             );
                             crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
                                 state.gui_state.settings.grass_density.to_bits(),
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
+                            crate::terrain::grass::GRASS_FAR_BITS.store(
+                                state.gui_state.settings.grass_far_m.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
                             );
                             crate::terrain::planet_chunks::GRASS_DETAIL_BITS.store(
@@ -16681,7 +16694,8 @@ mod native_app {
                                 // Vegetation LOD (v0.923): the tree-card far
                                 // cutoff slider applies live.
                                 state.renderer.tree_card_far_m =
-                                    state.gui_state.settings.veg_tree_card_m.clamp(100.0, 3000.0);
+                                    state.gui_state.settings.veg_tree_card_m
+                                        .clamp(100.0, crate::config::TREE_CARD_MAX_M);
                                 // v0.907: the lighting-pass knobs from
                                 // Settings > Planets apply every frame.
                                 state.renderer.sun_shadows =

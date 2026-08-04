@@ -318,31 +318,56 @@ pub fn draw(
                 }
             }
 
-            // ── Dev travel indicator (v0.791.x, under the compass) ──
-            // Shown whenever fly mode is on or the FTL multiplier is above 1x,
-            // so the operator always knows why movement behaves differently.
-            if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 {
+            // ── Movement-mode indicator (v0.791.x, under the compass;
+            // extended v0.1109) ── Gravity behaves DIFFERENTLY between the two
+            // surface modes, so the mode is never a guess: on a planet the
+            // line always reads WALK (gravity + ground clamp) or FLY (neither,
+            // altitude held), with the F9 toggle spelled out. Off-planet it
+            // keeps its original job of explaining why movement is odd -
+            // shown whenever fly mode is on or the FTL multiplier is above 1x.
+            let on_surface = state.surface_altitude_m.is_some();
+            if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 || on_surface {
+                let mode = crate::surface_move::MoveMode::from_dev_flight(state.dev_fly_mode);
                 let mut label = format!(
-                    "FLY {}",
+                    "{} {}",
+                    mode.hud_word(),
                     crate::dev_travel::format_multiplier(state.dev_fly_speed_mult)
                 );
                 if !state.dev_fly_mode {
-                    label.push_str(" (fly mode off)");
-                } else if state.dev_fly_speed_mult
-                    > crate::renderer::camera::LOCAL_FLY_MULT_MAX
-                {
-                    label.push_str(" FTL - ship flying");
+                    // On a planet this is the real walking model, not a
+                    // half-off flight mode, so say which one it is and how to
+                    // leave it. The qualifier stays band-independent on
+                    // purpose: WALK means "the mode with gravity and a ground
+                    // clamp", which the word already carries.
+                    label.push_str(if on_surface { " [F9 to fly]" } else { " (fly mode off)" });
+                } else {
+                    if on_surface {
+                        label.push_str(" - hover, no gravity [F9 to walk]");
+                    }
+                    if state.dev_fly_speed_mult
+                        > crate::renderer::camera::LOCAL_FLY_MULT_MAX
+                    {
+                        label.push_str(" FTL - ship flying");
+                    }
                 }
                 if state.dev_travel_away {
                     label.push_str(" - away from home");
                 }
+                // Plain walking is the NORMAL state, so it reads as secondary
+                // text; anything that changes how gravity behaves keeps the
+                // warning colour it has always had.
+                let mode_color = if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 {
+                    theme.warning()
+                } else {
+                    theme.text_secondary()
+                };
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, compass_y + 20.0),
                     Align2::CENTER_TOP,
                     &label,
                     12.0,
-                    theme.warning(),
+                    mode_color,
                 );
             }
 
