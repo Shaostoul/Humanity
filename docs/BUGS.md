@@ -793,3 +793,88 @@ LESSON: a filter at the top of a gate is a silent exemption list. Any gate that
 skips rows must assert how many rows it actually examined - and when the skipped
 set is non-empty, that set belongs in a DATED allowlist, not in an `if` nobody
 can see the effect of.
+
+## BUG-068: The card-hide radius promised models that never drew - three proxies in three releases (fixed v0.1110.2)
+
+The renderer is told a radius inside which every terrain tree CARD must discard,
+because "a real 3D model stands here". That radius is a PROMISE, and three
+successive rules each computed a PROXY for it instead of the thing itself. Each
+proxy broke exactly where it parted from the promise.
+
+- **v0.995, the view-culled draw count.** "Fewer than 64 trees drew, so the set
+  is sparse, so hide cards across the whole window." With half the set always
+  behind the camera that misfired constantly, hiding cards over ground the
+  64-tree budget never covered. Symptom: a bare ring riding with the player.
+- **v0.1107, the budget-th tree.** The nearest-sorted set's budget-th tree was
+  taken to mark where models end. Measured, 45.2% of frames had hide radius >
+  the model distance, so a 34-52 m treeless ring rode with the player.
+- **v0.1110.1, the farthest tree that DREW.** Correct only if the draw order is
+  perfectly nearest-first, and it is not: the harvest re-sorts every 12 m of
+  walking while the camera keeps moving, so trees ahead of the player overtake
+  the ranking. Measured over a 40 m walk at Fuji, forest density 0.6: up to 32
+  orphaned trees per frame at the shipped budget (48 at 400 m), in an 11.5 m
+  band, **100% of them ahead of the direction of travel**. The count is zero
+  right after a re-harvest and worst just before the next, so the hole PULSES at
+  the 12 m walk period. Operator: "the billboards for the lower LOD trees just
+  kind of phase out of existence instead of actually shifting to a higher LOD."
+
+Compounding it, a hardcoded `600` was passed as the harvest's `max_n` while the
+draw budget was 1024. The harvest walks, gates, ground-samples and SORTS the
+whole disc before truncating, so that cap bought nothing except destroying the
+information the draw loop needs - which is why raising the draw budget from 1024
+to 4096 changed literally nothing.
+
+**Fix (v0.1110.2)**: `terrain::near_trees::ModelCoverage` derives the radius from
+the NEAREST TREE THAT GOT NO MODEL - budget exhausted, or mesh not yet streamed,
+a case every earlier rule was blind to. The harvest cap is now `budget + 256`, so
+the budget is always the binding constraint, because the budget is the only cap
+the draw loop can observe. It fails safe: worst case a card shows inside a model,
+where the model hides it.
+
+**LESSON**: when a value is a PROMISE to another subsystem, compute the promise,
+not a correlate of it. Write the promise down as a sentence first ("every card
+inside this radius has a model in it") and check the expression against the
+sentence. Also: a single-frame test passes on all three broken rules - only a
+MOVING camera exposes any of them, so the gate walks 40 m and asserts the fixture
+saturates the cap, or it would quietly stop exercising the bug.
+
+## BUG-069: Forest density was a process-global that two streams read separately (fixed v0.1111.0)
+
+Two independent code paths decide which trees exist: the card bake inside a
+terrain patch, and the near 3D-model harvest. `near_trees.rs` states the contract
+in its own comment - they "MUST stay byte-identical" - because a card with no
+model behind it discards in the colour pass while STILL CASTING SHADE (the shadow
+pass deliberately does not mirror the card-distance discards). Both read the
+density from `TREE_DENSITY_BITS`, a process-global atomic, for themselves.
+
+They could disagree two ways.
+
+- **Rounding.** The bake rounded twice (`round(round(800 * d) * cos(lat))`), the
+  harvest once. `count` is not a loop bound - it is the right-hand side of the
+  survival gate `item >= count * vw` - so it decides WHICH items live. Measured
+  over all 43,478 northern cells: **32.51% disagree at density 0.6294**, 26.69%
+  at 0.6295. Not clean even at the shipped default: exactly one cell row splits
+  at 0.6, iy 10727 at 21.2 degrees north, so a real latitude band through Mexico,
+  India and Vietnam shipped with cards that had no models.
+- **Split-brain.** A slider move changed what the next patch bake emitted at
+  once, but the harvest only re-ran every 12 m of walking.
+
+It also caused a ~50% test flake, because one test wrote the atomic mid-run and a
+sibling in the same binary read it.
+
+**Fix (v0.1111.0)**: density is an explicit argument of both streams, sourced
+once per frame, and the per-cell count comes from ONE function. The atomic is
+DELETED rather than kept as a bridge; callers that want ground geometry and do
+not care what grows on it take a fixed `AGNOSTIC_TREE_DENSITY` pinned to the
+shipped default by a test. The invariant is now stated and gated: *every tree
+card that can be on screen has a 3D model standing in it*, which holds because
+the enumeration is monotone in density (each item's randoms depend only on its
+index, and both the loop bound and the survival threshold rise together, so a
+higher density yields a strict superset).
+
+**LESSON**: a value two subsystems must agree on exactly is not a global, it is
+an ARGUMENT. A global makes the agreement a matter of timing; an argument makes
+it a matter of type-checking. The same reasoning kills the test flake for free -
+there is no shared mutable state left to fight over. And when the rounding of a
+shared quantity is duplicated, the duplicate IS the bug: one function, two
+callers.

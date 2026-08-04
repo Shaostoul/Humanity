@@ -11,42 +11,115 @@
 
 ## Active focus
 
-> **>>> TOP ITEM (2026-08-03): ATTRIBUTE AND FIX THE CPU REGRESSION blocking the
-> v0.1101 tag.** Measured on fuji-forest-ground at operator-mirrored settings:
-> `cpu.patch_build` 3.84 -> 38.56 ms, `cpu.scene` 1.70 -> 9.95, `cpu.celestial`
-> 5.91 -> 15.43, GPU essentially unchanged (`gpu.celestial` 20.5 -> 19.7,
-> `gpu.ssao` 0.15). 30 fps -> 11 fps. It came in with commit 47dfc478 (cluster
-> canopies for momiji/oak/birch + the scan-stretch guard that moved fir/pine to
-> procedural). Leading suspects, in order: procedural conifer meshes not cached
-> per species+variant the way photoscans were; three more species emitting
-> cluster cards during patch build; the two compounding. NOTHING SHIPS UNTIL
-> THIS IS FIXED - the operator plays these builds.
+> **>>> TOP ITEM (2026-08-04): VIEW-FRUSTUM CULL THE NEAR TREES.** The largest
+> verified unclaimed win on the board, and every constraint below is already
+> MEASURED - do not re-derive them, they cost about 1M tokens of agent time.
 >
-> **>>> THEN, still the vegetation arc.** Remaining, ranked:
-> 1. FIR + PINE canopies. They were photoscan-backed so the canopy pass skipped
->    them, and the scan-stretch guard now renders them procedurally - so the two
->    most prominent trees in a Fuji frame show bare triangle leaves. Needs
->    conifer-specific foliage: a needle SPRAY is the unit, flat and two-ranked
->    for fir, splayed fascicles for pine. NOT a broadleaf with smaller leaves.
-> 2. ACACIA canopy, blocked on a real architecture gap: the `umbrella` form
->    (`tree_mesh.rs:3290`) lays out its own bole/primaries/fans and calls
->    `leaf_cluster` directly, so it records ZERO twigs - and cards sleeve twigs.
->    With a ClusterDef attached it builds 0 cards and the blades-inside-card
->    gate reports 100% outside. Needs `umbrella()` to push a `Twig` per
->    foliage-bearing fan (same fields `branch()` fills) plus a card-compatible
->    sprig span. Its leaf silhouette (bipinnate) is already authored and waiting.
-> 3. Ground detail is IN (v0.1101) but has never been seen in a rendered pixel -
->    static verification only. First probe run must confirm it, and confirm the
->    new dynamic array indexing survives the HLSL backend on the operator's DX12
->    adapter (naga validation does not cover that).
+> At the operator's own settings (121 deg horizontal FOV, 400 m model distance,
+> 1024 budget), **62% of the drawn trees are outside the frustum**. Cross-checked
+> two independent ways - an engine harness on real Earth data and a
+> first-principles geometric calculation - agreeing within 1.5 points. The
+> near-tree draw loop in `src/lib.rs` tests only distance and budget; the
+> `frustum` is built in the same frame and handed to terrain selection and both
+> water passes, never to the trees.
+>
+> THE PAYOFF IS THE RESPEND, not the saving. Today the nearest 1024 of ~5,000
+> trees in range reach 181 m. Spend the same 1024 on the nearest VISIBLE trees
+> and they reach 300 m: 1.7x the radius, **2.9x the area for the same draw
+> count**, and the model/card handoff moves 173 m -> 293 m. The saving itself is
+> real but smaller: ~2,000 draw calls and ~4.4 M vertex-stage triangles. A tree
+> behind the camera is free to RASTERISE, not free to TRANSFORM.
+>
+> FOUR THINGS MUST BE RIGHT. All four were measured; none is optional.
+>
+> 1. **The coverage rule.** `ModelCoverage` derives the card-hide radius from the
+>    nearest tree that got no model. Naively SKIPPING culled trees gives a hide
+>    radius of 392 m against models stopping at 201 m - a 190 m bare ring
+>    directly in front of the player. Naively reporting them as UNCOVERED gives
+>    4.7-16.8 m, so nothing ever hides and every model double-draws with its
+>    card. Only this works: **visible trees feed coverage, AND the radius is
+>    additionally clamped by the harvest edge** (the distance to the last
+>    harvested tree).
+> 2. **The cull bound must enclose the CARD, not the model.** `sprite_card_frame`
+>    frames a square card up to 1.365x tree height (acacia). A 0.6h model sphere
+>    lets a card rasterise while its model is culled, and inside the hide radius
+>    that card discards - so the tree disappears entirely.
+> 3. **The shadow pass stays UNCULLED.** Near-tree models are the only off-screen
+>    shadow casters in the scene. At an 8 degree sun with the sun behind you,
+>    44-61% of culled trees cast into view; at 45 degrees or facing the sun, 0%.
+>    Cull the colour pass only.
+> 4. **Raise the harvest cap.** `near_tree_harvest_cap` = budget + 256 is not
+>    enough once culling lands: the cap binds first and the budget only fills to
+>    ~45%, so the reallocation never happens. Needs roughly 4x budget.
+>
+> Why this is newly possible: view-independence was load-bearing until v0.1110.2,
+> because the hide radius derived from the drawn COUNT. It no longer does.
+>
+> **>>> THEN: MEASURE THE 103 ms FOREST FRAME BEFORE RANKING ANY PERF FIX.**
+> Nobody knows where it goes, and one agent's answer ("CPU-submission-bound") was
+> adversarially refuted for resting on zero measurement of the actual frame.
+> Known: the named CPU is ~35 ms of 103; the only real GPU data says the pass
+> CONTAINING grass is 68-91% of GPU time and it just received 10-30x more
+> geometry (245,605 tufts, ~32 M triangles); and grass has no frustum test
+> either, with ~66% of tufts off-screen. ALSO UNEXPLAINED, already on record: the
+> same scene, camera PARKED on byte-identical content, swinging 44.3 -> 101.1 ms
+> over 35 minutes. Get the real per-pass breakdown out of `frame_costs` first -
+> grass culling vs blade LOD vs draw batching cannot be ranked until then.
+> CAUTION reading fps: the operator's display is 119 Hz, so vsync quantises to
+> 119/n (30 = 119/4, 23.8 = 119/5). Only unquantised numbers measure work.
+>
+> **>>> THEN, ranked:**
+>
+> 1. **Snap slider values to their displayed precision** (operator asked,
+>    2026-08-04). The UI already rounds for display - 2 decimals below 1.0, none
+>    above 20 - so Settings reads "10" while the engine runs `terrain_split_px`
+>    9.579, and "0.63" while density is 0.6294372. The drag handler writes
+>    `min + t * (max - min)` raw. Snapping to the display precision makes the
+>    stored value equal the shown one, and makes the reachable input space
+>    FINITE, so the stream-agreement gate can enumerate every value a slider can
+>    produce instead of sampling one known-bad one. Expect it to move the
+>    operator's split_px 9.579 -> 10 (~4% coarser distant terrain, slightly
+>    better fps); offer 0.5 steps if they would rather keep the finer value.
+> 2. **The understorey / bushes** (operator asked twice). The 0.3-3 m band is
+>    empty, which is most of why the ground reads as a lawn with trees stuck in
+>    it. A previous plan was KILLED by both its reviewers: it mis-costed the draw
+>    path (it assumed up to 4 card layers, but `ClusterLayer::ALL` has exactly 2)
+>    and its "70% already covered" apportionment did not survive checking. Redo
+>    the plan from the code. Honour the realistic-first rule: a basitonic
+>    (basal-branching) growth form through the existing spline-lofted stem +
+>    cluster-card pipeline, NOT billboard bushes.
+> 3. **Tree identity, for felling.** Trees are a hash re-derived by two streams
+>    that share no key, which is why they cannot be chopped down. A stable key
+>    already exists structurally - (cell_x, cell_y, item_index) - it is just
+>    never materialised. Full persistence is 19.4 TB and absurd; a sparse DELTA
+>    store of only CHANGED trees is ~16 MB per million felled. Keep procedural
+>    placement; record only what the player altered.
+>
+> **>>> OPERATOR-ONLY, waiting on you:**
+> - **Sign the releases.** v0.1110.2 and v0.1111.1 are UNSIGNED, and the desktop
+>   updater only offers signed releases - so v0.421+ users are still on an older
+>   build. `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release v0.1111.1`.
+> - **19 stale `agent-*` worktrees** under `.claude/worktrees/`. Each was checked
+>   on 2026-08-04 and none could be CHEAPLY proven redundant, so none was
+>   removed - `clean-worktrees` force-deletes branches and has destroyed
+>   review-approved work before. The three `wf_f9e9bae9-*` worktrees WERE proven
+>   fully superseded and removed.
+> - **2.5 GB of stale probe rigs**, `.probe-rig-{ab,bark,bark2,control,grass,`
+>   `light,opt,perfbark,rain,rain3,rainfx,ship,ship2,tree,veg}` - all from
+>   investigations that closed 2026-07-31..08-02, all untracked scratch. They
+>   hold 448 capture PNGs (578 MB) whose conclusions are already in git,
+>   docs/BUGS.md and the journal, so nothing is lost by removing them, but the
+>   call is yours because it is irreversible: `rm -rf .probe-rig-*` (keep
+>   `.probe-rig`, the canonical rig `probe-sweep` uses).
 >
 > The WATER ARC below is still open and still ranked, but it is not what is
 > being worked on.
 
 > **>>> WATER ARC (2026-07-27 evening field report, operator: "We need to do
 > a lot of work on the water to make it look better. Maybe the water is one
-> of the biggest performance hits since it's behaving so weird?"). THE
-> CURRENT TOP ITEM. Punch list from the report + screenshots, roughly
+> of the biggest performance hits since it's behaving so weird?"). STILL
+> OPEN, NOT the current top item - see above. Punch list from the report
+> + screenshots, roughly
 > ranked (diagnose first - several may share a root cause):**
 > 1. SEAM HOLES + unwelded look: "textures don't quite line up and it's
 >    like the mesh don't weld seams. I can see a bunch of holes through
