@@ -2307,6 +2307,10 @@ fn emit_cluster_cards(
                 cards += 1;
             }
         }
+        // The layer's cards now stand in for a canopy, so their normals have
+        // to average to nothing the way a canopy's do - see
+        // `balance_card_normals`. Shading only; positions are already final.
+        balance_card_normals(&mut mesh);
         let leaf_area_m2 = cards as f32 * side * side * ld.coverage;
         out.push(ClusterCards { layer, mesh, cards, card_side_m: side, leaf_area_m2 });
     }
@@ -3274,7 +3278,7 @@ mod tree_species;
 /// helpers, `PlantMeshBuilder` and the normal-blend constants.
 #[path = "tree_cards.rs"]
 mod tree_cards;
-use tree_cards::{emit_card, emit_sleeve, CLUSTER_SLEEVE_OFFSET};
+use tree_cards::{balance_card_normals, emit_card, emit_sleeve, CLUSTER_SLEEVE_OFFSET};
 use tree_species::{broadleaf, conifer, palm, umbrella};
 
 

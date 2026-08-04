@@ -217,28 +217,13 @@ pub(super) fn emit_sleeve(
     let n = cards.max(1);
     let tilts = sleeve_tilts_cached(n);
     for k in 0..n {
-        // GOLDEN-ANGLE PHYLLOTAXIS, not equal azimuths (v0.1110).
-        //
-        // The operator: "the bunches of leaves look a little weird, kind of
-        // like they're cubes." They were cubes. Equal azimuths with n = 4 put
-        // cards at 0/90/180/270, so 0 and 2 are antiparallel planes, 1 and 3
-        // are the other parallel pair, and the two pairs are exactly
-        // perpendicular - the definition of a rectangular prism. Every card
-        // also took `axis` as its up-vector, so every edge in a tuft ran
-        // either along the twig or square to it, and the edge-on pair
-        // projected to straight slivers spanning the tuft's full height.
-        //
-        // No plant does this. Oak, birch and cherry are alternate/spiral, and
-        // successive leaves on a shoot are separated by the golden angle,
-        // 137.507 degrees - the arrangement that never repeats and therefore
-        // never lets two leaves shade each other the same way twice. Adopting
-        // the real number is free: same card count, same triangles, same leaf
-        // area, same LAI, same coverage, same overdraw.
-        //
-        // It is not SUFFICIENT, though, and the gate is what said so: azimuth
-        // spacing alone still left a third of every 4-card tuft within 5
-        // degrees of a right angle, because all four normals still lay on one
-        // circle. The tilt below is the half that finished it.
+        // GOLDEN-ANGLE PHYLLOTAXIS, not equal azimuths (v0.1110). Equal
+        // azimuths at n = 4 put cards at 0/90/180/270 - two parallel pairs,
+        // the pairs perpendicular, which is a rectangular prism. Real
+        // alternate/spiral shoots step by 137.507 degrees instead, and
+        // adopting it is free: same cards, triangles, leaf area, LAI,
+        // coverage and overdraw. It is NOT sufficient alone - all n normals
+        // still lie on one circle. See `sleeve_tilts` for the other half.
         let th = phase + k as f32 * PHYLLOTAXIS_RAD;
         let (st, ct) = (th.sin(), th.cos());
         let r = norm([
@@ -284,6 +269,55 @@ pub(super) fn emit_sleeve(
         emit_card(b, c, facing, t, tall, half, ao, station, crown_c);
     }
     n
+}
+
+/// Zero the FIRST MOMENT of a finished card layer's shading normals.
+///
+/// `emit_card`'s spherified normals do not average to zero over a crown:
+/// pre-fix, the area-weighted mean |m| ran from 0.1017 on fir down to 0.0166
+/// on momiji. That is not cosmetic. The far card's kernel `canopy_ndl_mean`
+/// is the mean of max(N.L, 0) over normals with NO net direction, so a crown
+/// carrying one cannot match its own card - and the mismatch survives the
+/// max() because one normal rides both windings of every card. The whole
+/// table, and the fact that the sign of m_y predicts which way the card
+/// misses, is in `card_layer_shading_normals_have_no_net_direction`; the
+/// moment is MEASURED there, and no crown-shape story for it has held up.
+///
+/// One shared lambda pulls every normal along -m_hat, leaving it contributing
+/// (c - lam)/sqrt(1 - 2*lam*c + lam*lam) along m_hat for c = n.m_hat. That has
+/// derivative (c*c - 1)/w^3 <= 0, and is <= 0 at lam = 1, so the root is
+/// unique, lies inside [0, 1], and bisection cannot miss it.
+///
+/// POSITIONS ARE UNTOUCHED: leaf area, LAI, coverage, card count, triangle
+/// count and the box statistic (face normals from positions) read the same.
+pub(super) fn balance_card_normals(mesh: &mut PlantMeshBuilder) {
+    // One weight per CORNER, a third of its triangle's area. `card_tri` never
+    // shares a vertex, so successive triples of `vertices` ARE the triangles.
+    let mut wt: Vec<f32> = Vec::with_capacity(mesh.vertices.len());
+    let (mut m, mut tot) = ([0.0f32; 3], 0.0f32);
+    for t in mesh.vertices.chunks_exact(3) {
+        let e = cross(sub(t[1].position, t[0].position), sub(t[2].position, t[0].position));
+        let a = length(e) / 6.0;
+        for v in t {
+            m = add(m, v.normal, a);
+            wt.push(a);
+        }
+        tot += a * 3.0;
+    }
+    if tot <= 1e-9 || length(m) / tot <= 1e-4 {
+        return; // empty, or already balanced
+    }
+    let mh = norm(m);
+    let cs: Vec<f32> = mesh.vertices.iter().map(|v| dot(v.normal, mh)).collect();
+    let g = |c: f32, lam: f32| (c - lam) / (1.0 - 2.0 * lam * c + lam * lam).max(1e-12).sqrt();
+    let mean = |lam: f32| cs.iter().zip(&wt).map(|(c, w)| w * g(*c, lam)).sum::<f32>();
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    for _ in 0..60 {
+        let mid = 0.5 * (lo + hi);
+        if mean(mid) > 0.0 { lo = mid } else { hi = mid }
+    }
+    let lam = 0.5 * (lo + hi);
+    mesh.vertices.iter_mut().for_each(|v| v.normal = norm(add(v.normal, mh, -lam)));
 }
 
 #[cfg(test)]

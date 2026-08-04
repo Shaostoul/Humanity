@@ -4543,6 +4543,101 @@ mod canopy_parity_tests {
         assert!((canopy_ndl_mean(-1.0) - 1.0 / 3.0).abs() < 1.0e-4);
     }
 
+    /// THE MECHANISM behind the parity ratio, measured directly.
+    ///
+    /// `canopy_ndl_mean` is the mean of `max(N.L, 0)` over a leaf-normal
+    /// distribution with NO net direction. A crown whose shading normals DO
+    /// have a net direction therefore cannot match it, and the gap does not
+    /// average out, because the same normal rides both windings of every card
+    /// (`tree_cards::emit_card`) so `max()` never sees the opposing face.
+    ///
+    /// Before `balance_card_normals`, this printed, as (|m|, m_y):
+    ///
+    ///   fir leaf    0.1017  -0.1015      oak leaf     0.0367  +0.0218
+    ///   pine leaf   0.0995  -0.0992      sakura blsm  0.0242  +0.0210
+    ///   sakura leaf 0.0521  +0.0160      acacia leaf  0.0197  -0.0030
+    ///   birch leaf  0.0436  +0.0315      momiji leaf  0.0166  +0.0025
+    ///
+    /// With the sun straight up, the SIGN of m_y predicts the sign of
+    /// (card/crown - 1) for all seven species without exception: the two
+    /// crowns whose normals lean net DOWNWARD (fir, pine) were the two whose
+    /// cards came out brighter than them, at 1.30 and 1.29. That much is
+    /// derived. The magnitude ordering is only ROUGHLY monotone - acacia's
+    /// moment is nearly horizontal (-0.0136, -0.0030, +0.0139) yet it still
+    /// deviated 0.064, which is why the correction barely moves it and why
+    /// its residual survives in the ratio gate. Nothing here explains WHY a
+    /// given crown's moment points where it does; several geometric stories
+    /// have been offered and refuted, so do not add one without establishing
+    /// it.
+    ///
+    /// This is the sharper of the two gates: the ratio test sees only the
+    /// consequence, which other effects also move.
+    #[test]
+    fn card_layer_shading_normals_have_no_net_direction() {
+        use crate::renderer::tree_mesh;
+        let mut checked = 0usize;
+        for def in tree_mesh::registry().trees.iter().filter(|t| t.clusters.is_some()) {
+            let built = tree_mesh::build_tree_and_cards(def, def.height_m, 0x51F0_A11C);
+            for layer in &built.cards {
+                let vs = &layer.mesh.vertices;
+                assert!(vs.len() >= 600, "{}: only {} card vertices", def.id, vs.len());
+                // Area-weighted, exactly the weighting the correction solves
+                // against: each corner carries a third of its triangle.
+                let (mut m, mut tot) = ([0.0_f64; 3], 0.0_f64);
+                for t in vs.chunks_exact(3) {
+                    let e1 = std::array::from_fn::<f64, 3, _>(|k| {
+                        (t[1].position[k] - t[0].position[k]) as f64
+                    });
+                    let e2 = std::array::from_fn::<f64, 3, _>(|k| {
+                        (t[2].position[k] - t[0].position[k]) as f64
+                    });
+                    let x = [
+                        e1[1] * e2[2] - e1[2] * e2[1],
+                        e1[2] * e2[0] - e1[0] * e2[2],
+                        e1[0] * e2[1] - e1[1] * e2[0],
+                    ];
+                    let a = (x[0] * x[0] + x[1] * x[1] + x[2] * x[2]).sqrt() / 6.0;
+                    for v in t {
+                        for k in 0..3 {
+                            m[k] += a * v.normal[k] as f64;
+                        }
+                    }
+                    tot += a * 3.0;
+                }
+                assert!(tot > 0.0, "{}: zero card area", def.id);
+                let m = [m[0] / tot, m[1] / tot, m[2] / tot];
+                let mag = (m[0] * m[0] + m[1] * m[1] + m[2] * m[2]).sqrt();
+                eprintln!(
+                    "[moment] {:>12} {:?}: |m| = {mag:.5}  m = ({:.5}, {:.5}, {:.5})",
+                    def.id, layer.layer, m[0], m[1], m[2]
+                );
+                checked += 1;
+                // 0.004 sits between the two measured scales: 4.1x under the
+                // SMALLEST pre-fix moment (momiji, 0.0166) and 2.3x over the
+                // LARGEST residual the solve leaves (sakura's leaf layer,
+                // 0.00172 - the solve is exact along m_hat, so what is left is
+                // perpendicular drift from renormalising). So it catches a
+                // regression without gating on bisection noise.
+                assert!(
+                    mag <= 0.004,
+                    "{}/{:?}: the area-weighted mean shading normal is ({:.4}, {:.4}, {:.4}), \
+                     |m| = {mag:.4}. A card layer standing in for a canopy has to average to no \
+                     net direction, because the far card's kernel `canopy_ndl_mean` assumes \
+                     exactly that - a moment this size IS the card/crown brightness step at the \
+                     LOD handoff radius. Check that `emit_cluster_cards` still calls \
+                     `tree_cards::balance_card_normals` on every finished layer, and that \
+                     nothing rewrites the normals after it.",
+                    def.id,
+                    layer.layer,
+                    m[0],
+                    m[1],
+                    m[2],
+                );
+            }
+        }
+        assert!(checked >= 7, "only {checked} card layers reached the moment gate");
+    }
+
     /// And the closed form against the REAL crown: build the shipped species'
     /// cluster cards, weight every card by how much of it a viewer sees, and
     /// compare the crown's own mean sun response with the kernel a card uses
@@ -4561,7 +4656,7 @@ mod canopy_parity_tests {
         // geometry a player walking a forest at midday actually has.
         let l = [0.0_f32, 1.0, 0.0];
         let mut measured_extinction = Vec::new();
-        for def in reg.trees.iter().filter(|t| t.clusters.is_some()).take(4) {
+        for def in reg.trees.iter().filter(|t| t.clusters.is_some()) {
             let built = tree_mesh::build_tree_and_cards(def, def.height_m, 0x51F0_A11C);
             let mut tris: Vec<([f32; 3], f32, f32)> = Vec::new(); // normal, area, ao
             for layer in &built.cards {
@@ -4642,43 +4737,49 @@ mod canopy_parity_tests {
                     "the pre-v0.1110 flat-plate response would PASS this band, so the band is \
                      not measuring anything"
                 );
-                // ── PER-SPECIES, because the crowns are not all isotropic ──
+                // ONE BAND, ONE LEVEL, EVERY SPECIES.
                 //
-                // `canopy_ndl_mean` is the mean of max(N.L, 0) over leaf
-                // normals UNIFORM ON THE SPHERE, which is the standard
-                // spherical leaf-angle distribution. The broadleaves land on
-                // it almost exactly. The conifers do not, and that is real
-                // rather than a bug: a fir carries flat sprays along a branch,
-                // its crown is narrow, and `emit_card`'s spherify blend then
-                // pushes its shading normals strongly horizontal - so its
-                // visible-weighted mean sun response genuinely sits ~22% under
-                // the isotropic value at EVERY sun angle.
+                // This table used to carry a 1.28 exception for fir and pine
+                // inside a +/-0.12 band, on the reading that a narrow conifer
+                // crown genuinely has a non-spherical leaf-angle distribution.
+                // That reading was wrong. The cause was the ODD component of
+                // the shading normals - see
+                // `card_layer_shading_normals_have_no_net_direction`, which
+                // measures it directly - and zeroing it in
+                // `tree_cards::balance_card_normals` brought every species to
+                // the same level, so the exception is gone and the band is
+                // tighter. Measured card/crown over the 4 sun angles, before
+                // and after (fir is the extreme, acacia the leftover):
                 //
-                // Note the ratio is near-constant in psi for every species:
-                // the kernel's SHAPE is right and only its LEVEL is
-                // species-dependent. So this records the level per species and
-                // gates DRIFT, rather than widening one band until the worst
-                // species fits - a single 0.80..1.30 band would have to admit
-                // 1.30, and would then stop noticing a broadleaf that broke.
+                //   fir     1.304 1.286 1.261 1.280  ->  0.989 0.994 1.008 1.042
+                //   pine    1.292 1.275 1.253 1.273  ->  0.988 0.993 1.008 1.043
+                //   birch   0.919 0.929 0.942 0.954  ->  0.996 0.996 0.995 1.013
+                //   oak     0.929 0.934 0.949 0.972  ->  0.982 0.977 0.982 1.014
+                //   sakura  0.944 0.947 0.969 0.958  ->  0.993 0.992 1.009 0.998
+                //   momiji  0.996 1.013 1.050 1.037  ->  1.001 1.006 1.041 1.044
+                //   acacia  1.064 1.078 1.044 1.020  ->  1.060 1.064 1.026 1.013
                 //
-                // Driving these to 1.00 wants a per-species scalar baked into
-                // the billboard atlas (the far cards' own texture, which the
-                // near crown does not sample). Until then this is a bounded,
-                // measured, named limitation: at worst the conifer cards are
-                // 22% brighter than their mesh trees, against the 4-8x they
-                // were before v0.1110.
-                let expect: f32 = match def.id.as_str() {
-                    "fir" | "pine" => 1.28,
-                    _ => 1.00,
-                };
+                // Worst deviation from 1.00 fell from 0.304 to 0.064, so 0.08
+                // is a snug band rather than a comfortable one: acacia has
+                // 0.016 to spare. Acacia is the honest leftover - its first
+                // moment was already the second smallest (0.0270), so the
+                // correction barely moved it and what remains is a HIGHER
+                // moment of its normal distribution, which this fix does not
+                // address. If you need room here, measure that; do not widen
+                // the band, and do not reintroduce a per-species level.
+                let expect: f32 = 1.00;
                 assert!(
-                    (ratio - expect).abs() <= 0.12,
+                    (ratio - expect).abs() <= 0.08,
                     "{id} at psi={deg}: the card kernel returns {card:.4} where the real crown \
                      averages {crown:.4} (x{ratio:.2}, expected x{expect:.2}). A ratio like that \
-                     IS the bright ring. If the crown moved, the geometry changed - check \
-                     tree_mesh::sleeve_tilts, CLUSTER_NORMAL_BLEND and CROWN_NORMAL_BLEND, and \
-                     re-record the level here with the measurement that justifies it. Never \
-                     widen the tolerance to make a number fit.",
+                     IS the bright ring at the LOD handoff radius. First read the companion gate \
+                     `card_layer_shading_normals_have_no_net_direction`: if it also failed, the \
+                     cause is the crown's first moment and the fix belongs in \
+                     `tree_cards::balance_card_normals`, not here. If it PASSED, the moment is \
+                     already zero and something else moved the geometry - check \
+                     tree_cards::sleeve_tilts, CLUSTER_NORMAL_BLEND and CROWN_NORMAL_BLEND. \
+                     Never widen the tolerance, and never re-add a per-species level, to make a \
+                     number fit.",
                     id = def.id,
                 );
             }
