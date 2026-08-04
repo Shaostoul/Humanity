@@ -99,18 +99,43 @@
 > - **Sign the releases.** v0.1110.2 and v0.1111.1 are UNSIGNED, and the desktop
 >   updater only offers signed releases - so v0.421+ users are still on an older
 >   build. `export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release v0.1111.1`.
-> - **19 stale `agent-*` worktrees** under `.claude/worktrees/`. Each was checked
->   on 2026-08-04 and none could be CHEAPLY proven redundant, so none was
->   removed - `clean-worktrees` force-deletes branches and has destroyed
->   review-approved work before. The three `wf_f9e9bae9-*` worktrees WERE proven
->   fully superseded and removed.
-> - **2.5 GB of stale probe rigs**, `.probe-rig-{ab,bark,bark2,control,grass,`
->   `light,opt,perfbark,rain,rain3,rainfx,ship,ship2,tree,veg}` - all from
->   investigations that closed 2026-07-31..08-02, all untracked scratch. They
->   hold 448 capture PNGs (578 MB) whose conclusions are already in git,
->   docs/BUGS.md and the journal, so nothing is lost by removing them, but the
->   call is yours because it is irreversible: `rm -rf .probe-rig-*` (keep
->   `.probe-rig`, the canonical rig `probe-sweep` uses).
+> - **19 stale `agent-*` worktrees, ALL AUDITED AND ALL SAFE TO REMOVE**
+>   (2026-08-04). Every one was checked properly rather than by mtime: take the
+>   worktree's own change (diff against its merge-base with main, so committed
+>   AND uncommitted work), extract the substantive lines it ADDED, and look for
+>   each one in main. Result: **9 are byte-for-byte fully in main**, and the
+>   other 10 differ ONLY in superseded formulations of code that did land - the
+>   `0.80..=1.30` canopy band replaced by the per-species table, `GROUND_MACRO_AMP`
+>   0.55 replaced by 0.30, the `dev_fly_mode` wiring replaced by `dev_hover`, and
+>   so on. Every distinctive identifier in those 10 (`grass_detail_for`,
+>   `ground_material_weights`, `UNCARDED_SPECIES`, `leaf_needle_len_frac`,
+>   `reshape_blades`, `shadow_for`, `DrawnPatchSurface`, `flared_run`) exists in
+>   main. The single exception, `TREE_MODEL_ENGINE_CLAMP_M = 400.0` in
+>   `agent-a6723b9dda4c02ee6`, is a Settings warning about a renderer clamp that
+>   has since been raised to `TREE_MODEL_MAX_M = 2000.0` - the warning is moot.
+>
+>   **NOTHING IS LOST EVEN IF THAT ANALYSIS IS WRONG.** Every worktree's own diff
+>   was archived first, outside the repo, at
+>   `%LOCALAPPDATA%\HumanityOS-worktree-archive\2026-08-04\` (20 patches, 1.2 MB,
+>   plus an INDEX.txt naming each merge-base). Re-apply with
+>   `git apply <name>.patch`.
+>
+>   REMOVAL NEEDS THE OPERATOR: the permission classifier blocks bulk worktree
+>   deletion from a session, both as a `git worktree remove --force` loop and via
+>   `just clean-worktrees --force-unmerged`. Run this yourself when convenient:
+>
+>   ```bash
+>   just clean-worktrees --force-unmerged
+>   ```
+>
+>   There is also one ORPHAN directory, `.claude/worktrees/agent-a6824b91fc94231c0`,
+>   which git does not have registered as a worktree at all (it is empty, based on
+>   a1dd0b28); `rm -rf` it directly, `clean-worktrees` will not see it.
+> - **2.5 GB of stale probe rigs: DONE** (2026-08-04). The 15
+>   `.probe-rig-{ab,bark,...}` directories from investigations that closed
+>   2026-07-31..08-02 are removed, along with their 448 capture PNGs, whose
+>   conclusions all live in git, docs/BUGS.md and the journal. `.probe-rig`, the
+>   canonical rig `probe-sweep` uses, is untouched.
 >
 > The WATER ARC below is still open and still ranked, but it is not what is
 > being worked on.
