@@ -3999,8 +3999,36 @@ mod native_app {
                             crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
                         let def = state.planet_defs.get(&lock_body);
                         let hm = state.planet_heightmaps.get(&lock_body).map(|a| a.as_ref());
-                        let ground_r =
-                            ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero());
+                        // ── WHERE THE ALTITUDE IS MEASURED (v0.1109.4) ──
+                        // `anchor_pre` trails the player by one frame of
+                        // planetary spin (33,360 m/s of ground slip on the
+                        // 20-minute day: 1.1 km at 30 fps, 4.7 km at 7), so
+                        // sampling terrain there made `alt` a function of the
+                        // FRAME RATE - and `alt` gates the walk clamp's
+                        // DRAWN_GROUND_MAX_ALT_M, which flips stand height by
+                        // 2.45 m. That is the operator's "look up and I fall,
+                        // look level and I float". See surface_move::
+                        // ground_sample_dir for the full derivation.
+                        let ground_dir = crate::surface_move::ground_sample_dir(
+                            anchor_pre,
+                            state.frame_lock_anchor,
+                            state.camera.surface_mode,
+                        );
+                        // ...and against the ground the CLAMP stands you on -
+                        // base grid + land-masked detail + the streamed tile
+                        // tier - not the bare 5.5 km base grid, which reads
+                        // tens of metres under your boots. Built once here and
+                        // reused by the clamp below.
+                        let detail = def.map(|d| {
+                            crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed)
+                        });
+                        let ground_r = ground_radius_m(
+                            def,
+                            hm,
+                            detail.as_ref(),
+                            (lock_body == "earth").then_some(&state.terrain_tiles),
+                            ground_dir,
+                        );
                         // Altitude bands (v0.872; per-body scaled v0.909,
                         // operator: "the distances for any planet are fixed
                         // to Earth's settings"): walk/gravity, co-rotating
@@ -4262,13 +4290,10 @@ mod native_app {
                             } else {
                                 (walk_speed * dt as f64).min(step_cap)
                             };
-                            // Detail-inclusive ground sampler (see-through-ground
-                            // fix): the planet's sub-grid detail noise so the clamp
-                            // stands the eye on the DRAWN mesh, not the base
-                            // heightmap it sits ~4x below. Cheap (a few Perlins),
-                            // only built while actually on a surface.
-                            let detail = def
-                                .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
+                            // (The detail-inclusive ground sampler that stands
+                            // the eye on the DRAWN mesh rather than the base
+                            // heightmap under it is built once above, where the
+                            // altitude reading needs the same reference.)
                             // v0.1008 (operator: "I don't teleport up/down
                             // but, forward/back/left/right" while holding
                             // Space): a pure-vertical wish leaves ~1e-8 of
@@ -4308,15 +4333,23 @@ mod native_app {
                                 .get(&lock_body)
                                 .and_then(|cs| cs.last_drawn.iter().map(|p| p.depth).max())
                                 .unwrap_or(0);
+                            let field_r =
+                                ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1);
+                            // The gate asks "are your feet on the ground", so
+                            // measure against the clamp's OWN reference at the
+                            // player's OWN direction - never the band altitude,
+                            // which is sampled before this frame's step and can
+                            // carry a different ground definition (v0.1109.4).
+                            let alt_over_ground = anchor.length() - field_r;
                             let (g0, clearance) = crate::surface_walk::walk_ground_radius(
-                                ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1),
+                                field_r,
                                 def,
                                 hm,
                                 detail.as_ref(),
                                 tiles_for_clamp,
                                 ocean_for_clamp,
                                 drawn_depth,
-                                alt,
+                                alt_over_ground,
                                 dir1,
                             );
                             let mut g = g0;
