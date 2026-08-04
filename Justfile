@@ -573,8 +573,15 @@ verify-release version:
 # Remove stale git worktrees (keeps main + current). Prevents AI agents
 # from writing to cached stale paths. Run this whenever a worktree drifts
 # behind main, or after long AI sessions.
-clean-worktrees:
-    @bash scripts/clean-worktrees.sh --yes
+#
+# By default it REFUSES any worktree holding uncommitted or unmerged work.
+# Pass the script's own flag through to override that:
+#   just clean-worktrees --force-unmerged
+# Without the `*flags` below, just read that argument as the name of a second
+# recipe and failed with "Justfile does not contain recipe `--force-unmerged`",
+# even though the script has accepted the flag since it was hardened.
+clean-worktrees *flags:
+    @bash scripts/clean-worktrees.sh --yes {{flags}}
 
 # List all current worktrees with sizes
 worktrees:
