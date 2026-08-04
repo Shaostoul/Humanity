@@ -12,31 +12,6 @@
   ],
   "recent_decisions": [
     {
-      "date": "2026-08-01",
-      "decision": "v0.1091.0/1 grass strands SHIPPED + v0.1092.0 grass extraction (ratchet click: planet_chunks 7028->4683, grass.rs 2401, budgets DOWN). Renderer/mod.rs extraction dispatched to clear the last ratchet failure (4090>4000). DEFERRED until operator game session ends: build-game archive+stamp for v0.1092 (stable exe file-locked by their running game), the fuji-grass-underfoot probe on the extraction, and the 13ms harvest time-slicing increment. Operator is PLAYING v0.1091.1 right now - extraction writer honoured one-GPU for 56 min rather than booting beside them.",
-      "why": "Follow-ups live: grass shadow casting (unmeasured cost), grass.ron data fields, sakura leaf lozenge, bole radius taste call, WR-2 sprite dedupe, T1/T2 terrain tickets in vantages.json."
-    },
-    {
-      "date": "2026-08-01",
-      "decision": "Material-system extraction MERGED to main, release tag HELD pending world-entry probe (build_material_texture_bind_group is the v0.1029-incident lazy bind-group site; the incident bar says world entry gates renderer changes). Ratchet now passes on all ten files. Ship plan: when the operator game session ends -> probe blue-marble-12000km + fuji-grass-underfoot on main, then tag v0.1093.0 (extraction + the grass de-bundle if landed) + build-game archive + stamp.",
-      "why": "Grass de-bundle writer still in flight on terrain/grass.rs."
-    },
-    {
-      "date": "2026-08-01",
-      "decision": "RESOURCE BUDGETS arc opened (operator idea, in-play): per-system hardware allocation via pie charts - GPU/CPU/VRAM/RAM pies over a data-driven system registry; locked bases, extra-headroom redistribution, stacked-on-mobile. Design doc docs/design/resource-budgets.md. Increment 1 (MEASURE: wgpu timestamp queries per pass + CPU stage timing + VRAM inventory + read-only live pie widget on the Performance page) dispatched; increment 2 ALLOCATE (draggable ceilings, AppConfig persistence); increment 3 GOVERN (feedback controller stepping quality knobs so allocations are enforced, with hysteresis and visible steps).",
-      "why": "Reframes settings from opaque sliders to visible trade-offs; foundations already exist (honest counters, per-system knobs, arena inventory). Registry per infinite-of-X; widget per universal-widgets norm; dev-tooling value is permanent per forever-dev."
-    },
-    {
-      "date": "2026-08-01",
-      "decision": "Grass de-bundle MERGED (spread crowns, filler stubble on the complement field, decorrelated splay; 1277 tests) + harvest cap 70k. Main now holds THREE unshipped verified merges awaiting the world-entry probe: material extraction (v0.1029-class bind-group site), de-bundle, cap bump. Operator game still running (PID 15264) - tag v0.1093.0 + archive + stamp + probes (blue-marble-12000km + fuji-grass-underfoot) fire the moment the GPU frees. Resource-budgets increment-1 writer still in flight.",
-      "why": "One-GPU rule held by every writer today; visual proof of the de-bundle belongs to the operator next boot anyway."
-    },
-    {
-      "date": "2026-08-01",
-      "decision": "Resource-budgets increment 1 MERGED + all six wiring edits applied (pass timers + CPU stages). Main now holds FOUR verified merges gated on the GPU-free probe window: material extraction, grass de-bundle, harvest cap, budget pies. Probe plan when PID 15264 exits: blue-marble-12000km (bind-group history) + fuji-grass-underfoot (de-bundle look) + fuji-forest-ground with HUMANITY_FRAME_COSTS=1 (first real pie breakdown from debug/frame_costs.json) -> tag v0.1093.0 -> build-game + stamp. Increment-1 debts stated in tests: ECS per-system timing (src/ecs lane), bloom/godrays/ssao pass timers (their file owners), PAGES.md note.",
-      "why": "Every writer today held the one-GPU rule without exception; the operator has been in-game for hours - which is itself the best possible sign."
-    },
-    {
       "date": "2026-08-02",
       "decision": "REAL SKILLS WAVE 2 + NLNET ARMED (v0.1096.4): starting_seeds, collecting_rainwater, first_solar_power complete the food-water-power triad (Library 75 docs / 15 cats; Real Skills = the capability ladder). Verify pass caught: one-shot downspout miscut instruction (Rutgers method now), asphalt-roof paragraph contradicting its own cited source, dead DOE load-bearing URL, unsourced vendor pricing, 500Wh-covers-515Wh sizing trap + missing inverter-loss caveat. GAME-BASELINE POINTER (operator): docs/user/skills/ = reference list for what the sim must teach; game instance should read it, this session touched no game files. NLNET: cloud routine trig_01AGm5PAjhue2qfj1ApxgQ4m fires 2026-09-03 16:00 UTC, drafts application as PR (read their Generative AI policy at draft time); deadline Nov 3 12:00 CEST; prep file in docs/outreach/applications/.",
       "why": "Operator direction: keep focusing on docs/guides as the baseline for the game too; NLnet timing pinned by their propose page (calls reopen Sept 3)."
@@ -213,6 +188,36 @@
       "version": "v0.1110.1",
       "decision": "The float-up/fall-down bug was frame rate, not pitch.",
       "why": "Looking at vegetation costs frames; the frame-lock sampled terrain at a point that lagged the player by one frame of planetary spin, which is 33,360 m/s of ground slip on the 20-minute day. So the altitude reading was proportional to frame time, crossed the drawn-ground gate, and flipped stand height by 2.45 m. v0.1108 patched the same defect at the symptom. Lesson: when a symptom correlates with where the camera points, ask what the camera pointing CHANGES (here: load) before assuming the direction itself is the input."
+    },
+    {
+      "date": "2026-08-04",
+      "version": "v0.1111.1",
+      "decision": "Forest density became an explicit argument and the process-global atomic was DELETED, not left as a bridge.",
+      "why": "Two vegetation streams (card bake, model harvest) each read the global for themselves. Measured: 32.51% of northern cells disagreed at density 0.6294 because the bake rounded twice and the harvest once, and count is the survival-gate threshold rather than a loop bound. Even the shipped 0.6 default split one cell row at 21.2N. Separately a slider drag left models up to 12 m of walking behind the cards, and a card with no model discards in the colour pass while still casting shade. Invariant adopted: every card that can be on screen has a model in it, which works because the enumeration is monotone in density. Callers wanting ground geometry take a FIXED AGNOSTIC_TREE_DENSITY pinned to the shipped default by a test - leaving one global reader behind would leave the door open."
+    },
+    {
+      "date": "2026-08-04",
+      "version": "v0.1111.1",
+      "decision": "The conifer card over-brightness was the odd component of the shading normals, not anisotropic foliage.",
+      "why": "I told the operator it was real fir anisotropy. Wrong. A crown area-weighted mean shading normal is nonzero (fir 0.1221 down to momiji 0.0217) and that ordering matches the brightness ordering exactly; it survives max(N.L,0) because a card gives both windings the same normal. Cancelled at source by solving for the correction that drives the mean to zero. An adversarial reviewer REFUTED the geometric just-so story offered for why the mean points down while reproducing the arithmetic, so the comments now say the first moment is measured, not derived. Recording a limitation in a gate was right while it was a limitation and wrong to keep once it was fixable."
+    },
+    {
+      "date": "2026-08-04",
+      "version": "v0.1111.1",
+      "decision": "A three-lane merge was committed under a one-lane message and immediately reset.",
+      "why": "git apply --3way STAGES what it applies. After applying three worktree patches, adding three files by name added to an index that already held all nine, so the commit swept every lane under a message describing one - the exact failure the shared-checkout rule exists to prevent. Caught by reading git show --stat AFTER committing, which is too late. Rule: after any git apply, run git reset before staging, and check git diff --cached --stat BEFORE the commit."
+    },
+    {
+      "date": "2026-08-04",
+      "version": "v0.1111.1",
+      "decision": "View-frustum culling of near trees is the largest verified unclaimed win: 62% of the draw budget is spent behind the camera.",
+      "why": "Measured at the operator settings two independent ways (engine harness plus first-principles geometry, agreeing within 1.5pp). Respending that budget on visible trees moves the model reach 181 m to 300 m, 2.9x the area for the same draw count. NOT a one-line change: three coverage rules were tested and only one works (visible trees feed ModelCoverage AND the hide radius is clamped by the harvest edge). Naive skip gives a 190 m bare ring in FRONT of the player; naive uncovered gives a 4.7 m radius so nothing ever hides. The cull bound must enclose the CARD (acacia is 1.365x height), not the trunk. The shadow pass must stay unculled: near-tree models are the only off-screen casters, and 44-61% of culled trees cast into view at an 8 degree sun. The v0.995 reason for view-independence died with the v0.1110.2 ModelCoverage rewrite."
+    },
+    {
+      "date": "2026-08-04",
+      "version": "v0.1111.1",
+      "decision": "The 103 ms forest frame is still UNEXPLAINED and no perf fix should be ranked until it is.",
+      "why": "An agent concluded CPU-submission-bound; the reviewer took it apart, because that rested on zero measurement of the actual frame. Named CPU is ~35 ms of 103. The only GPU data says the pass CONTAINING grass is 68-91% of GPU time, and it just received 10-30x more geometry (245,605 tufts, ~32M tris) - so the evidence points opposite to the conclusion. Also unexplained and already on record: the same scene, camera PARKED on byte-identical content, swinging 44.3 to 101.1 ms over 35 minutes. Do not rank grass culling vs blade LOD vs draw batching until the per-pass breakdown is real."
     }
   ],
   "active_scopes_to_avoid": [
