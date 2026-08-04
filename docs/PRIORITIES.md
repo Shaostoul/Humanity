@@ -74,7 +74,20 @@
 >    (2026-08-04). Drag snaps to the display step in `custom_slider_with_width`;
 >    typed values stay full-precision. Gate:
 >    `slider_snap_tests::a_dragged_value_survives_its_own_display_format`.
-> 2. **The understorey / bushes** (operator asked twice). The 0.3-3 m band is
+> 2. **Time control on the surface** (operator, 2026-08-04: "I don't want to
+>    have to wait many minutes for the sunrise or sunset"). The machinery
+>    already exists and is economy-safe: `systems/time.rs` has `time_scale` +
+>    `set_time_scale`, and craft/drone/manufacturing timers all run on
+>    `scaled_dt` - but `set_time_scale` has ZERO callers, so there is no way to
+>    touch it in-game. Build: a dev-page time row (scale presets x1/x10/x60 +
+>    "jump to sunrise/sunset/noon/midnight", which is a set of day-fraction
+>    targets, not a new mechanic) AND the GUI-first rule means a player-facing
+>    surface too (the ship bed / wait action is the natural fiction). Small: the
+>    sim side is one call; the work is the two UI rows + persistence + a gate
+>    that jumping time does not skip economy timers (they scale, so a JUMP must
+>    either tick them forward or be documented as not doing so - decide, state
+>    it, test it).
+> 3. **The understorey / bushes** (operator asked twice). The 0.3-3 m band is
 >    empty, which is most of why the ground reads as a lawn with trees stuck in
 >    it. A previous plan was KILLED by both its reviewers: it mis-costed the draw
 >    path (it assumed up to 4 card layers, but `ClusterLayer::ALL` has exactly 2)
@@ -82,7 +95,7 @@
 >    the plan from the code. Honour the realistic-first rule: a basitonic
 >    (basal-branching) growth form through the existing spline-lofted stem +
 >    cluster-card pipeline, NOT billboard bushes.
-> 3. **Tree identity, for felling.** Trees are a hash re-derived by two streams
+> 4. **Tree identity, for felling.** Trees are a hash re-derived by two streams
 >    that share no key, which is why they cannot be chopped down. A stable key
 >    already exists structurally - (cell_x, cell_y, item_index) - it is just
 >    never materialised. Full persistence is 19.4 TB and absurd; a sparse DELTA
