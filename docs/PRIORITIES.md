@@ -128,9 +128,15 @@
 >   just clean-worktrees --force-unmerged
 >   ```
 >
->   There is also one ORPHAN directory, `.claude/worktrees/agent-a6824b91fc94231c0`,
->   which git does not have registered as a worktree at all (it is empty, based on
->   a1dd0b28); `rm -rf` it directly, `clean-worktrees` will not see it.
+>   There WAS a 20th directory, `agent-a6824b91fc94231c0`, which git had no
+>   record of at all - a completely empty husk, no `.git` link and no entry in
+>   `.git/worktrees/`. Removed 2026-08-04, so the folder count and the worktree
+>   count now agree at 19. Note the audit script initially reported it as
+>   "EMPTY, base a1dd0b28": running `git -C <dir>` inside a directory with no
+>   `.git` of its own makes git walk UP and answer about the PARENT repo, so
+>   that base was main's own HEAD, not the directory's. Any per-worktree tool
+>   should confirm a directory IS a worktree before believing what git says
+>   about it.
 > - **2.5 GB of stale probe rigs: DONE** (2026-08-04). The 15
 >   `.probe-rig-{ab,bark,...}` directories from investigations that closed
 >   2026-07-31..08-02 are removed, along with their 448 capture PNGs, whose
