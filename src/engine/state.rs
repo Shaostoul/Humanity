@@ -362,6 +362,15 @@ pub(crate) struct EngineState {
     /// residency churn, not terrain - the clamp eases instead of popping.
     pub(crate) last_ground_dir: glam::DVec3,
     pub(crate) last_ground_r: f64,
+    /// Eased LOD clearance (v0.1108.2). `walk_ground_radius` returns one of two
+    /// clearances - 0.05 m standing on the DRAWN face, 2.5 m on the field-sample
+    /// fallback - and it switches whenever the drawn depth briefly reads 0, the
+    /// camera crosses the altitude gate, or the ocean mask is still loading.
+    /// Applied raw that is a 2.45 m TELEPORT, which is the operator's "I kind of
+    /// teleport up then fall", reported happening while standing perfectly
+    /// still. A reference switch is never terrain, so unlike the ground-radius
+    /// pop filter beside it this one eases ALWAYS, moving or not.
+    pub(crate) last_clearance: f64,
     /// Parallel to `near_trees` (v0.995): true = this tree was NOT in the
     /// previous set - it dissolves in over ~a third of a second instead of
     /// blinking into existence (the operator's "trees blink into existence

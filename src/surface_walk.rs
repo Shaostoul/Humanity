@@ -535,6 +535,33 @@ mod drawn_ground_tests {
                 dir,
             )
         };
+        // THE SWITCH IS A STEP, AND THAT IS THE POINT OF THE NAME.
+        //
+        // This block used to assert the two clearances at either side of the
+        // gate and stop there, which is a test asserting that the pop EXISTS
+        // under a name promising it cannot. The operator found what that
+        // missed within a day: "I kind of teleport up then fall", reproducible
+        // standing perfectly still, because the drawn depth flickers to 0 as
+        // patches stream and the rest height jumped by the 2.45 m difference.
+        //
+        // The step is unavoidable here - this function is stateless and the two
+        // references genuinely differ - so what is asserted now is the SIZE of
+        // the discontinuity the caller must ease, and the fact that it is a
+        // rise (falling back is always MORE conservative, never less). The
+        // easing itself lives at the call site in lib.rs, which rate-limits
+        // clearance whether the player is moving or not.
+        let step = LOD_CLEARANCE_M - DRAWN_CLEARANCE_M;
+        assert!(
+            step > 0.0,
+            "the fallback must be the MORE conservative reference, else a \
+             switch can drop the eye into the drawn ground"
+        );
+        assert!(
+            step < 3.0,
+            "the reference switch is a {step} m step in stand height. The call \
+             site eases it at 2 m/s, so anything much larger is a visible ride \
+             upward - re-derive both constants rather than raising this bound."
+        );
         assert_eq!(at(DRAWN_GROUND_MAX_ALT_M + 0.001).1, LOD_CLEARANCE_M, "above the gate");
         assert_eq!(at(DRAWN_GROUND_MAX_ALT_M).1, DRAWN_CLEARANCE_M, "at the gate");
         assert_eq!(at(0.0).1, DRAWN_CLEARANCE_M, "standing");

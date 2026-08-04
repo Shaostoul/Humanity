@@ -1723,6 +1723,7 @@ mod native_app {
                 surface_vr: 0.0,
                 last_ground_dir: glam::DVec3::ZERO,
                 last_ground_r: 0.0,
+                last_clearance: 0.0,
                 near_tree_born_s: 0.0,
                 machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
@@ -4384,6 +4385,25 @@ mod native_app {
                                 state.last_ground_dir = dir1;
                                 state.last_ground_r = g;
                             }
+                            // Ease the CLEARANCE too, and unlike the ground
+                            // filter above do it whether moving or not: a jump
+                            // in ground radius can be a real slope, but a jump
+                            // in clearance is only ever the reference switching
+                            // between the drawn face (0.05 m) and the field
+                            // fallback (2.5 m). Applied raw that is a 2.45 m
+                            // teleport followed by a fall - the operator's
+                            // report, which they could reproduce standing
+                            // perfectly still because the drawn depth flickers
+                            // as patches stream.
+                            let clearance = {
+                                if state.last_clearance <= 0.0 {
+                                    state.last_clearance = clearance;
+                                }
+                                let step = 2.0 * dt as f64;
+                                let d = clearance - state.last_clearance;
+                                state.last_clearance += d.clamp(-step, step);
+                                state.last_clearance
+                            };
                             let rest = crate::surface_walk::rest_radius(
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
