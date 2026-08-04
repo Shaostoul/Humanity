@@ -70,16 +70,10 @@
 >
 > **>>> THEN, ranked:**
 >
-> 1. **Snap slider values to their displayed precision** (operator asked,
->    2026-08-04). The UI already rounds for display - 2 decimals below 1.0, none
->    above 20 - so Settings reads "10" while the engine runs `terrain_split_px`
->    9.579, and "0.63" while density is 0.6294372. The drag handler writes
->    `min + t * (max - min)` raw. Snapping to the display precision makes the
->    stored value equal the shown one, and makes the reachable input space
->    FINITE, so the stream-agreement gate can enumerate every value a slider can
->    produce instead of sampling one known-bad one. Expect it to move the
->    operator's split_px 9.579 -> 10 (~4% coarser distant terrain, slightly
->    better fps); offer 0.5 steps if they would rather keep the finer value.
+> 1. ~~Snap slider values to their displayed precision~~ **DONE v0.1112.0**
+>    (2026-08-04). Drag snaps to the display step in `custom_slider_with_width`;
+>    typed values stay full-precision. Gate:
+>    `slider_snap_tests::a_dragged_value_survives_its_own_display_format`.
 > 2. **The understorey / bushes** (operator asked twice). The 0.3-3 m band is
 >    empty, which is most of why the ground reads as a lawn with trees stuck in
 >    it. A previous plan was KILLED by both its reviewers: it mis-costed the draw
