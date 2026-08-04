@@ -35,6 +35,20 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1110: `renderer/tree_mesh.rs` 6_450 -> 6_400, and the gate WORKED
+///   exactly as designed for the second time in seven releases. The cube fix
+///   (golden-angle azimuths + solved per-card tilts, with its own gate) added
+///   306 lines and put the file at 6_723 (+273). Rather than raise the number,
+///   the FOLIAGE CARD ARRANGEMENT moved out verbatim to
+///   `renderer/tree_cards.rs`: `emit_card`, `emit_sleeve`, `sleeve_tilts`,
+///   `PHYLLOTAXIS_RAD`, `CLUSTER_SLEEVE_OFFSET` and the box gate - 417 lines,
+///   one job ("where does a card go and which way does it face"). 6_723 ->
+///   6_351, so 50 of the 372 lines are banked and the rest is working room.
+///   `emit_cluster_cards` deliberately stayed behind: it is the PLANNER (LAI
+///   fit, layer assignment, budget) and belongs with the kernel. Like
+///   `tree_species` it is a `#[path]` CHILD module, so the vector helpers,
+///   `PlantMeshBuilder` and the normal-blend constants arrive through one
+///   `use super::*` instead of a dozen new `pub(crate)`s.
 /// - v0.1108: `src/lib.rs` 18_300 -> 18_100, because THE OWED EXTRACTION
 ///   FINALLY LANDED. Three increments in a row trimmed comments instead; this
 ///   one moved the near-tree MODEL LOADER (glTF parse, scan-stretch guard,
@@ -140,8 +154,9 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/renderer/materials.rs", 500),
     ("src/renderer/capture.rs", 300),
     ("src/renderer/shadow_cutout.rs", 250),
-    ("src/renderer/tree_mesh.rs", 6_450),
+    ("src/renderer/tree_mesh.rs", 6_400),
     ("src/renderer/tree_species.rs", 750),
+    ("src/renderer/tree_cards.rs", 450),
     ("src/renderer/tree_allometry.rs", 560),
 ];
 
