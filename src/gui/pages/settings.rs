@@ -2180,11 +2180,34 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. COST: cards are cheap per tree but there are a lot of them, so this spends fill rate, roughly with the square of the distance.").color(theme.text_muted()).size(theme.font_size_small));
-        if state.settings.veg_tree_card_m > 3000.0 {
-            // A real ceiling that is NOT this slider: cards are baked into
-            // terrain patches at the 215 m detail level, so past where that
-            // level is resident there is nothing for this number to reveal.
-            ui.label(RichText::new("Past about 3 km this may show nothing on its own. Silhouette cards only exist on ground built at the 215 m detail level, so to see trees further out you also have to lower 'Terrain sharpness (px per triangle)' and raise 'Terrain patch budget' until that level reaches further.").color(theme.warning()).size(theme.font_size_small));
+        {
+            // THE REQUESTED NUMBER NEXT TO THE REAL ONE (v0.1111). Cards are
+            // baked into terrain patches at the 215 m detail level, so this
+            // slider can only reveal trees as far as the terrain LOD actually
+            // built that level - which depends on 'Terrain sharpness' and
+            // 'Terrain patch budget', not on this control. The old warning
+            // here fired on a fixed 3 km, which was neither the real limit nor
+            // even a constant one: at settings that ask for detail the LEAF
+            // BUDGET ends the descent first and the reach comes out SHORTER
+            // than the shipped 3 km, so the slider could quietly over-promise
+            // by kilometres with the warning still silent. The engine measures
+            // the reach every selection; print it.
+            let requested = state.settings.veg_tree_card_m;
+            let reach = crate::terrain::far_trees::measured_card_reach_m();
+            if reach.is_finite() {
+                let effective =
+                    crate::terrain::far_trees::effective_card_far_m(requested, reach);
+                ui.label(RichText::new(format!(
+                    "Effective right now: {effective:.0} m of the {requested:.0} m asked for. Ground carrying silhouette cards reaches {reach:.0} m from where you are standing, measured on the terrain actually drawn this frame."
+                )).color(theme.text_muted()).size(theme.font_size_small));
+                if effective < requested - 1.0 {
+                    ui.label(RichText::new(format!(
+                        "ASKING FOR MORE THAN THE GROUND CAN CARRY. Everything between {effective:.0} m and {requested:.0} m gets trees requested and has no ground built at the 215 m detail level to stand them on, so it reads as open field until you walk into it. To buy real distance instead, lower 'Terrain sharpness (px per triangle)' and raise 'Terrain patch budget' until the reach above grows."
+                    )).color(theme.warning()).size(theme.font_size_small));
+                }
+            } else {
+                ui.label(RichText::new("Effective right now: not measured yet. The real limit is how far the terrain LOD builds ground at the 215 m detail level, and that is measured while you are standing on a planet; open this page in the world to see it.").color(theme.text_muted()).size(theme.font_size_small));
+            }
         }
         // TREES, GRASS COVER and GRASS DETAIL are three separate controls
         // (v0.1106). They used to be one "vegetation" slider, which meant a
@@ -3658,6 +3681,38 @@ mod veg_lod_range_tests {
                 "src/lib.rs no longer clamps {field} against config::{konst}.                  If it went back to a literal, the control's ceiling and the                  renderer's can drift apart again - which is exactly how the                  300-400 m band of this slider was unreachable for releases                  without anyone noticing."
             );
         }
+    }
+
+    /// The card row prints an EFFECTIVE distance; the renderer is supposed to
+    /// clamp the cutoff to the same number, from the same helper, in
+    /// `src/lib.rs`. Those live two files apart, so pin them together.
+    ///
+    /// WHAT THIS CATCHES: the half-wiring. Publishing the measurement without
+    /// applying it leaves the page honest and the picture unchanged; applying
+    /// it without publishing leaves the clamp reading a stale sentinel. Either
+    /// one fails here.
+    ///
+    /// WHAT IT DOES NOT: it is both-or-NEITHER, so it cannot prove the wiring
+    /// landed in the first place. It passes on a tree where `src/lib.rs` has
+    /// not been touched yet, which is exactly the state this test was written
+    /// in - the page then reports "not measured yet" rather than lying.
+    #[test]
+    fn the_measured_card_reach_is_wired_at_both_ends_or_neither() {
+        let lib = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"),
+        )
+        .expect("read src/lib.rs");
+        let publishes = lib.contains("far_trees::publish_card_reach_m");
+        let clamps = lib.contains("far_trees::effective_card_far_m");
+        assert_eq!(
+            publishes, clamps,
+            "src/lib.rs {} the measured tree-card reach but {} it. Both halves \
+             or neither: the Settings row shows what the clamp is supposed to \
+             apply, so a one-sided wiring makes the page describe a cutoff the \
+             renderer is not using.",
+            if publishes { "publishes" } else { "does not publish" },
+            if clamps { "applies" } else { "does not apply" },
+        );
     }
 
     #[test]

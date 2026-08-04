@@ -354,6 +354,95 @@ pub fn build_far_tree_sheet(
     Some((SurfaceMeshData { vertices, indices }, anchor))
 }
 
+// ── The PATCH-BAKED card stage's honest reach (v0.1111) ──
+//
+// This lives beside the sheet because the two are the same question asked at
+// two ranges: how far out does a tree actually get drawn, and does the number
+// the UI shows agree with it. The sheet solved it by decoupling from patch LOD
+// entirely; the patch-baked card stage cannot, so it has to MEASURE.
+//
+// THE DEFECT. `Settings > Graphics > "silhouettes out to (m)"` writes
+// `veg_tree_card_m`, which becomes the shader's card cutoff: a card farther
+// from the eye than that discards. Cards themselves only exist where the LOD
+// walk built ground at depth >= `TREE_MIN_DEPTH`. Nothing tied those two
+// numbers together, so the slider could ask for 3 km of cards while the
+// terrain only carried them to 1.9 km, leaving a wide outer ring that gets
+// cards requested and has no patches to put them on. Operator, on flying over
+// it: "We really need to fix this inconsistent rendering as I go from looking
+// like there's a big open field to suddenly a forest spawning around me."
+//
+// WHY IT IS MEASURED AND NOT DERIVED. The obvious closed form - solve
+// `vertex_spacing(TREE_MIN_DEPTH - 1) / dist * px_per_rad = split_px * 1.15`
+// for `dist` - is right only when the SPLIT THRESHOLD is what ended the
+// descent, and EITHER knob can take that away from it.
+//
+// RAISE the threshold and nodes stop splitting sooner, so depth-15 leaves end
+// closer in and the reach is genuinely shorter - that is the operator's case
+// (they run `terrain_split_px` 9.579 against a shipped default of 4.0, see
+// `config::default_terrain_split_px`).
+//
+// LOWER it and the formula breaks the other way: far more nodes want to split
+// than `max_leaves` allows, so the LEAF BUDGET ends the descent instead and
+// the real reach comes out SHORTER while the formula says longer. Same for a
+// bigger window - more px_per_rad means more splitting means the budget binds
+// sooner.
+//
+// The selector already knows the answer, so the answer is taken from it.
+
+/// Floor for the card cutoff, mirroring the engine's own
+/// `veg_tree_card_m.clamp(100.0, ...)`. Duplicated as a literal because
+/// `crate::config` is native-gated and `terrain/` is not (same reason
+/// `grass::grass_far_m` carries its own ceiling).
+pub const CARD_FAR_MIN_M: f32 = 100.0;
+
+/// Live measured card reach, f32 bits in an atomic - the same channel pattern
+/// as `planet_chunks::TREE_DENSITY_BITS` and `grass::GRASS_FAR_BITS`, used in
+/// the opposite direction: those push a Settings value down into the terrain,
+/// this pushes a terrain MEASUREMENT back up to the renderer clamp and the
+/// Settings page, neither of which can reach a `ChunkState`.
+///
+/// Defaults to `+inf`, which reads as "no selection has run yet" and makes
+/// every consumer a no-op until one has. Written once per selection from the
+/// frame loop, for whichever planet is chunk-active; only one planet can be
+/// close enough for depth-15 ground at a time, so last-writer-wins is exact
+/// in every case that has cards in it.
+pub static CARD_REACH_BITS: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0x7F80_0000); // f32::INFINITY
+
+/// Publish this frame's measured reach (`Selection::stats.card_reach_m`).
+#[inline]
+pub fn publish_card_reach_m(reach_m: f32) {
+    CARD_REACH_BITS.store(reach_m.to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The reach the last selection measured. Non-finite = not measured yet.
+#[inline]
+pub fn measured_card_reach_m() -> f32 {
+    f32::from_bits(CARD_REACH_BITS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// The card cutoff the renderer should actually use: the requested distance,
+/// clamped to what the drawn terrain can carry.
+///
+/// PURE, and takes `reach_m` explicitly rather than reading the atomic, so
+/// both callers (the renderer clamp and the Settings row) compute the same
+/// number from the same input and a test can hand it a selection's own
+/// measurement instead of a global.
+///
+/// - `reach_m` non-finite (nothing measured yet): the request passes through.
+///   Failing OPEN is right here - clamping to a number we do not have would
+///   hide cards on the first frames after world entry.
+/// - `reach_m` below `CARD_FAR_MIN_M`: floored there, matching the engine's
+///   own floor. A reach that small means there is no card-bearing ground at
+///   all, so the cutoff is moot and the floor keeps it out of nonsense range.
+#[inline]
+pub fn effective_card_far_m(requested_m: f32, reach_m: f32) -> f32 {
+    if !reach_m.is_finite() {
+        return requested_m;
+    }
+    requested_m.min(reach_m.max(CARD_FAR_MIN_M))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,6 +613,226 @@ mod tests {
             let want = FAR_CARD_SHADE_LO + (FAR_CARD_SHADE_HI - FAR_CARD_SHADE_LO) * t;
             assert!((far_card_shade(code) - want).abs() < 1e-6);
         }
+    }
+
+    /// The card slider is a REQUEST; the terrain's depth-15 ground is the
+    /// supply. This walks a REAL selection at a real camera height, measures
+    /// where the supply ends, and asserts the cutoff is pulled back to it.
+    ///
+    /// The fixture has to earn its keep, so it also asserts the two things
+    /// that make the check meaningful rather than tautological:
+    /// 1. card-bearing ground really exists here (some drawn patch is at
+    ///    depth >= TREE_MIN_DEPTH), and
+    /// 2. the requested 3 km really over-promises (coarse, cardless ground is
+    ///    drawn well inside it).
+    /// Without (1) the reach would be 0 and the clamp would "pass" on an empty
+    /// world; without (2) there would be no ring to fix.
+    #[test]
+    fn the_card_cutoff_is_clamped_to_the_reach_the_terrain_actually_built() {
+        use super::super::planet_chunks::{
+            patch_bounds, patch_corners, select_patches, ChunkParams, RadialBand,
+            CHUNK_SPLIT_PX, MAX_BUILD_REQUESTS, MAX_CHUNK_LEAVES, TILE_MAX_PATCH_DEPTH,
+            TREE_MIN_DEPTH,
+        };
+        let def = forest_def();
+        // The tile-tier depth cap: the ONLY configuration in which depth-15
+        // ground exists at all (a base-only planet caps at MAX_PATCH_DEPTH =
+        // 13, two levels short of TREE_MIN_DEPTH, so it has no cards ever).
+        let params = ChunkParams {
+            occluder_r_m: None,
+            radius_m: def.radius,
+            band: RadialBand {
+                min_r_m: def.radius - 200.0,
+                max_r_m: def.radius + 200.0,
+            },
+            max_depth: TILE_MAX_PATCH_DEPTH,
+            split_px: CHUNK_SPLIT_PX,
+            // 1080 px viewport at 60 deg vertical fov, the same projection
+            // the planet_chunks selection tests use.
+            px_per_rad: 1080.0 / 60f32.to_radians(),
+            max_leaves: MAX_CHUNK_LEAVES,
+            max_build_requests: MAX_BUILD_REQUESTS,
+        };
+        // Steady-state MEASURED bands (everything built), so the selection is
+        // the one a settled camera sees rather than a mid-stream one.
+        let measured = RadialBand {
+            min_r_m: def.radius - 2.0,
+            max_r_m: def.radius + 2.0,
+        };
+        let cam = DVec3::new(def.radius + 40.0, 0.0, 0.0);
+        let sel = select_patches(cam, None, &|_| Some(measured), &params);
+        let reach = sel.stats.card_reach_m as f32;
+
+        // (1) The fixture really grows card-bearing ground.
+        assert!(
+            sel.draws.iter().any(|d| d.depth >= TREE_MIN_DEPTH),
+            "fixture drew no depth-{TREE_MIN_DEPTH} ground, so it cannot \
+             exercise the card stage at all; stats={:?}",
+            sel.stats
+        );
+        assert!(reach > CARD_FAR_MIN_M, "measured reach {reach} m is degenerate");
+
+        // The stats number must COVER every drawn card-bearing patch. This is
+        // the safety direction: the cutoff discards cards beyond itself, so a
+        // reach that under-reported would hide cards that really drew.
+        let mut deep_far = 0.0_f64;
+        let mut shallow_near = f64::INFINITY;
+        for id in &sel.draws {
+            let b = patch_bounds(&patch_corners(id), def.radius, &measured);
+            let c = (cam - b.bound_center).length();
+            if id.depth >= TREE_MIN_DEPTH {
+                deep_far = deep_far.max(c + b.bound_radius);
+            } else {
+                shallow_near = shallow_near.min((c - b.bound_radius).max(0.0));
+            }
+        }
+        assert!(
+            reach as f64 >= deep_far - 1.0,
+            "measured reach {reach} m under-reports the drawn card field, whose \
+             farthest patch ends at {deep_far} m - cards inside that gap would \
+             be discarded despite standing on real ground"
+        );
+        // And it must not run AHEAD of the drawn field by more than the one
+        // patch width the walk's provably-invisible-subtree drops can add. A
+        // reach that over-reports by kilometres would leave the ring in place
+        // while looking like it had been fixed.
+        let slack =
+            crate::terrain::planet_chunks::patch_edge_arc_m(TREE_MIN_DEPTH, def.radius);
+        assert!(
+            (reach as f64) <= deep_far + slack,
+            "measured reach {reach} m runs {} m past the farthest drawn \
+             card-bearing patch ({deep_far} m), more than the {slack:.0} m \
+             one-patch slack the walk can legitimately add",
+            reach as f64 - deep_far
+        );
+
+        // (2) A 3 km request really does outrun this ground: coarse, cardless
+        // patches are drawn well inside it.
+        let requested = 3_000.0_f32;
+        assert!(
+            (shallow_near as f32) < requested,
+            "fixture has no cardless ground inside the {requested} m request \
+             (nearest coarse patch at {shallow_near} m), so there is no \
+             over-promise here to clamp"
+        );
+        assert!(
+            reach < requested,
+            "measured reach {reach} m is not shorter than the {requested} m \
+             request, so this fixture no longer exercises the clamp"
+        );
+
+        // THE CLAMP.
+        let eff = effective_card_far_m(requested, reach);
+        assert!(
+            (eff - reach).abs() < 0.5,
+            "requested {requested} m against a measured {reach} m reach must \
+             come out at the reach, got {eff} m"
+        );
+        assert!(
+            eff < requested,
+            "the cutoff still promises {eff} m of cards on ground that ends at \
+             {reach} m"
+        );
+    }
+
+    /// The clamp must not cost anything when the terrain CAN carry the
+    /// request, and must stay out of the way before anything has been
+    /// measured - otherwise the fix trades one wrong picture for another.
+    #[test]
+    fn the_clamp_is_inert_when_the_ground_reaches_far_enough() {
+        // Ground reaches further than asked: the request passes through.
+        assert_eq!(effective_card_far_m(1_500.0, 2_700.0), 1_500.0);
+        // Exactly at the reach: unchanged.
+        assert_eq!(effective_card_far_m(1_900.0, 1_900.0), 1_900.0);
+        // Nothing measured yet (the shipped default of CARD_REACH_BITS):
+        // fail OPEN, or world entry would blank the card stage for a frame.
+        assert!(!measured_card_reach_m().is_finite() || measured_card_reach_m() > 0.0);
+        assert_eq!(effective_card_far_m(3_000.0, f32::INFINITY), 3_000.0);
+        assert_eq!(effective_card_far_m(3_000.0, f32::NAN), 3_000.0);
+        // A degenerate reach (space, or the first frames of a descent) floors
+        // at the engine's own minimum instead of collapsing to zero.
+        assert_eq!(effective_card_far_m(3_000.0, 0.0), CARD_FAR_MIN_M);
+    }
+
+    /// The publish/read channel round-trips, and its shipped default really is
+    /// the "not measured yet" sentinel every consumer branches on.
+    #[test]
+    fn the_reach_channel_defaults_to_unmeasured_and_round_trips() {
+        assert!(
+            !f32::from_bits(0x7F80_0000).is_finite(),
+            "CARD_REACH_BITS' initial value must decode as non-finite, or every \
+             consumer silently starts clamping to a number nobody measured"
+        );
+        publish_card_reach_m(1_873.5);
+        assert_eq!(measured_card_reach_m(), 1_873.5);
+        // Leave the channel as the frame loop would: unmeasured.
+        publish_card_reach_m(f32::INFINITY);
+    }
+
+    /// A warning nobody can trigger is decoration; one that fires on a fresh
+    /// install is noise. This pins BOTH ends against the SHIPPED terrain LOD
+    /// defaults, the way the grass instance-cap warning is pinned in
+    /// `settings.rs`.
+    ///
+    /// It also records the number that motivated the whole change. At the
+    /// shipped `terrain_split_px` / `terrain_patch_budget`, on this synthetic
+    /// world, the reach measures ~1.8 km at walking height and ~2.2 km at 1 km
+    /// up, and `budget_saturated` is TRUE in every one of those runs. The
+    /// second fact is the load-bearing one: raising or lowering `split_px`
+    /// across 4.0 and 9.579 does not move the reach AT ALL once the budget
+    /// binds, so the closed form everyone reaches for first - solve the split
+    /// threshold for distance - is answering a question the engine stopped
+    /// asking. Measure it.
+    #[test]
+    fn the_clamp_is_quiet_at_the_shipped_card_default_and_bites_at_the_ceiling() {
+        use super::super::planet_chunks::{
+            select_patches, ChunkParams, RadialBand, MAX_BUILD_REQUESTS, TILE_MAX_PATCH_DEPTH,
+        };
+        let def = forest_def();
+        let measured = RadialBand {
+            min_r_m: def.radius - 2.0,
+            max_r_m: def.radius + 2.0,
+        };
+        let cfg = crate::config::AppConfig::default();
+        let params = ChunkParams {
+            occluder_r_m: None,
+            radius_m: def.radius,
+            band: RadialBand {
+                min_r_m: def.radius - 200.0,
+                max_r_m: def.radius + 200.0,
+            },
+            max_depth: TILE_MAX_PATCH_DEPTH,
+            split_px: cfg.terrain_split_px,
+            px_per_rad: 1080.0 / 60f32.to_radians(),
+            max_leaves: cfg.terrain_patch_budget as usize,
+            max_build_requests: MAX_BUILD_REQUESTS,
+        };
+        // Walking height: the case a player is in essentially always.
+        let cam = DVec3::new(def.radius + 2.0, 0.0, 0.0);
+        let sel = select_patches(cam, None, &|_| Some(measured), &params);
+        let reach = sel.stats.card_reach_m as f32;
+        assert!(
+            sel.stats.budget_saturated,
+            "the shipped LOD defaults no longer saturate the leaf budget, so the \
+             reason this reach is MEASURED rather than derived from split_px may \
+             have gone away; re-read the module note before trusting either"
+        );
+        // QUIET where it ships: the default card distance fits inside the reach,
+        // so a fresh install sees no warning and no clamp.
+        assert_eq!(
+            effective_card_far_m(cfg.veg_tree_card_m, reach),
+            cfg.veg_tree_card_m,
+            "the shipped card distance ({} m) no longer fits inside the measured \
+             reach ({reach} m): a fresh install would open Settings to a warning",
+            cfg.veg_tree_card_m
+        );
+        // REACHABLE: the slider's own top end does not fit, which is where the
+        // operator had it when they reported the open-field-then-forest ring.
+        assert!(
+            effective_card_far_m(3_000.0, reach) < 3_000.0,
+            "the slider ceiling (3000 m) now fits inside the measured reach \
+             ({reach} m), so the warning can never fire and is dead code"
+        );
     }
 
     #[test]

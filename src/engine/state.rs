@@ -411,6 +411,11 @@ pub(crate) struct EngineState {
     /// the floating-trees fix): a depth change while standing still must
     /// re-harvest or bases stay on the previous mesh until the player walks.
     pub(crate) near_tree_depth: u8,
+    /// Forest density the near-TREE harvest last ran at (v0.1111). A slider
+    /// move changes what the next card bake emits immediately, but the harvest
+    /// only re-runs every 12 m of walking, so without this the models lag the
+    /// cards by up to a walk and the gap is full of orphaned cards.
+    pub(crate) near_tree_density: f32,
     /// Session-seconds of the last grass harvest (the re-harvest rate limit).
     pub(crate) near_grass_at_s: f32,
     /// Scratch instance buffer for the per-frame grass upload, kept between

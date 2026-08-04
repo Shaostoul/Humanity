@@ -235,21 +235,20 @@ pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
 /// sprite cards (2 quads/tree since v0.961) are what buys the headroom.
 pub const TREES_PER_CELL: u32 = 800;
 
-/// Vegetation density multiplier (v0.1084, operator: fewer trees, free the
-/// GPU). Settings > Graphics "Vegetation: forest density" writes this each
-/// frame from lib.rs (f32 bits in an atomic - patch builds happen on worker
-/// threads). 1.0 = the historical full density; the setting defaults to 0.6.
-pub static TREE_DENSITY_BITS: std::sync::atomic::AtomicU32 =
-    std::sync::atomic::AtomicU32::new(0x3F80_0000); // 1.0f32
-
-/// How many TREES spawn per cell. Was `veg_density` and drove grass too, which
-/// is why one slider could not satisfy anybody: the operator wanted thick grass
-/// and thin forest and had no way to ask for it (v0.1106).
-#[inline]
-pub fn tree_density() -> f32 {
-    f32::from_bits(TREE_DENSITY_BITS.load(std::sync::atomic::Ordering::Relaxed))
-        .clamp(0.1, 1.0)
-}
+// VEGETATION DENSITY IS NOT A GLOBAL (v0.1111). It was one - a process-wide
+// atomic the frame loop published and both vegetation streams read for
+// themselves - and that made it a hidden argument two readers could sample at
+// different instants and disagree about. Measured consequence: after a slider
+// drag the near-model harvest and the card bake named different trees, and a
+// card with no model behind it discards in the colour pass while still casting
+// shade. Density is now an explicit argument of `build_patch_mesh_at_density`
+// and `near_trees::near_tree_instances_at_density`, sourced ONCE per frame.
+//
+// The density cluster - the slider range, tree_density_clamped, trees_in_cell
+// and AGNOSTIC_TREE_DENSITY - lives in near_trees.rs, the module
+// whose whole job is keeping the card stream and the model stream naming the
+// SAME trees, and comes back into this namespace through the
+// `pub use near_trees::*` further down.
 
 /// GRASS COVERAGE, as a multiplier on the authored leaf-area target. This is
 /// the ARTISTIC knob - how much grass is on the ground - and it is deliberately
@@ -1051,6 +1050,18 @@ pub struct SelectStats {
     /// The largest screen error among FINAL LEAVES and its depth.
     pub max_leaf_err: f32,
     pub max_leaf_depth: u8,
+    /// MEASURED reach of the tree-card stage, in metres from the camera
+    /// (v0.1111). Zero means this walk touched no card-bearing ground at all
+    /// (space, or a descent that has not refined that far yet).
+    ///
+    /// Cards are baked ONLY into patches at depth >= `TREE_MIN_DEPTH` (the
+    /// `want_trees` gate in the patch builder), so however far the Settings
+    /// card slider is dragged, cards stop where those patches stop. Recorded
+    /// here rather than derived from `split_px` and the projection because the
+    /// descent usually ends at the LEAF BUDGET, not at the split threshold -
+    /// and a derivation that ignores the budget reports a reach the ground
+    /// does not have. See `far_trees::effective_card_far_m`.
+    pub card_reach_m: f64,
 }
 
 /// Max-heap node ordered by screen-space error, so the worst error always
@@ -1191,6 +1202,25 @@ pub fn select_patches_sticky(
     }
 
     while let Some(node) = heap.pop() {
+        // MEASURED card reach (v0.1111): the far edge of the deepest
+        // card-bearing node this walk touches. Taken HERE because the bounding
+        // sphere is already in hand, so it costs one length() per deep node
+        // and no second pass over the draw list.
+        //
+        // UPPER BOUND, deliberately. The renderer's card cutoff DISCARDS cards
+        // beyond itself, so a reach that read SHORT would hide cards that are
+        // really standing there. Every node on this heap is built (restricted
+        // descent only pushes built children) and its region is either drawn
+        // as a leaf or covered by its own descendants, with the one exception
+        // of a provably-invisible subtree drop - which can only overshoot, and
+        // only by about one patch width.
+        if node.id.depth >= TREE_MIN_DEPTH {
+            let far =
+                (cam_local_m - node.bounds.bound_center).length() + node.bounds.bound_radius;
+            if far > stats.card_reach_m {
+                stats.card_reach_m = far;
+            }
+        }
         // Split/merge HYSTERESIS (v0.882; re-keyed v0.898): a hard threshold
         // made boundary patches flip parent<->child every frame. The memory
         // used to be children-residency, but the v0.889 prefetch builds
@@ -1450,6 +1480,15 @@ pub struct PatchMesh {
     pub mesh: SurfaceMeshData,
     pub anchor: DVec3,
     pub band: RadialBand,
+    /// Forest density the TREE CARDS in this mesh were baked at, or 0.0 when
+    /// the patch carries none (shallower than `TREE_MIN_DEPTH`, or polar).
+    ///
+    /// A patch is baked once and then drawn for as long as it stays cached, so
+    /// this is the only record of what the cards on screen actually are. The
+    /// near-model harvest is re-run every 12 m of walking against the LIVE
+    /// setting, so without this the two answer to different densities the
+    /// moment the slider moves - see `ChunkState::harvest_tree_density`.
+    pub tree_density: f32,
 }
 
 #[inline]
@@ -1616,17 +1655,45 @@ pub(crate) fn emit_shared_grid_faces(
 /// `albedo`: the planet's real-color grid when it ships one (Earth); face
 /// colors then come from imagery via `planet_surface::surface_color`, same
 /// as the uniform-sphere path, so the LOD handoff never changes hue.
+///
+/// THE VEGETATION-AGNOSTIC ENTRY. Callers that only want the ground geometry
+/// (the drawn-surface sampler, the grass tests, the walk probe) use this and
+/// take whatever forest density is currently published. The FRAME LOOP must
+/// NOT: a bake and a harvest that each sample the setting for themselves can
+/// sample it at different instants. It passes the SETTING to
+/// [`build_patch_mesh_at_density`] and [`ChunkState::harvest_tree_density`] to
+/// the harvest - the bake defines the cards, the harvest has to cover them.
 pub fn build_patch_mesh(
     def: &PlanetDef,
     source: &ElevationSource,
     albedo: Option<&PlanetAlbedo>,
     id: &PatchId,
 ) -> PatchMesh {
+    build_patch_mesh_at_density(def, source, albedo, id, AGNOSTIC_TREE_DENSITY)
+}
+
+/// `build_patch_mesh` with the forest density passed in explicitly.
+///
+/// Density is an ARGUMENT because it is a shared input to two independent
+/// streams (this bake and `near_trees`), and a shared input read separately by
+/// each reader is a shared input they can disagree about. The value used here
+/// is stamped onto the returned [`PatchMesh::tree_density`] so the frame loop
+/// can tell what the cards on screen were actually built with.
+pub fn build_patch_mesh_at_density(
+    def: &PlanetDef,
+    source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
+    id: &PatchId,
+    tree_density: f32,
+) -> PatchMesh {
     let n = PATCH_TESS;
     let corners = patch_corners(id);
     let radius_m = def.radius;
     let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // Stays 0.0 unless the vegetation pass below actually emits cards (this
+    // patch is too shallow for trees, or polar). See `PatchMesh::tree_density`.
+    let mut card_tree_density = 0.0f32;
 
     // ── Unique grid samples ──
     // Directions via integer barycentric weights: both patches sharing an
@@ -2025,8 +2092,10 @@ pub fn build_patch_mesh(
         // the second pass emitting grass tufts on their own cell grid.
         if want_trees && !polar {
             marking_trees.set(true);
+            // This patch really does carry cards, so stamp the density they
+            // were baked at onto the mesh (see `PatchMesh::tree_density`).
+            card_tree_density = tree_density_clamped(tree_density);
             let cell = TREE_CELL_RAD;
-            let per_cell = (((TREES_PER_CELL as f32) * tree_density()).round() as u32).max(1);
             let salt: u64 = 0x51F0_A11C;
             let ylo = ((lat_min / cell).floor() as i64) - 1;
             let yhi = ((lat_max / cell).floor() as i64) + 1;
@@ -2034,9 +2103,11 @@ pub fn build_patch_mesh(
             let xhi = ((lon_max / cell).floor() as i64) + 1;
             for iy in ylo..=yhi {
                 let cell_lat = (iy as f64 + 0.5) * cell;
-                // Constant per-AREA density: lon cells narrow toward the
-                // poles by cos(lat), so thin the per-cell count to match.
-                let count = ((per_cell as f64) * cell_lat.cos().max(0.0)).round() as u32;
+                // THE shared count (v0.1111). Must not be inlined back here:
+                // the near-model harvest calls the same function, and a second
+                // copy of this arithmetic is exactly how the two streams came
+                // to disagree about which trees exist. See `trees_in_cell`.
+                let count = trees_in_cell(tree_density, cell_lat);
                 for ix in xlo..=xhi {
                     // Per-cell deterministic stream, independent of the
                     // evaluating patch. Every item draws a FIXED number of
@@ -2281,6 +2352,7 @@ pub fn build_patch_mesh(
     PatchMesh {
         mesh: SurfaceMeshData { vertices, indices },
         anchor,
+        tree_density: card_tree_density,
         band: RadialBand {
             // The skirt hangs skirt_depth below the lowest grid vertex;
             // include it so culling never clips a visible apron. A meter
@@ -2562,6 +2634,8 @@ pub fn build_water_patch_mesh_at(
     Some(PatchMesh {
         mesh: SurfaceMeshData { vertices, indices },
         anchor,
+        // Water shells never carry tree cards.
+        tree_density: 0.0,
         band: water_band(radius_m),
     })
 }
@@ -2588,6 +2662,9 @@ pub struct PatchEntry {
     pub band: RadialBand,
     /// Frame stamp of last draw (LRU key).
     pub last_used: u64,
+    /// Forest density this patch's tree cards were baked at (0.0 = no cards).
+    /// Copied from `PatchMesh::tree_density`; read by `harvest_tree_density`.
+    pub tree_density: f32,
 }
 
 /// All chunked-LOD state for one planet.
@@ -2793,6 +2870,13 @@ impl ChunkState {
 
     /// Insert with optional arena ranges (draw-batching increment 1).
     /// `mesh` should be usize::MAX when `slot` is Some.
+    ///
+    /// DENSITY-BLIND, and the reason `insert_built` exists: an entry inserted
+    /// here records `tree_density = 0.0`, so it never raises
+    /// `harvest_tree_density` and cannot protect its own cards. Fine for the
+    /// non-vegetation callers (tests, the walk probe); NOT fine for the frame
+    /// loop, which has `PatchMesh::tree_density` right there - see the WIRING
+    /// REQUEST in `near_trees.rs`.
     pub fn insert_slotted(
         &mut self,
         id: PatchId,
@@ -2802,15 +2886,79 @@ impl ChunkState {
         anchor: DVec3,
         band: RadialBand,
     ) {
+        self.insert_built(id, mesh, slot, bytes, anchor, band, 0.0);
+    }
+
+    /// Insert a freshly BUILT patch, carrying everything the mesh knows -
+    /// including `PatchMesh::tree_density`, the density its tree cards were
+    /// baked at. This is the form the frame loop must use.
+    #[allow(clippy::too_many_arguments)]
+    pub fn insert_built(
+        &mut self,
+        id: PatchId,
+        mesh: usize,
+        slot: Option<crate::renderer::patch_arena::PatchSlot>,
+        bytes: usize,
+        anchor: DVec3,
+        band: RadialBand,
+        tree_density: f32,
+    ) {
         if let Some(old) = self.cache.insert(
             id,
-            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame },
+            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame, tree_density },
         ) {
             // Should not happen (selection never requests a built patch),
             // but never leak the byte count if it does.
             self.total_bytes = self.total_bytes.saturating_sub(old.bytes);
         }
         self.total_bytes += bytes;
+    }
+
+    /// THE DENSITY THE NEAR-MODEL HARVEST MUST USE THIS FRAME.
+    ///
+    /// THE INVARIANT (v0.1111): *every tree card that can be on screen has a
+    /// 3D model standing in it.* `tree_card_hide_m` promises the fragment
+    /// shader that, and a card with no model does not merely lose its mesh -
+    /// it discards in the colour pass while STILL CASTING SHADE, because the
+    /// shadow-pass twin deliberately does not mirror the `card_dist` discard.
+    /// That is the operator's report of 2026-08-03: "weird chunks that
+    /// wouldn't spawn trees visually but, they were still affecting the light."
+    ///
+    /// A patch is baked ONCE and drawn until it leaves the cache; the harvest
+    /// re-runs every 12 m. So after the slider moves, the cards on screen and
+    /// the live setting are simply different numbers, and there is no way to
+    /// make them equal without either rebuilding every card patch on the spot
+    /// (a rebuild storm on every frame of a DRAG, and the ground coarsens
+    /// while it runs) or letting the models drift off the cards.
+    ///
+    /// So do neither: take the MAXIMUM. `count` is monotone in density and each
+    /// item's randoms depend only on its index, so a higher density enumerates
+    /// a SUPERSET of a lower one - identical trees, plus more. Harvesting at
+    /// `max(setting, every drawn patch's bake density)` therefore covers every
+    /// card that exists no matter which generation baked it, in both
+    /// directions of the slider:
+    ///
+    /// * density UP - `setting` wins; models appear ahead of the cards, and an
+    ///   extra model with no card is invisible (the model IS the better LOD).
+    /// * density DOWN - the stale cards win until they are rebuilt or leave the
+    ///   drawn set, so the thinning shows up patch by patch as you move. That
+    ///   is exactly the behaviour the card layer has always documented, now
+    ///   shared by both layers instead of only one.
+    ///
+    /// Cost of being wrong in the safe direction: a few models the setting did
+    /// not ask for, for as long as an old patch is still on screen. Cost of
+    /// being wrong in the other direction: shadows cast by trees that are not
+    /// there.
+    pub fn harvest_tree_density(&self, setting: f32) -> f32 {
+        let mut d = tree_density_clamped(setting);
+        for id in &self.last_drawn {
+            if let Some(e) = self.cache.get(id) {
+                if e.tree_density > d {
+                    d = e.tree_density;
+                }
+            }
+        }
+        d
     }
 
     /// Pop LRU entries until under the byte cap. Returns (id, mesh index,

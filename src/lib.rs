@@ -1733,6 +1733,7 @@ mod native_app {
                 near_grass_center: glam::DVec3::splat(f64::MAX),
                 near_grass_depth: 0,
                 near_tree_depth: 0,
+                near_tree_density: 0.0,
                 near_grass_at_s: -1.0,
                 grass_instances: Vec::new(),
                 grow_positions: Vec::new(),
@@ -8983,6 +8984,16 @@ mod native_app {
                                     cs.last_selection = Some(sel.clone());
                                     sel
                                 };
+                                // v0.1111: publish this frame's MEASURED
+                                // tree-card reach. The renderer's card cutoff
+                                // and the Settings row both read it, so
+                                // neither can promise cards on ground the LOD
+                                // walk never built. Travels with the parked
+                                // selection too (Selection is cloned whole),
+                                // so a stationary camera keeps its reading.
+                                crate::terrain::far_trees::publish_card_reach_m(
+                                    selection.stats.card_reach_m as f32,
+                                );
                                 let now_drawn: std::collections::HashSet<chunks::PatchId> =
                                     selection.draws.iter().cloned().collect();
                                 // Geomorph fades (v0.920): diff the drawn set
@@ -9063,6 +9074,19 @@ mod native_app {
                                 let build_t0 = Instant::now();
                                 let _cost_patch_build =
                                     crate::renderer::frame_costs::stage("cpu.patch_build");
+                                // ONE read of the forest-density setting per
+                                // frame, handed to both vegetation streams
+                                // (v0.1111). The bake DEFINES the cards, so it
+                                // takes the setting; the harvest has to COVER
+                                // the cards already on screen, so it takes
+                                // harvest_tree_density (the max over the drawn
+                                // patches' own bake densities). cs.last_drawn
+                                // is this frame's selection, set above.
+                                let veg_bake_density = chunks::tree_density_clamped(
+                                    state.gui_state.settings.tree_density,
+                                );
+                                let veg_harvest_density =
+                                    cs.harvest_tree_density(veg_bake_density);
                                 let budget = state
                                     .gui_state
                                     .settings
@@ -9121,8 +9145,9 @@ mod native_app {
                                                             };
                                                             out.push((
                                                                 id,
-                                                                chunks::build_patch_mesh(
+                                                                chunks::build_patch_mesh_at_density(
                                                                     d, &src, albedo, &id,
+                                                                    veg_bake_density,
                                                                 ),
                                                             ));
                                                         }
@@ -9163,13 +9188,14 @@ mod native_app {
                                             .renderer
                                             .patch_arena_upload(&verts, &pm.mesh.indices)
                                         {
-                                            cs.insert_slotted(
+                                            cs.insert_built(
                                                 id,
                                                 usize::MAX,
                                                 Some(aslot),
                                                 real_bytes,
                                                 pm.anchor,
                                                 pm.band,
+                                                pm.tree_density,
                                             );
                                         } else {
                                             // Arena full: classic per-patch
@@ -9189,13 +9215,14 @@ mod native_app {
                                             } else {
                                                 state.renderer.add_mesh(mesh)
                                             };
-                                            cs.insert_slotted(
+                                            cs.insert_built(
                                                 id,
                                                 slot,
                                                 None,
                                                 real_bytes,
                                                 pm.anchor,
                                                 pm.band,
+                                                pm.tree_density,
                                             );
                                         }
                                         patch_builds_this_frame += 1;
@@ -9432,7 +9459,16 @@ mod native_app {
                                         .map(|p| p.depth)
                                         .max()
                                         .unwrap_or(0);
-                                    if moved > 12.0 || tree_draw_depth != state.near_tree_depth {
+                                    // The DENSITY term matters as much as the
+                                    // other two: without it a slider move
+                                    // changes what the next patch bake emits
+                                    // while the harvest waits up to 12 m of
+                                    // walking to notice, and that window is
+                                    // exactly the orphaned-card window.
+                                    if moved > 12.0
+                                        || tree_draw_depth != state.near_tree_depth
+                                        || veg_harvest_density != state.near_tree_density
+                                    {
                                         let src = chunks::ElevationSource::Heightmap {
                                             hm,
                                             detail: &cs.detail,
@@ -9463,13 +9499,15 @@ mod native_app {
                                         // so a standing-still LOD change also
                                         // re-harvests).
                                         state.near_tree_depth = tree_draw_depth;
-                                        state.near_trees = chunks::near_tree_instances_on_drawn(
+                                        state.near_tree_density = veg_harvest_density;
+                                        state.near_trees = chunks::near_tree_instances_at_density(
                                             d,
                                             &src,
                                             state.planet_albedos.get(&b.id).map(|a| a.as_ref()),
                                             cam_local.normalize(),
                                             tree_dist + 60.0,
                                             tree_draw_depth,
+                                            veg_harvest_density,
                                             chunks::near_tree_harvest_cap(near_tree_draw_budget),
                                         );
                                         state.near_tree_new = state
@@ -11611,15 +11649,6 @@ mod native_app {
                                 state.renderer.celestial_sun_day =
                                     ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
                             }
-                            // Publish the vegetation-density setting to the
-                            // patch-build worker threads (v0.1084). New patch
-                            // builds pick it up; existing patches keep their
-                            // density until they rebuild, so a slider change
-                            // appears patch by patch as you move.
-                            crate::terrain::planet_chunks::TREE_DENSITY_BITS.store(
-                                state.gui_state.settings.tree_density.to_bits(),
-                                std::sync::atomic::Ordering::Relaxed,
-                            );
                             crate::terrain::planet_chunks::GRASS_DENSITY_BITS.store(
                                 state.gui_state.settings.grass_density.to_bits(),
                                 std::sync::atomic::Ordering::Relaxed,
@@ -16727,8 +16756,11 @@ mod native_app {
                                 // Vegetation LOD (v0.923): the tree-card far
                                 // cutoff slider applies live.
                                 state.renderer.tree_card_far_m =
-                                    state.gui_state.settings.veg_tree_card_m
-                                        .clamp(100.0, crate::config::TREE_CARD_MAX_M);
+                                    crate::terrain::far_trees::effective_card_far_m(
+                                        state.gui_state.settings.veg_tree_card_m
+                                            .clamp(100.0, crate::config::TREE_CARD_MAX_M),
+                                        crate::terrain::far_trees::measured_card_reach_m(),
+                                    );
                                 // v0.907: the lighting-pass knobs from
                                 // Settings > Planets apply every frame.
                                 state.renderer.sun_shadows =

@@ -17,6 +17,81 @@
 
 use super::*;
 
+// ── HOW MANY TREES EXIST (v0.1111) ───────────────────────────────────────────
+// The card bake lives in `planet_chunks` and the model harvest lives here, but
+// the two have to name the SAME trees, so the arithmetic that decides which
+// trees exist belongs to neither of them alone - it belongs to the handoff,
+// which is this module. `planet_chunks` re-exports all of it (`pub use
+// near_trees::*`), so the bake still calls `trees_in_cell` unqualified and
+// every `planet_chunks::` path outside keeps resolving.
+
+/// The forest density the VEGETATION-AGNOSTIC entries build at (v0.1111).
+///
+/// The frame loop passes the live setting in explicitly. This exists for
+/// callers that want ground geometry and do not care what grows on it: the
+/// drawn-surface sampler, the grass tests, the walk probe.
+///
+/// It is a FIXED number rather than the live setting on purpose. A caller that
+/// reaches for a mutable global to answer "how dense is the forest" is exactly
+/// the coupling that let the card bake and the model harvest name different
+/// trees; leaving one such caller behind would leave the door open. It tracks
+/// `config::default_tree_density`, and `the_agnostic_default_is_the_shipped
+/// _default` fails if the two part.
+pub const AGNOSTIC_TREE_DENSITY: f32 = 0.6;
+
+/// Slider range of the forest-density setting (`settings.rs`, `config.rs`).
+pub const TREE_DENSITY_MIN: f32 = 0.1;
+pub const TREE_DENSITY_MAX: f32 = 1.0;
+
+/// The clamp, in one place, because a clamp that differs between two callers
+/// diverges exactly like a rounding rule that differs between them.
+#[inline]
+pub fn tree_density_clamped(d: f32) -> f32 {
+    if d.is_nan() {
+        return TREE_DENSITY_MIN;
+    }
+    d.clamp(TREE_DENSITY_MIN, TREE_DENSITY_MAX)
+}
+
+/// HOW MANY TREES STAND IN ONE VEGETATION CELL, and the only place that
+/// question is ever answered.
+///
+/// `cell_lat_rad` is the cell's CENTRE latitude. Lon cells narrow toward the
+/// poles by cos(lat), so the per-cell count thins to match and density stays
+/// constant per square kilometre.
+///
+/// WHY THIS IS A SHARED FUNCTION AND NOT TWO LINES OF ARITHMETIC. Two streams
+/// enumerate this grid - the card bake in `build_patch_mesh_at_density` and the
+/// 3D-model harvest below - and BOTH feed this number into the survival gate
+/// `(item as f32) >= count as f32 * vw`. So `count` does not merely decide how
+/// many items are considered: it decides WHICH items live. Through v0.1110 the
+/// two rounded differently - the bake rounded twice (`round(TREES_PER_CELL * d)`
+/// then `round(that * cos lat)`), the harvest once
+/// (`round(TREES_PER_CELL * d * cos lat)`) - and the difference is not
+/// theoretical: measured over all 43,478 northern cells, at density 0.6294 the
+/// two disagreed by one tree in 32.51% of them, at 0.6295 in 26.69%. Even at the
+/// shipped default 0.6 one cell row split (iy 10727, 21.2 degrees north, 447
+/// trees against 448) - which is why this survived so long, and why a test
+/// written only at the default proves nothing. The slider does not snap
+/// (`*value = min + t * (max - min)`), so a drag lands on arbitrary f32 values,
+/// and the operator drags it.
+///
+/// A cell where the two disagree has cards with no model: inside
+/// `tree_card_hide_m` those cards discard in the colour pass and STILL CAST
+/// SHADE, because the shadow pass deliberately does not mirror that discard.
+/// That is the operator's "weird chunks that wouldn't spawn trees visually but,
+/// they were still affecting the light".
+///
+/// The DOUBLE round is the one that survives, because it is the one the shipped
+/// cards were baked with: adopting the harvest's single round would have
+/// changed the forest on every planet at every density.
+#[inline]
+pub fn trees_in_cell(density: f32, cell_lat_rad: f64) -> u32 {
+    let per_cell =
+        (((TREES_PER_CELL as f32) * tree_density_clamped(density)).round() as u32).max(1);
+    ((per_cell as f64) * cell_lat_rad.cos().max(0.0)).round() as u32
+}
+
 /// One near-field tree from the planet-fixed vegetation stream (v0.911):
 /// the same cell hash the patch bake emits silhouette cards from,
 /// re-enumerated at runtime so REAL 3D models can stand where the cards
@@ -207,6 +282,37 @@ pub fn near_tree_instances(
     near_tree_instances_on_drawn(def, source, albedo, center_dir, radius_m, 0, max_n)
 }
 
+/// THE VEGETATION-AGNOSTIC HARVEST: trees at `AGNOSTIC_TREE_DENSITY`.
+///
+/// For callers that want SOME forest on the ground and do not care how much -
+/// the drawn-surface offset probe is the only one. The frame loop must NOT use
+/// this: forest density is a shared input to two streams, this harvest and the
+/// card bake, and only the frame loop can source it once and hand the same
+/// number to both. It calls [`near_tree_instances_at_density`] with
+/// `ChunkState::harvest_tree_density`, the value that provably covers every
+/// card already on screen.
+#[allow(clippy::too_many_arguments)]
+pub fn near_tree_instances_on_drawn(
+    def: &PlanetDef,
+    source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
+    center_dir: DVec3,
+    radius_m: f64,
+    drawn_depth: u8,
+    max_n: usize,
+) -> Vec<NearTree> {
+    near_tree_instances_at_density(
+        def,
+        source,
+        albedo,
+        center_dir,
+        radius_m,
+        drawn_depth,
+        AGNOSTIC_TREE_DENSITY,
+        max_n,
+    )
+}
+
 /// The tree harvest, standing on the ground you can actually SEE.
 ///
 /// `drawn_depth` is the patch-tree depth of the ground being DRAWN under the
@@ -234,14 +340,26 @@ pub fn near_tree_instances(
 /// COST: one `DrawnPatchSurface` per harvest (the vertex memo makes repeats
 /// nearly free) and one `radius_at` per SURVIVING tree - a few hundred, after
 /// the elevation and biome gates have thrown most candidates away.
+///
+/// `tree_density` is an ARGUMENT, not a global read (v0.1111). It used to be
+/// `tree_density()`, a process-wide atomic that this stream and the card bake
+/// each sampled for themselves, which cost three separate defects: the two
+/// rounded the per-cell count differently (see `trees_in_cell` - 32.51% of
+/// northern cells disagreed at density 0.6294), a slider move left the models
+/// on one density while the cached cards stayed on another, and two unit tests
+/// in this file fought over the atomic under the parallel harness (a ~50% flake
+/// in `the_harvest_is_nearest_first_even_when_the_cap_binds`). All three were
+/// the same hidden input; passing it in removes the class rather than each
+/// instance.
 #[allow(clippy::too_many_arguments)]
-pub fn near_tree_instances_on_drawn(
+pub fn near_tree_instances_at_density(
     def: &PlanetDef,
     source: &ElevationSource,
     albedo: Option<&PlanetAlbedo>,
     center_dir: DVec3,
     radius_m: f64,
     drawn_depth: u8,
+    tree_density: f32,
     max_n: usize,
 ) -> Vec<NearTree> {
     let mut out = Vec::new();
@@ -320,10 +438,12 @@ pub fn near_tree_instances_on_drawn(
     });
     for (iy, ix) in cells {
         let cell_lat = (iy as f64 + 0.5) * cell;
-        let count = ((TREES_PER_CELL as f64)
-            * (tree_density() as f64)
-            * cell_lat.cos().max(0.0))
-        .round() as u32;
+        // THE shared count (v0.1111), the same call the card bake makes. This
+        // used to be a second, single-rounded copy of that arithmetic living
+        // here; `count` is not just a loop bound, it is the right-hand side of
+        // the survival gate below, so a one-tree difference changes WHICH trees
+        // exist and leaves cards with no model. See `trees_in_cell`.
+        let count = trees_in_cell(tree_density, cell_lat);
         {
             // Identical stream to the bake: 6 randoms per item BEFORE any
             // gate, so positions/looks agree exactly with the cards.
@@ -540,8 +660,21 @@ mod near_tree_order_tests {
         let (lat, lon) = (35.29_f64.to_radians(), 138.79_f64.to_radians());
         let center =
             DVec3::new(lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()).normalize();
+        // Density passed IN (v0.1111). While it came from the process-global
+        // atomic this test read whatever a CONCURRENT test had last stored -
+        // `the_card_hide_radius_never_outruns_the_models` wrote 0.6 into it -
+        // and failed about half the time under the default parallel harness.
         let harvest = |max_n: usize| {
-            near_tree_instances_on_drawn(&def, &source, Some(&albedo), center, 240.0, 17, max_n)
+            near_tree_instances_at_density(
+                &def,
+                &source,
+                Some(&albedo),
+                center,
+                240.0,
+                17,
+                0.6,
+                max_n,
+            )
         };
 
         // The full sorted harvest, then the capped ones. The contract is that
@@ -675,9 +808,16 @@ mod near_tree_order_tests {
             tiles: None,
             ocean: None,
         };
-        // The shipped Settings default; the atomic starts at 1.0 in a test bin.
-        crate::terrain::planet_chunks::TREE_DENSITY_BITS
-            .store(0.6f32.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        // The shipped Settings default, passed IN (v0.1111). This used to be
+        // `TREE_DENSITY_BITS.store(0.6, ...)`, a write to a process-global that
+        // every other test in this binary was reading - it landed mid-run
+        // inside `the_harvest_is_nearest_first_even_when_the_cap_binds` under
+        // the parallel harness and failed it about half the time
+        // (`-- --test-threads=1` always passed, which is the signature). The
+        // flake was not a harness problem, it was the hidden input: two tests
+        // could disagree about the density for the same reason the card bake
+        // and this harvest could.
+        const DENSITY: f32 = 0.6;
         let (lat, lon) = (35.29_f64.to_radians(), 138.79_f64.to_radians());
         let start =
             DVec3::new(lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()).normalize();
@@ -699,13 +839,14 @@ mod near_tree_order_tests {
                         // Uncapped: this is the CARD set (the patch bake walks
                         // the same cells through the same gates), and its
                         // prefix is what the frame loop actually holds.
-                        harvest = near_tree_instances_on_drawn(
+                        harvest = near_tree_instances_at_density(
                             &def,
                             &source,
                             Some(&albedo),
                             cam_local.normalize(),
                             tree_dist + 60.0,
                             17,
+                            DENSITY,
                             usize::MAX,
                         );
                         assert!(
@@ -796,6 +937,600 @@ mod near_tree_order_tests {
              near_tree_instances_on_drawn. A cap below the draw budget is an invisible second \
              handoff line the draw loop cannot see - use \
              terrain::near_trees::near_tree_harvest_cap(budget)."
+        );
+    }
+}
+
+/// THE TWO VEGETATION STREAMS MUST AGREE ABOUT WHICH TREES EXIST.
+///
+/// The card bake (`build_patch_mesh_at_density`) and this model harvest walk
+/// the same planet-fixed cell grid through the same gates, and the near-field
+/// LOD handoff is built on the assumption that they land on the SAME SET: a
+/// model hides its own card, and `tree_card_hide_m` promises the shader that
+/// every card inside it has one. A card the models missed does not just lose
+/// its mesh - it discards in the colour pass and goes on casting shade, because
+/// the shadow pass deliberately does not mirror that discard.
+#[cfg(test)]
+mod tree_stream_agreement_tests {
+    use super::*;
+    use crate::terrain::planet_albedo::PlanetAlbedo;
+    use crate::terrain::planet_heightmap::PlanetHeightmap;
+
+    fn real_earth() -> (PlanetHeightmap, PlanetAlbedo, PlanetDef) {
+        let base =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))
+            .expect("earth heightmap loads");
+        let albedo =
+            PlanetAlbedo::load(&base.join("earth_albedo.bin")).expect("earth albedo loads");
+        let mut def = super::tests::earth_like();
+        def.sea_level = hm.sea_level_normalized();
+        (hm, albedo, def)
+    }
+
+    fn dir_of(lat_deg: f64, lon_deg: f64) -> DVec3 {
+        let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+        DVec3::new(lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()).normalize()
+    }
+
+    fn inside_patch(id: &PatchId, d: DVec3) -> bool {
+        let c = patch_corners(id);
+        let cn = [c[0].normalize(), c[1].normalize(), c[2].normalize()];
+        let en = [cn[0].cross(cn[1]), cn[1].cross(cn[2]), cn[2].cross(cn[0])];
+        let es = [en[0].dot(cn[2]), en[1].dot(cn[0]), en[2].dot(cn[1])];
+        (0..3).all(|i| en[i].dot(d) * es[i] >= 0.0)
+    }
+
+    /// Descend from the root face into the patch that covers `dir`.
+    fn patch_containing(dir: DVec3, depth: u8) -> PatchId {
+        let d = dir.normalize();
+        let mut id = (0..20u8)
+            .map(PatchId::root)
+            .find(|r| inside_patch(r, d))
+            .expect("some root face contains the direction");
+        while id.depth < depth {
+            id = (0..4u32)
+                .map(|c| id.child(c))
+                .find(|ch| inside_patch(ch, d))
+                .expect("some child contains the direction");
+        }
+        id
+    }
+
+    /// EVERY TREE CARD THE BAKE PUT IN THIS PATCH, as a planet-local unit
+    /// direction - read back out of the finished mesh, not re-derived.
+    ///
+    /// WHY THIS RECOVERS THE DIRECTION EXACTLY. A card's first two emitted
+    /// corners always straddle its own vertical axis: the sprite emitter pushes
+    /// `c00 = foot - side*(s/2)` then `c10 = foot + side*(s/2)`, and the
+    /// coloured fallback pushes `p00 = base + up*h0 - side*(w/2)` then
+    /// `p01 = base + up*h0 + side*(w/2)`. Either midpoint therefore lands ON
+    /// the tree's radial line, and a point displaced radially has exactly the
+    /// tree's direction. So no card height, footprint, drop or ground radius
+    /// has to be reproduced here - the one quantity the two streams must agree
+    /// about comes straight off the geometry the GPU will draw.
+    fn card_dirs(pm: &PatchMesh) -> Vec<DVec3> {
+        let corners: Vec<glam::Vec3> = pm
+            .mesh
+            .vertices
+            .iter()
+            .filter(|v| v.tree_card)
+            .map(|v| glam::Vec3::from(v.position))
+            .collect();
+        assert_eq!(
+            corners.len() % 4,
+            0,
+            "tree cards are emitted four vertices at a time; got {}",
+            corners.len()
+        );
+        corners
+            .chunks(4)
+            .map(|q| (pm.anchor + ((q[0] + q[1]) * 0.5).as_dvec3()).normalize())
+            .collect()
+    }
+
+    /// Two trees in a cell are quantised no finer than `TREE_CELL_RAD / 4096`
+    /// = 8.4e-9 rad apart, and reading a direction back off an f32 vertex a few
+    /// hundred metres from its anchor costs about 3e-12 rad. 1e-9 sits two
+    /// orders clear of both.
+    const DIR_TOL: f64 = 1e-9;
+
+    fn dedup(dirs: &[DVec3]) -> Vec<DVec3> {
+        let mut out: Vec<DVec3> = Vec::new();
+        for d in dirs {
+            if !out.iter().any(|o| (*o - *d).length() < DIR_TOL) {
+                out.push(*d);
+            }
+        }
+        out
+    }
+
+    /// Members of `a` with no partner in `b`.
+    fn missing_from(a: &[DVec3], b: &[DVec3]) -> Vec<DVec3> {
+        a.iter()
+            .filter(|x| !b.iter().any(|y| (**x - *y).length() < DIR_TOL))
+            .cloned()
+            .collect()
+    }
+
+    /// Every depth-`depth` descendant of `ancestor`.
+    fn leaves_under(ancestor: &PatchId, depth: u8) -> Vec<PatchId> {
+        let mut cur = vec![*ancestor];
+        while cur[0].depth < depth {
+            cur = cur
+                .iter()
+                .flat_map(|id| (0..4u32).map(|c| id.child(c)).collect::<Vec<_>>())
+                .collect();
+        }
+        cur
+    }
+
+    /// The card bake's per-cell count through v0.1110: round to a per-cell
+    /// figure first, then thin THAT by cos(lat).
+    fn old_bake_count(d: f32, lat: f64) -> u32 {
+        let per_cell = (((TREES_PER_CELL as f32) * d).round() as u32).max(1);
+        ((per_cell as f64) * lat.cos().max(0.0)).round() as u32
+    }
+
+    /// The near-model harvest's per-cell count through v0.1110: one round, at
+    /// the end. Every cell row where this differs from `old_bake_count` is a
+    /// row whose cards and models were drawn from different trees.
+    fn old_harvest_count(d: f32, lat: f64) -> u32 {
+        ((TREES_PER_CELL as f64) * (d as f64) * lat.cos().max(0.0)).round() as u32
+    }
+
+    /// THE TEST. One real patch of real Earth, five densities, and the two
+    /// streams must produce the SAME TREES.
+    ///
+    /// 0.6294 and 0.6295 are in the list because they are measured
+    /// counter-examples to the pre-v0.1111 code, not decoration: with the
+    /// harvest rounding once and the bake rounding twice, 32.51% and 26.69% of
+    /// northern cells respectively came out one tree apart. 0.6 is in the list
+    /// because it is the shipped default and the ONE value where the old code
+    /// happened to agree everywhere - which is exactly why this shipped for so
+    /// long, and why a test written only at the default would have passed on
+    /// the broken code.
+    ///
+    /// The slider does not snap (`*value = min + t * (max - min)` in
+    /// `widgets::labeled_slider`), so every f32 in 0.1..=1.0 is reachable by
+    /// dragging, and the operator drags it.
+    ///
+    /// WHY A WHOLE REGION AND NOT ONE PATCH, AND WHY THIS EXACT LATITUDE.
+    /// `count` depends on the cell ROW, and a single depth-15 patch - the
+    /// largest that carries cards - is about 215 m across against a 220 m cell,
+    /// so it samples one or two rows and a handful of cells. Written that way
+    /// this test PASSED against the reverted formula: the cells under 35.29 N
+    /// simply were not among the 32.51% that split. The split rows are not
+    /// scattered either, they come in bands (468 runs over the northern
+    /// hemisphere at 0.6294, tens of rows each), so a small region lands wholly
+    /// inside a band or wholly outside one. 35.234 N sits in the middle of a
+    /// band that BOTH counter-example densities share - rows 17809..17840,
+    /// 35.187 N to 35.265 N - and the 16 depth-15 leaves of the depth-13
+    /// ancestor there span about 4 of those rows. The fixture guard at the
+    /// bottom refuses to let the test pass if that ever stops being true.
+    #[test]
+    fn the_card_bake_and_the_model_harvest_agree_on_which_trees_exist() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        // The Fuji foothills, nudged 6 km south onto the shared split band.
+        let region = patch_containing(dir_of(35.234, 138.79), TREE_MIN_DEPTH - 2);
+        let leaves = leaves_under(&region, TREE_MIN_DEPTH);
+        let cn = patch_corners(&region);
+        let center = (cn[0].normalize() + cn[1].normalize() + cn[2].normalize()).normalize();
+        let radius_m = 900.0_f64;
+        let ang = radius_m / def.radius;
+        // Cell rows the region covers, so the guard can ask whether any of them
+        // is a row the two old formulas counted differently.
+        let lat_lo = cn.iter().map(|c| c.normalize().y.asin()).fold(f64::MAX, f64::min);
+        let lat_hi = cn.iter().map(|c| c.normalize().y.asin()).fold(f64::MIN, f64::max);
+        let rows: Vec<f64> = {
+            let (a, b) = ((lat_lo / TREE_CELL_RAD).floor() as i64, (lat_hi / TREE_CELL_RAD).floor() as i64);
+            (a..=b).map(|iy| (iy as f64 + 0.5) * TREE_CELL_RAD).collect()
+        };
+
+        let mut exercised = 0usize;
+        for density in [0.6_f32, 0.6294, 0.6295] {
+            let split_rows = rows
+                .iter()
+                .filter(|lat| old_bake_count(density, **lat) != old_harvest_count(density, **lat))
+                .count();
+            exercised += split_rows;
+            let cards = dedup(
+                &leaves
+                    .iter()
+                    .flat_map(|id| {
+                        card_dirs(&build_patch_mesh_at_density(
+                            &def,
+                            &src,
+                            Some(&albedo),
+                            id,
+                            density,
+                        ))
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            assert!(
+                cards.len() > 200,
+                "density {density}: only {} cards across {} patches - the fixture is not a \
+                 forest, so agreeing about it would prove nothing",
+                cards.len(),
+                leaves.len(),
+            );
+            // The harvest disc has to CONTAIN the region or the comparison is
+            // measuring the disc edge instead of the two streams.
+            let worst = cards
+                .iter()
+                .map(|c| c.dot(center).clamp(-1.0, 1.0).acos())
+                .fold(0.0_f64, f64::max);
+            assert!(
+                worst < ang * 0.8,
+                "fixture: a card sits {worst:.3e} rad out, too close to the {ang:.3e} rad \
+                 harvest disc edge"
+            );
+
+            let harvest = near_tree_instances_at_density(
+                &def,
+                &src,
+                Some(&albedo),
+                center,
+                radius_m,
+                TREE_MIN_DEPTH,
+                density,
+                usize::MAX,
+            );
+            let models: Vec<DVec3> = harvest
+                .iter()
+                .map(|t| t.dir)
+                .filter(|d| inside_patch(&region, *d))
+                .collect();
+
+            // Cards with no model: the operator's "chunks that wouldn't spawn
+            // trees visually but were still affecting the light".
+            let orphans = missing_from(&cards, &models);
+            // Models with no card: harmless on its own (the model IS the better
+            // LOD) but it means the streams parted company, so it fails too.
+            let ghosts = missing_from(&models, &cards);
+            assert!(
+                orphans.is_empty() && ghosts.is_empty(),
+                "density {density}: the card bake and the model harvest disagree about which \
+                 trees exist - {} of {} cards have no model, {} of {} models have no card. \
+                 Both streams feed `count` into the survival gate \
+                 `(item as f32) >= count as f32 * vw`, so a one-tree difference in the per-cell \
+                 count does not shift the count alone, it changes WHICH items live. Every card \
+                 in the orphan list draws nothing inside tree_card_hide_m and goes on casting a \
+                 shadow. Route both through `trees_in_cell`.",
+                orphans.len(),
+                cards.len(),
+                ghosts.len(),
+                models.len(),
+            );
+        }
+
+        // THE FIXTURE GUARD. Agreement is only evidence while the region
+        // actually spans cell rows the two old roundings split - otherwise this
+        // test passes on the broken code, which is exactly what the one-patch
+        // version of it did.
+        assert!(
+            exercised >= 3,
+            "the tested region covers only {exercised} cell rows that the pre-v0.1111 \
+             roundings disagreed about, across all densities. This test then proves nothing: \
+             move the site or widen the region until it does. Do not delete the guard."
+        );
+    }
+
+    /// THE SHARED COUNT IS THE BAKE'S ROUNDING, AND THE HARVEST'S OLD ROUNDING
+    /// REALLY DID DIVERGE.
+    ///
+    /// Two jobs. First it pins `trees_in_cell` to the formula the shipped cards
+    /// were baked with, written out here independently, so a future refactor
+    /// cannot quietly re-round the forest on every planet at every density.
+    /// Second it MEASURES the divergence the shared helper removed, which is
+    /// what stops the test above from being a tautology: if the two roundings
+    /// had agreed everywhere, agreement between the streams would prove
+    /// nothing.
+    #[test]
+    fn the_shared_count_is_the_bake_rounding_and_the_old_harvest_rounding_diverged() {
+        // The card bake's formula through v0.1110: round to a per-cell count
+        // first, then thin THAT by cos(lat).
+        let bake = |d: f32, lat: f64| -> u32 {
+            let per_cell = (((TREES_PER_CELL as f32) * d).round() as u32).max(1);
+            ((per_cell as f64) * lat.cos().max(0.0)).round() as u32
+        };
+        // The near-model harvest's formula through v0.1110: one round, at the
+        // end. Every cell where these two differ is a cell whose cards and
+        // models were different trees.
+        let old_harvest = |d: f32, lat: f64| -> u32 {
+            ((TREES_PER_CELL as f64) * (d as f64) * lat.cos().max(0.0)).round() as u32
+        };
+
+        let cells = (1.5 / TREE_CELL_RAD) as i64; // the northern hemisphere's cells
+        assert_eq!(cells, 43_478, "cell grid changed - re-measure the divergence below");
+
+        for density in [0.1_f32, 0.6, 0.6294, 0.6295, 0.75, 1.0] {
+            for iy in [0_i64, 1, 7, 1000, 20_000, cells - 1] {
+                let lat = (iy as f64 + 0.5) * TREE_CELL_RAD;
+                assert_eq!(
+                    trees_in_cell(density, lat),
+                    bake(density, lat),
+                    "trees_in_cell no longer reproduces the shipped CARD count at density \
+                     {density}, cell {iy}. That number decides which trees exist on every \
+                     planet; changing it is a forest-wide change, never a cleanup."
+                );
+            }
+        }
+
+        let disagree = |d: f32| -> usize {
+            (0..cells)
+                .filter(|iy| {
+                    let lat = (*iy as f64 + 0.5) * TREE_CELL_RAD;
+                    trees_in_cell(d, lat) != old_harvest(d, lat)
+                })
+                .count()
+        };
+        // The default is very nearly - but NOT quite - safe, which is why this
+        // survived: exactly one cell row in the northern hemisphere split, at
+        // iy 10727, 0.370 rad = 21.2 degrees north (Mexico, India, Vietnam),
+        // where the bake counted 447 trees and the harvest 448. 1 of 43,478 is
+        // 0.0023%, which rounds to the 0.00% the finding reported - but it is a
+        // whole latitude band of the real Earth where every card had no model.
+        let at_default = disagree(0.6);
+        assert_eq!(
+            at_default, 1,
+            "the two roundings agreed at the 0.6 default everywhere except one cell row, \
+             which is why this bug survived - if that is no longer true the measurements \
+             below need redoing"
+        );
+        for (d, floor) in [(0.6294_f32, 0.30_f64), (0.6295, 0.24)] {
+            let frac = disagree(d) as f64 / cells as f64;
+            assert!(
+                frac > floor,
+                "density {d}: only {:.2}% of the {cells} northern cells split between the two \
+                 old roundings (measured 32.51% at 0.6294, 26.69% at 0.6295). The agreement \
+                 test above is only meaningful while these densities are real counter-examples.",
+                frac * 100.0
+            );
+        }
+    }
+
+    /// THE SPLIT-BRAIN INVARIANT: the harvest density must cover every card
+    /// still on screen, not merely match the slider.
+    ///
+    /// A patch is baked ONCE and drawn until it leaves the cache; this harvest
+    /// re-runs every 12 m of walking. So the instant the slider moves, "the
+    /// density" is two different numbers - what the cards were built with, and
+    /// what the setting says now - and lib.rs's own comment describes the
+    /// consequence as intended behaviour: "existing patches keep their density
+    /// until they rebuild, so a slider change appears patch by patch as you
+    /// move." That is fine for a layer on its own. It is not fine for two
+    /// layers that have to name the same trees.
+    ///
+    /// `ChunkState::harvest_tree_density` answers with the maximum over the
+    /// drawn patches, which works because the enumeration is MONOTONE: each
+    /// item's randoms depend only on its index, and both the loop bound and the
+    /// survival threshold rise with `count`, so a higher density yields a
+    /// superset. This test proves the naive answer (just use the setting)
+    /// really does orphan cards, and that the shipped answer does not.
+    #[test]
+    fn the_harvest_density_covers_every_card_still_on_screen() {
+        // The cards were baked before the operator dragged the slider down.
+        const BAKED_AT: f32 = 0.9;
+        const SETTING_NOW: f32 = 0.3;
+
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let id = patch_containing(dir_of(35.29, 138.79), TREE_MIN_DEPTH);
+        let cn = patch_corners(&id);
+        let center = (cn[0].normalize() + cn[1].normalize() + cn[2].normalize()).normalize();
+        let pm = build_patch_mesh_at_density(&def, &src, Some(&albedo), &id, BAKED_AT);
+        assert_eq!(
+            pm.tree_density, BAKED_AT,
+            "a patch that emits cards must record the density it emitted them at"
+        );
+        let cards = dedup(&card_dirs(&pm));
+        assert!(cards.len() > 40, "fixture: only {} cards", cards.len());
+
+        // What the frame loop knows: this patch is on screen, and the mesh says
+        // what its cards are.
+        let mut cs = ChunkState::new(def.terrain_seed);
+        cs.insert_built(id, 0, None, 1, pm.anchor, pm.band, pm.tree_density);
+        cs.last_drawn.insert(id);
+
+        let models_at = |density: f32| -> Vec<DVec3> {
+            near_tree_instances_at_density(
+                &def,
+                &src,
+                Some(&albedo),
+                center,
+                600.0,
+                id.depth,
+                density,
+                usize::MAX,
+            )
+            .iter()
+            .map(|t| t.dir)
+            .filter(|d| inside_patch(&id, *d))
+            .collect()
+        };
+
+        // The rule that shipped: harvest at whatever the slider says now.
+        let orphaned = missing_from(&cards, &models_at(SETTING_NOW));
+        assert!(
+            !orphaned.is_empty(),
+            "harvesting at the live setting while the cached cards were baked at {BAKED_AT} \
+             left NO orphans, so this test cannot detect the split-brain it was written for - \
+             fix the fixture (is the patch still carrying cards at both densities?), do not \
+             delete the check"
+        );
+
+        // The rule this module ships.
+        let covering = cs.harvest_tree_density(SETTING_NOW);
+        assert_eq!(
+            covering, BAKED_AT,
+            "harvest_tree_density must not fall below a drawn patch's own bake density"
+        );
+        assert!(
+            missing_from(&cards, &models_at(covering)).is_empty(),
+            "{} of {} cards on screen still have no model at the covering density {covering}. \
+             Those cards discard inside tree_card_hide_m and keep casting shade - the \
+             operator's \"chunks that wouldn't spawn trees visually but, they were still \
+             affecting the light\".",
+            missing_from(&cards, &models_at(covering)).len(),
+            cards.len(),
+        );
+
+        // And once the stale patch is off screen the setting takes over again,
+        // so the slider is not permanently pinned by one old patch.
+        cs.last_drawn.clear();
+        assert_eq!(cs.harvest_tree_density(SETTING_NOW), SETTING_NOW);
+    }
+
+    /// DENSITY IS AN ARGUMENT, AND STAYS ONE.
+    ///
+    /// The compiler already enforces that both streams take it as a parameter.
+    /// What it cannot enforce is that nobody adds a second reader of the
+    /// process-global bridge back into a stream body - which is what produced
+    /// all three symptoms at once: the rounding divergence, the split-brain,
+    /// and a ~50% flake between two tests in this file that fought over the
+    /// atomic under the parallel harness.
+    /// `AGNOSTIC_TREE_DENSITY` is what the vegetation-agnostic entries build
+    /// at, and its whole justification is that it is the SHIPPED default rather
+    /// than an invented number. If `config::default_tree_density` moves and
+    /// this does not, every ground-geometry caller quietly starts building a
+    /// forest the game never ships, and the drawn-surface offset probe starts
+    /// measuring a different world from the one the player stands on.
+    ///
+    /// Read out of the source because the config default is private, and
+    /// making it public purely to be asserted against would widen a surface
+    /// for a test's convenience.
+    #[test]
+    fn the_agnostic_default_is_the_shipped_default() {
+        let cfg = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("config.rs"),
+        )
+        .expect("config.rs reads");
+        let at = cfg
+            .find("fn default_tree_density() -> f32 {")
+            .expect("config::default_tree_density is gone - find where the shipped default went");
+        let body = &cfg[at..][..cfg[at..].find('}').expect("unterminated fn")];
+        let shipped: f32 = body
+            .rsplit('{')
+            .next()
+            .unwrap()
+            .trim()
+            .parse()
+            .expect("default_tree_density is no longer a bare literal - read it another way");
+        assert_eq!(
+            shipped, AGNOSTIC_TREE_DENSITY,
+            "config::default_tree_density is {shipped} but AGNOSTIC_TREE_DENSITY is \
+             {AGNOSTIC_TREE_DENSITY}. Every caller that wants ground geometry without \
+             caring about the forest builds at the second number; when it stops being \
+             the shipped default, those callers are building a world the game does not."
+        );
+    }
+
+    #[test]
+    fn only_one_function_reads_the_published_density() {
+        // Split so this scanner does not match its own source line.
+        let needle = concat!("TREE_DENSITY_BITS", ".load");
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut readers: Vec<String> = Vec::new();
+        let mut stack = vec![root];
+        while let Some(dir) = stack.pop() {
+            for e in std::fs::read_dir(&dir).expect("src/ reads") {
+                let p = e.expect("dir entry").path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if p.extension().map(|x| x == "rs").unwrap_or(false) {
+                    let txt = std::fs::read_to_string(&p).expect("source reads");
+                    for (i, line) in txt.lines().enumerate() {
+                        if line.contains(needle) {
+                            readers.push(format!("{}:{}", p.display(), i + 1));
+                        }
+                    }
+                }
+            }
+        }
+        // At most one, not exactly one: the bridge is meant to reach ZERO
+        // readers when the wiring request lands and it is deleted outright.
+        assert!(
+            readers.len() <= 1,
+            "at most one function may read TREE_DENSITY_BITS (`published_tree_density`, the \
+             wiring bridge); found {readers:?}. A stream that reads the density for itself is \
+             a stream that can disagree with the other one about which trees exist."
+        );
+        let near = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("terrain")
+                .join("near_trees.rs"),
+        )
+        .expect("near_trees.rs reads");
+        // Production half only: the tests below DO carry a copy of the old
+        // single-rounded formula on purpose, as the reference the shared helper
+        // is measured against.
+        let production = near.split("#[cfg(test)]").next().expect("split yields a head");
+        assert!(
+            !production.contains("TREES_PER_CELL as f64"),
+            "near_trees.rs is deriving a per-cell count again. The count lives in \
+             planet_chunks::trees_in_cell and nowhere else - a second copy is how the cards \
+             and the models came to name different trees."
+        );
+    }
+
+    /// The module can be right and never be called. This checks the frame loop
+    /// actually sources the density once and hands the same number to both
+    /// streams - the same shape of gate as
+    /// `the_frame_loop_uses_the_measured_coverage_radius` above, which exists
+    /// because the v0.1107 fix shipped correct and unreachable.
+    #[test]
+    fn the_frame_loop_sources_the_density_once_for_both_streams() {
+        const PENDING: &str = "PENDING WIRING REQUEST (tree density as an argument). Not a \
+             regression you caused: the fix lives in terrain::{near_trees,planet_chunks} and \
+             the four-hunk src/lib.rs edit that calls it has not been applied yet. ";
+        let src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs"),
+        )
+        .expect("lib.rs reads");
+        assert!(
+            src.contains("harvest_tree_density("),
+            "{PENDING}src/lib.rs does not ask ChunkState::harvest_tree_density what density the \
+             near-tree harvest may use. Harvesting at the raw setting orphans every card that \
+             was baked at a higher one."
+        );
+        assert!(
+            src.contains("near_tree_instances_at_density("),
+            "{PENDING}src/lib.rs still calls near_tree_instances_on_drawn, which sources the \
+             density itself from the process-global bridge."
+        );
+        assert!(
+            src.contains("build_patch_mesh_at_density("),
+            "{PENDING}src/lib.rs still calls build_patch_mesh, which sources the density itself \
+             from the process-global bridge - so the card bake and the harvest can sample the \
+             setting at different instants."
+        );
+        assert!(
+            src.contains("insert_built("),
+            "{PENDING}src/lib.rs still inserts built patches through insert_slotted, which \
+             records tree_density = 0.0. Without PatchMesh::tree_density in the cache, \
+             harvest_tree_density cannot see what the cards on screen were baked at."
+        );
+        assert!(
+            !src.contains("TREE_DENSITY_BITS.store"),
+            "{PENDING}src/lib.rs still publishes the density through the process-global bridge. \
+             Once both streams take it as an argument the bridge has no readers - delete the \
+             store, then TREE_DENSITY_BITS and published_tree_density in planet_chunks.rs."
         );
     }
 }
