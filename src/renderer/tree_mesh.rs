@@ -24,6 +24,7 @@
 //! children with less vigour, and leaves live on the OUTERMOST twigs only, so
 //! the canopy is a shell rather than a solid block of foliage.
 
+use super::billboard_bake::leaf_colour::{self, LeafVariation};
 use super::plant_mesh::{ring_basis, ring_dir, ring_point, Organ, PlantMeshBuilder};
 use serde::Deserialize;
 
@@ -1688,6 +1689,11 @@ struct Foliage {
     /// species lands on its triangle budget instead of near it. Fractional
     /// values are honoured by a per-sprig coin toss, so density is continuous.
     density: f32,
+    /// How far this species' leaves stray from its authored `leaf_color`
+    /// (v0.1109). Carried here because `sprig` is the only place that knows a
+    /// single leaf is about to be emitted, and the spread is a per-species
+    /// measurement - see `billboard_bake::leaf_colour`.
+    var: LeafVariation,
 }
 
 impl Foliage {
@@ -1806,7 +1812,12 @@ fn sprig(
         // Leaves stand well off the shoot axis, then droop under their weight.
         let ld = tilt(dir, rng.range(48.0, 104.0), phase);
         let ld = norm([ld[0], ld[1] - 0.30, ld[2]]);
-        blade(b, node, ld, fol.leaf * rng.range(0.75, 1.25), fol.wid, color, rng);
+        // THIS leaf's colour (v0.1109). Keyed on the leaf's own position, NOT
+        // drawn from `rng`: the scatter stream is measured and gated upstream
+        // (sprite coverage, the LAI fit, the triangle budget all read off it),
+        // so one extra draw here would move geometry to change a colour.
+        let lc = leaf_colour::jitter(color, fol.var, leaf_colour::key_at(node, j as u64));
+        blade(b, node, ld, fol.leaf * rng.range(0.75, 1.25), fol.wid, lc, rng);
     }
 }
 
@@ -2447,6 +2458,7 @@ fn emit_cluster_cards(
 fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
     // Cards change what the blade layer IS, so they change what it draws.
     let carded = def.clusters.is_some();
+    let var = leaf_colour::of(&def.id);
     match def.form.as_str() {
         "conifer" => Foliage {
             clump: h * 0.050,
@@ -2458,6 +2470,7 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
             wid: 0.40,
             per_sprig: 4,
             density,
+            var,
         },
         "umbrella" => Foliage {
             clump: h * 0.080,
@@ -2465,6 +2478,7 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
             wid: 0.58,
             per_sprig: if carded { 4 } else { 14 },
             density,
+            var,
         },
         // A palm builds its foliage inside `pinnate_frond` rather than through
         // `Foliage`; these are its leaflet facts, for the sprite path only.
@@ -2474,6 +2488,7 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
             wid: 0.16,
             per_sprig: 6,
             density,
+            var,
         },
         _ => Foliage {
             clump: h * 0.092,
@@ -2481,6 +2496,7 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
             wid: 0.70,
             per_sprig: 3,
             density,
+            var,
         },
     }
 }
@@ -2493,6 +2509,14 @@ fn foliage_of(def: &TreeDef, h: f32, density: f32) -> Foliage {
 /// reference photos and our capture read as different plants.
 fn flower(b: &mut PlantMeshBuilder, at: [f32; 3], dir: [f32; 3], size: f32, color: [f32; 3]) {
     let r = size * 0.5;
+    // PER-FLOWER COLOUR (v0.1109). A Yoshino cherry opens deep pink in bud and
+    // fades to near-white over the few days it is open, and a tree in bloom
+    // carries every stage at once - which is why a photograph of one reads as
+    // a pink CLOUD with white lights in it rather than as a flat pink surface.
+    // The default spread's two-population split IS that bud/open population,
+    // and the senescent-straw term self-gates off a petal because a petal has
+    // no chlorophyll to lose (see `leaf_colour`'s CHLOROPHYLL_HUE_DEG).
+    let color = leaf_colour::jitter(color, LeafVariation::default(), leaf_colour::key_at(at, 0x50));
     let up = if dir[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
     let s1 = norm(cross(dir, up));
     let s2 = norm(cross(dir, s1));

@@ -2254,6 +2254,15 @@ pub struct GuiState {
     /// CameraController.fly_mode each frame; forced off when cheats are off or
     /// a shared world is joined.
     pub dev_fly_mode: bool,
+    /// TRUE HOVER: no gravity, no ground clamp, altitude held (F9, v0.1109.2).
+    ///
+    /// Deliberately NOT `dev_fly_mode`. That flag is also set by every dev
+    /// TELEPORT - camera bookmarks, the showcase IPC, the probe rig's autopilot
+    /// - which means reusing it made a teleport imply noclip, and the camera
+    /// came to rest below the terrain looking at the Milky Way through it. Dev
+    /// travel wants free 3D movement; hovering wants gravity switched off.
+    /// Those are two different requests and now they are two different bits.
+    pub dev_hover: bool,
     /// Dev fly speed multiplier, 1.0..=1e9, exponential steps. <=1000x moves
     /// the local camera; above that lib.rs moves ship_world_pos (FTL - the
     /// ship flies, carrying the player). Mouse wheel adjusts it while flying.
@@ -4362,6 +4371,7 @@ impl Default for GuiState {
             pending_dev_teleport: None,
             pending_dev_surface: None,
             dev_fly_mode: false,
+            dev_hover: false,
             dev_fly_speed_mult: 1.0,
             dev_travel_away: false,
             show_hud: true,

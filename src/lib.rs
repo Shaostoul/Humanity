@@ -2100,7 +2100,8 @@ mod native_app {
                         // force it back off anyway; refusing here says why).
                         if key == KeyCode::F9 && pressed {
                             if state.gui_state.dev_cheats_active(&state.theme) {
-                                let on = !state.gui_state.dev_fly_mode;
+                                let on = !state.gui_state.dev_hover;
+                                state.gui_state.dev_hover = on;
                                 state.gui_state.dev_fly_mode = on;
                                 state.controller.fly_mode = on; // effective this frame
                                 // Leaving flight starts a FRESH fall rather
@@ -4163,7 +4164,7 @@ mod native_app {
                             // existing dev-flight flag (F9 / Dev page), so
                             // the HUD word and the physics read one bit.
                             let move_mode = crate::surface_move::MoveMode::from_dev_flight(
-                                state.controller.fly_mode,
+                                state.gui_state.dev_hover,
                             );
                             // v0.1006 (operator: "I'm flying perpendicularly
                             // to the surface but I seem to just be in

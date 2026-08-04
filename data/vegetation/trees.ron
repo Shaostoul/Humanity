@@ -115,6 +115,50 @@
 //                           spread that separates a fascicle from one thick
 //                           needle.
 //
+// ── LEAF COLOUR SPREAD (v0.1109) ─────────────────────────────────────────
+// `leaf_color` above is the crown's MEAN colour, not every leaf's colour. Up
+// to v0.1108 it was literally every leaf's colour: the baked cluster sprite
+// each species draws its whole canopy from held exactly ONE distinct RGB
+// value over 130,407 covered texels, so the only thing that varied across a
+// rendered crown was brightness. Hue-constant and value-shaded is the
+// definition of cel shading, and the operator's word for the result was
+// "cartoony". A real conifer photoscan in this repo measures 16.9 degrees of
+// hue SD across its foliage; our canopy measured 5.0.
+//
+// These five numbers say how far THIS species' leaves stray from its mean.
+// They are read by `renderer::billboard_bake::leaf_colour`, which rotates
+// each leaf's hue in a chroma plane and scales its saturation and value -
+// never jitters R, G and B independently, which walks a canopy toward grey.
+//
+//   leaf_hue_sd_deg        standard deviation of one leaf's hue rotation,
+//                          degrees. Driven by leaf age (a crown carries
+//                          several cohorts at once), nitrogen status and
+//                          anthocyanin in new growth. Default 14.
+//   leaf_senescent_frac    fraction of leaves far enough into senescence to
+//                          read as straw/ochre. Chlorophyll degrades before
+//                          the carotenoids do, so a dying leaf goes yellow
+//                          first; a real canopy carries a few percent in
+//                          EVERY season. An evergreen conifer carries almost
+//                          none (it sheds rather than displays them), a
+//                          Japanese maple carries a lot. Default 0.045.
+//   leaf_underside_frac    fraction of leaves showing their paler ABAXIAL
+//                          face. ~0.6 for a ball of randomly oriented leaves
+//                          (this engine's own leaf-angle distribution
+//                          measured 61% against a spherical reference,
+//                          v0.1086); lower for isobilateral foliage whose two
+//                          faces are alike. Default 0.60.
+//   leaf_underside_pale    VALUE multiplier on that face. Abies is the
+//                          extreme: two chalk-white stomatal bands. Default
+//                          1.14.
+//   leaf_underside_desat   SATURATION multiplier on it. Default 0.78.
+//
+// The split is MEAN-PRESERVING: the adaxial factor is derived from the
+// abaxial one so the population still averages to `leaf_color`. Changing
+// these numbers changes the SPREAD, not the crown's mean colour. (Strictly:
+// the mean is preserved in the sRGB domain these factors are defined in. The
+// mean LINEAR luminance sits ~13% higher, because sRGB decode is convex - see
+// the note in `billboard_bake::leaf_colour`.)
+//
 // Anything omitted defaults, and a species with no `leaf_shape` at all bakes
 // exactly the deltoid it always did - this is additive, never a migration.
 (
@@ -218,6 +262,23 @@
             // the engine rather than by the plant. Raise it only together with
             // that ceiling, and re-measure the fill when you do.
             leaf_lobes: 26,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Abies is the EXTREME case of a pale underside: two chalk-white
+            // stomatal bands run the length of every needle's abaxial face,
+            // and a fir spray flashes them wherever it twists. That is the
+            // single loudest colour cue on a silver fir and it is worth the
+            // strongest numbers in the registry.
+            leaf_underside_frac: 0.55,
+            leaf_underside_pale: 1.30,
+            leaf_underside_desat: 0.60,
+            // An evergreen holds 3-7 needle years at once, and the cohorts
+            // differ visibly (this year's flush is a bright yellow-green
+            // against three-year-old near-black), so the hue spread is if
+            // anything wider than a broadleaf's.
+            leaf_hue_sd_deg: 17.0,
+            // But it SHEDS senescing needles rather than displaying them:
+            // yellow needles on a fir mean the tree is sick. Almost none.
+            leaf_senescent_frac: 0.012,
             // ── Cluster cards (v0.1107) ──────────────────────────────
             // THE FIRST CONIFER TO CARRY THEM, and the increment that closes
             // the operator's most-repeated report ("trees with grass leaves
@@ -426,6 +487,19 @@
             // halves bow apart along their length, reaching about this much
             // between the tips.
             leaf_fascicle_spread_deg: 22.0,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Pinus needles are amphistomatous - stomatal lines run down BOTH
+            // faces - so a pine has no strong upper/under contrast, only the
+            // glaucous waxy bloom that makes the whole needle read blue-grey.
+            // A fascicle also presents every face at once by construction.
+            leaf_underside_frac: 0.50,
+            leaf_underside_pale: 1.16,
+            leaf_underside_desat: 0.68,
+            leaf_hue_sd_deg: 15.0,
+            // A pine carries visibly yellowing interior needles most of the
+            // year (it drops 2-3 year needles from the inside out), which is
+            // more than a fir shows but still far short of a broadleaf.
+            leaf_senescent_frac: 0.030,
             // ── Cluster cards (v0.1107) ──────────────────────────────
             // The second half of the conifer card increment. Uncarded, this
             // species drew 3754 double-sided deltoids at 0.351 m mean size and
@@ -556,6 +630,15 @@
             leaf_widest_frac: 0.42,
             leaf_tip_frac: 0.45,
             leaf_teeth: 11,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Prunus x yedoensis flushes BRONZE-RED: the new leaves that open
+            // with and just after the flowers carry heavy anthocyanin and only
+            // green up over weeks. That is a wide hue spread on a tree whose
+            // leaf layer is small to begin with while it is in bloom.
+            leaf_hue_sd_deg: 17.0,
+            leaf_underside_pale: 1.12,
+            leaf_underside_desat: 0.80,
+            leaf_senescent_frac: 0.050,
             // ── Cluster cards (v0.1088) ──────────────────────────────
             // The measured problem: the geometric blade layer reaches leaf
             // area index 0.31-0.50 on this species, so the crown transmits
@@ -672,6 +755,26 @@
             leaf_widest_frac: 0.34,
             leaf_tip_frac: 0.62,
             leaf_teeth: 7,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Acer palmatum is the registry's champion of within-crown colour
+            // variation and it is WHY the species is planted: even in high
+            // summer a momiji carries scarlet and orange blades among the
+            // yellow-green, and the outer sun-exposed leaves redden first.
+            // The widest hue spread here, at 18.
+            //
+            // The SENESCENT tail is deliberately NOT the widest, and it was
+            // 0.11 for one measured pass before being cut. This species'
+            // authored `leaf_color` already sits at hue 69 - a yellow-green -
+            // so a straw-ward tail lands its leaves in the olive/khaki band
+            // rather than reading as autumn, and the baked sprite came out the
+            // colour of dried grass. A momiji's summer reds are ANTHOCYANIN,
+            // which is a different pigment story from chlorophyll loss and is
+            // not what `leaf_senescent_frac` models. Hue spread carries the
+            // variety instead.
+            leaf_hue_sd_deg: 18.0,
+            leaf_senescent_frac: 0.055,
+            leaf_underside_pale: 1.16,
+            leaf_underside_desat: 0.76,
             // ── Cluster cards ────────────────────────────────────────
             // Momiji is the SECOND species to carry cards (sakura was first,
             // v0.1088). Nothing here is copied from the cherry: a maple is a
@@ -767,6 +870,15 @@
             // Entire between the lobes: an oak has no teeth, and adding any
             // would blur the one margin feature that distinguishes it.
             leaf_teeth: 0,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Quercus robur: a glabrous, only slightly paler underside, so the
+            // mildest two-face contrast of the broadleaves here. An oak's
+            // spring flush IS strongly yellow-bronze, and a mature oak carries
+            // a second (lammas) flush in midsummer, so the hue spread stays at
+            // the default rather than below it.
+            leaf_underside_pale: 1.10,
+            leaf_underside_desat: 0.84,
+            leaf_senescent_frac: 0.040,
             // ── Cluster cards ────────────────────────────────────────
             clusters: Some((
                 // The densest crown in the registry, and correctly so: a
@@ -894,6 +1006,18 @@
             // 0.72 they bowed enough to round the triangle off.
             leaf_tip_frac: 0.55,
             leaf_teeth: 13,
+            // ── Leaf colour spread ───────────────────────────────────
+            // Betula is THE tree whose underside you notice: long slender
+            // petioles let every leaf pivot in the lightest wind, and the
+            // whole crown flickers between deep green and pale grey-green.
+            // Birch is also the first broadleaf here to yellow, and it holds
+            // yellowing leaves in the crown for weeks rather than dropping
+            // them at once.
+            leaf_underside_frac: 0.58,
+            leaf_underside_pale: 1.17,
+            leaf_underside_desat: 0.74,
+            leaf_hue_sd_deg: 16.0,
+            leaf_senescent_frac: 0.070,
             // ── Cluster cards ────────────────────────────────────────
             clusters: Some((
                 // 2.8 - deliberately the THINNEST leafy crown here, and lower
@@ -982,6 +1106,18 @@
             // Feathery-with-sky-between is a silhouette property, not a count.
             leaf_lobes: 4,
             leaf_leaflets: 5,
+            // ── Leaf colour spread ───────────────────────────────────
+            // A savanna acacia's leaflets are ISOBILATERAL - a high-light,
+            // high-heat leaf holds its blade edge-on to the midday sun and
+            // builds palisade tissue on BOTH faces, so the two surfaces are
+            // nearly alike. The glaucous wax that gives the crown its grey-
+            // green cast covers both. Little face contrast, modest hue spread,
+            // and an evergreen-ish habit with a light senescent tail.
+            leaf_underside_frac: 0.50,
+            leaf_underside_pale: 1.09,
+            leaf_underside_desat: 0.88,
+            leaf_hue_sd_deg: 14.0,
+            leaf_senescent_frac: 0.030,
             // NO `clusters` BLOCK YET - but the reason CHANGED in v0.1103 and
             // the new one is worth more than the old one.
             //
@@ -1093,6 +1229,18 @@
             // Height/diameter ratio, overriding the growth form default.
             // Coconut-class stem.
             slenderness: 34.0,
+            // ── Leaf colour spread ───────────────────────────────────
+            // A coconut leaflet is isobilateral and waxy on both faces (it
+            // stands vertically in a frond and is lit from either side all
+            // day), so the two-face contrast is small. What a palm crown DOES
+            // carry is whole senescing FRONDS - the brown skirt under the
+            // green - and since a frond here is drawn as its leaflets, a
+            // heavier straw tail is how that reads at this scale.
+            leaf_underside_frac: 0.50,
+            leaf_underside_pale: 1.10,
+            leaf_underside_desat: 0.86,
+            leaf_hue_sd_deg: 14.0,
+            leaf_senescent_frac: 0.090,
         ),
     ],
 )

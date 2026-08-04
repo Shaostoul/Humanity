@@ -832,10 +832,44 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         if (cc_tex.a < 0.5) {
             discard;
         }
+        // SUN LEAVES VERSUS SHADE LEAVES (v0.1109). A crown grows two
+        // different leaves: the outer, sun-exposed ones are smaller, thicker
+        // and yellower-green, the inner shade ones larger, thinner and darker
+        // with a bluer green (Boardman 1977, "Comparative photosynthesis of
+        // sun and shade plants", Annu. Rev. Plant Physiol. 28:355). cc_ao IS
+        // the card's crown depth, so this costs one mix - and it is what gives
+        // a crown VOLUME at range, where the sprite's own per-leaf colour
+        // variation has averaged away into the mip chain and only the
+        // card-scale gradient survives.
+        //
+        // The two tints are near luminance-neutral (0.97 and 1.03 against the
+        // Rec.709 weights) so this is a CHROMATIC gradient; the achromatic
+        // part of the crown-depth gradient stays where it was, in the
+        // (0.35 + 0.65 * cc_ao) term below.
+        //
         // Crown-core AO is baked per-station into the code; keep a floor so
         // the deepest cards read as shaded foliage, not holes.
-        albedo = albedo * cc_tex.rgb * (0.35 + 0.65 * cc_ao);
+        let cc_depth_tint = mix(
+            vec3<f32>(0.88, 0.98, 1.10),
+            vec3<f32>(1.10, 1.03, 0.84),
+            cc_ao);
+        albedo = albedo * cc_tex.rgb * (0.35 + 0.65 * cc_ao) * cc_depth_tint;
         emissive_strength = 0.0;
+        // CUTICLE SHEEN (v0.1109). The cluster material used to ship roughness
+        // 0.9 for both layers and this branch never overrode it, so every leaf
+        // in the forest was pure matte diffuse. Measured leaf BRDFs put the
+        // adaxial specular lobe at roughness ~0.20-0.40 with 3-6% normal
+        // incidence rising steeply toward grazing (Bousquet, Lacherade,
+        // Jacquemoud & Moya 2005, Remote Sensing of Environment 98:201-211).
+        // f0 is already 0.04 for a dielectric down in the PBR tail, so the
+        // Fresnel half was right and the missing half was the LOBE WIDTH.
+        //
+        // The material carries the tissue's base roughness (leaf 0.62, petal
+        // 0.88 - a petal is papery, not waxy: billboard_bake::cluster_
+        // roughness) and this narrows it toward the sunlit shell, because a
+        // sun leaf's cuticle is thick and waxy where a shaded interior leaf's
+        // is thin and dull. Leaf shell lands at 0.38, leaf core at 0.62.
+        roughness = clamp(material.params.y * mix(1.0, 0.62, cc_ao), 0.10, 1.0);
         // Foliage transmission (the BUG-056 lesson: cards are LEAVES, never
         // plain mesh) - same day-gated backlit term as the type-20 leaf
         // branch, scaled by AO so the crown core does not glow.

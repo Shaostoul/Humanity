@@ -326,14 +326,14 @@ pub fn draw(
             // keeps its original job of explaining why movement is odd -
             // shown whenever fly mode is on or the FTL multiplier is above 1x.
             let on_surface = state.surface_altitude_m.is_some();
-            if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 || on_surface {
-                let mode = crate::surface_move::MoveMode::from_dev_flight(state.dev_fly_mode);
+            if state.dev_hover || state.dev_fly_speed_mult > 1.0 || on_surface {
+                let mode = crate::surface_move::MoveMode::from_dev_flight(state.dev_hover);
                 let mut label = format!(
                     "{} {}",
                     mode.hud_word(),
                     crate::dev_travel::format_multiplier(state.dev_fly_speed_mult)
                 );
-                if !state.dev_fly_mode {
+                if !state.dev_hover {
                     // On a planet this is the real walking model, not a
                     // half-off flight mode, so say which one it is and how to
                     // leave it. The qualifier stays band-independent on

@@ -270,6 +270,32 @@ pub const CLUSTER_ALPHA_CUTOFF: f32 = 0.5;
 /// at the 120 m model/card handoff, so nothing smaller is ever sampled.
 pub const CLUSTER_MIP_MIN_PX: u32 = 4;
 
+/// Base roughness of a cluster-card layer's material (v0.1109).
+///
+/// It was 0.9 for both layers, which is CHALK, and the type-21 branch never
+/// overrode it - so every leaf in the forest was a pure matte diffuse surface
+/// with no specular lobe worth the name. Measured leaf BRDFs put the adaxial
+/// specular lobe at roughness ~0.20-0.40 with a 3-6% normal-incidence specular
+/// that rises steeply toward grazing (Bousquet, Lacherade, Jacquemoud & Moya
+/// 2005, "Leaf BRDF measurements and model for specular and diffuse components
+/// differentiation", Remote Sensing of Environment 98:201-211). The Fresnel
+/// side was already right - a dielectric here gets f0 = 0.04 and Schlick takes
+/// it up at grazing - so the missing half was the LOBE WIDTH. That lobe is what
+/// makes a side-lit or backlit crown come alive under a low sun.
+///
+/// The shader narrows this further toward the crown's sunlit SHELL and leaves
+/// the shaded core near this value, because a shade leaf's cuticle really is
+/// thinner and duller than a sun leaf's.
+///
+/// A PETAL is not a leaf: cherry petals are papery, not waxy, so the blossom
+/// layer keeps a much broader lobe.
+pub fn cluster_roughness(layer: ClusterLayer) -> f32 {
+    match layer {
+        ClusterLayer::Leaf => 0.62,
+        ClusterLayer::Blossom => 0.88,
+    }
+}
+
 /// Everything a bake needs that does NOT change per tile. Built once per atlas
 /// bake instead of once per tile: the old code compiled the shader module,
 /// bind-group layout, pipeline layout, render pipeline and sampler inside the
@@ -990,7 +1016,8 @@ impl Renderer {
         });
         let refs: Vec<&[u8]> = spr.levels.iter().map(|l| l.as_slice()).collect();
         let bg = self.build_material_texture_bind_group(&refs, spr.size, spr.size, &sampler);
-        let idx = self.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 21.0, 0.0);
+        let idx =
+            self.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, cluster_roughness(spr.layer), 21.0, 0.0);
         self.materials[idx].albedo_bind_group = Some(bg);
         log::info!(
             "[Cluster] {} {}: material {idx} with {} mip levels from {}px",
@@ -1097,6 +1124,449 @@ impl Renderer {
             },
         );
         self.queue.submit([encoder.finish()]);
+    }
+}
+
+// ── Per-leaf colour variation (v0.1109) ──────────────────────────────────
+//
+// THE DEFECT, MEASURED. `cluster_oak_leaf.png` covers 130,407 texels and
+// carries exactly ONE distinct RGB triple (112,158,101). `cluster_sakura_leaf
+// .png` covers 98,094 and carries one. The cause is three lines deep and
+// entirely mechanical: `leaf_shape::reshape_blades` stamped the invariant
+// `TreeDef::leaf_color` onto every triangle of every leaf, the bake shader is
+// UNLIT (it unpacks 8-bit RGB and returns it), and the type-21 card branch
+// then multiplied that monochrome sprite by a per-card AO scalar that is
+// CONSTANT across the card. So the only thing that varied anywhere in a
+// rendered canopy was BRIGHTNESS. Hue-constant and value-shaded is the
+// definition of cel shading, and it is precisely what the operator saw: "the
+// look kinda flat. Just a single colour without any other details... The over
+// simplification seems to make it look cartoony."
+//
+// THE REFERENCE. This repo's own CC0 photoscan of a real conifer twig
+// (`assets/models/plants/pine_sapling_small/textures/
+// pine_sapling_small_twig_diff_a_1k.png`) measures 16.9 degrees of hue SD and
+// 0.109 of saturation SD over its covered texels. Our rendered canopy measured
+// 5.0 degrees of hue SD, and all 5 of those came from the sun-versus-sky light
+// COLOUR, because the albedo underneath was a single number.
+//
+// WHY A REAL CROWN IS NOT ONE COLOUR. None of this is decoration; every term
+// below is a named physiological cause, which is also why the spread is a
+// measurement rather than a taste knob:
+//   - LEAF AGE. A new flush is thinner, yellower and lower in chlorophyll per
+//     unit area than the mature blade next to it, and a crown carries several
+//     cohorts at once (an evergreen conifer holds 3-7 needle years together).
+//   - NITROGEN STATUS and within-crown self-shading set chlorophyll density,
+//     which moves VALUE and SATURATION much further than it moves hue.
+//   - ANTHOCYANIN in new growth pulls a minority of blades red-purple.
+//   - SENESCENCE. Chlorophyll degrades well before the carotenoids do, so a
+//     senescing leaf swings hard toward straw and ochre. A real canopy carries
+//     a few percent of these in EVERY season, not only in autumn.
+//   - HERBIVORY and necrosis leave dead-tissue margins on the same scale.
+//   - THE UNDERSIDE. A leaf's abaxial face is paler and less saturated than
+//     its adaxial face - dramatically so where stomatal wax bands it (Abies) -
+//     and a ball of randomly oriented leaves shows the viewer its underside
+//     about 60% of the time (this engine's own leaf-angle distribution was
+//     measured against a spherical reference at 61%, v0.1086).
+//
+// HOW THE JITTER IS APPLIED, and the one trap. Rotate the HUE in a chroma
+// plane and SCALE saturation and value. Do NOT jitter R, G and B
+// independently: that is a random walk toward the achromatic axis and it
+// desaturates the whole canopy toward grey, which is the opposite of the
+// defect being fixed. The rotation happens in the sRGB-encoded domain because
+// that is the domain the 16.9-degree reference was measured in.
+//
+// MEAN-PRESERVING, on purpose, in the PERCEPTUAL domain. The abaxial/adaxial
+// split derives the adaxial factor FROM the abaxial one so the population's
+// mean sRGB value and saturation land back on the species' authored
+// `leaf_color`. A row in trees.ron therefore still means what it says - it
+// states the crown's mean colour and this spreads a population around it -
+// instead of every species silently drifting.
+//
+// It is NOT mean-preserving radiometrically, and that is a fact about maths
+// rather than a bug: sRGB decode is convex, so a spread that is symmetric in
+// the encoded domain has a mean LINEAR luminance above the authored colour's
+// (Jensen). Measured at +13.5% on the default spread, bounded at +20% by
+// `per_leaf_colour_is_deterministic_and_mean_preserving`. A real canopy of
+// mixed sun and shade leaves does reflect more than a uniform canopy at its
+// mean colour, so the direction is right; the bound is there so it can never
+// quietly grow into a re-lit forest.
+//
+// WHERE THE SPREAD IS PER SPECIES. The five numbers below are measurements of
+// a plant (an evergreen turns over a twentieth of its needles a year where a
+// deciduous crown turns over all of them; a birch's underside contrast is not
+// an oak's), so they are DATA - `leaf_*` fields on the species' row, parsed
+// here the same way `leaf_shape::registry` parses the silhouette fields. The
+// two residual-noise SDs are a general physiological spread rather than a
+// species fact, so they are constants here with their reasoning attached.
+pub mod leaf_colour {
+    /// Residual chlorophyll-density noise, as a FRACTION of the leaf's own
+    /// saturation and value. This is the "no two leaves on one shoot have the
+    /// same nitrogen status or the same self-shading history" term; it is
+    /// deliberately smaller than the abaxial split, because the split is a
+    /// structural fact about which face you are looking at and this is a
+    /// gradient within either face.
+    const SAT_NOISE_SD: f32 = 0.16;
+    const VAL_NOISE_SD: f32 = 0.12;
+
+    /// Where a senescing leaf's hue is heading, degrees: straw to ochre.
+    /// Carotenoid + tannin colour, once the chlorophyll masking it is gone.
+    const SENESCENT_HUE_DEG: (f32, f32) = (40.0, 58.0);
+
+    /// The hue band that CARRIES chlorophyll, degrees. Senescence is defined
+    /// as chlorophyll loss, so it may only act on tissue that has some: this
+    /// gate is what keeps a cherry PETAL (hue ~340, and routed through the
+    /// same blade code by `tree_mesh::leaf_cluster`) from turning brown.
+    const CHLOROPHYLL_HUE_DEG: (f32, f32) = (55.0, 200.0);
+
+    /// One species' leaf-colour SPREAD, as its row in trees.ron states it.
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub struct LeafVariation {
+        /// Standard deviation of the per-leaf hue rotation, degrees.
+        pub hue_sd_deg: f32,
+        /// Fraction of leaves far enough into senescence to read as straw.
+        pub senescent_frac: f32,
+        /// Fraction of leaves presenting their paler ABAXIAL face.
+        pub underside_frac: f32,
+        /// Value multiplier on that face (>1: the underside is lighter).
+        pub underside_pale: f32,
+        /// Saturation multiplier on it (<1: the underside is greyer).
+        pub underside_desat: f32,
+    }
+
+    fn d_hue_sd() -> f32 {
+        14.0
+    }
+    fn d_senescent() -> f32 {
+        0.045
+    }
+    fn d_under_frac() -> f32 {
+        0.60
+    }
+    fn d_under_pale() -> f32 {
+        1.14
+    }
+    fn d_under_desat() -> f32 {
+        0.78
+    }
+
+    impl Default for LeafVariation {
+        fn default() -> Self {
+            LeafVariation {
+                hue_sd_deg: d_hue_sd(),
+                senescent_frac: d_senescent(),
+                underside_frac: d_under_frac(),
+                underside_pale: d_under_pale(),
+                underside_desat: d_under_desat(),
+            }
+        }
+    }
+
+    /// A species row, seen through the four fields this module cares about.
+    /// Serde ignores everything else on the row, exactly as
+    /// `leaf_shape::LeafSilhouette` does.
+    #[derive(serde::Deserialize)]
+    struct VarRow {
+        id: String,
+        #[serde(default = "d_hue_sd")]
+        leaf_hue_sd_deg: f32,
+        #[serde(default = "d_senescent")]
+        leaf_senescent_frac: f32,
+        #[serde(default = "d_under_frac")]
+        leaf_underside_frac: f32,
+        #[serde(default = "d_under_pale")]
+        leaf_underside_pale: f32,
+        #[serde(default = "d_under_desat")]
+        leaf_underside_desat: f32,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct VarRegistry {
+        trees: Vec<VarRow>,
+    }
+
+    fn registry() -> &'static Vec<VarRow> {
+        static REG: std::sync::OnceLock<Vec<VarRow>> = std::sync::OnceLock::new();
+        REG.get_or_init(|| {
+            let parse = |t: &str| ron::from_str::<VarRegistry>(t).ok().map(|r| r.trees);
+            std::fs::read_to_string("data/vegetation/trees.ron")
+                .ok()
+                .and_then(|t| parse(&t))
+                .filter(|v| !v.is_empty())
+                .or_else(|| parse(super::leaf_shape::EMBEDDED_TREES))
+                .unwrap_or_default()
+        })
+    }
+
+    /// This species' colour spread, or the temperate-broadleaf default when
+    /// its row states none. Every field is clamped: a data typo must never be
+    /// able to produce a canopy of solid magenta.
+    pub fn of(species_id: &str) -> LeafVariation {
+        registry()
+            .iter()
+            .find(|r| r.id == species_id)
+            .map(|r| LeafVariation {
+                hue_sd_deg: r.leaf_hue_sd_deg.clamp(0.0, 60.0),
+                senescent_frac: r.leaf_senescent_frac.clamp(0.0, 0.60),
+                underside_frac: r.leaf_underside_frac.clamp(0.0, 0.90),
+                underside_pale: r.leaf_underside_pale.clamp(0.40, 2.50),
+                underside_desat: r.leaf_underside_desat.clamp(0.10, 2.00),
+            })
+            .unwrap_or_default()
+    }
+
+    // ── Deterministic per-leaf randomness ────────────────────────────────
+    //
+    // A HASH, never a draw from the generator that built the scatter. The
+    // scatter's `Rng` stream is measured, tuned and gated upstream (sprite
+    // coverage, the LAI fit, the triangle budget all read off it), so taking
+    // even one extra value from it would move geometry that has nothing to do
+    // with colour. Hashing an index or a position keeps the mesh byte for byte
+    // what it was and still gives every leaf its own colour.
+
+    /// splitmix64. Full avalanche on a counter-like input, which is what an
+    /// index or a quantised coordinate is.
+    fn mix64(z: u64) -> u64 {
+        let mut x = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        x ^ (x >> 31)
+    }
+
+    /// A stream of uniforms from one key.
+    struct Draw(u64);
+
+    impl Draw {
+        fn u01(&mut self) -> f32 {
+            self.0 = mix64(self.0);
+            (self.0 >> 40) as f32 / (1u64 << 24) as f32
+        }
+
+        /// Irwin-Hall(3) scaled to unit SD. Bounded at +-3 sigma, which a
+        /// Box-Muller normal is not - and an unbounded tail on a hue rotation
+        /// is a single lurid leaf somewhere in the forest.
+        fn gauss(&mut self) -> f32 {
+            (self.u01() + self.u01() + self.u01() - 1.5) * 2.0
+        }
+    }
+
+    /// A stable key for a leaf that has no index of its own: its position,
+    /// quantised to a tenth of a millimetre so the same leaf hashes the same
+    /// way on every rebuild.
+    pub fn key_at(p: [f32; 3], salt: u64) -> u64 {
+        let q = |v: f32| (v * 10_000.0) as i64 as u64;
+        mix64(q(p[0]) ^ mix64(q(p[1]) ^ mix64(q(p[2]).wrapping_add(salt))))
+    }
+
+    // ── Colour space ─────────────────────────────────────────────────────
+
+    fn to_srgb(v: f32) -> f32 {
+        if v <= 0.003_130_8 {
+            v * 12.92
+        } else {
+            1.055 * v.max(0.0).powf(1.0 / 2.4) - 0.055
+        }
+    }
+
+    fn to_linear(v: f32) -> f32 {
+        if v <= 0.040_45 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    /// (hue degrees, saturation, value) of an RGB triple, in whatever domain
+    /// the triple is already in. Hue is undefined at zero chroma; it is
+    /// reported as 0 there and the caller is expected to ignore it (`stats`
+    /// does, via a saturation floor).
+    pub fn hsv(rgb: [f32; 3]) -> [f32; 3] {
+        let mx = rgb[0].max(rgb[1]).max(rgb[2]);
+        let mn = rgb[0].min(rgb[1]).min(rgb[2]);
+        let c = mx - mn;
+        if c <= 1e-6 || mx <= 1e-6 {
+            return [0.0, 0.0, mx];
+        }
+        let h = if mx == rgb[0] {
+            60.0 * (((rgb[1] - rgb[2]) / c) % 6.0)
+        } else if mx == rgb[1] {
+            60.0 * ((rgb[2] - rgb[0]) / c + 2.0)
+        } else {
+            60.0 * ((rgb[0] - rgb[1]) / c + 4.0)
+        };
+        [h.rem_euclid(360.0), c / mx, mx]
+    }
+
+    /// (hue, saturation, value) of a LINEAR RGB triple, measured in the
+    /// sRGB-encoded domain - which is the domain `jitter` works in, the domain
+    /// the photoscan reference was measured in, and therefore the only domain
+    /// in which a statement about this model's spread or its mean means
+    /// anything. Handed out because the gates need exactly this instrument.
+    pub fn srgb_hsv(linear: [f32; 3]) -> [f32; 3] {
+        hsv([to_srgb(linear[0]), to_srgb(linear[1]), to_srgb(linear[2])])
+    }
+
+    /// Inverse of `hsv`.
+    pub fn from_hsv(hsv: [f32; 3]) -> [f32; 3] {
+        let (h, s, v) = (hsv[0].rem_euclid(360.0), hsv[1].clamp(0.0, 1.0), hsv[2]);
+        let c = v * s;
+        let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+        let m = v - c;
+        let (r, g, b) = match (h / 60.0) as u32 {
+            0 => (c, x, 0.0),
+            1 => (x, c, 0.0),
+            2 => (0.0, c, x),
+            3 => (0.0, x, c),
+            4 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+        [r + m, g + m, b + m]
+    }
+
+    // ── The jitter itself ────────────────────────────────────────────────
+
+    /// This leaf's colour, given its species' mean colour (LINEAR RGB, as
+    /// `TreeDef::leaf_color` states it), its species' spread, and a key that
+    /// identifies the leaf.
+    ///
+    /// Returns LINEAR RGB, ready for `pack_color_to_uv`.
+    pub fn jitter(base_linear: [f32; 3], v: LeafVariation, key: u64) -> [f32; 3] {
+        let mut d = Draw(mix64(key ^ 0x1EAF_C019_0000_0001));
+        let mut c = hsv([
+            to_srgb(base_linear[0]),
+            to_srgb(base_linear[1]),
+            to_srgb(base_linear[2]),
+        ]);
+        // (1) HUE, rotated in the chroma plane. Saturation and value are
+        //     untouched by this step, which is the whole reason for working in
+        //     HSV rather than nudging the channels.
+        c[0] += v.hue_sd_deg * d.gauss();
+        // (2) WHICH FACE. Mean-preserving: with a fraction p showing a factor
+        //     k, the other 1-p carry (1 - p*k)/(1-p), so the population mean
+        //     of the factor is exactly 1 and the species' authored colour
+        //     stays the crown's mean.
+        //     CLAMPED, because exact mean-preservation misbehaves in the
+        //     corner: a strong factor on a large majority (fir's chalk-banded
+        //     needle undersides, 1.36 on 60% of them) drives the complement to
+        //     0.46, i.e. a minority of near-black needles. Bounding it trades
+        //     a few percent of mean drift for a population that stays leaves.
+        let p = v.underside_frac.clamp(0.0, 0.90);
+        let compensate = |k: f32| ((1.0 - p * k) / (1.0 - p).max(1e-3)).clamp(0.60, 1.60);
+        let (kv, ks) = if d.u01() < p {
+            (v.underside_pale, v.underside_desat)
+        } else {
+            (compensate(v.underside_pale), compensate(v.underside_desat))
+        };
+        // (3) RESIDUAL NOISE on top of whichever face this is.
+        c[1] *= ks * (1.0 + SAT_NOISE_SD * d.gauss());
+        c[2] *= kv * (1.0 + VAL_NOISE_SD * d.gauss());
+        // (4) THE SENESCENT MINORITY. Chlorophyll only, and PARTIAL: a leaf
+        //     turns gradually, so the population runs from barely-yellowing to
+        //     fully straw rather than being a switch.
+        let chlorophyll =
+            c[0] >= CHLOROPHYLL_HUE_DEG.0 && c[0] <= CHLOROPHYLL_HUE_DEG.1;
+        if chlorophyll && d.u01() < v.senescent_frac {
+            let target = SENESCENT_HUE_DEG.0
+                + (SENESCENT_HUE_DEG.1 - SENESCENT_HUE_DEG.0) * d.u01();
+            let t = 0.45 + 0.50 * d.u01();
+            c[0] += (target - c[0]) * t;
+            // Carotenoid yellow is a SATURATED colour, and dying tissue also
+            // stops absorbing, so a straw leaf is both brighter and purer than
+            // the green it came from.
+            c[1] = (c[1] * (1.15 + 0.30 * d.u01())).min(1.0);
+            c[2] = (c[2] * (1.10 + 0.25 * d.u01())).min(1.0);
+        }
+        let s = from_hsv([
+            c[0].rem_euclid(360.0),
+            c[1].clamp(0.02, 1.0),
+            c[2].clamp(0.01, 1.0),
+        ]);
+        [to_linear(s[0]), to_linear(s[1]), to_linear(s[2])]
+    }
+
+    // ── Measuring what came out ──────────────────────────────────────────
+
+    /// Colour statistics of an sRGB RGBA8 image over its COVERED texels.
+    ///
+    /// This is the gate's instrument and it is deliberately the same one used
+    /// on the photoscan reference, so the two numbers are comparable rather
+    /// than merely similar-sounding.
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct Stats {
+        pub covered: usize,
+        /// Distinct RGB triples among the covered texels. ONE, for both
+        /// shipped broadleaf sprites, before this increment.
+        pub distinct: usize,
+        /// Texels that also cleared the chroma floor, i.e. the ones whose hue
+        /// means anything.
+        pub chromatic: usize,
+        pub hue_mean_deg: f32,
+        /// CIRCULAR standard deviation, degrees (hue is an angle).
+        pub hue_sd_deg: f32,
+        pub sat_mean: f32,
+        pub sat_sd: f32,
+        pub val_mean: f32,
+        pub val_sd: f32,
+    }
+
+    /// Hue is meaningless on a near-grey texel, so those are counted as
+    /// covered but excluded from the hue statistic.
+    const CHROMA_FLOOR: f32 = 0.05;
+
+    pub fn stats(rgba: &[u8], alpha_cutoff: f32) -> Stats {
+        let cut = (alpha_cutoff.clamp(0.0, 1.0) * 255.0) as u16;
+        let mut seen = std::collections::HashSet::new();
+        let mut n = 0usize;
+        let (mut sx, mut sy, mut nh) = (0.0f64, 0.0f64, 0usize);
+        let (mut s1, mut s2, mut v1, mut v2) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+        for px in rgba.chunks_exact(4) {
+            if (px[3] as u16) < cut {
+                continue;
+            }
+            n += 1;
+            seen.insert((px[0] as u32) << 16 | (px[1] as u32) << 8 | px[2] as u32);
+            let c = hsv([
+                px[0] as f32 / 255.0,
+                px[1] as f32 / 255.0,
+                px[2] as f32 / 255.0,
+            ]);
+            s1 += c[1] as f64;
+            s2 += (c[1] * c[1]) as f64;
+            v1 += c[2] as f64;
+            v2 += (c[2] * c[2]) as f64;
+            if c[1] >= CHROMA_FLOOR {
+                let r = (c[0] as f64).to_radians();
+                sx += r.cos();
+                sy += r.sin();
+                nh += 1;
+            }
+        }
+        if n == 0 {
+            return Stats::default();
+        }
+        let fn_ = n as f64;
+        let sat_mean = s1 / fn_;
+        let val_mean = v1 / fn_;
+        let (hue_mean, hue_sd) = if nh > 0 {
+            let (mx, my) = (sx / nh as f64, sy / nh as f64);
+            let r = (mx * mx + my * my).sqrt().clamp(1e-9, 1.0);
+            (
+                my.atan2(mx).to_degrees().rem_euclid(360.0),
+                (-2.0 * r.ln()).sqrt().to_degrees(),
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        Stats {
+            covered: n,
+            distinct: seen.len(),
+            chromatic: nh,
+            hue_mean_deg: hue_mean as f32,
+            hue_sd_deg: hue_sd as f32,
+            sat_mean: sat_mean as f32,
+            sat_sd: (s2 / fn_ - sat_mean * sat_mean).max(0.0).sqrt() as f32,
+            val_mean: val_mean as f32,
+            val_sd: (v2 / fn_ - val_mean * val_mean).max(0.0).sqrt() as f32,
+        }
     }
 }
 
@@ -1344,7 +1814,7 @@ pub mod leaf_shape {
     /// The shipped rows, compiled in so a build with no `data/` still knows
     /// what a maple leaf looks like. Same file and same precedence as
     /// `tree_mesh::registry` (disk wins in a dev checkout).
-    const EMBEDDED_TREES: &str = include_str!("../../data/vegetation/trees.ron");
+    pub(super) const EMBEDDED_TREES: &str = include_str!("../../data/vegetation/trees.ron");
 
     #[derive(serde::Deserialize)]
     struct SilhouetteRegistry {
@@ -2035,10 +2505,19 @@ pub mod leaf_shape {
     /// Returns None, and the caller keeps the original mesh, if the input is
     /// not that exact shape - so a future change to the leaf arm degrades to
     /// the old triangles instead of silently corrupting the sprite.
+    ///
+    /// PER-LEAF COLOUR (v0.1109). The six-vertex group index IS a leaf index,
+    /// so it is also the jitter key: leaf `g` of this sprite gets its own hue
+    /// rotation, its own face (adaxial or the paler abaxial) and its own place
+    /// in the senescent tail, deterministically and without touching the
+    /// scatter's random stream. Before this, `color` went to every triangle of
+    /// every leaf unchanged, which is why the shipped sprites measured ONE
+    /// distinct RGB value across 130,407 covered texels.
     pub fn reshape_blades(
         src: &PlantMeshBuilder,
         s: &LeafSilhouette,
         color: [f32; 3],
+        var: super::leaf_colour::LeafVariation,
     ) -> Option<PlantMeshBuilder> {
         if s.family() == LeafFamily::Deltoid {
             return None;
@@ -2053,7 +2532,7 @@ pub mod leaf_shape {
         }
         let mut out = PlantMeshBuilder::new();
         out.set_organ(Organ::Leaf);
-        for g in v.chunks_exact(6) {
+        for (leaf_i, g) in v.chunks_exact(6).enumerate() {
             let (p0, p1, p2) = (g[0].position, g[1].position, g[2].position);
             // The tri2 signature: the back face repeats a, then c, then b.
             if g[3].position != p0 || g[4].position != p2 || g[5].position != p1 {
@@ -2098,8 +2577,11 @@ pub mod leaf_shape {
                     base[2] + dir[2] * p[1] * len + side[2] * p[0] * wid,
                 ]
             };
+            // THIS leaf's colour, not the species'. Keyed on the group index
+            // so it is stable across rebuilds and independent of the scatter.
+            let lc = super::leaf_colour::jitter(color, var, leaf_i as u64);
             for t in &tris {
-                out.tri2(map(t[0]), map(t[1]), map(t[2]), color);
+                out.tri2(map(t[0]), map(t[1]), map(t[2]), lc);
             }
         }
         out.set_organ(Organ::Stem);
@@ -2121,7 +2603,8 @@ pub mod leaf_shape {
             return Some(mesh);
         }
         let s = of(&def.id);
-        match reshape_blades(&mesh, &s, def.leaf_color) {
+        let var = super::leaf_colour::of(&def.id);
+        match reshape_blades(&mesh, &s, def.leaf_color, var) {
             Some(m) => Some(m),
             None => {
                 if s.family() != LeafFamily::Deltoid {
@@ -3445,7 +3928,7 @@ mod tests {
         let src = tree_mesh::cluster_sprite_geometry(t, ClusterLayer::Leaf, t.height_m)
             .expect("momiji carries a cluster block");
         let s = leaf_shape::of("momiji");
-        let out = leaf_shape::reshape_blades(&src, &s, t.leaf_color)
+        let out = leaf_shape::reshape_blades(&src, &s, t.leaf_color, leaf_colour::of("momiji"))
             .expect("the leaf arm emits nothing but blades, so the reshape must apply");
         let leaves = src.vertices.len() / 6;
         assert!(leaves > 50, "only {leaves} blades in the momiji sprite");
@@ -3503,7 +3986,8 @@ mod tests {
             .expect("sakura carries a blossom layer");
         let s = leaf_shape::of("sakura");
         assert!(
-            leaf_shape::reshape_blades(&blossom, &s, t.leaf_color).is_none(),
+            leaf_shape::reshape_blades(&blossom, &s, t.leaf_color, leaf_colour::of("sakura"))
+                .is_none(),
             "the reshape accepted the blossom mesh, which is tubes and petals - it must only \
              ever rewrite a pure run of blades"
         );
@@ -3605,6 +4089,239 @@ mod tests {
                  the LAI fit - correct `coverage` in data/vegetation/trees.ron"
             );
         }
+    }
+
+    /// THE COLOUR GATE (v0.1109), and the one that answers "why does the
+    /// canopy look cartoony".
+    ///
+    /// It measured 1 - ONE distinct RGB triple over 130,407 covered texels on
+    /// oak, one over 98,094 on sakura - which is the whole complaint stated as
+    /// a number. A gate that can only pass is worthless, so this one was run
+    /// RED first and reported at 1 before the jitter existed.
+    ///
+    /// The three assertions are different questions:
+    ///   - DISTINCT catches the total-collapse case (an invariant colour, a
+    ///     jitter accidentally keyed on a constant, a bake that lost the
+    ///     packed channel).
+    ///   - HUE SD catches the case that number cannot: 4000 shades of one hue,
+    ///     which is still cel shading. The band is centred on the 16.9 degrees
+    ///     measured on this repo's own CC0 conifer photoscan.
+    ///   - SATURATION SD catches a jitter that walks toward grey, which is
+    ///     what jittering R, G and B independently does.
+    ///
+    /// MEASURED at the time of writing (against the photoscan's 17.4 deg /
+    /// 0.113 / 0.093 through this same function): fir 21405 distinct, 12.6
+    /// deg, 0.089, 0.118; pine 18437, 13.3, 0.079, 0.073; sakura 4235, 18.8,
+    /// 0.091, 0.117; momiji 6511, 16.7, 0.118, 0.134; oak 7678, 14.7, 0.091,
+    /// 0.103; birch 6138, 16.3, 0.129, 0.157; acacia 19657, 11.4, 0.057,
+    /// 0.069. SAKURA IS THE THIN MARGIN on the distinct count (4235 against
+    /// 4000): its leaf sprite carries the fewest elements in the registry, so
+    /// if this gate ever fails on sakura alone, check `leaf.sprite_elements`
+    /// before suspecting the colour model.
+    #[test]
+    fn cluster_sprites_carry_real_per_leaf_colour_variation() {
+        // 1024 -> 256 rather than the production 2048 -> 512. Colour spread is
+        // a per-leaf statistic and a leaf is ~10 texels across at 256, so it
+        // is fully resolved; the rasteriser is quadratic in resolution and
+        // this runs unoptimised on every `cargo test`.
+        let (bake, sprite) = (1024u32, 256u32);
+        // The reference, measured with THIS function so the comparison is
+        // apples to apples rather than two similar-sounding numbers. Dev
+        // checkout only (the release bundle ships no assets/models), so it is
+        // informational and never gates.
+        let refpath = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "assets/models/plants/pine_sapling_small/textures/\
+             pine_sapling_small_twig_diff_a_1k.png",
+        );
+        if let Ok(img) = image::open(&refpath) {
+            let r = leaf_colour::stats(img.to_rgba8().as_raw(), CLUSTER_ALPHA_CUTOFF);
+            eprintln!(
+                "[reference] real conifer photoscan: {} covered, hue SD {:.1} deg, sat SD \
+                 {:.3}, val SD {:.3}, {} distinct",
+                r.covered, r.hue_sd_deg, r.sat_sd, r.val_sd, r.distinct
+            );
+        }
+        // Measure and PRINT every species before asserting anything: a table
+        // that stops at the first failure hides whether the fault is one
+        // species' data or the model itself.
+        let mut rows = Vec::new();
+        for t in tree_mesh::registry().trees.iter() {
+            if t.clusters.is_none() {
+                continue;
+            }
+            let Some(spr) = cpu_cluster_sprite(t, ClusterLayer::Leaf, bake, sprite) else {
+                continue;
+            };
+            // `HUMANITY_DUMP_LEAF_PNG=1` writes exactly what was measured, so
+            // the number and the picture can never be about different images.
+            // A rising distinct count is NOT evidence the crown looks better;
+            // the PNG is.
+            if std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok() {
+                let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
+                let _ = std::fs::create_dir_all(&dir);
+                // BOTH layers. The blossom sprite is not measured here (its
+                // spread is a bud-to-open population, not a leaf's), but the
+                // same jitter runs through `tree_mesh::flower`, so it has to
+                // be LOOKED at or that path ships unseen.
+                for layer in ClusterLayer::ALL {
+                    if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
+                        continue;
+                    }
+                    let Some(s) = cpu_cluster_sprite(t, layer, bake, sprite) else {
+                        continue;
+                    };
+                    if let Some(i) = image::RgbaImage::from_raw(sprite, sprite, s.rgba) {
+                        let _ = i.save(dir.join(format!("colour_{}_{}.png", t.id, layer.key())));
+                    }
+                }
+            }
+            rows.push((t.id.clone(), leaf_colour::stats(&spr.rgba, CLUSTER_ALPHA_CUTOFF)));
+        }
+        for (id, s) in &rows {
+            eprintln!(
+                "[colour] {id:>7} leaf: {} covered, {} distinct, hue {:.0}+-{:.1} deg, sat \
+                 {:.3}+-{:.3}, val {:.3}+-{:.3}",
+                s.covered,
+                s.distinct,
+                s.hue_mean_deg,
+                s.hue_sd_deg,
+                s.sat_mean,
+                s.sat_sd,
+                s.val_mean,
+                s.val_sd
+            );
+        }
+        for (id, s) in &rows {
+            assert!(
+                s.covered > 5_000,
+                "{id}: only {} covered texels - the sprite is too empty to measure",
+                s.covered
+            );
+            assert!(
+                s.distinct >= 4_000,
+                "{id}: the baked leaf sprite holds {} distinct RGB triples over {} covered \
+                 texels. A canopy painted in one colour and shaded only by brightness is cel \
+                 shading; see billboard_bake::leaf_colour",
+                s.distinct,
+                s.covered
+            );
+            assert!(
+                (8.0..28.0).contains(&s.hue_sd_deg),
+                "{id}: hue SD {:.1} deg against the 16.9 measured on a real conifer photoscan. \
+                 Below the band the crown is one hue value-shaded; above it, the leaves no \
+                 longer read as one species",
+                s.hue_sd_deg
+            );
+            assert!(
+                s.sat_sd >= 0.055,
+                "{id}: saturation SD {:.3} (reference 0.109). A jitter that moves R, G and B \
+                 independently walks toward grey and lands here",
+                s.sat_sd
+            );
+        }
+        assert!(rows.len() >= 4, "only {} clustered species measured", rows.len());
+    }
+
+    /// The jitter must be a HASH of the leaf, not a draw from the scatter's
+    /// generator: same key, same colour, forever, and a different key gives a
+    /// different colour. Without this the sprite would change every rebuild
+    /// and `mean_card_side`'s cache would be handing out stale geometry.
+    #[test]
+    fn per_leaf_colour_is_deterministic_and_mean_preserving() {
+        let v = leaf_colour::LeafVariation::default();
+        let base = [0.16, 0.34, 0.13]; // oak
+        assert_eq!(
+            leaf_colour::jitter(base, v, 7),
+            leaf_colour::jitter(base, v, 7),
+            "the jitter is not a pure function of its key"
+        );
+        assert_ne!(
+            leaf_colour::jitter(base, v, 7),
+            leaf_colour::jitter(base, v, 8),
+            "two different leaves got the same colour"
+        );
+        // The population mean must land back on the species' authored colour,
+        // or every row in trees.ron silently means something else. The
+        // abaxial/adaxial split is derived to make this exact IN THE
+        // PERCEPTUAL DOMAIN, which is where the split's factors are defined;
+        // hue rotation and the senescent tail move it a little, which is why
+        // the tolerance is a few percent rather than zero.
+        let n = 4000;
+        let (mut sv, mut ss, mut slin) = (0.0f64, 0.0f64, 0.0f64);
+        for k in 0..n {
+            let c = leaf_colour::jitter(base, v, k);
+            let h = leaf_colour::srgb_hsv(c);
+            sv += h[2] as f64;
+            ss += h[1] as f64;
+            slin += (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) as f64;
+        }
+        let want = leaf_colour::srgb_hsv(base);
+        let (gv, gs) = (sv / n as f64, ss / n as f64);
+        assert!(
+            (gv - want[2] as f64).abs() < 0.03 * want[2] as f64 + 0.01,
+            "mean value drifted to {gv:.4} from the authored {:.4}",
+            want[2]
+        );
+        assert!(
+            (gs - want[1] as f64).abs() < 0.08 * want[1] as f64 + 0.01,
+            "mean saturation drifted to {gs:.4} from the authored {:.4}",
+            want[1]
+        );
+        // THE CONSEQUENCE, asserted rather than left to be discovered. A
+        // spread that is symmetric in a PERCEPTUAL domain is not symmetric in
+        // a RADIOMETRIC one: sRGB decode is convex, so by Jensen's inequality
+        // the mean linear luminance of the population sits ABOVE the authored
+        // colour's. That is the direction that matters least (crowns get
+        // marginally brighter, never darker and never hue-shifted) and it is
+        // also the honest one - a real canopy of mixed sun and shade leaves
+        // does reflect more than a uniform canopy at the mean colour. Bounded
+        // here so it can never quietly grow into a re-lit forest.
+        let lin_want =
+            (0.2126 * base[0] + 0.7152 * base[1] + 0.0722 * base[2]) as f64;
+        let lin_got = slin / n as f64;
+        eprintln!(
+            "[mean] sRGB value {gv:.4} (authored {:.4}), sat {gs:.4} (authored {:.4}), \
+             linear luminance {lin_got:.4} (authored {lin_want:.4}, {:+.1}%)",
+            want[2],
+            want[1],
+            (lin_got / lin_want - 1.0) * 100.0
+        );
+        assert!(
+            lin_got < lin_want * 1.20,
+            "mean linear luminance rose to {lin_got:.4} from {lin_want:.4} - the spread is \
+             now re-lighting the canopy, not varying it"
+        );
+    }
+
+    /// A cherry PETAL is routed through the same blade code as a leaf
+    /// (`tree_mesh::leaf_cluster` passes `blossom_color` down the same path),
+    /// so the senescent-straw term has to be gated on tissue that actually
+    /// carries chlorophyll. Without the gate, 4.5% of a blooming cherry's
+    /// flowers turn brown.
+    #[test]
+    fn the_senescent_tail_never_touches_a_petal() {
+        let mut v = leaf_colour::LeafVariation::default();
+        v.senescent_frac = 1.0; // every element, if it were eligible at all
+        let petal = [0.85, 0.55, 0.62]; // sakura blossom_color territory: pink
+        for k in 0..200u64 {
+            let h = leaf_colour::hsv(leaf_colour::jitter(petal, v, k));
+            assert!(
+                !(20.0..90.0).contains(&h[0]),
+                "a petal turned straw (hue {:.0} deg) on key {k}",
+                h[0]
+            );
+        }
+        // ...and on a green leaf the same setting MUST fire, or the gate above
+        // is passing because nothing ever senesces (the check-that-cannot-fail
+        // class).
+        let leaf = [0.16, 0.34, 0.13];
+        let straw = (0..200u64)
+            .filter(|k| {
+                let h = leaf_colour::hsv(leaf_colour::jitter(leaf, v, *k));
+                (20.0..90.0).contains(&h[0])
+            })
+            .count();
+        assert!(straw > 100, "only {straw}/200 leaves senesced at frac 1.0");
     }
 
     /// The bake shader's packed decode must be the SAME arithmetic as the
