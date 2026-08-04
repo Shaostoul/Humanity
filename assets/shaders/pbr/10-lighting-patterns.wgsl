@@ -40,6 +40,152 @@ fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
     return f0 + (vec3<f32>(1.0) - f0) * (t2 * t2 * t);
 }
 
+// ── VEGETATION: CROWN DEPTH AND THE CANOPY CARD KERNEL (v0.1110) ─────────
+//
+// THE DEFECT THIS EXISTS TO CLOSE. Operator, v0.1109.3: "The LOD billboards
+// seem like they're getting full light making them much brighter than the high
+// poly trees." A top-down capture shows it exactly: a DARK disc of 3D models
+// under the camera, a clean circle at the model/card handoff radius, and a
+// much BRIGHTER field of cards beyond it.
+//
+// The three vegetation representations disagreed about light in two ways, and
+// both are pure gain, so they multiply:
+//
+//   1. ALBEDO. A near cluster card (type 21) shows its sprite texel times
+//      `crown_depth_shade(ao)` below - the crown's own extinction, 0.48 at the
+//      shaded core rising to 1.00 at the sunlit shell. The atlas BAKE decoded
+//      the very same AO code out of the very same uv and then THREW IT AWAY
+//      (billboard_bake::BAKE_WGSL), so every baked sprite carried the crown's
+//      albedo with none of the crown's depth. Measured mean over the shipped
+//      species' cards: see billboard_bake::canopy_parity_tests.
+//
+//   2. DIRECTION. A card's shading normal is the RADIAL UP, so its sun term is
+//      max(up . L, 0) - uniform over the whole card, and the single most
+//      favourable orientation there is. A real crown is a volume of leaves
+//      pointing every which way: the near path's own leaves carry a spread of
+//      normals (tree_mesh::emit_card spherifies each corner toward its tuft
+//      centre and then toward the crown centre), so its mean response is far
+//      lower AND far flatter with sun angle. Lighting a card as a plate facing
+//      the sky is what "full light" means.
+//
+// WHAT REPLACES IT. Not a fudge factor: the near path's own statistic in
+// closed form. Take the crown's leaf normals as isotropic (which is what
+// spherifying toward a ball centre produces in aggregate) and ask for the mean
+// of max(N . L, 0) over the leaves you can actually SEE, i.e. weighted by
+// |N . V|. With psi the sun-view angle,
+//
+//   E[max(N.L,0) |N.V|] / E[|N.V|] = (2 sin psi + (pi - 2 psi) cos psi) / 3 pi
+//
+// (numerator from the standard lune integral over the sphere; denominator is
+// exactly 1/2 for any V, the spherical leaf-angle distribution's G-function -
+// Ross, "The Radiation Regime and Architecture of Plant Stands", 1981.)
+//
+// It lands at 1/3 head-on (psi = 0), 2/(3 pi) = 0.212 across (psi = pi/2), and
+// 1/3 again at full backlight, because the near path deliberately does NOT
+// flip a card's normal on its back face - a leaf lit from behind glows rather
+// than going black. So this kernel reproduces the near path's behaviour, not
+// an idealisation of it. `canopy_ndl_mean_matches_monte_carlo` in
+// billboard_bake proves the closed form against sampled normals, and
+// `canopy_kernel_matches_the_near_crown` proves it against the REAL cards of
+// the shipped species.
+
+// The sky share a canopy card keeps, against the fully sky-facing surface its
+// radial-up normal would otherwise be. sky_ambient is linear in
+// w = 0.5 + 0.5 * dot(n, up), and the isotropic-leaf mean of that w is exactly
+// 0.5 for ANY view direction (the odd part integrates away), so the fraction is
+// (SKY_GROUND_BOUNCE + (1 - SKY_GROUND_BOUNCE) * 0.5) / 1.0 = 0.5 * (1 + g).
+// LOCKSTEP with SKY_GROUND_BOUNCE in 90-fragment-main.wgsl - written as a
+// literal only because that constant is declared in a later part;
+// `canopy_sky_fraction_matches_the_ground_bounce` fails if either drifts.
+const CANOPY_SKY_FRACTION: f32 = 0.61;
+
+// How much darker a far-sheet canopy card is than the ground imagery it grows
+// out of. A closed forest canopy reflects less than the open ground beside it
+// and does it greener; these are the numbers `terrain::far_trees` used to bake
+// into a per-card colour that the shader then ignored (the far sheet draws with
+// the planet's TEXTURED material, so the has_tex branch overwrote the packed
+// colour with the raw imagery). LOCKSTEP with far_trees::FAR_CARD_CANOPY_TINT.
+const CANOPY_GROUND_TINT: vec3<f32> = vec3<f32>(0.68, 0.76, 0.62);
+
+// Per-CELL tone jitter for a far-sheet canopy card. far_trees varies each
+// cell's canopy a little so a 150 km sheet does not read as one flat wash; the
+// code rides bits 18..21 of the type-12 packed channel, which that type has
+// never used (it reads bits 0..17: colour, water at 16, tree card at 17).
+// LOCKSTEP with far_trees::{FAR_CARD_SHADE_LO, FAR_CARD_SHADE_HI} - checked by
+// `far_card_shade_constants_match_the_shader`.
+const CANOPY_CARD_SHADE_LO: f32 = 0.85;
+const CANOPY_CARD_SHADE_HI: f32 = 1.15;
+
+fn canopy_card_shade(packed: u32) -> f32 {
+    let code = f32((packed >> 18u) & 15u) / 15.0;
+    return CANOPY_CARD_SHADE_LO + (CANOPY_CARD_SHADE_HI - CANOPY_CARD_SHADE_LO) * code;
+}
+
+// CROWN-DEPTH LOCKSTEP BEGIN
+// Multiplier a cluster card at crown depth `ao` applies to its sprite texel:
+// an achromatic extinction toward the shaded core, plus the sun-leaf /
+// shade-leaf CHROMATIC gradient (outer leaves smaller, thicker, yellower;
+// inner ones larger, thinner, bluer - Boardman 1977, Annu. Rev. Plant Physiol.
+// 28:355). The two tints are near luminance-neutral against the Rec.709
+// weights, so the achromatic part of the gradient lives entirely in the
+// (0.35 + 0.65 * ao) term.
+//
+// This block is DUPLICATED VERBATIM into billboard_bake::BAKE_WGSL and
+// `crown_depth_shade_is_identical_in_the_bake_shader` fails if the two copies
+// drift by so much as a space. The bake has no way to include a WGSL file, and
+// a card that bakes with a different crown depth than it renders with is
+// exactly the brightness step this whole block exists to remove.
+fn crown_depth_shade(ao: f32) -> vec3<f32> {
+    let tint = mix(
+        vec3<f32>(0.88, 0.98, 1.10),
+        vec3<f32>(1.10, 1.03, 0.84),
+        ao);
+    return tint * (0.35 + 0.65 * ao);
+}
+// CROWN-DEPTH LOCKSTEP END
+
+// Visible-area-weighted mean of max(N . L, 0) over an isotropic leaf cloud,
+// as a function of cos(psi) = dot(L, V). See the derivation above.
+fn canopy_ndl_mean(cos_psi: f32) -> f32 {
+    let c = clamp(cos_psi, -1.0, 1.0);
+    let psi = acos(c);
+    let s = sqrt(max(1.0 - c * c, 0.0));
+    return (2.0 * s + (PI - 2.0 * psi) * c) / (3.0 * PI);
+}
+
+// What a vegetation CARD hands the shared PBR tail so it shades like the crown
+// it stands for. Two scalars, because the tail already has exactly two places
+// that want them and nowhere else does:
+//
+//   sun_gain -> sun_gate, which multiplies ONLY the direct sun term. The gain
+//     is the ratio that turns evaluate_light's built-in max(n . l, 0) - taken
+//     against the card's radial-up normal - into the canopy mean. Clamped
+//     because that ratio diverges as the sun reaches the local horizon; at the
+//     clamp the sun is within ~0.3 degrees of setting and the type-12
+//     terminator smoothstep has already closed.
+//
+//   sky_frac -> ao, which multiplies ONLY the indirect term. Not a fudge: the
+//     leaves of a crown really are turned away from the sky in proportion, and
+//     `ao` is the tail's documented hemisphere-occlusion input (v0.1104).
+//
+// A struct return, deliberately: an array return passes naga and then fails at
+// device init on the DX12 HLSL backend (shader_loader::check_hlsl_expressible,
+// the v0.1101 incident).
+struct CanopyShading {
+    sun_gain: f32,
+    sky_frac: f32,
+};
+
+fn canopy_card_shading(n: vec3<f32>, sun_dir: vec3<f32>, view_dir: vec3<f32>) -> CanopyShading {
+    let l = normalize(sun_dir);
+    let v = normalize(view_dir);
+    let plate_ndl = max(dot(normalize(n), l), 0.0);
+    var out: CanopyShading;
+    out.sun_gain = clamp(canopy_ndl_mean(dot(l, v)) / max(plate_ndl, 1.0e-3), 0.0, 64.0);
+    out.sky_frac = CANOPY_SKY_FRACTION;
+    return out;
+}
+
 // ── Procedural Patterns ──
 
 // Hash function for procedural noise

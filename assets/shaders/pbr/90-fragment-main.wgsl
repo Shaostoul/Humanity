@@ -849,11 +849,13 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         //
         // Crown-core AO is baked per-station into the code; keep a floor so
         // the deepest cards read as shaded foliage, not holes.
-        let cc_depth_tint = mix(
-            vec3<f32>(0.88, 0.98, 1.10),
-            vec3<f32>(1.10, 1.03, 0.84),
-            cc_ao);
-        albedo = albedo * cc_tex.rgb * (0.35 + 0.65 * cc_ao) * cc_depth_tint;
+        //
+        // v0.1110: the tint + extinction moved into `crown_depth_shade`
+        // (10-lighting-patterns.wgsl) so the ATLAS BAKE can apply the identical
+        // expression. It decoded this same AO code and discarded it, which made
+        // every far-field card ~1.5x brighter than the near crown it stands
+        // for - half of the operator's "LOD billboards get full light".
+        albedo = albedo * cc_tex.rgb * crown_depth_shade(cc_ao);
         emissive_strength = 0.0;
         // CUTICLE SHEEN (v0.1109). The cluster material used to ship roughness
         // 0.9 for both layers and this branch never overrode it, so every leaf
@@ -1227,10 +1229,39 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             }
             roughness = 0.9;
             metallic = 0.0;
+            // ── CANOPY RESPONSE (v0.1110) ──
+            // Was: lit as a flat plate facing the sky, because a card's
+            // shading normal is the radial up. That is the brightest
+            // orientation there is, it is uniform over the whole card, and it
+            // is nothing like a crown - which is why the operator's top-down
+            // capture shows a dark disc of 3D models ringed by a bright field
+            // of cards at exactly the handoff radius. See canopy_card_shading.
+            let vc = canopy_card_shading(normal, camera.sun_direction.xyz, view_dir);
+            sun_gate = sun_gate * vc.sun_gain;
+            ao = vc.sky_frac;
         } else {
         let packed = u32(round(max(in.pack.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
+        // ── FAR-SHEET CANOPY CARD (v0.1110) ──────────────────────────────
+        // terrain::far_trees builds the 1.2-150 km card sheet out of quads
+        // that carry a real per-cell canopy colour, and this branch THREW IT
+        // AWAY: the sheet draws with the planet's TEXTURED material, so
+        // has_tex is true and the imagery fetch below overwrote the packed
+        // colour with the raw ground albedo. Every far card therefore painted
+        // itself in the exact colour of the ground it stands on, lit as flat
+        // ground - and, because footprint is under a metre out to ~10 km, it
+        // even took the GROUND PBR detail pass, so distant forest was
+        // literally textured with grass and dirt.
+        //
+        // The marker rides uv.y, which far_trees writes DIRECTLY through the
+        // `color[0] < 0` sentinel in mesh::planet_surface_vertices (that path
+        // hands the last two floats through untouched). A ground face's blue
+        // is clamped to 0..1 by pack_color_to_uv, so anything below -0.5 is
+        // unambiguously a card; the encoding is -(blue + 1) rather than -blue
+        // so a card whose blue is exactly zero still reads as negative.
+        let is_canopy_card = in.pack.y < -0.5;
+        let pb = select(in.pack.y, -in.pack.y - 1.0, is_canopy_card);
         // Tree-card LOD swap (v0.912, operator: "when it switches to the
         // high poly model it should hide the lower LOD panel tree"): bit 17
         // marks tree silhouette cards; within the tree-model radius (poked
@@ -1303,10 +1334,18 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // texture; the sRGB view decodes to linear on sample. No
             // base_color tint here -- that slot carries the center.
             albedo = textureSampleLevel(albedo_texture, albedo_sampler, eq_uv, 0.0).rgb;
+            if (is_canopy_card) {
+                // Restore the tone far_trees intended: a closed canopy is
+                // darker and greener than the open ground it grows out of.
+                // Applied HERE and not on the packed path below because the
+                // packed colour already carries it (far_trees bakes the tint
+                // into the colour it emits, for planets with no imagery).
+                albedo = albedo * CANOPY_GROUND_TINT * canopy_card_shade(packed);
+            }
         } else {
             // Fallback: the per-face packed color (classifier planets, or a
             // planet whose imagery failed to bake).
-            albedo = vec3<f32>(pr, pg, in.pack.y) * material.base_color.rgb;
+            albedo = vec3<f32>(pr, pg, pb) * material.base_color.rgb;
         }
         // Pixel footprint on the surface (metres per pixel), the analytic
         // anti-alias estimate every detail octave fades against (see the
@@ -1319,7 +1358,13 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // fades to zero there), descent keeps revealing structure instead
         // of bilinear blur. Textured path only: the per-face fallback has
         // no planet-local frame to sample in.
-        if (has_tex && detail_on && !is_water) {
+        // `!is_canopy_card` (v0.1110): a far-sheet card is a TREE standing in
+        // the air, not ground, and everything below this line is ground - the
+        // land noise octaves, the sub-8 m micro texture and the photoscanned
+        // grass/dirt/rock blend. A card is inside the 8 m footprint window out
+        // to ~10 km, so through v0.1109 the whole distant forest was painted
+        // with ground material.
+        if (has_tex && detail_on && !is_water && !is_canopy_card) {
             // Raw imagery BEFORE any detail modulation: the material
             // classifier below reads the photo's own color, not the
             // noise-modulated result.
@@ -1463,6 +1508,18 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             } else {
                 proc_emissive = old_glint;
             }
+        }
+        // ── CANOPY RESPONSE for the cards on THIS path (v0.1110) ──
+        // Two families reach here: the legacy coloured silhouette cards (bit
+        // 17, planets with no baked atlas) and the far-tree sheet. Both are
+        // quads whose shading normal is the radial up, so both were lit as
+        // flat plates facing the sky - the same defect the sprite branch above
+        // carries, and it must be fixed in lockstep or the 1.2 km sheet
+        // handoff simply moves the bright ring outward instead of closing it.
+        if (is_canopy_card || (packed & 131072u) != 0u) {
+            let vc = canopy_card_shading(normal, camera.sun_direction.xyz, view_dir);
+            sun_gate = sun_gate * vc.sun_gain;
+            ao = vc.sky_frac;
         }
         } // close the sprite-card / packed-color split (v0.961)
     } else if (material_type >= 19.5 && material_type < 20.5) {

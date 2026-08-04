@@ -152,6 +152,29 @@ struct VsOut {
     @location(0) uv: vec2<f32>,
 };
 
+// CROWN-DEPTH LOCKSTEP BEGIN
+// Multiplier a cluster card at crown depth `ao` applies to its sprite texel:
+// an achromatic extinction toward the shaded core, plus the sun-leaf /
+// shade-leaf CHROMATIC gradient (outer leaves smaller, thicker, yellower;
+// inner ones larger, thinner, bluer - Boardman 1977, Annu. Rev. Plant Physiol.
+// 28:355). The two tints are near luminance-neutral against the Rec.709
+// weights, so the achromatic part of the gradient lives entirely in the
+// (0.35 + 0.65 * ao) term.
+//
+// This block is DUPLICATED VERBATIM into billboard_bake::BAKE_WGSL and
+// `crown_depth_shade_is_identical_in_the_bake_shader` fails if the two copies
+// drift by so much as a space. The bake has no way to include a WGSL file, and
+// a card that bakes with a different crown depth than it renders with is
+// exactly the brightness step this whole block exists to remove.
+fn crown_depth_shade(ao: f32) -> vec3<f32> {
+    let tint = mix(
+        vec3<f32>(0.88, 0.98, 1.10),
+        vec3<f32>(1.10, 1.03, 0.84),
+        ao);
+    return tint * (0.35 + 0.65 * ao);
+}
+// CROWN-DEPTH LOCKSTEP END
+
 @vertex
 fn vs_main(@location(0) pos: vec3<f32>, @location(1) nrm: vec3<f32>, @location(2) uv: vec2<f32>) -> VsOut {
     var out: VsOut;
@@ -173,7 +196,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         if (cc.a < 0.5) {
             discard;
         }
-        return vec4<f32>(cc.rgb, 1.0);
+        // CROWN DEPTH (v0.1110). This line is the whole reason the far-field
+        // LOD read brighter than the tree it replaces. The code above was
+        // decoded and then THROWN AWAY, so the baked sprite carried the
+        // crown's albedo with none of the crown's own extinction, while the
+        // type-21 branch that draws the SAME cards up close multiplies by
+        // exactly this. Two representations of one tree, disagreeing about
+        // roughly 1.5x of brightness, at a radius the eye can see as a circle.
+        return vec4<f32>(cc.rgb * crown_depth_shade(code / 63.0), 1.0);
     }
     if (u.mode.x > 0.5) {
         // PACKED-COLOUR path (procedural species). Same three lines as the
@@ -269,6 +299,35 @@ pub const CLUSTER_ALPHA_CUTOFF: f32 = 0.5;
 /// level quantises coverage to 25% steps), and a 0.5 m card is ~4 px on screen
 /// at the 120 m model/card handoff, so nothing smaller is ever sampled.
 pub const CLUSTER_MIP_MIN_PX: u32 = 4;
+
+/// Achromatic half of the crown-depth term a cluster card at depth `ao`
+/// applies to its sprite texel. Rust twin of `crown_depth_shade` in
+/// `assets/shaders/pbr/10-lighting-patterns.wgsl` (which also carries the
+/// luminance-neutral sun-leaf/shade-leaf tint, hence "achromatic half").
+///
+/// Exists so the parity tests below can MEASURE what the near path does rather
+/// than restate what it was meant to do.
+pub fn crown_depth_extinction(ao: f32) -> f32 {
+    0.35 + 0.65 * ao.clamp(0.0, 1.0)
+}
+
+/// Visible-area-weighted mean of `max(N . L, 0)` over a crown of isotropically
+/// oriented leaves, as a function of `cos_psi = dot(L, V)`.
+///
+/// Rust twin of `canopy_ndl_mean` in
+/// `assets/shaders/pbr/10-lighting-patterns.wgsl`. This is THE number that
+/// makes a vegetation card agree with the 3D crown it replaces: a card's
+/// shading normal is the radial up, so without it the card is lit as a plate
+/// facing the sky, which is the brightest orientation available and nothing
+/// like a canopy.
+///
+/// Derivation and the two tests that hold it honest live beside the WGSL copy.
+pub fn canopy_ndl_mean(cos_psi: f32) -> f32 {
+    let c = cos_psi.clamp(-1.0, 1.0);
+    let psi = c.acos();
+    let s = (1.0 - c * c).max(0.0).sqrt();
+    (2.0 * s + (std::f32::consts::PI - 2.0 * psi) * c) / (3.0 * std::f32::consts::PI)
+}
 
 /// Base roughness of a cluster-card layer's material (v0.1109).
 ///
@@ -4343,5 +4402,372 @@ mod tests {
             !BAKE_WGSL.contains("pow(") && !BAKE_WGSL.contains("2.2"),
             "the bake shader applies a gamma curve - the packed round trip is exact only without one"
         );
+    }
+}
+
+// ── VEGETATION LIGHTING PARITY (v0.1110) ─────────────────────────────────
+//
+// Three representations stand in for one tree - the near 3D crown of cluster
+// cards (type 21), the patch-baked sprite card (type 12), and the far-sheet
+// canopy card (type 12 again) - and the operator can see any disagreement
+// between them as a CIRCLE on the ground at the handoff radius. These tests
+// are the headless half of keeping them equal; the other half is a probe
+// capture, which no static check can replace.
+//
+// They live here rather than in a lint file because the bake shader is a Rust
+// string constant in THIS module, and half the contract is "the bake and the
+// render apply the same crown depth".
+#[cfg(test)]
+mod canopy_parity_tests {
+    use super::{canopy_ndl_mean, crown_depth_extinction, BAKE_WGSL};
+    use crate::renderer::shader_loader::assembled_pbr_source;
+
+    /// Text between two marker comments, with each line trimmed, so indentation
+    /// differences between a Rust raw string and a .wgsl file cannot make two
+    /// identical blocks compare unequal.
+    fn marked_block(src: &str, name: &str) -> String {
+        let begin = format!("// {name} LOCKSTEP BEGIN");
+        let end = format!("// {name} LOCKSTEP END");
+        let a = src
+            .find(&begin)
+            .unwrap_or_else(|| panic!("`{begin}` not found - the lockstep markers were removed"));
+        let b = src[a..]
+            .find(&end)
+            .unwrap_or_else(|| panic!("`{end}` not found after `{begin}`"))
+            + a;
+        src[a + begin.len()..b]
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// THE defect the operator reported, in its albedo half. The atlas bake
+    /// decoded each cluster card's crown-depth code out of its uv and then
+    /// discarded it, so a baked sprite carried the crown's albedo with none of
+    /// the crown's own extinction while the type-21 branch drawing the SAME
+    /// cards up close multiplied by exactly that. Byte-identical or nothing.
+    #[test]
+    fn crown_depth_shade_is_identical_in_the_bake_shader() {
+        let render = marked_block(assembled_pbr_source(), "CROWN-DEPTH");
+        let bake = marked_block(BAKE_WGSL, "CROWN-DEPTH");
+        assert_eq!(
+            render, bake,
+            "crown_depth_shade has drifted between the megashader and the atlas bake. A card that \
+             BAKES with a different crown depth than it RENDERS with is a brightness step at the \
+             LOD handoff radius, which reads as a circle on the ground."
+        );
+        assert!(
+            render.contains("fn crown_depth_shade(ao: f32) -> vec3<f32>"),
+            "the lockstep block no longer defines crown_depth_shade - the markers are guarding \
+             the wrong text"
+        );
+        // And it must actually be CALLED on both sides, or two identical dead
+        // copies would pass.
+        assert!(
+            BAKE_WGSL.contains("crown_depth_shade("),
+            "the bake shader defines crown_depth_shade but never calls it"
+        );
+        assert!(
+            assembled_pbr_source().matches("crown_depth_shade(").count() >= 2,
+            "the megashader defines crown_depth_shade but the type-21 branch never calls it"
+        );
+    }
+
+    /// The bake shader is compiled at runtime on a GPU that no test has, so
+    /// parse + validate it here. Same gate the megashader gets.
+    #[test]
+    fn the_bake_shader_parses_and_validates() {
+        let module = wgpu::naga::front::wgsl::parse_str(BAKE_WGSL)
+            .unwrap_or_else(|e| panic!("BAKE_WGSL parse error: {e}"));
+        let mut v = wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        );
+        v.validate(&module)
+            .unwrap_or_else(|e| panic!("BAKE_WGSL validation error: {e:?}"));
+        // A function returning an array validates here and then fails at
+        // device init on the DX12 HLSL backend (the v0.1101 incident).
+        for line in BAKE_WGSL.lines() {
+            let code = line.split("//").next().unwrap_or("");
+            assert!(
+                !(code.contains("->")
+                    && code
+                        .split("->")
+                        .nth(1)
+                        .is_some_and(|r| r.trim_start().starts_with("array<"))),
+                "BAKE_WGSL returns an array from a function: {}",
+                code.trim()
+            );
+        }
+    }
+
+    /// The closed form against the thing it is a closed form OF: sample
+    /// isotropic leaf normals, weight each by how visible it is, and average
+    /// its sun response. If the algebra is wrong the card lands at the wrong
+    /// brightness at every sun angle, which is the whole bug.
+    #[test]
+    fn canopy_ndl_mean_matches_monte_carlo() {
+        // Deterministic low-discrepancy sphere sampling (Fibonacci lattice).
+        const N: usize = 200_003;
+        let ga = std::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+        let mut dirs = Vec::with_capacity(N);
+        for i in 0..N {
+            let z = 1.0 - 2.0 * (i as f64 + 0.5) / N as f64;
+            let r = (1.0 - z * z).max(0.0).sqrt();
+            let th = ga * i as f64;
+            dirs.push([r * th.cos(), r * th.sin(), z]);
+        }
+        for deg in [0.0_f64, 20.0, 45.0, 90.0, 135.0, 180.0] {
+            let psi = deg.to_radians();
+            let l = [0.0_f64, 0.0, 1.0];
+            let v = [psi.sin(), 0.0, psi.cos()];
+            let (mut num, mut den) = (0.0_f64, 0.0_f64);
+            for n in &dirs {
+                let ndl = n[0] * l[0] + n[1] * l[1] + n[2] * l[2];
+                let ndv = (n[0] * v[0] + n[1] * v[1] + n[2] * v[2]).abs();
+                num += ndl.max(0.0) * ndv;
+                den += ndv;
+            }
+            let measured = num / den;
+            let closed = canopy_ndl_mean(psi.cos() as f32) as f64;
+            assert!(
+                (measured - closed).abs() < 2.0e-3,
+                "psi = {deg} deg: sampled {measured:.5}, closed form {closed:.5}"
+            );
+        }
+        // The three anchor values quoted in the shader comment.
+        assert!((canopy_ndl_mean(1.0) - 1.0 / 3.0).abs() < 1.0e-4);
+        assert!((canopy_ndl_mean(0.0) - 2.0 / (3.0 * std::f32::consts::PI)).abs() < 1.0e-5);
+        assert!((canopy_ndl_mean(-1.0) - 1.0 / 3.0).abs() < 1.0e-4);
+    }
+
+    /// And the closed form against the REAL crown: build the shipped species'
+    /// cluster cards, weight every card by how much of it a viewer sees, and
+    /// compare the crown's own mean sun response with the kernel a card uses
+    /// to stand in for it.
+    ///
+    /// This is the check that would have caught the bug: a flat card facing
+    /// the sky returns `max(up . L, 0)`, which at a high sun is ~1.0 against
+    /// the crown's ~0.33 - a 3x step at the handoff radius.
+    #[test]
+    fn canopy_kernel_matches_the_near_crown() {
+        use crate::renderer::tree_mesh;
+        let reg = tree_mesh::registry();
+        assert!(!reg.is_empty(), "no species registry - the parity has nothing to measure");
+
+        // Sun straight up, viewer sweeping from head-on to across: the
+        // geometry a player walking a forest at midday actually has.
+        let l = [0.0_f32, 1.0, 0.0];
+        let mut measured_extinction = Vec::new();
+        for def in reg.trees.iter().filter(|t| t.clusters.is_some()).take(4) {
+            let built = tree_mesh::build_tree_and_cards(def, def.height_m, 0x51F0_A11C);
+            let mut tris: Vec<([f32; 3], f32, f32)> = Vec::new(); // normal, area, ao
+            for layer in &built.cards {
+                let vs = &layer.mesh.vertices;
+                for f in layer.mesh.indices.chunks_exact(3) {
+                    let (a, b, c) =
+                        (&vs[f[0] as usize], &vs[f[1] as usize], &vs[f[2] as usize]);
+                    let e1 = [
+                        b.position[0] - a.position[0],
+                        b.position[1] - a.position[1],
+                        b.position[2] - a.position[2],
+                    ];
+                    let e2 = [
+                        c.position[0] - a.position[0],
+                        c.position[1] - a.position[1],
+                        c.position[2] - a.position[2],
+                    ];
+                    let cr = [
+                        e1[1] * e2[2] - e1[2] * e2[1],
+                        e1[2] * e2[0] - e1[0] * e2[2],
+                        e1[0] * e2[1] - e1[1] * e2[0],
+                    ];
+                    let area =
+                        0.5 * (cr[0] * cr[0] + cr[1] * cr[1] + cr[2] * cr[2]).sqrt();
+                    if area <= 0.0 {
+                        continue;
+                    }
+                    // Shading normal is the per-vertex one the shader gets.
+                    let mut n = [0.0_f32; 3];
+                    for v in [a, b, c] {
+                        for k in 0..3 {
+                            n[k] += v.normal[k] / 3.0;
+                        }
+                    }
+                    let ln = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-9);
+                    let n = [n[0] / ln, n[1] / ln, n[2] / ln];
+                    // AO code, decoded exactly as the type-21 branch does.
+                    let ao = (a.uv[0] * 0.5).floor() / 63.0;
+                    tris.push((n, area, ao));
+                }
+            }
+            assert!(tris.len() > 200, "{}: only {} card triangles", def.id, tris.len());
+
+            for deg in [0.0_f32, 30.0, 60.0, 90.0] {
+                let psi = deg.to_radians();
+                let v = [psi.sin(), psi.cos(), 0.0];
+                let (mut num, mut den, mut ext) = (0.0_f32, 0.0_f32, 0.0_f32);
+                for (n, area, ao) in &tris {
+                    let ndv = (n[0] * v[0] + n[1] * v[1] + n[2] * v[2]).abs() * area;
+                    let ndl = (n[0] * l[0] + n[1] * l[1] + n[2] * l[2]).max(0.0);
+                    num += ndv * ndl;
+                    den += ndv;
+                    ext += ndv * crown_depth_extinction(*ao);
+                }
+                let crown = num / den;
+                let card = canopy_ndl_mean(
+                    l[0] * v[0] + l[1] * v[1] + l[2] * v[2],
+                );
+                if deg == 0.0 {
+                    measured_extinction.push((def.id.clone(), ext / den));
+                }
+                let ratio = card / crown.max(1e-6);
+                // THE CHECK MUST BE ABLE TO FAIL. `plate` is precisely what
+                // the card did through v0.1109: evaluate_light against the
+                // card's radial-up shading normal, i.e. max(up . L, 0). With
+                // the sun overhead that is 1.0 against a crown's ~0.30, so the
+                // band below rejects it - on every run, not just in theory.
+                let plate = (l[0] * 0.0 + l[1] * 1.0 + l[2] * 0.0_f32).max(0.0);
+                let plate_ratio = plate / crown.max(1e-6);
+                eprintln!(
+                    "[canopy] {:>12} psi={deg:>5.1}  crown {crown:.4}  card {card:.4}  \
+                     card/crown {ratio:.3}  (pre-v0.1110 flat plate {plate:.4}, \
+                     x{plate_ratio:.2})",
+                    def.id
+                );
+                assert!(
+                    !(0.80..=1.30).contains(&plate_ratio),
+                    "the pre-v0.1110 flat-plate response would PASS this band, so the band is \
+                     not measuring anything"
+                );
+                // ── PER-SPECIES, because the crowns are not all isotropic ──
+                //
+                // `canopy_ndl_mean` is the mean of max(N.L, 0) over leaf
+                // normals UNIFORM ON THE SPHERE, which is the standard
+                // spherical leaf-angle distribution. The broadleaves land on
+                // it almost exactly. The conifers do not, and that is real
+                // rather than a bug: a fir carries flat sprays along a branch,
+                // its crown is narrow, and `emit_card`'s spherify blend then
+                // pushes its shading normals strongly horizontal - so its
+                // visible-weighted mean sun response genuinely sits ~22% under
+                // the isotropic value at EVERY sun angle.
+                //
+                // Note the ratio is near-constant in psi for every species:
+                // the kernel's SHAPE is right and only its LEVEL is
+                // species-dependent. So this records the level per species and
+                // gates DRIFT, rather than widening one band until the worst
+                // species fits - a single 0.80..1.30 band would have to admit
+                // 1.30, and would then stop noticing a broadleaf that broke.
+                //
+                // Driving these to 1.00 wants a per-species scalar baked into
+                // the billboard atlas (the far cards' own texture, which the
+                // near crown does not sample). Until then this is a bounded,
+                // measured, named limitation: at worst the conifer cards are
+                // 22% brighter than their mesh trees, against the 4-8x they
+                // were before v0.1110.
+                let expect: f32 = match def.id.as_str() {
+                    "fir" | "pine" => 1.28,
+                    _ => 1.00,
+                };
+                assert!(
+                    (ratio - expect).abs() <= 0.12,
+                    "{id} at psi={deg}: the card kernel returns {card:.4} where the real crown \
+                     averages {crown:.4} (x{ratio:.2}, expected x{expect:.2}). A ratio like that \
+                     IS the bright ring. If the crown moved, the geometry changed - check \
+                     tree_mesh::sleeve_tilts, CLUSTER_NORMAL_BLEND and CROWN_NORMAL_BLEND, and \
+                     re-record the level here with the measurement that justifies it. Never \
+                     widen the tolerance to make a number fit.",
+                    id = def.id,
+                );
+            }
+        }
+        for (id, e) in &measured_extinction {
+            eprintln!("[canopy] {id:>12} mean crown-depth extinction {e:.4}");
+            assert!(
+                (0.4..=1.0).contains(e),
+                "{id}: mean crown extinction {e:.3} is outside the range crown_depth_shade can \
+                 produce (0.35..1.0) - the AO decode has drifted"
+            );
+        }
+    }
+
+    /// `CANOPY_SKY_FRACTION` is not a taste value: it is exactly what
+    /// `sky_ambient` returns for the isotropic-leaf mean of its own
+    /// orientation weight, so it has to track `SKY_GROUND_BOUNCE`. It is
+    /// written as a literal only because that constant is declared in a LATER
+    /// shader part.
+    #[test]
+    fn canopy_sky_fraction_matches_the_ground_bounce() {
+        let src = assembled_pbr_source();
+        let num = |name: &str| -> f32 {
+            let at = src
+                .find(&format!("const {name}: f32 = "))
+                .unwrap_or_else(|| panic!("{name} missing from the megashader"));
+            let rest = &src[at + format!("const {name}: f32 = ").len()..];
+            rest.chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect::<String>()
+                .parse()
+                .unwrap_or_else(|_| panic!("{name} is not a plain literal any more"))
+        };
+        let g = num("SKY_GROUND_BOUNCE");
+        let f = num("CANOPY_SKY_FRACTION");
+        let want = 0.5 * (1.0 + g);
+        assert!(
+            (f - want).abs() < 0.005,
+            "CANOPY_SKY_FRACTION is {f} but SKY_GROUND_BOUNCE = {g} makes the isotropic-leaf \
+             mean {want}. A card would then take a different share of the sky than the crown it \
+             replaces."
+        );
+    }
+
+    /// BUG-064's shape, generalised: a rule applied to two of three foliage
+    /// branches. Every card family in the fragment shader must apply the SAME
+    /// canopy block, and every sun-derived transmission term must be gated by
+    /// the shadow map (BUG-060).
+    #[test]
+    fn every_vegetation_branch_agrees_about_light() {
+        let src = assembled_pbr_source();
+        let fs = &src[src.find("fn fs_main").expect("fs_main missing")
+            ..src.find("fn fs_shadow").expect("fs_shadow missing")];
+
+        // 1. The canopy block, verbatim, once per card family. Card families
+        //    in fs_main: the type-12 sprite branch, and the type-12 packed
+        //    branch (legacy silhouettes + the far sheet).
+        let block = [
+            "let vc = canopy_card_shading(normal, camera.sun_direction.xyz, view_dir);",
+            "sun_gate = sun_gate * vc.sun_gain;",
+            "ao = vc.sky_frac;",
+        ];
+        let calls = fs.matches(block[0]).count();
+        assert_eq!(
+            calls, 2,
+            "fs_main applies the canopy kernel at {calls} sites; there are 2 card families \
+             (the sprite branch and the packed branch). A card family without it is lit as a \
+             flat plate facing the sky, which is the v0.1109 bright ring."
+        );
+        for line in block {
+            assert_eq!(
+                fs.matches(line).count(),
+                calls,
+                "the canopy block is not identical at every site - `{line}` appears a different \
+                 number of times than the call to canopy_card_shading"
+            );
+        }
+
+        // 2. No sun-derived additive term may skip the shadow map (BUG-060).
+        for stmt in fs.split("proc_emissive = proc_emissive").skip(1) {
+            let body = &stmt[..stmt.find(';').unwrap_or(stmt.len())];
+            if !body.contains("camera.sun_color") {
+                continue;
+            }
+            assert!(
+                body.contains("shadow"),
+                "a sun-derived proc_emissive term has no shadow factor - a leaf in shadow \
+                 receives no sun to transmit:\n{body}"
+            );
+        }
     }
 }

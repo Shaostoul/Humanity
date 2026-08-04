@@ -20,9 +20,29 @@
 //! The sheet rebuilds on a worker thread when the camera has moved far
 //! enough (lib.rs owns the schedule); positions are emitted relative to a
 //! camera-ground ANCHOR so the f32 mesh stays precise (<= 150 km offsets).
-//! Bands 2-3 use flat-colored cards (the atlas texture is sub-pixel out
-//! there and plain quads mip better); band 1 uses sprite-atlas cards that
-//! match the baked ones.
+//! All three bands use flat-coloured cards: the atlas texture is sub-pixel
+//! out here and plain quads mip better. (The module header claimed band 1
+//! used sprite-atlas cards through v0.1109; `emit_card` has only ever been
+//! called with `sprite_tile: None`, so that was doc drift. The `Some(tile)`
+//! arm is kept because it is the encoding a future instanced sheet wants.)
+//!
+//! WHAT "FLAT-COLOURED" MEANT, AND WHY IT WAS NOT (v0.1110). The colour this
+//! module computes below - the local imagery darkened and greened toward a
+//! closed canopy, jittered per cell - never reached the screen. The sheet
+//! draws with the planet's TEXTURED material (lib.rs picks `textured_mat`),
+//! so the type-12 fragment branch took its `has_tex` path and overwrote the
+//! packed colour with the raw equirect imagery at the card's own lat/lon.
+//! Every far card therefore rendered in the exact albedo of the ground under
+//! it, lit as flat ground (a card's shading normal is the radial up), and -
+//! since the analytic pixel footprint stays under a metre out to ~10 km -
+//! even took the ground PBR detail pass, so distant forest was textured with
+//! grass and dirt. Operator, v0.1109.3: "The LOD billboards seem like they're
+//! getting full light making them much brighter than the high poly trees."
+//!
+//! The cards now carry a MARKER the shader can see (`encode_canopy_card_uv`),
+//! which routes them to the canopy tint + the canopy lighting kernel and off
+//! the ground-detail path. Flat colour is still the plan for the detail; only
+//! the tone and the lighting changed.
 
 use glam::DVec3;
 
@@ -61,6 +81,76 @@ const BANDS: [(f64, u32, f32, f32, bool); 3] = [
     (40_000.0, 4, 26.0, 120.0, true),
     (FAR_TREE_FAR_M, 16, 30.0, 400.0, true),
 ];
+
+/// How much darker and greener a closed canopy is than the open ground it
+/// grows out of. Applied to the planet imagery, so the forest tracks the
+/// biome under it instead of being one painted green.
+///
+/// LOCKSTEP with `CANOPY_GROUND_TINT` in
+/// `assets/shaders/pbr/10-lighting-patterns.wgsl`; the shader applies it to
+/// the imagery fetch, this module applies it to the packed fallback colour a
+/// planet with no imagery uses, and
+/// `canopy_constants_match_the_shader` fails if the two drift.
+pub const FAR_CARD_CANOPY_TINT: [f32; 3] = [0.68, 0.76, 0.62];
+
+/// Per-cell tone jitter range. Quantised to `FAR_CARD_SHADE_LEVELS + 1` steps
+/// so the CPU colour and the GPU's decoded multiplier are the SAME number
+/// rather than two roundings of one intent.
+pub const FAR_CARD_SHADE_LO: f32 = 0.85;
+pub const FAR_CARD_SHADE_HI: f32 = 1.15;
+/// Top code of the 4-bit tone field (bits 18..21 of the packed channel).
+pub const FAR_CARD_SHADE_LEVELS: u32 = 15;
+/// Weight of bit 18: where the tone code sits above type 12's own bits
+/// (colour in 0..15, water at 16, tree card at 17).
+const FAR_CARD_SHADE_BIT: f32 = 262_144.0;
+
+/// The tone multiplier a code decodes to. Mirror of `canopy_card_shade` in
+/// the shader.
+pub fn far_card_shade(code: u32) -> f32 {
+    let t = code.min(FAR_CARD_SHADE_LEVELS) as f32 / FAR_CARD_SHADE_LEVELS as f32;
+    FAR_CARD_SHADE_LO + (FAR_CARD_SHADE_HI - FAR_CARD_SHADE_LO) * t
+}
+
+/// Pack one far-sheet card's colour and tone code into the two floats
+/// `mesh::planet_surface_vertices` hands through UNTOUCHED when
+/// `color[0] < 0` (that sentinel means "the vertex already carries its own
+/// uv"; the sprite-tile arm below uses the same door).
+///
+/// `uv.x` is the ordinary type-12 packed colour - `r*256 + g` - with the tone
+/// code added at bit 18. Deliberately NO bit 17: that is the patch cards'
+/// LOD-swap flag and would make the whole sheet distance-discard.
+///
+/// `uv.y` is `-(b + 1)`, which is the MARKER. A ground face's blue is clamped
+/// to 0..1 by `pack_color_to_uv`, so any negative value is unambiguously a
+/// card, and the +1 keeps a card whose blue is exactly zero from encoding as
+/// -0.0 (which is not less than zero in IEEE754).
+///
+/// Max magnitude: 15*262144 + 255*256 + 255 = 3_997_695, well inside f32's
+/// 2^24 exact-integer range, and the channel is `@interpolate(flat)` so no
+/// interpolation can perturb it.
+pub fn encode_canopy_card_uv(color: [f32; 3], shade_code: u32) -> [f32; 2] {
+    let r = (color[0].clamp(0.0, 1.0) * 255.0).round();
+    let g = (color[1].clamp(0.0, 1.0) * 255.0).round();
+    let s = shade_code.min(FAR_CARD_SHADE_LEVELS) as f32 * FAR_CARD_SHADE_BIT;
+    [s + r * 256.0 + g, -(color[2].clamp(0.0, 1.0) + 1.0)]
+}
+
+/// Inverse of `encode_canopy_card_uv`, and the Rust twin of the shader's
+/// decode. Returns None when the uv is not a canopy card.
+pub fn decode_canopy_card_uv(uv: [f32; 2]) -> Option<([f32; 3], u32)> {
+    if uv[1] >= -0.5 {
+        return None;
+    }
+    let packed = uv[0].round().max(0.0) as u32;
+    Some((
+        [
+            ((packed >> 8) & 255) as f32 / 255.0,
+            (packed & 255) as f32 / 255.0,
+            -uv[1] - 1.0,
+        ],
+        (packed >> 18) & 15,
+    ))
+}
 
 /// Deterministic per-cell stream, IDENTICAL to the patch bake's (salt +
 /// hash + xorshift draw order), so the sheet agrees with baked trees.
@@ -109,6 +199,7 @@ pub fn build_far_tree_sheet(
                          w: f32,
                          h: f32,
                          color: [f32; 3],
+                         shade_code: u32,
                          sprite_tile: Option<u8>| {
         // Two-sided quad, exactly the baked-card construction (4 tris).
         let corner = |u01: f32, v01: f32| -> (glam::Vec3, [f32; 3]) {
@@ -118,7 +209,13 @@ pub fn build_far_tree_sheet(
                     let enc_x = -((1 + tile) as f32 + u01 * 0.5);
                     (p, [-1.0, enc_x, v01])
                 }
-                None => (p, color),
+                // v0.1110: through the SAME `color[0] < 0` door, because the
+                // marker this needs (a negative blue) cannot survive
+                // pack_color_to_uv's 0..1 clamp.
+                None => {
+                    let uv = encode_canopy_card_uv(color, shade_code);
+                    (p, [-1.0, uv[0], uv[1]])
+                }
             }
         };
         let c00 = corner(0.0, 0.0);
@@ -211,16 +308,24 @@ pub fn build_far_tree_sheet(
                 // varied per cell (v3: 0.5x read as black slabs against
                 // bright terrain - forests are darker than grass, not
                 // silhouettes).
-                let shade = 0.85 + (r5 % 256) as f32 / 256.0 * 0.3;
+                //
+                // v0.1110: the tone jitter is QUANTISED to the 4-bit code the
+                // card carries, so the colour packed here and the multiplier
+                // the shader applies to the imagery are the same number. This
+                // colour is the no-imagery fallback; on a planet with baked
+                // imagery the shader reproduces it from the fetch.
+                let shade_code =
+                    (r5 % 256) as u32 * (FAR_CARD_SHADE_LEVELS + 1) / 256;
+                let shade = far_card_shade(shade_code);
                 let color = [
-                    sc[0] * 0.68 * shade,
-                    sc[1] * 0.76 * shade,
-                    sc[2] * 0.62 * shade,
+                    sc[0] * FAR_CARD_CANOPY_TINT[0] * shade,
+                    sc[1] * FAR_CARD_CANOPY_TINT[1] * shade,
+                    sc[2] * FAR_CARD_CANOPY_TINT[2] * shade,
                 ];
                 // Crossed vertical cards: the grazing-view silhouette.
-                emit_card(base, up, side, card_w, card_h, color, None);
+                emit_card(base, up, side, card_w, card_h, color, shade_code, None);
                 let side2 = up.cross(side).normalize_or_zero();
-                emit_card(base, up, side2, card_w, card_h, color, None);
+                emit_card(base, up, side2, card_w, card_h, color, shade_code, None);
                 if canopy_quad {
                     // Horizontal crown quad, FAR bands only (v3): its job
                     // is the from-above read at 10+ km, where vertical
@@ -235,6 +340,7 @@ pub fn build_far_tree_sheet(
                         card_w,
                         card_w,
                         color,
+                        shade_code,
                         None,
                     );
                 }
@@ -316,6 +422,108 @@ mod tests {
         let b = build_far_tree_sheet(&def, &hm, None, cam).expect("grows");
         assert_eq!(a.0.vertices.len(), b.0.vertices.len());
         assert_eq!(a.1, b.1);
+    }
+
+    /// The marker the whole v0.1110 canopy fix hangs off. If a card's uv can
+    /// be mistaken for a ground face's, the shader paints a tree with ground
+    /// albedo (which is exactly what it did through v0.1109); if a ground
+    /// face's uv can be mistaken for a card's, the shader paints the ground as
+    /// forest. Both directions are checked.
+    #[test]
+    fn canopy_card_uv_round_trips_and_cannot_collide_with_a_ground_face() {
+        for (c, code) in [
+            ([0.0_f32, 0.0, 0.0], 0u32),
+            ([1.0, 1.0, 1.0], FAR_CARD_SHADE_LEVELS),
+            ([0.13, 0.29, 0.07], 7),
+            ([0.62, 0.51, 0.44], 15),
+        ] {
+            let uv = encode_canopy_card_uv(c, code);
+            let (got, got_code) = decode_canopy_card_uv(uv).expect("encodes as a card");
+            assert_eq!(got_code, code.min(FAR_CARD_SHADE_LEVELS));
+            for k in 0..3 {
+                assert!(
+                    (got[k] - c[k]).abs() <= 1.0 / 255.0 + 1e-6,
+                    "channel {k}: {} -> {}",
+                    c[k],
+                    got[k]
+                );
+            }
+            // Exact-integer safety: the shader rounds this back to u32.
+            assert!(uv[0] <= 4_000_000.0 && uv[0].fract() == 0.0, "uv.x = {}", uv[0]);
+            // Bit 17 must stay clear or the sheet distance-discards itself.
+            assert_eq!(
+                (uv[0] as u32) & 0x2_0000,
+                0,
+                "the canopy encoding set the tree-card LOD bit"
+            );
+        }
+        // Every ordinary ground face decodes as NOT a card, including the
+        // pathological blue == 0 one that a naive -blue marker would lose.
+        for b in [0.0_f32, 0.5, 1.0] {
+            let uv = super::super::planet_surface::pack_color_to_uv([0.3, 0.4, b], false);
+            assert!(
+                decode_canopy_card_uv(uv).is_none(),
+                "a ground face with blue = {b} decoded as a canopy card"
+            );
+        }
+    }
+
+    /// A built sheet must actually carry the marker - the encoder can be
+    /// perfect and still never be called (the v0.1107 inert-discard shape).
+    #[test]
+    fn every_sheet_card_is_marked_as_canopy() {
+        let def = forest_def();
+        let hm = land_heightmap();
+        let cam = DVec3::new(0.6, 0.5, 0.4).normalize() * (def.radius + 500.0);
+        let (mesh, _) = build_far_tree_sheet(&def, &hm, None, cam).expect("grows");
+        let mut codes = std::collections::BTreeSet::new();
+        for v in &mesh.vertices {
+            assert!(
+                v.color[0] < 0.0,
+                "a sheet vertex did not take the pre-encoded uv door"
+            );
+            let (_, code) = decode_canopy_card_uv([v.color[1], v.color[2]])
+                .expect("every sheet card carries the canopy marker");
+            codes.insert(code);
+        }
+        assert!(
+            codes.iter().all(|c| *c <= FAR_CARD_SHADE_LEVELS),
+            "tone code out of range: {codes:?}"
+        );
+    }
+
+    /// The tint and the tone range live in TWO languages. The shader applies
+    /// them to the imagery fetch, this module bakes them into the fallback
+    /// colour, and a drift makes a planet with imagery and a planet without
+    /// grow visibly different forests.
+    #[test]
+    fn canopy_constants_match_the_shader() {
+        let src = crate::renderer::shader_loader::assembled_pbr_source();
+        let want_tint = format!(
+            "const CANOPY_GROUND_TINT: vec3<f32> = vec3<f32>({:.2}, {:.2}, {:.2});",
+            FAR_CARD_CANOPY_TINT[0], FAR_CARD_CANOPY_TINT[1], FAR_CARD_CANOPY_TINT[2]
+        );
+        assert!(
+            src.contains(&want_tint),
+            "the shader's CANOPY_GROUND_TINT does not match far_trees::FAR_CARD_CANOPY_TINT \
+             (expected `{want_tint}`)"
+        );
+        for (name, v) in [
+            ("CANOPY_CARD_SHADE_LO", FAR_CARD_SHADE_LO),
+            ("CANOPY_CARD_SHADE_HI", FAR_CARD_SHADE_HI),
+        ] {
+            let want = format!("const {name}: f32 = {v:.2};");
+            assert!(src.contains(&want), "the shader lost `{want}`");
+        }
+        // The shader decodes the tone from bits 18..21; this is the weight.
+        assert_eq!(FAR_CARD_SHADE_BIT, 262_144.0);
+        assert!(src.contains("(packed >> 18u) & 15u"));
+        // And the two shade decoders agree at every code.
+        for code in 0..=FAR_CARD_SHADE_LEVELS {
+            let t = code as f32 / FAR_CARD_SHADE_LEVELS as f32;
+            let want = FAR_CARD_SHADE_LO + (FAR_CARD_SHADE_HI - FAR_CARD_SHADE_LO) * t;
+            assert!((far_card_shade(code) - want).abs() < 1e-6);
+        }
     }
 
     #[test]
