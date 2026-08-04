@@ -354,6 +354,33 @@ pub fn settings_row(ui: &mut Ui, theme: &Theme, label: &str, add_control: impl F
     });
 }
 
+/// The step a slider SNAPS to while dragging: the precision its value label
+/// displays at (v0.1112, operator: "I don't imagine we really need to concern
+/// ourselves with 4 digits of decimal points").
+///
+/// The label already rounds - 2 decimals on a 0..1 range, 1 up to 20, whole
+/// numbers past that (see `labeled_slider`) - while the drag handler wrote
+/// `min + t * (max - min)` raw. So Settings read "10" while the engine ran
+/// 9.579, and "0.63" while the density was 0.6294372: the stored value and the
+/// shown value were different numbers, and the invisible tail was what a
+/// stream-agreement test could only ever SAMPLE. Snapping to the display step
+/// makes the stored value equal the shown one and the reachable input space
+/// FINITE, so such a test can enumerate every value a slider can produce.
+///
+/// DRAG ONLY. The number box beside a `labeled_slider_entry` still accepts any
+/// typed value at full precision - typing is a statement of intent, dragging is
+/// aiming with a mouse at screen-pixel resolution, which is far coarser than
+/// any of these steps.
+pub fn slider_display_step(range_max: f32) -> f32 {
+    if range_max <= 1.0 {
+        0.01
+    } else if range_max <= 20.0 {
+        0.1
+    } else {
+        1.0
+    }
+}
+
 /// Custom slider with visible track bar and accent fill.
 /// Returns true if value changed.
 pub fn custom_slider(ui: &mut Ui, theme: &Theme, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
@@ -387,7 +414,13 @@ fn custom_slider_with_width(
     if response.dragged() || response.clicked() {
         if let Some(pos) = response.interact_pointer_pos() {
             let t = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
-            *value = min + t * (max - min);
+            // Snap to the precision the value label displays at, so the
+            // stored number IS the shown number (see `slider_display_step`).
+            // Clamped after rounding: half a step of round-up at the top end
+            // must not exceed the range the caller promised.
+            let step = slider_display_step(max);
+            let raw = min + t * (max - min);
+            *value = ((raw / step).round() * step).clamp(min, max);
         }
     }
 
@@ -1518,3 +1551,52 @@ pub fn rgb_section_divider(ui: &mut Ui, theme: &Theme) {
     ui.ctx().request_repaint(); // keep the colour animating
 }
 
+
+#[cfg(test)]
+mod slider_snap_tests {
+    use super::slider_display_step;
+
+    /// The whole point of the snap is that the STORED value equals the SHOWN
+    /// value, so the gate is exactly that: simulate the drag write at many
+    /// thumb positions across the real slider ranges Settings uses, format
+    /// each result with `labeled_slider`'s own display rule, parse it back,
+    /// and require a round trip with nothing lost. Before the snap this fails
+    /// on nearly every position (0.6294372 displays as "0.63").
+    #[test]
+    fn a_dragged_value_survives_its_own_display_format() {
+        // (min, max) of real Settings sliders: density 0.1..1, split_px 2..24,
+        // fog 0..8, render distance 50..2000, card cutoff 100..3000.
+        let ranges: [(f32, f32); 5] =
+            [(0.1, 1.0), (2.0, 24.0), (0.0, 8.0), (50.0, 2000.0), (100.0, 3000.0)];
+        for (min, max) in ranges {
+            let step = slider_display_step(max);
+            for i in 0..=1000 {
+                let t = i as f32 / 1000.0;
+                // The drag handler's write, verbatim.
+                let raw = min + t * (max - min);
+                let stored = ((raw / step).round() * step).clamp(min, max);
+                // The value label's rule, verbatim from `labeled_slider`.
+                let shown = if max <= 1.0 {
+                    format!("{stored:.2}")
+                } else if max <= 20.0 {
+                    format!("{stored:.1}")
+                } else {
+                    format!("{stored:.0}")
+                };
+                let round_trip: f32 = shown.parse().unwrap();
+                assert!(
+                    (round_trip - stored).abs() < 1e-4,
+                    "range {min}..{max} at t={t}: the slider stored {stored} \
+                     but Settings displays \"{shown}\" - the stored value and \
+                     the shown value are different numbers again. If the \
+                     display rule in labeled_slider changed, change \
+                     slider_display_step in the same commit.",
+                );
+                assert!(
+                    (min..=max).contains(&stored),
+                    "range {min}..{max} at t={t}: snap escaped the range ({stored})"
+                );
+            }
+        }
+    }
+}
