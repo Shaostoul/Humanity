@@ -56,6 +56,128 @@ pub fn tree_flare_radius_m(height_m: f32) -> f64 {
     height_m as f64 * 0.030 * 1.28
 }
 
+/// The band the card layer and the model layer SHARE at the handoff, metres.
+/// The nearest tree that did not get a model keeps its card, and so does
+/// everything from there inward for this much, so the two representations
+/// always overlap rather than meeting at a line that any rounding can open a
+/// gap in.
+pub const TREE_CARD_HANDOFF_OVERLAP_M: f64 = 8.0;
+
+/// Trees the harvest keeps BEYOND the frame loop's 3D draw budget.
+///
+/// The harvest's `max_n` is not a performance knob: `near_tree_instances_on_drawn`
+/// walks, gates, ground-samples and sorts the WHOLE disc before it truncates, so
+/// a small cap buys nothing but a shorter Vec. What it costs is information. A
+/// tree the harvest threw away is a tree the frame loop never sees, so the frame
+/// loop cannot know that the models stop there - and the card layer, which is
+/// told to hide inside a radius the frame loop computes, hides over ground the
+/// models never reached.
+///
+/// Keeping a margin past the budget means the BUDGET is always the binding
+/// constraint, and the budget is one the draw loop can observe directly.
+pub const NEAR_TREE_HARVEST_SLACK: usize = 256;
+
+/// How many trees a harvest should keep, given the frame loop's model budget.
+/// Pass this as `max_n`; never a bare literal, or the cap becomes a second,
+/// invisible handoff line (it was a hardcoded 600 through v0.1110, which bound
+/// before any budget above ~600 could).
+#[inline]
+pub fn near_tree_harvest_cap(draw_budget: u32) -> usize {
+    (draw_budget as usize).saturating_add(NEAR_TREE_HARVEST_SLACK)
+}
+
+/// HOW FAR OUT THE NEAR-FIELD 3D MODELS ACTUALLY COVER THE GROUND.
+///
+/// `renderer.tree_card_hide_m` is a PROMISE to the fragment shader: every tree
+/// inside that radius has a real model standing on it, so the terrain's
+/// silhouette card for it can discard. Break the promise and the tree has
+/// neither representation - it is simply gone. That is the operator's report
+/// of 2026-08-03: "the billboards for the lower LOD trees just kind of phase
+/// out of existence instead of actually shifting to a higher LOD."
+///
+/// WHY THE OLD RULE BROKE IT. Through v0.1110 the radius was the distance to
+/// the FARTHEST DRAWN tree (`covered_r2`, a running max), minus 8 m. That is a
+/// different question from the one the promise asks. The models cover a disc
+/// only out to the NEAREST tree they MISSED; past that the set is full of
+/// holes. The two agree exactly when the draw order is perfectly nearest-first
+/// - and it is not, because the harvest sorts once every 12 m of walking
+/// (lib.rs hysteresis) while the camera keeps moving. Trees ahead of the player
+/// get closer than trees the sort ranked before them, so as soon as a cap binds
+/// the drawn set stops being a clean disc: max(drawn) runs PAST min(missed).
+///
+/// MEASURED, walking east 40 m at Fuji on the real Earth data, shipped defaults
+/// (120 m model radius, 256 model budget, forest density 0.6): up to 32 trees
+/// per frame sat inside the hide radius with no model, in a band 11.5 m deep at
+/// ~92 m out, and 100% of them were AHEAD of the direction of travel. The count
+/// climbs from 0 immediately after a re-harvest to its worst just before the
+/// next one, so the ring of missing trees pulses at the 12 m walk period. At a
+/// 400 m model radius it was 48 trees in an 11.1 m band, and RAISING the model
+/// budget did not help at all, because the harvest's own hardcoded 600-tree cap
+/// bound first (see `NEAR_TREE_HARVEST_SLACK`).
+///
+/// THE RULE HERE. Track the nearest tree that did NOT get a model - whatever
+/// the reason: the draw budget ran out, or its mesh has not streamed in yet -
+/// and hide cards only inside that, less the overlap. It is the definition of
+/// the promise rather than a proxy for it, so it holds under a stale sort, a
+/// bound cap, a missing mesh, or any combination. It also fails SAFE: the worst
+/// it can do is show a card inside a model, where the model hides it anyway,
+/// which is exactly what shipped before the cards learned to discard at all.
+#[derive(Debug, Clone)]
+pub struct ModelCoverage {
+    /// The model radius (Settings), the ceiling on any hide radius: cards must
+    /// never hide past where models are even attempted.
+    tree_dist_m: f64,
+    /// Squared distance of the nearest tree that got no model.
+    nearest_uncovered_m2: f64,
+    /// Squared distance of the farthest tree that did - DIAGNOSTIC ONLY (the
+    /// [TreeHandoff] log line). Never feed this to the hide radius; that is the
+    /// bug this type exists to make unrepresentable.
+    farthest_drawn_m2: f64,
+    drew_any: bool,
+}
+
+impl ModelCoverage {
+    pub fn new(tree_dist_m: f64) -> Self {
+        Self {
+            tree_dist_m: tree_dist_m.max(0.0),
+            nearest_uncovered_m2: f64::INFINITY,
+            farthest_drawn_m2: 0.0,
+            drew_any: false,
+        }
+    }
+
+    /// A tree at `dist2` (squared metres from the camera) got its model.
+    #[inline]
+    pub fn drew(&mut self, dist2: f64) {
+        self.drew_any = true;
+        if dist2 > self.farthest_drawn_m2 {
+            self.farthest_drawn_m2 = dist2;
+        }
+    }
+
+    /// A tree at `dist2` did NOT get a model and still needs its card.
+    #[inline]
+    pub fn uncovered(&mut self, dist2: f64) {
+        if dist2 < self.nearest_uncovered_m2 {
+            self.nearest_uncovered_m2 = dist2;
+        }
+    }
+
+    /// The radius terrain tree cards may discard inside, metres.
+    pub fn hide_radius_m(&self) -> f32 {
+        if !self.drew_any {
+            return 0.0;
+        }
+        let reach = self.nearest_uncovered_m2.sqrt().min(self.tree_dist_m);
+        ((reach - TREE_CARD_HANDOFF_OVERLAP_M).clamp(0.0, self.tree_dist_m)) as f32
+    }
+
+    /// Farthest drawn model, metres. For the 1 Hz [TreeHandoff] log only.
+    pub fn covered_radius_m(&self) -> f64 {
+        self.farthest_drawn_m2.sqrt()
+    }
+}
+
 /// Enumerate trees within `radius_m` surface metres of `center_dir` on the
 /// planet-fixed tree grid: the SAME deterministic per-cell stream, gates
 /// (treeline, beach, imagery-green biome), and ground sampling as
@@ -462,6 +584,218 @@ mod near_tree_order_tests {
         assert!(
             worst < 1e-6,
             "the harvest is NOT sorted nearest-first - out of order by {worst:.3} m"
+        );
+    }
+
+    /// One frame's worth of the lib.rs near-tree block, reduced to the two
+    /// numbers that decide whether a tree is visible at all.
+    struct FrameOutcome {
+        /// Indices (into the uncapped harvest) that got a 3D model.
+        drawn: std::collections::HashSet<usize>,
+        /// The radius the terrain cards were told to discard inside.
+        hide_m: f64,
+    }
+
+    /// Replay the frame loop's model/card handoff for one camera position.
+    ///
+    /// `old_rule` selects the pre-fix hide radius (farthest DRAWN tree) so the
+    /// test can be shown to go red on the code it was written against; the
+    /// shipped path is `ModelCoverage`.
+    fn run_frame(
+        harvest: &[NearTree],
+        cap: usize,
+        cam_local: DVec3,
+        tree_dist: f64,
+        budget: u32,
+        old_rule: bool,
+    ) -> FrameOutcome {
+        // `near_tree_instances_on_drawn` truncates AFTER sorting, so the set
+        // the frame loop holds is exactly this prefix - no second harvest.
+        let td2 = tree_dist * tree_dist;
+        let mut drawn_n = 0u32;
+        let mut drawn = std::collections::HashSet::new();
+        let mut cov = ModelCoverage::new(tree_dist);
+        let mut old_covered2 = 0.0_f64;
+        for i in 0..harvest.len().min(cap) {
+            let d2 = (harvest[i].dir * harvest[i].r_m - cam_local).length_squared();
+            if d2 > td2 {
+                continue;
+            }
+            if drawn_n >= budget {
+                cov.uncovered(d2);
+                continue;
+            }
+            drawn_n += 1;
+            drawn.insert(i);
+            cov.drew(d2);
+            if d2 > old_covered2 {
+                old_covered2 = d2;
+            }
+        }
+        let hide_m = if old_rule {
+            if drawn_n == 0 {
+                0.0
+            } else {
+                (old_covered2.sqrt() - TREE_CARD_HANDOFF_OVERLAP_M).clamp(0.0, tree_dist)
+            }
+        } else {
+            cov.hide_radius_m() as f64
+        };
+        FrameOutcome { drawn, hide_m }
+    }
+
+    /// THE CARD HIDE RADIUS IS A PROMISE, AND THIS WALKS A PLAYER ACROSS IT.
+    ///
+    /// `renderer.tree_card_hide_m` tells the fragment shader "every tree inside
+    /// here has a 3D model, so discard its silhouette card". A tree inside that
+    /// radius with no model has NO representation at all - it is gone. The
+    /// operator, 2026-08-03: "the billboards for the lower LOD trees just kind
+    /// of phase out of existence instead of actually shifting to a higher LOD."
+    ///
+    /// WHY A WALK AND NOT A SINGLE FRAME. Immediately after a harvest the drawn
+    /// set IS a clean nearest-first disc and the old max-of-drawn rule is
+    /// exactly right; a one-frame test passes on the broken code. The harvest
+    /// re-sorts only every 12 m of walking (lib.rs hysteresis) while the camera
+    /// keeps going, so trees ahead of the player overtake trees the sort ranked
+    /// before them, and once a cap binds the drawn set stops being a disc. The
+    /// gap therefore opens gradually between harvests and resets at each one -
+    /// only a moving camera sees it.
+    ///
+    /// Two configurations, because the two caps are different bugs: the shipped
+    /// 120 m / 256 defaults let the DRAW BUDGET bind, and 400 m / 1024 makes the
+    /// HARVEST cap bind instead (which is why raising the budget alone did
+    /// nothing - see `near_tree_harvest_cap`).
+    #[test]
+    fn the_card_hide_radius_never_outruns_the_models() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let source = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        // The shipped Settings default; the atomic starts at 1.0 in a test bin.
+        crate::terrain::planet_chunks::TREE_DENSITY_BITS
+            .store(0.6f32.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        let (lat, lon) = (35.29_f64.to_radians(), 138.79_f64.to_radians());
+        let start =
+            DVec3::new(lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()).normalize();
+        let east = DVec3::Y.cross(start).normalize();
+        // `old_rule = true` reproduces the shipped-through-v0.1110 radius, so
+        // the same walk can be asserted to FIND the bug as well as to be free
+        // of it. A gate that has never been seen red is not a gate.
+        for old_rule in [false, true] {
+            let mut found_orphans = 0usize;
+            for (tree_dist, budget) in [(120.0_f64, 256u32), (400.0, 1024)] {
+                let cap = near_tree_harvest_cap(budget);
+                let mut harvest_center = DVec3::splat(f64::MAX);
+                let mut harvest: Vec<NearTree> = Vec::new();
+                let mut ground_r = def.radius;
+                for step in 0..40 {
+                    let cam_dir = (start + east * (step as f64 / def.radius)).normalize();
+                    let cam_local = cam_dir * (ground_r + 1.7);
+                    if (harvest_center - cam_local).length() > 12.0 {
+                        // Uncapped: this is the CARD set (the patch bake walks
+                        // the same cells through the same gates), and its
+                        // prefix is what the frame loop actually holds.
+                        harvest = near_tree_instances_on_drawn(
+                            &def,
+                            &source,
+                            Some(&albedo),
+                            cam_local.normalize(),
+                            tree_dist + 60.0,
+                            17,
+                            usize::MAX,
+                        );
+                        assert!(
+                            harvest.len() > cap,
+                            "fixture must saturate the cap ({} trees vs cap {cap}) or the \
+                             handoff is never under load",
+                            harvest.len()
+                        );
+                        ground_r =
+                            harvest.iter().map(|t| t.r_m).sum::<f64>() / harvest.len() as f64;
+                        harvest_center = cam_local;
+                    }
+                    let out =
+                        run_frame(&harvest, cap, cam_local, tree_dist, budget, old_rule);
+                    let mut orphans = 0usize;
+                    let mut nearest = f64::MAX;
+                    for (i, t) in harvest.iter().enumerate() {
+                        let d = (t.dir * t.r_m - cam_local).length();
+                        if d < out.hide_m && !out.drawn.contains(&i) {
+                            orphans += 1;
+                            nearest = nearest.min(d);
+                        }
+                    }
+                    found_orphans += orphans;
+                    if !old_rule {
+                        assert_eq!(
+                            orphans, 0,
+                            "model radius {tree_dist} m, budget {budget}, step {step} m: \
+                             {orphans} trees sit inside the {:.1} m card-hide radius with no \
+                             3D model - the nearest at {nearest:.1} m. Those trees draw \
+                             NOTHING: their card discarded because the hide radius promised a \
+                             model that the draw budget (or the harvest cap) never delivered.",
+                            out.hide_m
+                        );
+                    }
+                }
+            }
+            if old_rule {
+                assert!(
+                    found_orphans > 0,
+                    "the pre-v0.1111 rule (hide radius = farthest DRAWN tree) produced NO \
+                     orphans on this walk, so this test could not have caught the bug it was \
+                     written for. Either the fixture stopped saturating the caps or the walk \
+                     stopped outrunning the harvest - fix the fixture, do not delete the check."
+                );
+            }
+        }
+    }
+
+    /// The helper above can be perfect and never be called. This checks that
+    /// the frame loop actually computes its card-hide radius through
+    /// `ModelCoverage`, and that the old max-of-drawn accumulator is gone.
+    ///
+    /// The v0.1107 fix to this same handoff shipped with exactly this shape of
+    /// hole: `near_tree_instances_on_drawn` grew a correct nearest-first sort
+    /// while an early return several hundred lines above it kept the sort from
+    /// ever running. A source check is crude, but it is the only thing standing
+    /// between "the module is right" and "the picture is right".
+    #[test]
+    fn the_frame_loop_uses_the_measured_coverage_radius() {
+        const PENDING: &str = "PENDING WIRING REQUEST (near-tree LOD handoff). This is not a \
+             regression you caused: the fix lives in terrain::near_trees and the five-hunk \
+             src/lib.rs edit that calls it has not been applied yet. ";
+        let src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs"),
+        )
+        .expect("lib.rs reads");
+        assert!(
+            src.contains("ModelCoverage::new("),
+            "{PENDING}src/lib.rs does not build a terrain::near_trees::ModelCoverage. The \
+             near-tree block must derive tree_card_hide_m from the NEAREST TREE IT MISSED, \
+             not from the farthest one it drew - see ModelCoverage's doc for the measurement."
+        );
+        assert!(
+            src.contains("hide_radius_m()"),
+            "{PENDING}src/lib.rs never asks ModelCoverage for the hide radius"
+        );
+        assert!(
+            !src.contains("covered_r2"),
+            "{PENDING}src/lib.rs still carries the `covered_r2` running MAX of drawn-tree \
+             distance. That is the pre-fix rule: it promises the card layer a model at every \
+             tree inside the FARTHEST drawn one, which is false the moment the draw order is \
+             not perfectly nearest-first."
+        );
+        assert!(
+            src.contains("near_tree_harvest_cap("),
+            "{PENDING}src/lib.rs still passes a literal max_n to \
+             near_tree_instances_on_drawn. A cap below the draw budget is an invisible second \
+             handoff line the draw loop cannot see - use \
+             terrain::near_trees::near_tree_harvest_cap(budget)."
         );
     }
 }

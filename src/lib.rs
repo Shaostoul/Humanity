@@ -9398,6 +9398,14 @@ mod native_app {
                                     .settings
                                     .tree_model_distance
                                     .clamp(0.0, crate::config::TREE_MODEL_MAX_M) as f64;
+                                // Hoisted (v0.1110.2) so the HARVEST is sized
+                                // from it too. The draw budget is the only cap
+                                // the draw loop can observe, so it has to be
+                                // the binding one - see near_tree_harvest_cap.
+                                let near_tree_draw_budget: u32 =
+                                    state.gui_state.settings.near_tree_budget
+                                        .clamp(1.0, crate::config::NEAR_TREE_BUDGET_MAX)
+                                        as u32;
                                 let alt_over = cam_local.length() - d.radius;
                                 // Default: no card hiding unless the model
                                 // loop below actually covered a radius.
@@ -9462,7 +9470,7 @@ mod native_app {
                                             cam_local.normalize(),
                                             tree_dist + 60.0,
                                             tree_draw_depth,
-                                            600,
+                                            chunks::near_tree_harvest_cap(near_tree_draw_budget),
                                         );
                                         state.near_tree_new = state
                                             .near_trees
@@ -9524,37 +9532,39 @@ mod native_app {
                                     // nearby trees out of existence. Track how
                                     // far the drawn models actually reach and
                                     // hide cards only inside that.
-                                    let mut covered_r2: f64 = 0.0;
-                                    // Draw budget (v0.995, the sparse-ring fix):
-                                    // was 64 - the nearest-first sort (v0.969)
-                                    // made those 64 hug the player in a ~35 m
-                                    // circle, and the old drawn<64 heuristic
-                                    // then hid cards across the WHOLE window
-                                    // whenever half the set was behind the
-                                    // camera. 256 nearest trees draw now,
-                                    // VIEW-INDEPENDENT, so coverage is a stable
-                                    // ~70 m ring and cards take over exactly
-                                    // where the models end.
-                                    // Was a const 256 (v0.1108.2). The
-                                    // operator asked to stop having to request
-                                    // ceiling raises, and this one bounds how
-                                    // many 3D trees can draw at ANY distance -
-                                    // so raising the distance without it just
-                                    // packs the same 256 into a tighter ring.
-                                    let near_tree_draw_budget: u32 =
-                                        state.gui_state.settings.near_tree_budget
-                                            .clamp(1.0, crate::config::NEAR_TREE_BUDGET_MAX)
-                                            as u32;
+                                    //
+                                    // v0.1110.2: the reach is now the NEAREST
+                                    // tree that got no model, not the FARTHEST
+                                    // that got one. Those agree only if the set
+                                    // is perfectly nearest-first, and it is not
+                                    // - the harvest re-sorts every 12 m while
+                                    // the camera keeps moving, so trees ahead
+                                    // of the player overtake the ranking. See
+                                    // near_trees::ModelCoverage.
+                                    let mut cov = chunks::ModelCoverage::new(tree_dist);
+                                    // The draw budget (hoisted above, where the
+                                    // harvest cap is derived from it) bounds how
+                                    // many 3D trees can draw at ANY distance, so
+                                    // raising the distance without it just packs
+                                    // the same set into a tighter ring.
                                     let now_s = state.start_time.elapsed().as_secs_f32();
                                     let fade_in =
                                         ((now_s - state.near_tree_born_s) / 0.35).clamp(0.0, 1.0);
                                     for (ti, tr) in state.near_trees.iter().enumerate() {
-                                        if drawn >= near_tree_draw_budget {
-                                            break;
-                                        }
                                         let base_local = tr.dir * tr.r_m;
                                         let d2 = (base_local - cam_local).length_squared();
+                                        // RANGE FIRST, then the budget, and the
+                                        // budget CONTINUES rather than breaking:
+                                        // an exhausted budget still has to tell
+                                        // the coverage tracker where the models
+                                        // stopped, and a `break` would throw
+                                        // away exactly the trees that define it.
+                                        // The tail is a few hundred f64 compares.
                                         if d2 > td2 {
+                                            continue;
+                                        }
+                                        if drawn >= near_tree_draw_budget {
+                                            cov.uncovered(d2);
                                             continue;
                                         }
                                         // New trees dissolve in; survivors and
@@ -9696,43 +9706,32 @@ mod native_app {
                                         }
                                         if any {
                                             drawn += 1;
-                                            if d2 > covered_r2 {
-                                                covered_r2 = d2;
-                                            }
+                                            cov.drew(d2);
+                                        } else {
+                                            // In range, inside the budget, and
+                                            // STILL no model - its mesh has not
+                                            // streamed in yet. The old rule was
+                                            // blind to this case entirely.
+                                            cov.uncovered(d2);
                                         }
                                     }
-                                    // Effective card-hide radius: the slider
-                                    // when the cap was not reached (models
-                                    // cover the full radius), else the actual
-                                    // reach of the drawn set, slightly shrunk
-                                    // so boundary trees keep their cards.
-                                    // Card-hide radius (v0.995 rebuild): the old
-                                    // rule keyed on the VIEW-culled drawn count -
-                                    // "drawn < 64 means sparse, hide across the
-                                    // whole window" - but with half the set
-                                    // always behind the camera that misfired
-                                    // constantly, hiding cards over ground the
-                                    // 64-tree budget never covered: the
-                                    // operator's bare ring. Coverage now comes
-                                    // from the SET, view-independent: the
-                                    // nearest-sorted set's budget-th tree marks
-                                    // where models genuinely end; a set smaller
-                                    // than the budget means the stream ran dry,
-                                    // so models really do cover the window.
                                     let set_n = state.near_trees.len();
-                                    // Hide cards only inside what MODELS
-                                    // ACTUALLY COVERED (v0.1107). The old
-                                    // budget-th-tree proxy outran reality:
-                                    // measured, 45.2% of frames had hide >
-                                    // tree_dist, so a 34-52 m treeless ring
-                                    // rode with the player. covered_r2 was
-                                    // already computed and then discarded.
-                                    let hide_m: f32 = if drawn == 0 {
-                                        0.0
-                                    } else {
-                                        (covered_r2.sqrt() as f32 - 8.0)
-                                            .clamp(0.0, tree_dist as f32)
-                                    };
+                                    // THE CARD-HIDE RADIUS IS A PROMISE: every
+                                    // terrain tree card inside it discards,
+                                    // because a 3D model stands there. So it
+                                    // has to be the NEAREST tree that got no
+                                    // model - budget spent, or mesh not yet
+                                    // streamed. `ModelCoverage` owns that
+                                    // definition and the arithmetic; this line
+                                    // is the whole of the frame loop's share.
+                                    //
+                                    // Three earlier rules each used a PROXY for
+                                    // it and each broke where the proxy parted
+                                    // from the promise (view-culled draw count
+                                    // v0.995, the budget-th tree v0.1107, the
+                                    // farthest DRAWN tree v0.1110.1). The
+                                    // stories are in docs/BUGS.md.
+                                    let hide_m: f32 = cov.hide_radius_m();
                                     state.renderer.tree_card_hide_m = hide_m;
                                     // Handoff diag (v0.994.1): 1 Hz numbers for
                                     // the model/card boundary.
@@ -9748,7 +9747,7 @@ mod native_app {
                                                 "[TreeHandoff] near={} drawn={} covered={:.0}m window={:.0}m hide={:.0}m",
                                                 set_n,
                                                 drawn,
-                                                covered_r2.sqrt(),
+                                                cov.covered_radius_m(),
                                                 tree_dist + 60.0,
                                                 hide_m,
                                             );
