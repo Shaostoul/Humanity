@@ -20,7 +20,10 @@
 > SSH key-only, abuse ticket NC-QTL-4184 answered with remediation, network
 > still blocked pending Namecheap. DB safe on the operator PC (02:00 backup).
 >
-> WHEN THE NETWORK RETURNS (a watcher session may already have been notified):
+> TIMELINE: the operator is away ~Aug 8-10 with their PC OFF - no watcher runs,
+> nothing happens until they return. The box sits safely: fresh install, sshd
+> key-only, no other services, passwords disabled. Namecheap may unblock it
+> during the gap; that changes nothing. WHEN THE OPERATOR IS BACK:
 > 1. `ssh humanity-vps` (old host key already cleared on the PC).
 > 2. Deliver the newest `%USERPROFILE%\HumanityBackupselay-*.db` to
 >    `/root/relay-restore.db` (scp), then:
