@@ -1,0 +1,2 @@
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBNvyusFJvwdatBfIYP3y7rS3souO1SA2vz8nGEqgiSU heron@shaostoul-pc
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILwDgWi7lfdVSAYpxjQsjoc3T7hqdz+5Lj5Ez5KARPJ8 shaostoul-github
