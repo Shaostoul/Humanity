@@ -189,3 +189,70 @@ A user logs in from web + native simultaneously, edits profile from both, clocks
 
 ## Update log
 - 2026-05-20, initial creation; populated with the four real incidents from the last 30 days + the anticipated failure list seeded from the audit work.
+
+## The TURN relay abuse and the 12-hour invisible outage (2026-08-07)
+
+**What the operator saw:** "Seems like it is taking a long time to load the
+website and connect to the chat server." The site was not slow - it was DOWN,
+and the service worker was serving the cached site from local disk while chat
+(which has no cache to hide behind) failed honestly.
+
+**What had happened:** Namecheap's abuse team null-routed the VPS at ~10:00 UTC
+for "being used for Network Attacks." The coturn TURN relay (voice calls) was
+running its LEGACY static credential (`lt-cred-mech`, password committed to the
+public repo until v0.857). The code had been fixed and a migration doc written
+(docs/admin/turn-rotation.md) - but the attended VPS migration WAS NEVER RUN,
+so anyone who read the repo had working relay credentials. Attackers used the
+server as a DDoS reflector from ~Aug 4; the relayed packet flood also drove the
+box into all-core softirq RCU stalls (17 MB swap, no headroom), so it was dying
+AND attacking at once.
+
+**How it was diagnosed (the useful part):**
+1. curl from outside: connect timeout on 443 - not slow, DEAD.
+2. ssh timeout + 100% packet loss + DNS fine + IP unchanged = network-level
+   block or dead host, NOT an application problem.
+3. The operator's inbox had the answer (abuse notice). CHECK EMAIL EARLY.
+4. VNC console: kernel RCU stalls / soft lockups on every CPU = something
+   pegging all cores. Reboot BEFORE forensics when the console is wedged -
+   with the network blocked, malware cannot phone home anyway.
+5. Evidence chain on the rebooted box: `last` (wtmp) clean; journalctl EMPTY
+   because the journal was in RAM (fix: /var/log/journal); /var/log/auth.log
+   showed ONLY operator + GitHub CI logins (verify CI IPs against
+   api.github.com/meta "actions" ranges before calling them foreign!);
+   authorized_keys held exactly one known key; cron clean; `ss -tlnp`
+   enumerated every listener as a known service - EXCEPT the one whose config
+   was wrong. The "intrusion" needed no intrusion: the credential was public.
+6. Backups: the operator-PC pull task had a valid relay.db from 02:00 the same
+   morning. Data loss: zero. This task is the reason the rebuild was calm.
+
+**Corrections made along the way (worth remembering):**
+- "Dark for 3 days" was WRONG - inferred from the last CI deploy. The backup
+  log showed SSH working at 02:00 the same day. Date the outage from the last
+  thing that TOUCHED the box, not the last thing that happened to push.
+- Three root logins from 68.154.115.179 looked like the smoking gun. That IP
+  is a GitHub Actions runner (68.154.0.0/17 is in api.github.com/meta) and the
+  logins were our own deploys. VERIFY IP ownership before accusing.
+
+**Remediation:** full OS reinstall (Debian 12), key-only SSH, and
+scripts/provision-vps.sh now builds the ENTIRE server from the repo -
+firewall default-deny (TURN ports closed), 4 GB swap, persistent journal, no
+autologin consoles, fail2ban, unattended upgrades, drift assertions at the
+end. coturn is BANNED from the box until the ephemeral-credential migration is
+implemented in the provision script itself.
+
+**The class-level lesson:** a security fix whose last step is "then run these
+commands on the VPS" is NOT SHIPPED until something verifies it ran. Config
+that lives only on the box WILL drift from the repo; the provision script +
+its assertions are the fix. Corollary: every monitor we had ran ON the box, so
+a whole-box outage was invisible for 12 hours - the off-box uptime check
+(HEALTH-DASHBOARD item 1) is operator-actionable and now overdue.
+
+**Recovery sequence if network is blocked (provider abuse case):**
+1. Email first, then provider panel: status, VNC console.
+2. Root password for console login is set via the panel (SSH keys don't help
+   at a tty). noVNC "paste" DROPS AND MANGLES characters - type by hand, and
+   verify typed keys with `ssh-keygen -lf` against a known fingerprint.
+3. Reply to the abuse ticket with SPECIFIC cause + remediation; ask for flow
+   logs; reinstall the OS rather than disinfect.
+4. ssh-keygen -R the hostname on the operator PC (host key changes on
+   reinstall), then provision-vps.sh does the rest.

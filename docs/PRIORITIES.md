@@ -11,6 +11,36 @@
 
 ## Active focus
 
+> **>>> TOP ITEM (2026-08-07): REBUILD THE VPS - the game work below WAITS.**
+> The server was null-routed by Namecheap's abuse team: the coturn TURN relay
+> was still running the LEGACY static credential (public in the repo until
+> v0.857) because the migration doc was never executed on the box. Full story:
+> INCIDENT-PLAYBOOK.md "The TURN relay abuse". State as of 2026-08-07 evening:
+> OS reinstalled (Debian 12), operator key installed + verified by fingerprint,
+> SSH key-only, abuse ticket NC-QTL-4184 answered with remediation, network
+> still blocked pending Namecheap. DB safe on the operator PC (02:00 backup).
+>
+> WHEN THE NETWORK RETURNS (a watcher session may already have been notified):
+> 1. `ssh humanity-vps` (old host key already cleared on the PC).
+> 2. Deliver the newest `%USERPROFILE%\HumanityBackupselay-*.db` to
+>    `/root/relay-restore.db` (scp), then:
+>    `git clone https://github.com/Shaostoul/Humanity.git /opt/Humanity && bash /opt/Humanity/scripts/provision-vps.sh`
+>    The script is idempotent and ends in drift ASSERTIONS - it fails loudly
+>    rather than leaving a half-built box.
+> 3. Operator sets ADMIN_KEYS in /opt/Humanity/.env (their chat public key).
+> 4. Verify: https://united-humanity.us + /health + chat connect + a DM.
+> 5. Follow-ups, ranked: (a) CI deploy gets its OWN key with a forced command
+>    (today CI holds the operator's personal root key - either leak = root);
+>    (b) deploy pipeline runs the provision assertions remotely post-deploy;
+>    (c) off-box uptime monitor (OPERATOR: free UptimeRobot on /health - this
+>    outage was invisible for 12 hours because every monitor lived on the box);
+>    (d) reinstate transmission (RPC localhost-only + upload caps), forgejo
+>    (from docs/admin/forgejo-setup.md), and LAST coturn - only via the
+>    ephemeral-credential migration implemented INSIDE provision-vps.sh;
+>    (e) extend the operator backup pull to include data/uploads.
+>
+> **>>> THEN the game work, unchanged from 2026-08-04:**
+>
 > **>>> TOP ITEM (2026-08-04): VIEW-FRUSTUM CULL THE NEAR TREES.** The largest
 > verified unclaimed win on the board, and every constraint below is already
 > MEASURED - do not re-derive them, they cost about 1M tokens of agent time.
