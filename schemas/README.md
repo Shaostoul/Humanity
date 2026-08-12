@@ -42,6 +42,15 @@ files into the data directory and the game loads them.
 | `status_effect.toml` | Buffs, debuffs, diseases, environmental effects | CSV |
 | `weather.toml` | Rain, storms, fog, sandstorms, meteor showers | RON |
 | `sound.toml` | Music, SFX, ambient, voice, spatial audio | TOML |
+| `provider.toml` | Provider Directory entries (who OFFERS: shops, libraries, food banks, individuals) | Signed object (`provider_v1`) |
+| `offering.toml` | Published goods and services (the Market's rows) | Signed object (`offering_v1`) |
+
+**Two of these are not data files.** `provider.toml` and `offering.toml` describe
+the payload of SIGNED OBJECTS that users publish at runtime
+(`src/relay/storage/signed_objects.rs`), not rows shipped next to the exe. They are
+documented here because they follow the same field-definition style and because a
+validating importer is written straight from them. Design source of truth:
+`docs/design/market-directory.md`.
 
 ## Conventions
 

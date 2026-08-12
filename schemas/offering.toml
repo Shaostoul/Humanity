@@ -1,0 +1,1552 @@
+# HumanityOS Offering Schema
+# Defines the payload of an `offering_v1` signed object: one good or one
+# service published by a provider into the Market.
+#
+# An offering is NOT a "listing" (that word implies a sale) and NOT a "product"
+# (that word implies goods only). A food bank's free meal and a retailer's
+# flashlight are the same kind of object, which is the whole mission point.
+#
+# The Market itself is a VIEW, not a stored thing. Every Market screen is a
+# query over offerings:
+#   storefront      = filter by provider_ref
+#   cross-provider  = filter by item_ref      ("all flashlights, every provider")
+#   category browse = filter by category
+#
+# File format: canonical CBOR map carried as the `payload` of a signed object
+#              (src/relay/core/object.rs, docs/network/object_format.md)
+# Object type: offering_v1
+# payload_schema_version: 1
+# Hot-reloadable: No. This is not a data file shipped next to the exe; it is
+#              published, signed, stored in `signed_objects`, and replicated.
+# Referenced by: the Market views (queries over signed_objects)
+# References: schemas/provider.toml (provider_v1 root object_id) and
+#              data/items.csv item ids through `item_ref`
+#
+# Design source of truth: docs/design/market-directory.md. Read it, and read
+# schemas/provider.toml first: an offering without its provider is meaningless.
+
+# ---------------------------------------------------------------------------
+# THE TWO THINGS THIS SCHEMA IS BUILT AROUND
+# ---------------------------------------------------------------------------
+
+[spine]
+shared_taxonomy = """
+`item_ref` points at the SAME item taxonomy the game uses (item.id in
+schemas/item.toml, rows in data/items.csv, snake_case, e.g. flashlight_0).
+That single field is what makes "show me every flashlight from every provider"
+possible: free text cannot aggregate, because "LED Flashlight 800L" and
+"Flashlight, Tactical" are the same thing to a human and two different strings
+to a database.
+
+Grouping comes from `item_ref`. Specificity comes from `title`. Both are
+carried, neither replaces the other. This is also why the Real-side Market and
+the in-game item system share a spine on purpose: the same concept a player
+crafts is the concept a real provider offers (docs/design/two-realities.md)."""
+directory_not_marketplace = """
+This platform LISTS; it never moves or custodies money. Every offering carries
+a `settlement` block whose only valid mode today is "directory": we show a
+price and a way to reach the provider, and the two parties settle however they
+like. `wallet` and `escrow` are reserved names so those addons need no schema
+migration later, and a validator MUST reject them today.
+
+This is a liability firewall, not a limitation: a platform that processes
+payments is a regulated money transmitter, which a donation-funded project
+cannot carry to launch."""
+
+# ---------------------------------------------------------------------------
+# HOW THIS RIDES THE SIGNED-OBJECT ENVELOPE
+# ---------------------------------------------------------------------------
+
+[envelope]
+object_type = "offering_v1"
+payload_schema_version = 1
+payload_encoding = "cbor_canonical_v1"
+author = """
+`author_public_key` (1952-byte Dilithium3 key) is the publisher. It must be
+the same key that published the referenced provider's root object, or the
+same key as an active member of the provider's backing group. Anything else is
+one identity publishing offerings in somebody else's shop."""
+references = """
+Envelope `references` must contain the provider root object_id (the same value
+as payload `provider_ref`), so the dependency is visible to gossip and to
+de-duplication without decoding the payload."""
+created_at = """
+Envelope `created_at` is informational only. Payload `updated_at` is what the
+Market sorts, ages, and expires on."""
+size_limit = """
+256 KiB payload cap (MAX_SIGNED_OBJECT_PAYLOAD). Images are URIs, never bytes.
+A provider with 40000 offerings publishes 40000 small objects, not one big
+catalog object: per-offering objects update, expire, and federate
+independently, and a catalog blob would re-sign the whole store to change one
+price."""
+immutability = """
+Objects are immutable: no edit, no delete. Changing stock or price means
+publishing a NEW offering_v1 with the same `offering_key`. Taking something
+down means publishing one with `status = "withdrawn"`."""
+
+# ---------------------------------------------------------------------------
+# IDENTITY AND REVISIONS
+# ---------------------------------------------------------------------------
+
+[identity]
+offering_id = """
+An offering's identity is the PAIR (provider_ref, offering_key). It is not the
+object_id, because the object_id changes on every republish and inventory
+republishes constantly."""
+offering_key_is_the_sku = """
+`offering_key` is chosen by the provider and is stable for the life of the
+offering. Real providers already have one: their SKU, catalogue number, or
+shelf code. A bulk importer maps that column straight onto this field, so a
+re-import updates rows instead of duplicating them."""
+resolution = """
+Current state of an offering = the object with the greatest `updated_at` among
+objects sharing (provider_ref, offering_key) and signed by an authorized key
+for that provider. Ties break on the lexicographically greater object_id, so
+every server converges without coordination."""
+touch_to_stay_fresh = """
+Republishing an unchanged offering purely to move `updated_at` forward is
+legitimate and expected. It is how a provider says "still true". An importer
+should touch every active offering on each sync run; see `[staleness]`."""
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS (core)
+# ---------------------------------------------------------------------------
+
+[fields.provider_ref]
+type = "string"
+required = true
+description = """
+The object_id of the ROOT provider_v1 object that publishes this offering
+(schemas/provider.toml `[identity]`). Points at the root, never at a revision,
+so editing the provider entry never orphans its offerings.
+The same value must appear in envelope `references`."""
+constraints = "64 lowercase hex characters; must resolve to a stored provider_v1 root whose author key authorizes this object's author"
+examples = ["8f2b1c0a4d7e9f31a6c5b8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0"]
+
+[fields.offering_key]
+type = "string"
+required = true
+description = """
+Provider-scoped stable key for this offering. Unique within one provider,
+meaningless outside it. Two providers may both use "sku-1042" and neither is
+wrong."""
+constraints = "1 to 64 characters from [a-z0-9._-]; lowercase; must not change across revisions of the same offering"
+examples = ["flashlight_800l", "sku-1042", "sat_grocery_box", "bike_tuneup_std"]
+
+[fields.kind]
+type = "string"
+required = true
+description = """
+The branch discriminator. Goods and services are genuinely different shapes,
+so this schema branches rather than pretending one flat shape fits both: a good
+has stock, variants, condition, and shipping; a service has availability,
+scheduling, duration, and a place or a wire to happen over."""
+constraints = "Must be one of the values listed below; determines which branch table is required"
+valid_values = [
+    "good",    # a physical or digital thing that changes hands; requires the [fields.good] table
+    "service", # work, time, access, or care that is performed; requires the [fields.service] table
+]
+examples = ["good", "service"]
+
+[fields.reality]
+type = "string"
+required = true
+description = """
+Which of the two realities this offering belongs to (docs/design/two-realities.md).
+Every domain in HumanityOS exists twice: a real-life tool and its in-game twin.
+They share the item taxonomy on purpose, so without this field a search for
+flashlights returns real hardware priced in dollars mixed with simulated loot
+priced in credits, and neither result is usable.
+
+The Real/Sim toggle selects which set the Market shows."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "real", # a real-world good or service; real currency, real place, real person
+    "sim",  # an in-simulation offering; game credits, game coordinates
+]
+examples = ["real", "sim"]
+
+[fields.title]
+type = "string"
+required = true
+description = """
+The specific name of THIS offering, as the provider would print it on a shelf
+tag. Specificity lives here; grouping lives in `item_ref`. "LED Flashlight
+800L" is a title; "flashlight_0" is the taxonomy."""
+constraints = "1 to 80 characters after trimming; plain text; not blank"
+examples = ["LED Flashlight 800L", "Saturday Grocery Box", "Standard Bicycle Tune-Up"]
+
+[fields.description]
+type = "string"
+required = true
+description = """
+What it is, honestly, for someone who has never seen it. Written for the three
+audiences the project always writes for: a tech-illiterate neighbour, a
+contributor, and an AI agent reading the Market."""
+constraints = "1 to 2000 characters; plain text; no markup, no HTML"
+examples = [
+    "Aluminium body, 800 lumen, USB-C rechargeable, includes 18650 cell and lanyard.",
+    "Box of shelf-stable staples plus whatever produce came in this week. Free, no ID needed.",
+]
+
+[fields.item_ref]
+type = "string"
+required = false
+description = """
+The taxonomy id this offering maps to: an item.id from data/items.csv
+(schemas/item.toml). THE grouping spine.
+
+For a good, this is what the thing IS.
+For a service, this is what the service ACTS ON, which is usually more useful
+than it sounds: repair + bicycle_0 answers "who fixes bicycles near me?"
+Pair it with `service.action` to say which verb applies.
+
+Required for goods unless `proposed_item` is filled instead. Optional for
+services, because some services act on nothing physical (counselling, legal
+aid, translation); those group by `category` alone.
+
+CONSEQUENCE OF LEAVING IT OUT, stated plainly: the offering is INVISIBLE to
+every cross-provider view. It will appear in the provider's storefront and in
+category browse and nowhere else. Never force a wrong mapping to avoid that;
+a wrong item_ref pollutes the shared catalog for everyone, which is worse."""
+constraints = "snake_case; must match an existing id in data/items.csv"
+examples = ["flashlight_0", "bicycle_0", "egg_0", "vegetable_tomato_0"]
+
+[fields.proposed_item]
+type = "table"
+required = false
+description = """
+The curation path for real-world things the game taxonomy does not have yet.
+A provider fills this INSTEAD of `item_ref` when nothing fits, and a curator
+can promote it into data/items.csv later, at which point a republished offering
+carries the real `item_ref`.
+
+This is a proposal queue, not a second taxonomy: a proposed id groups nothing
+and is never treated as an item_ref by any query."""
+constraints = "Present only when `item_ref` is absent; the two are mutually exclusive"
+
+[fields.proposed_item.fields.id]
+type = "string"
+required = true
+description = "The snake_case id the provider suggests adding to the item taxonomy."
+constraints = "snake_case, 3 to 48 characters, should end in _0 for a base variant (schemas/item.toml)"
+examples = ["cargo_trike_0", "canning_jar_lid_0"]
+
+[fields.proposed_item.fields.name]
+type = "string"
+required = true
+description = "Human-readable name for the proposed item, Title Case, as it would appear in items.csv."
+constraints = "1 to 40 characters"
+examples = ["Cargo Trike", "Canning Jar Lid"]
+
+[fields.proposed_item.fields.nearest_item_ref]
+type = "string"
+required = false
+description = """
+The closest existing taxonomy id, if there is one. Gives the curator a place to
+start and gives the Market a weak grouping hint in the meantime."""
+constraints = "snake_case; must match an existing id in data/items.csv"
+examples = ["bicycle_0"]
+
+[fields.category]
+type = "string"
+required = true
+description = """
+The directory heading this offering browses under. Deliberately need-shaped
+rather than shop-shaped, so a free pantry box and a paid grocery delivery land
+in the same aisle.
+
+`category` is required even when `item_ref` is present, because category is
+what carries services and unmapped goods through the browse view.
+
+NOT AN INLINE ENUM (corrected 2026-08-12 by two independent reviewers). The
+first draft of this schema invented a 19-value list here, which broke two
+project rules at once: docs/design/infinite-of-x.md names "marketplace
+categories" in its must-be-a-data-file list, and `data/market/categories.json`
+ALREADY EXISTS and is already loaded by the live Market page
+(src/gui/pages/market.rs). A second hardcoded vocabulary would have been a
+second source of truth for the same concept - exactly the drift class that
+caused the 2026-08-07 incident.
+
+THE VALUE SET LIVES IN `data/market/categories.json`. That file currently holds
+a short shop-shaped list (Tools, Materials, Food, Equipment, Vehicles,
+Electronics, Services, Other) inherited from the pre-directory marketplace. It
+needs a need-shaped revision before real providers arrive - shelter, water,
+energy, care, health, repair, transport, education, emergency relief - because
+a catalog that cannot express "somewhere to sleep" or "childcare" cannot serve
+the mission. That revision is a DATA change, not a schema change, which is the
+point of putting it there.
+
+FEDERATION NOTE: every federated server must agree on this vocabulary or
+cross-server category filters silently disagree. The file is the shared
+contract; a server that ships a divergent copy partitions the Market."""
+constraints = "Must be one of the ids in data/market/categories.json (lowercase, snake_case), excluding the leading catch-all entry"
+examples = ["food", "tools", "services"]
+
+[fields.tags]
+type = "array of strings"
+required = false
+default = []
+description = """
+Free-text search terms. Tags help a human find something; they never group
+anything. Grouping is `item_ref` and `category`, always, because tags are
+unmoderated and diverge across providers within a week."""
+constraints = "Max 12 entries, each 1 to 32 characters, lowercase, [a-z0-9_-]"
+examples = [["rechargeable", "usb_c"], ["gluten_free", "no_id_needed"]]
+
+[fields.images]
+type = "array of strings"
+required = false
+default = []
+description = """
+Links to photographs. Links only: the 256 KiB payload cap means image bytes
+never ride inside the object. Clients must treat these as untrusted remote
+content and must render the offering fine when they fail to load."""
+constraints = "Max 8 entries, each an https:// URI up to 512 characters"
+examples = [["https://example.org/img/flashlight-800l.jpg"]]
+
+[fields.restrictions]
+type = "array of strings"
+required = false
+default = []
+description = """
+Legal or practical limits a person must know BEFORE they travel or ask. Stated
+up front because the alternative is somebody driving 40 km to be turned away."""
+constraints = "Max 8 entries, each one of the values below"
+valid_values = [
+    "age_18_plus",           # buyer or recipient must be 18 or older
+    "age_21_plus",           # buyer or recipient must be 21 or older
+    "id_required",           # photo identification required at handover
+    "license_required",      # the RECIPIENT must hold a licence or permit
+    "prescription_required", # requires a valid prescription
+    "membership_required",   # co-op or club membership, or a referral
+    "local_pickup_only",     # cannot be shipped or delivered at all
+    "hazardous_material",    # regulated for transport or handling
+    "perishable",            # spoils; must be collected promptly and kept cold or dry
+]
+examples = [["perishable", "local_pickup_only"]]
+
+[fields.status]
+type = "string"
+required = true
+description = """
+Whether the Market should show this offering. There is no delete, so
+"withdrawn" is how something leaves. Note that "expired" is NOT in this list:
+expiry is COMPUTED from `[staleness]`, never authored, so nobody can publish a
+permanently fresh offering."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "active",    # listed and available
+    "paused",    # temporarily unavailable (seasonal, provider away); shown greyed or hidden by filter
+    "sold_out",  # nothing left right now, but the offering is expected to return
+    "withdrawn", # gone for good; a tombstone kept so old references still resolve
+]
+examples = ["active", "sold_out"]
+
+[fields.updated_at]
+type = "integer"
+required = true
+description = """
+Unix milliseconds UTC when this revision was authored. Drives revision
+resolution, freshness display, and expiry. Milliseconds, not seconds, matching
+`now_millis()` in src/relay/storage/."""
+constraints = """
+Must be > 0. A receiving server MUST reject an object whose `updated_at` is
+more than 300000 ms (5 minutes) in the future relative to its own clock, or one
+bad clock pins a stale offering at the top of the Market forever."""
+examples = [1754870400000]
+
+[fields.ttl_days]
+type = "integer"
+required = false
+default = 30
+description = """
+How many days after `updated_at` this offering should still be believed.
+Inventory rots: prices move, stock sells, volunteers stop showing up. Without
+a TTL an auto-updated directory fills with ghosts, and a directory full of
+ghosts is worse than no directory because every dead entry costs somebody a
+phone call.
+
+30 days suits goods with moving stock. Services that genuinely do not change
+may use up to 365. A provider who wants to stay listed republishes; that is the
+point, not a chore to design around."""
+constraints = "1 to 365"
+examples = [7, 30, 90, 365]
+
+[fields.expires_at]
+type = "integer"
+required = false
+description = """
+Explicit end time in unix milliseconds UTC, for offerings that end on a known
+date: a one-off class, a harvest week, an event, a clearance. When present it
+OVERRIDES `ttl_days` in both directions, including making the offering live
+longer or shorter than the default."""
+constraints = "> updated_at when present, and <= updated_at + 365 days; a farther value is clamped to that cap, never honoured"
+examples = [1755475200000]
+
+[fields.language]
+type = "string"
+required = false
+description = """
+Language this offering's title and description are written in. Lets a client
+show a language badge, and lets a translation pass know what it is reading."""
+constraints = "ISO 639-1 two-letter code, lowercase"
+examples = ["en", "es"]
+
+[fields.fulfillment]
+type = "array of strings"
+required = true
+description = """
+How the thing actually reaches the person. Kept at the top level, not inside a
+branch, because "what can I get without leaving home?" is a question people ask
+across goods and services alike. Most values lean toward one branch; the notes
+below say which, and a validator warns rather than rejects on an odd pairing,
+because mail-in repair and delivered classes are real."""
+constraints = "1 to 6 entries, each one of the values below"
+valid_values = [
+    "pickup_at_provider",  # person comes to the provider's location (goods and services)
+    "delivery_local",      # provider delivers within its service area (mostly goods)
+    "shipping",            # sent by carrier or post (goods)
+    "mail_in",             # person sends the item in and it comes back (services on goods)
+    "at_recipient_location",# provider travels to the person (services)
+    "remote",              # done over phone, video, or network (services)
+    "digital_delivery",    # a file, key, or link is sent (digital goods)
+]
+examples = [["pickup_at_provider", "shipping"], ["at_recipient_location", "remote"]]
+
+# ---------------------------------------------------------------------------
+# PRICE (free and "ask me" are first-class, not edge cases)
+# ---------------------------------------------------------------------------
+
+[fields.price]
+type = "table"
+required = true
+description = """
+The price block is REQUIRED so intent is always explicit, but `price.amount` is
+NULL for every mode except fixed and range. Free, donation, trade, and inquire
+are first-class modes, not a number left blank: this is a mutual-aid platform
+as much as a commercial one, and a schema that treats free as a missing price
+quietly tells the food bank it does not belong.
+
+A missing price block is interpreted as mode = "inquire", never as free."""
+
+[fields.price.fields.mode]
+type = "string"
+required = true
+description = "What kind of price this is. Determines which sibling fields are required."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "free",             # no payment, no expectation; `amount` must be null
+    "fixed",            # one price; `amount` and `currency` required
+    "range",            # `amount` (low) and `amount_max` (high) required
+    "sliding_scale",    # `amount` low and `amount_max` suggested; pay what fits, nobody turned away
+    "pay_what_you_can", # any amount including nothing; `amount` optional as a suggestion
+    "donation",         # a gift is welcome but never required
+    "trade",            # barter; `accepts` says what for
+    "inquire",          # depends on the job; ask. The honest default for most service work
+]
+examples = ["free", "fixed", "inquire"]
+
+[fields.price.fields.amount]
+type = "float"
+required = false
+description = """
+The number, in `currency` units, per `unit`. NULL for free, donation, trade,
+and inquire. Required for fixed and range (as the low end)."""
+constraints = ">= 0.0; must be absent when mode is free, trade, donation, or inquire"
+examples = [0.0, 24.99, 45.0]
+
+[fields.price.fields.amount_max]
+type = "float"
+required = false
+description = "High end for range and sliding_scale modes."
+constraints = "> amount; required when mode is range; optional for sliding_scale"
+examples = [39.99, 120.0]
+
+[fields.price.fields.currency]
+type = "string"
+required = false
+description = """
+Currency of `amount`. Required whenever `amount` is present.
+Real-world offerings use an ISO 4217 code. Simulation offerings use "CR", the
+in-game credit (schemas/economy.toml). Token codes are accepted so a price can
+already be quoted in what the future wallet mode would send, but quoting a
+token does NOT enable payment: settlement is still directory-only."""
+constraints = "Uppercase. ISO 4217 (USD, EUR, JPY, ...) when reality = real; exactly CR when reality = sim; USDC and SOL permitted for real-world token quotes"
+examples = ["USD", "EUR", "CR", "USDC"]
+
+[fields.price.fields.unit]
+type = "string"
+required = false
+default = "each"
+description = """
+What one unit of the price buys. Goods usually price per count, mass, or
+volume; services usually price per time, session, or job."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "each",    # per item (goods)
+    "kg",      # per kilogram (goods)
+    "g",       # per gram (goods)
+    "liter",   # per litre (goods)
+    "meter",   # per metre (goods)
+    "dozen",   # per twelve (goods)
+    "box",     # per packed box or case (goods)
+    "hour",    # per hour of work (services)
+    "day",     # per day (services, rental)
+    "week",    # per week (services, rental)
+    "month",   # per month (services, rental, subscription)
+    "session", # per appointment or class (services)
+    "visit",   # per call-out (services)
+    "job",     # flat rate for the whole piece of work (services)
+    "person",  # per head (classes, meals, transport)
+    # US customary. NOT optional politeness: this project is US-based, every
+    # example in this file prices in USD, and a rural provider selling a cord
+    # of firewood, a bushel of apples, or an acre of pasture cannot express
+    # their own trade in metric. A unit list that forces them to convert is a
+    # unit list they will not use. (Added 2026-08-12; reviewer caught that the
+    # first draft was metric-and-office only.)
+    "lb",      # per pound (goods)
+    "oz",      # per ounce (goods)
+    "ton",     # per ton (bulk goods, hauling)
+    "gallon",  # per gallon (liquids, fuel)
+    "quart",   # per quart (liquids)
+    "foot",    # per foot (lumber, cable, fencing)
+    "yard",    # per yard (fabric, bulk material)
+    "sq_ft",   # per square foot (flooring, roofing, land, workspace)
+    "sq_meter",# per square metre (the metric twin of sq_ft)
+    "acre",    # per acre (land, mowing, field work)
+    "cord",    # per cord (firewood)
+    "bushel",  # per bushel (grain, produce)
+    "bale",    # per bale (hay, straw, fabric)
+]
+examples = ["each", "kg", "hour", "job"]
+
+[fields.price.fields.accepts]
+type = "array of strings"
+required = false
+default = []
+description = """
+What the provider will take in trade, when mode = "trade". Item taxonomy ids
+where possible so a future "who wants what I have" match is a query rather than
+a reading exercise; free text is allowed for labour and skills."""
+constraints = "Max 12 entries, each 1 to 48 characters; prefer item ids from data/items.csv"
+examples = [["egg_0", "vegetable_tomato_0", "help with fencing"]]
+
+[fields.price.fields.notes]
+type = "string"
+required = false
+description = "Anything the fields above cannot say: deposits, bulk breaks, what is not included."
+constraints = "Max 300 characters, plain text"
+examples = ["Parts extra, quoted before work starts. No charge if it cannot be fixed."]
+
+# ---------------------------------------------------------------------------
+# SETTLEMENT (the money decision, encoded)
+# ---------------------------------------------------------------------------
+
+[fields.settlement]
+type = "table"
+required = true
+description = """
+How the two people complete the exchange after the directory has done its only
+job, which is introducing them. The platform moves no money, holds no funds,
+records no order, and takes no fee.
+
+Today `mode` may only be "directory". "wallet" and "escrow" are RESERVED
+names, documented here so the addons slot in with no schema migration, and a
+validator MUST REJECT them until those addons actually ship. Reserving them in
+writing also stops a publisher from squatting the names with a different
+meaning."""
+
+[fields.settlement.fields.mode]
+type = "string"
+required = true
+description = "Which settlement path this offering supports."
+constraints = "Must be \"directory\" today. wallet and escrow are reserved and MUST be rejected by the validator until shipped"
+valid_values = [
+    "directory", # ACTIVE. We list, we introduce, they settle. No funds touched
+    "wallet",    # RESERVED (future addon). Non-custodial peer-to-peer wallet payment
+    "escrow",    # RESERVED (future addon). Order state, refunds, disputes. Regulated territory; needs legal review
+]
+examples = ["directory"]
+
+[fields.settlement.fields.contact_via]
+type = "string"
+required = true
+description = """
+How the person should open the conversation for THIS offering. Defaults in
+practice to the provider's preferred channel, but stated per offering because
+one shop may take walk-ins for repairs and email for wholesale."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "in_app_dm",          # end-to-end encrypted DM to the provider identity
+    "email",              # the provider's contact email
+    "phone",              # the provider's contact phone
+    "website",            # the provider's site
+    "in_person",          # just turn up during opening hours
+    "provider_checkout",  # the provider's own checkout page; `checkout_uri` required
+]
+examples = ["in_app_dm", "in_person", "provider_checkout"]
+
+[fields.settlement.fields.checkout_uri]
+type = "string"
+required = false
+description = """
+The provider's OWN page for this offering: their store page, booking page, or
+donation form. The directory links out and stops. Required when contact_via is
+provider_checkout.
+
+Clients must show the destination host plainly before following it. This is an
+untrusted third-party link inside a signed object, which is exactly the shape
+a scam takes; showing the host is the cheapest defence there is."""
+constraints = "https:// URI, max 512 characters; http:// is rejected"
+examples = ["https://rivertownbikes.example/book/tune-up"]
+
+[fields.settlement.fields.instructions]
+type = "string"
+required = false
+description = "Plain-language instructions: what to bring, how to pay on the day, deposit rules."
+constraints = "Max 500 characters, plain text"
+examples = ["Cash or card at the counter. Bring the bike; no appointment needed before noon."]
+
+[settlement_reserved_fields]
+note = """
+The following payload keys are RESERVED for the future settlement modes and
+MUST NOT appear in an object today. A validator rejects any object carrying
+them, so their meaning stays fixed for the increment that implements them:
+
+  settlement.wallet_address     text   destination address for `wallet` mode
+  settlement.wallet_chain       text   which chain that address is on
+  settlement.escrow_policy_ref  text   object_id of the escrow policy in force
+  settlement.dispute_policy_ref text   object_id of the dispute policy (dispute_v1 family)
+
+Before `wallet` can be enabled, the known web wallet token-send bug must be
+fixed: wallet-app.js calls sendToken while wallet.js exports sendSPLToken
+(docs/design/market-directory.md). Before `escrow` can be enabled, legal
+review is mandatory: that mode is the money-transmitter line."""
+
+# ---------------------------------------------------------------------------
+# LOCATION (optional per-offering override of the provider's service areas)
+# ---------------------------------------------------------------------------
+
+[fields.location]
+type = "table"
+required = false
+description = """
+Where this particular offering happens, when it differs from the provider's
+service areas. Absent means "inherit every service area on the provider entry",
+which is the common case and keeps 40000 offerings from repeating the same
+address 40000 times.
+
+Same shape as one entry of provider_v1 `service_areas`, on purpose: one
+location shape, learned once, used everywhere."""
+
+[fields.location.fields.mode]
+type = "string"
+required = true
+description = "How this location is expressed. Determines which sibling fields are required."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "fixed_location", # a specific place; needs lat and lon, or locality
+    "radius",         # within radius_km of lat/lon
+    "region",         # a named administrative area; needs region_code
+    "remote",         # no geography: online, phone, or post
+]
+examples = ["fixed_location", "remote"]
+
+[fields.location.fields.label]
+type = "string"
+required = true
+description = "Human-readable summary of where, written the way a neighbour would say it."
+constraints = "1 to 120 characters"
+examples = ["Rivertown Community Hall", "Anywhere, by post"]
+
+[fields.location.fields.lat]
+type = "float"
+required = false
+description = """
+Latitude in decimal degrees. PRIVACY: public, federated, and permanent. A
+public storefront may give an exact point; a person working from home should
+round to 2 decimals (about 1.1 km) or use region mode."""
+constraints = "-90.0 to 90.0; required when mode is radius"
+examples = [45.52]
+
+[fields.location.fields.lon]
+type = "float"
+required = false
+description = "Longitude in decimal degrees. Same privacy rule as `lat`."
+constraints = "-180.0 to 180.0; required when mode is radius"
+examples = [-122.68]
+
+[fields.location.fields.radius_km]
+type = "float"
+required = false
+description = "How far from lat/lon this offering reaches."
+constraints = "> 0.0 and <= 20000.0; required when mode is radius"
+examples = [25.0]
+
+[fields.location.fields.region_code]
+type = "string"
+required = false
+description = "ISO 3166 region served for this offering. Codes, not names, so the filter works in every language."
+constraints = "ISO 3166-1 alpha-2, optionally with a -1 subdivision suffix; uppercase; required when mode is region"
+examples = ["US", "US-OR"]
+
+[fields.location.fields.locality]
+type = "string"
+required = false
+description = "City, town, or neighbourhood, for human-readable display and search."
+constraints = "Max 120 characters"
+examples = ["Rivertown"]
+
+# ---------------------------------------------------------------------------
+# BRANCH: GOOD (required when kind = "good", absent otherwise)
+# ---------------------------------------------------------------------------
+
+[fields.good]
+type = "table"
+required = false
+description = """
+Everything true of a thing that changes hands and can run out. Required when
+`kind = "good"` and MUST be absent when kind = "service": a service has no
+stock and a good has no calendar, and flattening the two would force every
+reader to guess which fields are meaningful."""
+
+[fields.good.fields.condition]
+type = "string"
+required = true
+description = "Physical state of the thing being offered. Second-hand and salvage are normal here, not exceptions."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "new",         # unused, as manufactured or as harvested
+    "like_new",    # used briefly, no visible wear
+    "used_good",   # used, works fully, cosmetic wear
+    "used_fair",   # used, works with known flaws; describe them
+    "refurbished", # repaired or reconditioned and tested
+    "for_parts",   # does not work; sold or given for salvage
+]
+examples = ["new", "used_good", "for_parts"]
+
+[fields.good.fields.provenance]
+type = "array of strings"
+required = false
+default = []
+description = """
+Where it came from. Not the same question as condition, and worth its own
+field on a homesteading platform: "homegrown" and "handmade" are the reason
+many people will use this directory at all."""
+constraints = "Max 4 entries, each one of the values below"
+valid_values = [
+    "handmade",       # made by the provider by hand
+    "homegrown",      # grown or raised by the provider
+    "home_processed", # milled, canned, cured, or preserved by the provider
+    "salvaged",       # recovered from waste or teardown
+    "second_hand",    # previously owned, passed on
+    "surplus",        # excess from a harvest, a build, or a donation
+    "factory_new",    # commercially manufactured stock
+]
+examples = [["homegrown", "surplus"]]
+
+[fields.good.fields.availability_mode]
+type = "string"
+required = true
+description = "How supply works for this good. Determines whether a count is meaningful."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "in_stock",      # a countable quantity exists now; `quantity_available` required
+    "one_off",       # a single unique item; quantity is exactly 1
+    "made_to_order", # produced after ordering; `lead_time_days` required
+    "unlimited",     # no meaningful limit (digital files, information, abundant surplus)
+    "while_supplies_last", # SOME exist, uncounted, until they run out; quantity_available
+                     # MUST be absent. Added 2026-08-12: a reviewer showed the
+                     # four modes above cannot express a food pantry that opens
+                     # Saturday with "however many boxes we packed". in_stock
+                     # demands a count nobody has, one_off means exactly one,
+                     # made_to_order is backwards, and unlimited is a lie that
+                     # sends people on a wasted trip. Forcing a guessed count
+                     # would make the schema reward inventing numbers - and the
+                     # people most likely to be pushed into that are exactly the
+                     # mutual-aid providers this platform exists for.
+]
+examples = ["in_stock", "made_to_order"]
+
+[fields.good.fields.quantity_available]
+type = "integer"
+required = false
+description = """
+How many `unit`s are available right now. NULL is a real answer, not a missing
+one: made_to_order and unlimited goods have no count. A stale count is worse
+than none, so a provider who cannot keep it current should use made_to_order
+and let the conversation settle it."""
+constraints = ">= 0; required when availability_mode is in_stock; must be exactly 1 for one_off; must be absent for unlimited and while_supplies_last"
+examples = [0, 12, 400]
+
+[fields.good.fields.unit]
+type = "string"
+required = false
+default = "each"
+description = "The unit `quantity_available` counts, and the unit the price is quoted per."
+constraints = "Must be one of the goods-side values in `price.unit` (each, kg, g, liter, meter, dozen, box)"
+examples = ["each", "kg", "dozen"]
+
+[fields.good.fields.min_quantity]
+type = "integer"
+required = false
+default = 1
+description = "Smallest order the provider will fill, in `unit`s. Wholesale providers set this; most leave it at 1."
+constraints = ">= 1 and <= quantity_available when a quantity exists"
+examples = [1, 6, 50]
+
+[fields.good.fields.lead_time_days]
+type = "integer"
+required = false
+description = "Days from order to ready, for made_to_order goods."
+constraints = ">= 0; required when availability_mode is made_to_order"
+examples = [3, 14]
+
+[fields.good.fields.variants]
+type = "array of tables"
+required = false
+default = []
+description = """
+Size, colour, or pack variations of the SAME taxonomy item. Variants that map
+to a DIFFERENT `item_ref` are not variants; they are separate offerings, and
+splitting them is what keeps cross-provider grouping honest.
+
+Flat list, not a matrix: size crossed with colour is a real pattern, and it is
+also how a schema grows a combinatorial monster. A flat list of the
+combinations a provider actually stocks stays readable and imports cleanly."""
+constraints = "Max 100 entries"
+
+[fields.good.fields.variants.fields.variant_key]
+type = "string"
+required = true
+description = "Stable key for this variant, unique within the offering. The provider's variant SKU."
+constraints = "1 to 48 characters from [a-z0-9._-]; unique within this offering"
+examples = ["black_large", "sku-1042-bk-l"]
+
+[fields.good.fields.variants.fields.label]
+type = "string"
+required = true
+description = "What a person sees: \"Black, Large\", \"5 kg sack\"."
+constraints = "1 to 60 characters"
+examples = ["Black, Large", "5 kg sack"]
+
+[fields.good.fields.variants.fields.price_amount]
+type = "float"
+required = false
+description = "Overrides `price.amount` for this variant. Absent means the offering price applies. Currency and mode never vary by variant."
+constraints = ">= 0.0; only meaningful when price.mode is fixed or range"
+examples = [27.99]
+
+[fields.good.fields.variants.fields.quantity_available]
+type = "integer"
+required = false
+description = "Stock for this variant. When variants carry quantities, the offering-level quantity is their sum."
+constraints = ">= 0"
+examples = [4]
+
+[fields.good.fields.shipping]
+type = "table"
+required = false
+description = """
+Details for the shipping fulfillment value. Absent when the good is not
+shipped. Shipping COST is stated here rather than folded into price, because a
+directory that hides delivery cost inside the item price teaches people to
+distrust the listed number."""
+
+[fields.good.fields.shipping.fields.ships_to]
+type = "array of strings"
+required = true
+description = "Where the provider will send it: ISO 3166 region codes, or the single value \"worldwide\"."
+constraints = "1 to 32 entries; uppercase ISO 3166-1 alpha-2 or alpha-2 with subdivision, or exactly [\"worldwide\"]"
+examples = [["US"], ["US", "CA"], ["worldwide"]]
+
+[fields.good.fields.shipping.fields.cost_amount]
+type = "float"
+required = false
+description = "Shipping cost in the offering's `price.currency`. NULL means free shipping when `cost_free` is true, otherwise means ask."
+constraints = ">= 0.0"
+examples = [0.0, 8.5]
+
+[fields.good.fields.shipping.fields.cost_free]
+type = "boolean"
+required = false
+default = false
+description = "True when shipping is genuinely included. Stated explicitly so \"no number\" never has to mean \"free\"."
+examples = [true, false]
+
+[fields.good.fields.shipping.fields.handling_days]
+type = "integer"
+required = false
+description = "Days between order and dispatch, excluding carrier transit time."
+constraints = ">= 0"
+examples = [1, 5]
+
+[fields.good.fields.shipping.fields.notes]
+type = "string"
+required = false
+description = "Carrier, packaging, insurance, or anything a buyer must know before it travels."
+constraints = "Max 300 characters"
+examples = ["Ships flat-packed; fragile items double-boxed."]
+
+# ---------------------------------------------------------------------------
+# BRANCH: SERVICE (required when kind = "service", absent otherwise)
+# ---------------------------------------------------------------------------
+
+[fields.service]
+type = "table"
+required = false
+description = """
+Everything true of work that is performed rather than handed over. Required
+when `kind = "service"` and MUST be absent when kind = "good". A service is
+bounded by time and access, not by stock."""
+
+[fields.service.fields.action]
+type = "string"
+required = true
+description = """
+The verb. Paired with `item_ref` it answers the question people actually ask:
+repair + bicycle_0 is "who fixes bicycles", instruct + bicycle_0 is "who
+teaches me to fix my own"."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "repair",        # fix something broken
+    "maintain",      # service something working so it stays that way
+    "install",       # fit or set up something at a site
+    "build",         # construct or fabricate on site
+    "make_to_order", # produce a bespoke thing for one person
+    "process",       # transform the person's own material (milling, canning, tailoring, printing)
+    "transport",     # move people or goods
+    "store",         # hold goods for someone (storage, cold storage, warehousing)
+    "lend",          # tool library, equipment loan, rental
+    "instruct",      # teach a skill, run a class, take an apprentice
+    "consult",       # advise: legal, financial, technical, agricultural
+    "care",          # care for a person or animal: childcare, elder care, health, veterinary
+    "host",          # provide space, shelter, or a venue
+    "other",         # last resort; a growing bucket means the list needs a new verb
+]
+examples = ["repair", "instruct", "care"]
+
+[fields.service.fields.duration_minutes]
+type = "integer"
+required = false
+description = "Typical length of one session or job. NULL when it genuinely varies; do not invent a number to fill the field."
+constraints = "> 0"
+examples = [30, 60, 480]
+
+[fields.service.fields.availability]
+type = "table"
+required = true
+description = """
+When the work can happen. This is the services-side answer to a good's stock
+count, and the reason the two branches cannot share one shape."""
+
+[fields.service.fields.availability.fields.schedule_kind]
+type = "string"
+required = true
+description = "How a person gets a slot. Determines which sibling fields are required."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "walk_in",        # turn up during open hours; `recurring` describes them
+    "by_appointment", # arrange a time first; `booking_uri` or `booking_notes` should say how
+    "recurring",      # happens on a fixed repeating schedule; `recurring` required
+    "on_call",        # available on demand within `lead_time_hours`
+    "waitlist",       # currently full; names are being taken
+    "one_time_event", # a single dated occurrence; `starts_at` required
+]
+examples = ["by_appointment", "recurring", "one_time_event"]
+
+[fields.service.fields.availability.fields.timezone]
+type = "string"
+required = false
+description = """
+IANA timezone the `recurring` times and event times are expressed in. Required
+whenever any local time appears, because "Saturday 9am" without a zone is a
+missed appointment for anyone reading from elsewhere."""
+constraints = "IANA timezone identifier"
+examples = ["America/Los_Angeles", "Europe/Berlin", "UTC"]
+
+[fields.service.fields.availability.fields.recurring]
+type = "array of tables"
+required = false
+default = []
+description = "Repeating weekly windows. Each entry is one window on one weekday, in `timezone`."
+constraints = "Max 21 entries; required when schedule_kind is recurring or walk_in"
+
+[fields.service.fields.availability.fields.recurring.fields.day]
+type = "string"
+required = true
+description = "Weekday this window falls on."
+constraints = "One of: monday, tuesday, wednesday, thursday, friday, saturday, sunday"
+examples = ["saturday"]
+
+[fields.service.fields.availability.fields.recurring.fields.start_time]
+type = "string"
+required = true
+description = "Local start time in 24-hour HH:MM."
+constraints = "HH:MM, 00:00 to 23:59"
+examples = ["09:00"]
+
+[fields.service.fields.availability.fields.recurring.fields.end_time]
+type = "string"
+required = true
+description = "Local end time in 24-hour HH:MM. Must be later than start_time; a window crossing midnight is written as two entries."
+constraints = "HH:MM, later than start_time"
+examples = ["13:00"]
+
+[fields.service.fields.availability.fields.starts_at]
+type = "integer"
+required = false
+description = "Unix milliseconds UTC when a one_time_event begins."
+constraints = "> 0; required when schedule_kind is one_time_event"
+examples = [1755475200000]
+
+[fields.service.fields.availability.fields.ends_at]
+type = "integer"
+required = false
+description = "Unix milliseconds UTC when a one_time_event ends."
+constraints = "> starts_at"
+examples = [1755486000000]
+
+[fields.service.fields.availability.fields.lead_time_hours]
+type = "integer"
+required = false
+description = "How much notice the provider needs. 0 means same-hour work is possible."
+constraints = ">= 0; required when schedule_kind is on_call"
+examples = [0, 24, 72]
+
+[fields.service.fields.availability.fields.capacity_per_slot]
+type = "integer"
+required = false
+default = 1
+description = "How many people one slot serves. A class seats 12; a house call serves 1."
+constraints = ">= 1"
+examples = [1, 12]
+
+[fields.service.fields.availability.fields.booking_uri]
+type = "string"
+required = false
+description = """
+The provider's own booking page. As with `settlement.checkout_uri`, the
+directory links out and stops; clients must show the destination host before
+following it."""
+constraints = "https:// URI, max 512 characters"
+examples = ["https://rivertownbikes.example/book"]
+
+[fields.service.fields.availability.fields.booking_notes]
+type = "string"
+required = false
+description = "Plain-language booking instructions when there is no booking page."
+constraints = "Max 300 characters"
+examples = ["Message on the app or ring Saturday morning. First come, first served."]
+
+[fields.service.fields.licensing]
+type = "table"
+required = false
+description = """
+Licence or certification the PROVIDER holds for this work: electrical,
+medical, food handling, childcare. Real services are regulated, and hiding
+that fact does not make it less true.
+
+Same honesty rule as provider verification: this is SELF-DECLARED inside an
+object the provider signed, so it proves nothing on its own. A client shows it
+as a claim ("states licence 12345, unverified"), never as a badge, until a
+registry check or a third-party attestation backs it."""
+
+[fields.service.fields.licensing.fields.license_number]
+type = "string"
+required = true
+description = "The licence or registration number as it appears in the issuing authority's public register."
+constraints = "1 to 64 characters"
+examples = ["EL-118422"]
+
+[fields.service.fields.licensing.fields.license_authority]
+type = "string"
+required = true
+description = "Who issued it, named precisely enough that a person could look it up."
+constraints = "1 to 120 characters"
+examples = ["Oregon Construction Contractors Board"]
+
+[fields.service.fields.licensing.fields.expires_at]
+type = "integer"
+required = false
+description = "Unix milliseconds UTC when the licence lapses, if it does."
+constraints = "> 0"
+examples = [1786406400000]
+
+# ---------------------------------------------------------------------------
+# STALENESS (why the Market does not fill with ghosts)
+# ---------------------------------------------------------------------------
+
+[staleness]
+effective_expiry = """
+  effective_expiry = expires_at            when expires_at is present
+                   = updated_at + ttl_days when it is not
+                   = updated_at + 30 days  when neither is present"""
+market_rule = """
+A Market VIEW shows an offering only when all of these hold:
+  status is "active" or "sold_out"  (sold_out is shown greyed, not hidden:
+                                     knowing a place stocks it matters even
+                                     when it is out today)
+  now < effective_expiry
+  the provider's own status is "active"
+An expired offering is never deleted. It stays in signed_objects (objects are
+immutable), it stops being surfaced, and it comes back the moment the provider
+republishes."""
+display_rule = """
+Show the age, always: "last confirmed 3 days ago". A directory that hides
+freshness is asking people to spend a car journey on a guess. Past about half
+the TTL, clients should soften the entry visually rather than wait for the
+hard cutoff."""
+importer_rule = """
+A bulk importer touches every still-true offering on each sync run, which is
+what keeps a large catalogue alive. An offering the source system no longer
+lists must be republished with status = "withdrawn" rather than simply left to
+expire, so people stop being sent to it immediately instead of in 30 days."""
+
+# ---------------------------------------------------------------------------
+# VALIDATION RULES (a validator can be written directly from this list)
+# ---------------------------------------------------------------------------
+
+[validation]
+rules = """
+ 1. Envelope checks first (signature, 1952-byte author key, 256 KiB payload
+    cap, per-author rate limit). A payload is never read before its signature
+    verifies.
+ 2. `payload_encoding` must be "cbor_canonical_v1"; the payload must decode to
+    a CBOR map with text keys.
+ 3. Required fields present and non-blank: provider_ref, offering_key, kind,
+    reality, title, description, category, status, updated_at, fulfillment,
+    price, settlement.
+ 4. Every enum-valued field must hold one of that field's valid_values:
+    kind, reality, category, status, each `fulfillment` entry, each
+    `restrictions` entry, price.mode, price.unit, settlement.mode,
+    settlement.contact_via, location.mode, good.condition,
+    good.availability_mode, each good.provenance entry, service.action,
+    service.availability.schedule_kind, each recurring day. Unknown value =
+    reject. Silently accepted junk pollutes every downstream filter.
+ 5. `provider_ref` AUTHORIZATION, and note that this rule is deliberately
+    two-tier because gossip has no arrival order (corrected 2026-08-12).
+    ACCEPT-AND-STORE requires only that `provider_ref` is well-formed: 64 hex
+    characters. A federated server routinely receives an offering BEFORE the
+    provider root it references, and rejecting on absence would permanently
+    discard objects that arrive a second early, with no retry.
+    SURFACING IN THE MARKET requires full authorization: the root must be
+    present, and this object's author key must be authorized for it - the same
+    key that signed the root, or an active member of the root's `group_ref`
+    group. Anything else is one identity publishing in someone else's shop.
+    An offering whose provider is unknown is held, not deleted, and becomes
+    visible if and when the root arrives. This mirrors how the codebase already
+    treats out-of-order signed objects; do not "simplify" it back to a single
+    check at ingest.
+ 6. The same `provider_ref` value must appear in envelope `references`.
+ 7. Branch exclusivity: kind = "good" requires the `good` table and forbids
+    `service`; kind = "service" requires `service` and forbids `good`.
+ 8. Taxonomy: exactly one of `item_ref` or `proposed_item` for goods; services
+    may have neither, one, or the other, never both. When `item_ref` is
+    present it must match an existing id in data/items.csv.
+ 9. Price shape: mode = fixed requires amount and currency; mode = range
+    requires amount, amount_max > amount, and currency; modes free, trade,
+    donation, and inquire must NOT carry an amount. Whenever an amount is
+    present, currency is required.
+10. Currency and reality agree, WHEN A CURRENCY IS PRESENT. reality = "sim"
+    requires currency "CR"; reality = "real" forbids "CR" and requires an ISO
+    4217 code or one of the permitted token codes.
+    THE "WHEN PRESENT" CLAUSE IS LOAD-BEARING: rule 9 forbids an amount (and
+    therefore a currency) on the free, trade, donation and inquire modes, so
+    an unconditional reading of this rule rejects every free real-world
+    offering - including this file's own example 2, the food bank's grocery
+    box. Two independent reviewers caught that on 2026-08-12 by executing the
+    rules against the examples. A validation rule that rejects the food bank
+    is the exact mission failure this schema exists to prevent: free is
+    first-class here, not a degenerate sale.
+11. Settlement: `mode` must be exactly "directory". Reject "wallet" and
+    "escrow" (reserved, not shipped) and reject any of the reserved payload
+    keys listed in `[settlement_reserved_fields]`. contact_via =
+    provider_checkout requires `checkout_uri`, and every URI field must be
+    https.
+12. Goods shape: availability_mode = in_stock requires quantity_available;
+    one_off requires quantity_available = 1; made_to_order requires
+    lead_time_days; unlimited forbids quantity_available. min_quantity must
+    not exceed quantity_available when both exist. Variant keys must be unique
+    within the offering.
+13. Services shape: schedule_kind = recurring or walk_in requires at least one
+    `recurring` entry; one_time_event requires starts_at; on_call requires
+    lead_time_hours. Any local time (recurring entries) requires `timezone`.
+    Each recurring entry needs end_time later than start_time.
+14. Shipping: `good.shipping` may be present only when `fulfillment` contains
+    "shipping", and then `ships_to` must be non-empty.
+15. Location shape: mode = radius requires lat, lon, radius_km; mode = region
+    requires region_code; mode = fixed_location requires lat and lon or a
+    locality; mode = remote forbids lat, lon, radius_km.
+16. Time sanity: `updated_at` > 0 and no more than 300000 ms ahead of the
+    receiving server's clock; `expires_at` > updated_at when present;
+    `ttl_days` within 1 to 365.
+17. Length and count caps are enforced, not truncated. A too-long field is a
+    rejected object, so a sloppy importer learns at the door instead of
+    polluting the shared catalog. This is the whole point of increment 2:
+    "upload your inventory to our specs" only works if malformed rows are
+    refused at the door.
+18. Unknown payload keys are IGNORED, not rejected, so a newer publisher can
+    add a field without partitioning the network. Unknown values inside a
+    known enum are still rejected (rule 4): a new key is additive, a bad enum
+    value corrupts a filter.
+19. Rejections must name the offending field and the rule. A bulk importer
+    reporting "row 4180 rejected: good.availability_mode" is usable; one
+    reporting "invalid" is not."""
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+providers = """
+Every offering belongs to exactly one provider (schemas/provider.toml) through
+`provider_ref`. The storefront view is that query. An offering whose provider
+is paused or closed is not shown, whatever its own status says."""
+items = """
+`item_ref` is a foreign key into data/items.csv (schemas/item.toml). It is the
+one field that makes cross-provider browsing possible, and the one field a
+sloppy importer can poison for everybody, which is why the validator checks it
+against the real taxonomy rather than accepting free text."""
+economy = """
+Simulation offerings price in CR, the in-game credit defined by
+schemas/economy.toml. The Market and the in-game trade system are the same
+directory seen through the Real/Sim toggle, not two systems."""
+signed_objects = """
+Offerings ride src/relay/storage/signed_objects.rs like every other typed
+object: storing, signing, verifying and gossiping them needs no new code.
+
+BUT THE MARKET DOES NEED NEW QUERY SUPPORT, and an earlier draft of this file
+wrongly claimed otherwise (corrected 2026-08-12 after a reviewer read the
+function). `list_signed_objects` filters on object_type, space_id and author_fp
+ONLY. Those three answer exactly one Market screen - the storefront, via
+author_fp - and cannot answer the two that matter most:
+
+  cross-provider ("all flashlights everywhere") needs a filter on payload
+                 item_ref, which lives inside an opaque CBOR blob
+  category browse                needs a filter on payload category
+
+So increment 3 (the Market views) must add either indexed columns populated at
+insert time for offering_v1 payloads, or a projection table maintained
+alongside signed_objects. Scanning and decoding every offering per query is
+fine at 100 offerings and unusable at 100000, which is precisely the retailer
+scale this design is for. Treat that as known work, not a surprise."""
+federation = """
+Because an offering is a plain signed object it gossips the day federation is
+fixed, with no changes here. Until then a provider's own server serves its own
+users, which is enough to launch."""
+disputes = """
+`dispute_v1` objects already exist for the credential and trust graph. Nothing
+in this schema creates a dispute, because nothing here creates an order: with
+directory-only settlement there is no transaction for the platform to arbitrate."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+ids = """
+Object ids are 64 lowercase hex characters. `item_ref` and `proposed_item.id`
+are snake_case taxonomy ids. `offering_key` and `variant_key` are the
+provider's own lowercase keys. Region codes are uppercase ISO 3166; currency
+codes are uppercase; language codes are lowercase ISO 639-1."""
+timestamps = """
+Every timestamp is unix MILLISECONDS UTC, matching `now_millis()` in
+src/relay/storage/. Clock-only exception: recurring windows are LOCAL times
+(HH:MM) plus an IANA timezone, because a farmers market opens at 9am local
+whatever the offset does twice a year."""
+money = """
+`amount` is a decimal number of major currency units (24.99 USD), not minor
+units. Prices are quotes in a directory, never arithmetic the platform
+performs: nothing here is summed, converted, taxed, or settled by us."""
+null_is_an_answer = """
+NULL price, NULL quantity, and NULL duration are real answers meaning free,
+uncounted, and variable. Do not coerce them to zero. A zero price means "costs
+zero", a null price under mode = inquire means "ask", and conflating them
+misprices somebody's work."""
+public_by_default = """
+Every field is public and replicates to other servers. There is no private
+section of a phone-book entry."""
+one_thing_per_offering = """
+One offering describes one thing a person can get. Bundling six unrelated items
+into one entry breaks `item_ref` grouping, and grouping is the entire reason
+the taxonomy spine exists. Genuine bundles get their own taxonomy entry through
+`proposed_item`."""
+
+# ---------------------------------------------------------------------------
+# EXAMPLES
+# ---------------------------------------------------------------------------
+
+# The four examples below belong to the three providers in the examples of
+# schemas/provider.toml. The provider_ref values are those providers' ROOT
+# object_ids:
+#   8f2b1c0a... = the large retailer (provider example 3)
+#   5c6d7e8f... = the mutual-aid food bank (provider example 2)
+#   1a2b3c4d... = the solo bike mechanic (provider example 1)
+
+# 1. A retail good, priced and shipped. Grouping (flashlight_0) plus
+#    specificity (LED Flashlight 800L) is the load-bearing pattern.
+[[examples]]
+provider_ref = "8f2b1c0a4d7e9f31a6c5b8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0"
+offering_key = "sku-1042"
+kind = "good"
+reality = "real"
+title = "LED Flashlight 800L"
+description = "Aluminium body, 800 lumen, USB-C rechargeable. Includes 18650 cell and wrist lanyard."
+item_ref = "flashlight_0"
+category = "tools_and_hardware"
+tags = ["rechargeable", "usb_c"]
+fulfillment = ["pickup_at_provider", "shipping"]
+status = "active"
+updated_at = 1754870400000
+ttl_days = 30
+language = "en"
+
+[examples.price]
+mode = "fixed"
+amount = 24.99
+currency = "USD"
+unit = "each"
+
+[examples.settlement]
+mode = "directory"
+contact_via = "provider_checkout"
+checkout_uri = "https://target.com/p/led-flashlight-800l"
+
+[examples.good]
+condition = "new"
+provenance = ["factory_new"]
+availability_mode = "in_stock"
+quantity_available = 412
+unit = "each"
+
+[[examples.good.variants]]
+variant_key = "black"
+label = "Black"
+quantity_available = 260
+
+[[examples.good.variants]]
+variant_key = "olive"
+label = "Olive"
+price_amount = 26.99
+quantity_available = 152
+
+[examples.good.shipping]
+ships_to = ["US"]
+cost_amount = 0.0
+cost_free = true
+handling_days = 1
+
+# 2. A free good from a mutual-aid pantry. Same object type, no price, no
+#    apology. Perishable and pickup-only are stated so nobody wastes a trip.
+[[examples]]
+provider_ref = "5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b"
+offering_key = "sat_grocery_box"
+kind = "good"
+reality = "real"
+title = "Saturday Grocery Box"
+description = "Box of shelf-stable staples plus whatever produce came in this week. No ID, no questions, take one per household."
+category = "food"
+fulfillment = ["pickup_at_provider"]
+restrictions = ["perishable", "local_pickup_only"]
+status = "active"
+updated_at = 1754870400000
+ttl_days = 7
+language = "en"
+
+[examples.proposed_item]
+id = "grocery_box_0"
+name = "Grocery Box"
+nearest_item_ref = "bread_0"
+
+[examples.price]
+mode = "free"
+
+[examples.settlement]
+mode = "directory"
+contact_via = "in_person"
+instructions = "Saturdays 9am to noon at the side door. Bring a bag if you have one."
+
+[examples.good]
+condition = "new"
+provenance = ["surplus"]
+availability_mode = "in_stock"
+quantity_available = 60
+unit = "box"
+
+[examples.location]
+mode = "fixed_location"
+label = "Clark County Food Bank, Vancouver"
+lat = 45.63
+lon = -122.66
+locality = "Vancouver"
+
+# 3. A service acting on a taxonomy item. repair + bicycle_0 is what makes
+#    "who fixes bicycles near me" a query rather than a reading exercise.
+[[examples]]
+provider_ref = "1a2b3c4d5e6f70819a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f607"
+offering_key = "bike_tuneup_std"
+kind = "service"
+reality = "real"
+title = "Standard Bicycle Tune-Up"
+description = "Brake and gear adjustment, wheel true, chain clean and lube, bolt check. Parts extra and quoted before any work starts."
+item_ref = "bicycle_0"
+category = "repair_and_maintenance"
+fulfillment = ["pickup_at_provider", "at_recipient_location"]
+status = "active"
+updated_at = 1754870400000
+ttl_days = 90
+language = "en"
+
+[examples.price]
+mode = "range"
+amount = 45.0
+amount_max = 80.0
+currency = "USD"
+unit = "job"
+notes = "No charge if it cannot be fixed."
+
+[examples.settlement]
+mode = "directory"
+contact_via = "in_app_dm"
+instructions = "Message with the make and what it is doing. Drop-off any Saturday."
+
+[examples.service]
+action = "repair"
+duration_minutes = 60
+
+[examples.service.availability]
+schedule_kind = "walk_in"
+timezone = "America/Los_Angeles"
+capacity_per_slot = 1
+booking_notes = "Walk in Saturday morning, or message to arrange a weekday evening."
+
+[[examples.service.availability.recurring]]
+day = "saturday"
+start_time = "09:00"
+end_time = "13:00"
+
+[examples.location]
+mode = "radius"
+label = "Mobile repair within 25 km of Rivertown"
+lat = 45.52
+lon = -122.68
+radius_km = 25.0
+
+# 4. A remote service with no taxonomy item at all, priced on a sliding scale.
+#    Groups by category alone, which is the honest answer for counselling,
+#    legal aid, and translation.
+[[examples]]
+provider_ref = "5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b"
+offering_key = "benefits_clinic"
+kind = "service"
+reality = "real"
+title = "Benefits Application Help"
+description = "One-to-one help filling in food and housing assistance forms. Phone or video, one hour, in English or Spanish."
+category = "professional_services"
+fulfillment = ["remote"]
+status = "active"
+updated_at = 1754870400000
+ttl_days = 90
+language = "en"
+
+[examples.price]
+mode = "sliding_scale"
+amount = 0.0
+amount_max = 40.0
+currency = "USD"
+unit = "session"
+notes = "Pay what fits. Nobody is turned away."
+
+[examples.settlement]
+mode = "directory"
+contact_via = "phone"
+instructions = "Ring Tuesday or Thursday mornings to book a slot."
+
+[examples.service]
+action = "consult"
+duration_minutes = 60
+
+[examples.service.availability]
+schedule_kind = "by_appointment"
+timezone = "America/Los_Angeles"
+lead_time_hours = 48
+capacity_per_slot = 1
+booking_notes = "Booked by phone. Interpreter available on request."
+
+[examples.location]
+mode = "remote"
+label = "By phone or video, anywhere in Washington"
+
+# ---------------------------------------------------------------------------
+# MISSING / FUTURE (deliberately unspecified, and why)
+# ---------------------------------------------------------------------------
+
+[missing_future]
+service_taxonomy = """
+NOT SPECIFIED: a taxonomy of SERVICES to match data/items.csv. Services are
+grouped today by `category` plus the (action, item_ref) pair, which covers
+work performed ON a thing (repair a bicycle, mill grain, install a panel) and
+does not cover work performed on a person or a situation (counselling, legal
+aid, childcare). Those group by category alone and are therefore coarser in
+cross-provider search. Deliberate: inventing a global service taxonomy before
+watching what real providers publish would be guesswork, and the (action,
+item_ref) pair already carries the majority of homestead-relevant work. Revisit
+once real service offerings exist to count."""
+bulk_import_format = """
+NOT HERE: the CSV or JSONL shape a provider uploads, its column mapping, and
+the rejection report. That is increment 2 of the ladder. This schema is what
+the importer validates AGAINST, which is why `[validation]` is written as an
+ordered, implementable list rather than prose."""
+orders_carts_reservations = """
+DELIBERATELY ABSENT: no cart, no order, no reservation, no hold, no receipt.
+Settlement is directory-only, so there is no transaction for the platform to
+model. Adding any of them makes this a marketplace and drags in the regulatory
+weight the design explicitly refuses to carry to launch."""
+wallet_and_escrow = """
+RESERVED, NOT SHIPPED: `settlement.mode` values "wallet" and "escrow", plus
+the reserved payload keys in `[settlement_reserved_fields]`. Reserved in
+writing so they need no schema migration and so nobody squats the names with a
+different meaning. Wallet mode is blocked on the known web wallet token-send
+bug; escrow mode is blocked on legal review."""
+reviews_and_ratings = """
+NOT IN THIS SCHEMA: a rating cannot live inside an object its subject signs.
+Reviews will be separate signed objects referencing an offering or a provider,
+weighted by the trust graph (src/relay/storage/issuer_trust.rs), and they are
+worth little until there is some evidence an exchange happened, which
+directory-only settlement does not produce. A real design problem, deferred
+honestly rather than faked."""
+moderation_and_delisting = """
+NOT IN THIS SCHEMA: one server cannot edit another server's signed objects.
+Delisting is a decision about what a server SURFACES, so it belongs in a local
+blocklist plus, later, a signed moderation log other servers may choose to
+honour (gap 4 in docs/design/market-directory.md). Without it the first scam
+poisons trust in the whole directory, so this is the highest-value unbuilt
+piece after verification."""
+price_normalization = """
+NOT SPECIFIED: comparing 24.99 USD against 22.50 EUR against 400 CR needs a
+rate source, a staleness policy for the rates, and a display convention. The
+Market can sort within one currency today and must not pretend to sort across
+several."""
+taxes_and_fees = """
+NOT MODELLED: sales tax, VAT, deposits, and delivery surcharges. Prices are
+quotes exactly as the provider states them. Modelling tax correctly is
+per-jurisdiction work that only matters once money moves through us, which it
+does not."""
+inventory_sync_protocol = """
+NOT SPECIFIED: push feeds, webhooks, or a pull endpoint for a large provider
+to keep thousands of offerings current. Republish-and-touch (`[staleness]`)
+works and is simple; a sync protocol is an optimisation to design after
+somebody actually feels the pain."""
+accessibility_attributes = """
+KNOWN GAP: whether a physical location has step-free access, hearing loop,
+accessible parking, or service-animal welcome. This genuinely belongs in the
+location shape, it is a mission-relevant omission rather than a deliberate one,
+and it is left out only because the vocabulary should be picked with people who
+need it rather than guessed at here."""
+variant_matrices = """
+FLAT ON PURPOSE: `good.variants` is a list of stocked combinations, not a
+size-by-colour matrix with generated permutations. A matrix invites a provider
+to publish 400 rows for 12 real items. If a real catalogue needs one, generate
+the flat list at import time."""

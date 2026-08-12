@@ -1,0 +1,807 @@
+# HumanityOS Provider Schema
+# Defines the payload of a `provider_v1` signed object: one entry in the
+# Provider Directory (the "yellow pages" of the phone-book model).
+#
+# A provider is a ROLE, not a business type. Any identity can wear it: a solo
+# bike mechanic, a county library, a food bank, a housing co-op, a national
+# retailer. The white pages (signed profiles, /api/members) say who EXISTS;
+# the yellow pages say who OFFERS. The two are linked (a provider back-
+# references the identity or group that signs it) but listed separately.
+#
+# The word "merchant" is rejected vocabulary here: it means sells-for-profit,
+# and a directory that excludes the food bank excludes half the mission.
+#
+# File format: canonical CBOR map carried as the `payload` of a signed object
+#              (src/relay/core/object.rs, docs/network/object_format.md)
+# Object type: provider_v1
+# payload_schema_version: 1
+# Hot-reloadable: No. This is not a data file shipped next to the exe; it is
+#              published, signed, stored in `signed_objects`, and replicated.
+# Referenced by: schemas/offering.toml (an offering's `provider_ref`)
+# References: group_v1 objects (when a provider is more than one person),
+#              and the signing Dilithium3 identity in the envelope
+#
+# Design source of truth: docs/design/market-directory.md. Read it before
+# changing anything here.
+
+# ---------------------------------------------------------------------------
+# HOW THIS RIDES THE SIGNED-OBJECT ENVELOPE
+# ---------------------------------------------------------------------------
+# The fields below describe the PAYLOAD ONLY. The envelope already carries
+# identity, ordering, and integrity, so the payload never repeats them.
+
+[envelope]
+object_type = "provider_v1"
+payload_schema_version = 1
+payload_encoding = "cbor_canonical_v1"
+author = """
+`author_public_key` (1952-byte Dilithium3 key) IS the publisher. Whoever holds
+that key controls this provider entry. There is no separate owner field, no
+account, and no password. The DID form of the same key is
+`did:hum:<base58(BLAKE3(pubkey)[..16])>` (src/relay/core/did.rs)."""
+references = """
+Envelope `references` is an array of object_id strings. A provider REVISION
+puts the root provider object_id here (see `[identity]` below). A group-backed
+provider also puts its `group_ref` here so the dependency is visible to gossip
+and de-duplication without decoding the payload."""
+created_at = """
+Envelope `created_at` is informational only and must never define ordering
+(docs/network/object_format.md). Payload `updated_at` is the field the Market
+sorts and expires on, and it is validated against the receiving server's clock."""
+size_limit = """
+`MAX_SIGNED_OBJECT_PAYLOAD` is 256 KiB (src/relay/storage/signed_objects.rs).
+That is generous for text and refs, and far too small for images: logos and
+photos are URIs, never embedded bytes."""
+immutability = """
+Objects are immutable. There is no edit and no delete. Changing a provider
+means publishing a NEW provider_v1 that supersedes the old one; closing shop
+means publishing one with `status = "closed"`."""
+
+# ---------------------------------------------------------------------------
+# IDENTITY AND REVISIONS
+# ---------------------------------------------------------------------------
+
+[identity]
+provider_id = """
+A provider's stable id is the object_id (64-char BLAKE3 hex) of its ROOT
+provider_v1 object, the first one published. Offerings reference that root id
+forever, so editing a provider never orphans its offerings."""
+root_object = """
+The root object omits `provider_ref`. It cannot contain its own object_id
+(the id is the hash of the signed bytes, so that would be circular)."""
+revision = """
+Every later revision sets `provider_ref` to the root object_id, and must be
+signed by the SAME author key as the root. A revision signed by a different
+key is not an update; it is a different identity making claims about someone
+else's entry, and a validator MUST reject it."""
+resolution = """
+The current state of a provider = the revision with the greatest `updated_at`
+among objects with that root and that author key. Ties break on the
+lexicographically greater object_id so every server converges on the same
+answer without coordination."""
+multiple_hats = """
+One identity may publish several providers (Bob's Bikes and Bob's Bread are
+two roots signed by one key). This is expected. Do not assume one key means
+one provider."""
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.provider_ref]
+type = "string"
+required = false
+description = """
+The object_id of the ROOT provider_v1 object this revision updates.
+Absent on the root object itself (that object IS the root). Present on every
+later revision, and the same value must appear in envelope `references`."""
+constraints = "64 lowercase hex characters; must resolve to a stored provider_v1 signed by the same author key"
+examples = ["8f2b1c0a4d7e9f31a6c5b8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0"]
+
+[fields.display_name]
+type = "string"
+required = true
+description = """
+The name shown in the directory and on the storefront. This is a CLAIM, not a
+reservation: nothing stops another node from publishing a provider called
+"Target". See `verification` below, and never render a name as authoritative
+on its own."""
+constraints = "1 to 80 characters after trimming; no control characters; not blank"
+examples = ["Rivertown Bike Repair", "Clark County Food Bank", "Target"]
+
+[fields.slug]
+type = "string"
+required = false
+description = """
+Short handle used in URLs and in-app deep links (/market/provider/<slug>).
+A convenience for humans, NOT an identity: slugs are not unique across a
+federated network and two servers may hold two different providers with the
+same slug. Resolve by provider_id; use the slug only for display and for a
+best-effort local lookup that falls back to a disambiguation list."""
+constraints = "snake_case, 3 to 40 characters, [a-z0-9_], must not start with a digit"
+examples = ["rivertown_bike_repair", "clark_county_food_bank"]
+
+[fields.kind]
+type = "string"
+required = true
+description = """
+What kind of body this provider is. Ordered from person-scale to institution
+so the list does not read as commerce-first: a household selling eggs and a
+mutual-aid group giving them away are first-class entries, not exceptions."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "individual",         # one person offering under their own identity
+    "household",          # a family or household unit offering what it produces
+    "mutual_aid",         # an informal group giving and sharing, usually free
+    "cooperative",        # member-owned and member-governed (worker, housing, food)
+    "nonprofit",          # a registered charitable or public-benefit organization
+    "public_institution", # library, school, clinic, utility, municipal service
+    "faith_community",    # congregation or faith-based service body
+    "business",           # a for-profit trading body, sole trader through corporation
+]
+examples = ["individual", "mutual_aid", "public_institution"]
+
+[fields.description]
+type = "string"
+required = true
+description = """
+What this provider does, in plain language, for a stranger reading the
+directory. Written for the three audiences the project always writes for: a
+tech-illiterate neighbour, a contributor, and an AI agent browsing the Market."""
+constraints = "1 to 600 characters; plain text; no markup, no HTML"
+examples = [
+    "Two-person shop fixing bicycles, wheelchairs, and hand carts. Walk-ins welcome.",
+    "Volunteer-run pantry. Free groceries every Saturday, no questions asked.",
+]
+
+[fields.backed_by]
+type = "string"
+required = true
+description = """
+Whether this provider is one identity wearing the hat, or a group wearing it.
+"group" exists because a co-op or food bank outlives any one keyholder: the
+group_v1 object already carries membership, invites, joins, and epoch keys."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "identity", # the signing key is the whole provider (individual, household, sole trader)
+    "group",    # a group_v1 object is the provider; `group_ref` is then required
+]
+examples = ["identity", "group"]
+
+[fields.group_ref]
+type = "string"
+required = false
+description = """
+The object_id of the group_v1 object that backs this provider.
+Required when `backed_by = "group"`, and MUST be absent otherwise.
+The same value must appear in envelope `references`.
+
+Authorization rule: the author key must be an ACTIVE member of that group's
+roster (src/relay/storage/groups_p2p.rs). Today only the group creator may
+admit members, so in practice the creator or an admitted member can publish.
+An object referencing a group the author does not belong to is rejected."""
+constraints = "64 lowercase hex characters; must resolve to a stored group_v1"
+examples = ["3a9d5e7c1b0f2846d9e0c1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6"]
+
+[fields.identity_did]
+type = "string"
+required = false
+description = """
+The DID of the signing identity, written out so a payload can be read on its
+own without recomputing the hash of the author key. Purely informational.
+If present it MUST equal `did_for_pubkey(author_public_key)`; a mismatch is a
+forgery signal and the object is rejected."""
+constraints = "did:hum:<base58>, about 22 characters after the prefix"
+examples = ["did:hum:7Qk2mVx9RtBn4LpZaC3Wud"]
+
+[fields.status]
+type = "string"
+required = true
+description = """
+Whether the directory should show this provider at all. There is no delete, so
+"closed" is how a provider leaves: publish a final revision with this value and
+every server converges on hiding it."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "active", # listed, offerings visible
+    "paused", # temporarily not serving (vacation, seasonal); shown greyed, offerings hidden
+    "closed", # gone for good; a tombstone, kept so old references still resolve
+]
+examples = ["active", "paused", "closed"]
+
+[fields.updated_at]
+type = "integer"
+required = true
+description = """
+Unix milliseconds UTC when this revision was authored. This is the ordering
+field for revision resolution and the freshness signal shown in the directory.
+Milliseconds, not seconds: it matches `now_millis()` used everywhere in
+src/relay/storage/."""
+constraints = """
+Must be > 0. A receiving server MUST reject an object whose `updated_at` is
+more than 300000 ms (5 minutes) in the future relative to its own clock, or a
+single bad clock pins a stale entry at the top of the directory forever."""
+examples = [1754870400000]
+
+[fields.languages]
+type = "array of strings"
+required = false
+default = []
+description = """
+Languages this provider can actually serve someone in. Empty means unstated,
+which the UI shows as unknown rather than guessing. Used to filter the Market
+for people who need service in their own language, which is an accessibility
+requirement, not a nicety."""
+constraints = "ISO 639-1 two-letter codes, lowercase, max 12 entries"
+examples = [["en"], ["en", "es"], ["en", "es", "fr", "ja", "zh"]]
+
+[fields.logo_uri]
+type = "string"
+required = false
+description = """
+Link to a logo or storefront image. A LINK only: the 256 KiB payload cap means
+image bytes never ride inside the object. Clients must treat this as untrusted
+remote content (it may 404, may be replaced later, may be tracking bait) and
+must not block rendering of the entry on it."""
+constraints = "https:// URI, max 512 characters; http:// is rejected"
+examples = ["https://example.org/img/logo.png"]
+
+# ---------------------------------------------------------------------------
+# CONTACT (how a person actually reaches this provider)
+# ---------------------------------------------------------------------------
+# Everything in this block is PUBLIC and federates to other servers. It is the
+# phone book: do not put anything here you would not print in one.
+
+[fields.contact]
+type = "table"
+required = true
+description = """
+At least one usable way to reach the provider. A directory entry nobody can
+respond to is a dead end, and since settlement is directory-only (we move no
+money), reaching the provider IS the transaction path."""
+constraints = "The channel named by `preferred` must have its corresponding field filled in"
+
+[fields.contact.fields.preferred]
+type = "string"
+required = true
+description = "The channel the provider actually watches. Clients show this one first."
+constraints = "Must be one of the values listed below, and the matching field must be present"
+valid_values = [
+    "in_app_dm",  # a DM to `dm_did` (end-to-end encrypted; the platform-native path)
+    "email",      # `email`
+    "phone",      # `phone`
+    "website",    # `website`
+    "in_person",  # visit a service area; `notes` should say when
+]
+examples = ["in_app_dm", "phone"]
+
+[fields.contact.fields.dm_did]
+type = "string"
+required = false
+description = """
+DID that receives in-app direct messages. Defaults to the author identity when
+absent. Set it explicitly when a group-backed provider routes messages to one
+member (the shop phone, not the founder's personal inbox)."""
+constraints = "did:hum:<base58>"
+examples = ["did:hum:7Qk2mVx9RtBn4LpZaC3Wud"]
+
+[fields.contact.fields.email]
+type = "string"
+required = false
+description = "Public contact email. Federates in the clear; use a role address, not a personal one."
+constraints = "Must contain a single @ and a dot-bearing domain; max 254 characters"
+examples = ["hello@rivertownbikes.example"]
+
+[fields.contact.fields.phone]
+type = "string"
+required = false
+description = """
+Public contact phone in E.164 so it dials from any country and so an AI agent
+can hand it to a human without reformatting."""
+constraints = "E.164: leading +, then 8 to 15 digits"
+examples = ["+15035550142"]
+
+[fields.contact.fields.website]
+type = "string"
+required = false
+description = "The provider's own site. Also the natural anchor for a domain-proof verification claim."
+constraints = "https:// URI, max 512 characters"
+examples = ["https://rivertownbikes.example"]
+
+[fields.contact.fields.notes]
+type = "string"
+required = false
+description = "Free text for anything the fields above cannot say: hours, which door, ask for whom."
+constraints = "Max 300 characters, plain text"
+examples = ["Saturdays 9am to 1pm, side entrance off Maple."]
+
+# ---------------------------------------------------------------------------
+# SERVICE AREAS (where this provider can actually serve someone)
+# ---------------------------------------------------------------------------
+
+[fields.service_areas]
+type = "array of tables"
+required = false
+default = []
+description = """
+Zero or more places or ranges this provider serves. An array, not a single
+value, because real providers are plural: a shop with a counter that also
+mails parts has a fixed_location AND a region; a chain has many.
+Empty means unstated, and the Market treats an unstated area as "ask the
+provider" rather than guessing that it is global.
+An offering may override this for itself (see offering_v1 `location`)."""
+constraints = "Max 32 entries per provider object. A chain with more locations publishes one provider per location, or one region entry"
+
+[fields.service_areas.fields.mode]
+type = "string"
+required = true
+description = "How this area is expressed. Determines which sibling fields are required."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "fixed_location", # a place the public can go to; needs lat/lon or locality
+    "radius",         # travels or delivers within `radius_km` of lat/lon
+    "region",         # covers a named administrative area; needs `region_code`
+    "remote",         # no geography at all: online, phone, or mail
+]
+examples = ["fixed_location", "radius", "remote"]
+
+[fields.service_areas.fields.label]
+type = "string"
+required = true
+description = """
+Human-readable summary of this area, written the way a neighbour would say it.
+This is what the directory shows; the coordinates are for sorting and search."""
+constraints = "1 to 120 characters"
+examples = ["Rivertown, Oregon", "Within 25 km of Rivertown", "Anywhere, by mail"]
+
+[fields.service_areas.fields.lat]
+type = "float"
+required = false
+description = """
+Latitude in decimal degrees. PRIVACY: this is a public, federated, permanent
+record. A public storefront may give an exact point. An individual working from
+home should round to 2 decimal places (about 1.1 km) or use `region` instead.
+Clients should offer the rounded value by default, not the GPS reading."""
+constraints = "-90.0 to 90.0; required when mode is radius"
+examples = [45.52, 45.5231]
+
+[fields.service_areas.fields.lon]
+type = "float"
+required = false
+description = "Longitude in decimal degrees. Same privacy rule as `lat`."
+constraints = "-180.0 to 180.0; required when mode is radius"
+examples = [-122.68, -122.6765]
+
+[fields.service_areas.fields.radius_km]
+type = "float"
+required = false
+description = "How far from lat/lon the provider will travel or deliver."
+constraints = "> 0.0 and <= 20000.0; required when mode is radius, absent otherwise"
+examples = [5.0, 25.0, 400.0]
+
+[fields.service_areas.fields.region_code]
+type = "string"
+required = false
+description = """
+Administrative region served, as an ISO 3166 code. Country alone ("US") or
+country-subdivision ("US-OR"). Required when mode is region. Codes rather than
+names so the filter works the same in every language."""
+constraints = "ISO 3166-1 alpha-2, optionally -1 subdivision suffix; uppercase"
+examples = ["US", "US-OR", "CA-BC", "JP-13"]
+
+[fields.service_areas.fields.locality]
+type = "string"
+required = false
+description = "City, town, or neighbourhood name, for human-readable search and display."
+constraints = "Max 120 characters"
+examples = ["Rivertown", "Portland"]
+
+# ---------------------------------------------------------------------------
+# VERIFICATION (read this whole block before rendering any badge)
+# ---------------------------------------------------------------------------
+# Nothing today stops a node from publishing a provider called "Target" with
+# fake offerings. In a federated network that is THE attack. This block exists
+# so the schema carries the trust question honestly right now, even though the
+# verification MECHANISM is a later increment (increment 4 of the ladder in
+# docs/design/market-directory.md).
+#
+# The block is SELF-DECLARED: it sits inside an object signed by the provider,
+# so the provider is asserting its own status. That is worth exactly nothing on
+# its own. See `[verification_rules]` below for what a client may render.
+
+[fields.verification]
+type = "table"
+required = true
+description = "The provider's own claim about its verification, plus pointers to whatever backs the claim."
+
+[fields.verification.fields.claimed_status]
+type = "string"
+required = true
+default = "unverified"
+description = """
+The level the provider claims. Naming it `claimed_` and not `status` is
+deliberate: it stops a UI author from wiring a trust badge straight to it."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "unverified",        # claims nothing; the honest default, and no shame in it
+    "self_attested",     # "this is really us", backed only by the signature itself
+    "domain_proven",     # controls a domain and points at the proof in `evidence`
+    "manually_verified", # a human reviewer checked it; `verified_by_did` names who
+    "revoked",           # a previous verification was withdrawn; state it, do not hide it
+]
+examples = ["unverified", "domain_proven"]
+
+[fields.verification.fields.domain]
+type = "string"
+required = false
+description = """
+The domain being claimed, when `claimed_status` is domain_proven. Bare host,
+no scheme and no path, so the proof lookup is unambiguous."""
+constraints = "Lowercase hostname, max 253 characters, no scheme, no trailing dot; required when claimed_status is domain_proven"
+examples = ["rivertownbikes.example", "target.com"]
+
+[fields.verification.fields.evidence]
+type = "array of tables"
+required = false
+default = []
+description = """
+What the provider says backs the claim. Each entry is a pointer for a checker
+to follow, not a proof in itself. NONE of these are checked automatically
+today; a checker is the unbuilt part."""
+constraints = "Max 8 entries"
+
+[fields.verification.fields.evidence.fields.kind]
+type = "string"
+required = true
+description = "What sort of evidence this is, which tells a future checker how to check it."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "domain_dns_txt",      # TXT record at _humanity.<domain> containing the provider DID
+    "domain_well_known",   # https://<domain>/.well-known/humanity-provider.json naming the DID
+    "did_web",             # a did:web identity that already controls the domain
+    "government_registry", # public business, charity, or nonprofit registration number
+    "in_person",           # a named human physically went and looked
+    "existing_platform",   # a post from an account the provider already controls, linking the DID
+    "community_vouch",     # vouch_v1 objects from identities the viewer may already trust
+]
+examples = ["domain_well_known", "community_vouch"]
+
+[fields.verification.fields.evidence.fields.value]
+type = "string"
+required = true
+description = "Where to look: a URI, a registry number, or a short note for in_person evidence."
+constraints = "Max 512 characters; https:// when it is a URI"
+examples = [
+    "https://rivertownbikes.example/.well-known/humanity-provider.json",
+    "OR-NONPROFIT-1180422",
+]
+
+[fields.verification.fields.evidence.fields.observed_at]
+type = "integer"
+required = false
+description = "Unix milliseconds UTC when the provider last saw this evidence in place. Evidence rots too."
+constraints = "> 0; not more than 5 minutes in the future"
+examples = [1754870400000]
+
+[fields.verification.fields.attestation_refs]
+type = "array of strings"
+required = false
+default = []
+description = """
+object_ids of signed objects, issued by OTHER keys, that assert something about
+this provider. This is the only part of the block that can ever raise a
+provider above self_attested in a client's eyes, because a third party signed
+it. Today the credential family (vouch_v1, verified_human_v1, employment_v1,
+src/relay/storage/credentials.rs) is the nearest fit; a dedicated
+provider_verification_v1 is a later increment."""
+constraints = "Max 16 entries, each 64 lowercase hex characters"
+examples = [["b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f900"]]
+
+[fields.verification.fields.verified_by_did]
+type = "string"
+required = false
+description = """
+DID of the reviewer for a manually_verified claim. Naming the reviewer is what
+makes the claim checkable and what makes a bad reviewer accountable."""
+constraints = "did:hum:<base58>; required when claimed_status is manually_verified"
+examples = ["did:hum:9Fq3nWy1SuCp5MraD4Xve"]
+
+[fields.verification.fields.verified_at]
+type = "integer"
+required = false
+description = "Unix milliseconds UTC when the manual review happened."
+constraints = "> 0; not more than 5 minutes in the future"
+examples = [1754870400000]
+
+[fields.verification.fields.expires_at]
+type = "integer"
+required = false
+description = """
+Unix milliseconds UTC after which the claim should stop being shown as current.
+Verification is a snapshot: a shop changes hands, a domain lapses. A claim with
+no expiry is treated as expiring 365 days after `verified_at`."""
+constraints = "> verified_at when both are present"
+examples = [1786406400000]
+
+[verification_rules]
+effective_status = """
+A client computes an EFFECTIVE status and renders only that. The rule:
+
+  1. Start at "unverified". Always. Whatever the payload claims.
+  2. If the object's signature verifies and the author key matches the root,
+     the entry may show "self_attested" (the key really did say this).
+  3. Rise above self_attested ONLY when an entry in `attestation_refs`
+     resolves to a stored signed object, issued by a DIFFERENT key, that the
+     VIEWER has reason to trust, and that names this provider_id and has not
+     expired or been revoked.
+  4. Rise to "domain_proven" ONLY when a checker has fetched the evidence and
+     confirmed it names this provider's DID. No checker exists yet, so today
+     this level is never reached in practice. Show the claim as a claim.
+  5. claimed_status = "revoked" always wins, whatever else resolves. A
+     withdrawal is believed instantly; a promotion is not."""
+ui_rule = """
+Never render a checkmark, a shield, or the word "verified" from
+`claimed_status` alone. Show unresolved claims as text the user can inspect
+("claims target.com, unproven"), never as a badge. A badge that can be
+self-issued is worse than no badge: it teaches people to trust a forgery."""
+impersonation = """
+`display_name` is unreserved on purpose. Two providers may both be called
+Target and both are valid objects. The directory's job is to show which one
+anybody can vouch for, and to make the DID visible next to the name whenever
+two entries collide."""
+
+# ---------------------------------------------------------------------------
+# VALIDATION RULES (a validator can be written directly from this list)
+# ---------------------------------------------------------------------------
+
+[validation]
+rules = """
+ 1. Envelope checks first (signature, 1952-byte author key, 256 KiB payload
+    cap, per-author rate limit). A payload is never read before its signature
+    verifies.
+ 2. `payload_encoding` must be "cbor_canonical_v1"; the payload must decode to
+    a CBOR map with text keys.
+ 3. Required fields present and non-blank: display_name, kind, description,
+    backed_by, status, updated_at, contact, verification.
+ 4. `kind`, `backed_by`, `status`, `contact.preferred`,
+    `verification.claimed_status`, every `service_areas[].mode`, and every
+    `verification.evidence[].kind` must each be one of that field's
+    valid_values. An unknown value is a rejection, not a warning: silently
+    accepted junk pollutes every downstream filter.
+ 5. backed_by = "group" requires `group_ref`, and `group_ref` must be absent
+    when backed_by = "identity".
+ 6. When `group_ref` is set, the author key must be an active member of that
+    group's roster - checked at SURFACING, not at ingest (2026-08-12). Gossip
+    has no arrival order, so a provider entry can legitimately arrive before
+    the group_v1 roster it references. Store it; show it once the group
+    resolves and the author checks out. Rejecting at ingest permanently
+    discards objects that were merely early. Same two-tier shape as
+    schemas/offering.toml rule 5.
+ 7. When `identity_did` is present it must equal the DID derived from the
+    envelope author key.
+ 8. `contact.preferred` must have its matching field filled
+    (in_app_dm implies dm_did or the author identity; email implies email;
+    phone implies phone; website implies website; in_person implies at least
+    one service_areas entry).
+ 9. Service area shape: mode = radius requires lat, lon, and radius_km;
+    mode = region requires region_code; mode = fixed_location requires lat and
+    lon or a locality; mode = remote must have none of lat, lon, radius_km.
+10. Verification shape: claimed_status = domain_proven requires `domain`;
+    claimed_status = manually_verified requires `verified_by_did`.
+11. `updated_at` must be > 0 and no more than 300000 ms ahead of the receiving
+    server's clock.
+12. Revision rules: if `provider_ref` is present it must resolve to a stored
+    provider_v1, that object must be a root (no provider_ref of its own), and
+    its author key must equal this object's author key.
+13. String length caps are enforced, not truncated. A too-long field is a
+    rejected object, so the provider learns at the door instead of discovering
+    a silently cut description later.
+14. Unknown payload keys are IGNORED, not rejected, so a newer publisher can
+    add a field without partitioning the network. Unknown values inside a
+    known enum field are still rejected (rule 4): the difference is that a new
+    key is additive while a bad enum value corrupts a filter."""
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+offerings = """
+An offering_v1 points at a provider through `provider_ref` = this provider's
+ROOT object_id. The storefront view is exactly that query: every non-expired
+offering whose provider_ref is this root."""
+groups = """
+A group-backed provider leans on group_v1 for the parts that are already
+built: roster, invites, joins, and epoch keys
+(src/relay/storage/groups_p2p.rs, docs/design/p2p-groups.md). The provider
+object adds no membership model of its own."""
+profiles = """
+The white pages entry for the same key (signed profiles, /api/members) stays
+separate. A person is not always a provider and a provider is not always one
+person; linking them without merging them is the whole point of two books."""
+credentials = """
+`verification.attestation_refs` points into the credential and trust graph
+(src/relay/storage/credentials.rs, issuer_trust.rs). That graph, not this
+payload, is where trust actually comes from."""
+federation = """
+Because a provider is a plain signed object it gossips with everything else the
+day federation is fixed, with no changes here. Until then a provider is visible
+to the users of the server it was published on, which is enough to launch."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+ids = """
+Object ids are 64 lowercase hex characters (BLAKE3). DIDs are
+did:hum:<base58>. Slugs are snake_case. Region codes are uppercase ISO 3166.
+Language codes are lowercase ISO 639-1. Nothing in this schema is a
+case-insensitive comparison, so publishers should normalize before signing."""
+timestamps = """
+Every timestamp in this schema is unix MILLISECONDS UTC, matching
+`now_millis()` in src/relay/storage/. Seconds-based timestamps are a common
+and silent bug here: a seconds value read as milliseconds lands in 1970 and
+the entry looks 55 years stale."""
+public_by_default = """
+Every field here is public and replicates to other servers. There is no
+private section of a phone-book entry. Anything a provider would not put on a
+printed page belongs in a DM, not in this object."""
+no_free_text_ids = """
+Grouping and filtering always run on coded fields (kind, region_code,
+item_ref on offerings), never on display text. Free text is for humans;
+codes are for the Market's queries and for AI agents reading the directory."""
+
+# ---------------------------------------------------------------------------
+# EXAMPLES
+# ---------------------------------------------------------------------------
+
+# 1. A solo craftsperson. The simplest possible entry: one key, one town,
+#    claims nothing it cannot back. A ROOT object, so it carries no
+#    `provider_ref`; its object_id (1a2b3c4d... in the offering examples) is
+#    what its offerings point at forever.
+[[examples]]
+display_name = "Rivertown Bike Repair"
+slug = "rivertown_bike_repair"
+kind = "individual"
+description = "One-person shop fixing bicycles, wheelchairs, and hand carts. Walk-ins welcome Saturdays."
+backed_by = "identity"
+identity_did = "did:hum:7Qk2mVx9RtBn4LpZaC3Wud"
+status = "active"
+updated_at = 1754870400000
+languages = ["en", "es"]
+
+[examples.contact]
+preferred = "in_app_dm"
+phone = "+15035550142"
+notes = "Saturdays 9am to 1pm, side entrance off Maple."
+
+[[examples.service_areas]]
+mode = "fixed_location"
+label = "Rivertown, Oregon"
+lat = 45.52
+lon = -122.68
+locality = "Rivertown"
+
+[[examples.service_areas]]
+mode = "radius"
+label = "Mobile repair within 25 km"
+lat = 45.52
+lon = -122.68
+radius_km = 25.0
+
+[examples.verification]
+claimed_status = "self_attested"
+
+# 2. A mutual-aid pantry backed by a group. No price anywhere in its offerings,
+#    and that is not a special case: free is a first-class mode. Also a root
+#    (object_id 5c6d7e8f... in the offering examples).
+[[examples]]
+display_name = "Clark County Food Bank"
+slug = "clark_county_food_bank"
+kind = "mutual_aid"
+description = "Volunteer-run pantry. Free groceries every Saturday morning, no questions asked, no ID needed."
+backed_by = "group"
+group_ref = "3a9d5e7c1b0f2846d9e0c1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6"
+status = "active"
+updated_at = 1754870400000
+languages = ["en", "es"]
+
+[examples.contact]
+preferred = "phone"
+phone = "+13605550188"
+email = "pantry@ccfb.example"
+website = "https://ccfb.example"
+
+[[examples.service_areas]]
+mode = "region"
+label = "Clark County, Washington"
+region_code = "US-WA"
+locality = "Vancouver"
+
+[examples.verification]
+claimed_status = "manually_verified"
+verified_by_did = "did:hum:9Fq3nWy1SuCp5MraD4Xve"
+verified_at = 1754784000000
+expires_at = 1786406400000
+attestation_refs = ["b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f900"]
+
+# 3. A large retailer, revised entry, claiming a domain it has not yet proven.
+#    Shown deliberately: this is what the impersonation risk looks like in data,
+#    and the effective status a client renders is still "self_attested".
+[[examples]]
+provider_ref = "8f2b1c0a4d7e9f31a6c5b8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0e2f4a6c8d0"
+display_name = "Target"
+slug = "target"
+kind = "business"
+description = "General retailer. Household goods, groceries, clothing, and electronics."
+backed_by = "group"
+group_ref = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80912a3b"
+status = "active"
+updated_at = 1754956800000
+
+[examples.contact]
+preferred = "website"
+website = "https://target.com"
+
+[[examples.service_areas]]
+mode = "region"
+label = "United States"
+region_code = "US"
+
+[examples.verification]
+claimed_status = "domain_proven"
+domain = "target.com"
+
+[[examples.verification.evidence]]
+kind = "domain_well_known"
+value = "https://target.com/.well-known/humanity-provider.json"
+observed_at = 1754956800000
+
+# ---------------------------------------------------------------------------
+# MISSING / FUTURE (deliberately unspecified, and why)
+# ---------------------------------------------------------------------------
+
+[missing_future]
+verification_mechanism = """
+NOT SPECIFIED: how a domain proof is actually fetched and checked, what the
+.well-known document contains, who is allowed to issue a manual verification,
+and how a verification is revoked. Deliberate: increment 1 is the shape, and
+increment 4 is the trust layer (docs/design/market-directory.md). The schema
+carries the claim honestly in the meantime, and `[verification_rules]` makes
+sure a client cannot mistake a claim for a proof. When the mechanism ships it
+adds a provider_verification_v1 object type and pointers in
+`attestation_refs`; nothing in this file changes."""
+provider_kind_list = """
+NOT DATA-DRIVEN YET: `kind` is an inline valid_values list rather than a file
+under data/market/. That is a knowing exception to infinite-of-X, taken
+because the list is small, slow-moving, and must mean the same thing on every
+federated server for filters to work. If it starts growing, move it to
+data/market/provider_kinds.ron and keep the ids stable."""
+multi_location_chains = """
+PARTLY SOLVED: `service_areas` handles a handful of places, and a region entry
+handles a national footprint. A chain with a thousand branches, each with its
+own stock, needs one provider per branch plus a `branch_of` link to a parent
+provider, which does not exist yet. Not needed to launch, and inventing it
+before a real chain federates would be guesswork."""
+opening_hours = """
+NOT SPECIFIED at provider level: structured weekly hours live on service
+offerings (offering_v1 `service.availability`), and a provider's rough hours go
+in `contact.notes` as text for now. A shared hours structure is worth adding
+once the service branch has proven its shape in real use."""
+moderation_and_delisting = """
+NOT IN THIS SCHEMA, on purpose. A provider cannot mark itself delisted and a
+server operator cannot edit somebody else's signed object. Delisting is a
+server-side decision about what a server SURFACES (gap 4 in the design doc),
+so it belongs in a local blocklist table plus, later, a signed moderation log
+that other servers can choose to honour."""
+reputation = """
+NOT HERE: ratings and reviews attach to offerings and to completed exchanges,
+not to the provider object, and the platform records no exchanges today
+(settlement is directory-only). Pulling a rating into a self-signed object
+would let a provider sign its own five stars."""
+key_rotation = """
+KNOWN LIMITATION: a provider's identity is its author key, and today the DID
+changes when the key rotates (src/relay/core/did.rs). Until stable DIDs land,
+a rotation means republishing the root and re-pointing offerings. Do not build
+anything that assumes a provider survives a rotation."""
