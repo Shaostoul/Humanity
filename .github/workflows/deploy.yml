@@ -9,7 +9,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
 
     steps:
       - name: Deploy & build on VPS
@@ -18,7 +18,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 25m
+          command_timeout: 70m
           script: |
             set -e
             export PATH="$HOME/.cargo/bin:$PATH"
