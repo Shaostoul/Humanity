@@ -45,6 +45,9 @@ pub use crate::gui::widgets::passphrase_modal;
 pub mod onboarding;
 pub mod server_settings;
 pub mod relay_control;
+// "Host a node": start/stop a relay on THIS machine from inside the app
+// (rendered as a section of relay_control). GUI-first rule, CLAUDE.md.
+pub mod host_node;
 pub mod game_admin;
 pub mod identity;
 pub mod governance;

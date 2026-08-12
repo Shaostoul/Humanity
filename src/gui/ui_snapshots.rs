@@ -1019,6 +1019,45 @@ fn snapshot_relay_control_actions() {
     });
 }
 
+/// Relay Control Center — "Host a node on this PC". Rendered with NO relay
+/// selected, which is what a person with no server of their own actually sees:
+/// the page used to be a dead end there, and now it leads with the form that
+/// starts a server on this machine (port / database / name + Start).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_relay_control_host_node() {
+    render_page_png("relay_control_host_node", 1100, 900, |ctx, theme, state| {
+        // No saved servers and no connected relay: the empty-selection path.
+        state.chat_servers.clear();
+        state.server_url.clear();
+        state.relay_cc_selected = None;
+        crate::gui::pages::relay_control::draw(ctx, theme, state);
+    });
+}
+
+/// Relay Control Center — a node that IS serving: the addresses to hand to a
+/// friend, the database file, uptime, and Stop. Seeded through a test-only hook
+/// so no port is bound and no database is opened.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_relay_control_host_node_running() {
+    crate::gui::pages::host_node::force_running_for_snapshot(
+        3210,
+        "Shaostoul's node",
+        r"C:\Users\Shaos\AppData\Roaming\HumanityOS\relay\relay.db",
+        Some("192.168.1.24"),
+    );
+    render_page_png("relay_control_host_node_running", 1100, 900, |ctx, theme, state| {
+        state.chat_servers.clear();
+        state.server_url.clear();
+        state.relay_cc_selected = None;
+        crate::gui::pages::relay_control::draw(ctx, theme, state);
+    });
+    // The node state is process-global; leaving it Running would put a "this PC"
+    // row in the rail of every later Relays snapshot.
+    crate::gui::pages::host_node::reset_for_snapshot();
+}
+
 /// Native donate page — the Sponsor-A-Can (501c3) primary card above the crypto
 /// section (mirrors web v0.845.1).
 #[test]

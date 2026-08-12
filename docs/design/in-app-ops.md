@@ -109,6 +109,39 @@ Main menu → "Relays"
 
 This is the natural convergence point for the CLI-debt table above: every row's "in-app home" becomes a panel under this page's Config or Control tab, and once several exist the action-registry factoring falls out.
 
+### Hosting a node from inside the app (SHIPPED)
+
+Running a server at all was the largest remaining CLI-only step, and it was not
+in the debt table above because it sits before every row in it: `HumanityOS
+--headless`, or a systemd unit on a rented box. Someone who just wants their
+family on their own server had to open a terminal before any of the panels
+above applied to them.
+
+`src/gui/pages/host_node.rs` closes that, rendered as a section of the Relays
+page. There is only one binary and the `native` feature already includes
+`relay`, so the desktop app links the whole server and starting one is just
+`crate::relay::run_relay()` on its own thread with its own tokio runtime,
+configured through the same `PORT` / `DATABASE_PATH` / `SERVER_NAME` env knobs
+the systemd unit sets. Stop resolves a oneshot that wins a `select!` against
+the serve future, which drops the listener and frees the port.
+
+What the surface shows: running or not, the port, the database file, the
+loopback and LAN addresses to hand to a friend, uptime, and a Start / Stop
+pair. State is honest rather than optimistic: the port is test-bound (on the
+wildcard address AND loopback, because Windows lets a 0.0.0.0 bind succeed past
+a 127.0.0.1 squatter) and the database folder created before the thread exists,
+the thread body is wrapped in `catch_unwind`, and the node is only reported as
+Running once `GET /health` actually answers.
+
+Two deliberate limits, stated in the UI rather than hidden: it serves only while
+HumanityOS is open (a machine that should serve unattended still wants the
+headless binary plus a service), and reaching it from outside the local network
+still needs a router port forward, which no app can do for the user.
+
+Remaining depth: the local node has no in-app "restart", it is stop then start;
+and it is not registered in `data/admin/ops_registry.json` yet, so the Admin map
+does not list it.
+
 ## Guardrails
 
 - **Auth**: every admin action is Dilithium-authed (the relay's `verify_dilithium_signature` path), admin/owner role required. Never expose an unauthenticated ops endpoint.
