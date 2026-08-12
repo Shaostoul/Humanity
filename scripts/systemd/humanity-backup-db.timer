@@ -1,0 +1,16 @@
+# Backs up the relay DB every 30 minutes, plus shortly after boot.
+# Deploy-INDEPENDENT on purpose: a backup cadence that depends on
+# deploys (or on the relay process staying up) is not a backup cadence.
+# The rebuilt box ran with ZERO backups because the relay's in-process
+# loop resets its 6h timer on every restart; this timer cannot.
+[Unit]
+Description=Take a HumanityOS relay DB backup every 30 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30min
+# If the VPS was off when a run was due, run once on next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

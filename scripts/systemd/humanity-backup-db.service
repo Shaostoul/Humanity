@@ -1,0 +1,22 @@
+# HumanityOS relay DB hot-backup — oneshot, driven by the .timer.
+# Version-controlled in scripts/systemd/ so it survives a VPS rebuild;
+# installed by provision-vps.sh's glob and refreshed by the deploy
+# workflow. See scripts/humanity-backup-db.sh for the WHY (and the
+# 2026-05-21 fossil-backup incident it now guards against).
+#
+# WHY A SYSTEMD TIMER AND NOT THE RELAY'S OWN LOOP: the relay has an
+# in-process 6-hour backup loop, but it sleeps BEFORE its first backup
+# and every relay restart resets that clock — so on a box that deploys
+# more than once per 6h it NEVER fires (found 2026-08-12: zero backups
+# on the rebuilt box). This timer is deploy- and relay-restart-
+# independent, exactly like the disk guard.
+[Unit]
+Description=HumanityOS relay SQLite hot backup (online .backup, relay stays up)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/humanity-backup-db
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=120

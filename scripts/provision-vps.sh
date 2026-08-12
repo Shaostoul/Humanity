@@ -190,7 +190,16 @@ systemctl enable humanity-relay
 say "watchdog"
 install -m 644 "$REPO"/scripts/systemd/humanity-*.{service,timer} /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now humanity-relay-watchdog.timer humanity-disk-guard.timer
+# The backup timer is the reason the rebuilt box had ZERO backups: it was
+# referenced by deploy.yml but its unit file never existed, so every enable
+# silently failed under `|| true`. It is a repo-owned unit now (installed by
+# the glob above); enable it here and assert it below.
+systemctl enable --now humanity-relay-watchdog.timer humanity-disk-guard.timer \
+  humanity-backup-db.timer
+# Prime it once so a fresh box has a backup within seconds, not 30 minutes.
+[ -x /usr/local/bin/humanity-backup-db ] || \
+  install -m 755 "$REPO/scripts/humanity-backup-db.sh" /usr/local/bin/humanity-backup-db
+systemctl start humanity-backup-db.service || true
 
 # ── 11. Web root + nginx. Certs must exist before the TLS config loads, so:
 #        certbot standalone first (needs :80 free), then the real config. ─────
@@ -208,6 +217,16 @@ if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   certbot certonly --standalone -n --agree-tos -m "$CERT_MAIL" "${cert_args[@]}" || {
       echo "!! certbot failed (DNS for $DOMAIN / $CHAT_DOMAIN not pointing here yet?) - nginx left stopped; re-run when ready"; exit 1; }
 fi
+# RENEWAL HOOKS. The cert is issued with --standalone, so its twice-daily
+# renewal needs port 80 free - but nginx holds it, so an unhooked renewal
+# SILENTLY FAILS and the cert expires ~60 days later (found 2026-08-12: the
+# renewal was armed to fail around Oct 10). certbot runs every script in these
+# dirs for every renewal, so stop nginx before and start it after. The ~30s
+# gap happens at most twice a year and only when a cert actually renews.
+install -d /etc/letsencrypt/renewal-hooks/pre /etc/letsencrypt/renewal-hooks/post
+printf '#!/bin/sh\nsystemctl stop nginx\n'  > /etc/letsencrypt/renewal-hooks/pre/stop-nginx.sh
+printf '#!/bin/sh\nsystemctl start nginx\n' > /etc/letsencrypt/renewal-hooks/post/start-nginx.sh
+chmod +x /etc/letsencrypt/renewal-hooks/pre/stop-nginx.sh /etc/letsencrypt/renewal-hooks/post/start-nginx.sh
 # The site config includes two certbot companion files that only the
 # certbot-NGINX plugin creates; standalone certonly does not (third landmine
 # this script's first live run found). Both are public, stable content:
@@ -286,4 +305,10 @@ swapon --show | grep -q swap || { echo "!! no swap"; fail=1; }
 ok=0; for i in $(seq 1 15); do curl -fsS -m 3 http://127.0.0.1:3210/health >/dev/null 2>&1 && { ok=1; break; }; sleep 2; done
 [ $ok = 1 ] || { echo "!! relay /health not answering after 30s"; fail=1; }
 sleep 3; systemctl is-active --quiet fail2ban || { echo "!! fail2ban is not running (it can die AFTER start reports success)"; fail=1; }
+# The backup timer must be ARMED and must have produced at least one real
+# backup - the rebuilt box looked healthy for days with neither (2026-08-12).
+systemctl is-active --quiet humanity-backup-db.timer || { echo "!! DB backup timer is not armed"; fail=1; }
+ls "$REPO"/backups/relay-*.db >/dev/null 2>&1 || { echo "!! no DB backup has ever been written"; fail=1; }
+# Renewal must be able to free port 80, or the cert expires ~60 days out.
+[ -x /etc/letsencrypt/renewal-hooks/pre/stop-nginx.sh ] || { echo "!! cert renewal has no port-80 hook - it will fail silently"; fail=1; }
 [ $fail = 0 ] && say "PROVISION COMPLETE - all assertions pass" || { say "PROVISION FINISHED WITH FAILURES"; exit 1; }
