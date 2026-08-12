@@ -5,6 +5,17 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Serialize deploys: the job git-resets, builds, and restarts the relay on ONE
+# box, so two concurrent runs fight over the checkout and the build. QUEUE
+# (cancel-in-progress:false) rather than cancel - a build cancelled mid-way can
+# leave the box half-updated, and a queued deploy just waits for the box to be
+# free. Added 2026-08-12 after two rapid pushes ran two deploys on the box at
+# once (no guard existed; the site stayed up only because the relay restarts
+# solely on a successful build).
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy
