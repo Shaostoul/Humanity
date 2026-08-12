@@ -1233,9 +1233,29 @@ alongside signed_objects. Scanning and decoding every offering per query is
 fine at 100 offerings and unusable at 100000, which is precisely the retailer
 scale this design is for. Treat that as known work, not a surprise."""
 federation = """
-Because an offering is a plain signed object it gossips the day federation is
-fixed, with no changes here. Until then a provider's own server serves its own
-users, which is enough to launch."""
+CATALOGS DO NOT GOSSIP (operator correction, 2026-08-12). An earlier draft said
+offerings would replicate to every peer "for free" once federation is fixed.
+That breaks at exactly the scale this schema is for: one retailer with a
+million SKUs would impose a million objects on every node in the network,
+including nodes running on a donated laptop, and would make the flagship server
+a central warehouse for everyone's inventory - the centralisation this platform
+exists to avoid.
+
+The model is PULL, not PUSH:
+  - a provider's own node holds the authoritative copy of its own offerings,
+    so storage scales with a provider's own inventory;
+  - what federates is the small, bounded yellow-pages INDEX (provider_v1),
+    not the shelves;
+  - clients query the providers they are actually looking at and CACHE the
+    results on their own hardware - self-custodial by construction;
+  - that client cache MUST be bounded and pruned perpetually. The
+    `updated_at` / `ttl_days` / `expires_at` fields in this schema exist for
+    exactly that, and an unbounded cache OOMs the weakest device in the
+    network, which belongs to the person this platform is most for.
+
+Being a signed object still buys authorship, verification, and tamper-evidence
+for every cached copy - which is what makes a client-held cache trustworthy.
+See docs/design/market-directory.md, "NO SERVER HOLDS THE GLOBAL CATALOG"."""
 disputes = """
 `dispute_v1` objects already exist for the credential and trust graph. Nothing
 in this schema creates a dispute, because nothing here creates an order: with

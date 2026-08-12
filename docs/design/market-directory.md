@@ -111,16 +111,84 @@ generic typed envelope that already carries dozens of types
   fulfillment (pickup/ship/remote/in-person), location, `settlement` block,
   and a TTL / `updated_at` so stale inventory ages out of the Market.
 
-Because they are signed objects, they gossip and FEDERATE for free the day
-federation is fixed (see PRIORITIES: federation is dormant with 3 cited
-never-ran-live bugs). Until then a provider runs their own node and their own
-users see their offerings immediately - the Market does NOT wait on federation,
-it inherits it.
+Being signed objects gives them signing, verification, and a replication
+mechanism. It does NOT mean the catalog should be replicated everywhere - see
+the next section, which is the correction that governs everything here.
 
-The Market views are just queries over `offering_v1`:
-`count_signed_objects` / `list_signed_objects(object_type = "offering_v1")`
-already exist; storefront = filter by provider, cross-provider = filter by
-`item_ref`, category browse = filter by `category`.
+The Market views are queries over `offering_v1`: storefront = filter by
+provider, cross-provider = filter by `item_ref`, category browse = filter by
+`category`. Note `list_signed_objects` filters only on object_type / space_id /
+author_fp today, so the item_ref and category views need indexed columns or a
+projection table (known work; see schemas/offering.toml `[relationships]`).
+
+## NO SERVER HOLDS THE GLOBAL CATALOG (operator correction, 2026-08-12)
+
+An earlier draft of this document said offerings "gossip and FEDERATE for free."
+That was wrong, and it was wrong in the direction that breaks at exactly the
+scale this design exists for. The operator caught it:
+
+> "United-Humanity.us wouldn't store a list as the space would become too much
+> with infinite offerings. A client could cache a list, multiple lists,
+> dependent on the thing it is referencing on their own PC, that way people
+> remain self-custodial. Not all hardware can store infinite objects so we need
+> to keep the list pruned perpetually to not OOM or whatever."
+
+Auto-gossiping every offering to every peer means every server eventually holds
+every offering of every provider forever. One retailer with a million SKUs
+would impose a million objects on every node in the network, including the ones
+running on a donated laptop. The flagship server becomes a central warehouse -
+the exact centralisation this platform exists to avoid, and an unbounded
+storage bill nobody agreed to.
+
+**The model is PULL, not PUSH:**
+
+1. **A provider's node holds its OWN offerings.** That is the authoritative
+   copy, and it is the only complete copy of that catalog. A provider's storage
+   scales with their own inventory, which is fair and self-limiting.
+2. **Discovery replicates; catalogs do not.** What federates is small and
+   bounded: `provider_v1` entries (who exists, what they broadly offer, where
+   to reach them) - the yellow-pages INDEX. Not the shelves.
+3. **Clients pull what they are actually looking at, and cache it locally.**
+   Searching "flashlights" queries the relevant providers' nodes and caches the
+   results on the user's own machine. The user's list lives on the user's
+   hardware: self-custodial by construction, not by policy.
+4. **The cache is bounded and pruned perpetually.** Not all hardware can hold
+   infinite objects. A client cache needs a size cap, an eviction policy, and
+   respect for each offering's own TTL (`updated_at` / `ttl_days` /
+   `expires_at`, already in the schema - those fields exist precisely for this).
+   Pruning is a REQUIREMENT, not a nicety: an unbounded cache OOMs the weakest
+   device in the network, and the weakest device belongs to the person this
+   platform is most for.
+
+This also makes staleness honest. A cached offering is a snapshot with a
+timestamp; the client shows "last confirmed N days ago" and refetches from the
+source when the user cares. A gossiped global catalog would have shown every
+node's stale copy as though it were current.
+
+## Sharding: infinite servers, not one big one
+
+The operator's plan for load: united-humanity.us hosts everything at first,
+then aspects SHARD OUT across other servers so work spreads instead of piling
+onto one box.
+
+The capability manifest (`features` in `data/server-config.json`, with real
+route-level enforcement) IS the sharding mechanism. A node advertises what it
+serves; a client routes to a node that serves it. Chat can live on one server,
+the directory on another, the game on a third, and none of them carries the
+others' load or storage.
+
+Concrete near-term shape:
+- **united-humanity.us** - everything, for now. The flagship.
+- **public.guide** - a BASIC CHAT SERVER to start (operator, 2026-08-12): the
+  simplest possible second node, purely to prove federation works end-to-end
+  between two real hosts on different domains before any feature depends on it.
+  Chat is the right first test because it is the one federated flow that
+  already has code on both sides.
+- **shaostoul.com** - untouched, posterity.
+
+Do not give a second node a complicated job until a simple one demonstrably
+works. Stocking nodes with real content comes after federation is proven
+non-glitchy, not before.
 
 ## What we absolutely need (ranked, from the gap map + this design)
 
