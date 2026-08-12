@@ -11,36 +11,93 @@
 
 ## Active focus
 
-> **>>> TOP ITEM (2026-08-07): REBUILD THE VPS - the game work below WAITS.**
-> The server was null-routed by Namecheap's abuse team: the coturn TURN relay
-> was still running the LEGACY static credential (public in the repo until
-> v0.857) because the migration doc was never executed on the box. Full story:
-> INCIDENT-PLAYBOOK.md "The TURN relay abuse". State as of 2026-08-07 evening:
-> OS reinstalled (Debian 12), operator key installed + verified by fingerprint,
-> SSH key-only, abuse ticket NC-QTL-4184 answered with remediation, network
-> still blocked pending Namecheap. DB safe on the operator PC (02:00 backup).
+> **>>> VPS: REBUILT, LIVE, AND HARDENED (2026-08-07 .. 08-12). DONE.**
+> The server was null-routed by Namecheap for relaying attack traffic through
+> an abusable coturn TURN relay (legacy static credential, public in the repo
+> until v0.857, migration never run on the box). Full story:
+> INCIDENT-PLAYBOOK.md "The TURN relay abuse". Fresh Debian 12, rebuilt
+> entirely from scripts/provision-vps.sh, DB restored (zero loss). Six
+> install-time landmines and three post-rebuild "quiet killers" all found,
+> fixed IN the scripts, and guarded by assertions:
+> - DB backups (were ZERO on the rebuilt box - units referenced but never
+>   existed). Live now: humanity-backup-db.timer, every 30 min,
+>   restart-independent. Asserted.
+> - Cert renewal (was armed to fail ~Nov: standalone needs port 80, nginx
+>   holds it). Fixed with renewal hooks, proven by --dry-run. Asserted.
+> - Relay logging (headless relay initialized NO tracing subscriber - the
+>   incident was investigated with zero relay logs). Fixed v0.1113.0.
+> - provision-vps.sh is now DOMAIN-PARAMETRIC (node.env) - the first "boot
+>   your own node" seam. Canonical byte-identical; a self-hoster sets 3 lines.
 >
-> TIMELINE: the operator is away ~Aug 8-10 with their PC OFF - no watcher runs,
-> nothing happens until they return. The box sits safely: fresh install, sshd
-> key-only, no other services, passwords disabled. Namecheap may unblock it
-> during the gap; that changes nothing. WHEN THE OPERATOR IS BACK:
-> 1. `ssh humanity-vps` (old host key already cleared on the PC).
-> 2. Deliver the newest `%USERPROFILE%\HumanityBackupselay-*.db` to
->    `/root/relay-restore.db` (scp), then:
->    `git clone https://github.com/Shaostoul/Humanity.git /opt/Humanity && bash /opt/Humanity/scripts/provision-vps.sh`
->    The script is idempotent and ends in drift ASSERTIONS - it fails loudly
->    rather than leaving a half-built box.
-> 3. Operator sets ADMIN_KEYS in /opt/Humanity/.env (their chat public key).
-> 4. Verify: https://united-humanity.us + /health + chat connect + a DM.
-> 5. Follow-ups, ranked: (a) CI deploy gets its OWN key with a forced command
->    (today CI holds the operator's personal root key - either leak = root);
->    (b) deploy pipeline runs the provision assertions remotely post-deploy;
->    (c) off-box uptime monitor (OPERATOR: free UptimeRobot on /health - this
->    outage was invisible for 12 hours because every monitor lived on the box);
->    (d) reinstate transmission (RPC localhost-only + upload caps), forgejo
->    (from docs/admin/forgejo-setup.md), and LAST coturn - only via the
->    ephemeral-credential migration implemented INSIDE provision-vps.sh;
->    (e) extend the operator backup pull to include data/uploads.
+> STILL OPERATOR-ONLY (all cheap, none blocking):
+> - **Off-box uptime monitor** (free UptimeRobot on /health). This outage was
+>   invisible ~12 h because every monitor lived on the box it watched. TOP.
+> - Confirm chat admin powers survived the DB restore; claim-code fallback in
+>   docs/admin/SELF-HOSTING.md if not.
+> - Reply to Namecheap NC-QTL-4184 declining the log offer (case closed).
+>
+> **>>> THE SELF-HOST / FEDERATION / MERCHANT VISION (mapped 2026-08-12 by a
+> 4-investigation + adversarial-verify workflow, ~1M tokens - do NOT re-derive,
+> read wf_679e408f-88b in the journal). Ranked by value x independence:**
+>
+> 1. **Merchant inventory on ONE server - needs NO federation, highest value.**
+>    Define a `listing_v1` signed-object payload (schemas/listing.toml: item
+>    ref, title, desc, category, structured price {amount,currency}, stock,
+>    condition, fulfillment, location; seller = signing key) + a validated BULK
+>    IMPORTER, both riding the EXISTING signed-object pipeline (POST
+>    /api/v2/objects + auto-gossip). Federation replication then comes free the
+>    day a second peer works. Today /api/listings is a single-server classifieds
+>    board owned by individual user keys - no bulk path, no settlement. A
+>    group_v1 signed-object family already exists to build MERCHANT IDENTITY on.
+>    Bug found in passing (fix cheap): web wallet USDC send is broken by a name
+>    mismatch - wallet-app.js:394 calls sendToken; wallet.js exports sendSPLToken.
+>
+> 2. **White-label seams - what actually blocks a third party running this.**
+>    Clients are MOSTLY domain-relative already (web chat uses location.host;
+>    native has a server picker). The real blockers, cited:
+>    (a) THE hard one: the relay bakes its browser WS-Origin allowlist
+>    (src/relay/mod.rs:840-846), CORS allow_origin (744-751) and CSP connect-src
+>    (77-88) to the five united-humanity hostnames, so browser chat on ANY other
+>    domain is refused. Fix: build all three from ONE source (ALLOWED_ORIGINS
+>    env / a domain field in data/server-config.json), the five as default. One
+>    file, three sites, plus a provision line - THE single change that unblocks
+>    a self-hoster's web chat.
+>    (b) native TURN + streaming defaults hardcode united-humanity.us
+>    (src/net/webrtc.rs:205; gui/mod.rs:1750 is already user-editable).
+>    (c) ~1004 branded literals (incl. "shaostoul") across ~30 data/ files,
+>    dominated by data/announcements_archive - mostly content, not config.
+>    (d) DATA-DRIVEN TABS: data/gui/navigation.json exists but is consumed by
+>    NOTHING and is stale (lists deleted 'civilization' page, removed real/sim
+>    toggle). Wiring it (self-hoster picks tabs without forking HTML) means
+>    first correcting it against the live page registry, then reading it where
+>    tab choice is currently hardcoded in three places.
+>
+> 3. **Federation - the network effect, hardest and riskiest, genuinely DORMANT.**
+>    Zero peers have EVER federated (live DB: 0 rows). A second relay booting
+>    today flaps connect/disconnect ~every 35 s forever, exchanging nothing,
+>    because of THREE independent never-ran-live defects:
+>    (a) the v0.274 identify gate eats every inbound FederationHello (the /ws
+>    pre-bind loop accepts only Identify; relay.rs:2704);
+>    (b) the hello sig signs `{ts}` but the verifier checks `{ts}\n{ts}`
+>    (federation.rs:239 vs msg_handlers.rs:2522);
+>    (c) federated chat signs `content\nts\nchannel` but the verifier expects
+>    `fed_chat\nfrom\nchannel\ncontent\nts` (federation.rs:123 vs :2588).
+>    Smallest increment: fix the two preimage mismatches (minutes each) + add a
+>    FederationHello path through the identify gate (hours, security-sensitive),
+>    then run the '$0 test' - two relays on localhost, mutual /server-add +
+>    /server-trust 2 + /server-federate via the existing native GUI, verify a
+>    chat line and a profile appear on both. SECURITY in the same arc: empty-sig
+>    ProfileGossip lets any authed client overwrite any cached federation
+>    profile (relay.rs:6093-6106); no federation integration test exists.
+>
+> **>>> SECURITY follow-ups (post-incident, ranked):**
+> - CI deploy key = the operator's personal root key and can do ANYTHING as
+>   root. Split it: CI gets its own key with a forced command in
+>   authorized_keys that can only trigger a deploy.
+> - Deploy warned "humanity-relay-services failed visudo" - a sudoers file the
+>   new box lacks; find what it is for (grep repo) and whether it is needed.
+> - Deploy pipeline should run provision-vps.sh's assertions remotely after
+>   each deploy, so drift is caught by CI, not by an abuse team.
 >
 > **>>> THEN the game work, unchanged from 2026-08-04:**
 >
