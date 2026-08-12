@@ -153,12 +153,57 @@ if [ ! -f "$REPO/.env" ]; then
   printf 'ADMIN_KEYS=\nAPI_SECRET=%s\nRUST_LOG=info\n' "$(openssl rand -hex 32)" > "$REPO/.env"
   chmod 600 "$REPO/.env"
 fi
-# Build only if no binary exists. Provisioning defines the MACHINE; keeping
-# the binary current is the deploy pipeline's job. (On this VPS a build is
-# ~31 minutes and something invalidates cargo's cache between provision runs,
-# so an unconditional build turned every re-run into an hour.)
-[ -x "$REPO/target/release/HumanityOS" ] || \
+# ── The relay binary: FETCH if we can, build only if we must ────────────────
+#
+# Measured on the live VPS: RUNNING the relay costs 19.7 MB RSS, 0.5% of one
+# core, and a 26 MB binary. BUILDING it costs 1-2 GB of peak rustc memory,
+# 1.4 GB of target/, and 31-35 minutes on FOUR cores. If provisioning always
+# built, the minimum spec for a HumanityOS node would be set by the COMPILER
+# rather than by the software - pricing a small provider out of the federation
+# over a cost the software never actually incurs at runtime. A 1 GB / 1 core /
+# 20 GB VPS runs this comfortably; it cannot compile it.
+#
+# So: prefer the prebuilt headless relay published by CI
+# (build-desktop.yml, job "relay"), verify its checksum, and fall back to
+# building from source only when no prebuilt binary is available for this
+# platform. HUMANITY_BUILD_FROM_SOURCE=1 forces the build path.
+#
+# Provisioning defines the MACHINE; keeping the binary current is the deploy
+# pipeline's job - which is why this is skipped entirely when a binary is
+# already present.
+RELEASE_TAG="${HUMANITY_RELAY_TAG:-latest}"
+if [ -x "$REPO/target/release/HumanityOS" ]; then
+  say "relay binary already present - leaving it to the deploy pipeline"
+elif [ "${HUMANITY_BUILD_FROM_SOURCE:-0}" = "1" ]; then
+  say "building relay from source (forced)"
   ( cd "$REPO" && cargo build --release --features relay --no-default-features )
+else
+  say "fetching prebuilt headless relay ($RELEASE_TAG)"
+  mkdir -p "$REPO/target/release"
+  base="https://github.com/Shaostoul/Humanity/releases"
+  url="$base/latest/download/HumanityOS-relay-linux-x64"
+  [ "$RELEASE_TAG" = "latest" ] || url="$base/download/$RELEASE_TAG/HumanityOS-relay-linux-x64"
+  tmp="$(mktemp -d)"
+  if curl -fsSL "$url" -o "$tmp/relay" && curl -fsSL "$url.sha256" -o "$tmp/relay.sha256"; then
+    # The checksum file names the CI path, so compare hashes not filenames.
+    want="$(awk '{print $1}' "$tmp/relay.sha256")"
+    got="$(sha256sum "$tmp/relay" | awk '{print $1}')"
+    if [ -n "$want" ] && [ "$want" = "$got" ]; then
+      install -m 755 "$tmp/relay" "$REPO/target/release/HumanityOS"
+      say "installed prebuilt relay (sha256 verified)"
+    else
+      echo "!! checksum mismatch on the downloaded relay - refusing it"
+      echo "   expected $want"
+      echo "   got      $got"
+      rm -rf "$tmp"; exit 1
+    fi
+  else
+    echo "no prebuilt relay available for this platform/tag - building from source"
+    echo "(needs ~2 GB RAM and ~1.4 GB disk; on a 1 GB box set up swap first)"
+    ( cd "$REPO" && cargo build --release --features relay --no-default-features )
+  fi
+  rm -rf "$tmp"
+fi
 cat > /etc/systemd/system/humanity-relay.service <<UNIT
 [Unit]
 Description=Humanity Network Relay

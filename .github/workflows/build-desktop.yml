@@ -126,6 +126,71 @@ jobs:
             dist/HumanityOS-${{ matrix.label }}.zip
             dist/${{ matrix.asset_name }}
 
+  # THE SELF-HOSTER'S BINARY (2026-08-12). Everything above builds the DESKTOP
+  # app (--features native, GPU deps). A server does not want that: it wants the
+  # headless relay, which is a completely different build.
+  #
+  # WHY THIS EXISTS: measured on the live VPS, RUNNING the relay costs 19.7 MB
+  # RSS, 0.5% of one core, and a 26 MB binary. BUILDING it costs 1-2 GB of peak
+  # rustc memory, 1.4 GB of target/, and 31-35 minutes on FOUR cores. So without
+  # a prebuilt binary the minimum spec for a HumanityOS node is set by the
+  # compiler, not by the software - which prices a small provider out of the
+  # federation over a cost the software never actually incurs. With this
+  # artifact a 1 GB / 1 core / 20 GB VPS is comfortable (30x headroom on RAM).
+  relay:
+    name: Build relay (linux-x64, headless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: relay-linux-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: relay-linux-cargo-
+
+      # The exact feature set the VPS runs (deploy.yml and provision-vps.sh use
+      # the same one). --no-default-features is what drops the GPU/windowing
+      # stack; building with `native` would produce a binary a headless box
+      # cannot even link against.
+      - name: Build headless relay
+        run: cargo build --release --features relay --no-default-features
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/HumanityOS dist/HumanityOS-relay-linux-x64
+          sha256sum dist/HumanityOS-relay-linux-x64             > dist/HumanityOS-relay-linux-x64.sha256
+          ls -la dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-linux-x64
+          path: dist/HumanityOS-relay-linux-x64*
+          retention-days: 14
+
+      # Published on tags so a self-hoster can fetch a specific version rather
+      # than whatever main happens to be. The .sha256 travels with it because a
+      # binary downloaded over the network and run as a service should be
+      # checkable, and provision-vps.sh verifies it.
+      - name: Publish to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: false
+          files: |
+            dist/HumanityOS-relay-linux-x64
+            dist/HumanityOS-relay-linux-x64.sha256
+
   # Mirror every platform's binaries to the VPS release archive in one batch
   # and regenerate the manifest. Runs on Linux (required for the container
   # action — appleboy/scp-action is Docker-based and won't execute on macOS

@@ -154,3 +154,32 @@ already exist; storefront = filter by provider, cross-provider = filter by
 Federation replication is NOT on this ladder: it is a separate track
 (fix the 3 federation bugs) that, once done, lights up cross-node Market
 discovery with no changes to any of the above.
+
+## Hardware floor for a node (measured 2026-08-12)
+
+A provider should not need a big server to join. Measured on the live VPS:
+
+| | Running the relay | Building it from source |
+|---|---|---|
+| RAM | **19.7 MB** resident | 1-2 GB peak (rustc) |
+| Disk | 26 MB binary + data | +1.4 GB `target/` +351 MB cargo |
+| CPU | **0.5%** of one core | 31-35 min on FOUR cores |
+
+Running HumanityOS is featherweight; COMPILING it is not. If provisioning always
+built from source, the minimum spec for a node would be set by the compiler
+rather than by the software - which prices a small provider out of the network
+over a cost the software never actually incurs at runtime.
+
+So CI publishes a prebuilt headless relay (`HumanityOS-relay-linux-x64` plus a
+`.sha256`, from the `relay` job in build-desktop.yml) and provision-vps.sh
+FETCHES and checksum-verifies it, building from source only as a fallback or
+when `HUMANITY_BUILD_FROM_SOURCE=1`.
+
+**Practical floor for a federation node: 1 GB RAM / 1 core / 20 GB disk**
+(roughly 30x headroom on RAM). That is the cheapest tier most hosts sell. A
+node that also wants to BUILD from source wants 4 GB+ RAM and 4 cores, or a
+long afternoon and a big swap file.
+
+Two things a second node still needs regardless of size: its own DOMAIN (TLS
+certs are per-domain; see `node.env`) and DNS pointing at it before provisioning
+runs, because certbot validates over port 80 during the script.
