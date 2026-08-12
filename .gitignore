@@ -104,3 +104,4 @@ lintrun/
 # game copy, junctions, and captured sweeps. Regenerated on demand.
 /.probe-rig/
 devlog-drafts/
+node.env

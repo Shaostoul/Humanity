@@ -27,15 +27,31 @@
 # =============================================================================
 set -euo pipefail
 
-REPO=/opt/Humanity
-DOMAIN=united-humanity.us
-CHAT_DOMAIN=chat.united-humanity.us
-CERT_MAIL=shaostoul@gmail.com
+# ── Deployment identity ──────────────────────────────────────────────────────
+# Everything site-specific is a variable with the canonical instance as its
+# default, so `bash provision-vps.sh` still rebuilds united-humanity.us exactly,
+# while a self-hoster overrides via a node.env file or the environment:
+#
+#   HUMANITY_DOMAIN=shop.example.com HUMANITY_CERT_MAIL=me@example.com \
+#     bash provision-vps.sh
+#
+# or drop /opt/Humanity/node.env (gitignored) with KEY=value lines. This is the
+# seam that turns "our recovery script" into "anyone's installer" - a merchant
+# federating into the network changes these and nothing else in this file.
+REPO="${HUMANITY_REPO:-/opt/Humanity}"
+[ -f "$REPO/node.env" ] && { set -a; . "$REPO/node.env"; set +a; }
+DOMAIN="${HUMANITY_DOMAIN:-united-humanity.us}"
+CHAT_DOMAIN="${HUMANITY_CHAT_DOMAIN:-chat.$DOMAIN}"
+CERT_MAIL="${HUMANITY_CERT_MAIL:-shaostoul@gmail.com}"
+# Extra cert names (space-separated). The canonical instance keeps its www-less
+# apex + chat subdomain; a self-hoster with only an apex leaves this empty.
+CERT_EXTRA_DOMAINS="${HUMANITY_CERT_EXTRA:-}"
 
 say() { echo -e "\n=== $* ==="; }
 
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 [ -d "$REPO/.git" ] || { echo "clone the repo to $REPO first"; exit 1; }
+say "provisioning $DOMAIN (chat: $CHAT_DOMAIN, cert mail: $CERT_MAIL)"
 
 # ── 1. Base packages ─────────────────────────────────────────────────────────
 say "packages"
@@ -184,11 +200,13 @@ say "nginx + certs"
 bash "$REPO/scripts/sync-web-root.sh" "$REPO" /var/www/humanity
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   systemctl stop nginx || true
-  # No www: the zone has never had a www record (certbot fails the whole
-  # order on one NXDOMAIN name, which cost this script's second run).
-  certbot certonly --standalone -n --agree-tos -m "$CERT_MAIL" \
-    -d "$DOMAIN" -d "$CHAT_DOMAIN" || {
-      echo "!! certbot failed (network/DNS not ready?) - nginx left stopped; re-run when ready"; exit 1; }
+  # One cert covering apex + chat subdomain + any HUMANITY_CERT_EXTRA. Each name
+  # must resolve to THIS box or certbot fails the whole order (a www that never
+  # existed cost this script's second run - so www is opt-in, not assumed).
+  cert_args=(-d "$DOMAIN" -d "$CHAT_DOMAIN")
+  for extra in $CERT_EXTRA_DOMAINS; do cert_args+=(-d "$extra"); done
+  certbot certonly --standalone -n --agree-tos -m "$CERT_MAIL" "${cert_args[@]}" || {
+      echo "!! certbot failed (DNS for $DOMAIN / $CHAT_DOMAIN not pointing here yet?) - nginx left stopped; re-run when ready"; exit 1; }
 fi
 # The site config includes two certbot companion files that only the
 # certbot-NGINX plugin creates; standalone certonly does not (third landmine
@@ -229,6 +247,11 @@ limit_req_zone $binary_remote_addr zone=api_read_limit:10m rate=10r/s;
 limit_req_zone $binary_remote_addr zone=upload_limit:10m rate=2r/m;
 LIMITS
 install -m 644 "$REPO/scripts/nginx/humanity.conf" /etc/nginx/sites-available/humanity
+# The repo config is written for the canonical instance; substitute this
+# node's domains into the installed copy (server_name lines AND letsencrypt
+# paths). Ordered: the chat subdomain first, else the apex rule eats it.
+sed -i "s/chat\.united-humanity\.us/$CHAT_DOMAIN/g; s/united-humanity\.us/$DOMAIN/g" \
+  /etc/nginx/sites-available/humanity
 ln -sf /etc/nginx/sites-available/humanity /etc/nginx/sites-enabled/humanity
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
