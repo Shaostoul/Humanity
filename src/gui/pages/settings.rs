@@ -1817,7 +1817,21 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Sound effects only (clicks, footsteps, machines). Scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Game sound effects like footsteps and machines. Scales together with Master Volume. Interface clicks have their own control below.").color(theme.text_muted()).size(theme.font_size_small));
+        // Interface sounds (v0.1112): button clicks and other UI feedback ride
+        // their own "ui" bus, so they can be quieted or silenced without
+        // touching game SFX. The toggle is the master switch; the slider is the
+        // level. Answers "clicking makes a sound even if I don't click anything
+        // is fairly loud" - the click is now gentle by default and fully
+        // adjustable here.
+        if widgets::toggle(ui, theme, "Interface sounds", &mut state.settings.ui_sounds_enabled) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Play a soft click when you press a button or toggle. Turn off for silent interface.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "UI Volume", &mut state.settings.ui_volume, 0.0..=1.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Loudness of interface clicks only. Separate from game sound effects; scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
     });
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The

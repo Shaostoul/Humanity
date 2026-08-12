@@ -299,6 +299,18 @@ pub struct AppConfig {
     pub music_volume: f32,
     #[serde(default = "default_sfx_volume")]
     pub sfx_volume: f32,
+    /// Independent interface-sound volume (clicks and other UI feedback). These
+    /// route through their own "ui" bus so a user can quiet or mute button
+    /// clicks without also silencing footsteps and machines (which stay on the
+    /// sfx bus). Default 1.0, so the (now-quiet) authored click volume is
+    /// unchanged for existing users.
+    #[serde(default = "default_ui_volume")]
+    pub ui_volume: f32,
+    /// Whether interface sounds (button clicks, UI feedback) play at all.
+    /// On by default; the toggle sits above the UI-volume slider in
+    /// Settings > Audio so anyone bothered by the click can silence it outright.
+    #[serde(default = "default_true")]
+    pub ui_sounds_enabled: bool,
     #[serde(default)]
     pub fullscreen: bool,
     /// How the window is presented (v0.454). Supersedes the legacy `fullscreen` bool.
@@ -754,6 +766,7 @@ fn default_mouse_sensitivity() -> f32 { 0.25 }
 fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
+fn default_ui_volume() -> f32 { 1.0 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
@@ -1124,6 +1137,8 @@ impl AppConfig {
             master_volume: state.settings.master_volume,
             music_volume: state.settings.music_volume,
             sfx_volume: state.settings.sfx_volume,
+            ui_volume: state.settings.ui_volume,
+            ui_sounds_enabled: state.settings.ui_sounds_enabled,
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             nav_display_mode: state.nav_display_mode,
@@ -1260,6 +1275,8 @@ impl AppConfig {
         state.settings.master_volume = self.master_volume;
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;
+        state.settings.ui_volume = self.ui_volume;
+        state.settings.ui_sounds_enabled = self.ui_sounds_enabled;
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.nav_display_mode = self.nav_display_mode;
@@ -1771,6 +1788,10 @@ mod pbkdf2_migration_tests {
         assert!(c.sky_star_halos);
         assert_eq!(c.fov, 90.0);
         assert_eq!(c.master_volume, 0.8);
+        // Interface-sound control (v0.1112): default full volume, enabled, so
+        // the quiet click is unchanged for a fresh install.
+        assert_eq!(c.ui_volume, 1.0);
+        assert!(c.ui_sounds_enabled);
         assert_eq!(c.vitals_drain, 1.0);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde

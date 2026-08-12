@@ -443,7 +443,10 @@ tags = ["combat", "magic", "positive"]
 
 [sfx.button_click]
 path = "audio/ui/button_click.ogg"
-volume = 0.5
+# Gentle by default (v0.1112, was 0.5 - "fairly loud"). On a kid-and-ESL
+# platform the click should be a soft confirmation; the "UI volume" slider in
+# Settings > Audio lets anyone raise or mute it.
+volume = 0.2
 loop = false
 spatial = false
 bus = "ui"

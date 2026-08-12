@@ -121,9 +121,10 @@ pub(crate) struct EngineState {
     /// Data-driven sound catalog (data/sounds.toml, ids like
     /// "sfx.button_click" -> assets/audio paths).
     pub(crate) sound_catalog: crate::audio::sounds::SoundCatalog,
-    /// Last (master, music, sfx) volumes pushed into the audio engine, so
-    /// the per-frame sync only touches kira when a slider actually moved.
-    pub(crate) audio_volumes_applied: (f32, f32, f32),
+    /// Last (master, music, sfx, ui) volumes pushed into the audio engine, so
+    /// the per-frame sync only touches kira when a slider actually moved. The
+    /// 4th slot is the independent interface-sound bus (v0.1112).
+    pub(crate) audio_volumes_applied: (f32, f32, f32, f32),
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,

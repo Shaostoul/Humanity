@@ -1633,7 +1633,7 @@ mod native_app {
                 sound_catalog: crate::audio::sounds::SoundCatalog::load(std::path::Path::new(
                     "data",
                 )),
-                audio_volumes_applied: (-1.0, -1.0, -1.0),
+                audio_volumes_applied: (-1.0, -1.0, -1.0, -1.0),
                 tree_atlas_attempted: false,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
@@ -17312,16 +17312,21 @@ mod native_app {
                             // ── Game audio frame sync (v0.960, first CC0 sounds) ──
                             if let Some(audio) = state.audio.as_mut() {
                                 // Honest volume sliders: push Settings values
-                                // into kira only when one actually moved.
+                                // into kira only when one actually moved. The
+                                // 4th slot is the independent interface-sound
+                                // bus (v0.1112): clicks/UI feedback ride it so
+                                // they can be quieted without touching sfx.
                                 let vols = (
                                     state.gui_state.settings.master_volume,
                                     state.gui_state.settings.music_volume,
                                     state.gui_state.settings.sfx_volume,
+                                    state.gui_state.settings.ui_volume,
                                 );
                                 if vols != state.audio_volumes_applied {
                                     audio.set_master_volume(vols.0 as f64);
                                     audio.set_music_volume(vols.1 as f64);
                                     audio.set_sfx_volume(vols.2 as f64);
+                                    audio.set_ui_volume(vols.3 as f64);
                                     state.audio_volumes_applied = vols;
                                 }
                                 // ── Footsteps (v0.968, audio increment 2):
@@ -17419,13 +17424,26 @@ mod native_app {
                                         WARNED2.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
                                 }
-                                // UI click: any press that egui consumed. The
-                                // catalog drives the file (data/sounds.toml).
-                                let clicked = state.egui_ctx.input(|i| {
-                                    i.pointer.any_pressed()
-                                        && i.pointer.primary_pressed()
-                                }) && state.egui_ctx.wants_pointer_input();
-                                if clicked {
+                                // UI click (v0.1112): fire ONLY when egui
+                                // reported a REAL widget activation this frame -
+                                // a button/link/toggle was actually clicked -
+                                // not merely because the pointer was pressed
+                                // over some egui area. The old gate keyed on
+                                // wants_pointer_input(), true whenever the
+                                // pointer sat over ANY egui panel, so clicking
+                                // empty background clicked-sounded ("clicking on
+                                // the screen makes a sound even if I don't click
+                                // anything"). platform_output.events carries an
+                                // OutputEvent::Clicked only on genuine activation.
+                                // Read it HERE - handle_platform_output consumes
+                                // full_output.platform_output below. The catalog
+                                // drives the file, and the "ui" bus routes the
+                                // sound through the independent interface volume.
+                                let real_click = crate::gui::ui_click_should_sound(
+                                    &full_output.platform_output.events,
+                                    state.gui_state.settings.ui_sounds_enabled,
+                                );
+                                if real_click {
                                     let path = format!(
                                         "assets/{}",
                                         state.sound_catalog.path_or(
@@ -17436,7 +17454,7 @@ mod native_app {
                                     let vol = state
                                         .sound_catalog
                                         .volume_or_default("sfx.button_click");
-                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
+                                    if let Err(e) = audio.play_sound_bus(&path, vol, "ui") {
                                         // Once per session is plenty.
                                         static WARNED: std::sync::Once = std::sync::Once::new();
                                         WARNED.call_once(|| log::warn!("[Audio] ui click: {e}"));

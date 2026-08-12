@@ -29,6 +29,35 @@ mod ui_snapshots;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Decide whether the UI-click sound should fire this frame (v0.1112).
+///
+/// The click sound must fire ONLY when egui reported a REAL widget activation -
+/// a button, link, or toggle was actually clicked. The old gate keyed on
+/// `egui_ctx.wants_pointer_input()`, which in egui 0.31 is true whenever the
+/// pointer is merely OVER any egui area, so clicking empty panel background
+/// played the click ("clicking on the screen makes a sound even if I don't
+/// click anything"). `PlatformOutput::events` carries an `OutputEvent::Clicked`
+/// (or `DoubleClicked`) only when a widget genuinely activated, so scanning it
+/// is the precise gate. `ui_sounds_enabled` is the user's master switch for
+/// interface sounds (Settings > Audio) - off means never play the click.
+///
+/// Kept as a small pure function so the decision is unit-testable without a
+/// running egui context (a headless click-test is not possible).
+#[cfg(feature = "native")]
+pub fn ui_click_should_sound(
+    events: &[egui::output::OutputEvent],
+    ui_sounds_enabled: bool,
+) -> bool {
+    ui_sounds_enabled
+        && events.iter().any(|e| {
+            matches!(
+                e,
+                egui::output::OutputEvent::Clicked(_)
+                    | egui::output::OutputEvent::DoubleClicked(_)
+            )
+        })
+}
+
 /// An external entry loaded from `data/external/catalog.json`: either free
 /// software you install (`kind == "software"`) or a real-world help service
 /// (`kind == "service"`). One catalog, one renderer, both clients (v0.1063).
@@ -6742,6 +6771,11 @@ pub struct SettingsState {
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
+    /// Independent interface-sound volume (button clicks / UI feedback). Routed
+    /// through the "ui" bus, so it is separate from `sfx_volume`. See AppConfig::ui_volume.
+    pub ui_volume: f32,
+    /// Whether interface sounds play at all (the "Interface sounds" toggle).
+    pub ui_sounds_enabled: bool,
     // Controls
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
@@ -6853,6 +6887,8 @@ impl Default for SettingsState {
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,
+            ui_volume: 1.0,
+            ui_sounds_enabled: true,
             mouse_sensitivity: 0.25,
             invert_y: false,
             dark_mode: true,
@@ -6868,5 +6904,57 @@ impl Default for SettingsState {
             seed_phrase_recovery_status: String::new(),
             seed_phrase_show_recover: false,
         }
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod ui_click_sound_tests {
+    use super::ui_click_should_sound;
+    use egui::output::OutputEvent;
+    use egui::{WidgetInfo, WidgetType};
+
+    fn clicked_button() -> OutputEvent {
+        OutputEvent::Clicked(WidgetInfo::new(WidgetType::Button))
+    }
+
+    /// The whole point of the fix: with NO widget-activation event this frame
+    /// (the pointer was pressed over empty panel background), the click sound
+    /// must NOT fire. This is the operator's complaint reproduced as logic -
+    /// before the fix, being over any egui area was enough.
+    #[test]
+    fn no_click_event_means_no_sound() {
+        // Events that are NOT a real click: focus + value-change happen without
+        // a pointer click, and empty background produces no events at all.
+        let not_clicks = [
+            OutputEvent::FocusGained(WidgetInfo::new(WidgetType::TextEdit)),
+            OutputEvent::ValueChanged(WidgetInfo::new(WidgetType::Slider)),
+        ];
+        assert!(
+            !ui_click_should_sound(&[], true),
+            "empty-background frame (no events) must be silent"
+        );
+        assert!(
+            !ui_click_should_sound(&not_clicks, true),
+            "focus/value-change without a click must be silent"
+        );
+    }
+
+    /// A genuine widget activation DOES fire the sound.
+    #[test]
+    fn real_click_event_makes_sound() {
+        assert!(ui_click_should_sound(&[clicked_button()], true));
+        assert!(ui_click_should_sound(
+            &[OutputEvent::DoubleClicked(WidgetInfo::new(WidgetType::Button))],
+            true
+        ));
+    }
+
+    /// The "Interface sounds" master switch gates even a real click.
+    #[test]
+    fn disabled_switch_silences_a_real_click() {
+        assert!(
+            !ui_click_should_sound(&[clicked_button()], false),
+            "with interface sounds disabled, even a real click is silent"
+        );
     }
 }

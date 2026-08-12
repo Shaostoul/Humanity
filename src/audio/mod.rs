@@ -23,6 +23,11 @@ pub struct AudioManager {
     master_volume: f64,
     music_volume: f64,
     sfx_volume: f64,
+    /// Interface-sound bus gain (0.0 - 1.0). Sounds whose catalog `bus` is
+    /// "ui" (button clicks / UI feedback) route through this instead of
+    /// `sfx_volume`, so a user can quiet clicks without silencing footsteps
+    /// and machines. Default 1.0.
+    ui_volume: f64,
 }
 
 #[cfg(feature = "native")]
@@ -48,6 +53,7 @@ impl AudioManager {
             master_volume: 1.0,
             music_volume: 0.7,
             sfx_volume: 1.0,
+            ui_volume: 1.0,
         })
     }
 
@@ -60,10 +66,28 @@ impl AudioManager {
     /// `volume` field finally applies - before this every effect played at
     /// full master*sfx amplitude and the operator's "footsteps are kind of
     /// loud and jarring" was structural, not a tuning miss.
+    ///
+    /// Routes through the sfx bus. For interface sounds, call
+    /// [`play_sound_bus`](Self::play_sound_bus) with `"ui"` so the separate
+    /// interface-volume control governs them.
     pub fn play_sound_vol(&mut self, path: &str, vol: f64) -> Result<(), String> {
+        self.play_sound_bus(path, vol, "sfx")
+    }
+
+    /// Play a one-shot routed through a named audio bus (v0.1112). The "ui"
+    /// bus carries its own volume so a user can quiet interface clicks without
+    /// touching footsteps and machines; every other bus routes through sfx.
+    /// This is what finally makes the `bus` field in data/sounds.toml
+    /// load-bearing - before this it was parsed and ignored.
+    pub fn play_sound_bus(&mut self, path: &str, vol: f64, bus: &str) -> Result<(), String> {
+        let bus_gain = if bus == "ui" {
+            self.ui_volume
+        } else {
+            self.sfx_volume
+        };
         let data = self.load_sound(path)?;
         let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(
-            kira::Volume::Amplitude(self.master_volume * self.sfx_volume * vol.clamp(0.0, 2.0)),
+            kira::Volume::Amplitude(self.master_volume * bus_gain * vol.clamp(0.0, 2.0)),
         );
         let data_with_settings = data.with_settings(settings);
         self.manager
@@ -113,6 +137,11 @@ impl AudioManager {
     /// Set SFX volume (0.0 - 1.0).
     pub fn set_sfx_volume(&mut self, vol: f64) {
         self.sfx_volume = vol.clamp(0.0, 1.0);
+    }
+
+    /// Set interface-sound volume (0.0 - 1.0). Governs sounds on the "ui" bus.
+    pub fn set_ui_volume(&mut self, vol: f64) {
+        self.ui_volume = vol.clamp(0.0, 1.0);
     }
 
     /// Play a sound with distance-based volume falloff (simple spatial audio).
