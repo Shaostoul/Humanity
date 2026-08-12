@@ -71,6 +71,79 @@ instead, copy your built `web/` files into a `client/` folder beside the binary.
 
 ---
 
+## Run your own node from your PC (no rented server needed)
+
+You do not need to rent anything. The app you already downloaded IS the server:
+the desktop build and the server are the same program, so any PC that can run
+HumanityOS can host a node for other people. A household, a classroom, a
+community center, or a food bank with a donated laptop can be part of the
+network at no cost. That is the point - a hosting bill should never be the
+barrier to helping.
+
+### The one command
+
+```
+HumanityOS --headless
+```
+
+That starts the relay (chat, and whatever else you enable) with no window and
+no GPU. Two knobs, both optional:
+
+```
+PORT=3210                      # which port to listen on (default 3210)
+DATABASE_PATH=data/relay.db    # where to keep the data (default data/relay.db)
+```
+
+For example, on Windows: `set PORT=4000 && HumanityOS --headless`. On macOS or
+Linux: `PORT=4000 HumanityOS --headless`.
+
+It is featherweight. Measured on the live server, the relay uses about **20 MB
+of memory and half a percent of one CPU core** - it will not slow your machine
+down.
+
+### The genuinely easy case: a LAN-only node
+
+If everyone who connects is on the SAME network as you - a home, a school, a
+shared building - you need nothing else. No domain, no port forwarding, no
+certificate. Start it, find your machine's local address (something like
+`192.168.1.42`), and other people on your Wi-Fi connect to
+`http://192.168.1.42:3210`. This works today and is the right first step.
+
+### Reaching the wider internet (the honest version)
+
+Letting people OUTSIDE your network connect is harder, and it is not HumanityOS
+that makes it hard - it is how home internet works. Be aware of all of it before
+you start:
+
+- **Your router hides you.** Home routers use NAT, so the internet cannot reach
+  your PC until you set up **port forwarding** on the router, or use a **tunnel**
+  (Cloudflare Tunnel and Tailscale are the two easiest, and they avoid touching
+  router settings at all).
+- **Your address probably changes.** Most home internet has a *dynamic* IP that
+  changes without warning. A **dynamic DNS** service (many are free) gives you a
+  name that follows it.
+- **Some ISPs block inbound ports** (especially 80 and 443) on home plans, or
+  put you behind carrier-grade NAT where port forwarding is impossible. A tunnel
+  is the way around this; if that fails too, a cheap VPS is the honest answer.
+- **HTTPS needs a domain.** A browser will not make a secure connection to a
+  bare IP address. If you want `https://` you need a domain name pointed at your
+  node.
+
+None of this is unique to us - it is the same for anyone self-hosting anything.
+If it sounds like a lot, the LAN-only case above skips every bit of it, and the
+VPS path below skips most of it.
+
+### When to graduate to a VPS
+
+If you want a node that is always on and reachable from anywhere without
+fighting your router, a small rented server is the simplest path. The floor is
+low: **1 GB RAM, 1 core, 20 GB disk** - the cheapest tier most hosts sell,
+often a few dollars a month. `scripts/provision-vps.sh` builds the whole thing
+from a bare Debian 12 install (it fetches a prebuilt relay binary rather than
+compiling, so even a 1 GB box provisions in minutes), and
+`scripts/node.env.example` is the three-line config you edit for your own
+domain. See "Production Setup" below.
+
 ## Becoming the first admin (fresh server)
 
 When the relay starts with NO admin configured, it prints a one-time claim

@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS: Free water. Free energy. Free food. Forever.</title>
-  <meta name="description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water. No corporations, no subscriptions, no permission needed.">
+  <title>HumanityOS: Unite humanity in peaceful harmony</title>
+  <meta name="description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS: Free water. Free energy. Free food. Forever.">
-  <meta property="og:description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water. No corporations, no subscriptions, no permission needed.">
+  <meta property="og:title" content="HumanityOS: Unite humanity in peaceful harmony">
+  <meta property="og:description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
   <meta property="og:url" content="https://united-humanity.us">
   <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="HumanityOS logo beside the words: Free water. Free energy. Free food. Forever.">
+  <meta property="og:image:alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS: Free water. Free energy. Free food. Forever.">
-  <meta name="twitter:description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water.">
+  <meta name="twitter:title" content="HumanityOS: Unite humanity in peaceful harmony">
+  <meta name="twitter:description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
   <meta name="twitter:image" content="https://united-humanity.us/shared/social/og-banner.png">
 
   <link rel="canonical" href="https://united-humanity.us/">
@@ -118,6 +118,31 @@
     .u-green::after  { background: var(--nav-green); }
     .u-blue::after   { background: var(--nav-blue); }
     .u-purple::after { background: var(--nav-sim); }
+    /* ── The "how the software fights back" centerpiece ──
+       Denser than the one-breath screens on purpose: this is the substance,
+       so it is a natural-height section rather than a forced 100vh, and it
+       reads left-aligned like a manifesto. Each row pairs one adversary with
+       the feature that dismantles it. */
+    #how { min-height: auto; padding: 13vh 24px; justify-content: flex-start; }
+    .inner-wide { max-width: 780px; }
+    .how-lede { color: var(--text-secondary); margin: 0 auto 30px; max-width: 640px; }
+    .pillars { list-style: none; padding: 0; margin: 0 0 22px; text-align: left; display: grid; gap: 20px; }
+    .pillars li { display: grid; grid-template-columns: 118px 1fr; gap: 18px; align-items: start; }
+    .pillars .adv {
+      font-weight: 800; font-size: 0.82rem; padding-top: 3px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .pillars .body { color: var(--text-secondary); font-size: 1.02rem; line-height: 1.55; }
+    .pillars .body b { color: var(--text); font-weight: 700; }
+    .adv-poverty    { color: var(--nav-green); }
+    .adv-tyranny    { color: var(--nav-sim); }
+    .adv-corruption { color: var(--nav-blue); }
+    .adv-fraud      { color: var(--accent); }
+    .adv-pollution  { color: var(--nav-green); }
+    @media (max-width: 560px) {
+      .pillars li { grid-template-columns: 1fr; gap: 4px; }
+      .pillars .adv { padding-top: 0; }
+    }
 
     /* ── Screen 1: the promise ──
        No background image of its own: the sitewide space layer (shell.js)
@@ -372,10 +397,10 @@
   <!-- ══ Screen 1: the promise ══ -->
   <section class="screen" id="s1">
     <div class="inner">
-      <h1>Free water. Free energy. Free food. Forever.</h1>
-      <p class="sub">HumanityOS is a free app that helps you grow food, catch water, and make your own power.</p>
+      <h1>Unite humanity in peaceful harmony.</h1>
+      <p class="sub">Pollution, poverty, corruption, fraud, tyranny &mdash; five structures that hold people down. HumanityOS is free, open software engineered to dismantle each one. Not a slogan. An architecture.</p>
       <a class="cta-big" href="/download">Get the free app</a>
-      <p class="quiet">Or scroll. The whole story takes 30 seconds.</p>
+      <p class="quiet">Or scroll. See how the software does it.</p>
       <p class="micro">Open source. No ads. No sign-up. Runs on old computers.</p>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
@@ -418,6 +443,38 @@
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
+  <!-- ══ Screen 3b: how the software ends the five ══ -->
+  <section class="screen" id="how">
+    <div class="inner inner-wide">
+      <h2 class="u-purple">How the software fights back.</h2>
+      <p class="how-lede">Five structures hold humanity back. Not evil people &mdash; failure modes of systems that reward harm, hide it, or make it inescapable. Naming enemies in people breeds war; naming them in structures breeds engineering. Each is a problem with a known shape, and HumanityOS is built to answer it.</p>
+      <ul class="pillars">
+        <li>
+          <span class="adv adv-poverty">Poverty</span>
+          <div class="body"><b>Homesteading, built in.</b> The app teaches the real skills to grow food, catch water, and make power &mdash; then helps you run the real systems, for one family or a whole community. Every person who joins widens the network.</div>
+        </li>
+        <li>
+          <span class="adv adv-tyranny">Tyranny</span>
+          <div class="body"><b>You own your identity.</b> Your account is a key on your device, not something a company can suspend. No one owns the network; anyone can run a piece of it, and it keeps working when the grid and the internet don't. In the built-in governance, authority is granted by consent &mdash; informed, ongoing, and revocable.</div>
+        </li>
+        <li>
+          <span class="adv adv-corruption">Corruption</span>
+          <div class="body"><b>Everything in the open.</b> 100% open source, every line inspectable. In the governance system, every power traces to a grant that is visible, limited, and revocable &mdash; legible authority instead of hidden hands.</div>
+        </li>
+        <li>
+          <span class="adv adv-fraud">Fraud</span>
+          <div class="body"><b>Signed, not &ldquo;trust me.&rdquo;</b> Records are cryptographically signed and cannot be quietly altered. Anyone can verify what actually happened, instead of taking someone's word for it.</div>
+        </li>
+        <li>
+          <span class="adv adv-pollution">Pollution</span>
+          <div class="body"><b>Honest accounting.</b> The full cost of an action is counted &mdash; including the cost that lands on people outside the room. Waste is designed to become an input to something else.</div>
+        </li>
+      </ul>
+      <p><a class="quiet-link" href="/mission">Read the full mission &rarr;</a></p>
+    </div>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
+
   <!-- ══ Screen 4: it costs nothing ══ -->
   <section class="screen" id="s4">
     <div class="inner">
@@ -436,9 +493,9 @@
   <section class="screen" id="s5">
     <div class="bp" aria-hidden="true"></div>
     <div class="inner">
-      <h2 class="u-purple">We are building something bigger.</h2>
-      <p>A world where every family has food, water, and power. No poverty, no pollution, no corruption, no fraud, no tyranny. That is the whole plan.</p>
-      <p><a class="quiet-link" href="/mission">Read the full mission</a></p>
+      <h2 class="u-purple">A support network for every human.</h2>
+      <p>One family homesteading becomes a neighborhood. A neighborhood becomes a region. The network has no center and no owner, so it can grow without limit &mdash; decentralized support for every person on Earth, and eventually beyond it.</p>
+      <p><a class="quiet-link" href="/mission">See the bigger picture &rarr;</a></p>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>

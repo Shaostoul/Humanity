@@ -462,10 +462,12 @@
     </div>
 
     <div class="info-panel">
-      <h3>Server / headless mode</h3>
-      <p>Run the same binary as a relay server with no GPU required. Works on Raspberry Pi, VPS, or any headless machine:</p>
-      <pre><code>./HumanityOS --headless</code></pre>
-      <p>This starts the WebSocket relay + REST API on the default port. Pair it with nginx for TLS termination.</p>
+      <h3>Host your own node</h3>
+      <p>The app you just downloaded <em>is</em> the server. Run it headless to host chat, the market, or the game for others &mdash; no separate install:</p>
+      <pre><code>HumanityOS --headless</code></pre>
+      <p>That starts the WebSocket relay and REST API. Set <code>PORT</code> and <code>DATABASE_PATH</code> to place them where you want. It is featherweight: measured on our live server, the relay uses about <strong>20&nbsp;MB of memory and a half-percent of one CPU core</strong>. A donated laptop or a $4/mo VPS runs it comfortably (floor: 1&nbsp;GB RAM, 1 core, 20&nbsp;GB disk).</p>
+      <p><strong>Choose what your node hosts.</strong> A server owner decides which features they offer &mdash; chat only, the market only, the game, or all of it &mdash; and whether to let others use their relay as a backup. Switches live in <code>data/server-config.json</code>; a disabled feature is genuinely refused, not just hidden.</p>
+      <p>Reachable from the internet needs a domain and an open port (a home router usually needs port-forwarding or a tunnel). A <strong>LAN-only</strong> node &mdash; a household, a classroom, a community center &mdash; needs none of that and works today. Full walkthrough: <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md" target="_blank">the self-hosting guide</a>.</p>
     </div>
 
     <div class="info-panel">
