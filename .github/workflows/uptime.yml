@@ -1,0 +1,86 @@
+name: Uptime (off-box health check)
+
+# THE OFF-BOX MONITOR. Every monitor we had ran ON the VPS, so when the box was
+# null-routed on 2026-08-07 nothing noticed for ~12 hours - the watchdog can't
+# report a box that can't reach the internet. This job runs on GitHub's
+# infrastructure, so it sees the server exactly as a visitor does.
+#
+# ALERTING: a failed scheduled workflow emails the repo owner by default
+# (GitHub Settings > Notifications > Actions). No third-party account, no
+# secrets, no cost - scheduled workflows on public repos are free.
+#
+# CAVEATS, stated honestly: GitHub's cron is best-effort and can be delayed by
+# several minutes under load, and scheduled workflows are disabled after 60
+# days with no repo activity. So this is a good SAFETY NET, not a tight SLA
+# monitor. If sub-minute detection ever matters, add a dedicated uptime service
+# alongside it - this does not replace that, it removes the excuse for having
+# nothing.
+
+on:
+  schedule:
+    # Every 15 minutes. Finer than this is pointless given cron jitter.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe united-humanity.us
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: The site answers
+        run: |
+          set -euo pipefail
+          # Retry a few times before crying wolf: a single failed request can be
+          # transient network weather between GitHub and the host, and a false
+          # alarm every few days trains you to ignore the real one.
+          for attempt in 1 2 3; do
+            code=$(curl -o /tmp/body -sS -m 20 -w '%{http_code}' https://united-humanity.us/ || echo 000)
+            [ "$code" = "200" ] && { echo "site OK (HTTP $code)"; exit 0; }
+            echo "attempt $attempt: HTTP $code"
+            sleep 20
+          done
+          echo "::error::united-humanity.us did not return 200 after 3 attempts (last: HTTP $code)"
+          exit 1
+
+      - name: The relay answers /health with real data
+        run: |
+          set -euo pipefail
+          # A 200 from nginx only proves the WEB SERVER lives. /health proves the
+          # RELAY behind it is alive - the 2026-08 outage would have been caught
+          # by either, but a dead relay behind a live nginx is the quieter, more
+          # likely failure and needs its own check.
+          for attempt in 1 2 3; do
+            if curl -fsS -m 20 https://united-humanity.us/health -o /tmp/health; then
+              cat /tmp/health
+              # Guard against a health endpoint that answers but is lying: it
+              # must actually say ok.
+              grep -q '"status":"ok"' /tmp/health && { echo "relay OK"; exit 0; }
+              echo "::error::/health responded but did not report status ok"
+              exit 1
+            fi
+            echo "attempt $attempt: /health unreachable"
+            sleep 20
+          done
+          echo "::error::relay /health unreachable after 3 attempts"
+          exit 1
+
+      - name: TLS certificate is not about to expire
+        run: |
+          set -euo pipefail
+          # The cert renewal was armed to FAIL until 2026-08-12 (standalone
+          # renewal needs port 80, nginx holds it). Renewal is fixed and hooked,
+          # but a monitor that only checks "is it up" would not notice renewal
+          # quietly breaking again until the day the site goes dark. Let's
+          # Encrypt renews at 30 days remaining, so 14 is a real alarm.
+          end=$(echo | openssl s_client -servername united-humanity.us \
+                -connect united-humanity.us:443 2>/dev/null \
+                | openssl x509 -noout -enddate | cut -d= -f2)
+          end_s=$(date -d "$end" +%s)
+          days=$(( (end_s - $(date +%s)) / 86400 ))
+          echo "certificate expires in $days days ($end)"
+          [ "$days" -ge 14 ] || { echo "::error::TLS cert expires in $days days - renewal is not working"; exit 1; }
