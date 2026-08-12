@@ -229,6 +229,39 @@
     .card.c-red    { border-color: rgba(var(--nav-red-rgb), 0.45); }
     .card.c-purple { border-color: rgba(var(--nav-sim-rgb), 0.45); }
     .cards-note { margin-top: 14px; color: var(--text-muted); font-size: 0.82rem; }
+    /* ── Icon feature cards: honest placeholders until real captures exist.
+       A weak screenshot reads as clutter; a clean icon reads as a feature. ── */
+    .card .card-art {
+      height: 128px; display: flex; align-items: center; justify-content: center;
+      background: var(--bg-card-hover);
+    }
+    .card .card-art svg {
+      width: 50px; height: 50px; fill: none; stroke-width: 2.4;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .card.c-green  .card-art { color: var(--nav-green); }
+    .card.c-purple .card-art { color: var(--nav-sim); }
+    .card.c-blue   .card-art { color: var(--nav-blue); }
+    .card.c-red    .card-art { color: var(--nav-red); }
+    .card .cap { padding: 14px 14px 2px; }
+    .card .card-sub {
+      padding: 0 14px 15px; font-size: 0.86rem; font-weight: 400;
+      color: var(--text-secondary); line-height: 1.45;
+    }
+    /* Screen 2: one honest icon panel instead of the confusing orbital map. */
+    .game-panel {
+      display: flex; align-items: center; gap: 18px; text-align: left;
+      max-width: 560px; margin: 24px auto 0; padding: 22px 24px;
+      background: var(--bg-card); border: 1px solid rgba(var(--nav-green-rgb), 0.40);
+      border-radius: 14px;
+    }
+    .game-panel svg {
+      width: 58px; height: 58px; flex-shrink: 0; color: var(--nav-green);
+      fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .game-panel .gp-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; }
+    .game-panel .gp-sub { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.45; }
+    @media (max-width: 480px) { .game-panel { flex-direction: column; text-align: center; } }
 
     /* ── Screen 4: it costs nothing ── */
     .free-list { list-style: none; margin: 20px 0 0; padding: 0; }
@@ -398,7 +431,7 @@
   <section class="screen" id="s1">
     <div class="inner">
       <h1>Unite humanity in peaceful harmony.</h1>
-      <p class="sub">Pollution, poverty, corruption, fraud, tyranny &mdash; five structures that hold people down. HumanityOS is free, open software engineered to dismantle each one. Not a slogan. An architecture.</p>
+      <p class="sub">Pollution, poverty, corruption, fraud, tyranny. Five structures that hold people down. HumanityOS is free, open software engineered to dismantle each one. Not a slogan. An architecture.</p>
       <a class="cta-big" href="/download">Get the free app</a>
       <p class="quiet">Or scroll. See how the software does it.</p>
       <p class="micro">Open source. No ads. No sign-up. Runs on old computers.</p>
@@ -412,7 +445,13 @@
       <h2 class="u-green">It starts as a game.</h2>
       <p>You live on a big ship in space. You grow plants, fix things, and learn by playing.</p>
     </div>
-    <img class="shot" src="/shared/landing/crop-cosmos.png" alt="The in-game solar system map, with your home marked near the Sun" loading="lazy" width="720" height="480">
+    <div class="game-panel">
+      <svg viewBox="0 0 48 48"><circle cx="24" cy="22" r="11"/><ellipse cx="24" cy="22" rx="21" ry="6.5" transform="rotate(-24 24 22)"/></svg>
+      <div>
+        <div class="gp-title">A whole ship to run, in space.</div>
+        <div class="gp-sub">Explore, build, and keep your home alive. What you learn playing is real: growing food, catching water, making power.</div>
+      </div>
+    </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
@@ -423,23 +462,27 @@
     </div>
     <div class="cards">
       <div class="card c-green">
-        <img src="/shared/landing/crop-garden.png" alt="Seeds and supplies in the app inventory" loading="lazy" width="884" height="185">
+        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M24 42 V22"/><path d="M24 23 C24 15 31 12 37 12 C37 20 30 23 24 23 Z"/><path d="M24 28 C24 22 17 20 11 20 C11 26 18 28 24 28 Z"/></svg></div>
         <div class="cap">Grow your food</div>
+        <div class="card-sub">Track seeds, beds, and harvests. Learn real growing as you play.</div>
       </div>
       <div class="card c-purple">
-        <img src="/shared/landing/crop-tasks.png" alt="A task board with to do, in progress, and done columns" loading="lazy" width="740" height="347">
+        <div class="card-art"><svg viewBox="0 0 48 48"><rect x="7" y="11" width="34" height="26" rx="2"/><line x1="18.3" y1="11" x2="18.3" y2="37"/><line x1="29.6" y1="11" x2="29.6" y2="37"/></svg></div>
         <div class="cap">Plan your day</div>
+        <div class="card-sub">A simple board for what to do, what is in progress, and what is done.</div>
       </div>
       <div class="card c-blue">
-        <img src="/shared/landing/crop-market.png" alt="The marketplace with listings from real people" loading="lazy" width="740" height="347">
+        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M12 18 H36 L30 12"/><path d="M36 30 H12 L18 36"/></svg></div>
         <div class="cap">Trade with people near you</div>
+        <div class="card-sub">A local market of real goods and services, from real people.</div>
       </div>
       <div class="card c-red">
-        <img src="/shared/landing/crop-chat.png" alt="The community chat" loading="lazy" width="880" height="360">
+        <div class="card-art"><svg viewBox="0 0 48 48"><path d="M9 11 h30 a3 3 0 0 1 3 3 v16 a3 3 0 0 1 -3 3 H20 l-8 7 v-7 H9 a3 3 0 0 1 -3 -3 V14 a3 3 0 0 1 3 -3 Z"/></svg></div>
         <div class="cap">Talk freely</div>
+        <div class="card-sub">Community chat that no company owns or can shut off.</div>
       </div>
     </div>
-    <p class="cards-note">Real screenshots. Nothing staged.</p>
+    <p class="cards-note">Clean placeholders while we capture better screenshots.</p>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
@@ -447,19 +490,19 @@
   <section class="screen" id="how">
     <div class="inner inner-wide">
       <h2 class="u-purple">How the software fights back.</h2>
-      <p class="how-lede">Five structures hold humanity back. Not evil people &mdash; failure modes of systems that reward harm, hide it, or make it inescapable. Naming enemies in people breeds war; naming them in structures breeds engineering. Each is a problem with a known shape, and HumanityOS is built to answer it.</p>
+      <p class="how-lede">Five structures hold humanity back. Not evil people, but failure modes of systems that reward harm, hide it, or make it inescapable. Naming enemies in people breeds war; naming them in structures breeds engineering. Each is a problem with a known shape, and HumanityOS is built to answer it.</p>
       <ul class="pillars">
         <li>
           <span class="adv adv-poverty">Poverty</span>
-          <div class="body"><b>Homesteading, built in.</b> The app teaches the real skills to grow food, catch water, and make power &mdash; then helps you run the real systems, for one family or a whole community. Every person who joins widens the network.</div>
+          <div class="body"><b>Homesteading, built in.</b> The app teaches the real skills to grow food, catch water, and make power, then helps you run the real systems, for one family or a whole community. Every person who joins widens the network.</div>
         </li>
         <li>
           <span class="adv adv-tyranny">Tyranny</span>
-          <div class="body"><b>You own your identity.</b> Your account is a key on your device, not something a company can suspend. No one owns the network; anyone can run a piece of it, and it keeps working when the grid and the internet don't. In the built-in governance, authority is granted by consent &mdash; informed, ongoing, and revocable.</div>
+          <div class="body"><b>You own your identity.</b> Your account is a key on your device, not something a company can suspend. No one owns the network; anyone can run a piece of it, and it keeps working when the grid and the internet don't. In the built-in governance, authority is granted by consent that is informed, ongoing, and revocable.</div>
         </li>
         <li>
           <span class="adv adv-corruption">Corruption</span>
-          <div class="body"><b>Everything in the open.</b> 100% open source, every line inspectable. In the governance system, every power traces to a grant that is visible, limited, and revocable &mdash; legible authority instead of hidden hands.</div>
+          <div class="body"><b>Everything in the open.</b> 100% open source, every line inspectable. In the governance system, every power traces to a grant that is visible, limited, and revocable. Legible authority instead of hidden hands.</div>
         </li>
         <li>
           <span class="adv adv-fraud">Fraud</span>
@@ -467,7 +510,7 @@
         </li>
         <li>
           <span class="adv adv-pollution">Pollution</span>
-          <div class="body"><b>Honest accounting.</b> The full cost of an action is counted &mdash; including the cost that lands on people outside the room. Waste is designed to become an input to something else.</div>
+          <div class="body"><b>Honest accounting.</b> The full cost of an action is counted, including the cost that lands on people outside the room. Waste is designed to become an input to something else.</div>
         </li>
       </ul>
       <p><a class="quiet-link" href="/mission">Read the full mission &rarr;</a></p>
@@ -494,7 +537,7 @@
     <div class="bp" aria-hidden="true"></div>
     <div class="inner">
       <h2 class="u-purple">A support network for every human.</h2>
-      <p>One family homesteading becomes a neighborhood. A neighborhood becomes a region. The network has no center and no owner, so it can grow without limit &mdash; decentralized support for every person on Earth, and eventually beyond it.</p>
+      <p>One family homesteading becomes a neighborhood. A neighborhood becomes a region. The network has no center and no owner, so it can grow without limit. Decentralized support for every person on Earth, and eventually beyond it.</p>
       <p><a class="quiet-link" href="/mission">See the bigger picture &rarr;</a></p>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>

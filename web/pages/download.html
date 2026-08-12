@@ -255,7 +255,7 @@
           <span class="mod-icon ico"><svg viewBox="0 0 48 48"><path d="M10,16 A8,8 0 0 0 6,30 A6,6 0 0 0 14,34 L18,26 H30 L34,34 A6,6 0 0 0 42,30 A8,8 0 0 0 38,16 Z" fill="none"/><line x1="15" y1="22" x2="15" y2="28"/><line x1="12" y1="25" x2="18" y2="25"/><circle cx="31" cy="22" r="1.5"/><circle cx="35" cy="26" r="1.5"/></svg></span>
           <div>
             <div class="mod-title">Humanity: The Game</div>
-            <div class="mod-size">~500 MB – 2 GB</div>
+            <div class="mod-size">~500 MB to 2 GB</div>
           </div>
         </div>
         <div class="mod-desc">Sci-fi fantasy RPG built into the OS. First/third-person exploration, quests, crafting, and civilization building. Your actions shape the real world.</div>
@@ -463,11 +463,21 @@
 
     <div class="info-panel">
       <h3>Host your own node</h3>
-      <p>The app you just downloaded <em>is</em> the server. Run it headless to host chat, the market, or the game for others &mdash; no separate install:</p>
+      <p>The app you just downloaded <em>is</em> the server. Run it headless to host chat, the market, or the game for others, with no separate install:</p>
       <pre><code>HumanityOS --headless</code></pre>
       <p>That starts the WebSocket relay and REST API. Set <code>PORT</code> and <code>DATABASE_PATH</code> to place them where you want. It is featherweight: measured on our live server, the relay uses about <strong>20&nbsp;MB of memory and a half-percent of one CPU core</strong>. A donated laptop or a $4/mo VPS runs it comfortably (floor: 1&nbsp;GB RAM, 1 core, 20&nbsp;GB disk).</p>
-      <p><strong>Choose what your node hosts.</strong> A server owner decides which features they offer &mdash; chat only, the market only, the game, or all of it &mdash; and whether to let others use their relay as a backup. Switches live in <code>data/server-config.json</code>; a disabled feature is genuinely refused, not just hidden.</p>
-      <p>Reachable from the internet needs a domain and an open port (a home router usually needs port-forwarding or a tunnel). A <strong>LAN-only</strong> node &mdash; a household, a classroom, a community center &mdash; needs none of that and works today. Full walkthrough: <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md" target="_blank">the self-hosting guide</a>.</p>
+      <p><strong>Choose what your node hosts.</strong> A server owner decides which features they offer (chat only, the market only, the game, or all of it), and whether to let others use their relay as a backup. Switches live in <code>data/server-config.json</code>; a disabled feature is genuinely refused, not just hidden.</p>
+      <p>Reachable from the internet needs a domain and an open port (a home router usually needs port-forwarding or a tunnel). A <strong>LAN-only</strong> node (a household, a classroom, a community center) needs none of that and works today. Full walkthrough: <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md" target="_blank">the self-hosting guide</a>.</p>
+    </div>
+
+    <div class="info-panel">
+      <h3>Which build for weak hardware?</h3>
+      <p>It is all one program, but it ships two ways so a small server is never forced to carry what it will not use:</p>
+      <ul>
+        <li><strong>The full app</strong> (about 62&nbsp;MB). The desktop program you download above. It <em>is</em> the server too: run it with <code>--headless</code> and it hosts without a window. Best on any machine you also sit in front of.</li>
+        <li><strong>The headless server</strong> (about 26&nbsp;MB, <code>HumanityOS-relay-linux-x64</code> on each <a href="https://github.com/Shaostoul/Humanity/releases" target="_blank">release</a>). No graphics or audio libraries needed, so it runs on a bare Linux box, a Raspberry&nbsp;Pi, or the cheapest VPS. This is what you want for a dedicated, always-on node.</li>
+      </ul>
+      <p>Either way, <strong>running</strong> the server costs about 20&nbsp;MB of memory and half a percent of one core. <strong>Building</strong> from source is the only heavy part (it needs a couple of GB of memory and a few minutes), which is exactly why the headless server is offered prebuilt: a 1&nbsp;GB box can run a node even though it could never compile one. Our setup script fetches the prebuilt binary automatically.</p>
     </div>
 
     <div class="info-panel">

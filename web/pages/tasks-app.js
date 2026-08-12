@@ -15,7 +15,10 @@ let XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
 let MAX_LEVEL = 10;
 
 let allTasks = [];
-let activeScope = 'cosmos';
+// Default to 'city', which is where tasks with no explicit scope actually land
+// (see getTaskScope) and what the create form pre-selects. Defaulting to
+// 'cosmos' hid the common case and made the board look empty on load.
+let activeScope = 'city';
 let openDetailId = null; // track currently open detail drawer for real-time updates
 
 /* ── Project state ── */
@@ -118,6 +121,27 @@ function scopedTasks() {
 /* ── Render ── */
 function renderBoard() {
   const tasks = scopedTasks();
+  // Whole-board empty state: a wall of "-" reads as broken. Say plainly what to
+  // do. This board loads tasks from the server, so a logged-out or empty
+  // visitor sees a friendly line instead of a void.
+  const boardEl = document.getElementById('board') || document.getElementById('col-backlog')?.parentElement;
+  if (!tasks.length && boardEl) {
+    const anyAtAll = allTasks.length > 0;
+    const msg = anyAtAll
+      ? 'No tasks in this scope yet. Pick another scope above, or add one.'
+      : 'No tasks yet. Sign in from Chat to load your tasks, or add one here.';
+    ['backlog','in_progress','testing','done'].forEach(status => {
+      const c = document.getElementById('count-' + status);
+      if (c) c.textContent = '0';
+    });
+    const first = document.getElementById('col-backlog');
+    if (first) first.innerHTML = `<div class="empty-col">${esc(msg)}</div>`;
+    ['in_progress','testing','done'].forEach(s => {
+      const col = document.getElementById('col-' + s);
+      if (col) col.innerHTML = '';
+    });
+    return;
+  }
   ['backlog','in_progress','testing','done'].forEach(status => {
     const col = document.getElementById('col-' + status);
     const count = document.getElementById('count-' + status);
@@ -136,7 +160,7 @@ function renderBoard() {
 function renderControls() {
   const scope = SCOPES.find(s => s.key === activeScope) || defaultScope();
   document.getElementById('scope-desc').innerHTML =
-    `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong> &mdash; ${scope.desc}`;
+    `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong>: ${scope.desc}`;
   const tasks = scopedTasks();
   const ip = allTasks.filter(t => t.status === 'in_progress').length;
   const projLabel = activeProject === null ? 'all projects'
