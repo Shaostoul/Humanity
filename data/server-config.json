@@ -5,6 +5,19 @@
   "max_connections": 500,
   "max_history": 500,
   "broadcast_capacity": 256,
+  "features": {
+    "_comment": "The capability manifest: what this server offers. EVERY feature defaults to true, so a server that has no features block (or is missing a key) behaves exactly as it did before this block existed - upgrading changes nothing. Set one to false and the relay REFUSES that feature's endpoints with HTTP 403 and rejects its WebSocket message types; it is not merely hidden in the client. Always served regardless: /health, /api/stats, /api/peers, /api/members, /api/server-info, /api/profile, identity and moderation - an owner cannot lock themselves out of their own box. The live manifest is published on /api/server-info so clients hide what they cannot use. Details: docs/admin/SELF-HOSTING.md.",
+    "chat": true,
+    "game": true,
+    "market": true,
+    "vault_backup": true,
+    "uploads": true,
+    "tasks": true,
+    "voice": true,
+    "live_video": true,
+    "federation": true,
+    "push": true
+  },
   "funding": {
     "enabled": true,
     "goal_usd": 100000,

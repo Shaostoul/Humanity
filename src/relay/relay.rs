@@ -187,6 +187,13 @@ pub struct RelayState {
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
     pub server_config: serde_json::Value,
+    /// The capability manifest: which features this owner actually offers
+    /// (`features` block of server-config.json). Resolved once at startup and
+    /// then read-only. Enforced in exactly two places — the `feature_gate`
+    /// middleware over the whole HTTP router (`src/relay/mod.rs`) and the single
+    /// WS guard below — so no endpoint can be forgotten. See
+    /// `src/relay/features.rs`.
+    pub features: crate::relay::features::Features,
     /// Server-authoritative game world state.
     pub game_world: RwLock<GameWorld>,
     /// Maximum concurrent WebSocket connections (from config or default).
@@ -257,6 +264,23 @@ impl RelayState {
                 })
             });
         info!("Server config loaded: {}", server_config.get("server_name").and_then(|v| v.as_str()).unwrap_or("unknown"));
+
+        // Resolve the capability manifest. Absent block => everything on, which
+        // is what every server did before this existed. Log the OFF list loudly:
+        // "the market page is empty" is a confusing bug report and a one-line
+        // startup record turns it into a five-second answer.
+        let features = crate::relay::features::Features::from_config(&server_config);
+        let off = features.disabled();
+        if off.is_empty() {
+            info!("Features: all enabled");
+        } else {
+            let names: Vec<&str> = off.iter().map(|f| f.key()).collect();
+            info!(
+                "Features: DISABLED by the server owner -> {} (their endpoints will answer 403). \
+                 Edit the `features` block in data/server-config.json to change this.",
+                names.join(", ")
+            );
+        }
 
         // Read tunable limits from server-config.json (fall back to compiled defaults).
         let max_connections = server_config.get("max_connections")
@@ -331,6 +355,7 @@ impl RelayState {
             claim_code: RwLock::new(None),
             vapid_key: None,
             server_config,
+            features,
             game_world: RwLock::new(GameWorld::new()),
             live: crate::relay::live::LiveRegistry::new(),
             max_connections,
@@ -3451,6 +3476,32 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 Message::Text(text) => {
                     // Handle sync messages (not part of RelayMessage enum).
                     if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&text) {
+                        // ── Capability manifest gate (the WS half). ──
+                        // Every inbound message type funnels through this one
+                        // `raw.get("type")` read, whether it is handled below as a
+                        // raw JSON message or further down as a `RelayMessage`, so
+                        // this is the single door: a feature the owner switched
+                        // off cannot be reached by ANY message, including from a
+                        // hand-rolled client that never drew the UI. Unmapped
+                        // types (identify, moderation, profiles) always pass —
+                        // an owner must not be able to lock themselves out.
+                        // Map + rationale: src/relay/features.rs.
+                        if let Some(msg_type) = raw.get("type").and_then(|t| t.as_str()) {
+                            if let Some(feature) = crate::relay::features::ws_message_feature(msg_type) {
+                                if !state_clone.features.enabled(feature) {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: format!(
+                                            "This server has '{}' disabled ({}). The server owner chose not to host it.",
+                                            feature.key(),
+                                            feature.summary()
+                                        ),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                            }
+                        }
                         match raw.get("type").and_then(|t| t.as_str()) {
                             Some("sync_save") => {
                                 handle_sync_save(&state_clone, &my_key_for_recv, &raw).await;

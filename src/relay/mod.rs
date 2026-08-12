@@ -21,6 +21,9 @@ pub mod api_v2_zk;
 pub mod storage;
 pub mod handlers;
 pub mod core;
+/// The server capability manifest (v0.1113): which features this owner offers,
+/// and the maps the two enforcement points read. See the module docs.
+pub mod features;
 pub mod transport;
 /// Live video fanout (v0.853.0). A separate BINARY WebSocket path — video never
 /// touches the chat relay. See `docs/design/streaming.md`.
@@ -47,6 +50,44 @@ use std::sync::Arc;
 use relay::RelayState;
 use serde_json;
 use rusqlite;
+
+/// Refuse anything belonging to a feature the server owner switched off.
+///
+/// ONE layer over the WHOLE router, deliberately: a per-handler `if enabled`
+/// check is how one endpoint gets missed, and a missed endpoint here is not a
+/// cosmetic bug — for `vault_backup` it means strangers keep filling a disk the
+/// owner said no to. Hiding a tab in the client is not enforcement; the API
+/// itself has to say no.
+///
+/// 403 rather than 404: the route genuinely exists in this build, the owner
+/// declined to offer it, and a client deserves to know which is which so it can
+/// show "this server does not host X" instead of "something broke".
+///
+/// The path -> feature map lives in `features::route_feature`.
+async fn feature_gate(
+    axum::extract::State(state): axum::extract::State<Arc<RelayState>>,
+    req: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    if let Some(feature) = features::route_feature(req.uri().path()) {
+        if !state.features.enabled(feature) {
+            return (
+                StatusCode::FORBIDDEN,
+                axum::Json(serde_json::json!({
+                    "error": "feature_disabled",
+                    "feature": feature.key(),
+                    "message": format!(
+                        "This server does not offer {} — the server owner disabled the '{}' feature.",
+                        feature.summary(),
+                        feature.key()
+                    ),
+                })),
+            )
+                .into_response();
+        }
+    }
+    next.run(req).await
+}
 
 /// Add security headers to every response.
 /// CSP uses unsafe-inline for now (inline scripts/handlers exist throughout the
@@ -352,7 +393,10 @@ pub async fn run_relay() {
     let state = Arc::new(relay_state);
 
     // Federation Phase 2: start outbound connections to verified federated servers.
-    {
+    // Skipped entirely when the owner switched federation off — refusing the
+    // /api/federation routes while still dialling out to peers would be a
+    // half-honoured switch.
+    if state.features.enabled(features::Feature::Federation) {
         let fed_state = state.clone();
         tokio::spawn(async move {
             // Small delay to let the server finish starting.
@@ -364,10 +408,21 @@ pub async fn run_relay() {
         });
     }
 
+    // ── The game server. A chat-only host pays for the shared world whether or
+    // not anyone plays it: a 20 Hz simulation tick, a 30 s save, ambient chatter
+    // and a time-sync broadcast, forever. When the owner switches `game` off,
+    // none of these loops start at all — that is the difference between "the
+    // feature is refused" and "the feature is actually not running here". The
+    // matching refusal for `game_*` messages lives in the WS guard in relay.rs.
+    let game_enabled = state.features.enabled(features::Feature::Game);
+    if !game_enabled {
+        tracing::info!("Game world DISABLED by server config — simulation loops not started");
+    }
+
     // Restore persisted GameWorld snapshot (player positions, world entities,
     // game_time) — survives across relay restarts. Static ship layout is reloaded
     // from RON on every boot so layout edits propagate.
-    {
+    if game_enabled {
         let mut world = state.game_world.write().await;
         world.restore_from_db(&state.db);
     }
@@ -382,7 +437,7 @@ pub async fn run_relay() {
     // can render crew actually completing tasks -- but only while at least one
     // player entity is in the world (same gate as TimeSync; the simulation
     // itself never pauses, only the broadcast).
-    {
+    if game_enabled {
         let game_state = state.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(50));
@@ -416,7 +471,7 @@ pub async fn run_relay() {
 
     // Periodic save: every 30 seconds, persist GameWorld to SQLite so
     // player movement / interactions / game_time survive a relay restart.
-    {
+    if game_enabled {
         let game_state = state.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
@@ -436,7 +491,7 @@ pub async fn run_relay() {
     // `game_ambient_chatter` event. Makes the world feel alive even
     // when no humans are interacting — AI agents listening in see crew
     // organically reporting status. Skipped when no NPC has dialog.
-    {
+    if game_enabled {
         let game_state = state.clone();
         tokio::spawn(async move {
             // Initial delay so chatter doesn't overlap with the post-boot
@@ -497,7 +552,7 @@ pub async fn run_relay() {
     }
 
     // Game TimeSync broadcast: every 5 seconds, only when players connected.
-    {
+    if game_enabled {
         let game_state = state.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
@@ -613,7 +668,34 @@ pub async fn run_relay() {
         });
     }
 
-    let app = Router::new()
+    let app = build_router(state.clone());
+
+    let addr = format!("0.0.0.0:{port}");
+    tracing::info!("Humanity relay listening on {addr}");
+    tracing::info!("Web client: http://localhost:{port}");
+    tracing::info!("WebSocket:  ws://localhost:{port}/ws");
+    tracing::info!("Bot API:    http://localhost:{port}/api/");
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    // Serve with graceful shutdown so we get one last chance to persist the
+    // game world on Ctrl-C / SIGTERM (the deploy pipeline restarts the relay
+    // with SIGTERM). Without this, anything since the last 30s periodic save
+    // would be lost on a clean restart.
+    let shutdown_state = state.clone();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal(shutdown_state))
+        .await
+        .unwrap();
+}
+
+/// Build the HTTP/WS router the relay serves.
+///
+/// Split out of `run_relay` so the capability manifest can be tested against the
+/// REAL routing stack over a real socket (`features::tests`), rather than against
+/// a hand-assembled router that could drift from what actually ships — a test
+/// whose evidence is its own setup code proves nothing.
+pub fn build_router(state: Arc<RelayState>) -> Router {
+    Router::new()
         .route("/ws", get(ws_handler))
         .route("/health", get(health))
         // Live video fanout (v0.853.0). A SEPARATE binary WebSocket from /ws: the
@@ -756,6 +838,10 @@ pub async fn run_relay() {
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),
         )
+        // The capability gate sits INSIDE security_headers on purpose: layers
+        // added later wrap earlier ones, so security_headers is the outer one
+        // and its headers land on the 403 refusal too.
+        .layer(middleware::from_fn_with_state(state.clone(), feature_gate))
         .layer(middleware::from_fn(security_headers))
         .layer(
             CorsLayer::new()
@@ -770,24 +856,7 @@ pub async fn run_relay() {
                 .allow_methods([http::Method::GET, http::Method::POST, http::Method::PUT, http::Method::DELETE, http::Method::PATCH])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         )
-        .with_state(state.clone());
-
-    let addr = format!("0.0.0.0:{port}");
-    tracing::info!("Humanity relay listening on {addr}");
-    tracing::info!("Web client: http://localhost:{port}");
-    tracing::info!("WebSocket:  ws://localhost:{port}/ws");
-    tracing::info!("Bot API:    http://localhost:{port}/api/");
-
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    // Serve with graceful shutdown so we get one last chance to persist the
-    // game world on Ctrl-C / SIGTERM (the deploy pipeline restarts the relay
-    // with SIGTERM). Without this, anything since the last 30s periodic save
-    // would be lost on a clean restart.
-    let shutdown_state = state.clone();
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal(shutdown_state))
-        .await
-        .unwrap();
+        .with_state(state)
 }
 
 /// Resolves when the process receives a shutdown signal (Ctrl-C, or SIGTERM on
@@ -823,6 +892,15 @@ async fn shutdown_signal(state: Arc<RelayState>) {
         _ = terminate => {},
     }
 
+    // Only when the game is actually running. With `game` disabled we never
+    // restored the snapshot, so the in-memory world is an empty default — saving
+    // it would OVERWRITE the persisted world (one fixed key, last write wins)
+    // and destroy every player's progress the moment an owner switched the game
+    // off and restarted. Turning a feature off must not delete its data.
+    if !state.features.enabled(features::Feature::Game) {
+        tracing::info!("Shutdown signal received — game disabled, skipping the world save (the stored world is left untouched).");
+        return;
+    }
     tracing::info!("Shutdown signal received — performing final game-world save…");
     let world = state.game_world.read().await;
     if let Err(e) = world.save_to_db(&state.db) {

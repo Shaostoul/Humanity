@@ -116,6 +116,74 @@ lives in the app, a /chat-command, a config file, or the server shell - is in
 Admin map**. If the Admin map says an action is `vps-shell`, only then do you
 need to SSH in; everything else never requires a terminal.
 
+## Choosing what your server hosts (the capability manifest)
+
+One binary can be a chat server, a shared game world, a market directory, and a
+backup service for other people's encrypted data. You probably do not want all
+of that. Maybe you only want the chat. Maybe you want the market but not the
+game. Maybe you are happy to host conversations but not to have strangers
+storing their backups on your disk.
+
+That choice lives in the `features` block of `data/server-config.json`:
+
+```json
+"features": {
+  "chat": true,
+  "game": true,
+  "market": true,
+  "vault_backup": true,
+  "uploads": true,
+  "tasks": true,
+  "voice": true,
+  "live_video": true,
+  "federation": true,
+  "push": true
+}
+```
+
+**Every feature defaults to `true`.** A server with no `features` block at all,
+or one that is missing a key, behaves exactly as it always did, so upgrading
+changes nothing. Set a feature to `false` and restart the relay to switch it off.
+
+| Feature | What it means for you | What is refused when it is off |
+|---|---|---|
+| `chat` | Hosting conversations: public channels and direct messages | `/api/send`, `/api/messages`, `/api/search`, `/api/reactions`, `/api/pins`; the `chat`, `dm*`, `edit`, `delete`, `reaction`, `typing`, `search` and `pin_request` socket messages |
+| `game` | Running the shared game world (a 20-per-second simulation that runs whether or not anyone is playing) | Every `game_*` and `trade_*` socket message. The simulation, world save, ambient chatter and time-sync loops never start at all |
+| `market` | The market: offerings, listings, reviews, seller ratings and the order book | `/api/listings*`, `/api/sellers/*`, `/api/trade/*` |
+| `vault_backup` | Letting other people store their encrypted backups on your disk | `/api/vault/sync` (read, write and delete) and the `sync_save` / `sync_load` socket messages |
+| `uploads` | Being a file host: uploads, the shared-file library, the asset library | `/api/upload`, `/api/uploads*`, `/api/assets*`, and serving `/uploads/*` |
+| `tasks` | The task board and projects | `/api/tasks*`, `/api/projects*`, and the `task_*` socket messages |
+| `voice` | Voice channels | `/api/turn-credentials` and the `voice_*` / `webrtc_signal` socket messages |
+| `live_video` | Live video fanout | `/api/live` and `/ws/live/*` |
+| `federation` | Talking to peer servers | `/api/federation/*`, and no outbound connections to peers are made at startup |
+| `push` | Web push notifications | `/api/push/*`, `/api/vapid-public-key` |
+
+Three things worth knowing:
+
+1. **Off means refused, not hidden.** A disabled feature answers HTTP `403` with
+   a body that names the feature, and its socket messages are rejected with a
+   message explaining why. It is not merely missing from a client's menu. This
+   matters most for `vault_backup`: if it were only hidden, anyone with a
+   slightly modified client could still fill your disk.
+2. **You cannot lock yourself out.** `/health`, `/api/stats`, `/api/peers`,
+   `/api/members`, `/api/server-info`, `/api/profile`, and everything to do with
+   identity and moderation are always served, no matter what you switch off. So
+   are your own database backups (`backup_run` and friends) - those are you
+   acting on your own machine, not a stranger spending your disk.
+3. **Your visitors are told.** The live manifest is published on
+   `/api/server-info` as a `features` object, so a client can hide what it
+   cannot use instead of showing a page that errors, and a federation peer can
+   see what your node offers before trying to use it.
+
+The relay prints the switched-off list at startup, so `journalctl -u
+humanity-relay` (or `just logs`) answers "why is the market page empty" in one
+line. A typo in a feature name, or a value that is not `true`/`false`, leaves
+that feature ON: a misconfiguration should never quietly turn something off.
+
+Turning `game` off is the biggest saving on a small box: it stops a simulation
+tick loop, a 30-second world save, and two broadcast loops that otherwise run
+forever whether or not anyone is playing.
+
 ## Configuration
 
 All configuration is via environment variables. Create a `.env` file or set them directly:

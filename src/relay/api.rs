@@ -1511,6 +1511,13 @@ pub struct ServerInfoResponse {
     pub member_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub funding: Option<serde_json::Value>,
+    /// The capability manifest: `{"chat":true,"game":false,...}` for every
+    /// feature this build knows about (v0.1113). Always present and always
+    /// complete, so a client can hide UI it cannot use and a federation peer can
+    /// see what this node actually offers before trying to use it. The values
+    /// are what the relay ENFORCES, not a hint — a disabled feature's endpoints
+    /// answer 403. Source: `src/relay/features.rs`.
+    pub features: serde_json::Value,
 }
 
 /// GET /api/server-info — public server metadata for federation discovery.
@@ -1577,6 +1584,7 @@ pub async fn get_server_info(
         owner_key,
         member_count,
         funding,
+        features: state.features.as_json(),
     })
 }
 
