@@ -128,27 +128,41 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 ("Updates", SettingsCategory::Updates),
             ];
 
+            // The nav mirrors the section tints on the right: each item wears
+            // its own section colour, and the active one gets the SAME animated
+            // border as the main header nav (operator, 2026-08-12), driven by
+            // the shared `channeling_color` (RGB cycle / solid / pulse / off,
+            // set in Animations).
+            let time = ui.ctx().input(|i| i.time) as f32;
+            let attack_pulse = state.attack_pulse_active;
             for (label, cat) in &categories {
                 let is_active = state.settings.category == *cat;
-                let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
-                // Active category: a faint wash of the accent token (the same
-                // alpha-derived tint widgets::section_nav uses), not a literal.
-                let a = theme.accent();
+                let accent = section_accent(*cat, theme);
+                // Inactive items wear their section colour; the active one goes
+                // bright white so the animated border is the highlight.
+                let text_color = if is_active { Color32::WHITE } else { accent };
+                let a = accent;
                 let bg = if is_active {
-                    Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 30)
+                    Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 34)
                 } else {
                     Color32::TRANSPARENT
+                };
+                let stroke = if is_active {
+                    // Keep the border animating even while the menu is idle.
+                    ui.ctx().request_repaint();
+                    Stroke::new(
+                        theme.nav_active_border_width,
+                        crate::gui::pages::escape_menu::channeling_color(theme, time, attack_pulse, accent),
+                    )
+                } else {
+                    Stroke::NONE
                 };
 
                 let btn = egui::Button::new(
                     RichText::new(*label).size(theme.font_size_body).color(text_color),
                 )
                 .fill(bg)
-                .stroke(if is_active {
-                    Stroke::new(1.0, theme.accent())
-                } else {
-                    Stroke::NONE
-                })
+                .stroke(stroke)
                 .rounding(Rounding::same(4))
                 .min_size(Vec2::new(ui.available_width(), 28.0));
 
