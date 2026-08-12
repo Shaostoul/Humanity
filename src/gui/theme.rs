@@ -556,6 +556,12 @@ impl Theme {
         // Inactive widgets (buttons at rest)
         visuals.widgets.inactive.bg_fill = self.bg_card();             // #1a1a22
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, self.text_secondary());
+        // The OUTLINE egui draws around an unchecked radio circle / checkbox box
+        // is bg_stroke, which defaulted to near-invisible on a dark panel
+        // (operator: "the outline of the setting is also black or very dark
+        // gray, hard to read"). A visible muted stroke makes every native
+        // radio and checkbox legible at rest.
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, self.text_muted());
 
         // Hovered widgets
         visuals.widgets.hovered.bg_fill = Self::c32(&self.bg_tertiary); // #252530

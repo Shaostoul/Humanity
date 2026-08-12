@@ -185,12 +185,10 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
 
                     for (i, cat) in categories_order.iter().enumerate() {
                         if i > 0 {
-                            ui.add_space(theme.spacing_xl);
-                            ui.separator();
-                            ui.add_space(theme.spacing_md);
+                            ui.add_space(theme.section_gap);
                         }
 
-                        // Section heading
+                        // Section heading text
                         let heading_text = match cat {
                             SettingsCategory::Account => "Account",
                             SettingsCategory::Appearance => "Appearance",
@@ -206,30 +204,49 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                             SettingsCategory::Data => "Data",
                             SettingsCategory::Updates => "Updates",
                         };
-                        let heading_response = ui.label(
-                            RichText::new(heading_text)
-                                .size(theme.font_size_title)
-                                .color(theme.text_primary()),
-                        );
-                        section_rects.push((*cat, heading_response.rect));
-                        ui.add_space(theme.spacing_md);
 
-                        // Draw section content
-                        match cat {
-                            SettingsCategory::Account => draw_account_content(ui, theme, state),
-                            SettingsCategory::Appearance => draw_appearance_content(ui, theme, state),
-                            SettingsCategory::Animations => draw_animations_content(ui, theme, state),
-                            SettingsCategory::Widgets => draw_widgets_content(ui, theme, state),
-                            SettingsCategory::Notifications => draw_notifications_content(ui, theme, state),
-                            SettingsCategory::Wallet => draw_wallet_content(ui, theme, state),
-                            SettingsCategory::Audio => draw_audio_content(ui, theme, state),
-                            SettingsCategory::Graphics => draw_graphics_content(ui, theme, state),
-                            SettingsCategory::Gameplay => draw_gameplay_content(ui, theme, state),
-                            SettingsCategory::Controls => draw_controls_content(ui, theme, state),
-                            SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
-                            SettingsCategory::Data => draw_data_content(ui, theme, state),
-                            SettingsCategory::Updates => draw_updates_content(ui, theme, state),
-                        }
+                        // Each section sits in a faint accent-tinted band with a
+                        // coloured edge and a coloured title, so a long scroll
+                        // reads as distinct areas instead of one wall of dark
+                        // cards (operator, 2026-08-12). Accents come from
+                        // existing theme tokens (see `section_accent`), so they
+                        // stay editable and adjacent sections differ at a glance.
+                        let accent = section_accent(*cat, theme);
+                        let tint = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 12);
+                        let edge = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 110);
+                        let mut heading_rect = egui::Rect::NOTHING;
+                        Frame::none()
+                            .fill(tint)
+                            .rounding(Rounding::same(theme.border_radius as u8))
+                            .stroke(Stroke::new(1.0, edge))
+                            .inner_margin(theme.card_padding)
+                            .show(ui, |ui| {
+                                let hr = ui.label(
+                                    RichText::new(heading_text)
+                                        .size(theme.font_size_title)
+                                        .color(accent)
+                                        .strong(),
+                                );
+                                heading_rect = hr.rect;
+                                ui.add_space(theme.spacing_md);
+
+                                match cat {
+                                    SettingsCategory::Account => draw_account_content(ui, theme, state),
+                                    SettingsCategory::Appearance => draw_appearance_content(ui, theme, state),
+                                    SettingsCategory::Animations => draw_animations_content(ui, theme, state),
+                                    SettingsCategory::Widgets => draw_widgets_content(ui, theme, state),
+                                    SettingsCategory::Notifications => draw_notifications_content(ui, theme, state),
+                                    SettingsCategory::Wallet => draw_wallet_content(ui, theme, state),
+                                    SettingsCategory::Audio => draw_audio_content(ui, theme, state),
+                                    SettingsCategory::Graphics => draw_graphics_content(ui, theme, state),
+                                    SettingsCategory::Gameplay => draw_gameplay_content(ui, theme, state),
+                                    SettingsCategory::Controls => draw_controls_content(ui, theme, state),
+                                    SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
+                                    SettingsCategory::Data => draw_data_content(ui, theme, state),
+                                    SettingsCategory::Updates => draw_updates_content(ui, theme, state),
+                                }
+                            });
+                        section_rects.push((*cat, heading_rect));
                     }
 
                     // Handle scroll-to-section
@@ -284,6 +301,32 @@ fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::Tex
     }
     let image = egui::ColorImage { size: [side, side], pixels };
     Some(ctx.load_texture("link_device_qr", image, egui::TextureOptions::NEAREST))
+}
+
+/// A faint accent per settings section (operator, 2026-08-12: "add a variety
+/// of ever so faint colored backgrounds to the sections to more easily
+/// differentiate what we're looking at").
+///
+/// Colours are drawn from the EXISTING theme tokens rather than new literals,
+/// so every one stays editable in Appearance and the whole scheme restyles
+/// from `theme.ron`. They are also chosen so that adjacent sections in the
+/// scroll order differ (blue, purple, amber, blue, red, green, ...).
+fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
+    match cat {
+        SettingsCategory::Account => theme.info(),
+        SettingsCategory::Appearance => theme.nav_sim(),
+        SettingsCategory::Animations => theme.nav_dev(),
+        SettingsCategory::Widgets => theme.nav_tools(),
+        SettingsCategory::Notifications => theme.danger(),
+        SettingsCategory::Wallet => theme.success(),
+        SettingsCategory::Audio => theme.info(),
+        SettingsCategory::Graphics => theme.nav_sim(),
+        SettingsCategory::Gameplay => theme.success(),
+        SettingsCategory::Controls => theme.nav_tools(),
+        SettingsCategory::Privacy => theme.warning(),
+        SettingsCategory::Data => theme.nav_settings(),
+        SettingsCategory::Updates => theme.accent(),
+    }
 }
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

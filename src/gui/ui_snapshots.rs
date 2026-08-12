@@ -305,7 +305,7 @@ fn demo_state() -> GuiState {
 
 /// Render one settings-style page into an offscreen `w`x`h` surface and write
 /// `tests/snapshots/<name>.png`.
-fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &Theme, &mut GuiState)) {
+fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &mut Theme, &mut GuiState)) {
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         let instance = wgpu::Instance::default();
@@ -327,7 +327,7 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &T
 
         // ── egui frame ──
         let ctx = egui::Context::default();
-        let theme = load_theme();
+        let mut theme = load_theme();
         theme.apply_to_egui(&ctx);
         let mut state = demo_state();
         let ppp = 1.0_f32;
@@ -346,13 +346,13 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &T
         // then capture the second — applying BOTH frames' texture deltas (the font
         // atlas is created on frame 1).
         let warm = ctx.run(raw_input.clone(), |ctx| {
-            frame(ctx, &theme, &mut state);
+            frame(ctx, &mut theme, &mut state);
         });
         for (id, delta) in &warm.textures_delta.set {
             renderer.update_texture(&device, &queue, *id, delta);
         }
         let full_output = ctx.run(raw_input, |ctx| {
-            frame(ctx, &theme, &mut state);
+            frame(ctx, &mut theme, &mut state);
         });
         for (id, delta) in &full_output.textures_delta.set {
             renderer.update_texture(&device, &queue, *id, delta);
@@ -672,6 +672,17 @@ fn settings_panel(
     fn snapshot_audio_settings() {
     render_page_png("audio_settings", 960, 1100, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_audio_content);
+    });
+}
+
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_settings_full() {
+    // The WHOLE settings page (left nav + all sections), so the per-section
+    // accent tint bands (v0.1114) are visible; the per-section snapshots above
+    // render one draw_*_content bare, without the band the page loop adds.
+    render_page_png("settings_full", 1400, 1600, |ctx, theme, state| {
+        crate::gui::pages::settings::draw(ctx, theme, state);
     });
 }
 

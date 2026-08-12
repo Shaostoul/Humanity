@@ -627,8 +627,13 @@ pub fn custom_checkbox(ui: &mut Ui, theme: &Theme, value: &mut bool) -> bool {
             painter.line_segment([points[0], points[1]], Stroke::new(2.0, check_color));
             painter.line_segment([points[1], points[2]], Stroke::new(2.0, check_color));
         } else {
-            // Unchecked: visible border outline (always visible)
-            painter.rect_stroke(rect, rounding, Stroke::new(1.5, theme.border()), egui::epaint::StrokeKind::Outside);
+            // Unchecked: a clearly visible outline. Uses text_muted, not the
+            // card border token, because on a dark panel the border token is
+            // near-invisible and an unchecked box reads as empty space
+            // (operator: "the outline of the setting is also black or very dark
+            // gray, hard to read"). A faint fill lifts it off the background too.
+            painter.rect_filled(rect, rounding, theme.bg_tertiary());
+            painter.rect_stroke(rect, rounding, Stroke::new(1.5, theme.text_muted()), egui::epaint::StrokeKind::Outside);
         }
     }
 
