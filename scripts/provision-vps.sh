@@ -40,8 +40,15 @@ say() { echo -e "\n=== $* ==="; }
 # ── 1. Base packages ─────────────────────────────────────────────────────────
 say "packages"
 export DEBIAN_FRONTEND=noninteractive
+# Provider templates ship with interrupted package state more often than not,
+# and grub-pc's postinst asks an interactive "which disk?" question that hangs
+# forever without a tty (it cost this script's first real run 20 minutes).
+# Answer it up front and repair dpkg before asking apt for anything.
+BOOT_DISK="/dev/$(lsblk -dno NAME,TYPE | awk '$2=="disk"{print $1; exit}')"
+echo "grub-pc grub-pc/install_devices multiselect $BOOT_DISK" | debconf-set-selections
+dpkg --configure -a || true
 apt-get update -qq
-apt-get install -y -qq nginx certbot fail2ban nftables git curl \
+apt-get install -y -qq nginx certbot fail2ban nftables git curl rsync \
   build-essential pkg-config libssl-dev sqlite3 unattended-upgrades
 
 # ── 2. Rust toolchain (the relay builds on the box, same as CI deploy) ───────
@@ -106,7 +113,17 @@ nft -f /etc/nftables.conf
 
 # ── 8. fail2ban (sshd jail on by default) + unattended security updates ──────
 say "fail2ban + unattended-upgrades"
+# Minimal Debian 12 has no rsyslog, so /var/log/auth.log does not exist and
+# fail2ban's default sshd jail CRASHES - a few seconds AFTER systemctl has
+# already returned success, so a naive `enable --now` looks green while the
+# service dies behind it. Point it at the systemd journal instead, and let the
+# assertion block at the end catch any regression.
+printf '[sshd]
+enabled = true
+backend = systemd
+' > /etc/fail2ban/jail.d/sshd-systemd.conf
 systemctl enable --now fail2ban
+systemctl restart fail2ban
 printf 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n' \
   > /etc/apt/apt.conf.d/20auto-upgrades
 
@@ -120,7 +137,12 @@ if [ ! -f "$REPO/.env" ]; then
   printf 'ADMIN_KEYS=\nAPI_SECRET=%s\nRUST_LOG=info\n' "$(openssl rand -hex 32)" > "$REPO/.env"
   chmod 600 "$REPO/.env"
 fi
-( cd "$REPO" && cargo build --release --features relay --no-default-features )
+# Build only if no binary exists. Provisioning defines the MACHINE; keeping
+# the binary current is the deploy pipeline's job. (On this VPS a build is
+# ~31 minutes and something invalidates cargo's cache between provision runs,
+# so an unconditional build turned every re-run into an hour.)
+[ -x "$REPO/target/release/HumanityOS" ] || \
+  ( cd "$REPO" && cargo build --release --features relay --no-default-features )
 cat > /etc/systemd/system/humanity-relay.service <<UNIT
 [Unit]
 Description=Humanity Network Relay
@@ -157,14 +179,55 @@ systemctl enable --now humanity-relay-watchdog.timer humanity-disk-guard.timer
 # ── 11. Web root + nginx. Certs must exist before the TLS config loads, so:
 #        certbot standalone first (needs :80 free), then the real config. ─────
 say "nginx + certs"
-mkdir -p /var/www/humanity
-rsync -a --delete "$REPO/web/" /var/www/humanity/
+# One layout definition, shared with CI's deploy step (see the header of
+# sync-web-root.sh for why a second copy of this logic is banned).
+bash "$REPO/scripts/sync-web-root.sh" "$REPO" /var/www/humanity
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   systemctl stop nginx || true
+  # No www: the zone has never had a www record (certbot fails the whole
+  # order on one NXDOMAIN name, which cost this script's second run).
   certbot certonly --standalone -n --agree-tos -m "$CERT_MAIL" \
-    -d "$DOMAIN" -d "www.$DOMAIN" -d "$CHAT_DOMAIN" || {
+    -d "$DOMAIN" -d "$CHAT_DOMAIN" || {
       echo "!! certbot failed (network/DNS not ready?) - nginx left stopped; re-run when ready"; exit 1; }
 fi
+# The site config includes two certbot companion files that only the
+# certbot-NGINX plugin creates; standalone certonly does not (third landmine
+# this script's first live run found). Both are public, stable content:
+# the options file is certbot's standard TLS config, the dhparams are the
+# RFC 7919 ffdhe2048 group - the very bytes certbot ships.
+if [ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]; then
+  cat > /etc/letsencrypt/options-ssl-nginx.conf <<'SSLOPT'
+ssl_session_cache shared:le_nginx_SSL:10m;
+ssl_session_timeout 1440m;
+ssl_session_tickets off;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305";
+SSLOPT
+fi
+if [ ! -f /etc/letsencrypt/ssl-dhparams.pem ]; then
+  cat > /etc/letsencrypt/ssl-dhparams.pem <<'DHPARAM'
+-----BEGIN DH PARAMETERS-----
+MIIBCAKCAQEA//////////+t+FRYortKmq/cViAnPTzx2LnFg84tNpWp4TZBFGQz
++8yTnc4kmz75fS/jY2MMddj2gbICrsRhetPfHtXV/WVhJDP1H18GbtCFY2VVPe0a
+87VXE15/V8k1mE8McODmi3fipona8+/och3xWKE2rec1MKzKT0g6eXq8CrGCsyT7
+YdEIqUuyyOP7uWrat2DX9GgdT0Kj3jlN9K5W7edjcrsZCwenyO4KbXCeAvzhzffi
+7MA0BM0oNC9hkXL+nOmFg/+OTxIy7vKBg8P+OxtMb61zO7X8vC7CIAXFjvGDfRaD
+ssbzSibBsu/6iGtCOGEoXJf//////////wIBAg==
+-----END DH PARAMETERS-----
+DHPARAM
+fi
+# Debian's nginx computes a 32-byte server-names hash bucket on this CPU,
+# too small for our domain set (fourth landmine); 64 is the universal fix.
+printf 'server_names_hash_bucket_size 64;\n' > /etc/nginx/conf.d/hash-bucket.conf
+# The rate-limit ZONES the site config consumes. Their declarations lived in
+# a hand-edited nginx.conf on the old box and were never in the repo (fifth
+# landmine, and the incident's whole lesson in miniature). limit_req_zone is
+# only legal at http{} scope, hence a conf.d snippet rather than the vhost.
+cat > /etc/nginx/conf.d/humanity-limits.conf <<'LIMITS'
+limit_req_zone $binary_remote_addr zone=api_read_limit:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=upload_limit:10m rate=2r/m;
+LIMITS
 install -m 644 "$REPO/scripts/nginx/humanity.conf" /etc/nginx/sites-available/humanity
 ln -sf /etc/nginx/sites-available/humanity /etc/nginx/sites-enabled/humanity
 rm -f /etc/nginx/sites-enabled/default
@@ -189,9 +252,15 @@ fail=0
 if [ -f /etc/turnserver.conf ] && grep -q "lt-cred-mech" /etc/turnserver.conf; then
   echo "!! coturn is installed with static credentials - the exact config that got the server null-routed"; fail=1
 fi
-sshd -T | grep -q "^passwordauthentication no" || { echo "!! sshd accepts passwords"; fail=1; }
-nft list ruleset | grep -q "policy drop" || { echo "!! firewall is not default-deny"; fail=1; }
+# Captured, not piped: under pipefail, `producer | grep -q` fails on the
+# producer's SIGPIPE when grep quits at the first match (sixth landmine).
+sshd_eff="$(/usr/sbin/sshd -T 2>/dev/null || true)"
+grep -q "^passwordauthentication no" <<<"$sshd_eff" || { echo "!! sshd accepts passwords"; fail=1; }
+nft_rules="$(/usr/sbin/nft list ruleset 2>/dev/null || true)"
+grep -q "policy drop" <<<"$nft_rules" || { echo "!! firewall is not default-deny"; fail=1; }
 swapon --show | grep -q swap || { echo "!! no swap"; fail=1; }
 [ -d /var/log/journal ] || { echo "!! journal is not persistent"; fail=1; }
-curl -fsS -m 5 http://127.0.0.1:3210/health >/dev/null || { echo "!! relay /health not answering"; fail=1; }
+ok=0; for i in $(seq 1 15); do curl -fsS -m 3 http://127.0.0.1:3210/health >/dev/null 2>&1 && { ok=1; break; }; sleep 2; done
+[ $ok = 1 ] || { echo "!! relay /health not answering after 30s"; fail=1; }
+sleep 3; systemctl is-active --quiet fail2ban || { echo "!! fail2ban is not running (it can die AFTER start reports success)"; fail=1; }
 [ $fail = 0 ] && say "PROVISION COMPLETE - all assertions pass" || { say "PROVISION FINISHED WITH FAILURES"; exit 1; }

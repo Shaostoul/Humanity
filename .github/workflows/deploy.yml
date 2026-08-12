@@ -104,59 +104,11 @@ jobs:
             cp target/release/HumanityOS \
                backups/HumanityOS-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
 
-            # Sync web assets
-            rsync -a --delete \
-              /opt/Humanity/web/chat/ \
-              /var/www/humanity/chat/
-            rsync -a \
-              /opt/Humanity/web/shared/ \
-              /var/www/humanity/shared/
-            rsync -a \
-              /opt/Humanity/assets/ \
-              /var/www/humanity/assets/
-
-            # Remove orphaned pages from previous deploys
-            for old in skills equipment quests logbook vault knowledge systems streams studio learn resources; do
-              rm -f "/var/www/humanity/${old}.html"
-            done
-            rm -f /var/www/humanity/pages/resources-app.js
-            # Retired 2026-07-30: these three catalogs merged into
-            # data/external/catalog.json. The data rsync has no --delete, so
-            # without this they would linger forever and keep serving the old
-            # curation to anyone with a bookmark.
-            rm -f /var/www/humanity/data/resources.json
-            rm -f /var/www/humanity/data/resources/catalog.json
-            rm -f /var/www/humanity/data/tools/catalog.json
-
-            # Copy all standalone pages (HTML + JS) from pages/ folder
-            mkdir -p /var/www/humanity/pages
-            for f in /opt/Humanity/web/pages/*.html; do
-              [ -f "$f" ] && cp "$f" "/var/www/humanity/$(basename "$f")"
-            done
-            for f in /opt/Humanity/web/pages/*.js; do
-              [ -f "$f" ] && cp "$f" "/var/www/humanity/pages/$(basename "$f")"
-            done
-
-            # Sync activities and data directories
-            for dir in activities; do
-              if [ -d "/opt/Humanity/web/$dir" ]; then
-                mkdir -p "/var/www/humanity/$dir"
-                rsync -a /opt/Humanity/web/$dir/ /var/www/humanity/$dir/
-              fi
-            done
-            mkdir -p /var/www/humanity/data
-            # JSON anywhere under data/. The --include='*/' is what lets rsync
-            # descend: without it --exclude='*' matches directory names too, so
-            # the tree is pruned and nested files (data/external/catalog.json,
-            # data/tools/catalog.json) never sync. Fixed 2026-07-30.
-            rsync -a --prune-empty-dirs \
-              --include='*/' --include='*.json' --exclude='*' \
-              /opt/Humanity/data/ /var/www/humanity/data/
-            # The Library ships its markdown too, so web/pages/library.html can
-            # render the SAME documents the native Library reads from disk. One
-            # source for both clients, no relay round-trip.
-            rsync -a --delete \
-              /opt/Humanity/data/library/ /var/www/humanity/data/library/
+            # Web root layout: ONE definition, shared with provision-vps.sh
+            # (scripts/sync-web-root.sh). An inline copy of this logic served
+            # a 404 homepage from a freshly provisioned box on 2026-08-11 -
+            # see that script's header.
+            bash /opt/Humanity/scripts/sync-web-root.sh /opt/Humanity /var/www/humanity
 
             # Graceful restart
             systemctl restart humanity-relay
