@@ -172,6 +172,24 @@ pub fn validate_environment() -> (String, u16) {
 /// Run the relay server. Contains all startup logic from main().
 /// Call after initializing logging and validating the environment.
 pub async fn run_relay() {
+    // Wire up logging FIRST (2026-08-12): the headless relay initialized no
+    // tracing subscriber at all, so every tracing::info!/warn!/error! in the
+    // whole relay - 12 modules - was silently dropped. The 2026-08-07 incident
+    // was investigated with ZERO relay logs because of this. Reads RUST_LOG
+    // (set to info in the systemd unit's env), defaults to info, and writes to
+    // stderr, which systemd/journald captures. try_init so the native build,
+    // which already set up env_logger for `log`, cannot panic on a double init.
+    #[cfg(feature = "relay")]
+    {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .try_init();
+        tracing::info!("===== HumanityOS relay v{} starting =====", env!("CARGO_PKG_VERSION"));
+    }
+
     // Validate environment and get config.
     let (db_path, port) = validate_environment();
 
