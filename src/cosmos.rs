@@ -4,8 +4,9 @@
 //! Before this module the solar system existed as **four drifted
 //! copies**: this Keplerian model (Maps page, accurate), a log-scaled
 //! `data/world/solar_system.ron` (the in-home hologram), a circular
-//! approximation in `terrain/planet_registry.rs`, and a hardcoded JS
-//! array in `web/pages/maps.html`. The operator asked us to "sync the
+//! approximation in `terrain/planet_registry.rs` (never instantiated;
+//! deleted 2026-08-12, artificial-planet increment 5), and a hardcoded
+//! JS array in `web/pages/maps.html`. The operator asked us to "sync the
 //! maps". Per the project **infinite-of-x** rule the solar system is
 //! data, not code-duplicated-per-view: there is ONE `SolBody` set
 //! loaded from `data/star_systems/sol.json`, ONE Kepler propagator, and
@@ -71,6 +72,17 @@ pub struct SolBody {
     pub surface_gravity_ms2: f64,
     /// Mean surface / cloud-top temperature in Kelvin.
     pub mean_temperature_k: f64,
+    /// Global magnetic field strength at the surface (equatorial) in tesla.
+    /// 0.0 when the body has no significant global field (Mars, Venus, the
+    /// Moon) or when the dataset does not list one. First consumers are the
+    /// body info readout and a compass; radiation shielding comes later
+    /// (artificial-planet gap 4).
+    pub magnetic_field_t: f64,
+    /// Surface atmospheric pressure in pascals. 0.0 means effectively vacuum
+    /// OR undefined: gas giants have no surface to measure at, so they stay
+    /// at 0.0 by convention (their `surface_pressure_atm` in the JSON is
+    /// null for the same reason).
+    pub surface_pressure_pa: f64,
     /// Orbital period in days.
     pub orbital_period_days: f64,
     /// Atmosphere composition summary (top 3 components, formatted).
@@ -88,99 +100,129 @@ pub struct SolBody {
 
 static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
 
-/// Parse + cache `data/star_systems/sol.json` into `SolBody` rows
-/// (with parent→children links). `region` rows (asteroid belts) are
-/// skipped — they are not positionable point bodies. Cached `&'static`
-/// so per-frame UI / render code can call it freely.
+/// Raw JSON text for the Sol system: DISK FIRST, embedded fallback.
+///
+/// Disk-first (`<data_dir>/star_systems/sol.json`) means adding a body or
+/// editing a mass is a pure data drop, no rebuild (artificial-planet gap 7).
+/// The embedded copy keeps a bare portable exe (no data/ folder next to it)
+/// fully working. Future work: live hot-reload of orbital data via the file
+/// watcher plus a cache bust; today the OnceLock in `sol_bodies()` means the
+/// file is read once per run, so an edit needs a restart (not a rebuild).
+fn load_sol_json(data_dir: &std::path::Path) -> String {
+    crate::embedded_data::read_data_or_embedded(data_dir, "star_systems/sol.json")
+        // Unreachable in practice: the embedded table always carries this
+        // key. Kept as an explicit fallback so a future embedded-table edit
+        // cannot turn a missing disk file into a silent empty catalog.
+        .unwrap_or_else(|| crate::embedded_data::SOLAR_SYSTEM_JSON.to_string())
+}
+
+/// Parse + cache the Sol system into `SolBody` rows (with parent→children
+/// links). Loads via `load_sol_json` (disk first, embedded fallback).
+/// `region` rows (asteroid belts) are skipped: they are not positionable
+/// point bodies. Cached `&'static` so per-frame UI / render code can call
+/// it freely.
 pub fn sol_bodies() -> &'static [SolBody] {
     SOL_BODIES.get_or_init(|| {
-        let json = crate::embedded_data::SOLAR_SYSTEM_JSON;
-        let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
-        let mut out: Vec<SolBody> = Vec::new();
-        if let Some(arr) = parsed.get("bodies").and_then(|b| b.as_array()) {
-            for body in arr {
-                let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let name = body.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
-                let body_type = body.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                if body_type == "region" { continue; } // skip belts as positionable bodies
-                let parent = body.get("parent").and_then(|v| v.as_str()).map(String::from);
-                let orbit = body.get("orbit");
-                let semi_major_axis_au = orbit.and_then(|o| o.get("semi_major_axis_au")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let semi_major_axis_km = orbit.and_then(|o| o.get("semi_major_axis_km")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let orbital_period_days = orbit.and_then(|o| o.get("orbital_period_days")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let eccentricity = orbit.and_then(|o| o.get("eccentricity")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let inclination_deg = orbit.and_then(|o| o.get("inclination_deg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let longitude_ascending_node_deg = orbit
-                    .and_then(|o| o.get("longitude_ascending_node_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let argument_perihelion_deg = orbit
-                    .and_then(|o| o.get("argument_perihelion_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let mean_anomaly_deg = orbit
-                    .and_then(|o| o.get("mean_anomaly_deg"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0);
-                let physical = body.get("physical");
-                let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
-                let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let surface_gravity_ms2 = physical.and_then(|p| p.get("surface_gravity_ms2")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let mean_temperature_k = physical.and_then(|p| p.get("mean_temperature_k")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-                // Build a compact atmosphere summary from the composition map
-                // ("78% N₂ · 21% O₂ · …"). Empty string if no atmosphere.
-                let atmosphere_summary = body.get("atmosphere")
-                    .and_then(|a| a.get("composition"))
-                    .and_then(|c| c.as_object())
-                    .map(|comp| {
-                        let mut pairs: Vec<(String, f64)> = comp.iter()
-                            .filter_map(|(k, v)| Some((k.clone(), v.as_f64()?)))
-                            .collect();
-                        // Highest concentration first.
-                        pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                        pairs.iter().take(3)
-                            .map(|(k, v)| format!("{:.1}% {}", v, k))
-                            .collect::<Vec<_>>()
-                            .join(" · ")
-                    })
-                    .unwrap_or_default();
-                let description = body.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let (discovery_year, discoverer) = body.get("discovery")
-                    .and_then(|d| {
-                        let y = d.get("year").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-                        let who = d.get("discoverer").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        Some((y, who))
-                    })
-                    .unwrap_or((0, String::new()));
-                out.push(SolBody {
-                    id, name, body_type, parent,
-                    semi_major_axis_au, semi_major_axis_km,
-                    eccentricity, inclination_deg,
-                    longitude_ascending_node_deg, argument_perihelion_deg, mean_anomaly_deg,
-                    orbital_period_days,
-                    radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
-                    atmosphere_summary, description, discovery_year, discoverer,
-                    children: Vec::new(), // populated in second pass below
-                });
-            }
-        }
-        // Second pass: populate `children` lists by inverting the parent
-        // relationship. This is what lets the body browser sidebar nest
-        // moons under their planet without re-scanning every frame.
-        let mut child_lists: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-        for b in &out {
-            if let Some(p) = &b.parent {
-                child_lists.entry(p.clone()).or_default().push(b.id.clone());
-            }
-        }
-        for b in &mut out {
-            if let Some(kids) = child_lists.get(&b.id) {
-                b.children = kids.clone();
-            }
-        }
+        let json = load_sol_json(&crate::data_dir());
+        let out = parse_sol_bodies(&json);
         log::info!("Cosmos: loaded {} Sol bodies (with parent-child links)", out.len());
         out
     })
+}
+
+/// The pure parse step, split from `sol_bodies()` so tests can feed it an
+/// edited JSON copy without fighting the process-wide OnceLock cache.
+fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
+    let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
+    let mut out: Vec<SolBody> = Vec::new();
+    if let Some(arr) = parsed.get("bodies").and_then(|b| b.as_array()) {
+        for body in arr {
+            let id = body.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let name = body.get("name").and_then(|v| v.as_str()).unwrap_or(&id).to_string();
+            let body_type = body.get("type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if body_type == "region" { continue; } // skip belts as positionable bodies
+            let parent = body.get("parent").and_then(|v| v.as_str()).map(String::from);
+            let orbit = body.get("orbit");
+            let semi_major_axis_au = orbit.and_then(|o| o.get("semi_major_axis_au")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let semi_major_axis_km = orbit.and_then(|o| o.get("semi_major_axis_km")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let orbital_period_days = orbit.and_then(|o| o.get("orbital_period_days")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let eccentricity = orbit.and_then(|o| o.get("eccentricity")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let inclination_deg = orbit.and_then(|o| o.get("inclination_deg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let longitude_ascending_node_deg = orbit
+                .and_then(|o| o.get("longitude_ascending_node_deg"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let argument_perihelion_deg = orbit
+                .and_then(|o| o.get("argument_perihelion_deg"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let mean_anomaly_deg = orbit
+                .and_then(|o| o.get("mean_anomaly_deg"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let physical = body.get("physical");
+            let radius_km = physical.and_then(|p| p.get("radius_km")).and_then(|v| v.as_f64()).unwrap_or(1000.0);
+            let mass_kg = physical.and_then(|p| p.get("mass_kg")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let surface_gravity_ms2 = physical.and_then(|p| p.get("surface_gravity_ms2")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let mean_temperature_k = physical.and_then(|p| p.get("mean_temperature_k")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            // Optional physical-profile fields (artificial-planet gap 4):
+            // absent for most minor bodies, so they default to 0.0 the
+            // same way the other physical params do.
+            let magnetic_field_t = physical.and_then(|p| p.get("magnetic_field_t")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let surface_pressure_pa = physical.and_then(|p| p.get("surface_pressure_pa")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            // Build a compact atmosphere summary from the composition map
+            // ("78% N₂ · 21% O₂ · …"). Empty string if no atmosphere.
+            let atmosphere_summary = body.get("atmosphere")
+                .and_then(|a| a.get("composition"))
+                .and_then(|c| c.as_object())
+                .map(|comp| {
+                    let mut pairs: Vec<(String, f64)> = comp.iter()
+                        .filter_map(|(k, v)| Some((k.clone(), v.as_f64()?)))
+                        .collect();
+                    // Highest concentration first.
+                    pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                    pairs.iter().take(3)
+                        .map(|(k, v)| format!("{:.1}% {}", v, k))
+                        .collect::<Vec<_>>()
+                        .join(" · ")
+                })
+                .unwrap_or_default();
+            let description = body.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let (discovery_year, discoverer) = body.get("discovery")
+                .and_then(|d| {
+                    let y = d.get("year").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                    let who = d.get("discoverer").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    Some((y, who))
+                })
+                .unwrap_or((0, String::new()));
+            out.push(SolBody {
+                id, name, body_type, parent,
+                semi_major_axis_au, semi_major_axis_km,
+                eccentricity, inclination_deg,
+                longitude_ascending_node_deg, argument_perihelion_deg, mean_anomaly_deg,
+                orbital_period_days,
+                radius_km, mass_kg, surface_gravity_ms2, mean_temperature_k,
+                magnetic_field_t, surface_pressure_pa,
+                atmosphere_summary, description, discovery_year, discoverer,
+                children: Vec::new(), // populated in second pass below
+            });
+        }
+    }
+    // Second pass: populate `children` lists by inverting the parent
+    // relationship. This is what lets the body browser sidebar nest
+    // moons under their planet without re-scanning every frame.
+    let mut child_lists: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for b in &out {
+        if let Some(p) = &b.parent {
+            child_lists.entry(p.clone()).or_default().push(b.id.clone());
+        }
+    }
+    for b in &mut out {
+        if let Some(kids) = child_lists.get(&b.id) {
+            b.children = kids.clone();
+        }
+    }
+    out
 }
 
 /// Look up a body by id. O(N) scan, but the dataset is ~64 entries so
@@ -353,6 +395,107 @@ mod tests {
                 "Earth heliocentric r={r} AU at t={t} — orbital math drifted"
             );
         }
+    }
+
+    /// Loader test half 1 (artificial-planet gap 7): when the data dir has
+    /// NO star_systems/sol.json, the loader must hand back the embedded
+    /// copy byte-for-byte. This is the portable-exe-in-a-bare-folder path.
+    #[test]
+    fn disk_load_falls_back_to_embedded_when_file_absent() {
+        let dir = std::env::temp_dir().join("hos_cosmos_fallback_test");
+        // Make sure the dir exists but is empty of star_systems/.
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let json = load_sol_json(&dir);
+        assert_eq!(
+            json,
+            crate::embedded_data::SOLAR_SYSTEM_JSON,
+            "missing disk file must fall back to the embedded sol.json"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Loader test half 2: an edited on-disk sol.json OVERRIDES the embedded
+    /// copy. Editing a mass or adding a body is a pure data drop, no rebuild.
+    #[test]
+    fn edited_disk_copy_overrides_embedded() {
+        let dir = std::env::temp_dir().join("hos_cosmos_override_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("star_systems")).expect("temp dir");
+        // A minimal system: Earth with a deliberately WRONG mass (so we can
+        // prove the disk value won) plus a body that does not exist in the
+        // embedded catalog at all.
+        let edited = r#"{
+            "id": "sol-test",
+            "bodies": [
+                {
+                    "id": "earth",
+                    "name": "Earth",
+                    "type": "terrestrial",
+                    "parent": "sun",
+                    "physical": { "mass_kg": 1.23e+25, "radius_km": 6371 }
+                },
+                {
+                    "id": "testworld",
+                    "name": "Testworld",
+                    "type": "terrestrial",
+                    "parent": "sun",
+                    "physical": { "magnetic_field_t": 5e-5, "surface_pressure_pa": 200000 }
+                }
+            ]
+        }"#;
+        std::fs::write(dir.join("star_systems").join("sol.json"), edited).expect("write");
+        let bodies = parse_sol_bodies(&load_sol_json(&dir));
+        assert_eq!(bodies.len(), 2, "disk copy (2 bodies) must win over embedded (~64)");
+        let earth = bodies.iter().find(|b| b.id == "earth").expect("earth from disk");
+        // Relative tolerance, not ==: serde_json's decimal-to-f64 parse can
+        // land one ulp away from the equivalent Rust float literal.
+        assert!(
+            (earth.mass_kg - 1.23e25).abs() / 1.23e25 < 1e-12,
+            "edited on-disk mass must override embedded (got {})", earth.mass_kg
+        );
+        let test = bodies.iter().find(|b| b.id == "testworld").expect("new body from disk");
+        assert_eq!(test.magnetic_field_t, 5e-5);
+        assert_eq!(test.surface_pressure_pa, 200_000.0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The new physical-profile fields parse from the shipped catalog, and
+    /// bodies without them default to 0.0 instead of failing. Values are the
+    /// NASA planetary fact sheet numbers written into sol.json this
+    /// increment; if you retune the data, retune these assertions with it.
+    #[test]
+    fn physical_profile_fields_parse() {
+        let bodies = parse_sol_bodies(crate::embedded_data::SOLAR_SYSTEM_JSON);
+        let get = |id: &str| bodies.iter().find(|b| b.id == id).unwrap_or_else(|| panic!("{id} in catalog"));
+
+        let earth = get("earth");
+        assert!((earth.magnetic_field_t - 3.05e-5).abs() < 1e-9, "Earth equatorial surface field ~0.305 gauss");
+        assert_eq!(earth.surface_pressure_pa, 101_325.0, "Earth 1 atm");
+
+        let mars = get("mars");
+        assert_eq!(mars.magnetic_field_t, 0.0, "Mars has no global field");
+        assert_eq!(mars.surface_pressure_pa, 610.0, "Mars ~6.1 mbar");
+
+        let venus = get("venus");
+        assert_eq!(venus.magnetic_field_t, 0.0, "Venus has no global field");
+        assert_eq!(venus.surface_pressure_pa, 9.2e6, "Venus ~92 bar");
+
+        let jupiter = get("jupiter");
+        assert!((jupiter.magnetic_field_t - 4.28e-4).abs() < 1e-9, "Jupiter cloud-top equatorial field");
+        assert_eq!(jupiter.surface_pressure_pa, 0.0, "gas giants: surface pressure undefined, kept 0.0");
+
+        let moon = get("moon");
+        assert_eq!(moon.magnetic_field_t, 0.0);
+        assert_eq!(moon.surface_pressure_pa, 3e-10, "lunar exosphere, effectively vacuum");
+
+        let mercury = get("mercury");
+        assert!((mercury.magnetic_field_t - 1.9e-7).abs() < 1e-12, "Mercury weak global field");
+
+        // Unfilled bodies stay at the 0.0 default rather than erroring.
+        let phobos = get("phobos");
+        assert_eq!(phobos.magnetic_field_t, 0.0);
+        assert_eq!(phobos.surface_pressure_pa, 0.0);
     }
 
     #[test]

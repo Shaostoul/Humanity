@@ -18,7 +18,8 @@
    "gravity": "m/s^2",
    "rotation": "hours",
    "orbital_period": "days",
-   "pressure": "atm"
+   "pressure": "atm in atmosphere.surface_pressure_atm, Pa in physical.surface_pressure_pa",
+   "magnetic_field": "T (tesla) in physical.magnetic_field_t, equatorial surface or cloud-top field; 0 = no significant global field or not yet sourced"
   }
  },
  "bodies": [
@@ -77,7 +78,9 @@
     "rotation_period_hours": 1407.6,
     "axial_tilt_deg": 0.034,
     "mean_temperature_k": 440,
-    "albedo": 0.068
+    "albedo": 0.068,
+    "magnetic_field_t": 1.9e-7,
+    "surface_pressure_pa": 5e-10
    },
    "atmosphere": {
     "composition": {
@@ -115,7 +118,9 @@
     "rotation_period_hours": -5832.5,
     "axial_tilt_deg": 177.36,
     "mean_temperature_k": 737,
-    "albedo": 0.77
+    "albedo": 0.77,
+    "magnetic_field_t": 0.0,
+    "surface_pressure_pa": 9.2e6
    },
    "atmosphere": {
     "composition": {
@@ -150,7 +155,9 @@
     "rotation_period_hours": 23.934,
     "axial_tilt_deg": 23.44,
     "mean_temperature_k": 288,
-    "albedo": 0.306
+    "albedo": 0.306,
+    "magnetic_field_t": 3.05e-5,
+    "surface_pressure_pa": 101325
    },
    "atmosphere": {
     "composition": {
@@ -187,7 +194,9 @@
     "rotation_period_hours": 655.73,
     "axial_tilt_deg": 1.5424,
     "mean_temperature_k": 220,
-    "albedo": 0.136
+    "albedo": 0.136,
+    "magnetic_field_t": 0.0,
+    "surface_pressure_pa": 3e-10
    },
    "atmosphere": {
     "composition": {},
@@ -219,7 +228,9 @@
     "rotation_period_hours": 24.623,
     "axial_tilt_deg": 25.19,
     "mean_temperature_k": 210,
-    "albedo": 0.25
+    "albedo": 0.25,
+    "magnetic_field_t": 0.0,
+    "surface_pressure_pa": 610
    },
    "atmosphere": {
     "composition": {
@@ -316,7 +327,9 @@
     "rotation_period_hours": 9.925,
     "axial_tilt_deg": 3.13,
     "mean_temperature_k": 165,
-    "albedo": 0.503
+    "albedo": 0.503,
+    "magnetic_field_t": 4.28e-4,
+    "surface_pressure_pa": 0.0
    },
    "atmosphere": {
     "composition": {
