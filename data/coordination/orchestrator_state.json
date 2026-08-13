@@ -257,6 +257,11 @@
       "date": "2026-08-13",
       "decision": "v0.1122.0: BUG-070 fixed (app froze in chat during outage). Root: WsClient connected:true optimistic init disabled reconnect backoff since inception AND fired a no-timeout ureq history fetch on the render thread (21s stalls). Fix: LinkState three-state + background fetch with timeouts (net_route::chat_history_pump) + webrtc identity log truncation. Two falsifiable link-state tests. ALSO: mirror live at shaostoul.github.io (v0.1121.1) with mirror banner; site-resilience.md runbook (Cloudflare steps operator-pending; DreamHost Stack 4 VPS validated as good choice, plain Debian 13, monthly-or-yearly operator call). VPS STILL DOWN (Namecheap maintenance per operator); recovery watch armed; on recovery rerun Deploy-to-VPS + tag mirror jobs for v0.1120-v0.1122.",
       "why": "Operator wants uninterrupted user experience during host outages; same-URL continuity comes from Cloudflare (their setup) + DreamHost second origin (their purchase) + my wiring; the mirror is the always-up fallback."
+    },
+    {
+      "date": "2026-08-13",
+      "decision": "v0.1123.0: FEDERATION REPAIRED (BUG-071, seven independent defects, each alone fatal: gate ate hellos, welcome misrouted to chat clients, two preimage mismatches, URL-vs-key peer matching, verify/persist split-brain, history loader erasing federated rows) + empty-sig gossip skeleton-key closed + user-socket federation injection closed. Proven by tests/federation_two_relays.rs (two in-process relays, full loop, <2s). serve_relay() added as the env-free boot seam. Operator DECLINED Cloudflare on principle (recorded in site-resilience.md); federation IS the anti-single-point strategy. DreamHost VPS root-ready at 208.113.211.244, provisioning blocked ONLY on public.guide DNS records (watch armed). Namecheap VPS still in provider maintenance (watch armed).",
+      "why": "Operator: make outages never matter again, without Cloudflare. Next: provision public.guide when DNS lands, live cross-machine federation test host-node <-> public.guide, then primary <-> public.guide when Namecheap returns."
     }
   ],
   "active_scopes_to_avoid": [

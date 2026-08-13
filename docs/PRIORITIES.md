@@ -72,7 +72,16 @@
 >    first correcting it against the live page registry, then reading it where
 >    tab choice is currently hardcoded in three places.
 >
-> 3. **Federation - the network effect, hardest and riskiest, genuinely DORMANT.**
+> 3. **Federation - REPAIRED AND PROVEN v0.1123.0 (2026-08-13).** Seven
+>    independent defects fixed (BUGS.md BUG-071); the two-relay integration
+>    test (tests/federation_two_relays.rs) boots two full relays in-process
+>    and proves handshake + signed chat replication + signed profile gossip
+>    + unsigned-gossip refusal in under 2 s. REMAINING for live federation:
+>    provision public.guide (DNS records pending at DreamHost), then the
+>    cross-machine live test: local host-node relay <-> public.guide via the
+>    native GUI (/server-add + /server-trust 2 + /server-federate), then
+>    united-humanity.us <-> public.guide when Namecheap maintenance ends.
+>    ORIGINAL DEFECT MAP (now historical):
 >    Zero peers have EVER federated (live DB: 0 rows). A second relay booting
 >    today flaps connect/disconnect ~every 35 s forever, exchanging nothing,
 >    because of THREE independent never-ran-live defects:
