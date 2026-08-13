@@ -2176,6 +2176,49 @@ impl NavDisplayMode {
     }
 }
 
+/// How the per-setting DESCRIPTIONS (the muted help line under each control on
+/// the Settings page) are shown (v0.1116, operator 2026-08-12). The descriptions
+/// used to read as evenly "stepped": each sat a full item-spacing below its
+/// control and the same distance above the next control, so a control and its
+/// own description did not visually group. `widgets::setting_hint` uses this to
+/// choose the layout.
+///
+/// EXTENSIBLE by design (operator: "make sure we potentially add others in case
+/// we need to"). Serialization is by serde variant NAME (a stable short string:
+/// "Full" / "Hover" / "Off"), never a bare discriminant, so reordering the
+/// variants here does not change what is stored on disk. Adding a new mode is
+/// safe: `setting_hint`'s match falls through to the `Full` layout for any
+/// variant it does not explicitly handle, so a newer variant never blanks the
+/// help text before it is wired up.
+#[cfg(feature = "native")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub enum HintDisplay {
+    /// Descriptions always visible, tightened to the control above them, with a
+    /// larger gap below so each control + description reads as one unit. Default.
+    #[default]
+    Full,
+    /// Descriptions not shown inline; a small muted "(?)" marker sits under the
+    /// control and reveals the full text as a tooltip on hover.
+    Hover,
+    /// Descriptions hidden entirely; only the between-unit gap remains, so the
+    /// controls keep the same airy rhythm without any help text.
+    Off,
+}
+
+#[cfg(feature = "native")]
+impl HintDisplay {
+    /// The three modes, in picker order.
+    pub const ALL: [HintDisplay; 3] = [HintDisplay::Full, HintDisplay::Hover, HintDisplay::Off];
+    /// Short label for the Settings picker button.
+    pub fn label(self) -> &'static str {
+        match self {
+            HintDisplay::Full => "Full",
+            HintDisplay::Hover => "Hover",
+            HintDisplay::Off => "Off",
+        }
+    }
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -6782,6 +6825,9 @@ pub struct SettingsState {
     // Appearance
     pub dark_mode: bool,
     pub font_size: f32,
+    /// How per-setting descriptions are shown on THIS page (v0.1116): Full
+    /// (inline, tightened) / Hover ("(?)" marker) / Off. See `HintDisplay`.
+    pub hint_display: HintDisplay,
     // Notifications: no Settings fields - the live prefs are relay-synced
     // (GuiState::notif_*, edited by Settings > Notifications AND the chat DM
     // cog; v0.980 removed the dead notify_*/dnd_* placebos nothing read).
@@ -6893,6 +6939,7 @@ impl Default for SettingsState {
             invert_y: false,
             dark_mode: true,
             font_size: 14.0,
+            hint_display: HintDisplay::default(),
             home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,

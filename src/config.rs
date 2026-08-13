@@ -342,6 +342,12 @@ pub struct AppConfig {
     /// Dark theme.
     #[serde(default = "default_true")]
     pub dark_mode: bool,
+    /// How the Settings page shows each control's description (v0.1116): Full
+    /// (inline + tightened) / Hover ("(?)" marker) / Off. Absent in old configs
+    /// => Full, the default. Serialized by variant name, so it is stable across
+    /// reorderings of the enum. See `crate::gui::HintDisplay`.
+    #[serde(default)]
+    pub hint_display: crate::gui::HintDisplay,
     /// Camera far plane in metres.
     #[serde(default = "default_render_distance")]
     pub render_distance: f32,
@@ -1146,6 +1152,7 @@ impl AppConfig {
             online_status_visible: state.settings.online_status_visible,
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
+            hint_display: state.settings.hint_display,
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
@@ -1286,6 +1293,7 @@ impl AppConfig {
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
         state.settings.dark_mode = self.dark_mode;
+        state.settings.hint_display = self.hint_display;
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
         state.settings.lights_tiled = self.lights_tiled;
@@ -1617,6 +1625,28 @@ mod play_mode_tests {
         let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
         let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
         assert_eq!(cfg.nav_display_mode, NavDisplayMode::Both);
+    }
+
+    #[test]
+    fn hint_display_survives_a_config_round_trip() {
+        use crate::gui::HintDisplay;
+        // v0.1116: the Settings hint-display choice must come back after a
+        // restart. Serialized by variant NAME, so it stays valid even if the
+        // enum's variants are reordered later.
+        for m in HintDisplay::ALL {
+            let json = serde_json::to_string(&m).unwrap();
+            let back: HintDisplay = serde_json::from_str(&json).unwrap();
+            assert_eq!(m, back, "HintDisplay must survive a config round-trip");
+        }
+        // The serialized form is the stable variant name, not a discriminant.
+        assert_eq!(serde_json::to_string(&HintDisplay::Full).unwrap(), "\"Full\"");
+        assert_eq!(serde_json::to_string(&HintDisplay::Hover).unwrap(), "\"Hover\"");
+        assert_eq!(serde_json::to_string(&HintDisplay::Off).unwrap(), "\"Off\"");
+        // A pre-v0.1116 config has no hint_display field: serde(default) must
+        // fill in Full (descriptions visible + tightened).
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert_eq!(cfg.hint_display, HintDisplay::Full);
     }
 
     #[test]

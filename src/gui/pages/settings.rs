@@ -959,20 +959,26 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 }
 
 pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
+    // Read the hint-display mode ONCE up front; every `setting_hint` call below
+    // uses it. Captured (Copy) so it does not re-borrow `state` per call.
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Dark backgrounds with light text (easier on the eyes at night). Off = light theme.").color(theme.text_muted()).size(theme.font_size_small));
-
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Dark backgrounds with light text (easier on the eyes at night). Off = light theme.");
 
         if widgets::labeled_slider(ui, theme, "Font Size", &mut state.settings.font_size, 10.0..=24.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Base text size in points. Higher = larger, easier-to-read text that fits less on screen. Per-element sizes live under Widgets > Fonts.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Base text size in points. Higher = larger, easier-to-read text that fits less on screen. Per-element sizes live under Widgets > Fonts.");
 
-        ui.add_space(theme.spacing_sm);
+        // The hint-display mode itself (Full / Hover / Off) — controls how every
+        // description on this page, including the ones right here, is shown.
+        if hint_display_picker(ui, theme, &mut state.settings.hint_display) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "How each setting's help text on this page is shown. Full keeps every description visible and tucked under its control; Hover hides them behind a small (?) you point at; Off removes them entirely.");
 
         // Chat timestamp display format (operator request). Applies app-wide and
         // instantly — re-formats already-shown messages too. All UTC.
@@ -1482,6 +1488,29 @@ fn u8_radio_picker(
     changed
 }
 
+/// Segmented picker for the per-setting description mode (Full / Hover / Off).
+/// Same look as `u8_radio_picker`; returns true if the value changed. Kept
+/// generic over `HintDisplay::ALL` so a new mode appears here automatically.
+fn hint_display_picker(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    value: &mut crate::gui::HintDisplay,
+) -> bool {
+    let mut changed = false;
+    widgets::settings_row(ui, theme, "Setting descriptions", |ui| {
+        for mode in crate::gui::HintDisplay::ALL {
+            let active = *value == mode;
+            if widgets::Button::secondary(mode.label()).active(active).show(ui, theme) {
+                if !active {
+                    *value = mode;
+                    changed = true;
+                }
+            }
+        }
+    });
+    changed
+}
+
 pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     // Capture card styling values before mutable borrows
     let card_bg = theme.bg_card();
@@ -1755,14 +1784,14 @@ pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state
             state.notif_prefs_loaded = true;
         }
     }
+    let hint = state.settings.hint_display;
     let mut changed = false;
     widgets::card(ui, theme, |ui| {
         changed |= widgets::toggle(ui, theme, "Direct Messages", &mut state.notif_dm_enabled);
         changed |= widgets::toggle(ui, theme, "Mentions", &mut state.notif_mentions_enabled);
         changed |= widgets::toggle(ui, theme, "Task Updates", &mut state.notif_tasks_enabled);
-        ui.label(RichText::new("Which events notify you: private messages, someone naming you in chat, and changes to tasks you are on.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Which events notify you: private messages, someone naming you in chat, and changes to tasks you are on.");
 
-        ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Do Not Disturb").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
@@ -1788,7 +1817,7 @@ pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state
         });
         state.notif_dnd_start = Some(dnd_start.trim().to_string()).filter(|s| !s.is_empty());
         state.notif_dnd_end = Some(dnd_end.trim().to_string()).filter(|s| !s.is_empty());
-        ui.label(RichText::new("Notifications stay silent between these times. 24-hour clock, e.g. 22:00 to 08:00 keeps nights quiet.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Notifications stay silent between these times. 24-hour clock, e.g. 22:00 to 08:00 keeps nights quiet.");
 
         if !connected {
             ui.add_space(theme.spacing_xs);
@@ -1813,6 +1842,7 @@ pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state
 }
 
 pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Solana address
         ui.horizontal(|ui| {
@@ -1857,24 +1887,25 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
                 }
             }
         });
-        ui.label(RichText::new("Mainnet is the real Solana network where coins have value. Devnet and Testnet are free practice networks for trying things safely.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Mainnet is the real Solana network where coins have value. Devnet and Testnet are free practice networks for trying things safely.");
     });
 }
 
 pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Overall loudness of everything the app plays. Far left = silent, far right = full volume.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Overall loudness of everything the app plays. Far left = silent, far right = full volume.");
         if widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Background music only. Scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Background music only. Scales together with Master Volume.");
         if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Game sound effects like footsteps and machines. Scales together with Master Volume. Interface clicks have their own control below.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Game sound effects like footsteps and machines. Scales together with Master Volume. Interface clicks have their own control below.");
         // Interface sounds (v0.1112): button clicks and other UI feedback ride
         // their own "ui" bus, so they can be quieted or silenced without
         // touching game SFX. The toggle is the master switch; the slider is the
@@ -1884,11 +1915,11 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if widgets::toggle(ui, theme, "Interface sounds", &mut state.settings.ui_sounds_enabled) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Play a soft click when you press a button or toggle. Turn off for silent interface.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Play a soft click when you press a button or toggle. Turn off for silent interface.");
         if widgets::labeled_slider(ui, theme, "UI Volume", &mut state.settings.ui_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Loudness of interface clicks only. Separate from game sound effects; scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Loudness of interface clicks only. Separate from game sound effects; scales together with Master Volume.");
     });
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The
@@ -1941,7 +1972,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if dev_changed {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Which microphone and speakers voice uses. A change takes effect the next time a call or mic test starts.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Which microphone and speakers voice uses. A change takes effect the next time a call or mic test starts.");
         if widgets::Button::ghost("Refresh devices").show(ui, theme) {
             state.audio_devices_loaded = false;
         }
@@ -1954,7 +1985,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.voice_gain = (gain_pct / 100.0).clamp(0.0, 2.0);
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How loud your microphone sounds to others. 100% = unchanged; raise it if people say you are quiet, lower it if your voice crackles or distorts.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How loud your microphone sounds to others. 100% = unchanged; raise it if people say you are quiet, lower it if your voice crackles or distorts.");
 
         // Noise filter mode.
         ui.add_space(theme.spacing_xs);
@@ -1968,7 +1999,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 }
             }
         });
-        ui.label(RichText::new(state.voice_filter_mode.hint()).size(theme.font_size_small).color(theme.text_muted()));
+        widgets::setting_hint(ui, theme, hint, state.voice_filter_mode.hint());
 
         // Transmit mode.
         ui.add_space(theme.spacing_xs);
@@ -1982,7 +2013,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 }
             }
         });
-        ui.label(RichText::new(state.voice_transmit_mode.hint()).size(theme.font_size_small).color(theme.text_muted()));
+        widgets::setting_hint(ui, theme, hint, state.voice_transmit_mode.hint());
 
         // Push key binding (push-to-talk / push-to-mute only). The actual key
         // capture happens in the raw winit handler (so it can bind CapsLock and
@@ -2003,11 +2034,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 }
             });
             if state.voice_ptt_key == "CapsLock" {
-                ui.label(
-                    RichText::new("Heads up: CapsLock also toggles caps each push. Rebind if that bothers you.")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
+                widgets::setting_hint(ui, theme, hint, "Heads up: CapsLock also toggles caps each push. Rebind if that bothers you.");
             }
         }
 
@@ -2018,7 +2045,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 state.voice_vad_threshold = (vad_pct / 100.0).clamp(0.0, 1.0);
                 state.settings_dirty = true;
             }
-            ui.label(RichText::new("How loud you must be before your mic opens. Lower = opens at a whisper but may pick up background noise; higher = needs a clearer, louder voice.").color(theme.text_muted()).size(theme.font_size_small));
+            widgets::setting_hint(ui, theme, hint, "How loud you must be before your mic opens. Lower = opens at a whisper but may pick up background noise; higher = needs a clearer, louder voice.");
         }
 
         ui.add_space(theme.spacing_sm);
@@ -2082,6 +2109,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 }
 
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Window presentation mode (v0.454). Default = Windowed fullscreen (maximized, title
         // bar + taskbar still visible). Selecting a mode applies it immediately.
@@ -2095,12 +2123,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 }
             }
         });
-        ui.label(RichText::new("Windowed fullscreen keeps the title bar + taskbar. Borderless drops the title bar. Exclusive is true fullscreen.").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Windowed fullscreen keeps the title bar + taskbar. Borderless drops the title bar. Exclusive is true fullscreen.");
         if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Syncs frames to your monitor to stop image tearing. On = smoother, frame rate capped at your monitor's refresh rate; off = uncapped FPS but frames can visibly tear.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Syncs frames to your monitor to stop image tearing. On = smoother, frame rate capped at your monitor's refresh rate; off = uncapped FPS but frames can visibly tear.");
         // Frame-rate caps (v0.1016, operator request: "set background and
         // foreground FPS"). Foreground = window focused; background =
         // alt-tabbed away (e.g. chatting on the website while the game
@@ -2115,7 +2142,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 state.settings_dirty = true;
             }
         }
-        ui.label(RichText::new("Highest frame rate while the game window is active. Unlimited = as fast as VSync and your GPU allow. A lower cap saves power and heat.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Highest frame rate while the game window is active. Unlimited = as fast as VSync and your GPU allow. A lower cap saves power and heat.");
         if widgets::toggle(ui, theme, "Background FPS matches foreground", &mut state.settings.fps_background_sync) {
             state.settings_dirty = true;
         }
@@ -2126,69 +2153,68 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 state.settings_dirty = true;
             }
         }
-        ui.label(RichText::new("Frame rate while the game is in the background (alt-tabbed). A low cap keeps the world simulating while freeing your GPU and CPU for whatever you switched to.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Frame rate while the game is in the background (alt-tabbed). A low cap keeps the world simulating while freeing your GPU and CPU for whatever you switched to.");
         if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Field of view: how wide the camera sees, in degrees. Higher = see more around you with a mild fisheye stretch; lower = zoomed in. 90 suits most screens.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Field of view: how wide the camera sees, in degrees. Higher = see more around you with a mild fisheye stretch; lower = zoomed in. 90 suits most screens.");
         if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How far away objects still draw, in meters. Higher = see further but more GPU work / lower FPS.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How far away objects still draw, in meters. Higher = see further but more GPU work / lower FPS.");
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Planets").color(theme.text_secondary()).strong());
-        ui.label(RichText::new("Sky planets subdivide as they grow on screen: one more detail level each time a body's projected size doubles past the pixel threshold. Changes apply live.").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Sky planets subdivide as they grow on screen: one more detail level each time a body's projected size doubles past the pixel threshold. Changes apply live.");
         // Procedural fractal surfaces (oceans, continents, polar caps) vs the
         // old flat single-color spheres. Data lives in data/planets/<id>.ron.
         if widgets::toggle(ui, theme, "Procedural surfaces", &mut state.settings.planet_detail) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Distant planets get oceans, continents, and polar caps instead of flat single-color spheres. Small GPU cost; off is fastest.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Distant planets get oceans, continents, and polar caps instead of flat single-color spheres. Small GPU cost; off is fastest.");
         if widgets::labeled_slider(ui, theme, "LOD pixel threshold (distant planets)", &mut state.settings.planet_lod_px, 4.0..=64.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How many pixels wide a planet must look on screen before it earns its next round of detail. LOWER = planets sharpen while still far away (more GPU); higher = they stay simple longer (faster).").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How many pixels wide a planet must look on screen before it earns its next round of detail. LOWER = planets sharpen while still far away (more GPU); higher = they stay simple longer (faster).");
         // Ceiling raised 7 -> 9 (2026-07-11) for FTL close approaches; the
         // top levels only trigger when one planet fills the screen (see
         // terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
         if widgets::labeled_slider(ui, theme, "Max subdivision level (distant planets)", &mut state.settings.planet_max_subdiv, 0.0..=9.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Levels 8-9 add real close-range detail but build big meshes; lower this if a close planet flyby stutters.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Levels 8-9 add real close-range detail but build big meshes; lower this if a close planet flyby stutters.");
         // Chunked planetary LOD (2026-07-11): quadtree surface patches that
         // follow the camera once a planet fills the screen, replacing the
         // heavy uniform level 8-9 spheres near heightmap planets (Earth).
         if widgets::toggle(ui, theme, "Chunked surface detail", &mut state.settings.planet_chunked) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (down to ~7 m triangles with the tile tier) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Near a planet with real elevation data, surface detail streams in around the camera (down to ~7 m triangles with the tile tier) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.");
         // Geomorph crossfades (v0.920): LOD swaps dissolve instead of pop.
         if widgets::toggle(ui, theme, "Smooth detail transitions", &mut state.settings.terrain_lod_fade) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("When ground detail changes level, the old and new versions crossfade for a third of a second instead of swapping instantly. Costs almost nothing; turn off only to compare or debug.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "When ground detail changes level, the old and new versions crossfade for a third of a second instead of swapping instantly. Costs almost nothing; turn off only to compare or debug.");
         // Planet LOD knobs (v0.873, operator: "I want to see more real
         // terrain further away from me... add settings for all these
         // variables"). All three apply live next frame.
-        ui.label(RichText::new("The two sliders above shape planets seen from SPACE. The three below drive GROUND detail when you are on or near a planet's surface.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "The two sliders above shape planets seen from SPACE. The three below drive GROUND detail when you are on or near a planet's surface.");
         if widgets::labeled_slider(ui, theme, "Terrain sharpness (px per triangle)", &mut state.settings.terrain_split_px, 2.0..=24.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Patches split until triangles are about this many pixels on screen. LOWER = sharper terrain further away (more patches, more GPU).").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Patches split until triangles are about this many pixels on screen. LOWER = sharper terrain further away (more patches, more GPU).");
         if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=12288.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Most ground pieces the terrain may keep loaded at once. Higher = detail holds across more of the horizon (more memory + GPU); lower = distant ground goes soft sooner but runs lighter.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Most ground pieces the terrain may keep loaded at once. Higher = detail holds across more of the horizon (more memory + GPU); lower = distant ground goes soft sooner but runs lighter.");
         if widgets::labeled_slider(ui, theme, "Detail draw distance", &mut state.settings.terrain_detail_distance, 0.5..=3.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How far fine surface detail (rock grain, waves, micro texture) stays visible. Higher = crisper distant terrain, more GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How far fine surface detail (rock grain, waves, micro texture) stays visible. Higher = crisper distant terrain, more GPU.");
         if widgets::labeled_slider(ui, theme, "Terrain stream speed (builds per frame)", &mut state.settings.terrain_builds_per_frame, 6.0..=64.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.");
         // Vegetation LOD ladder (v0.923, operator: per-stage distance
         // sliders "like LOD0, LOD1, LOD2"). Stage 1 = full 3D models,
         // stage 2 = silhouette cards, then bare terrain. Billboard mid-stage
@@ -2207,7 +2233,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // LOD category registry (data/vegetation/lod_categories.ron).
         ui.add_space(6.0);
         ui.label(RichText::new("Detail distances by item type").color(theme.text_primary()).size(theme.font_size_body).strong());
-        ui.label(RichText::new("How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.");
         // v0.1109 (operator: "sliders or maybe just number selectors so we can
         // go to any value ... then I wouldn't have to ask you to increase the
         // ceiling"): every distance here is a slider PLUS a number box. The
@@ -2216,7 +2242,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // rather than a code edit. Ceilings live in one place
         // (config::TREE_MODEL_MAX_M and friends) precisely so the box, the
         // saved config and the engine's own clamp cannot drift apart again.
-        ui.label(RichText::new("Each distance below is a slider plus a number box. Drag the slider for the everyday range, or click the number and type to go past it, right up to the engine's own limit. Values that cost a lot say so underneath.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Each distance below is a slider plus a number box. Drag the slider for the everyday range, or click the number and type to go past it, right up to the engine's own limit. Values that cost a lot say so underneath.");
         if !VEG_AWAITING_WIRING.is_empty() {
             // Better a blunt notice than a control that quietly does nothing.
             // This block deletes itself the moment the engine reads them; a
@@ -2231,7 +2257,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=400.0, crate::config::TREE_MODEL_MAX_M, 2.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("The closest, prettiest tree stage: real photoscanned trees stand within this range. 0 turns the stage off (silhouettes only). COST: each model is 120,000 to 190,000 triangles, and doubling this radius quadruples how many trees fall inside it, so this is the most expensive control on the page. It is bounded by the draw budget below, not by itself.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "The closest, prettiest tree stage: real photoscanned trees stand within this range. 0 turns the stage off (silhouettes only). COST: each model is 120,000 to 190,000 triangles, and doubling this radius quadruples how many trees fall inside it, so this is the most expensive control on the page. It is bounded by the draw budget below, not by itself.");
         if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: 3D models drawn at once"), &mut state.settings.near_tree_budget, 32.0..=1024.0, crate::config::NEAR_TREE_BUDGET_MAX, 4.0) {
             state.settings_dirty = true;
         }
@@ -2243,14 +2269,14 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             // "did nothing" is understood rather than reported as a bug.
             let budget = state.settings.near_tree_budget.max(1.0);
             let tris_m = budget * 155_000.0 / 1.0e6;
-            ui.label(RichText::new(format!(
+            widgets::setting_hint(ui, theme, hint, &format!(
                 "How many of those 3D models may be drawn at the same time, nearest to you first. This is the real ceiling on the model stage: if the budget runs out before the distance does, the models form a tight ring around you and silhouette cards carry everything past it. Raise this and the distance together. COST: about {tris_m:.1} million triangles at this budget."
-            )).color(theme.text_muted()).size(theme.font_size_small));
+            ));
         }
         if widgets::labeled_slider_entry(ui, theme, &format!("{tree_label}: silhouettes out to (m)"), &mut state.settings.veg_tree_card_m, 100.0..=3000.0, crate::config::TREE_CARD_MAX_M, 10.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. COST: cards are cheap per tree but there are a lot of them, so this spends fill rate, roughly with the square of the distance.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. COST: cards are cheap per tree but there are a lot of them, so this spends fill rate, roughly with the square of the distance.");
         {
             // THE REQUESTED NUMBER NEXT TO THE REAL ONE (v0.1111). Cards are
             // baked into terrain patches at the 215 m detail level, so this
@@ -2268,16 +2294,16 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             if reach.is_finite() {
                 let effective =
                     crate::terrain::far_trees::effective_card_far_m(requested, reach);
-                ui.label(RichText::new(format!(
+                widgets::setting_hint(ui, theme, hint, &format!(
                     "Effective right now: {effective:.0} m of the {requested:.0} m asked for. Ground carrying silhouette cards reaches {reach:.0} m from where you are standing, measured on the terrain actually drawn this frame."
-                )).color(theme.text_muted()).size(theme.font_size_small));
+                ));
                 if effective < requested - 1.0 {
                     ui.label(RichText::new(format!(
                         "ASKING FOR MORE THAN THE GROUND CAN CARRY. Everything between {effective:.0} m and {requested:.0} m gets trees requested and has no ground built at the 215 m detail level to stand them on, so it reads as open field until you walk into it. To buy real distance instead, lower 'Terrain sharpness (px per triangle)' and raise 'Terrain patch budget' until the reach above grows."
                     )).color(theme.warning()).size(theme.font_size_small));
                 }
             } else {
-                ui.label(RichText::new("Effective right now: not measured yet. The real limit is how far the terrain LOD builds ground at the 215 m detail level, and that is measured while you are standing on a planet; open this page in the world to see it.").color(theme.text_muted()).size(theme.font_size_small));
+                widgets::setting_hint(ui, theme, hint, "Effective right now: not measured yet. The real limit is how far the terrain LOD builds ground at the 215 m detail level, and that is measured while you are standing on a planet; open this page in the world to see it.");
             }
         }
         // TREES, GRASS COVER and GRASS DETAIL are three separate controls
@@ -2287,7 +2313,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "Trees: forest density", &mut state.settings.tree_density, 0.1..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland. Rebuilds terrain as you move, so the change appears patch by patch.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland. Rebuilds terrain as you move, so the change appears patch by patch.");
         // GRASS DRAW DISTANCE (v0.1109). The operator's headline ask: "I would
         // like to see how the game performs when I extend the grass to render
         // further away." Raising this stretches the density ramp's last leg, so
@@ -2306,12 +2332,12 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             let harvest = grass_harvest_estimate(far, cover);
             let walk = grass_harvest_walk_multiple(far);
             let cap = state.settings.grass_harvest_cap;
-            ui.label(RichText::new(format!(
+            widgets::setting_hint(ui, theme, hint, &format!(
                 "How far grass reaches before it fades out completely. The 6 m and 12 m density steps stay put, so raising this stretches the fade rather than sliding the whole field outward, which thickens the middle distance too. COST: it buys area, so doubling the distance costs roughly two and a half times as many tufts near the default and closer to four times once you are out past 100 m. At {far:.0} m and this ground-cover setting: about {} tufts drawn (roughly {} triangles at full blade detail), harvested from about {} candidates. The harvest runs on the frame thread and its ground walk is a plain disc, so it is exactly {walk:.1}x the cost it has at the default 22 m; that shows up as a hitch every few metres of walking rather than as a lower frame rate.",
                 thousands(drawn),
                 thousands(drawn * 90.0),
                 thousands(harvest),
-            )).color(theme.text_muted()).size(theme.font_size_small));
+            ));
             if harvest >= cap {
                 // The defect class this whole increment is guarding against: a
                 // control that looks like it worked. The harvest walks
@@ -2328,19 +2354,19 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider_entry(ui, theme, "Grass: instance cap", &mut state.settings.grass_harvest_cap, 50_000.0..=500_000.0, crate::config::GRASS_HARVEST_CAP_MAX, 500.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("The hard ceiling on how many tufts one harvest may produce. It exists so a bad combination of distance and ground cover cannot lock the game up; it is exposed so raising it is your decision rather than a code change. COST: memory and harvest time, both straight-line with the number. Grass stops looking better long before this stops rising.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "The hard ceiling on how many tufts one harvest may produce. It exists so a bad combination of distance and ground cover cannot lock the game up; it is exposed so raising it is your decision rather than a code change. COST: memory and harvest time, both straight-line with the number. Grass stops looking better long before this stops rising.");
         if widgets::labeled_slider(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, 0.1..=3.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts. This is about how the world LOOKS, not how fast it runs.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts. This is about how the world LOOKS, not how fast it runs.");
         if widgets::labeled_slider(ui, theme, "Grass: blade detail", &mut state.settings.grass_detail, 0.1..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How finely each tuft of grass is modelled. Turn this DOWN for frames: blades get fewer but wider, so the ground keeps exactly as much grass on it and only the close-up sharpness changes.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How finely each tuft of grass is modelled. Turn this DOWN for frames: blades get fewer but wider, so the ground keeps exactly as much grass on it and only the close-up sharpness changes.");
         if widgets::labeled_slider(ui, theme, "Water: wave mesh detail (14-20)", &mut state.settings.water_detail_depth, 14.0..=20.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How finely the water surface is meshed near you: 17 = ~5 m wave vertices, 20 = ~0.6 m (every ripple is real geometry). Only the closest water refines, so the open ocean costs the same at any setting.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How finely the water surface is meshed near you: 17 = ~5 m wave vertices, 20 = ~0.6 m (every ripple is real geometry). Only the closest water refines, so the open ocean costs the same at any setting.");
         for cat in crate::lod_registry::categories() {
             if cat.id == "tree" || cat.id == "water" {
                 continue; // live sliders above own these
@@ -2365,23 +2391,23 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.");
         if widgets::labeled_slider(ui, theme, "Shadow strength", &mut state.settings.shadow_strength, 0.0..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How dark a full shadow gets. 1 = realistic (no direct sun in shadow, only sky light, which reads cool and blue). Lower leaks warm sunlight into shadows and flattens the scene.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How dark a full shadow gets. 1 = realistic (no direct sun in shadow, only sky light, which reads cool and blue). Lower leaks warm sunlight into shadows and flattens the scene.");
         if widgets::labeled_slider(ui, theme, "Aerial haze strength", &mut state.settings.aerial_strength, 0.0..=2.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How strongly distant hills and sea fade into the sky, like real air does. 0 = crystal-clear air (off), 1 = earthlike, 2 = misty. Almost free on the GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How strongly distant hills and sea fade into the sky, like real air does. 0 = crystal-clear air (off), 1 = earthlike, 2 = misty. Almost free on the GPU.");
         if widgets::labeled_slider(ui, theme, "God ray intensity", &mut state.settings.godray_intensity, 0.0..=1.5) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Visible light shafts when facing the sun through clouds or terrain gaps. 0 turns the pass off.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Visible light shafts when facing the sun through clouds or terrain gaps. 0 turns the pass off.");
         if widgets::labeled_slider(ui, theme, "Ambient occlusion", &mut state.settings.ssao_strength, 0.0..=1.5) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Soft contact shading in crevices and where objects meet the ground. 0 turns the pass off.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Soft contact shading in crevices and where objects meet the ground. 0 turns the pass off.");
         // Analytic scattering atmosphere (v0.807): per-pixel single
         // scattering on the planet air shells. Off = the pre-v0.807 fresnel
         // tint, kept forever-dev style as the A/B reference + a safety hatch
@@ -2390,7 +2416,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Scattering atmosphere", &mut state.settings.planet_atmo_scatter) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Physically shaded planet air: blue limb from orbit, warm terminator, pale horizon from inside the atmosphere. Turn off for the simple tinted-shell look.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Physically shaded planet air: blue limb from orbit, warm terminator, pale horizon from inside the atmosphere. Turn off for the simple tinted-shell look.");
         // Animated procedural cloud deck (clouds increment 1): a second
         // translucent shell under the atmosphere, on planets whose RON
         // declares cloud_coverage. Applies live: off skips the draw next
@@ -2398,7 +2424,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Cloud layer", &mut state.settings.planet_clouds) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Drifting sun-lit clouds on worlds that have them (Earth). Turn off for bare surfaces or on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Drifting sun-lit clouds on worlds that have them (Earth). Turn off for bare surfaces or on very old GPUs.");
         // Live weather (v0.874): NASA GIBS MODIS cloud fraction placed on
         // the game sky. Fetcher spawns once per session; the toggle gates
         // both the spawn and per-frame uploads (turning it off mid-session
@@ -2407,7 +2433,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             if widgets::toggle(ui, theme, "Live weather (Earth)", &mut state.settings.live_weather) {
                 state.settings_dirty = true;
             }
-            ui.label(RichText::new("Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off = purely procedural skies.").color(theme.text_muted()).size(theme.font_size_small));
+            widgets::setting_hint(ui, theme, hint, "Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off = purely procedural skies.");
         }
         // Close-range surface detail (v0.816): animated ocean waves + land
         // micro-texture on planets with real imagery. Applies live: the sky
@@ -2415,20 +2441,20 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Surface detail", &mut state.settings.planet_surface_detail) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.");
         // FFT ocean (v0.1029, water-fft.md increment 1). Applies live: the
         // spectrum builds on first use; the mode flag rides the per-frame
         // uniform so geometry and buoyancy flip together.
         if widgets::toggle(ui, theme, "FFT ocean (experimental)", &mut state.settings.water_fft) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.");
         // GPU particle simulation (v0.1068). Same shape as the FFT-ocean
         // toggle: experimental, default off, CPU path stays as the fallback.
         if widgets::toggle(ui, theme, "GPU particles (experimental)", &mut state.settings.gpu_particles) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Simulates rain and snow entirely on the GPU: the pool lives in video memory and the CPU submits one dispatch instead of moving every particle across the bus. The CPU path was measured bandwidth-bound at ~17-20 ns per particle per frame, which capped it near 160k. Off = that shipped CPU path.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Simulates rain and snow entirely on the GPU: the pool lives in video memory and the CPU submits one dispatch instead of moving every particle across the bus. The CPU path was measured bandwidth-bound at ~17-20 ns per particle per frame, which capped it near 160k. Off = that shipped CPU path.");
         // Underwater clarity (v0.1054). Deliberately a slider rather than a
         // toggle: the operator wants the physical fade AND the ability to keep
         // seeing far underwater for exploration, and the honest way to offer
@@ -2442,13 +2468,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How far you can see underwater. 0 is physical: real seawater absorbs red within a few metres, then green, so the world goes blue and then black as you descend. 1 keeps the old unlimited visibility, which is far better for finding places like Challenger Deep.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How far you can see underwater. 0 is physical: real seawater absorbs red within a few metres, then green, so the world goes blue and then black as you descend. 1 keeps the old unlimited visibility, which is far better for finding places like Challenger Deep.");
         // Far-tree card sheet (v0.1022, default off since v0.1029): kept
         // for A/B against the upcoming impostor system.
         if widgets::toggle(ui, theme, "Far tree sheet (experimental)", &mut state.settings.far_tree_sheet) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.");
         // Cloud quality ladder (clouds increment 3). Applies live: the cloud
         // material is cached per (body, quality), so flipping tiers rebuilds
         // it the next frame the deck draws.
@@ -2467,23 +2493,21 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     }
                 }
             });
-            ui.label(RichText::new("High raymarches real 3D cloud shapes with sunlight scattering (puffy towers, dark bases). Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+            widgets::setting_hint(ui, theme, hint, "High raymarches real 3D cloud shapes with sunlight scattering (puffy towers, dark bases). Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.");
         }
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Sky / map lines").color(theme.text_secondary()).strong());
-        ui.label(
-            RichText::new(
-                "The line overlays in the night sky. Colors live in Appearance \
-                 (Sky: orbit lines / Sky: constellation lines). Vessel orbits, \
-                 collision-course flags, and selected-object modes arrive as \
-                 those systems come online.",
-            )
-            .color(theme.text_muted())
-            .size(theme.font_size_small),
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "The line overlays in the night sky. Colors live in Appearance \
+             (Sky: orbit lines / Sky: constellation lines). Vessel orbits, \
+             collision-course flags, and selected-object modes arrive as \
+             those systems come online.",
         );
-        ui.add_space(theme.spacing_xs);
         ui.horizontal(|ui| {
             ui.label(RichText::new("Orbit rings").color(theme.text_secondary()));
             for (val, label) in [
@@ -2513,11 +2537,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 state.settings_dirty = true;
             }
         }
-        ui.label(
-            RichText::new("The soft glowing band of our galaxy behind the stars, baked from the real star catalog. Intensity: 0 = invisible, 1 = natural, 2 = doubled brightness. Changes apply live.")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
+        widgets::setting_hint(ui, theme, hint, "The soft glowing band of our galaxy behind the stars, baked from the real star catalog. Intensity: 0 = invisible, 1 = natural, 2 = doubled brightness. Changes apply live.");
         // Glow texture tier (2026-07-11): Standard ships with the app; Ultra
         // is a one-time download fetched exactly like the star catalog tiers
         // below (background thread, progress bar, retry on FAILED). The
@@ -2613,11 +2633,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     state.galaxy_glow_remove = true;
                 }
             }
-            ui.label(
-                RichText::new("Ultra is a sharper 16384x8192 bake of the same catalog light. Uses about 512 MB of GPU memory; applies next time you enter the world.")
-                    .color(theme.text_muted())
-                    .size(theme.font_size_small),
-            );
+            widgets::setting_hint(ui, theme, hint, "Ultra is a sharper 16384x8192 bake of the same catalog light. Uses about 512 MB of GPU memory; applies next time you enter the world.");
         }
         // Star halos (2026-07-11): soft photographic glow + a faint 4-point
         // diffraction cross on the ~50 brightest stars (mag <= 2), drawn
@@ -2626,11 +2642,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Star halos", &mut state.settings.sky_star_halos) {
             state.settings_dirty = true;
         }
-        ui.label(
-            RichText::new("A soft long-exposure-photo glow around the brightest stars (Sirius, Vega, Rigel...). Applies live.")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
+        widgets::setting_hint(ui, theme, hint, "A soft long-exposure-photo glow around the brightest stars (Sirius, Vega, Rigel...). Applies live.");
 
         // ── Star catalog (v0.800 rung 2; 2026-07-11 rung 4: 3-tier chooser) ──
         // Standard ships with the app; Extended (ATHYG, 36 MB) and Ultra
@@ -2677,11 +2689,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     }
                 }
             });
-            ui.label(
-                RichText::new("Caps which catalog loads. Auto uses the biggest installed; Standard forces the fast 120k catalog. Applies next world entry.")
-                    .color(theme.text_muted())
-                    .size(theme.font_size_small),
-            );
+            widgets::setting_hint(ui, theme, hint, "Caps which catalog loads. Auto uses the biggest installed; Standard forces the fast 120k catalog. Applies next world entry.");
             ui.add_space(theme.spacing_xs);
 
             // Standard tier: always installed, nothing to download or remove.
@@ -2765,8 +2773,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
-        ui.label(RichText::new("How close (in meters) you must be before a machine shows its dot / name / info card. Higher = labels appear from further away, busier screen. Hold Tab in-game to triple these and see through walls. Session-only for now: they reset to defaults on restart.").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "How close (in meters) you must be before a machine shows its dot / name / info card. Higher = labels appear from further away, busier screen. Hold Tab in-game to triple these and see through walls. Session-only for now: they reset to defaults on restart.");
         // These live on GuiState (session-tunable); the defaults (21 / 13 / 8) are the
         // saved-feel values. Not persisted to settings yet.
         widgets::labeled_slider(ui, theme, "Dot", &mut state.machine_label_dot_dist, 2.0..=60.0);
@@ -2778,12 +2785,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // Construction mode (v0.453): the home roof. Off by default so the sky shows through
         // the open top; on seals it. Also toggled with the R key in-world.
         widgets::toggle(ui, theme, "Show roof (R)", &mut state.show_roof);
-        ui.label(RichText::new("Off shows the sky (stars + the real solar system) through the open top; on seals the home for an interior / atmosphere look.").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(ui, theme, hint, "Off shows the sky (stars + the real solar system) through the open top; on seals the home for an interior / atmosphere look.");
         // Hull wrap (ship-superstructure increment D): the generated exterior shell around the
         // zone cluster (data/blueprints/hull_profile.ron). Default ON; also toggled with H.
         widgets::toggle(ui, theme, "Show hull (H)", &mut state.show_hull);
-        ui.label(RichText::new("The generated exterior hull around the ship's zones (open above glass roofs, so gardens keep their starlight). Off for unobstructed interior or top-down build views.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "The generated exterior hull around the ship's zones (open above glass roofs, so gardens keep their starlight). Off for unobstructed interior or top-down build views.");
     });
 }
 
@@ -2791,6 +2797,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 /// Born from an operator field report ("disable the wolves... extend the
 /// dehydration time. I keep getting killed and its annoying").
 pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     // ── Play mode (task #50): Normal | Creative | Dev ──
     // The one ladder every cheat/scope gate hangs off; see
     // crate::config::PlayMode for the full design + tested truth table.
@@ -2798,18 +2805,15 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
     // fly/FTL) read the mode per frame, no world reload needed.
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Play mode").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        ui.label(
-            RichText::new(
-                "Who gets which powers. Applies immediately: building scope, \
-                 the Dev page, and free materials all follow the mode. When \
-                 the mode is not Normal, a CREATIVE / DEV tag shows on the \
-                 HUD so screenshots stay honest.",
-            )
-            .color(theme.text_muted())
-            .size(theme.font_size_small),
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Who gets which powers. Applies immediately: building scope, \
+             the Dev page, and free materials all follow the mode. When \
+             the mode is not Normal, a CREATIVE / DEV tag shows on the \
+             HUD so screenshots stay honest.",
         );
-        ui.add_space(theme.spacing_sm);
         for mode in crate::config::PlayMode::ALL {
             let selected = state.settings.play_mode == mode;
             if ui.radio(selected, RichText::new(mode.label()).color(theme.text_primary())).clicked()
@@ -2826,12 +2830,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     mode.allows(crate::config::Capability::FreeResources);
                 state.settings_dirty = true; // persists play_mode to config.json
             }
-            ui.label(
-                RichText::new(mode.hint())
-                    .color(theme.text_muted())
-                    .size(theme.font_size_small),
-            );
-            ui.add_space(theme.spacing_xs);
+            widgets::setting_hint(ui, theme, hint, mode.hint());
         }
         // Multiplayer honesty note (task #50): in a shared world the relay is
         // the authority on shared state, so Dev tools keep working for now;
@@ -2857,26 +2856,23 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Hostile wildlife", &mut state.settings.hostile_wildlife) {
             state.settings_dirty = true;
         }
-        ui.label(
-            RichText::new(
-                "Wolf packs and other predators in the wilds. Off removes them \
-                 immediately; turning it on repopulates next time you enter the \
-                 world. The Dev spawn page can always place any creature.",
-            )
-            .color(theme.text_muted())
-            .size(theme.font_size_small),
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Wolf packs and other predators in the wilds. Off removes them \
+             immediately; turning it on repopulates next time you enter the \
+             world. The Dev spawn page can always place any creature.",
         );
-        ui.add_space(theme.spacing_sm);
         if widgets::labeled_slider(ui, theme, "Vitals drain", &mut state.settings.vitals_drain, 0.0..=3.0) {
             state.settings_dirty = true;
         }
-        ui.label(
-            RichText::new(
-                "How fast hunger, thirst, and energy fall. 1.0 = normal (about \
-                 half an hour from full to empty), 0 = survival needs paused.",
-            )
-            .color(theme.text_muted())
-            .size(theme.font_size_small),
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "How fast hunger, thirst, and energy fall. 1.0 = normal (about \
+             half an hour from full to empty), 0 = survival needs paused.",
         );
 
         ui.add_space(theme.spacing_lg);
@@ -2887,12 +2883,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // needs. GUI-first per the project's own rule.
         ui.label(RichText::new("Home Design").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(
-            RichText::new("Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).");
         let mut is_family = state.settings.home_variant != "home_solo";
         let mut is_solo = state.settings.home_variant == "home_solo";
         if ui.radio_value(&mut is_family, true, "Family (default) -- 3-person self-sufficient design").changed() && is_family {
@@ -2907,6 +2898,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 }
 
 pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Range max 1.0 keeps the slider in the usable band AND selects the widget's
         // 2-decimal display (max <= 1.0), so a low value like 0.11 is visible and tunable
@@ -2914,11 +2906,11 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.02..=1.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("How fast the camera turns when you move the mouse. Lower = steadier, more precise aim; higher = faster turns.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "How fast the camera turns when you move the mouse. Lower = steadier, more precise aim; higher = faster turns.");
         if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("On = pushing the mouse forward looks down, like an aircraft stick. Off = forward looks up.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "On = pushing the mouse forward looks down, like an aircraft stick. Off = forward looks up.");
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Keybinds").color(theme.text_secondary()).strong());
@@ -2967,6 +2959,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 }
 
 pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Both toggles must mark the settings dirty, otherwise the change is
         // never written to the config and the person is public again on the
@@ -2976,11 +2969,11 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Whether other players can open and view your profile page.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Whether other players can open and view your profile page.");
         if widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Whether others can see that you are online right now. Off = you appear offline.").color(theme.text_muted()).size(theme.font_size_small));
+        widgets::setting_hint(ui, theme, hint, "Whether others can see that you are online right now. Off = you appear offline.");
     });
 }
 
@@ -3017,6 +3010,7 @@ fn storage_path_row(ui: &mut egui::Ui, theme: &Theme, label: &str, path: &std::p
 }
 
 pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Where your files live (v0.741, GUI-first + the v0.707 storage-chooser
         // follow-up): show the ACTIVE storage mode + every real path, each with
@@ -3138,8 +3132,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Export your data for backup or migration. (These buttons are not wired up yet; use the Open buttons above to copy files by hand.)").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Export your data for backup or migration. (These buttons are not wired up yet; use the Open buttons above to copy files by hand.)");
 
         ui.horizontal(|ui| {
             let _ = widgets::secondary_button(ui, theme, "Export Profile Data");
@@ -3150,21 +3143,20 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Cache").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Clear cached data to free disk space. (Not wired up yet.)").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Clear cached data to free disk space. (Not wired up yet.)");
         let _ = widgets::secondary_button(ui, theme, "Clear Cache");
 
         ui.add_space(theme.spacing_lg);
 
         ui.label(RichText::new("Danger Zone").color(theme.danger()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your seed and data folders, see the paths above.)").color(theme.text_muted()).size(theme.font_size_small));
-        ui.add_space(theme.spacing_sm);
+        widgets::setting_hint(ui, theme, hint, "Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your seed and data folders, see the paths above.)");
         let _ = widgets::danger_button(ui, theme, "Delete Account");
     });
 }
 
 pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Current version
         ui.label(RichText::new(format!("Current Version: v{}", VERSION)).strong());
@@ -3181,9 +3173,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         if ui.radio_value(&mut is_disabled, true, "Disabled (never check)").changed() && is_disabled {
             state.updater.channel = UpdateChannel::Disabled;
         }
-        ui.label(RichText::new("Always Latest looks for new releases at launch and on Check Now. Disabled stops all checking. This choice lasts for the current session only; it returns to Always Latest on restart.").color(theme.text_muted()).size(theme.font_size_small));
-
-        ui.add_space(theme.spacing_md);
+        widgets::setting_hint(ui, theme, hint, "Always Latest looks for new releases at launch and on Check Now. Disabled stops all checking. This choice lasts for the current session only; it returns to Always Latest on restart.");
 
         // Status
         let status_text = match &state.updater.state {

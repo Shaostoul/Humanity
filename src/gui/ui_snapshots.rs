@@ -686,6 +686,30 @@ fn settings_panel(
     });
 }
 
+// Hint-display modes (v0.1116): the Audio section rendered under each
+// `HintDisplay` so the three layouts can be compared side by side. Audio is a
+// good witness because its top card is five sliders each with a one-line
+// description, exactly the "control then its help text" rhythm the mode
+// reshapes. Full = descriptions inline + tightened; Off = descriptions gone,
+// controls keep their air; Hover = each description collapses to a "(?)".
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_audio_settings_hints_off() {
+    render_page_png("audio_settings_hints_off", 960, 1100, |ctx, theme, state| {
+        state.settings.hint_display = crate::gui::HintDisplay::Off;
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_audio_content);
+    });
+}
+
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_audio_settings_hints_hover() {
+    render_page_png("audio_settings_hints_hover", 960, 1100, |ctx, theme, state| {
+        state.settings.hint_display = crate::gui::HintDisplay::Hover;
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_audio_content);
+    });
+}
+
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_graphics_settings() {

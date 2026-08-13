@@ -283,6 +283,77 @@ pub fn body_hint(ui: &mut Ui, theme: &Theme, text: &str) {
     );
 }
 
+/// Emit a per-setting DESCRIPTION — the muted help line that sits under one
+/// control on the Settings page — grouped to the control above it (v0.1116,
+/// operator 2026-08-12).
+///
+/// The problem it fixes: every description used to be a bare
+/// `ui.label(RichText::new("...").color(text_muted).size(font_size_small))`
+/// dropped right after a control. egui inserts one item-spacing before it and
+/// the caller added another after it, so the gap ABOVE a description equalled
+/// the gap BELOW, and a control did not visually own its description — the whole
+/// column read as an even "staircase". This helper instead produces the rhythm
+///
+///   [control][tight gap][description ...][BIG gap][next control][tight][desc]…
+///
+/// so a control and its description read as ONE unit and the units are
+/// separated by air. Multi-line descriptions wrap normally; that is fine.
+///
+/// `mode` (a [`crate::gui::HintDisplay`], read from
+/// `state.settings.hint_display`) chooses:
+///   * `Full`  — description drawn inline, tight above, big gap below. Default.
+///   * `Off`   — no text; only the between-unit gap is emitted, so the controls
+///                keep the same airy rhythm with the descriptions simply gone.
+///   * `Hover` — description not shown inline; a small muted "(?)" marker is
+///                drawn where the description would begin, tight under the
+///                control, and hovering the marker shows the full text.
+///
+/// Honest note on Hover: it does NOT hover the control itself (the post-control
+/// label pattern never captured the control's `Response`, and threading that
+/// through every call site is a far bigger change than this warrants). It
+/// hovers a dedicated "(?)" marker that stands in for the description.
+///
+/// Extensible: any future [`crate::gui::HintDisplay`] variant falls through to
+/// the `Full` layout here until it earns its own arm, so adding a mode never
+/// blanks the help text.
+pub fn setting_hint(ui: &mut Ui, theme: &Theme, mode: super::HintDisplay, text: &str) {
+    use super::HintDisplay;
+    // Off: draw nothing, but keep the unit-separating air so consecutive
+    // controls do not crowd together once their descriptions are hidden.
+    if matches!(mode, HintDisplay::Off) {
+        ui.add_space(theme.spacing_md);
+        return;
+    }
+    // Tighten the gap ABOVE this line. egui inserts `item_spacing.y` before the
+    // next widget; shrinking it to spacing_xs (~2 px) pulls the description up
+    // against the control it explains. Restored immediately after.
+    let saved_spacing = ui.spacing().item_spacing.y;
+    ui.spacing_mut().item_spacing.y = theme.spacing_xs;
+    match mode {
+        HintDisplay::Hover => {
+            let marker = ui.label(
+                RichText::new("(?)")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            marker.on_hover_text(text);
+        }
+        // Full — and any future variant until it is given its own arm.
+        _ => {
+            ui.label(
+                RichText::new(text)
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
+    }
+    ui.spacing_mut().item_spacing.y = saved_spacing;
+    // Big gap BELOW, so the next control starts a fresh unit. This is added on
+    // top of the (restored) normal item-spacing the next widget will also get,
+    // guaranteeing below-gap >> above-gap even where the caller adds no spacer.
+    ui.add_space(theme.spacing_md);
+}
+
 /// Render a text label that, when the user holds Alt and hovers over it,
 /// shows the HumanityOS dictionary definition of `term` (looked up
 /// case-insensitively in `data/glossary.json`). The visible text can
