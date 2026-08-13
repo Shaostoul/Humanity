@@ -13,6 +13,24 @@
   if (window.__HOS_SHELL_INIT__) return;
   window.__HOS_SHELL_INIT__ = true;
 
+  // ── Mirror awareness (site-resilience layer, 2026-08-13) ──
+  // The full site is auto-published to shaostoul.github.io so it stays
+  // reachable when the primary server is down. On the mirror, live features
+  // (chat, accounts, market API) cannot connect; say so once at the top
+  // instead of letting each page fail mysteriously. Downloads and every
+  // static page work normally here.
+  if (/\.github\.io$/.test(location.hostname)) {
+    document.addEventListener('DOMContentLoaded', function () {
+      if (document.getElementById('hos-mirror-banner')) return;
+      var b = document.createElement('div');
+      b.id = 'hos-mirror-banner';
+      b.style.cssText = 'background:#1e3a5f;color:#dbeafe;padding:8px 16px;font:13px/1.4 sans-serif;text-align:center;';
+      b.textContent = 'You are on the read-only mirror. Pages and downloads work; ' +
+        'chat and live features need the primary site: united-humanity.us';
+      document.body.insertBefore(b, document.body.firstChild);
+    });
+  }
+
   // ── Global error boundary, prevent white-screen-of-death ──
   function showErrorBanner(msg) {
     if (document.getElementById('hos-error-banner')) return;
@@ -1600,7 +1618,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1121.0';
+    var CURRENT_VERSION = '0.1121.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
