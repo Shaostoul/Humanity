@@ -1289,6 +1289,10 @@ fn color_row(
 pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     use crate::gui::theme::attack as atk;
     let mut changed = false;
+    // Copy the description-display mode into a local so the per-control hints
+    // below don't re-borrow `state` inside the card closures (which already
+    // capture it), and so `theme` stays free of any live mutable borrow.
+    let hint = state.settings.hint_display;
 
     // Snapshot styling values up-front so we can borrow theme mutably
     // for the field references inside the cards.
@@ -1346,8 +1350,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::labeled_slider(ui, theme, "Speed", &mut sep_speed, 0.0..=3.0) {
             changed = true;
         }
-        ui.label(RichText::new("1.0 = normal. Higher = faster color movement; 0 holds it still.")
-            .size(small_size).color(text_muted));
+        widgets::setting_hint(ui, theme, hint, "1.0 = normal. Higher = faster color movement; 0 holds it still.");
     });
     ui.add_space(md);
 
@@ -1382,8 +1385,7 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::labeled_slider(ui, theme, "Speed", &mut atk_speed, 0.0..=3.0) {
             changed = true;
         }
-        ui.label(RichText::new("1.0 = normal. Higher = faster, more urgent pulsing; lower = a slow fade.")
-            .size(small_size).color(text_muted));
+        widgets::setting_hint(ui, theme, hint, "1.0 = normal. Higher = faster, more urgent pulsing; lower = a slow fade.");
         if widgets::Button::secondary("Test attack pulse for 3s").show(ui, theme) {
             state.attack_pulse_active = true;
             state.attack_pulse_last_hit_at = ui.ctx().input(|i| i.time);
