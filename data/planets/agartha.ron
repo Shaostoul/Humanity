@@ -1,0 +1,77 @@
+// HumanityOS planet def: AGARTHA, the main story arc's artificial world.
+// Design authority: docs/design/artificial-planet.md (spec derived
+// 2026-08-12; this file authored 2026-08-13 as the DEV placement, parked
+// in Sol at 57 AU until the destination star system is written).
+//
+// The physics is the story. Twice Earth's radius with exactly Earth's
+// surface gravity forces four Earth masses at HALF Earth's density
+// (2,760 kg/m3), a number no rocky world can honestly have at this size:
+// self-compression makes big rocky planets DENSER, not lighter. Anyone
+// with a telescope and one moon transit can compute it. The planet
+// advertises its own artificiality to anyone doing physics homework,
+// before a single probe lands.
+//
+// Everything here is live-tunable in-game: Platform > Planet Tuner writes
+// single fields back into this file and the world rebuilds within a frame.
+(
+    name: "Agartha",
+    // 2.0x Earth (12,742 km = Earth's DIAMETER as a radius).
+    radius: 12742000.0,
+    // Exactly 1 g at the outer surface: g = GM/R^2 with M = 4 Earth masses.
+    gravity: 9.81,
+    // The gravity profile is the manufactured-world hook working for its
+    // living. OUTSIDE: natural 1/r^2 falloff from the shell's real mass
+    // (9.51 at +200 km, 8.43 at +1000 km, both computed, not invented).
+    // BELOW the surface the shell theorem says natural gravity fades to
+    // ZERO inside a hollow shell, so everything under your feet is the
+    // builders' machinery: 1 g held through the first 150 km of structure,
+    // a weightless transit band mid-shell (the fastest way to move cargo
+    // through a 500 km wall is to fall through it at 0 g), and machine
+    // gravity again at the inner surface, pointing at the INNER ground.
+    // (The sign is a lie the machine tells; the walk integrator samples
+    // magnitude by altitude, which is exactly what standing inside a
+    // gravity plate feels like.)
+    gravity_curve: Some([
+        (-500000.0, 9.81),
+        (-350000.0, 0.0),
+        (-200000.0, 0.0),
+        (-150000.0, 9.81),
+        (0.0, 9.81),
+        (200000.0, 9.51),
+        (1000000.0, 8.43),
+    ]),
+    terrain_seed: 14142,
+    ore_seed: 27182,
+    // Engineered nitrogen-oxygen air, Earth-calibrated scattering with a
+    // touch more green (the sky reads subtly, wrongly familiar).
+    atmosphere_color: Some((0.18, 0.44, 1.0, 0.55)),
+    atmosphere_scale: 0.008,
+    // Earth's scale height: the builders copied the original.
+    scale_height_m: Some(8500.0),
+    cloud_coverage: Some(0.35),
+    has_water: true,
+    breathable: true,
+    // Procedural surface (no heightmap: this world has no NASA data, by
+    // definition). Relief is deliberately LOW: 0.0015 of radius is ~19 km
+    // of maximum relief, gentle for a world this size. Engineered
+    // landscapes do not need Himalayas.
+    sea_level: 0.5,
+    surface_relief: 0.0015,
+    noise_frequency: 3.5,
+    noise_octaves: 6,
+    // Palette: temperate and a half-step off Earth. Teal-shifted lowlands,
+    // slate uplands, seas a shade too clean.
+    land_color: (0.18, 0.40, 0.28, 1.0),
+    water_color: (0.05, 0.26, 0.44, 1.0),
+    shore_color: (0.72, 0.70, 0.58, 1.0),
+    highland_color: (0.36, 0.40, 0.30, 1.0),
+    mountain_color: (0.46, 0.48, 0.50, 1.0),
+    cap_color: (0.92, 0.95, 0.97, 1.0),
+    polar_cap_latitude: 0.92,
+    // Kept for documentation (the engine reads rotation from the catalog):
+    // a 24.0 hour day and zero axial tilt, both suspiciously exact.
+    rotation_period: 86400.0,
+    axial_tilt: 0.0,
+    orbital_radius: 8527000000000.0,
+    orbital_period: 13580352000.0,
+)

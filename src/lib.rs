@@ -3841,6 +3841,14 @@ mod native_app {
                     // Surface HUD readout resets each frame; the engage branch
                     // below repopulates it while a surface is actually locked.
                     state.gui_state.surface_altitude_m = None;
+                    state.gui_state.surface_gravity_now = None;
+                    // Underwater resets UNCONDITIONALLY here (the surface
+                    // branch re-sets it when truly submerged): a teleport
+                    // that leaves the lock envelope skips that branch the
+                    // frame it releases, and the tint + depth HUD used to
+                    // LATCH into deep space (first Agartha capture, 2026-08-13).
+                    state.gui_state.underwater = false;
+                    state.gui_state.underwater_depth_m = 0.0;
                     // ── Frame-lock AUTO-SWITCH by proximity (v0.927, operator:
                     // "I teleported to the moon then flew to the Earth and it
                     // wouldn't act like I was reentering... I just flew as if
@@ -4063,8 +4071,8 @@ mod native_app {
                         let coro_h = if state.camera.surface_mode { 1.06 } else { 1.0 };
                         let in_walk_band = alt < surface_engage_alt * walk_h;
                         let in_corotate_band = alt < co_rotate_max_alt * coro_h;
-                        state.gui_state.underwater = false;
-                        state.gui_state.underwater_depth_m = 0.0;
+                        // (underwater reset: unconditional block by
+                        // surface_altitude_m, see the teleport-latch note.)
                         let in_blend_band = alt < inertial_blend_max_alt;
                         // Night fill dimming (v0.998, operator: "trees were
                         // still being illuminated at night"): the cool fill
@@ -4495,6 +4503,16 @@ mod native_app {
                             // is what the operator asked F9 for: "maintaining
                             // some arbitrary height, like 5,000 feet or
                             // whatever" for a hovering scenery shot.
+                            // Per-body gravity at the player's altitude:
+                            // constant for natural bodies, curve-varying on
+                            // manufactured worlds (artificial-planet.md).
+                            // 0.01 floor keeps declared 0 g bands weightless
+                            // without a literal 0; captured for F2's readout.
+                            let g_now = def
+                                .map(|d| d.gravity_at(r0 - d.radius) as f64)
+                                .unwrap_or(9.81)
+                                .max(0.01);
+                            state.gui_state.surface_gravity_now = Some(g_now as f32);
                             let vs = crate::surface_move::radial_step(
                                 move_mode,
                                 in_walk_band,
@@ -4502,18 +4520,7 @@ mod native_app {
                                 r0,
                                 state.surface_vr,
                                 rest,
-                                // Per-body gravity, sampled at the player's
-                                // current altitude above the def's nominal
-                                // surface radius: constant for natural
-                                // bodies, but a manufactured world's
-                                // gravity_curve (docs/design/
-                                // artificial-planet.md) varies with height
-                                // and depth. The 0.01 floor keeps a
-                                // declared 0 g band effectively weightless
-                                // without feeding radial_step a literal 0.
-                                def.map(|d| d.gravity_at(r0 - d.radius) as f64)
-                                    .unwrap_or(9.81)
-                                    .max(0.01),
+                                g_now,
                                 SURFACE_SETTLE_RATE,
                                 dt as f64,
                                 radial_wish,
@@ -4529,7 +4536,11 @@ mod native_app {
                             // (jump thrust, falling, swimming, hovering in dev
                             // flight) is silent - radial_step decides.
                             state.on_ground_planet = vs.grounded;
-                            state.gui_state.underwater = submerged && lock_body == "earth";
+                            // Any has_water world tints when submerged (the
+                            // old earth-only gate predates per-body oceans;
+                            // Agartha's seas are as wet as the Pacific).
+                            state.gui_state.underwater =
+                                submerged && def.map(|d| d.has_water).unwrap_or(false);
                             // v0.907: metres below sea level for the tint's
                             // depth grading + HUD readout (planet def radius
                             // IS sea level on has_water worlds).

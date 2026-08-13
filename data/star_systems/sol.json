@@ -1,6 +1,6 @@
 {
  "id": "sol",
- "catalog_version": 2,
+ "catalog_version": 3,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [
@@ -120,8 +120,8 @@
     "axial_tilt_deg": 177.36,
     "mean_temperature_k": 737,
     "albedo": 0.77,
-    "magnetic_field_t": 0.0,
-    "surface_pressure_pa": 9.2e6
+    "magnetic_field_t": 0,
+    "surface_pressure_pa": 9200000
    },
    "atmosphere": {
     "composition": {
@@ -157,7 +157,7 @@
     "axial_tilt_deg": 23.44,
     "mean_temperature_k": 288,
     "albedo": 0.306,
-    "magnetic_field_t": 3.05e-5,
+    "magnetic_field_t": 0.0000305,
     "surface_pressure_pa": 101325
    },
    "atmosphere": {
@@ -196,7 +196,7 @@
     "axial_tilt_deg": 1.5424,
     "mean_temperature_k": 220,
     "albedo": 0.136,
-    "magnetic_field_t": 0.0,
+    "magnetic_field_t": 0,
     "surface_pressure_pa": 3e-10
    },
    "atmosphere": {
@@ -230,7 +230,7 @@
     "axial_tilt_deg": 25.19,
     "mean_temperature_k": 210,
     "albedo": 0.25,
-    "magnetic_field_t": 0.0,
+    "magnetic_field_t": 0,
     "surface_pressure_pa": 610
    },
    "atmosphere": {
@@ -329,8 +329,8 @@
     "axial_tilt_deg": 3.13,
     "mean_temperature_k": 165,
     "albedo": 0.503,
-    "magnetic_field_t": 4.28e-4,
-    "surface_pressure_pa": 0.0
+    "magnetic_field_t": 0.000428,
+    "surface_pressure_pa": 0
    },
    "atmosphere": {
     "composition": {
@@ -2017,6 +2017,47 @@
     "discoverer": "Galileo spacecraft (Ann Harch)"
    },
    "description": "Tiny moon of asteroid Ida. First asteroid moon ever discovered, found in images from the Galileo spacecraft flyby."
+  },
+  {
+   "id": "agartha",
+   "name": "Agartha",
+   "type": "artificial",
+   "parent": "sun",
+   "orbit": {
+    "semi_major_axis_au": 57,
+    "eccentricity": 0.12,
+    "inclination_deg": 23.6,
+    "orbital_period_days": 157180,
+    "mean_anomaly_deg": 200,
+    "longitude_ascending_node_deg": 88,
+    "argument_perihelion_deg": 40
+   },
+   "physical": {
+    "mass_kg": 2.3866e+25,
+    "radius_km": 12742,
+    "surface_gravity_ms2": 9.81,
+    "rotation_period_hours": 24,
+    "axial_tilt_deg": 0,
+    "mean_temperature_k": 288,
+    "albedo": 0.35,
+    "magnetic_field_t": 0.0000305,
+    "surface_pressure_pa": 101325
+   },
+   "atmosphere": {
+    "composition": {
+     "N2": 78,
+     "O2": 21,
+     "Ar": 1
+    },
+    "surface_pressure_atm": 1
+   },
+   "rings": false,
+   "moons": [],
+   "discovery": {
+    "year": 0,
+    "discoverer": ""
+   },
+   "description": "A world twice the diameter of Earth with exactly Earth surface gravity. The arithmetic refuses rock: four Earth masses at half Earth density, an axial tilt of precisely zero, a 24 hour day, and breathable air. Every measurable property is a message. Whoever built it wanted it noticed. (Dev placement in Sol; the story arc moves it to its own system.)"
   },
   {
    "id": "halley",

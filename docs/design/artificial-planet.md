@@ -176,6 +176,16 @@ field, day length. Every value from data, none hardcoded in the UI.
    atmosphere.surface_pressure_atm entries, so Titan reads 1.47 atm),
    planet_registry deleted, Maps page builds from the cosmos catalog
    (bodies.json path deleted; list was silently empty for months).
-6. Agartha authoring: destination system data file, agartha.ron with the
-   curve above, terrain seeds; interior spaces ride the voxel-terrain arc
-   (docs/design/voxel-terrain.md) when it starts.
+6. STARTED (2026-08-13): Agartha exists as data. Cosmos catalog entry
+   (type "artificial", DEV placement in Sol at 57 AU, mildly eccentric and
+   inclined; the story arc moves it to its own system later) with the
+   derived physics: 4 Earth masses, half Earth density, engineered
+   3.05e-5 T field, 1 atm N2/O2 air, a suspiciously exact 24.0 h day and
+   0.0 tilt. data/planets/agartha.ron carries the full hollow-shell
+   gravity_curve (1 g outer surface, computed 1/r^2 falloff above,
+   machine-held 1 g through the first 150 km of structure, a weightless
+   mid-shell transit band, 1 g again at the inner surface) plus breathable
+   engineered air and a deliberately gentle procedural surface. All of it
+   is live-tunable in the Planet Tuner. REMAINING: the destination star
+   system file, the arrival story content, and the interior spaces (ride
+   the voxel-terrain arc, docs/design/voxel-terrain.md).

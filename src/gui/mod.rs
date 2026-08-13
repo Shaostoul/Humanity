@@ -2853,6 +2853,10 @@ pub struct GuiState {
     /// Altitude above the drawn planet ground, metres, while a surface is
     /// engaged (v0.867 surface HUD). None away from any surface.
     pub surface_altitude_m: Option<f32>,
+    /// Gravity actually applied to the player this frame (m/s^2), captured
+    /// at the walk-band integrator; None away from any surface band. Shown
+    /// on the F2 overlay so gravity_curve tuning is visible live.
+    pub surface_gravity_now: Option<f32>,
     /// Current mouse-wheel speed gear shown next to the altitude.
     pub surface_speed_mult: f32,
 
@@ -4711,6 +4715,7 @@ impl Default for GuiState {
             pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
+            surface_gravity_now: None,
             surface_speed_mult: 1.0,
             civ_stats: None,
             civ_stats_loaded: false,
@@ -5320,7 +5325,7 @@ pub fn load_planets() -> Vec<GuiPlanet> {
             // comets are skipped (moons still show as each planet's count).
             matches!(
                 b.body_type.as_str(),
-                "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet"
+                "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet" | "artificial"
             )
         })
         .map(|b| {
@@ -5329,6 +5334,7 @@ pub fn load_planets() -> Vec<GuiPlanet> {
                 "gas_giant" => "Gas Giant",
                 "ice_giant" => "Ice Giant",
                 "dwarf_planet" => "Dwarf",
+                "artificial" => "Artificial",
                 other => other,
             }
             .to_string();

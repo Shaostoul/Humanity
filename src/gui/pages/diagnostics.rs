@@ -73,6 +73,13 @@ fn draw_perf(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     // Live GPU light count (v0.782): lights are uncapped now, so this + FPS is
     // how you find your GPU's real ceiling empirically.
     row(ui, theme, "Lights", state.diag_light_count.to_string());
+    // Gravity actually applied this frame (v0.1120, artificial-planet arc):
+    // makes gravity_curve tuning visible live while walking a world. Only
+    // shown in a surface band; the ship interior and free flight have their
+    // own rules.
+    if let Some(g) = state.surface_gravity_now {
+        row(ui, theme, "Gravity", format!("{g:.2} m/s\u{00b2} ({:.2} g)", g / 9.81));
+    }
 }
 
 /// A small frame-time sparkline. Bars scale to a fixed 33 ms ceiling (30 FPS);
