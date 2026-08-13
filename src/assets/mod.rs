@@ -10,6 +10,9 @@
 #[cfg(feature = "native")]
 pub mod watcher;
 pub mod loader;
+/// Comment-preserving single-field RON value rewriter (Planet Tuner enabler,
+/// docs/design/artificial-planet.md). Pure std, ungated on purpose.
+pub mod ron_edit;
 
 use std::collections::HashMap;
 use std::any::Any;
