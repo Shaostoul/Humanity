@@ -37,6 +37,10 @@
     // Mars deliberately has none.
     cloud_coverage: Some(0.42),
     has_water: true,
+    // The only world whose open air an unsuited human can breathe.
+    // Serde-default is false, so every other body suffocates outside the
+    // hull (artificial-planet increment 4: breathability per body).
+    breathable: true,
     // Real elevation grid (2026-07-11): 3600x1800 cells (0.1 degree) built
     // from NOAA ETOPO1 (public domain) by scripts/build-earth-heightmap.js.
     // With a heightmap present, sea_level below is IGNORED: the loader

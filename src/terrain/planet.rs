@@ -44,6 +44,13 @@ pub struct PlanetDef {
     /// Has liquid water on surface.
     #[serde(default)]
     pub has_water: bool,
+    /// Whether an unsuited human can breathe the open surface air.
+    /// Serde-default FALSE: alien worlds suffocate unless their data file
+    /// says otherwise (only Earth ships true today). Consumed by
+    /// AtmosphereSystem via the per-frame body_environment snapshot
+    /// (artificial-planet increment 4).
+    #[serde(default)]
+    pub breathable: bool,
     /// Sea level as fraction of max elevation (0.0-1.0).
     #[serde(default)]
     pub sea_level: f32,

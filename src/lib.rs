@@ -5147,6 +5147,55 @@ mod native_app {
                         };
                     }
 
+                    // Per-body environment snapshot (artificial-planet increment 4):
+                    // publish which world the player is on so the ECS systems can
+                    // simulate THAT body instead of an Earth-global one.
+                    // WeatherSystem gates precipitation + retunes its temperature
+                    // baseline from it; AtmosphereSystem sets the outside air from
+                    // it (vacuum on the Moon, thin toxic CO2 on Mars); the survival
+                    // context below reads outside-the-hull breathability from it.
+                    // No frame lock (the home station in high Earth orbit, or deep
+                    // space) keeps the Earth-home DEFAULT, so home farming and the
+                    // home sky behave exactly as before this increment, while
+                    // `locked: false` keeps outside-the-hull a vacuum in space.
+                    {
+                        let env = state
+                            .frame_lock_body
+                            .as_deref()
+                            .and_then(|id| state.planet_defs.get(id).map(|d| (id, d)))
+                            .map(|(id, def)| {
+                                // Latitude straight from the frame-lock anchor: the
+                                // anchor is the camera position in the body's
+                                // rotating frame and bodies spin about +Y, so
+                                // asin(y/r) is spin-invariant latitude.
+                                let up = state.frame_lock_anchor.normalize_or_zero();
+                                let latitude_deg =
+                                    up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+                                // Altitude: prefer the surface band's drawn-ground
+                                // readout; above the band fall back to height over
+                                // the nominal sphere (coarse is fine, this only
+                                // feeds the temperature lapse + breathable ceiling).
+                                let altitude_m = state.gui_state.surface_altitude_m.unwrap_or(
+                                    (state.frame_lock_anchor.length() - def.radius).max(0.0)
+                                        as f32,
+                                );
+                                crate::systems::body_environment::BodyEnvironment {
+                                    body_id: id.to_string(),
+                                    locked: true,
+                                    has_atmosphere: def.atmosphere_color.is_some(),
+                                    has_water: def.has_water,
+                                    breathable: def.breathable,
+                                    mean_temperature_k: crate::cosmos::find_body(id)
+                                        .map(|b| b.mean_temperature_k as f32)
+                                        .unwrap_or(288.0),
+                                    latitude_deg,
+                                    altitude_m,
+                                }
+                            })
+                            .unwrap_or_default();
+                        state.data_store.insert("body_environment", env);
+                    }
+
                     // Survival environment context: is the player inside the sealed
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?
                     // FoodSystem reads this to drive oxygen + body temperature.
@@ -5159,6 +5208,18 @@ mod native_app {
                             .and_then(|m| m.lock().ok())
                             .map(|w| w.temperature)
                             .unwrap_or(-40.0);
+                        // Outside the hull: breathable only when standing on a
+                        // frame-locked body whose air is breathable at this
+                        // altitude (increment 4). Open space and airless or
+                        // unbreathable worlds keep the vacuum drain (the
+                        // existing suit rules).
+                        let outside_breathable = state
+                            .data_store
+                            .get::<crate::systems::body_environment::BodyEnvironment>(
+                                "body_environment",
+                            )
+                            .map(|e| e.breathable_outside())
+                            .unwrap_or(false);
                         let pos = state.camera.position;
                         // Dev fly/travel (v0.791.x) is a cheat: while fly mode
                         // is on, the vacuum-outside-the-hull rule is suspended
@@ -5189,9 +5250,13 @@ mod native_app {
                                 }
                             }
                             Some(_) => crate::ecs::components::EnvironmentContext {
-                                // Outside the hull — vacuum + deep cold.
+                                // Outside the hull: unsealed, at the live weather's
+                                // ambient temperature. Breathable ONLY when standing
+                                // on a body whose open air supports it (Earth below
+                                // the death zone); space, the Moon, and Mars keep
+                                // the vacuum oxygen drain (increment 4).
                                 sealed: false,
-                                oxygenated: false,
+                                oxygenated: outside_breathable,
                                 ambient_temp_c: exposed_temp,
                             },
                             // Homestead not generated yet → assume safe.
