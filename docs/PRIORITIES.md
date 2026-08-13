@@ -109,12 +109,11 @@
 > (live-tunable, first game.csv knob with a real reader), Maps page planet
 > list rebuilt from the catalog (was silently empty), ron_edit.rs (the
 > comment-preserving RON rewriter). NEXT concrete steps, in order:
-> 1. **Planet Tuner dev page + live info readout**: sliders/fields over the
->    frame-locked body's PlanetDef writing via assets::ron_edit (hot reload
->    already regenerates the planet within a frame - the whole loop is UI
->    work now); readout shows live g (gravity_at), altitude, pressure,
->    breathability, temperature at player, magnetic field, day length. The
->    settings-page subsection/hint widgets are the pattern to reuse.
+> 1. DONE v0.1120.0: **Planet Tuner** shipped (Platform section, Dev-gated):
+>    live readout + grouped PlanetDef editors + gravity-curve editor, saves
+>    via ron_edit set_or_append (validated append was added for omitted
+>    serde-default fields) with a final loads-as-a-PlanetDef check so a bad
+>    value can never brick a file. Hot reload rebuilds the planet in a frame.
 > 2. **F2 readout: current g** at player (one line, closes ladder item 2).
 > 3. **Agartha authoring** (ladder item 6): destination-system data file,
 >    agartha.ron with the hollow-shell gravity_curve, terrain seeds; the

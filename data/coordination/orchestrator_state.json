@@ -242,6 +242,11 @@
       "date": "2026-08-13",
       "decision": "v0.1119.0 shipped: the planet-environment wave (3 worktree lanes + 3 adversarial reviews + 3 fix agents, all findings closed with red-green proofs). Per-body weather/breathability/temperature (global vs at-player temperature split), sol.json disk-load with catalog_version gate + magnetic/pressure parsing, ron_edit.rs comment-preserving RON rewriter, ship-interior gravity data-driven from game.csv (12.0 hardcode retired for true 1g), Maps page planet list rebuilt from cosmos catalog (was silently empty for months), lib.rs pushed back under monolith budget by extracting hot_reload::poll_and_apply + frame_lock::publish_body_environment. ALSO: v0.1118.0 desktop-build failure root-caused to /usr/local/bin/regen-releases-manifest lost in the VPS rebuild; replacement lives in scripts/vps/ + provision-vps.sh now installs it; CI rerun green; manifest.json live over HTTPS.",
       "why": "Operator directive: space-to-surface-to-underground must feel natural (gravity, atmosphere, temperature, magnetics), all planet info in-game and data-driven, unrealistic manufactured worlds supported, live tuning preferred. PRIORITIES.md has the ranked next steps (Planet Tuner UI is next)."
+    },
+    {
+      "date": "2026-08-13",
+      "decision": "v0.1120.0 shipped: the Planet Tuner (in-game planet editor, artificial-planet ladder item 3). Own tests caught 3 pre-ship defects: egui color-button float drift false-dirtying fields, ron_edit missing-field refusal blocking breathable/gravity_curve saves (added validated set_or_append), and syntactically-legal-RON garbage (bare identifiers) that would brick a planet file (added final parse-as-PlanetDef gate in the page). ALSO: git gc run for the operator (3648 loose objects packed). VPS OUTAGE ongoing: box fully dark since 12:10-13:48 UTC, traceroute dies at carrier handoff (null-route or node-down signature), last DB backup 8 PM prior night, waiting on operator to check Namecheap email + SolusVM panel. Deploy-to-VPS CI + the v0.1120.0 mirror step will stay red until the box returns; rerun the tag workflow mirror job then.",
+      "why": "Operator: continue the backlog. Tuner was PRIORITIES next step. Next: F2 current-g readout line, then Agartha authoring (destination system + agartha.ron)."
     }
   ],
   "active_scopes_to_avoid": [
