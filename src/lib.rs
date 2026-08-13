@@ -1404,7 +1404,7 @@ mod native_app {
             gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
-            gui_state.map_planets = crate::gui::load_planets(&data_dir);
+            gui_state.map_planets = crate::gui::load_planets();
             gui_state.places = crate::gui::load_places(&data_dir);
             // Organize-layer inventory pool: restore the SAVED container contents if the
             // active home has any (transfers persisted, v0.517), else seed from the

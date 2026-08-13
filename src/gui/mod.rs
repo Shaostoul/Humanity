@@ -4614,8 +4614,8 @@ impl Default for GuiState {
             profile_streaming_url: String::new(),
             profile_streaming_live: false,
 
-            // Map defaults: populated from data/solar_system/bodies.json at
-            // startup in lib.rs (see `load_planets`). Empty at construction.
+            // Map defaults: populated from the cosmos catalog at startup in
+            // lib.rs (see `load_planets`). Empty at construction.
             map_planets: Vec::new(),
             places: Vec::new(),
             homestead_design: None,
@@ -5297,101 +5297,30 @@ pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
     out
 }
 
-/// Load solar system planets from `data/solar_system/bodies.json`.
-/// Falls back to an empty Vec if the file is missing or malformed so the
-/// game still boots (the map page will show a "no planets loaded" state).
+/// Build the Maps page's planet list from the cosmos catalog.
+///
+/// This used to parse `data/solar_system/bodies.json`, a file that stopped
+/// shipping long ago, so the native Maps page's planet list rendered EMPTY
+/// on every fresh checkout while the error line scrolled past unnoticed
+/// (found by the 2026-08-12 planet-physics audit). The cosmos catalog
+/// (`data/star_systems/sol.json`, parsed once by `cosmos::sol_bodies`) is
+/// the single source of truth for body facts, so build from it directly:
+/// one parse, no duplicated schema to drift.
 #[cfg(feature = "native")]
-pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
-    #[derive(serde::Deserialize)]
-    struct Bodies {
-        bodies: Vec<Body>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Body {
-        #[serde(default)]
-        name: String,
-        #[serde(default, rename = "type")]
-        type_: String,
-        #[serde(default)]
-        physical: Option<Physical>,
-        #[serde(default)]
-        orbit: Option<Orbit>,
-        #[serde(default)]
-        atmosphere: Option<Atmosphere>,
-        #[serde(default)]
-        moons: Vec<serde_json::Value>,
-    }
-    #[derive(serde::Deserialize, Default)]
-    struct Physical {
-        #[serde(default)]
-        radius_km: f64,
-        #[serde(default)]
-        surface_gravity_ms2: f64,
-    }
-    #[derive(serde::Deserialize, Default)]
-    struct Orbit {
-        #[serde(default)]
-        semi_major_axis_au: f64,
-    }
-    #[derive(serde::Deserialize, Default)]
-    struct Atmosphere {
-        #[serde(default)]
-        composition: std::collections::BTreeMap<String, f64>,
-        #[serde(default)]
-        surface_pressure_atm: Option<f64>,
-    }
-
-    let path = data_dir.join("solar_system").join("bodies.json");
-    let bytes = match std::fs::read_to_string(&path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("[planets] Could not read {}: {}", path.display(), e);
-            return Vec::new();
-        }
-    };
-    let parsed: Bodies = match serde_json::from_str(&bytes) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("[planets] Could not parse bodies.json: {}", e);
-            return Vec::new();
-        }
-    };
-
-    parsed
-        .bodies
-        .into_iter()
+pub fn load_planets() -> Vec<GuiPlanet> {
+    crate::cosmos::sol_bodies()
+        .iter()
         .filter(|b| {
-            // Show real planets and dwarf planets. Stars have no orbit_au,
-            // moons have a parent != "sun". We display the simple solar
-            // system view so we skip the Sun itself.
+            // Planets and dwarf planets only: the Maps page draws the
+            // simple heliocentric view, so the Sun, moons, asteroids and
+            // comets are skipped (moons still show as each planet's count).
             matches!(
-                b.type_.as_str(),
+                b.body_type.as_str(),
                 "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet"
             )
         })
         .map(|b| {
-            let phys = b.physical.unwrap_or_default();
-            let orbit = b.orbit.unwrap_or_default();
-            let atm = b.atmosphere.unwrap_or_default();
-            let atm_str = if atm.composition.is_empty() {
-                if atm.surface_pressure_atm.map_or(true, |p| p < 0.001) {
-                    "None".to_string()
-                } else {
-                    "Trace".to_string()
-                }
-            } else {
-                // Join top 3 components by percentage, descending.
-                let mut pairs: Vec<(String, f64)> =
-                    atm.composition.into_iter().collect();
-                pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                pairs
-                    .into_iter()
-                    .take(3)
-                    .map(|(k, _)| k)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            };
-            let planet_type = match b.type_.as_str() {
+            let planet_type = match b.body_type.as_str() {
                 "terrestrial" => "Rocky",
                 "gas_giant" => "Gas Giant",
                 "ice_giant" => "Ice Giant",
@@ -5399,15 +5328,20 @@ pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
                 other => other,
             }
             .to_string();
-
             GuiPlanet {
-                name: b.name,
+                name: b.name.clone(),
                 planet_type,
-                radius_km: phys.radius_km,
-                gravity: phys.surface_gravity_ms2,
-                atmosphere: atm_str,
-                moons: b.moons.len() as u32,
-                orbit_radius_au: orbit.semi_major_axis_au,
+                radius_km: b.radius_km,
+                gravity: b.surface_gravity_ms2,
+                // Pre-formatted "top components" summary from the catalog;
+                // empty string means no atmosphere worth listing.
+                atmosphere: if b.atmosphere_summary.is_empty() {
+                    "None".to_string()
+                } else {
+                    b.atmosphere_summary.clone()
+                },
+                moons: b.children.len() as u32,
+                orbit_radius_au: b.semi_major_axis_au,
             }
         })
         .collect()
@@ -7024,5 +6958,33 @@ mod ui_click_sound_tests {
             !ui_click_should_sound(&[clicked_button()], false),
             "with interface sounds disabled, even a real click is silent"
         );
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod map_planet_tests {
+    // The Maps page planet list rendered EMPTY for months because
+    // load_planets read a bodies.json that stopped shipping and the error
+    // only went to stderr. This asserts the OUTCOME (a populated list with
+    // believable facts), so a broken data path can never again pass silently.
+    #[test]
+    fn maps_page_planet_list_is_populated_from_the_catalog() {
+        let planets = super::load_planets();
+        assert!(
+            planets.len() >= 8,
+            "expected at least the 8 major planets, got {}",
+            planets.len()
+        );
+        let earth = planets
+            .iter()
+            .find(|p| p.name == "Earth")
+            .expect("Earth present in the Maps planet list");
+        assert!((earth.gravity - 9.81).abs() < 0.2, "Earth gravity ~9.81");
+        assert!(earth.moons >= 1, "Earth should list at least the Moon");
+        assert!(
+            (earth.orbit_radius_au - 1.0).abs() < 0.05,
+            "Earth orbits at ~1 AU"
+        );
+        assert!(!earth.atmosphere.is_empty() && earth.atmosphere != "None");
     }
 }
