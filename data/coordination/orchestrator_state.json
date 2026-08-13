@@ -222,6 +222,21 @@
       "version": "v0.1113.0",
       "decision": "Closed the 3 post-rebuild quiet killers and mapped the vision instead of guessing at it.",
       "why": "The gap-map workflow (4 investigations, each adversarially checked) found the rebuilt box had ZERO backups (units referenced but never created; relay in-process loop sleeps-before-first + resets on restart), cert renewal armed to fail (standalone vs nginx on :80), and no relay logging at all (headless never inits a tracing subscriber - which is why the incident had zero relay logs). All fixed live + in provision + asserted. For the merchant/federation vision I sent investigators rather than guessing because no second server has ever exercised federation: the honest finding is federation is DORMANT with 3 never-ran-live signature/gate bugs, while merchant inventory can ship on ONE server today via the signed-object pipeline, and the real white-label blocker is one baked CORS/WS-origin allowlist in the relay. The checker caught a real refutation each time (e.g. the per-channel federated toggle DOES have a GUI; web wallet USDC send is broken by a sendToken/sendSPLToken name mismatch)."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "v0.1118.0 shipped: rebindable controls (central 28-action keybind map, click-to-rebind UI, AppConfig persistence) + pronounced settings subsections (Graphics split into 7, Audio/Account/Appearance too). Behavior change to flag: F=attack only now, V=first/third person (F was double-firing both since v0.765). Both lanes adversarially reviewed (ship, zero blocking), merged clean, probe-verified world entry panics=0.",
+      "why": "Operator asked for rebindable controls, pronounced graphics subsections, and a hotkey audit; audit found Map:M row wrong, dead Tab bind, F double-fire."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "Agartha groundwork committed (106852b1): PlanetDef.gravity_curve (piecewise altitude->g, negative=underground), gravity_at wired into the walk-band integrator, docs/design/artificial-planet.md written (first Agartha physical spec: 2x Earth radius, 1g surface = 4 Earth masses at HALF Earth density; shell theorem makes interior gravity manufactured, which canonizes operator dynamic-gravity wish). Full data-vs-hardcoded audit in the doc: 4 disconnected gravity constants, global Earth temperature table, zero magnetic-field code, body-blind weather (rain on the Moon), sol.json compile-time embedded.",
+      "why": "Operator wants space-to-surface-to-underground to feel natural (gravity/atmosphere/temperature/magnetics), all info in-game, unrealistic manufactured planets supported, and live tuning. Hot reload for data/planets/*.ron already works end to end (verified), so in-game tuning is UI work only."
+    },
+    {
+      "date": "2026-08-12",
+      "decision": "planet-environment-wave in flight (wf_4de36799-8a3): 3 worktree lanes (per-body weather gating + breathability + temperature v1; sol.json disk-load + magnetic/pressure fields + planet_registry deletion; comment-preserving RON field rewriter for the future Planet Tuner), each piped into a critic review. Deferred post-merge: ship-interior 12.0 hardcoded gravity unification (camera.rs was hot in the keybinds lane), Maps-page bodies.json fix (gui/mod.rs was hot), F1 overlay live-bind rendering, web mirror of subsection headers + Controls rebind.",
+      "why": "Disjoint file sets fan out per the throughput directive; hot files serialize."
     }
   ],
   "active_scopes_to_avoid": [

@@ -297,6 +297,58 @@ pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
     1.0 - 0.85 * env * valid
 }
 
+/// Per-body environment snapshot (artificial-planet increment 4): publish
+/// which world the player is standing on into the DataStore so the ECS
+/// systems simulate THAT body instead of an Earth-global one. WeatherSystem
+/// gates precipitation + retunes its temperature baseline from it;
+/// AtmosphereSystem sets the outside air from it (vacuum on the Moon, thin
+/// toxic CO2 on Mars); the survival context reads outside-the-hull
+/// breathability from it. The frame-lock -> environment decision lives in
+/// body_environment::environment_for_frame_lock (pure, unit tested): no
+/// frame lock (the home station in high Earth orbit, or deep space) keeps
+/// the Earth-home DEFAULT so home farming and the home sky behave exactly
+/// as before this increment (`locked: false` keeps outside the hull a
+/// vacuum in space), while a locked body WITHOUT a data/planets def
+/// publishes as an AIRLESS rock instead of silently inheriting Earth's
+/// default (it used to rain on Venus).
+pub(crate) fn publish_body_environment(state: &mut EngineState) {
+    let body_id = state.frame_lock_body.as_deref();
+    let def = body_id.and_then(|id| state.planet_defs.get(id));
+    // Latitude straight from the frame-lock anchor: the anchor is the
+    // camera position in the body's rotating frame and bodies spin about
+    // +Y, so asin(y/r) is spin-invariant latitude.
+    let up = state.frame_lock_anchor.normalize_or_zero();
+    let latitude_deg = up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+    // Altitude for the temperature lapse + breathable ceiling: height
+    // above the body's NOMINAL surface radius (anchor.length() -
+    // def.radius). The anchor sits on the drawn ground, so this INCLUDES
+    // terrain elevation: a 4 km plateau reads ~4 km and the mountain-cold
+    // lapse actually engages. The drawn-ground readout
+    // (gui_state.surface_altitude_m) is deliberately NOT used here (review
+    // fix): it measures height above the ground under your feet, i.e. 0
+    // whenever you stand anywhere, which silenced the documented
+    // walking-up-a-mountain lapse entirely. Slightly negative readings
+    // (sea floor, deep valleys) are real; consumers clamp where needed.
+    // Def-less bodies have no radius to measure against; 0 is inert there
+    // (airless bodies have no lapse and are never breathable).
+    let altitude_m = def
+        .map(|d| (state.frame_lock_anchor.length() - d.radius) as f32)
+        .unwrap_or(0.0);
+    // Catalog mean temperature; the <= 0.0 absent-field sentinel is
+    // normalized inside the pure function.
+    let catalog_mean_k = body_id
+        .and_then(crate::cosmos::find_body)
+        .map(|b| b.mean_temperature_k as f32);
+    let env = crate::systems::body_environment::environment_for_frame_lock(
+        body_id,
+        def,
+        catalog_mean_k,
+        latitude_deg,
+        altitude_m,
+    );
+    state.data_store.insert("body_environment", env);
+}
+
 /// F6 location bookmark save (v0.890). Captures the camera's EXACT world
 /// placement + aim. When frame-locked to a body the pose is stored in that
 /// body's UNROTATED local frame (same math as the frame-lock itself), so a

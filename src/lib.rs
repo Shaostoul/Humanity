@@ -1901,6 +1901,15 @@ mod native_app {
                 live_publisher: None,
                 stream_capture: crate::renderer::stream_capture::StreamCapture::new(),
             });
+            // Interior (ship / homestead) gravity from data/game.csv, the
+            // first of that file's knobs to gain a real reader (v0.1119).
+            // Missing/garbled knob keeps the controller's compiled-in 1 g.
+            // The hot-reload poll re-applies this on every game.csv save.
+            if let Some(st) = self.state.as_mut() {
+                if let Some(g) = st.asset_manager.game_setting_f64("gravity_m_s2") {
+                    st.controller.set_interior_gravity(g as f32);
+                }
+            }
         }
 
         fn window_event(
@@ -3057,49 +3066,11 @@ mod native_app {
                         }
                     }
 
-                    // Poll hot-reload for file changes
-                    let changes = state.hot_reload.poll(&mut state.asset_manager);
-                    for changed in &changes {
-                        log::info!("Hot-reload: {changed}");
-                    }
-                    // Planet-def hot-reload (v0.764): saving a
-                    // data/planets/<id>.ron while the game runs re-reads the
-                    // defs and drops the cached surface meshes, so palette /
-                    // noise / sea-level tuning shows in the sky within a
-                    // frame - no relaunch during the visual tuning loop.
-                    if changes.iter().any(|c| {
-                        let n = c.replace('\\', "/");
-                        n.contains("planets/") && n.ends_with(".ron")
-                    }) {
-                        reload_planet_defs(state);
-                    }
-                    // Plant-visual hot-reload (v0.862): saving
-                    // data/plants_visual.ron regenerates every procedural
-                    // plant next frame (the rebuild re-reads the file; zeroing
-                    // the signature forces it) - edit a leaf color, alt-tab,
-                    // and the garden already wears it.
-                    if changes.iter().any(|c| c.ends_with("plants_visual.ron")) {
-                        state.plant_mesh_sig = 0;
-                    }
-                    // Perpetual showcase (v0.863): an empty garden replants
-                    // itself at staggered stages, then the plant meshes
-                    // regenerate whenever growth actually moved (both calls
-                    // are sig/empty-gated, so per-frame is nearly free).
-                    auto_seed_showcase(state);
-                    rebuild_plant_meshes(state);
-                    // Hull-profile hot-reload (v0.770): saving
-                    // data/blueprints/hull_profile.ron regrows the hull next
-                    // frame - silhouette tuning is save-file-see-hull, the
-                    // same loop the planets get. An invalid edit falls back
-                    // to the embedded profile (warned in the log), never a
-                    // missing hull mid-session.
-                    if changes.iter().any(|c| {
-                        let n = c.replace('\\', "/");
-                        n.ends_with("blueprints/hull_profile.ron")
-                    }) {
-                        state.hull_profile = None; // force the re-read
-                        rebuild_hull(state);
-                    }
+                    // Hot-reload: poll the watcher and apply every data-file
+                    // regeneration gate (planets, plants, hull, game.csv).
+                    // The gates live in hot_reload::poll_and_apply - add new
+                    // ones THERE, not here (monolith ratchet, v0.1119).
+                    crate::hot_reload::poll_and_apply(state);
 
                     // Apply the player's active status-effect SPEED modifiers to movement
                     // (well_nourished speeds you up; thirsty/flu slow you down). Look is
@@ -5180,65 +5151,12 @@ mod native_app {
                         };
                     }
 
-                    // Per-body environment snapshot (artificial-planet increment 4):
-                    // publish which world the player is on so the ECS systems can
-                    // simulate THAT body instead of an Earth-global one.
-                    // WeatherSystem gates precipitation + retunes its temperature
-                    // baseline from it; AtmosphereSystem sets the outside air from
-                    // it (vacuum on the Moon, thin toxic CO2 on Mars); the survival
-                    // context below reads outside-the-hull breathability from it.
-                    // The frame-lock -> environment decision lives in
-                    // body_environment::environment_for_frame_lock (pure, unit
-                    // tested; review fix): no frame lock (the home station in
-                    // high Earth orbit, or deep space) keeps the Earth-home
-                    // DEFAULT so home farming and the home sky behave exactly as
-                    // before this increment (`locked: false` keeps outside the
-                    // hull a vacuum in space), while a locked body WITHOUT a
-                    // data/planets def publishes as an AIRLESS rock instead of
-                    // silently inheriting Earth's default (it used to rain on
-                    // Venus).
-                    {
-                        let body_id = state.frame_lock_body.as_deref();
-                        let def = body_id.and_then(|id| state.planet_defs.get(id));
-                        // Latitude straight from the frame-lock anchor: the
-                        // anchor is the camera position in the body's rotating
-                        // frame and bodies spin about +Y, so asin(y/r) is
-                        // spin-invariant latitude.
-                        let up = state.frame_lock_anchor.normalize_or_zero();
-                        let latitude_deg = up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
-                        // Altitude for the temperature lapse + breathable
-                        // ceiling: height above the body's NOMINAL surface
-                        // radius (anchor.length() - def.radius). The anchor
-                        // sits on the drawn ground, so this INCLUDES terrain
-                        // elevation: a 4 km plateau reads ~4 km and the
-                        // mountain-cold lapse actually engages. The drawn-
-                        // ground readout (gui_state.surface_altitude_m) is
-                        // deliberately NOT used here (review fix): it measures
-                        // height above the ground under your feet, i.e. 0
-                        // whenever you stand anywhere, which silenced the
-                        // documented walking-up-a-mountain lapse entirely.
-                        // Slightly negative readings (sea floor, deep valleys)
-                        // are real; consumers clamp where needed. Def-less
-                        // bodies have no radius to measure against; 0 is inert
-                        // there (airless bodies have no lapse and are never
-                        // breathable).
-                        let altitude_m = def
-                            .map(|d| (state.frame_lock_anchor.length() - d.radius) as f32)
-                            .unwrap_or(0.0);
-                        // Catalog mean temperature; the <= 0.0 absent-field
-                        // sentinel is normalized inside the pure function.
-                        let catalog_mean_k = body_id
-                            .and_then(crate::cosmos::find_body)
-                            .map(|b| b.mean_temperature_k as f32);
-                        let env = crate::systems::body_environment::environment_for_frame_lock(
-                            body_id,
-                            def,
-                            catalog_mean_k,
-                            latitude_deg,
-                            altitude_m,
-                        );
-                        state.data_store.insert("body_environment", env);
-                    }
+                    // Per-body environment snapshot (artificial-planet
+                    // increment 4): publish which world the player is on so
+                    // the ECS systems simulate THAT body instead of an
+                    // Earth-global one. Full contract + the latitude/altitude
+                    // derivations: frame_lock::publish_body_environment.
+                    crate::engine::frame_lock::publish_body_environment(state);
 
                     // Survival environment context: is the player inside the sealed
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?

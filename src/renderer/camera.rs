@@ -13,9 +13,14 @@ use glam::{DVec3, Mat4, Quat, Vec3};
 
 use super::light::RoomLight;
 
-/// First-person gravity (m/s^2). Tuned for a snappy game jump rather than realism:
-/// with jump_speed 5.0 it gives a peak height of ~1.0 m.
-const GRAVITY: f32 = 12.0;
+/// Fallback first-person gravity (m/s^2) if the data knob is missing.
+/// The LIVE value is `CameraController::interior_gravity`, wired from
+/// data/game.csv's `gravity_m_s2` row (9.81: the homestead runs true 1 g
+/// artificial gravity per the realistic-first rule). The old hardcoded
+/// 12.0 was a jump-feel tuning artifact from before per-body gravity
+/// existed; at 9.81 the jump peak rises ~1.0 m -> ~1.27 m
+/// (v^2 / 2g with jump_speed 5.0), which reads as slightly floatier.
+const GRAVITY_FALLBACK: f32 = 9.81;
 
 /// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
 /// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
@@ -609,6 +614,11 @@ pub struct CameraController {
     is_grounded: bool,
     eye_height: f32,
     jump_speed: f32,
+    /// Interior (ship / homestead) gravity in m/s^2. Data-driven from
+    /// data/game.csv `gravity_m_s2` (set at startup + on hot-reload by
+    /// lib.rs via `set_interior_gravity`); planet SURFACE gravity is a
+    /// different path entirely (surface_move samples PlanetDef).
+    interior_gravity: f32,
     /// World-Y the camera rests at when grounded (floor_y + eye_height). Set each frame
     /// by the main loop from the room the player is standing in; defaults to floor 0.
     ground_y: f32,
@@ -671,6 +681,7 @@ impl CameraController {
             is_grounded: true,
             eye_height: 1.7,
             jump_speed: 5.0,
+            interior_gravity: GRAVITY_FALLBACK,
             ground_y: 1.7,
             climb_zone: None,
             showroom_lock: false,
@@ -885,6 +896,17 @@ impl CameraController {
         self.climb_zone = zone;
     }
 
+    /// Interior (ship / homestead) gravity in m/s^2, from data/game.csv's
+    /// `gravity_m_s2` row. lib.rs calls this at startup and again when the
+    /// file hot-reloads, so the knob is live-tunable like the file's header
+    /// always promised. Clamped to the CSV's own declared 0..50 range; a
+    /// zero would make jumps one-way trips, so the floor is a whisper above.
+    pub fn set_interior_gravity(&mut self, g: f32) {
+        if g.is_finite() {
+            self.interior_gravity = g.clamp(0.01, 50.0);
+        }
+    }
+
     /// Eye height (camera Y above the feet). The footing sampler uses it to get the player's ACTUAL
     /// feet height (`camera.y - eye_height`) -- which, unlike `ground_floor()`, tracks the live
     /// climbed height, so a deck at a ladder top is reachable. (v0.589)
@@ -1090,7 +1112,7 @@ impl CameraController {
             self.is_grounded = false;
         }
         // Apply gravity and integrate height.
-        self.vertical_velocity -= GRAVITY * dt;
+        self.vertical_velocity -= self.interior_gravity * dt;
         camera.position.y += self.vertical_velocity * dt;
         // Land on the floor.
         if camera.position.y <= self.ground_y {

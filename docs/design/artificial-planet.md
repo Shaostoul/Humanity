@@ -146,18 +146,36 @@ field, day length. Every value from data, none hardcoded in the UI.
 
 1. DONE (2026-08-12): `gravity_curve` + `gravity_at` + load-time
    normalization + tests. Data model accepts manufactured worlds.
-2. One gravity truth: wire `gravity_at` into the walk integrator; ship
-   interior g becomes data (body-following when landed); expose current g
-   in the F2/debug readout. (Ocean-wave g stays Earth-constant until a
-   water world other than Earth exists; the FFT lockstep tests make that a
-   deliberate, separate change.)
-3. Planet Tuner dev page + live info readout (needs the targeted-field RON
-   rewriter).
-4. Per-body environment: weather gating by atmosphere, breathability via
-   set_outside_atmosphere, temperature model v1 (baseline + latitude +
-   altitude + season).
-5. sol.json disk-load + parsed physical profile (mass, magnetic field,
-   pressure) + Maps-page bodies.json fix + dead-shape cleanup.
+2. MOSTLY DONE (2026-08-12): walk integrator samples `gravity_at` at the
+   player's altitude; ship-interior gravity is data (data/game.csv
+   `gravity_m_s2`, 9.81 true 1 g, live-tunable via the game.csv hot-reload
+   gate; the old hardcoded 12.0 was a jump-feel artifact). Remaining:
+   body-following interior g when a homestead sits ON a planet (no such
+   homestead exists yet), and current-g in the F2 readout. (Ocean-wave g
+   stays Earth-constant until a water world other than Earth exists; the
+   FFT lockstep tests make that a deliberate, separate change.)
+3. ENABLER DONE (2026-08-12): `src/assets/ron_edit.rs`, the
+   comment-preserving targeted-field RON rewriter (dual-layer validation:
+   replacement must parse as RON, whole result re-parsed before return; a
+   corrupt file can never be written). The Planet Tuner dev page + live
+   info readout is the remaining UI work.
+4. DONE (2026-08-12): per-body environment. BodyEnvironment snapshot
+   published per frame; weather fully gated by body (airless = no weather,
+   dry = no rain, def-less bodies treated as airless rather than
+   Earth-like); breathability from PlanetDef.breathable (Earth-only today)
+   through set_outside_atmosphere; temperature v1 with the global/at-player
+   split: `Weather.temperature` stays the body-surface global reference
+   (farming, hydrology), `temperature_at_player` carries latitude +
+   altitude-lapse deltas (vitals exposure, HUD thermometer). Known v1
+   simplifications: hemispheres share seasons, non-Earth bodies ignore
+   axial tilt, per-body gas composition is a string summary not data.
+5. DONE except gui half (2026-08-12): sol.json loads from disk with
+   embedded fallback (malformed disk falls back loudly; catalog_version
+   gate un-shadows stale installed copies), magnetic_field_t +
+   surface_pressure_pa parsed (pressure falls back to the older
+   atmosphere.surface_pressure_atm entries, so Titan reads 1.47 atm),
+   planet_registry deleted, Maps page builds from the cosmos catalog
+   (bodies.json path deleted; list was silently empty for months).
 6. Agartha authoring: destination system data file, agartha.ron with the
    curve above, terrain seeds; interior spaces ride the voxel-terrain arc
    (docs/design/voxel-terrain.md) when it starts.

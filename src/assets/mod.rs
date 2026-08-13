@@ -325,6 +325,32 @@ impl AssetManager {
     // These try disk first (so mods can override), then fall back to
     // compile-time embedded data for fully offline operation.
 
+    /// Read one numeric knob from data/game.csv by its `setting` key.
+    ///
+    /// game.csv has promised "runtime-tunable gameplay parameters" in its
+    /// header since it was created, but no row ever had a reader until
+    /// interior gravity (2026-08-12). This is the generic accessor so the
+    /// other rows can come alive one consumer at a time. Returns None when
+    /// the key is missing or its value is not a number; callers keep their
+    /// compiled-in fallback. Cache note: the file watcher invalidates the
+    /// "game.csv" cache entry on edit, so a fresh call re-reads the disk.
+    #[cfg(feature = "native")]
+    pub fn game_setting_f64(&mut self, key: &str) -> Option<f64> {
+        #[derive(serde::Deserialize)]
+        struct Row {
+            setting: String,
+            value: String,
+        }
+        self.load_csv_or_embedded::<Row>("game.csv")
+            .ok()?
+            .iter()
+            .find(|r| r.setting == key)?
+            .value
+            .trim()
+            .parse()
+            .ok()
+    }
+
     /// Load CSV: disk first, then embedded fallback.
     /// Results are cached by path.
     #[cfg(feature = "native")]

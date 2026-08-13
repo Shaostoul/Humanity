@@ -24,5 +24,5 @@ hunger_rate,0.5,Hunger depletion per in-game hour,system,0.0,5.0,float
 thirst_rate,0.8,Thirst depletion per in-game hour,system,0.0,5.0,float
 stamina_regen,2.0,Stamina regeneration per second while resting,system,0.1,10.0,float
 trade_price_variance,0.15,Random price variance for NPC trades (fraction),economy,0.0,0.5,float
-gravity_m_s2,9.81,Gravitational acceleration,physics,0.0,50.0,float
+gravity_m_s2,9.81,Interior artificial gravity aboard the homestead; planet surfaces use each planet's own gravity from data/planets,physics,0.0,50.0,float
 terminal_velocity,55.0,Maximum fall speed in m/s,physics,10.0,200.0,float
