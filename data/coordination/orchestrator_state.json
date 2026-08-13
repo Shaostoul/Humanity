@@ -247,6 +247,11 @@
       "date": "2026-08-13",
       "decision": "v0.1120.0 shipped: the Planet Tuner (in-game planet editor, artificial-planet ladder item 3). Own tests caught 3 pre-ship defects: egui color-button float drift false-dirtying fields, ron_edit missing-field refusal blocking breathable/gravity_curve saves (added validated set_or_append), and syntactically-legal-RON garbage (bare identifiers) that would brick a planet file (added final parse-as-PlanetDef gate in the page). ALSO: git gc run for the operator (3648 loose objects packed). VPS OUTAGE ongoing: box fully dark since 12:10-13:48 UTC, traceroute dies at carrier handoff (null-route or node-down signature), last DB backup 8 PM prior night, waiting on operator to check Namecheap email + SolusVM panel. Deploy-to-VPS CI + the v0.1120.0 mirror step will stay red until the box returns; rerun the tag workflow mirror job then.",
       "why": "Operator: continue the backlog. Tuner was PRIORITIES next step. Next: F2 current-g readout line, then Agartha authoring (destination system + agartha.ron)."
+    },
+    {
+      "date": "2026-08-13",
+      "decision": "v0.1121.0 shipped: AGARTHA EXISTS as data (catalog entry type artificial, dev placement Sol 57 AU; agartha.ron with the hollow-shell gravity_curve; new canonical vantage agartha-marble-24000km renders clean at 30fps; divable ocean proven by the rig warm-up accidentally landing on its seafloor). F2 overlay live-gravity row shipped. The first Agartha capture exposed + fixed two real bugs: underwater tint/depth-HUD latching across teleports into space (reset moved unconditional) and the earth-only underwater gate (now any has_water world). VPS still down (Namecheap maintenance per operator); recovery watch armed (bash until-loop b3t14va85), on recovery: verify services, rerun Deploy-to-VPS + the v0.1120/v0.1121 tag mirror jobs.",
+      "why": "Operator asked what to work on during the outage; Agartha authoring was the ladder next step and is fully local. Remaining Agartha work: destination star system, arrival story, interiors (voxel-terrain arc). Palette taste-tuning deliberately left to the operator in the Planet Tuner."
     }
   ],
   "active_scopes_to_avoid": [
