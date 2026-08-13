@@ -52,14 +52,19 @@ fn styled_slider(
     let mut changed = false;
     ui.horizontal(|ui| {
         // Fixed-width label column so every slider track starts at the SAME x.
-        // The old 120px was too narrow for labels like "Settings Label Width" or
-        // "Button Padding H" — they overflowed and pushed their slider right (the
-        // "stepping" the operator flagged). 170px fits the longest, so all the
-        // tracks align into one clean column.
+        // Width alone is not enough: without pinning min == max, egui advances
+        // the cursor by only the label's TEXT width, so short labels pulled
+        // their track left and long ones pushed it right - the stair-stepping
+        // the operator flagged twice (second time specifically here in Widgets,
+        // which had this duplicate of the settings_row bug).
         ui.allocate_ui_with_layout(
             Vec2::new(170.0, ui.spacing().interact_size.y),
             egui::Layout::left_to_right(egui::Align::Center),
-            |ui| { ui.label(RichText::new(label).color(label_color)); },
+            |ui| {
+                ui.set_min_width(170.0);
+                ui.set_max_width(170.0);
+                ui.label(RichText::new(label).color(label_color));
+            },
         );
         let desired_width = ui.available_width().min(200.0);
         let widget_height = style.thumb_r * 2.0 + 4.0;
