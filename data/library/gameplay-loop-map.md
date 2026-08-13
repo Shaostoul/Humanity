@@ -197,8 +197,9 @@ do not exist.
 (they already share the container system's shape); the bay/zones brief
 (decision-briefs.md Brief 1) is the staging ground; ships become the T5
 vehicle class with interiors (the ship layout + BFS pathfinding code
-already exists); planets go from skybox to landable via the existing
-PlanetRegistry + heightmap pipeline that is written but unwired. Every T5
+already exists); planets go from skybox to landable via the real planet
+pipeline (PlanetDef in src/terrain/planet.rs + reload_planet_defs + the
+chunked-LOD terrain path that already renders Earth at true scale). Every T5
 increment should reuse a T1-T2 system in a new shell (a ship is a mobile
 homestead; life support is the SAME AtmosphereSystem).
 

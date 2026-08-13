@@ -30,6 +30,10 @@ pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
 // v0.199.0: Sol moved to the multi-system shape under data/star_systems/.
 // SOLAR_SYSTEM_JSON now points at the new file. See
 // docs/design/cosmos-architecture.md for the schema.
+// 2026-08-12 (artificial-planet increment 5): cosmos::sol_bodies() now loads
+// this DISK FIRST via read_data_or_embedded, so editing a mass or adding a
+// body is a data drop + restart, no rebuild. This embedded copy is the
+// fallback that keeps a bare portable exe working.
 pub const SOLAR_SYSTEM_JSON: &str = include_str!("../data/star_systems/sol.json");
 pub const STAR_SYSTEMS_INDEX_JSON: &str = include_str!("../data/star_systems/index.json");
 pub const SOLAR_SYSTEM_LEGACY_JSON: &str = include_str!("../data/solar-system.json");

@@ -23,6 +23,9 @@ pub mod ocean_mask;
 pub mod ocean_waves;
 pub mod terrain_tiles;
 pub mod planet_heightmap;
-pub mod planet_registry;
+// planet_registry was deleted 2026-08-12 (artificial-planet increment 5):
+// a circular-orbit registry that was never instantiated anywhere. The
+// canonical body catalog is src/cosmos.rs (Kepler, data-driven from
+// data/star_systems/sol.json); per-planet terrain defs are planet.rs.
 pub mod procedural_heightmap;
 pub mod planet_surface;

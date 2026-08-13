@@ -10,7 +10,9 @@ Planet(
         surface_gravity_m_s2: 9.81,
         escape_velocity_km_s: 11.19,
         age_billion_years: 4.543,
-        magnetic_field_tesla: 0.000025,
+        // Equatorial surface field; matches the canonical parsed value in
+        // data/star_systems/sol.json (magnetic_field_t = 3.05e-5 T).
+        magnetic_field_tesla: 0.0000305,
     ),
 
     core: (
