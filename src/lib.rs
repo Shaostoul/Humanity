@@ -5180,18 +5180,96 @@ mod native_app {
                         };
                     }
 
+                    // Per-body environment snapshot (artificial-planet increment 4):
+                    // publish which world the player is on so the ECS systems can
+                    // simulate THAT body instead of an Earth-global one.
+                    // WeatherSystem gates precipitation + retunes its temperature
+                    // baseline from it; AtmosphereSystem sets the outside air from
+                    // it (vacuum on the Moon, thin toxic CO2 on Mars); the survival
+                    // context below reads outside-the-hull breathability from it.
+                    // The frame-lock -> environment decision lives in
+                    // body_environment::environment_for_frame_lock (pure, unit
+                    // tested; review fix): no frame lock (the home station in
+                    // high Earth orbit, or deep space) keeps the Earth-home
+                    // DEFAULT so home farming and the home sky behave exactly as
+                    // before this increment (`locked: false` keeps outside the
+                    // hull a vacuum in space), while a locked body WITHOUT a
+                    // data/planets def publishes as an AIRLESS rock instead of
+                    // silently inheriting Earth's default (it used to rain on
+                    // Venus).
+                    {
+                        let body_id = state.frame_lock_body.as_deref();
+                        let def = body_id.and_then(|id| state.planet_defs.get(id));
+                        // Latitude straight from the frame-lock anchor: the
+                        // anchor is the camera position in the body's rotating
+                        // frame and bodies spin about +Y, so asin(y/r) is
+                        // spin-invariant latitude.
+                        let up = state.frame_lock_anchor.normalize_or_zero();
+                        let latitude_deg = up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+                        // Altitude for the temperature lapse + breathable
+                        // ceiling: height above the body's NOMINAL surface
+                        // radius (anchor.length() - def.radius). The anchor
+                        // sits on the drawn ground, so this INCLUDES terrain
+                        // elevation: a 4 km plateau reads ~4 km and the
+                        // mountain-cold lapse actually engages. The drawn-
+                        // ground readout (gui_state.surface_altitude_m) is
+                        // deliberately NOT used here (review fix): it measures
+                        // height above the ground under your feet, i.e. 0
+                        // whenever you stand anywhere, which silenced the
+                        // documented walking-up-a-mountain lapse entirely.
+                        // Slightly negative readings (sea floor, deep valleys)
+                        // are real; consumers clamp where needed. Def-less
+                        // bodies have no radius to measure against; 0 is inert
+                        // there (airless bodies have no lapse and are never
+                        // breathable).
+                        let altitude_m = def
+                            .map(|d| (state.frame_lock_anchor.length() - d.radius) as f32)
+                            .unwrap_or(0.0);
+                        // Catalog mean temperature; the <= 0.0 absent-field
+                        // sentinel is normalized inside the pure function.
+                        let catalog_mean_k = body_id
+                            .and_then(crate::cosmos::find_body)
+                            .map(|b| b.mean_temperature_k as f32);
+                        let env = crate::systems::body_environment::environment_for_frame_lock(
+                            body_id,
+                            def,
+                            catalog_mean_k,
+                            latitude_deg,
+                            altitude_m,
+                        );
+                        state.data_store.insert("body_environment", env);
+                    }
+
                     // Survival environment context: is the player inside the sealed
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?
                     // FoodSystem reads this to drive oxygen + body temperature.
                     {
                         // Exposed ambient temperature comes from the current weather
                         // (winter / storms make the outside deadlier); -40 fallback.
+                        // PLAYER-LOCAL field, not the body-global `temperature`
+                        // (review split): hypothermia is about where THIS body
+                        // stands (latitude, altitude, lunar night), while
+                        // farming climate and hydrology evaporation keep
+                        // reading the global reference. See the Weather struct
+                        // field docs for the full contract.
                         let exposed_temp = state
                             .data_store
                             .get::<std::sync::Mutex<Weather>>("weather")
                             .and_then(|m| m.lock().ok())
-                            .map(|w| w.temperature)
+                            .map(|w| w.temperature_at_player)
                             .unwrap_or(-40.0);
+                        // Outside the hull: breathable only when standing on a
+                        // frame-locked body whose air is breathable at this
+                        // altitude (increment 4). Open space and airless or
+                        // unbreathable worlds keep the vacuum drain (the
+                        // existing suit rules).
+                        let outside_breathable = state
+                            .data_store
+                            .get::<crate::systems::body_environment::BodyEnvironment>(
+                                "body_environment",
+                            )
+                            .map(|e| e.breathable_outside())
+                            .unwrap_or(false);
                         let pos = state.camera.position;
                         // Dev fly/travel (v0.791.x) is a cheat: while fly mode
                         // is on, the vacuum-outside-the-hull rule is suspended
@@ -5222,9 +5300,13 @@ mod native_app {
                                 }
                             }
                             Some(_) => crate::ecs::components::EnvironmentContext {
-                                // Outside the hull — vacuum + deep cold.
+                                // Outside the hull: unsealed, at the live weather's
+                                // ambient temperature. Breathable ONLY when standing
+                                // on a body whose open air supports it (Earth below
+                                // the death zone); space, the Moon, and Mars keep
+                                // the vacuum oxygen drain (increment 4).
                                 sealed: false,
-                                oxygenated: false,
+                                oxygenated: outside_breathable,
                                 ambient_temp_c: exposed_temp,
                             },
                             // Homestead not generated yet → assume safe.
@@ -13439,7 +13521,13 @@ mod native_app {
                         state.gui_state.weather = Some(GuiWeather {
                             intensity: w.intensity,
                             condition: format!("{:?}", w.condition),
-                            temperature: w.temperature,
+                            // The HUD thermometer shows the temperature AT THE
+                            // PLAYER (the same value the survival exposure path
+                            // uses), not the body-global simulation reference:
+                            // the readout and the hypothermia math must agree
+                            // on a mountain top or at lunar noon. Farming and
+                            // hydrology keep reading the global w.temperature.
+                            temperature: w.temperature_at_player,
                             wind_speed: w.wind_speed,
                             event: w.event_name.clone(),
                             warning: String::new(),

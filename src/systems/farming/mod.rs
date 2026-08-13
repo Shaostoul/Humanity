@@ -415,6 +415,12 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|gt| format!("{:?}", gt.season).to_lowercase())
             .unwrap_or_default();
+        // Deliberately the body-surface GLOBAL reference (w.temperature),
+        // NOT w.temperature_at_player: field crops share the body's
+        // climate and must not chill because the PLAYER climbed a
+        // mountain or flew to altitude (review split; the home station
+        // farms inside Earth's frame-lock envelope at ~400 km, where the
+        // positional altitude term would read arctic).
         let weather_temp = data
             .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
             .and_then(|m| m.lock().ok().map(|w| w.temperature))

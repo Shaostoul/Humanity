@@ -24,6 +24,7 @@ pub mod weather;
 pub mod weather_events;
 pub mod hydrology;
 pub mod atmosphere;
+pub mod body_environment;
 pub mod disasters;
 pub mod electrical;
 pub mod plumbing;

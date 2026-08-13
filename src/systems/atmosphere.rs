@@ -76,6 +76,28 @@ impl Atmosphere {
         }
     }
 
+    /// Create a thin, unbreathable CO2-dominated atmosphere (Mars-like).
+    /// Used for bodies that declare an atmosphere but are not flagged
+    /// breathable; per-body gas composition becomes data in a later
+    /// increment (see docs/design/artificial-planet.md gap list).
+    pub fn thin_unbreathable() -> Self {
+        let mut composition = HashMap::new();
+        composition.insert("CO2".to_string(), 95.0);
+        composition.insert("N2".to_string(), 2.7);
+        composition.insert("Ar".to_string(), 1.6);
+        Self {
+            composition,
+            pressure_atm: 0.01,
+            temperature_k: 210.0,
+            humidity: 0.0,
+            wind_speed: 0.0,
+            wind_direction: [1.0, 0.0, 0.0],
+            breathable: false,
+            toxic: true,
+            flammable: false,
+        }
+    }
+
     /// Get the percentage of a specific gas, defaulting to 0.
     pub fn gas_percent(&self, gas: &str) -> f32 {
         self.composition.get(gas).copied().unwrap_or(0.0)
@@ -346,6 +368,20 @@ impl System for AtmosphereSystem {
         let step_dt = self.elapsed;
         self.elapsed = 0.0;
 
+        // Per-body outside air (artificial-planet increment 4): the
+        // frame-locked body decides what is outside the hull. This is the
+        // production caller the alien-world hook below waited for: Earth
+        // stays breathable, Mars gets thin toxic CO2, airless bodies and
+        // open space are vacuum. An absent snapshot (unit tests, headless
+        // relay) keeps whatever was set, preserving the Earth-like default.
+        if let Some(env) = data
+            .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+        {
+            self.set_outside_atmosphere(
+                crate::systems::body_environment::outside_atmosphere_for(env),
+            );
+        }
+
         // Evaluate the outside atmosphere.
         Self::evaluate_atmosphere(&mut self.outside_atmosphere);
 
@@ -594,5 +630,39 @@ mod tests {
         for _ in 0..100 {
             system.tick(&mut world, 0.05, &data);
         }
+    }
+
+    /// Increment 4: the published body environment drives the outside
+    /// atmosphere. On the Moon the outside is vacuum; on Mars it is thin
+    /// unbreathable CO2; standing on Earth restores full breathable air.
+    #[test]
+    fn body_environment_sets_outside_atmosphere() {
+        use crate::ecs::systems::System;
+        use crate::systems::body_environment::BodyEnvironment;
+        let mut sys = AtmosphereSystem::new();
+        let mut world = hecs::World::new();
+        let mut data = DataStore::new();
+
+        // Frame-locked on the Moon: outside becomes vacuum.
+        data.insert("body_environment", BodyEnvironment::airless("moon", 220.0));
+        sys.tick(&mut world, 1.0, &data);
+        assert!(sys.outside_atmosphere.pressure_atm < 0.01, "Moon outside is vacuum");
+        assert!(!sys.outside_atmosphere.breathable);
+
+        // Mars: air exists but is thin and oxygen-free.
+        data.insert("body_environment", BodyEnvironment::dry_atmosphere("mars", 210.0));
+        sys.tick(&mut world, 1.0, &data);
+        assert!(sys.outside_atmosphere.pressure_atm > 0.0, "Mars has SOME air");
+        assert!(!sys.outside_atmosphere.breathable, "Mars air is not breathable");
+        assert!(sys.outside_atmosphere.toxic, "95% CO2 is toxic");
+
+        // Standing on Earth (locked + breathable): full air again.
+        let earth = BodyEnvironment {
+            locked: true,
+            ..Default::default()
+        };
+        data.insert("body_environment", earth);
+        sys.tick(&mut world, 1.0, &data);
+        assert!(sys.outside_atmosphere.breathable, "Earth outside is breathable");
     }
 }
