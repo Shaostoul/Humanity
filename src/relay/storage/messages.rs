@@ -41,11 +41,16 @@ impl Storage {
     /// Load recent messages (most recent `limit`, ordered oldest first).
     pub fn load_recent_messages(&self, limit: usize) -> Result<Vec<RelayMessage>, rusqlite::Error> {
         // Read-only: SELECT + query_map. Read pool.
+        // Includes federated_chat rows (2026-08-13, federation repair):
+        // store_federated_message has always persisted them "so they survive
+        // restarts", but this loader filtered to msg_type='chat' only, so a
+        // restart silently erased every federated line from history. The
+        // two-relay integration test asserts through this loader.
         self.with_read_conn(|conn| {
             let mut stmt = conn.prepare(
                 "SELECT raw_json FROM (
                     SELECT raw_json, id FROM messages
-                    WHERE msg_type = 'chat'
+                    WHERE msg_type IN ('chat', 'federated_chat')
                     ORDER BY id DESC
                     LIMIT ?1
                 ) sub ORDER BY id ASC"

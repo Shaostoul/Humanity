@@ -80,14 +80,11 @@ pub fn verify_profile_signature(
 /// Decide whether to accept an inbound `ProfileGossip` payload.
 /// Returns true when the gossip should be stored.
 ///
-/// Signed clients (non-empty `signature_hex`) MUST verify. A bad signature
-/// from a signed client is treated as forgery and rejected.
-///
-/// Unsigned clients (empty `signature_hex`) are accepted under the
-/// trust-by-source model: the gossip arrived over an authenticated
-/// federation link, so we trust the peer server's vetting until clients
-/// gain their own profile-signing path. When that lands, this gate flips
-/// to a hard reject for unsigned profiles.
+/// Every profile MUST carry a verifying Dilithium3 signature over the
+/// canonical preimage: profiles are self-certifying, so the transport
+/// (which peer relayed it) never has to be trusted for content. The old
+/// accept-unsigned "trust-by-source" grace period is over; clients have
+/// signed their profiles since the full-PQ cutover.
 #[allow(clippy::too_many_arguments)]
 pub fn should_accept_profile_gossip(
     public_key_hex: &str,
@@ -102,8 +99,12 @@ pub fn should_accept_profile_gossip(
     timestamp: u64,
     signature_hex: &str,
 ) -> bool {
+    // No signature, no cache write. The old fail-open here meant an empty
+    // signature was a skeleton key: any message shaped like gossip could
+    // overwrite any cached profile. A profile that cannot prove itself is
+    // simply not replicated (closed 2026-08-13, federation repair).
     if signature_hex.is_empty() {
-        return true;
+        return false;
     }
     verify_profile_signature(
         public_key_hex, name, bio, avatar_url, banner_url, socials,
@@ -119,8 +120,13 @@ pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_
     };
     let server_name = std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string());
 
-    // Sign the message for authenticity.
-    let sig_message = format!("{}\n{}\n{}", content, timestamp, channel);
+    // Sign the message for authenticity. Canonical preimage matches the
+    // receiving relay's verify exactly: "fed_chat\n{from}\n{channel}\n
+    // {content}\n{ts}" (domain-separated so a chat signature can never be
+    // replayed as any other message kind). The old code signed
+    // "{content}\n{ts}\n{channel}", the second of the three mismatches
+    // that kept federation dormant (repaired 2026-08-13).
+    let sig_message = format!("fed_chat\n{}\n{}\n{}\n{}", from_name, channel, content, timestamp);
     let signature = sign_with_server_key(&state.db, &sig_message);
 
     let federated_msg = RelayMessage::FederatedChat {
@@ -236,7 +242,17 @@ pub async fn federation_connect_loop(
                     .as_millis() as u64;
                 let (our_pk, _) = state.db.get_or_create_server_keypair().unwrap_or_default();
                 let our_name = std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string());
-                let sig = sign_with_server_key(&state.db, &timestamp.to_string()).unwrap_or_default();
+                // Domain-separated canonical preimage, matching what the
+                // receiving relay verifies: "fed_hello\n{server_id}\n{ts}".
+                // The old code signed just "{ts}" while the verifier checked
+                // "{ts}\n{ts}", so every hello ever sent was rejected: one of
+                // the three mismatches that kept federation dormant
+                // (repaired 2026-08-13).
+                let sig = sign_with_server_key(
+                    &state.db,
+                    &format!("fed_hello\n{}\n{}", our_pk, timestamp),
+                )
+                .unwrap_or_default();
 
                 let hello = RelayMessage::FederationHello {
                     server_id: our_pk.clone(),
@@ -269,214 +285,9 @@ pub async fn federation_connect_loop(
                     while let Some(Ok(msg)) = read.next().await {
                         if let TMessage::Text(text) = msg {
                             if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
-                                match relay_msg {
-                                    RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
-                                        // Only deliver to locally federated channels.
-                                        if state_for_read.db.is_channel_federated(&channel).unwrap_or(false) {
-                                            // Persist the federated message so it survives restarts.
-                                            let msg_json = serde_json::json!({
-                                                "type": "federated_chat",
-                                                "server_id": &server_id,
-                                                "server_name": &server_name,
-                                                "from_name": &from_name,
-                                                "content": &content,
-                                                "timestamp": timestamp,
-                                                "channel": &channel,
-                                            });
-                                            let _ = state_for_read.db.store_federated_message(
-                                                &channel,
-                                                &from_name,
-                                                &server_id,
-                                                &content,
-                                                timestamp,
-                                                &msg_json.to_string(),
-                                                &server_id,
-                                            );
-
-                                            let _ = state_for_read.broadcast_tx.send(RelayMessage::FederatedChat {
-                                                server_id, server_name, from_name, content, timestamp, channel, signature,
-                                            });
-                                        }
-                                    }
-                                    RelayMessage::FederationWelcome { server_id, name, channels } => {
-                                        tracing::info!("Federation: welcome from {} — channels: {:?}", name, channels);
-                                        let _ = state_for_read.db.update_federated_server_status(&server_id, "online");
-                                    }
-                                    // Profile gossip from federated server — cache if newer.
-                                    RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
-                                        // The Dilithium3 profile-signature verify inside
-                                        // should_accept_profile_gossip is CPU-bound; run it OFF the
-                                        // async worker pool so a gossip burst can't starve tokio.
-                                        // spawn_blocking closures must be 'static + Send, so clone
-                                        // the owned inputs in (they're reused below for storage).
-                                        // The accept/reject DECISION is UNCHANGED — only where the
-                                        // verify runs moves. A panicked/cancelled verify task fails
-                                        // closed (treated as `false` → reject), never as accept.
-                                        let accept = {
-                                            let pk = public_key.clone();
-                                            let nm = name.clone();
-                                            let bo = bio.clone();
-                                            let av = avatar_url.clone();
-                                            let bn = banner_url.clone();
-                                            let so = socials.clone();
-                                            let pr = pronouns.clone();
-                                            let lo = location.clone();
-                                            let we = website.clone();
-                                            let sg = signature.clone();
-                                            tokio::task::spawn_blocking(move || {
-                                                should_accept_profile_gossip(
-                                                    &pk, &nm, &bo, &av, &bn,
-                                                    &so, &pr, &lo, &we,
-                                                    timestamp, &sg,
-                                                )
-                                            })
-                                            .await
-                                            .unwrap_or(false)
-                                        };
-                                        if !accept {
-                                            tracing::warn!("Federation: rejecting profile gossip for {} — signature did not verify", &name);
-                                            continue;
-                                        }
-                                        tracing::debug!("Federation: received profile gossip for {}", &name);
-                                        let _ = state_for_read.db.store_signed_profile(
-                                            &public_key,
-                                            &name,
-                                            &bio,
-                                            &avatar_url,
-                                            &banner_url,
-                                            &socials,
-                                            &pronouns,
-                                            &location,
-                                            &website,
-                                            timestamp,
-                                            &signature,
-                                        );
-                                    }
-                                    // Generic post-quantum signed-object gossip (Phase 3 PR 1).
-                                    RelayMessage::SignedObjectGossip {
-                                        object_id, protocol_version, object_type,
-                                        space_id, channel_id, author_public_key_b64,
-                                        created_at, references, payload_schema_version,
-                                        payload_encoding, payload_b64, signature_b64,
-                                    } => {
-                                        let author_public_key = match B64.decode(&author_public_key_b64) {
-                                            Ok(b) => b,
-                                            Err(_) => {
-                                                tracing::warn!(
-                                                    "Federation: invalid base64 in author_public_key_b64 from {}",
-                                                    _sid_for_read
-                                                );
-                                                continue;
-                                            }
-                                        };
-                                        let payload = match B64.decode(&payload_b64) {
-                                            Ok(b) => b,
-                                            Err(_) => continue,
-                                        };
-                                        let signature = match B64.decode(&signature_b64) {
-                                            Ok(b) => b,
-                                            Err(_) => continue,
-                                        };
-
-                                        let object = Object {
-                                            protocol_version,
-                                            object_type: object_type.clone(),
-                                            space_id,
-                                            channel_id,
-                                            author_public_key,
-                                            created_at,
-                                            references,
-                                            payload_schema_version,
-                                            payload_encoding,
-                                            payload,
-                                            signature,
-                                        };
-
-                                        // Per-SOURCE inbound rate limit (audit 2026-06-12).
-                                        // Without this, one malicious peer sending us valid
-                                        // objects at line rate gets AMPLIFIED: each accepted
-                                        // object is re-gossiped to every OTHER peer, so N×rate
-                                        // outbound from 1×rate inbound. The outbound limiter is
-                                        // keyed by DESTINATION, so it doesn't stop a single
-                                        // source from saturating the relay. Cap how many objects
-                                        // we INGEST from a given source per second; over the cap,
-                                        // drop (don't store, don't re-emit). Reuses the existing
-                                        // federation_rate map with an `:inbound` key namespace.
-                                        {
-                                            const INBOUND_MAX_PER_SEC: usize = 50;
-                                            let allow = {
-                                                let mut rate = state_for_read.federation_rate.lock().unwrap();
-                                                // Bound the map (audit hunt 2026-06-12). federation_rate
-                                                // is the one shared rate map with no size cap; its keys
-                                                // (server_id, `:inbound`, `:obj`) are never removed. Peers
-                                                // are operator-curated so growth is bounded in practice,
-                                                // but drop keys idle past a generous window for symmetry
-                                                // with object_submit_rate / seen_auth_nonces.
-                                                const FED_RATE_MAP_CAP: usize = 10_000;
-                                                if rate.len() > FED_RATE_MAP_CAP {
-                                                    let cutoff = Instant::now();
-                                                    rate.retain(|_, times| {
-                                                        times.retain(|t| cutoff.duration_since(*t).as_secs() < 300);
-                                                        !times.is_empty()
-                                                    });
-                                                }
-                                                let times = rate
-                                                    .entry(format!("{}:inbound", _sid_for_read))
-                                                    .or_default();
-                                                let now = Instant::now();
-                                                times.retain(|t| now.duration_since(*t).as_secs() < 1);
-                                                if times.len() < INBOUND_MAX_PER_SEC {
-                                                    times.push(now);
-                                                    true
-                                                } else {
-                                                    false
-                                                }
-                                            };
-                                            if !allow {
-                                                tracing::warn!(
-                                                    "Federation: inbound gossip rate limit hit for source {} — dropping object {}",
-                                                    _sid_for_read, object_id
-                                                );
-                                                continue;
-                                            }
-                                        }
-
-                                        // put_signed_object verifies the Dilithium3 signature.
-                                        let source = Some(_sid_for_read.as_str());
-                                        match state_for_read.db.put_signed_object(&object, source) {
-                                            Ok(true) => {
-                                                tracing::debug!(
-                                                    "Federation: accepted {} object {} from {}",
-                                                    object_type, object_id, _sid_for_read
-                                                );
-                                                // Phase 3 PR 2: multi-hop gossip — re-emit to peers
-                                                // OTHER than the source. INSERT OR IGNORE on the
-                                                // receiving side breaks any cycles.
-                                                let state_for_gossip = state_for_read.clone();
-                                                let object_for_gossip = object.clone();
-                                                let exclude = _sid_for_read.clone();
-                                                tokio::spawn(async move {
-                                                    gossip_signed_object(
-                                                        &state_for_gossip,
-                                                        &object_for_gossip,
-                                                        Some(&exclude),
-                                                    )
-                                                    .await;
-                                                });
-                                            }
-                                            Ok(false) => {
-                                                // Already had this object — gossip convergence; do not re-emit.
-                                            }
-                                            Err(e) => {
-                                                tracing::warn!(
-                                                    "Federation: rejected {} object from {}: {}",
-                                                    object_type, _sid_for_read, e
-                                                );
-                                            }
-                                        }
-                                    }
-                                    _ => {} // Ignore other message types from federation.
-                                }
+                                // One shared handler for both federation
+                                // directions; see handle_peer_message.
+                                handle_peer_message(&state_for_read, &_sid_for_read, relay_msg).await;
                             }
                         }
                     }
@@ -510,6 +321,293 @@ pub async fn federation_connect_loop(
 }
 
 /// Broadcast federation status to all connected clients.
+/// Inbound federation peer lifecycle (2026-08-13 repair). A peer relay
+/// dials our /ws and sends FederationHello as its FIRST message; the
+/// identify gate hands the whole socket here and never treats it as a
+/// user. Order of operations: verify the hello (freshness + operator-
+/// granted trust tier + pinned-key signature), reply FederationWelcome ON
+/// THIS SOCKET (the old path sent it to local chat clients, so no
+/// handshake ever completed), register the connection so our own outbound
+/// forwards reach this peer, then pump messages through the same
+/// handle_peer_message the outbound direction uses. An unverified hello
+/// closes the socket without a reply: unknown callers learn nothing.
+pub async fn run_inbound_peer(
+    state: Arc<RelayState>,
+    mut ws_tx: futures::stream::SplitSink<axum::extract::ws::WebSocket, axum::extract::ws::Message>,
+    mut ws_rx: futures::stream::SplitStream<axum::extract::ws::WebSocket>,
+    server_id: String,
+    public_key: String,
+    name: String,
+    version: String,
+    timestamp: u64,
+    signature: String,
+) {
+    use axum::extract::ws::Message as AxMessage;
+    let Some(welcome) = crate::relay::handlers::msg_handlers::handle_federation_hello(
+        &state,
+        server_id.clone(),
+        public_key,
+        name.clone(),
+        version,
+        timestamp,
+        signature,
+    )
+    .await
+    else {
+        let _ = ws_tx.close().await;
+        return;
+    };
+    if let Ok(json) = serde_json::to_string(&welcome) {
+        if ws_tx.send(AxMessage::Text(json.into())).await.is_err() {
+            return;
+        }
+    }
+    // The hello only verifies for an operator-added row; read its real
+    // trust tier for the registration entry.
+    let trust_tier = state
+        .db
+        .list_federated_servers()
+        .ok()
+        .and_then(|list| {
+            list.into_iter()
+                .find(|s| s.server_id == server_id || s.url == server_id)
+                .map(|s| s.trust_tier)
+        })
+        .unwrap_or(2);
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    {
+        let mut conns = state.federation_connections.write().await;
+        conns.insert(
+            server_id.clone(),
+            FederatedConnection {
+                tx: tx.clone(),
+                server_id: server_id.clone(),
+                server_name: name.clone(),
+                trust_tier,
+                connected_at: Instant::now(),
+            },
+        );
+    }
+    broadcast_federation_status(&state).await;
+    tracing::info!("Federation: inbound peer {} ({}) connected", name, server_id);
+
+    // Write pump: everything forward_to_federation / gossip queues for this
+    // peer flows out over the socket THEY opened.
+    let write_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if ws_tx.send(AxMessage::Text(msg.into())).await.is_err() {
+                break;
+            }
+        }
+    });
+    // Read pump: same shared handler as the outbound direction.
+    let state_for_read = state.clone();
+    let sid_for_read = server_id.clone();
+    let read_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_rx.next().await {
+            if let AxMessage::Text(text) = msg {
+                if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
+                    handle_peer_message(&state_for_read, &sid_for_read, relay_msg).await;
+                }
+            }
+        }
+    });
+    tokio::select! {
+        _ = write_task => {}
+        _ = read_task => {}
+    }
+    {
+        let mut conns = state.federation_connections.write().await;
+        conns.remove(&server_id);
+    }
+    let _ = state.db.update_federated_server_status(&server_id, "offline");
+    broadcast_federation_status(&state).await;
+    tracing::info!("Federation: inbound peer {} disconnected", server_id);
+}
+
+/// Handle ONE message from an authenticated federation peer. Shared by the
+/// OUTBOUND read pump (we dialed them) and the INBOUND peer loop (they
+/// dialed us; see run_inbound_peer), so the two directions can never drift:
+/// factored 2026-08-13 during the federation repair, which found the
+/// outbound pump persisting federated chat WITHOUT signature verification
+/// while the verifying handler sat unreachable on the user-socket path.
+/// `source_server_id` is the identity the SOCKET authenticated as; messages
+/// claiming to be from a different server are dropped before any handler
+/// runs, so one compromised peer cannot speak in another peer's name.
+pub async fn handle_peer_message(
+    state: &Arc<RelayState>,
+    source_server_id: &str,
+    relay_msg: RelayMessage,
+) {
+    match relay_msg {
+        RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
+            if server_id != source_server_id {
+                tracing::warn!(
+                    "Federation: peer {} sent chat claiming server_id {} — dropped",
+                    source_server_id, server_id
+                );
+                return;
+            }
+            // Full verified path: freshness + trust tier + signature over the
+            // canonical preimage, then persist + broadcast.
+            crate::relay::handlers::msg_handlers::handle_federated_chat(
+                state, server_id, server_name, from_name, content, timestamp, channel, signature,
+            )
+            .await;
+        }
+        RelayMessage::FederationWelcome { server_id, name, channels } => {
+            tracing::info!("Federation: welcome from {} — channels: {:?}", name, channels);
+            let _ = state.db.update_federated_server_status(&server_id, "online");
+        }
+        // Profile gossip from a federated peer — cache if it verifies.
+        RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
+            // The Dilithium3 profile-signature verify inside
+            // should_accept_profile_gossip is CPU-bound; run it OFF the
+            // async worker pool so a gossip burst can't starve tokio.
+            // A panicked/cancelled verify task fails closed (reject).
+            let accept = {
+                let pk = public_key.clone();
+                let nm = name.clone();
+                let bo = bio.clone();
+                let av = avatar_url.clone();
+                let bn = banner_url.clone();
+                let so = socials.clone();
+                let pr = pronouns.clone();
+                let lo = location.clone();
+                let we = website.clone();
+                let sg = signature.clone();
+                tokio::task::spawn_blocking(move || {
+                    should_accept_profile_gossip(
+                        &pk, &nm, &bo, &av, &bn,
+                        &so, &pr, &lo, &we,
+                        timestamp, &sg,
+                    )
+                })
+                .await
+                .unwrap_or(false)
+            };
+            if !accept {
+                tracing::warn!("Federation: rejecting profile gossip for {} — signature did not verify", &name);
+                return;
+            }
+            tracing::debug!("Federation: received profile gossip for {}", &name);
+            let _ = state.db.store_signed_profile(
+                &public_key, &name, &bio, &avatar_url, &banner_url,
+                &socials, &pronouns, &location, &website, timestamp, &signature,
+            );
+        }
+        // Generic post-quantum signed-object gossip (Phase 3 PR 1).
+        RelayMessage::SignedObjectGossip {
+            object_id, protocol_version, object_type,
+            space_id, channel_id, author_public_key_b64,
+            created_at, references, payload_schema_version,
+            payload_encoding, payload_b64, signature_b64,
+        } => {
+            let author_public_key = match B64.decode(&author_public_key_b64) {
+                Ok(b) => b,
+                Err(_) => {
+                    tracing::warn!(
+                        "Federation: invalid base64 in author_public_key_b64 from {}",
+                        source_server_id
+                    );
+                    return;
+                }
+            };
+            let payload = match B64.decode(&payload_b64) {
+                Ok(b) => b,
+                Err(_) => return,
+            };
+            let signature = match B64.decode(&signature_b64) {
+                Ok(b) => b,
+                Err(_) => return,
+            };
+
+            let object = Object {
+                protocol_version,
+                object_type: object_type.clone(),
+                space_id,
+                channel_id,
+                author_public_key,
+                created_at,
+                references,
+                payload_schema_version,
+                payload_encoding,
+                payload,
+                signature,
+            };
+
+            // Per-SOURCE inbound rate limit (audit 2026-06-12): one peer
+            // sending valid objects at line rate would otherwise be
+            // AMPLIFIED N-fold by re-gossip to every other peer.
+            {
+                const INBOUND_MAX_PER_SEC: usize = 50;
+                let allow = {
+                    let mut rate = state.federation_rate.lock().unwrap();
+                    const FED_RATE_MAP_CAP: usize = 10_000;
+                    if rate.len() > FED_RATE_MAP_CAP {
+                        let cutoff = Instant::now();
+                        rate.retain(|_, times| {
+                            times.retain(|t| cutoff.duration_since(*t).as_secs() < 300);
+                            !times.is_empty()
+                        });
+                    }
+                    let times = rate
+                        .entry(format!("{}:inbound", source_server_id))
+                        .or_default();
+                    let now = Instant::now();
+                    times.retain(|t| now.duration_since(*t).as_secs() < 1);
+                    if times.len() < INBOUND_MAX_PER_SEC {
+                        times.push(now);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if !allow {
+                    tracing::warn!(
+                        "Federation: inbound gossip rate limit hit for source {} — dropping object {}",
+                        source_server_id, object_id
+                    );
+                    return;
+                }
+            }
+
+            // put_signed_object verifies the Dilithium3 signature.
+            match state.db.put_signed_object(&object, Some(source_server_id)) {
+                Ok(true) => {
+                    tracing::debug!(
+                        "Federation: accepted {} object {} from {}",
+                        object_type, object_id, source_server_id
+                    );
+                    // Phase 3 PR 2: multi-hop gossip — re-emit to peers OTHER
+                    // than the source. INSERT OR IGNORE breaks cycles.
+                    let state_for_gossip = state.clone();
+                    let object_for_gossip = object.clone();
+                    let exclude = source_server_id.to_string();
+                    tokio::spawn(async move {
+                        gossip_signed_object(
+                            &state_for_gossip,
+                            &object_for_gossip,
+                            Some(&exclude),
+                        )
+                        .await;
+                    });
+                }
+                Ok(false) => {
+                    // Already had this object — gossip convergence; do not re-emit.
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Federation: rejected {} object from {}: {}",
+                        object_type, source_server_id, e
+                    );
+                }
+            }
+        }
+        _ => {} // Ignore other message types from federation peers.
+    }
+}
+
 pub async fn broadcast_federation_status(state: &Arc<RelayState>) {
     let servers = state.db.list_federated_servers().unwrap_or_default();
     let connections = state.federation_connections.read().await;
@@ -752,10 +850,13 @@ mod tests {
     }
 
     #[test]
-    fn accept_admits_empty_signature() {
-        // Trust-by-source model: empty signature is admitted today.
+    fn accept_rejects_empty_signature() {
+        // The old trust-by-source model ADMITTED empty signatures, which
+        // made an empty string a skeleton key over every cached profile.
+        // Closed in the 2026-08-13 federation repair: no signature, no
+        // cache write, no exceptions.
         let (_sk, pk_hex) = fixture();
-        assert!(should_accept_profile_gossip(
+        assert!(!should_accept_profile_gossip(
             &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
             "pronouns", "location", "website", 1_700_000_000_000, "",
         ));

@@ -922,3 +922,60 @@ a friendly name. Status booleans must be earned by the event they claim,
 never pre-granted; and any network call reachable from the render thread
 must carry an explicit timeout, because the OS default is 21 seconds of
 frozen UI.
+
+## BUG-071: Federation was seven independent defects deep, each alone fatal (fixed v0.1123.0)
+
+Zero peers ever federated (live DB: 0 federation rows, ever). The 2026-08-12
+investigation found three defects; the repair found four more. The full set,
+each independently fatal to the handshake or the data flow:
+
+1. **The identify gate ate every inbound hello.** The pre-bind socket loop
+   accepted only Identify/IdentifyResponse; a peer relay's FederationHello
+   hit `_ => continue` and vanished. Fixed: a dedicated pre-bind arm hands
+   the socket to `federation::run_inbound_peer`, which authenticates by
+   server key + operator trust tier instead of the user challenge.
+2. **The welcome reply went to local chat clients.** `handle_federation_hello`
+   pushed FederationWelcome into `broadcast_tx` (the fan-out to signed-in
+   users) instead of the peer's socket. Fixed: the handler returns the
+   welcome; the peer loop sends it on the socket it owns.
+3. **Hello signature preimage mismatch.** Sender signed `"{ts}"`; verifier
+   checked `"{ts}\n{ts}"`. Fixed: canonical `"fed_hello\n{server_id}\n{ts}"`
+   both sides.
+4. **Fed-chat signature preimage mismatch.** Sender signed
+   `"{content}\n{ts}\n{channel}"`; verifier expected
+   `"fed_chat\n{from}\n{channel}\n{content}\n{ts}"`. Fixed: sender now
+   signs the verifier's canonical form.
+5. **A URL-added peer could never match a key-identified hello.**
+   /server-add files peers under their URL; a hello self-identifies by
+   public key; the lookup compared only id/url. Fixed: match by the pinned
+   public key too (pinned at add time by the server-info discovery fetch,
+   which channel-binds it to the URL the operator chose to trust).
+6. **Verify/persist split-brain.** The verifying chat handler only
+   broadcast (never persisted); the persisting path (outbound pump) never
+   verified. Fixed: one shared `handle_peer_message` for both directions,
+   calling the verifying handler, which now persists before broadcasting.
+7. **History erased federated lines on restart.** `load_recent_messages`
+   filtered `msg_type='chat'`, so the rows store_federated_message wrote
+   "to survive restarts" were never loaded again. Fixed: loader includes
+   federated_chat.
+
+Also closed in the same arc: empty-signature profile gossip was accepted
+(an empty string was a skeleton key over every cached profile; now no
+signature, no cache write) and user sockets could inject federation
+messages (hello/chat/gossip arms removed from the bound-user loop; those
+are server-to-server messages and arrive only on authenticated peer
+sockets).
+
+**Proof:** tests/federation_two_relays.rs boots two complete relays in one
+process on real localhost sockets and asserts the handshake completes
+through the identify gate, a signed chat line replicates and persists
+across servers, a Dilithium3-signed profile gossips across, and unsigned
+gossip is refused. The test's own development caught defects 6 and 7 live
+(green handshake, silent chat leg) plus a test-side check-that-cannot-fail
+(set_channel_federated returns Ok(false) on a missing row and .expect()
+swallowed it).
+
+**Lesson:** nothing about this code path had ever run end to end, and every
+layer had been "finished" separately. A feature whose halves are each
+tested but whose WHOLE has never executed once is not dormant, it is
+unbuilt; the two-relay test is now the definition of federation working.

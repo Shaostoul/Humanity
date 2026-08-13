@@ -212,6 +212,26 @@ pub fn validate_environment() -> (String, u16) {
 
 /// Run the relay server. Contains all startup logic from main().
 /// Call after initializing logging and validating the environment.
+/// Boot a relay on an explicit database + an already-bound listener, with
+/// no environment-variable coupling. `run_relay()` stays the env-driven
+/// production entry; this is the parameterized seam that lets one PROCESS
+/// host several relays: the two-relay federation integration test lives on
+/// it, and future embedded multi-node tooling can too. Returns the shared
+/// state; the axum serve task runs detached until the runtime drops.
+#[cfg(feature = "relay")]
+pub async fn serve_relay(
+    db: storage::Storage,
+    listener: tokio::net::TcpListener,
+) -> std::sync::Arc<relay::RelayState> {
+    let state = std::sync::Arc::new(relay::RelayState::new(db));
+    let router = build_router(state.clone());
+    let state_for_return = state.clone();
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, router).await;
+    });
+    state_for_return
+}
+
 pub async fn run_relay() {
     // Wire up logging FIRST (2026-08-12): the headless relay initialized no
     // tracing subscriber at all, so every tracing::info!/warn!/error! in the

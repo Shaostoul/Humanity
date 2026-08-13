@@ -2552,6 +2552,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             let (public_key, display_name, link_code, invite_code, kyber_public):
                 (String, Option<String>, Option<String>, Option<String>, Option<String>)
             = match parsed {
+                // A peer RELAY introducing itself (2026-08-13 repair): its
+                // proof is the server-key signature + operator-granted trust
+                // tier, verified inside run_inbound_peer, not the user
+                // identify challenge. The whole socket lifecycle moves there
+                // and this connection never binds as a user. Before this arm
+                // existed, the `_ => continue` below silently ate every
+                // inbound hello and federation could never complete a
+                // handshake.
+                Ok(RelayMessage::FederationHello { server_id, public_key, name, version, timestamp, signature }) => {
+                    crate::relay::handlers::federation::run_inbound_peer(
+                        state.clone(), ws_tx, ws_rx,
+                        server_id, public_key, name, version, timestamp, signature,
+                    ).await;
+                    return;
+                }
                 Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, kyber_public }) => {
                     // v0.279.0: per-source-IP identify rate limit. Sliding
                     // 60-second window, max 10 attempts per minute. Covers
@@ -6130,31 +6145,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::DeviceRevoke { key_prefix } => {
                                 handle_device_revoke(&state_clone, &my_key_for_recv, key_prefix).await;
                             }
-                            // ── Federation Phase 2: incoming federation messages ──
-                            RelayMessage::FederationHello { server_id, public_key, name, version, timestamp, signature } => {
-                                handle_federation_hello(&state_clone, &my_key_for_recv, server_id, public_key, name, version, timestamp, signature).await;
-                            }
-                            RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
-                                handle_federated_chat(&state_clone, server_id, server_name, from_name, content, timestamp, channel, signature).await;
-                            }
-                            RelayMessage::FederationWelcome { server_id, name, channels } => {
-                                handle_federation_welcome(&state_clone, server_id, name, channels).await;
-                            }
-                            // Profile gossip from a federated server connecting to us.
-                            RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
-                                if !crate::relay::handlers::federation::should_accept_profile_gossip(
-                                    &public_key, &name, &bio, &avatar_url, &banner_url,
-                                    &socials, &pronouns, &location, &website,
-                                    timestamp, &signature,
-                                ) {
-                                    tracing::warn!("Profile gossip rejected for {} via direct WS — signature did not verify", &name);
-                                    continue;
-                                }
-                                tracing::debug!("Profile gossip received for {} via direct WS", &name);
-                                let _ = state_clone.db.store_signed_profile(
-                                    &public_key, &name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, timestamp, &signature,
-                                );
-                            }
+                            // ── Federation messages do NOT belong on user sockets ──
+                            // Server-to-server traffic (hello, federated chat,
+                            // welcome, profile gossip) arrives on dedicated
+                            // federation-peer sockets, which authenticate with
+                            // the peer server's key BEFORE the identify gate
+                            // (see the FederationHello arm in the pre-bind
+                            // loop). Accepting these from a bound USER socket
+                            // let any signed-in client impersonate a server:
+                            // gossip could overwrite any cached profile, and
+                            // fake federated chat could be injected. Removed
+                            // 2026-08-13 (federation repair); the variants
+                            // fall through to the unhandled-type log below.
                             // ── Streaming ──
                             RelayMessage::StreamStart { title, category } => {
                                 handle_stream_start(&state_clone, &my_key_for_recv, title, category).await;

@@ -2496,31 +2496,62 @@ pub async fn handle_device_revoke(
 
 // ── Federation handlers ──
 
+/// Verify an inbound federation hello and, when it passes, return the
+/// FederationWelcome to send BACK ON THE PEER'S SOCKET. Returning it (rather
+/// than sending) is the 2026-08-13 repair: the old version pushed the
+/// welcome into `broadcast_tx`, the channel that fans out to local CHAT
+/// CLIENTS, so the peer relay never saw it and every handshake died half
+/// open. The caller (federation::run_inbound_peer) owns the socket and
+/// delivers the reply.
 pub async fn handle_federation_hello(
     state: &Arc<RelayState>,
-    my_key: &str,
     server_id: String,
     public_key: String,
     name: String,
     version: String,
     timestamp: u64,
     signature: String,
-) {
+) -> Option<crate::relay::relay::RelayMessage> {
     // Reject replays before doing any DB work. (Security audit 2026-05-03 H2.)
     if !crate::relay::handlers::broadcast::is_timestamp_fresh(timestamp) {
         tracing::warn!(
             "Federation: rejected hello from {} — timestamp outside ±5 min window (replay?)",
             server_id
         );
-        return;
+        return None;
     }
 
     if let Ok(servers) = state.db.list_federated_servers() {
-        if let Some(server) = servers.iter().find(|s| s.server_id == server_id || s.url == server_id) {
+        // Match by stored PUBLIC KEY as well as id/url (2026-08-13 repair,
+        // defect #6 of the arc): /server-add files a peer under its URL,
+        // while a hello introduces itself by its key, so the id/url compares
+        // alone could never match a first contact. The key lands on the row
+        // at add time via the /api/server-info discovery fetch, which also
+        // channel-binds it: the pinned key came from the very URL the
+        // operator chose to trust.
+        if let Some(server) = servers.iter().find(|s| {
+            s.server_id == server_id
+                || s.url == server_id
+                || s.public_key.as_deref() == Some(public_key.as_str())
+        }) {
             if server.trust_tier >= 2 {
                 let sig_valid = if let Some(ref stored_pk) = server.public_key {
-                    verify_ed25519_signature(stored_pk, &timestamp.to_string(), timestamp, &signature)
+                    // Canonical preimage "fed_hello\n{server_id}" with the
+                    // timestamp appended by the verify helper: exactly what
+                    // the sender now signs. (The old verifier checked
+                    // "{ts}\n{ts}" against a sender who signed "{ts}";
+                    // repaired 2026-08-13.)
+                    verify_ed25519_signature(
+                        stored_pk,
+                        &format!("fed_hello\n{}", server_id),
+                        timestamp,
+                        &signature,
+                    )
                 } else {
+                    // Trust-on-first-contact for the KEY only: the operator
+                    // already granted tier 2 to this server row by hand
+                    // (/server-trust); the first hello pins its public key,
+                    // and every later hello must verify against the pin.
                     let _ = state.db.update_federated_server_info(&server_id, &name, Some(&public_key), false);
                     true
                 };
@@ -2531,17 +2562,23 @@ pub async fn handle_federation_hello(
                         name: std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string()),
                         channels: fed_channels,
                     };
-                    let _ = state.broadcast_tx.send(welcome);
                     let _ = state.db.update_federated_server_status(&server_id, "online");
                     tracing::info!("Federation: accepted hello from {} ({})", name, server_id);
+                    return Some(welcome);
                 } else {
                     tracing::warn!("Federation: invalid signature from {}", server_id);
                 }
             } else {
                 tracing::warn!("Federation: rejected hello from {} — trust tier {} < 2", name, server.trust_tier);
             }
+        } else {
+            tracing::warn!(
+                "Federation: hello from unknown server {} — add it with /server-add and grant trust first",
+                server_id
+            );
         }
     }
+    None
 }
 
 pub async fn handle_federated_chat(
@@ -2569,8 +2606,16 @@ pub async fn handle_federated_chat(
         return;
     }
 
+    // In a FederatedChat the server_id field IS the sender's public key
+    // (forward_to_federation sets it from the keypair), while /server-add
+    // files peers under their URL; match by the pinned public_key too or a
+    // first-contact peer can never be found (defect #6, 2026-08-13 repair).
     let server = match state.db.list_federated_servers() {
-        Ok(list) => list.into_iter().find(|s| s.server_id == server_id || s.url == server_id),
+        Ok(list) => list.into_iter().find(|s| {
+            s.server_id == server_id
+                || s.url == server_id
+                || s.public_key.as_deref() == Some(server_id.as_str())
+        }),
         Err(_) => None,
     };
     let Some(server) = server else {
@@ -2601,6 +2646,29 @@ pub async fn handle_federated_chat(
     if !state.db.is_channel_federated(&channel).unwrap_or(false) {
         return;
     }
+    // Persist BEFORE broadcasting so the line survives a restart. This was
+    // the last split-brain of the federation repair (2026-08-13): the
+    // verifying handler only broadcast, while the persisting path (the old
+    // outbound pump) never verified; each direction had half the correct
+    // behavior and the two-relay test caught the union being empty.
+    let msg_json = serde_json::json!({
+        "type": "federated_chat",
+        "server_id": &server_id,
+        "server_name": &server_name,
+        "from_name": &from_name,
+        "content": &content,
+        "timestamp": timestamp,
+        "channel": &channel,
+    });
+    let _ = state.db.store_federated_message(
+        &channel,
+        &from_name,
+        &server_id,
+        &content,
+        timestamp,
+        &msg_json.to_string(),
+        &server_id,
+    );
     let federated_msg = RelayMessage::FederatedChat {
         server_id, server_name, from_name, content, timestamp, channel, signature,
     };

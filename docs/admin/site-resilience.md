@@ -28,7 +28,19 @@
   the torrent/WebSeed layer (docs/admin/torrent-infrastructure.md) and the
   second VPS are for.
 
-## Layer 2: Cloudflare free tier (OPERATOR SETUP, ~30 minutes)
+## Layer 2: Cloudflare free tier (DECLINED, operator decision 2026-08-13)
+
+> The operator declined this layer on principle: "I'm avoiding cloudflare.
+> I don't want that single point of failure." The answer to one company
+> being able to take the site down should not be a different company in
+> front of everything. The section below is KEPT for reference in case the
+> tradeoff is ever revisited; the chosen path instead is federation (both
+> relays replicate; the app's server picker fails over) plus the mirror,
+> with DNS diversity as a possible future step (moving united-humanity.us
+> DNS to a host independent of the VPS provider, e.g. DreamHost's free DNS,
+> so registrar-panel outages cannot block record changes mid-incident).
+
+### Reference: what the Cloudflare layer would have provided (~30 minutes)
 
 Why: today's outage was survivable by no DNS trick alone; Cloudflare's
 anycast DNS + edge cache means (a) DNS stops depending on Namecheap, (b)
