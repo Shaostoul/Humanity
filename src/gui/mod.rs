@@ -2464,6 +2464,12 @@ pub struct GuiState {
     /// checking (poll it once per frame in `draw_step_server`).
     #[allow(clippy::type_complexity)]
     pub server_check_rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    /// Chat history fetch result: (channel, body-or-error). Fetched on a
+    /// background thread with short timeouts because the old inline ureq
+    /// call had NO timeout and ran on the render thread: with the relay
+    /// unreachable it stalled every frame loop ~21 s per reconnect cycle
+    /// (the 2026-08-13 "app froze in chat" report).
+    pub history_rx: Option<std::sync::mpsc::Receiver<(String, Result<String, String>)>>,
     /// Human-readable error from the last failed reachability check (empty
     /// if the last check succeeded or none has run yet).
     pub server_check_error: String,
@@ -4519,6 +4525,7 @@ impl Default for GuiState {
             server_url: "https://united-humanity.us".to_string(),
             server_connected: false,
             server_check_rx: None,
+            history_rx: None,
             server_check_error: String::new(),
             user_name: "Player".to_string(),
             concept_tour_seen: false,

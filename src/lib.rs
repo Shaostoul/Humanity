@@ -14419,7 +14419,11 @@ mod native_app {
                     let mut ws_dropped = false;
                     if let Some(ref mut ws) = state.gui_state.ws_client {
                         let messages = ws.poll_messages();
-                        if !ws.is_connected() {
+                        // is_dropped, NOT !is_connected: a fresh spawn is
+                        // CONNECTING (neither), and tearing it down here used
+                        // to be impossible only because is_connected lied
+                        // optimistically (see LinkState in ws_client.rs).
+                        if ws.is_dropped() {
                             if !ws_dropped {
                                 crate::debug::push_debug("WS connection lost");
                             }
@@ -16367,105 +16371,10 @@ mod native_app {
                         }
                     }
 
-                    // ── Fetch channel history via HTTP after connecting ──
-                    if !state.gui_state.history_fetched
-                        && state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected())
-                        && !state.gui_state.server_url.is_empty()
-                    {
-                        state.gui_state.history_fetched = true;
-                        let base_url = state.gui_state.server_url.trim_end_matches('/').to_string();
-                        let channel = state.gui_state.chat_active_channel.clone();
-                        let api_url = format!("{}/api/messages?limit=50&channel={}", base_url, channel);
-                        match ureq::get(&api_url).call() {
-                            Ok(resp) => {
-                                if let Ok(body) = resp.into_string() {
-                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&body) {
-                                        if let Some(messages) = data.get("messages").and_then(|v| v.as_array()) {
-                                            let my_key = state.gui_state.profile_public_key.clone();
-                                            let mut fetched = 0usize;
-                                            let mut skipped = 0usize;
-                                            for msg in messages {
-                                                let sender_name = msg.get("sender_name")
-                                                    .or_else(|| msg.get("from_name"))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("Anonymous")
-                                                    .to_string();
-                                                let sender_key = msg.get("sender_key")
-                                                    .or_else(|| msg.get("from"))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
-                                                let content = msg.get("content")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
-                                                let timestamp = msg.get("timestamp")
-                                                    .and_then(|v| v.as_u64())
-                                                    .unwrap_or(0);
-                                                let ch = msg.get("channel")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("general")
-                                                    .to_string();
-                                                // Dedup: if this is a message WE sent that we already
-                                                // local-echoed, skip the server's copy (BUG-035 part 2).
-                                                // Match logic mirrors the WS broadcast dedup at line ~1139.
-                                                if !my_key.is_empty()
-                                                    && sender_key == my_key
-                                                    && state.gui_state.chat_sent_timestamps.contains(&timestamp)
-                                                {
-                                                    state.gui_state.chat_sent_timestamps.retain(|&t| t != timestamp);
-                                                    skipped += 1;
-                                                    continue;
-                                                }
-                                                // Robust content dedup (2026-05-20 fix): this fetch
-                                                // runs on EVERY reconnect (history_fetched resets on
-                                                // disconnect just below), so without checking the
-                                                // existing buffer it would re-append every message
-                                                // already on screen from the live broadcast — the
-                                                // duplication the operator saw. (sender_key,
-                                                // timestamp_ms) uniquely identifies a message; skip
-                                                // anything we already hold. The chat_sent_timestamps
-                                                // path above is a one-shot fast-path that this
-                                                // backstops.
-                                                if state.gui_state.chat_messages.iter()
-                                                    .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
-                                                {
-                                                    skipped += 1;
-                                                    continue;
-                                                }
-                                                state.gui_state.chat_messages.push(
-                                                    crate::gui::ChatMessage {
-                                                        sender_name,
-                                                        sender_key,
-                                                        content,
-                                                        timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
-                                                        timestamp_ms: timestamp,
-                                                        channel: ch,
-                                                        ..Default::default()
-                                                    },
-                                                );
-                                                fetched += 1;
-                                            }
-                                            log::info!(
-                                                "Fetched {} history messages for #{} (skipped {} local-echo dedup)",
-                                                fetched, channel, skipped
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log::warn!("Failed to fetch message history: {}", e);
-                            }
-                        }
-                    }
-
-                    // ── Reset history_fetched when disconnected so we re-fetch on reconnect ──
-                    if state.gui_state.ws_client.as_ref().map_or(true, |c| !c.is_connected()) {
-                        if state.gui_state.history_fetched {
-                            state.gui_state.history_fetched = false;
-                        }
-                    }
+                    // Chat history fetch + drain (background thread, short
+                    // timeouts; extracted with the 2026-08-13 freeze fix, see
+                    // net_route::chat_history_pump for the whole story).
+                    crate::engine::net_route::chat_history_pump(state);
 
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;

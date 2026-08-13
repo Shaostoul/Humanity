@@ -8,6 +8,23 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+/// The link's honest lifecycle. The old model was a single `connected: bool`
+/// initialized to TRUE "optimistically", which had two real consequences
+/// during the 2026-08-13 outage: the reconnect backoff reset itself on every
+/// spawn (so it retried forever at the minimum delay), and the history fetch
+/// fired on a socket that never opened, stalling the render thread ~21 s per
+/// cycle on the OS connect timeout: the operator's "app froze in chat"
+/// report. Three states make the truth expressible: a fresh spawn is
+/// CONNECTING (neither alive nor dead), only the network thread's
+/// __CONNECTED__ sentinel proves Connected, and only a failure/close proves
+/// Dropped.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum LinkState {
+    Connecting,
+    Connected,
+    Dropped,
+}
+
 /// A WebSocket client that talks to the relay server's chat protocol.
 ///
 /// Communication with the game thread is entirely through channels:
@@ -18,8 +35,8 @@ pub struct WsClient {
     sender: Option<mpsc::Sender<String>>,
     /// Receive raw JSON strings from the network thread.
     receiver: mpsc::Receiver<String>,
-    /// Whether the connection is alive.
-    connected: bool,
+    /// Honest link lifecycle; see LinkState.
+    state: LinkState,
     /// The relay server URL (e.g., "wss://united-humanity.us/ws").
     server_url: String,
     /// The user's display name (sent in the identify message).
@@ -55,7 +72,7 @@ impl WsClient {
         Self {
             sender: Some(tx_to_net),
             receiver: rx_from_net,
-            connected: true, // optimistic; we'll detect disconnection on poll
+            state: LinkState::Connecting,
             server_url: url.to_string(),
             user_name: name.to_string(),
             public_key: pubkey_hex.to_string(),
@@ -77,19 +94,20 @@ impl WsClient {
                 Ok(msg) => {
                     // A special disconnect sentinel
                     if msg == "__DISCONNECTED__" {
-                        self.connected = false;
+                        self.state = LinkState::Dropped;
                         continue;
                     }
                     // A special connected sentinel
                     if msg == "__CONNECTED__" {
-                        self.connected = true;
+                        self.state = LinkState::Connected;
                         continue;
                     }
                     msgs.push(msg);
                 }
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    self.connected = false;
+                    // Network thread gone entirely: dead either way.
+                    self.state = LinkState::Dropped;
                     break;
                 }
             }
@@ -97,15 +115,24 @@ impl WsClient {
         msgs
     }
 
-    /// Whether the WebSocket connection is believed to be alive.
+    /// TRUE only after the socket really opened (the __CONNECTED__ sentinel).
+    /// A fresh spawn returns false here: gate work that needs a live relay
+    /// (history fetch, backoff reset) on this, never on "the client exists".
     pub fn is_connected(&self) -> bool {
-        self.connected
+        self.state == LinkState::Connected
+    }
+
+    /// TRUE only when the link failed or closed. The teardown path gates on
+    /// THIS, not on !is_connected(), so a still-handshaking client is not
+    /// ripped down before it ever had a chance to open.
+    pub fn is_dropped(&self) -> bool {
+        self.state == LinkState::Dropped
     }
 
     /// Disconnect from the server.
     pub fn disconnect(&mut self) {
         self.sender = None;
-        self.connected = false;
+        self.state = LinkState::Dropped;
     }
 
     /// The server URL this client is connected/connecting to.
@@ -268,6 +295,63 @@ fn set_nonblocking(
         other => {
             // Fallback: try to get the inner stream for any other TLS variant
             log::warn!("WsClient: unhandled TLS stream variant {:?}, non-blocking not set", std::mem::discriminant(other));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The regression that froze the app (2026-08-13): a fresh spawn used to
+    /// report connected=true "optimistically", which reset the reconnect
+    /// backoff every cycle AND green-lit a no-timeout history fetch on the
+    /// render thread while the relay was dark. A listener that never accepts
+    /// the WebSocket handshake holds the client in CONNECTING: it must be
+    /// neither connected nor dropped.
+    #[test]
+    fn fresh_spawn_is_connecting_not_connected() {
+        // Bind but never accept: TCP opens, the WS upgrade never answers.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().unwrap().port();
+        let mut c = WsClient::connect(&format!("ws://127.0.0.1:{port}/ws"), "t", "00");
+        // Give the network thread a moment to spin up and start the dial.
+        std::thread::sleep(Duration::from_millis(200));
+        c.poll_messages();
+        assert!(
+            !c.is_connected(),
+            "a client whose handshake never completed must not claim Connected"
+        );
+        assert!(
+            !c.is_dropped(),
+            "still handshaking is not Dropped either; teardown would strand it"
+        );
+        drop(listener);
+    }
+
+    /// A dead port must resolve to DROPPED (never Connected): connection
+    /// refused is instant, so this also proves failures produce the sentinel
+    /// the teardown path now gates on.
+    #[test]
+    fn refused_connect_becomes_dropped_never_connected() {
+        // Grab a free port, then close the listener so the port is dead.
+        let port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+            l.local_addr().unwrap().port()
+        };
+        let mut c = WsClient::connect(&format!("ws://127.0.0.1:{port}/ws"), "t", "00");
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            c.poll_messages();
+            assert!(!c.is_connected(), "refused connect must never read Connected");
+            if c.is_dropped() {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "refused connect did not resolve to Dropped within 5s"
+            );
+            std::thread::sleep(Duration::from_millis(25));
         }
     }
 }

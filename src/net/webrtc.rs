@@ -505,7 +505,13 @@ impl WebrtcManager {
                 }
             };
 
-            log::info!("WebRTC: bound UDP {local_addr}, identity {}", &my_pubkey_hex);
+            // Identity truncated: the full Dilithium hex is ~5 KB and this
+            // line fires on every reconnect cycle; during the 2026-08-13
+            // outage it was most of a 318 KB run.log by itself.
+            log::info!(
+                "WebRTC: bound UDP {local_addr}, identity {}..",
+                &my_pubkey_hex[..my_pubkey_hex.len().min(16)]
+            );
             crate::debug::push_debug(format!("WebRTC bound UDP {local_addr}"));
 
             let mgr = WebrtcManager {

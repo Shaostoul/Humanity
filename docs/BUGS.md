@@ -878,3 +878,47 @@ it a matter of type-checking. The same reasoning kills the test flake for free -
 there is no shared mutable state left to fight over. And when the rounding of a
 shared quantity is duplicated, the duplicate IS the bug: one function, two
 callers.
+
+## BUG-070: Chat's "optimistic" connected flag froze the whole app during server outages (fixed v0.1122.0)
+
+**Report:** "the app froze while I was sitting inside of it watching the chat.
+I had to Alt+F4" (operator, 2026-08-13, during the Namecheap maintenance
+outage).
+
+**Root cause, one word wide:** `WsClient` initialized `connected: true` with
+the comment "optimistic; we'll detect disconnection on poll". That one lie
+had two independent consequences whenever the relay was unreachable:
+
+1. The reconnect backoff (5s doubling to 60s) NEVER engaged: the
+   reset-on-success block gated on `is_connected()`, which was true the
+   instant each attempt spawned, so attempts reset to zero every cycle and
+   the log showed "attempt 1" forever, every ~26 s.
+2. The channel-history fetch gated on the same lie and fired every cycle:
+   an inline `ureq::get().call()` with NO timeout ON THE RENDER THREAD.
+   With the host null-routed, each call blocked ~21 s on the OS connect
+   timeout (error 10060). Twenty-one-second freezes with five-second gaps
+   reads as "the app is frozen"; run.log stops mid-cycle at the moment of
+   the Alt+F4.
+
+**Fix (three layers, v0.1122.0):**
+- `LinkState { Connecting, Connected, Dropped }` replaces the bool: only
+  the network thread's `__CONNECTED__` sentinel proves Connected, only
+  failure/close proves Dropped, and the teardown path gates on
+  `is_dropped()` so a still-handshaking client is not ripped down early.
+- The history fetch moved to a background thread with real timeouts
+  (4 s connect / 8 s total), result drained non-blocking via a channel
+  (`net_route::chat_history_pump`). A 21 s render stall is now impossible
+  by construction, even against a slow-but-alive server.
+- The WebRTC bind log no longer dumps the full ~5 KB identity hex every
+  reconnect cycle (it was most of a 318 KB run.log by itself).
+
+**Falsifiable tests:** `ws_client::tests::fresh_spawn_is_connecting_not_connected`
+(a never-accepting listener holds the client in Connecting; the old code
+fails this instantly by claiming Connected) and
+`refused_connect_becomes_dropped_never_connected`.
+
+**Lesson:** an "optimistic" status flag is a check that cannot fail wearing
+a friendly name. Status booleans must be earned by the event they claim,
+never pre-granted; and any network call reachable from the render thread
+must carry an explicit timeout, because the OS default is 21 seconds of
+frozen UI.
