@@ -245,6 +245,13 @@ systemctl enable --now humanity-relay-watchdog.timer humanity-disk-guard.timer \
 [ -x /usr/local/bin/humanity-backup-db ] || \
   install -m 755 "$REPO/scripts/humanity-backup-db.sh" /usr/local/bin/humanity-backup-db
 systemctl start humanity-backup-db.service || true
+# Release-mirror manifest regenerator: the Build Desktop App workflow calls
+# this after every mirror upload, so its absence fails the tag build (learned
+# on v0.1118.0, the first tag after the rebuild: the original lived ONLY on
+# the old box). Installed unconditionally so provisioner runs refresh it.
+# Works HTTP-only; picks up torrents automatically if transmission returns.
+install -m 755 "$REPO/scripts/vps/regen-releases-manifest" \
+  /usr/local/bin/regen-releases-manifest
 
 # ── 11. Web root + nginx. Certs must exist before the TLS config loads, so:
 #        certbot standalone first (needs :80 free), then the real config. ─────

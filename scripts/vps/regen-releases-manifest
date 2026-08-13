@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+# regen-releases-manifest: rebuild /var/www/humanity/releases/manifest.json
+# from whatever is actually on disk, and (when transmission is installed)
+# seed any unseeded release bundles and attach magnet URIs.
+#
+# WHY THIS FILE LIVES IN THE REPO: the original copy of this script existed
+# only on the old VPS at /usr/local/bin and was lost in the 2026-08 rebuild;
+# the Build Desktop App workflow's "Regenerate manifest" step then failed on
+# every release (exit 127, file not found). Machine definition belongs in
+# scripts/provision-vps.sh, which now installs this file. Do not hand-edit
+# the copy on the box; edit here and re-run the provisioner (or scp it).
+#
+# DEGRADES GRACEFULLY WITHOUT TRANSMISSION (which is a deferred reinstatement
+# after the rebuild): phase 1 (seeding) is skipped when transmission-remote
+# is absent, phase 2 still writes a complete HTTP manifest. When transmission
+# returns, the next run picks up .torrent siblings and adds magnet fields
+# automatically; nothing else needs to change.
+#
+# Manifest shape is documented in docs/admin/torrent-infrastructure.md
+# ("How the manifest exposes torrents"): {"generated","base_url","releases":
+# [{"tag","assets":[{"name","size","url","magnet"?}]}]}, newest tag first.
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+
+RELEASES_DIR = "/var/www/humanity/releases"
+BASE_URL = "https://united-humanity.us/releases"
+MANIFEST_PATH = os.path.join(RELEASES_DIR, "manifest.json")
+
+
+def version_key(tag):
+    # v0.1118.0 -> (0, 1118, 0) so string sort cannot misorder v0.9 vs v0.10.
+    nums = re.findall(r"\d+", tag)
+    return tuple(int(n) for n in nums) if nums else (0,)
+
+
+def magnet_for(torrent_path):
+    # transmission-show -m prints the magnet URI for an existing .torrent.
+    # Any failure (no transmission, corrupt file) just means no magnet field.
+    show = shutil.which("transmission-show")
+    if not show:
+        return None
+    try:
+        out = subprocess.run(
+            [show, "-m", torrent_path],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()
+        return out if out.startswith("magnet:") else None
+    except Exception:
+        return None
+
+
+def seed_new_bundles():
+    # Phase 1: hand every .tar.gz that has no sibling .torrent to the
+    # torrent-create-and-seed helper. Both the helper and the daemon are
+    # part of the deferred transmission reinstatement, so absence is a
+    # normal, quiet skip rather than an error.
+    helper = "/usr/local/bin/torrent-create-and-seed"
+    if not (shutil.which("transmission-remote") and os.access(helper, os.X_OK)):
+        print("transmission not installed: skipping seed phase (HTTP-only manifest)")
+        return
+    for tag in os.listdir(RELEASES_DIR):
+        tag_dir = os.path.join(RELEASES_DIR, tag)
+        if not os.path.isdir(tag_dir):
+            continue
+        for name in os.listdir(tag_dir):
+            if name.endswith(".tar.gz") and not os.path.exists(
+                os.path.join(tag_dir, name + ".torrent")
+            ):
+                path = os.path.join(tag_dir, name)
+                print(f"seeding {tag}/{name}")
+                subprocess.run([helper, path], check=False)
+
+
+def build_manifest():
+    releases = []
+    tags = [
+        t for t in os.listdir(RELEASES_DIR)
+        if os.path.isdir(os.path.join(RELEASES_DIR, t))
+    ]
+    for tag in sorted(tags, key=version_key, reverse=True):
+        tag_dir = os.path.join(RELEASES_DIR, tag)
+        assets = []
+        for name in sorted(os.listdir(tag_dir)):
+            path = os.path.join(tag_dir, name)
+            if not os.path.isfile(path):
+                continue
+            asset = {
+                "name": name,
+                "size": os.path.getsize(path),
+                "url": f"{BASE_URL}/{tag}/{name}",
+            }
+            if name.endswith(".tar.gz"):
+                torrent = path + ".torrent"
+                if os.path.exists(torrent):
+                    magnet = magnet_for(torrent)
+                    if magnet:
+                        asset["magnet"] = magnet
+            assets.append(asset)
+        if assets:
+            releases.append({"tag": tag, "assets": assets})
+    return {
+        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "base_url": BASE_URL,
+        "releases": releases,
+    }
+
+
+def main():
+    if not os.path.isdir(RELEASES_DIR):
+        print(f"missing {RELEASES_DIR}", file=sys.stderr)
+        return 1
+    seed_new_bundles()
+    manifest = build_manifest()
+    # Write-then-rename so a reader never sees a half-written manifest.
+    fd, tmp = tempfile.mkstemp(dir=RELEASES_DIR, suffix=".manifest.tmp")
+    with os.fdopen(fd, "w") as f:
+        json.dump(manifest, f, indent=1)
+        f.write("\n")
+    os.replace(tmp, MANIFEST_PATH)
+    os.chmod(MANIFEST_PATH, 0o644)
+    n = sum(len(r["assets"]) for r in manifest["releases"])
+    print(f"manifest.json written: {len(manifest['releases'])} releases, {n} assets")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
