@@ -25,10 +25,17 @@
 //! Appending a MISSING field is out of scope for this increment: a missing
 //! field returns a clear error and the caller decides what to do.
 //!
-//! Pure std, no feature gate: compiles identically under `native` and
-//! `relay` (the relay never calls it, but keeping it ungated means
-//! `cargo check --features relay --no-default-features` proves it builds
-//! everywhere, matching how `terrain` and the other pure-data modules work).
+//! Corruption safety is layered (review fix, 2026-08-12): the replacement
+//! text is checked structurally AND parsed standalone as one RON value, and
+//! the fully spliced result is parsed again before it is returned, so no
+//! code path can hand back a file that no longer loads.
+//!
+//! Std plus the `ron` crate (for the validation parses); `ron` is an
+//! unconditional dependency of every feature set, so this module still
+//! compiles identically under `native` and `relay` (the relay never calls
+//! it, but keeping it ungated means `cargo check --features relay
+//! --no-default-features` proves it builds everywhere, matching how
+//! `terrain` and the other pure-data modules work).
 
 use std::fmt;
 
@@ -58,6 +65,23 @@ pub enum RonEditError {
     /// would swallow the following comma, several values instead of one).
     /// Rejecting here keeps a buggy tuner UI from destroying a data file.
     InvalidReplacement(&'static str),
+    /// The replacement text passed the structural scan but is not exactly
+    /// one parseable RON value per ron itself ("1.0 2.0", "not a number",
+    /// "x: 1" all land here). Carries ron's own parse message so a tuner
+    /// UI can show the user what the parser choked on.
+    NotOneRonValue(String),
+    /// The fully spliced RESULT no longer parses as RON. The replacement
+    /// validation is supposed to make this unreachable, but "supposed to"
+    /// is not a guarantee a data file should rest on: this variant exists
+    /// so NO code path can ever hand back a corrupt file. Carries ron's
+    /// parse message for diagnosis.
+    ResultUnparseable(String),
+    /// The text begins with a UTF-8 byte order mark (U+FEFF). RON tooling
+    /// never writes one; the usual culprit on this project is PowerShell's
+    /// Set-Content (a documented incident source, see the CLAUDE.md
+    /// gotchas). Named explicitly instead of falling out as the puzzling
+    /// generic NoStructBody so the tuner can show an actionable message.
+    LeadingBom,
 }
 
 impl fmt::Display for RonEditError {
@@ -80,6 +104,23 @@ impl fmt::Display for RonEditError {
             }
             RonEditError::InvalidReplacement(why) => {
                 write!(f, "replacement value rejected: {why}")
+            }
+            RonEditError::NotOneRonValue(why) => {
+                write!(f, "replacement is not exactly one RON value: {why}")
+            }
+            RonEditError::ResultUnparseable(why) => {
+                write!(
+                    f,
+                    "internal error: the rewritten file would not parse as RON \
+                     (nothing was written): {why}"
+                )
+            }
+            RonEditError::LeadingBom => {
+                write!(
+                    f,
+                    "file starts with a UTF-8 BOM (U+FEFF), most likely added by \
+                     PowerShell Set-Content; rewrite the file without a BOM"
+                )
             }
         }
     }
@@ -130,6 +171,18 @@ pub fn set_top_level_field(
     out.push_str(&ron_text[..span.value_start]);
     out.push_str(new_value);
     out.push_str(&ron_text[span.value_end..]);
+    // Belt and braces: the WHOLE result must still parse as RON before we
+    // hand it back. validate_replacement plus the span logic should make a
+    // failure here impossible, but this module's one job is "never corrupt
+    // a data file", so the promise is enforced at the exit, not assumed.
+    // ron::Value accepts every shape the shipped planet files use, bare
+    // Some/None included (they deserialize to ron::Value::Option; verified
+    // empirically against ron 0.8 and locked by the tests below). The parse
+    // cost is microseconds on files this size, and this runs only when a
+    // human moves a tuner slider, never per frame.
+    if let Err(e) = ron::from_str::<ron::Value>(&out) {
+        return Err(RonEditError::ResultUnparseable(e.to_string()));
+    }
     Ok(out)
 }
 
@@ -184,6 +237,15 @@ fn walk_top_level_fields(
     ron_text: &str,
     mut visit: impl FnMut(&str, FieldSpan) -> bool,
 ) -> Result<bool, RonEditError> {
+    // A UTF-8 BOM is invisible in most editors but is NOT whitespace to the
+    // scanner, so it used to fall out as the generic (and puzzling)
+    // NoStructBody. PowerShell's Set-Content adds one silently, and that is
+    // a documented incident source on this repo, so name the real problem
+    // up front. Every public entry point funnels through this walk, so one
+    // check covers them all.
+    if ron_text.starts_with('\u{feff}') {
+        return Err(RonEditError::LeadingBom);
+    }
     let mut s = Scanner::new(ron_text);
     s.skip_trivia()?;
     // RON allows an optional struct name before the parens
@@ -238,14 +300,29 @@ fn walk_top_level_fields(
 }
 
 /// Reject replacement text that would corrupt the file when spliced into a
-/// value span. The dangerous shapes, in order of how likely a buggy caller
-/// is to produce them:
+/// value span. TWO layers (the second added by review fix 2026-08-12: the
+/// scan alone accepted "1.0 2.0", "not a number", and "x: 1", all of which
+/// produced files that no longer parsed).
+///
+/// Layer 1, structural scan: catches the shapes whose danger is CONTEXTUAL,
+/// meaning they can be fine standalone yet still break the file at the
+/// splice point, and gives each a precise message:
 /// - unbalanced delimiters (half a tuple): the file stops parsing;
 /// - a depth-0 comma (two values): silently injects an extra field slot;
 /// - a line comment: the splice puts the file's own ',' AFTER the '//', so
 ///   the comment swallows the comma and the file stops parsing. Block
 ///   comments are fine because they self-terminate.
 /// - empty / all-whitespace: nothing to write.
+///
+/// Layer 2, real parse: the text must be exactly ONE RON value per
+/// `ron::from_str::<ron::Value>`. The scan cannot know that "1.0 2.0" is
+/// two numbers or that "x: 1" is a field pair; the real parser can. ron 0.8
+/// parses every legitimate shape the tuner writes, including bare `None`
+/// and `Some(...)` (they deserialize to `ron::Value::Option` directly, no
+/// wrapping needed; verified empirically and locked by tests). Note this
+/// validates PARSEABILITY only, not the field's expected type: a wrong
+/// type still leaves a loadable file and surfaces as a clear deserialize
+/// error at the next reload, which is the caller's problem to present.
 fn validate_replacement(new_value: &str) -> Result<(), RonEditError> {
     let mut s = Scanner::new(new_value);
     let mut depth: usize = 0;
@@ -315,6 +392,10 @@ fn validate_replacement(new_value: &str) -> Result<(), RonEditError> {
     }
     if !saw_code {
         return Err(RonEditError::InvalidReplacement("empty replacement value"));
+    }
+    // Layer 2: the text must actually BE one RON value (see the doc above).
+    if let Err(e) = ron::from_str::<ron::Value>(new_value) {
+        return Err(RonEditError::NotOneRonValue(e.to_string()));
     }
     Ok(())
 }
@@ -613,8 +694,8 @@ mod tests {
     }
 
     /// Every pure comment line of `original`, trimmed. Used to assert (c):
-    /// a rewrite may only touch one value span, so every comment line must
-    /// reappear verbatim in the result.
+    /// a rewrite may only touch value spans, so the whole-line comment
+    /// sequence must survive exactly.
     fn comment_lines(text: &str) -> Vec<&str> {
         text.lines()
             .map(|l| l.trim())
@@ -622,12 +703,43 @@ mod tests {
             .collect()
     }
 
-    fn assert_comments_preserved(original: &str, rewritten: &str) {
-        let after = comment_lines(rewritten);
-        for line in comment_lines(original) {
+    /// Assert (c), strictly (review fix 2026-08-12: the old version only
+    /// checked membership via Vec::contains, so duplication, reordering, or
+    /// count changes passed, and trailing same-line comments were never
+    /// checked at all). `replaced` is the set of value spans the rewrite was
+    /// allowed to touch, in ORIGINAL-text byte offsets.
+    ///
+    /// 1. The SEQUENCE of whole-line comments must be exactly equal: order,
+    ///    count, and duplicates all matter.
+    /// 2. Every same-line `//` comment whose `//` sits OUTSIDE all replaced
+    ///    spans must reappear verbatim. The comparison is the comment text
+    ///    from `//` to end of line, NOT the whole line, because the line's
+    ///    value part legally changes when the comment trails the rewritten
+    ///    field (`gravity: 9.81, // baseline` becomes
+    ///    `gravity: 3.71, // baseline`). A `//` inside a string literal is
+    ///    treated as a comment start here, which is harmless for an
+    ///    assertion: untouched fields are byte-identical anyway (proven by
+    ///    assert_other_fields_identical), so that text reappears too.
+    fn assert_comments_preserved(original: &str, rewritten: &str, replaced: &[FieldSpan]) {
+        assert_eq!(
+            comment_lines(original),
+            comment_lines(rewritten),
+            "whole-line comment sequence changed"
+        );
+        for (at, _) in original.match_indices("//") {
+            let inside_replaced = replaced
+                .iter()
+                .any(|s| at >= s.value_start && at < s.value_end);
+            if inside_replaced {
+                // Comments inside a replaced value go WITH the value; they
+                // documented data that no longer exists.
+                continue;
+            }
+            let line_end = original[at..].find('\n').map_or(original.len(), |n| at + n);
+            let comment = &original[at..line_end];
             assert!(
-                after.contains(&line),
-                "comment line lost by rewrite: {line}"
+                rewritten.contains(comment),
+                "same-line comment lost by rewrite: {comment:?}"
             );
         }
     }
@@ -661,6 +773,11 @@ mod tests {
     /// (c) comments preserved, (d) other fields byte identical.
     fn rewrite_earth_and_check(field: &str, new_value: &str) -> PlanetDef {
         let original = earth_text();
+        // The ORIGINAL span of the field being replaced: the comment
+        // invariant needs it to know which `//` occurrences were allowed to
+        // disappear (only those inside the replaced value).
+        let orig_span =
+            get_top_level_field_span(&original, field).expect("field must exist in earth.ron");
         let rewritten =
             set_top_level_field(&original, field, new_value).expect("rewrite must succeed");
         // (b) round-trip: locating the field in the REWRITTEN text yields
@@ -668,7 +785,7 @@ mod tests {
         let span = get_top_level_field_span(&rewritten, field).expect("field must still exist");
         assert_eq!(span.slice(&rewritten), new_value, "value did not round-trip");
         // (c) + (d)
-        assert_comments_preserved(&original, &rewritten);
+        assert_comments_preserved(&original, &rewritten, &[orig_span]);
         assert_other_fields_identical(&original, &rewritten, field);
         // (a)
         parse_planet(&rewritten)
@@ -723,6 +840,15 @@ mod tests {
     #[test]
     fn earth_chained_rewrites_accumulate() {
         let original = earth_text();
+        let changed = ["gravity", "sea_level", "cloud_coverage", "atmosphere_color", "heightmap"];
+        // All five spans measured against the ORIGINAL text: value spans of
+        // later fields shift during the chain, but comment text outside all
+        // ORIGINAL spans is never rewritten (only displaced), so original
+        // coordinates are the right frame for the comment invariant.
+        let spans: Vec<FieldSpan> = changed
+            .iter()
+            .map(|f| get_top_level_field_span(&original, f).expect("field must exist"))
+            .collect();
         let mut text = original.clone();
         text = set_top_level_field(&text, "gravity", "19.62").unwrap();
         text = set_top_level_field(&text, "sea_level", "0.7").unwrap();
@@ -735,7 +861,7 @@ mod tests {
         assert_eq!(def.cloud_coverage, Some(0.9));
         assert_eq!(def.atmosphere_color, Some([1.0, 0.5, 0.2, 0.8]));
         assert_eq!(def.heightmap, None);
-        assert_comments_preserved(&original, &text);
+        assert_comments_preserved(&original, &text, &spans);
     }
 
     /// Structural (not value-brittle) span checks on the live file, so the
@@ -778,15 +904,24 @@ mod tests {
 
     /// A field name that is a strict prefix of another: matching must be on
     /// the WHOLE identifier. earth.ron has noise_frequency; here we add the
-    /// hypothetical bare `noise` next to it.
+    /// hypothetical bare `noise` next to it. The LONGER name is declared
+    /// FIRST on purpose (review fix 2026-08-12): that is the real earth.ron
+    /// layout, and it is the ordering that catches a prefix-matching bug. A
+    /// `starts_with` mutant walking a shorter-name-first fixture happens to
+    /// reach the right field before the trap and passes by luck; with the
+    /// longer name first, matching "noise" via starts_with fires on
+    /// noise_frequency and the assertions below fail.
     #[test]
     fn prefix_field_names_never_cross_match() {
-        let text = "(\n    noise: 1.0,\n    noise_frequency: 2.2,\n)\n";
+        let text = "(\n    noise_frequency: 2.2,\n    noise: 1.0,\n)\n";
 
+        // Direction 1: rewriting the SHORT name must not touch the longer
+        // field that precedes it.
         let set_noise = set_top_level_field(text, "noise", "5.5").unwrap();
         assert!(set_noise.contains("noise: 5.5,"), "{set_noise}");
         assert!(set_noise.contains("noise_frequency: 2.2,"), "{set_noise}");
 
+        // Direction 2: rewriting the LONGER name must not touch the short one.
         let set_freq = set_top_level_field(text, "noise_frequency", "7.25").unwrap();
         assert!(set_freq.contains("noise: 1.0,"), "{set_freq}");
         assert!(set_freq.contains("noise_frequency: 7.25,"), "{set_freq}");
@@ -1021,6 +1156,103 @@ mod tests {
         assert!(ok.contains("gravity: /* 2x earth radius, 1 g */ 9.81,"));
     }
 
+    /// The three review counterexamples (2026-08-12): each passed the
+    /// structural scan (balanced, no depth-0 comma, no line comment) yet
+    /// produced a file that no longer parsed. The standalone ron::Value
+    /// parse of the replacement must reject all three.
+    #[test]
+    fn non_value_replacements_are_rejected() {
+        let text = "(\n    gravity: 9.81,\n)\n";
+        for bad in ["1.0 2.0", "not a number", "x: 1"] {
+            match set_top_level_field(text, "gravity", bad) {
+                Err(RonEditError::NotOneRonValue(_)) => {}
+                other => panic!("{bad:?} must be rejected as NotOneRonValue, got {other:?}"),
+            }
+        }
+    }
+
+    /// Every legitimate value shape the tuner writes must still pass BOTH
+    /// new validation layers (parse-the-value and parse-the-result). This
+    /// is the acceptance half of the review fix: rejecting garbage is easy;
+    /// the risk of adding a real parser to the validator is false rejects.
+    #[test]
+    fn legitimate_value_shapes_are_accepted() {
+        let text = "(\n    field_a: 1.0,\n)\n";
+        for good in [
+            "3.71",                                 // bare scalar
+            "-400000.0",                            // negative scalar
+            "true",                                 // bool
+            "\"planets/test_heightmap.bin\"",       // string
+            "(0.2, 0.3, 0.9, 0.6)",                 // bare tuple
+            "Some(0.77)",                           // Option scalar
+            "Some((0.2, 0.3, 0.9, 0.6))",           // Option tuple
+            "Some(\"planets/test_heightmap.bin\")", // Option string
+            "None",                                 // bare None
+            // multi-line Some([...]) array of tuples, the gravity_curve shape
+            "Some([\n        (0.0, 4.9),\n        (100000.0, 2.0),\n    ])",
+        ] {
+            let out = set_top_level_field(text, "field_a", good)
+                .unwrap_or_else(|e| panic!("{good:?} must be accepted, got: {e}"));
+            // And the accepted value round-trips exactly.
+            let span = get_top_level_field_span(&out, "field_a").unwrap();
+            assert_eq!(span.slice(&out), good);
+        }
+        // A block comment riding along with the value is also accepted, but
+        // it cannot round-trip through the SPAN: the walker deliberately
+        // lands value_start PAST leading trivia (that is how `x: /* c */ 5`
+        // keeps its comment across rewrites), so relocating the field sees
+        // only the code part. Assert the splice itself and the span shape.
+        let good = "/* why: tuned live */ 9.81";
+        let out = set_top_level_field(text, "field_a", good)
+            .unwrap_or_else(|e| panic!("{good:?} must be accepted, got: {e}"));
+        assert!(out.contains("field_a: /* why: tuned live */ 9.81"), "{out}");
+        let span = get_top_level_field_span(&out, "field_a").unwrap();
+        assert_eq!(span.slice(&out), "9.81");
+    }
+
+    /// The post-splice whole-file parse is the last-resort guard. A file
+    /// with garbage AFTER the struct body walks fine (the walker never
+    /// looks past the closing paren), so a valid replacement splices
+    /// "successfully" into a file that still does not parse; the guard must
+    /// refuse to return it. This is the one honest way to reach the guard
+    /// today, which is exactly what belt-and-braces means: the layers in
+    /// front are supposed to make it unreachable, and this proves the
+    /// backstop fires anyway when they miss.
+    #[test]
+    fn post_splice_guard_refuses_an_unparseable_result() {
+        let text = "(gravity: 9.81) trailing garbage";
+        match set_top_level_field(text, "gravity", "1.0") {
+            Err(RonEditError::ResultUnparseable(_)) => {}
+            other => panic!("expected ResultUnparseable, got {other:?}"),
+        }
+    }
+
+    /// A UTF-8 BOM (PowerShell Set-Content's signature, a documented
+    /// incident source on this repo) must surface as its own named error
+    /// with an actionable message, not the generic NoStructBody.
+    #[test]
+    fn utf8_bom_is_named_explicitly() {
+        let text = "\u{feff}(\n    gravity: 9.81,\n)\n";
+        assert_eq!(
+            get_top_level_field_span(text, "gravity"),
+            Err(RonEditError::LeadingBom)
+        );
+        assert_eq!(
+            set_top_level_field(text, "gravity", "1.0"),
+            Err(RonEditError::LeadingBom)
+        );
+        assert_eq!(top_level_fields(text), Err(RonEditError::LeadingBom));
+        // The message names both the BOM and the likely culprit, so the
+        // eventual tuner surfaces something a person can act on.
+        let msg = RonEditError::LeadingBom.to_string();
+        assert!(msg.contains("BOM"), "{msg}");
+        assert!(msg.contains("Set-Content"), "{msg}");
+        // Without the BOM the same text works, proving the BOM is the only
+        // thing being rejected.
+        let clean = text.strip_prefix('\u{feff}').unwrap();
+        assert!(set_top_level_field(clean, "gravity", "1.0").is_ok());
+    }
+
     /// Escaped quotes inside strings must not end the string early: the
     /// text after a `\"` is still string content, so a `,` there cannot
     /// terminate the value.
@@ -1035,14 +1267,31 @@ mod tests {
     }
 
     /// The other shipped planet files must walk cleanly too: the tuner will
-    /// open whichever body is frame-locked, not just Earth.
+    /// open whichever body is frame-locked, not just Earth. The roster is
+    /// enumerated OFF DISK, never hardcoded (review fix 2026-08-12 plus the
+    /// infinite-of-x rule): a fifth planet file gets coverage the moment it
+    /// ships, with no test edit to remember.
     #[test]
     fn all_shipped_planet_files_walk() {
-        for id in ["earth", "moon", "mars", "pluto"] {
-            let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join(format!("data/planets/{id}.ron"));
-            let text = std::fs::read_to_string(&p)
-                .unwrap_or_else(|e| panic!("{} must be readable ({e})", p.display()));
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/planets");
+        let entries = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("{} must be listable ({e})", dir.display()));
+        let mut planet_count = 0usize;
+        for entry in entries {
+            let path = entry.expect("dir entry must be readable").path();
+            // Only the .ron planet defs count; the folder also carries .bin
+            // heightmap/albedo payloads and tooltips.json.
+            if path.extension().and_then(|e| e.to_str()) != Some("ron") {
+                continue;
+            }
+            planet_count += 1;
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("<non-utf8 name>")
+                .to_string();
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{} must be readable ({e})", path.display()));
             let fields = top_level_fields(&text)
                 .unwrap_or_else(|e| panic!("{id}.ron did not walk: {e}"));
             assert!(!fields.is_empty(), "{id}.ron walked to zero fields");
@@ -1051,5 +1300,13 @@ mod tests {
             assert!(names.contains(&"radius"), "{id}.ron has no radius field");
             assert!(names.contains(&"gravity"), "{id}.ron has no gravity field");
         }
+        // Guard the guard: a missing or emptied directory must FAIL, not
+        // vacuously pass with zero files walked. Four bodies ship today
+        // (earth, moon, mars, pluto); planets only ever get added.
+        assert!(
+            planet_count >= 4,
+            "only {planet_count} planet .ron files found in {}",
+            dir.display()
+        );
     }
 }
