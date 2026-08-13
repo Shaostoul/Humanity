@@ -412,12 +412,23 @@ pub fn collapsible_section(ui: &mut Ui, title: &str, default_open: bool, add_con
 }
 
 /// Aligned settings row: fixed-width label on left, control on right.
+///
+/// The label column is pinned to `settings_label_width` with BOTH min and max
+/// width (operator, 2026-08-12: "align the settings, they're still stair
+/// stepping"). Without the min, egui advances the cursor by only the label's
+/// text width, so a short label ("FOV") pulls its slider left and a long one
+/// pushes it right, and every control starts at a different x. With min == max,
+/// every control starts at the same x no matter the label, and a label longer
+/// than the column WRAPS inside it instead of shoving the control sideways.
+/// `horizontal_top` so a wrapped two-line label keeps the control at the top.
 pub fn settings_row(ui: &mut Ui, theme: &Theme, label: &str, add_control: impl FnOnce(&mut Ui)) {
-    ui.horizontal(|ui| {
+    ui.horizontal_top(|ui| {
         ui.allocate_ui_with_layout(
             Vec2::new(theme.settings_label_width, ui.spacing().interact_size.y),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
+                ui.set_min_width(theme.settings_label_width);
+                ui.set_max_width(theme.settings_label_width);
                 ui.label(RichText::new(label).color(theme.text_secondary()));
             },
         );
