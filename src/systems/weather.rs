@@ -37,8 +37,27 @@ pub struct Weather {
     pub wind_speed: f32,
     /// Normalized wind direction vector.
     pub wind_direction: Vec3,
-    /// Temperature in Celsius.
+    /// Temperature in Celsius: the BODY-SURFACE GLOBAL reference for
+    /// the whole frame-locked body (Earth = the calibrated seasonal
+    /// table exactly; other bodies = catalog mean + the body-wide
+    /// day/night swing). Body-scale simulations read THIS field:
+    /// farming climate (systems/farming) and hydrology evaporation.
+    /// It never carries a player-positional term (review split): the
+    /// home station sits inside Earth's frame-lock envelope at ~400 km,
+    /// and a positional altitude lapse here would have dragged the
+    /// station's global climate arctic and wrongly punished farming
+    /// aboard. Player-local temperature lives in `temperature_at_player`.
     pub temperature: f32,
+    /// Temperature in Celsius AT THE PLAYER: `temperature` plus the
+    /// latitude + altitude delta of where the player actually stands
+    /// (walking up a mountain cools this one; the global field never
+    /// moves). Player-body consumers read THIS field: the survival
+    /// exposure path (hypothermia outside the hull, lib.rs environment
+    /// context) and the HUD thermometer. Recomputed at export time each
+    /// tick; WeatherSystem does not simulate it internally because the
+    /// positional delta must not fight the 30 s transition lerps.
+    #[serde(default)]
+    pub temperature_at_player: f32,
     /// Relative humidity (0.0-1.0).
     pub humidity: f32,
     /// Visibility factor (0.0 = blind, 1.0 = clear).
@@ -64,6 +83,9 @@ impl Default for Weather {
             wind_speed: 2.0,
             wind_direction: Vec3::new(1.0, 0.0, 0.0).normalize(),
             temperature: 20.0,
+            // Matches `temperature` at rest: with no positional delta
+            // published yet, the player's local reading IS the global one.
+            temperature_at_player: 20.0,
             humidity: 0.4,
             visibility: 1.0,
             transition_timer: 0.0,
@@ -531,20 +553,35 @@ impl System for WeatherSystem {
             }
         }
 
-        // Export the current weather to the DataStore so the survival environment
-        // (the exposed ambient temperature) and the HUD read it. Interior mutability
-        // via a Mutex (the TimeSystem/game_time pattern) since tick only gets &DataStore.
-        // Front-event gusts ride the EXPORT only, so the internal lerp
-        // targets stay clean and event wind vanishes with the event.
-        // The positional temperature delta (latitude, altitude, day/night;
-        // increment 4) ALSO rides the export only: it tracks the player's
-        // position instantly, while the internal value keeps ramping the
-        // body baseline + condition offsets through transitions. It is
-        // exactly 0.0 for the default Earth home environment.
+        // Export the current weather to the DataStore. Interior mutability
+        // via a Mutex (the TimeSystem/game_time pattern) since tick only gets
+        // &DataStore. Front-event gusts ride the EXPORT only, so the internal
+        // lerp targets stay clean and event wind vanishes with the event.
+        //
+        // TEMPERATURE SPLITS IN TWO AT EXPORT (review fix; see the Weather
+        // struct field docs):
+        //  - `temperature` is the BODY-SURFACE GLOBAL reference: the ramped
+        //    baseline (Earth's calibrated table / another body's catalog
+        //    mean) + condition offsets + the body-wide day/night swing (one
+        //    game clock, so the swing is global in this v1 model; zero on
+        //    Earth, whose table already carries its day cycle). Farming
+        //    climate and hydrology evaporation read this. It must NEVER
+        //    carry a player-positional term: the 400 km home station lives
+        //    inside Earth's frame-lock envelope, and the altitude lapse
+        //    would have turned its global climate arctic and punished
+        //    farming aboard.
+        //  - `temperature_at_player` = global + the latitude/altitude delta
+        //    of where the player stands. The survival exposure path
+        //    (hypothermia) and the HUD thermometer read this. Riding the
+        //    export only means it tracks the player instantly while the
+        //    internal value keeps ramping through transitions; the delta is
+        //    exactly 0.0 for the default Earth home environment.
         if let Some(slot) = data.get::<std::sync::Mutex<Weather>>("weather") {
             if let Ok(mut w) = slot.lock() {
                 *w = self.weather.clone();
                 w.temperature = self.weather.temperature
+                    + body_environment::diurnal_swing_c(&self.env, hour);
+                w.temperature_at_player = w.temperature
                     + body_environment::positional_temp_offset_c(&self.env, season, hour);
                 w.wind_speed += self.active_gust_mps * EVENT_GUST_EXPORT;
             }
@@ -678,6 +715,10 @@ mod tests {
             .clone();
         assert_eq!(exported.condition, sys.weather().condition);
         assert!((exported.temperature - sys.weather().temperature).abs() < 1e-6);
+        // Home-default contract (review split): with no positional delta
+        // published, the player-local reading IS the global one, so the
+        // temperature split changes nothing at the home station.
+        assert!((exported.temperature_at_player - exported.temperature).abs() < 1e-6);
     }
 
     #[test]
@@ -695,12 +736,49 @@ mod tests {
     /// produces ANY weather. Forced rolls across every season come back
     /// Clear, and the wind/humidity targets settle to zero. This is the
     /// "it can rain on the Moon" audit finding, closed.
+    ///
+    /// Review fix (a check that could not fail): the first version of
+    /// this test had NO WeatherEventRegistry in its DataStore, so the
+    /// event branch could never fire regardless of the body gate and the
+    /// event_id assertion was vacuous. Now the store carries a real
+    /// registry with one ALWAYS-eligible event (every season, any
+    /// temperature, any wind), so ONLY the body gate stands between it
+    /// and firing, and the Earth control arm at the bottom proves the
+    /// same registry genuinely fires where the body allows it. Red-green
+    /// proven: removing the body gate on the event roll makes the moon
+    /// arm fail on "event fired on airless body".
     #[test]
     fn no_weather_at_all_on_airless_bodies() {
         use crate::systems::body_environment::BodyEnvironment;
+        use crate::systems::weather_events::{
+            CloudOverride, Hazard, Range, WeatherEvent, WeatherEventRegistry, WindProfile,
+        };
         let mut data = DataStore::new();
         data.insert("weather", std::sync::Mutex::new(Weather::default()));
         data.insert("body_environment", BodyEnvironment::airless("moon", 220.0));
+        data.insert(
+            "weather_event_registry",
+            WeatherEventRegistry {
+                events: vec![WeatherEvent {
+                    id: "test_always_eligible".to_string(),
+                    name: "Test Always Eligible".to_string(),
+                    seasons: vec![
+                        "Spring".to_string(),
+                        "Summer".to_string(),
+                        "Autumn".to_string(),
+                        "Winter".to_string(),
+                    ],
+                    temp_c: Range { min: -1000.0, max: 1000.0 },
+                    wind_mps: Range { min: 0.0, max: 1000.0 },
+                    rarity_weight: 1.0,
+                    duration_s: Range { min: 60.0, max: 120.0 },
+                    wind_profile: WindProfile::None,
+                    emitters: vec!["rain".to_string()],
+                    cloud: CloudOverride { coverage_boost: 0.0, tint: (1.0, 1.0, 1.0) },
+                    hazard: Hazard { damage_per_s: 0.0, radius_m: 0.0 },
+                }],
+            },
+        );
         let mut world = hecs::World::new();
         let mut sys = WeatherSystem::new();
         // Force a weather-change roll every tick, across long simulated time.
@@ -723,6 +801,25 @@ mod tests {
         assert!(sys.weather().wind_speed.abs() < 0.01, "no air = no wind");
         assert!(sys.weather().humidity.abs() < 0.01, "no air = no humidity");
         assert!((sys.weather().visibility - 1.0).abs() < 0.01);
+
+        // CONTROL ARM: the exact same registry fires on a body that CAN
+        // host events (the Earth home default), proving the moon arm's
+        // silence above came from the body gate and not from a registry
+        // that never loaded (the vacuous-check failure mode this review
+        // fix closes). 200 forced rolls at the 35% fire chance make a
+        // false failure astronomically rare (0.65^200).
+        data.insert("body_environment", BodyEnvironment::default());
+        let mut earth_sys = WeatherSystem::new();
+        let mut fired = false;
+        for _ in 0..200 {
+            earth_sys.event_roll_timer = 0.0;
+            earth_sys.tick(&mut world, 1.0, &data);
+            if !earth_sys.weather().event_id.is_empty() {
+                fired = true;
+                break;
+            }
+        }
+        assert!(fired, "control arm: the always-eligible event never fired on Earth");
     }
 
     /// Increment 4: a body with air but no surface water (Mars) never

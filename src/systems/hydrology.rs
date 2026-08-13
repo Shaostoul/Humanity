@@ -222,6 +222,11 @@ impl HydrologySystem {
             }
 
             // -- Temperature: nudge toward ambient (from weather) --
+            // Deliberately the body-surface GLOBAL reference
+            // (weather.temperature), NOT temperature_at_player: water
+            // bodies live on the body, not at the player's feet, so
+            // evaporation must not track the player's personal latitude
+            // or altitude (review split).
             let ambient_k = weather.temperature + 273.15;
             let temp_diff = ambient_k - body.temperature_k;
             // Water temperature changes slowly.

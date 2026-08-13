@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use crate::systems::atmosphere::Atmosphere;
 use crate::systems::time::Season;
 use crate::systems::weather::WeatherCondition;
+use crate::terrain::planet::PlanetDef;
 
 /// The latitude (degrees) where Earth's calibrated seasonal table applies
 /// exactly. The old global table was written for a temperate mid-latitude
@@ -99,8 +100,16 @@ pub struct BodyEnvironment {
     /// Player latitude on the body, degrees (+north). Spin-invariant
     /// because bodies spin about +Y.
     pub latitude_deg: f32,
-    /// Player altitude above the drawn surface (or the nominal sphere
-    /// when no surface band is engaged), meters.
+    /// Player altitude above the body's NOMINAL surface radius
+    /// (anchor.length() - def.radius), meters. The frame-lock anchor
+    /// sits on the drawn ground, so this INCLUDES terrain elevation: a
+    /// 4 km plateau reads ~4000 and the mountain lapse engages. It is
+    /// deliberately NOT the drawn-ground readout
+    /// (gui_state.surface_altitude_m), which is height above the ground
+    /// under your feet and therefore 0 whenever you stand anywhere,
+    /// which silenced the lapse entirely (review fix). May be slightly
+    /// negative below the nominal sphere (sea floor, deep valleys);
+    /// consumers clamp where needed.
     pub altitude_m: f32,
 }
 
@@ -229,10 +238,21 @@ pub fn surface_temperature_c(env: &BodyEnvironment, season: Season, hour: f32) -
         t -= LAPSE_RATE_C_PER_KM * alt_km;
     }
 
-    // Day/night swing: without an atmosphere the surface bakes in
-    // sunlight and radiates to near-nothing in the dark. Earth's own
-    // diurnal cycle is already folded into its calibrated table, so it
-    // gets none here (keeping the zero-regression promise).
+    // Day/night swing: body-wide, not positional (see diurnal_swing_c).
+    t + diurnal_swing_c(env, hour)
+}
+
+/// The body-wide day/night temperature swing (Celsius) at this game
+/// hour. GLOBAL, not player-positional: game time is a single clock in
+/// this v1 model, so the whole body warms and cools together
+/// (per-longitude local solar time is a later increment). Without an
+/// atmosphere the surface bakes in sunlight and radiates to
+/// near-nothing in the dark (the real Moon spans roughly 250 K); thin
+/// atmospheres swing moderately; Earth gets zero because its calibrated
+/// seasonal table already stands in for its daily variation (the
+/// zero-regression promise). Because it is global, this term rides the
+/// GLOBAL weather temperature export, never the positional delta.
+pub fn diurnal_swing_c(env: &BodyEnvironment, hour: f32) -> f32 {
     let swing = if !env.has_atmosphere {
         AIRLESS_DIURNAL_SWING_C
     } else if env.body_id == "earth" {
@@ -240,21 +260,88 @@ pub fn surface_temperature_c(env: &BodyEnvironment, season: Season, hour: f32) -
     } else {
         THIN_AIR_DIURNAL_SWING_C
     };
-    if swing > 0.0 {
-        let phase = ((hour - DIURNAL_PEAK_HOUR) / 24.0) * std::f32::consts::TAU;
-        t += swing * phase.cos();
+    if swing <= 0.0 {
+        return 0.0;
     }
-    t
+    let phase = ((hour - DIURNAL_PEAK_HOUR) / 24.0) * std::f32::consts::TAU;
+    swing * phase.cos()
 }
 
-/// The instant, position-dependent part of the model: full temperature
-/// minus the body baseline. WeatherSystem ramps the BASELINE through its
-/// normal 30 s transitions (plus condition offsets and variance) and adds
-/// this delta at export time, so walking up a mountain or the Moon's
-/// day/night cycle track the player immediately without fighting the
-/// transition machinery. Exactly 0.0 for the default home environment.
+/// The PLAYER-POSITIONAL part of the model ONLY: the latitude gradient
+/// plus the altitude lapse, i.e. the full temperature minus everything
+/// body-global (the baseline the weather sim ramps AND the day/night
+/// swing). WeatherSystem adds this delta to `temperature_at_player` at
+/// export time, so walking up a mountain tracks the player immediately
+/// without fighting the transition machinery. The GLOBAL
+/// `Weather.temperature` field that farming climate and hydrology
+/// evaporation read never carries it (review split: the home station
+/// sits inside Earth's frame-lock envelope at ~400 km, and letting the
+/// altitude lapse into the global field would have dragged the whole
+/// station's climate arctic and wrongly punished farming aboard).
+/// Exactly 0.0 for the default home environment (Earth at the
+/// reference latitude, sea level).
 pub fn positional_temp_offset_c(env: &BodyEnvironment, season: Season, hour: f32) -> f32 {
-    surface_temperature_c(env, season, hour) - body_baseline_temp_c(env, season)
+    surface_temperature_c(env, season, hour)
+        - body_baseline_temp_c(env, season)
+        - diurnal_swing_c(env, hour)
+}
+
+/// Decide the BodyEnvironment to publish for the current frame lock.
+/// Pure so it unit-tests directly (review fix); lib.rs only gathers the
+/// inputs (frame-lock id, PlanetDef lookup, catalog temperature, anchor
+/// latitude/altitude) and publishes the result.
+///
+/// - `body_id` None (deep space, or the home frame with the station in
+///   high Earth orbit): the Earth-home DEFAULT, exactly the
+///   pre-increment behavior, so home farming, the home sky, and every
+///   existing test are untouched (`locked: false` keeps outside the
+///   hull a vacuum).
+/// - Locked to a body WITH a data/planets RON def: that def decides
+///   atmosphere / water / breathability.
+/// - Locked to a body WITHOUT a def (most of the ~65 catalog bodies:
+///   venus, titan, io, ceres, ...): an AIRLESS, waterless, unbreathable
+///   environment. Most def-less bodies really are airless rocks, and
+///   the exceptions (Venus, Titan) are far better mis-modeled as
+///   airless until they get def files than handed what the old code
+///   fell back to: the Earth-home default, which could RAIN on Venus.
+///
+/// `catalog_mean_k` is the cosmos catalog's `mean_temperature_k`. The
+/// catalog loader defaults an ABSENT field to 0.0 (17 bodies today),
+/// and 0 K is that sentinel, not a temperature: treat <= 0.0 as unknown
+/// and fall back to the same 288 K an unknown body id gets (review
+/// fix).
+pub fn environment_for_frame_lock(
+    body_id: Option<&str>,
+    def: Option<&PlanetDef>,
+    catalog_mean_k: Option<f32>,
+    latitude_deg: f32,
+    altitude_m: f32,
+) -> BodyEnvironment {
+    let Some(id) = body_id else {
+        return BodyEnvironment::default();
+    };
+    // The <= 0.0 guard is the whole FIX: without it a missing catalog
+    // field reads as 0 K and drags the temperature model to absolute
+    // zero instead of the honest "unknown" fallback.
+    let mean_temperature_k = catalog_mean_k.filter(|k| *k > 0.0).unwrap_or(288.0);
+    match def {
+        Some(def) => BodyEnvironment {
+            body_id: id.to_string(),
+            locked: true,
+            has_atmosphere: def.atmosphere_color.is_some(),
+            has_water: def.has_water,
+            breathable: def.breathable,
+            mean_temperature_k,
+            latitude_deg,
+            altitude_m,
+        },
+        // Def-less catalog body: airless rock posture (see doc above).
+        None => BodyEnvironment {
+            latitude_deg,
+            altitude_m,
+            ..BodyEnvironment::airless(id, mean_temperature_k)
+        },
+    }
 }
 
 /// Clamp a rolled weather condition to what this body can physically
@@ -443,6 +530,97 @@ mod tests {
         let m = outside_atmosphere_for(&mars);
         assert!(m.pressure_atm < 0.1);
         assert!(m.gas_percent("O2") < 1.0);
+    }
+
+    /// Review fix: the frame-lock -> environment mapping. A def-less
+    /// catalog body publishes as an airless rock, never as the Earth
+    /// default (the "it can rain on Venus" hole), and the catalog's 0.0
+    /// absent-temperature sentinel falls back like an unknown id.
+    #[test]
+    fn frame_lock_mapping_covers_defless_bodies_and_bad_catalog_temps() {
+        // No frame lock: the Earth-home default, exactly (home farming
+        // and the home sky depend on this arm staying bit-identical).
+        let home = environment_for_frame_lock(None, None, None, 12.0, 500.0);
+        assert!(!home.locked, "home frame is not locked to a body");
+        assert_eq!(home.body_id, "earth");
+        assert!(home.has_atmosphere && home.has_water && home.breathable);
+
+        // Locked to a catalog body with NO data/planets def (venus,
+        // titan, io, ceres...): AIRLESS + waterless + unbreathable.
+        let venus = environment_for_frame_lock(Some("venus"), None, Some(737.0), -30.0, 0.0);
+        assert_eq!(venus.body_id, "venus");
+        assert!(venus.locked);
+        assert!(!venus.has_atmosphere, "def-less body must not inherit Earth air");
+        assert!(!venus.has_water, "def-less body must not inherit Earth water");
+        assert!(!venus.breathable);
+        assert_eq!(venus.mean_temperature_k, 737.0);
+        assert_eq!(venus.latitude_deg, -30.0);
+        // And therefore no weather at all can be rolled there.
+        assert_eq!(sanitize_condition(WeatherCondition::Rain, &venus), WeatherCondition::Clear);
+
+        // Locked to a body WITH a def: the def decides everything.
+        let def: PlanetDef = ron::from_str(
+            r#"(
+                name: "Testworld",
+                radius: 6371000.0,
+                gravity: 9.81,
+                terrain_seed: 1,
+                ore_seed: 1,
+                atmosphere_color: Some((0.5, 0.7, 1.0, 1.0)),
+                has_water: true,
+                breathable: true,
+            )"#,
+        )
+        .expect("minimal PlanetDef parses");
+        let world =
+            environment_for_frame_lock(Some("testworld"), Some(&def), Some(300.0), 10.0, 2000.0);
+        assert!(world.locked && world.has_atmosphere && world.has_water && world.breathable);
+        assert_eq!(world.mean_temperature_k, 300.0);
+        assert_eq!(world.altitude_m, 2000.0);
+
+        // The catalog's 0.0 absent-field sentinel is treated as unknown:
+        // same 288 K fallback as an id the catalog does not know at all.
+        let sentinel = environment_for_frame_lock(Some("mystery_rock"), None, Some(0.0), 0.0, 0.0);
+        assert_eq!(sentinel.mean_temperature_k, 288.0, "0.0 sentinel must not be a temperature");
+        let missing = environment_for_frame_lock(Some("mystery_rock"), None, None, 0.0, 0.0);
+        assert_eq!(missing.mean_temperature_k, 288.0);
+        // A real (if extreme) catalog value passes through untouched.
+        let pluto = environment_for_frame_lock(Some("pluto"), None, Some(44.0), 0.0, 0.0);
+        assert_eq!(pluto.mean_temperature_k, 44.0);
+    }
+
+    /// Review fix: the positional offset carries ONLY latitude +
+    /// altitude. The day/night swing is body-global (one game clock)
+    /// and rides the global temperature export instead, so farming on
+    /// an airless body still sees the swing while never seeing the
+    /// player's personal altitude.
+    #[test]
+    fn positional_offset_excludes_the_diurnal_swing() {
+        let moon = BodyEnvironment::airless("moon", 220.0);
+        // Hour-invariant: noon and midnight give the same positional delta.
+        let noon = positional_temp_offset_c(&moon, Season::Summer, DIURNAL_PEAK_HOUR);
+        let midnight = positional_temp_offset_c(&moon, Season::Summer, DIURNAL_PEAK_HOUR + 12.0);
+        assert!(
+            (noon - midnight).abs() < 1e-4,
+            "day/night swing leaked into the positional delta: {noon} vs {midnight}"
+        );
+        // The swing itself is alive, global, and large on airless bodies.
+        let day = diurnal_swing_c(&moon, DIURNAL_PEAK_HOUR);
+        let night = diurnal_swing_c(&moon, DIURNAL_PEAK_HOUR + 12.0);
+        assert!(day - night > 200.0, "airless swing should exceed 200 C, got {}", day - night);
+        // Earth's calibrated table already carries its day cycle: zero swing.
+        assert_eq!(diurnal_swing_c(&BodyEnvironment::default(), 3.0), 0.0);
+        assert_eq!(diurnal_swing_c(&BodyEnvironment::default(), 14.0), 0.0);
+        // Decomposition is lossless: baseline + swing + positional
+        // reconstructs the full model at any position and hour.
+        let mut high = moon.clone();
+        high.latitude_deg = 60.0;
+        high.altitude_m = 3000.0;
+        let full = surface_temperature_c(&high, Season::Summer, 5.0);
+        let rebuilt = body_baseline_temp_c(&high, Season::Summer)
+            + diurnal_swing_c(&high, 5.0)
+            + positional_temp_offset_c(&high, Season::Summer, 5.0);
+        assert!((full - rebuilt).abs() < 1e-4, "split lost temperature: {full} vs {rebuilt}");
     }
 
     /// Outside-the-hull breathability: only on a locked, breathable body
