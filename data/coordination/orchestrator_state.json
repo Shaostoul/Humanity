@@ -237,6 +237,11 @@
       "date": "2026-08-12",
       "decision": "planet-environment-wave in flight (wf_4de36799-8a3): 3 worktree lanes (per-body weather gating + breathability + temperature v1; sol.json disk-load + magnetic/pressure fields + planet_registry deletion; comment-preserving RON field rewriter for the future Planet Tuner), each piped into a critic review. Deferred post-merge: ship-interior 12.0 hardcoded gravity unification (camera.rs was hot in the keybinds lane), Maps-page bodies.json fix (gui/mod.rs was hot), F1 overlay live-bind rendering, web mirror of subsection headers + Controls rebind.",
       "why": "Disjoint file sets fan out per the throughput directive; hot files serialize."
+    },
+    {
+      "date": "2026-08-13",
+      "decision": "v0.1119.0 shipped: the planet-environment wave (3 worktree lanes + 3 adversarial reviews + 3 fix agents, all findings closed with red-green proofs). Per-body weather/breathability/temperature (global vs at-player temperature split), sol.json disk-load with catalog_version gate + magnetic/pressure parsing, ron_edit.rs comment-preserving RON rewriter, ship-interior gravity data-driven from game.csv (12.0 hardcode retired for true 1g), Maps page planet list rebuilt from cosmos catalog (was silently empty for months), lib.rs pushed back under monolith budget by extracting hot_reload::poll_and_apply + frame_lock::publish_body_environment. ALSO: v0.1118.0 desktop-build failure root-caused to /usr/local/bin/regen-releases-manifest lost in the VPS rebuild; replacement lives in scripts/vps/ + provision-vps.sh now installs it; CI rerun green; manifest.json live over HTTPS.",
+      "why": "Operator directive: space-to-surface-to-underground must feel natural (gravity, atmosphere, temperature, magnetics), all planet info in-game and data-driven, unrealistic manufactured worlds supported, live tuning preferred. PRIORITIES.md has the ranked next steps (Planet Tuner UI is next)."
     }
   ],
   "active_scopes_to_avoid": [

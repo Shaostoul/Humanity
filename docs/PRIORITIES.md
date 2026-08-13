@@ -99,6 +99,31 @@
 > - Deploy pipeline should run provision-vps.sh's assertions remotely after
 >   each deploy, so drift is caught by CI, not by an abuse team.
 >
+> **>>> THE PLANET-PHYSICS / AGARTHA ARC (operator directive 2026-08-12;
+> design + audit in docs/design/artificial-planet.md - read it, do not
+> re-derive). Shipped v0.1118.0-v0.1119.0:** gravity_curve data model +
+> walk-band sampling, per-body environment (weather gated by body, no rain
+> on the Moon or Venus, breathability from planet data, temperature v1
+> global/at-player split), sol.json disk-load + catalog_version gate +
+> magnetic/pressure fields, ship-interior gravity from data/game.csv
+> (live-tunable, first game.csv knob with a real reader), Maps page planet
+> list rebuilt from the catalog (was silently empty), ron_edit.rs (the
+> comment-preserving RON rewriter). NEXT concrete steps, in order:
+> 1. **Planet Tuner dev page + live info readout**: sliders/fields over the
+>    frame-locked body's PlanetDef writing via assets::ron_edit (hot reload
+>    already regenerates the planet within a frame - the whole loop is UI
+>    work now); readout shows live g (gravity_at), altitude, pressure,
+>    breathability, temperature at player, magnetic field, day length. The
+>    settings-page subsection/hint widgets are the pattern to reuse.
+> 2. **F2 readout: current g** at player (one line, closes ladder item 2).
+> 3. **Agartha authoring** (ladder item 6): destination-system data file,
+>    agartha.ron with the hollow-shell gravity_curve, terrain seeds; the
+>    interior rides the voxel-terrain arc when it starts.
+> Deferred debt logged: web mirrors for subsection headers + Controls
+> rebind UI (dual-UI parity); F1 overlay renders default keys not live
+> binds (keymap.rs documents it); per-body gas composition as data;
+> hemisphere seasons + axial tilt for non-Earth bodies.
+>
 > **>>> THEN the game work, unchanged from 2026-08-04:**
 >
 > **>>> TOP ITEM (2026-08-04): VIEW-FRUSTUM CULL THE NEAR TREES.** The largest
