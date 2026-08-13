@@ -2274,6 +2274,9 @@ pub struct GuiState {
     /// Live count of Creature entities, mirrored from the ECS each frame so the
     /// Dev page can show "N creatures in the world" without a world handle.
     pub dev_creature_count: usize,
+    /// Planet Tuner page state: live readout mirror + the PlanetDef editing
+    /// copy (see pages::planet_tuner; mirrored by frame_lock each frame).
+    pub planet_tuner: pages::planet_tuner::PlanetTunerState,
     /// Walk-up creature editor (v0.778): the entity (as bits) being edited, or
     /// None when the editor is closed. Set by pressing G while facing a creature
     /// (dev/cheats on). While Some, the editor panel is open, the cursor is
@@ -4446,6 +4449,7 @@ impl Default for GuiState {
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),
             dev_creature_count: 0,
+            planet_tuner: Default::default(),
             dev_edit_target: None,
             dev_edit_snapshot_pending: false,
             dev_edit_name: String::new(),

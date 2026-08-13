@@ -186,6 +186,102 @@ pub fn set_top_level_field(
     Ok(out)
 }
 
+/// Set a top-level field, APPENDING it when the file does not have it yet
+/// (the Planet Tuner case: most planet RONs omit serde-defaulted fields
+/// like `breathable` or `gravity_curve`, and flipping those is the whole
+/// point of the tuner). Same validation guarantees as the two halves it
+/// composes.
+pub fn set_or_append_top_level_field(
+    ron_text: &str,
+    field: &str,
+    new_value: &str,
+) -> Result<String, RonEditError> {
+    match set_top_level_field(ron_text, field, new_value) {
+        Err(RonEditError::FieldNotFound(_)) => append_top_level_field(ron_text, field, new_value),
+        other => other,
+    }
+}
+
+/// Append `field: value,` as a new line after the LAST existing top-level
+/// field (or right after the opening paren when the struct is empty).
+/// Refuses a field that already exists (use set for that), validates the
+/// value the same way set does, and re-parses the whole result before
+/// returning, so this can no more corrupt a file than the rewriter can.
+pub fn append_top_level_field(
+    ron_text: &str,
+    field: &str,
+    new_value: &str,
+) -> Result<String, RonEditError> {
+    validate_replacement(new_value)?;
+    if get_top_level_field_span(ron_text, field).is_ok() {
+        // Appending a duplicate would leave two definitions; RON would even
+        // parse it (last wins), which makes it exactly the kind of silent
+        // near-miss this module exists to refuse.
+        return Err(RonEditError::InvalidReplacement(
+            "field already exists; use set_top_level_field",
+        ));
+    }
+    let fields = top_level_fields(ron_text)?;
+    // Insert point: end of the line containing the last field's value
+    // (skipping its trailing comma and any same-line comment). For an
+    // empty struct, right after the opening paren's line instead.
+    let after = match fields.last() {
+        Some((_, span)) => span.value_end,
+        None => {
+            // walk_top_level_fields already proved an outer '(' exists;
+            // find it the same way (first non-ws, non-comment byte).
+            let bytes = ron_text.as_bytes();
+            let mut i = 0;
+            let mut in_line_comment = false;
+            while i < bytes.len() {
+                let b = bytes[i];
+                if in_line_comment {
+                    if b == b'\n' {
+                        in_line_comment = false;
+                    }
+                } else if b == b'/' && bytes.get(i + 1) == Some(&b'/') {
+                    in_line_comment = true;
+                } else if b == b'(' {
+                    break;
+                }
+                i += 1;
+            }
+            i + 1
+        }
+    };
+    // Advance to just past the end of that line, so the new field starts on
+    // a fresh line and never disturbs a same-line trailing comment.
+    let rest = &ron_text[after..];
+    let line_end = rest.find('\n').map(|p| after + p + 1).unwrap_or(ron_text.len());
+    // Match the file's field indentation (the shipped planet files use 4
+    // spaces); derive it from the last field's line when there is one.
+    let indent = fields
+        .last()
+        .map(|(_, span)| {
+            let line_start = ron_text[..span.value_start]
+                .rfind('\n')
+                .map(|p| p + 1)
+                .unwrap_or(0);
+            ron_text[line_start..]
+                .chars()
+                .take_while(|c| *c == ' ')
+                .count()
+        })
+        .unwrap_or(4);
+    let mut out = String::with_capacity(ron_text.len() + field.len() + new_value.len() + 8);
+    out.push_str(&ron_text[..line_end]);
+    out.push_str(&" ".repeat(indent));
+    out.push_str(field);
+    out.push_str(": ");
+    out.push_str(new_value);
+    out.push_str(",\n");
+    out.push_str(&ron_text[line_end..]);
+    if let Err(e) = ron::from_str::<ron::Value>(&out) {
+        return Err(RonEditError::ResultUnparseable(e.to_string()));
+    }
+    Ok(out)
+}
+
 /// Locate the value span of one top-level field. Errors if the field is
 /// missing (the caller decides whether to append; we never guess).
 pub fn get_top_level_field_span(
@@ -1308,5 +1404,25 @@ mod tests {
             "only {planet_count} planet .ron files found in {}",
             dir.display()
         );
+    }
+
+    #[test]
+    fn append_adds_a_missing_field_and_refuses_a_duplicate() {
+        let text = "(\n    name: \"T\",\n    gravity: 9.81, // keep me\n)\n";
+        // Missing field: appended after the last field's line, comma and
+        // trailing comment untouched, result parses.
+        let out = append_top_level_field(text, "breathable", "true").expect("appends");
+        assert!(out.contains("// keep me"), "trailing comment survived");
+        assert!(out.contains("    breathable: true,\n"), "got: {out}");
+        ron::from_str::<ron::Value>(&out).expect("result parses");
+        // Existing field: refused, so the file can never carry two
+        // definitions (RON would silently let the last one win).
+        assert!(append_top_level_field(text, "gravity", "1.0").is_err());
+        // And the set-or-append front door picks the right half each time.
+        let set = set_or_append_top_level_field(text, "gravity", "3.5").expect("sets");
+        assert!(set.contains("gravity: 3.5"));
+        let appended =
+            set_or_append_top_level_field(text, "has_water", "false").expect("appends");
+        assert!(appended.contains("has_water: false"));
     }
 }

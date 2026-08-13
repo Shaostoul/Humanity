@@ -60,6 +60,7 @@ pub mod cosmos;
 pub mod testing;
 pub mod browser;
 pub mod dev;
+pub mod planet_tuner;
 // Resource budgets increment 1: the live GPU/CPU/VRAM/RAM pies, shown as a
 // section of the Platform tab (the page-sized sibling of the F2 overlay).
 pub mod performance;

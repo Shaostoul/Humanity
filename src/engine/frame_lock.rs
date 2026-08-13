@@ -349,6 +349,68 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
     state.data_store.insert("body_environment", env);
 }
 
+/// Mirror the Planet Tuner page's live readout + editing copy (v0.1120).
+/// Runs only while the Platform page is open (the tuner is one of its
+/// sections), so the per-frame cost off-page is a single enum compare.
+/// Lives here beside publish_body_environment because it derives from the
+/// same frame-lock inputs; the page itself (gui/pages/planet_tuner.rs)
+/// never touches EngineState.
+pub(crate) fn publish_planet_tuner_readout(state: &mut EngineState) {
+    if state.gui_state.active_page != crate::gui::GuiPage::Platform {
+        return;
+    }
+    let t = &mut state.gui_state.planet_tuner;
+    let Some(body_id) = state.frame_lock_body.clone() else {
+        t.readout.locked = false;
+        return;
+    };
+    let def = state.planet_defs.get(&body_id);
+    let altitude_m = def
+        .map(|d| (state.frame_lock_anchor.length() - d.radius) as f32)
+        .unwrap_or(0.0);
+    let up = state.frame_lock_anchor.normalize_or_zero();
+    t.readout.locked = true;
+    t.readout.body_id = body_id.clone();
+    t.readout.body_name = def
+        .map(|d| d.name.clone())
+        .or_else(|| crate::cosmos::find_body(&body_id).map(|b| b.name.clone()))
+        .unwrap_or_else(|| body_id.clone());
+    t.readout.has_def = def.is_some();
+    t.readout.altitude_m = altitude_m;
+    t.readout.latitude_deg = up.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+    t.readout.g_at_player = def.map(|d| d.gravity_at(altitude_m as f64)).unwrap_or(0.0);
+    t.readout.day_length_hours = def
+        .map(|d| (d.rotation_period / 3600.0) as f32)
+        .unwrap_or(24.0);
+    if let Some(w) = state
+        .data_store
+        .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+        .and_then(|m| m.lock().ok())
+    {
+        t.readout.temp_at_player_c = w.temperature_at_player;
+        t.readout.temp_global_c = w.temperature;
+    }
+    t.readout.breathable_outside = state
+        .data_store
+        .get::<crate::systems::body_environment::BodyEnvironment>("body_environment")
+        .map(|e| e.breathable_outside())
+        .unwrap_or(false);
+    // Editor copies: `current` tracks the loaded def every frame (so a hot
+    // reload after Save shows up instantly); `working` re-seeds only when
+    // the locked body changes, so in-progress edits survive frames.
+    t.current = def.cloned();
+    if t.working_body != body_id {
+        t.working_body = body_id;
+        t.working = t.current.clone();
+        t.curve_text = t
+            .current
+            .as_ref()
+            .map(|d| crate::gui::pages::planet_tuner::fmt_curve(&d.gravity_curve))
+            .unwrap_or_default();
+        t.status.clear();
+    }
+}
+
 /// F6 location bookmark save (v0.890). Captures the camera's EXACT world
 /// placement + aim. When frame-locked to a body the pose is stored in that
 /// body's UNROTATED local frame (same math as the frame-lock itself), so a

@@ -5157,6 +5157,7 @@ mod native_app {
                     // Earth-global one. Full contract + the latitude/altitude
                     // derivations: frame_lock::publish_body_environment.
                     crate::engine::frame_lock::publish_body_environment(state);
+                    crate::engine::frame_lock::publish_planet_tuner_readout(state);
 
                     // Survival environment context: is the player inside the sealed
                     // homestead volume (oxygenated/heated) or exposed (vacuum/cold)?

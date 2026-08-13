@@ -1139,6 +1139,51 @@ fn snapshot_platform_notes() {
     });
 }
 
+/// Planet Tuner (v0.1120): seeded as if standing on Mars in Dev mode, so the
+/// live readout, every editor group, and the save row all render instead of
+/// the gate cards. The def is parsed from real mars.ron field values.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_planet_tuner() {
+    render_page_png("planet_tuner", 1280, 2200, |ctx, theme, state| {
+        state.active_platform_section = "planet_tuner".into();
+        state.settings.play_mode = crate::config::PlayMode::Dev;
+        theme.cheats_enabled = true;
+        let def: crate::terrain::planet::PlanetDef = ron::from_str(
+            r#"(
+                name: "Mars",
+                radius: 3389500.0,
+                gravity: 3.71,
+                terrain_seed: 7,
+                ore_seed: 8,
+                atmosphere_color: Some((0.75, 0.45, 0.25, 0.12)),
+                atmosphere_scale: 0.012,
+                scale_height_m: Some(11100.0),
+                sea_level: 0.0,
+                surface_relief: 0.006,
+            )"#,
+        )
+        .expect("snapshot def parses");
+        let t = &mut state.planet_tuner;
+        t.readout.locked = true;
+        t.readout.body_id = "mars".into();
+        t.readout.body_name = "Mars".into();
+        t.readout.has_def = true;
+        t.readout.g_at_player = 3.71;
+        t.readout.altitude_m = 1250.0;
+        t.readout.latitude_deg = -14.6;
+        t.readout.temp_at_player_c = -63.0;
+        t.readout.temp_global_c = -60.0;
+        t.readout.breathable_outside = false;
+        t.readout.day_length_hours = 24.6;
+        t.curve_text = crate::gui::pages::planet_tuner::fmt_curve(&def.gravity_curve);
+        t.current = Some(def.clone());
+        t.working = Some(def);
+        t.working_body = "mars".into();
+        crate::gui::pages::platform::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 
 // The construction editor needs a selected room with machines, so it gets a custom setup
