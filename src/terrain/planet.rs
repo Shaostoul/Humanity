@@ -140,6 +140,19 @@ pub struct PlanetDef {
     /// threshold, so 0.0 is honest clear sky and 1.0 full overcast.
     #[serde(default)]
     pub cloud_coverage: Option<f32>,
+    /// Optional altitude-varying gravity (the artificial-planet hook, see
+    /// docs/design/artificial-planet.md): control points of
+    /// (altitude_m, g_m_s2), piecewise-linear between points, clamped flat
+    /// beyond the ends. Altitude is meters above the nominal surface radius;
+    /// NEGATIVE altitudes describe gravity below the surface (caves, shafts,
+    /// the interior of a hollow world). None = the constant `gravity` above,
+    /// which is right for every natural body at walkable scales (real
+    /// falloff over a 10 km walk band is under 0.4%). A manufactured world
+    /// whose machinery varies gravity by depth or altitude declares its
+    /// whole profile here, e.g. 1 g at the outer surface, easing to 0 in a
+    /// transit shaft, and 1 g again (machine-supplied) on the inner surface.
+    #[serde(default)]
+    pub gravity_curve: Option<Vec<(f64, f32)>>,
 }
 
 impl PlanetDef {
@@ -150,6 +163,56 @@ impl PlanetDef {
     pub fn scale_height_or_default(&self) -> f32 {
         self.scale_height_m
             .unwrap_or((self.radius * crate::renderer::atmosphere::EARTH_SCALE_HEIGHT_RATIO) as f32)
+    }
+
+    /// Gravity at `alt_m` meters above the nominal surface (negative =
+    /// below it). With no `gravity_curve` this is the constant surface
+    /// `gravity`; with one, control points are interpolated linearly and
+    /// clamped flat past either end. Points are sorted by altitude at load
+    /// (`normalize_gravity_curve`), so lookup assumes ascending order.
+    pub fn gravity_at(&self, alt_m: f64) -> f32 {
+        let Some(pts) = self.gravity_curve.as_deref() else {
+            return self.gravity;
+        };
+        match pts {
+            [] => self.gravity,
+            [only] => only.1,
+            _ => {
+                if alt_m <= pts[0].0 {
+                    return pts[0].1;
+                }
+                if let Some(last) = pts.last() {
+                    if alt_m >= last.0 {
+                        return last.1;
+                    }
+                }
+                for w in pts.windows(2) {
+                    let (a0, g0) = w[0];
+                    let (a1, g1) = w[1];
+                    if alt_m >= a0 && alt_m <= a1 {
+                        if a1 - a0 <= f64::EPSILON {
+                            return g1;
+                        }
+                        let t = ((alt_m - a0) / (a1 - a0)) as f32;
+                        return g0 + (g1 - g0) * t;
+                    }
+                }
+                self.gravity
+            }
+        }
+    }
+
+    /// Sort the gravity curve by altitude and drop non-finite entries, so a
+    /// hand-edited RON (the curve is meant to be live-tuned) can never make
+    /// `gravity_at` misbehave. Called once at load in `reload_planet_defs`.
+    pub fn normalize_gravity_curve(&mut self) {
+        if let Some(pts) = self.gravity_curve.as_mut() {
+            pts.retain(|(a, g)| a.is_finite() && g.is_finite());
+            pts.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
+            if pts.is_empty() {
+                self.gravity_curve = None;
+            }
+        }
     }
 }
 
@@ -383,6 +446,82 @@ impl PlanetRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn def_with_curve(curve: Option<Vec<(f64, f32)>>) -> PlanetDef {
+        let ron = r#"(
+            name: "Test",
+            radius: 6371000.0,
+            gravity: 9.81,
+            terrain_seed: 1,
+            ore_seed: 2,
+        )"#;
+        let mut def: PlanetDef = ron::from_str(ron).expect("minimal def parses");
+        def.gravity_curve = curve;
+        def.normalize_gravity_curve();
+        def
+    }
+
+    #[test]
+    fn gravity_at_without_curve_is_constant() {
+        let def = def_with_curve(None);
+        assert_eq!(def.gravity_at(-50_000.0), 9.81);
+        assert_eq!(def.gravity_at(0.0), 9.81);
+        assert_eq!(def.gravity_at(500_000.0), 9.81);
+    }
+
+    #[test]
+    fn gravity_at_interpolates_and_clamps() {
+        // A hollow-world profile: 1 g on the outer surface, weightless in
+        // the mid-shell transit band, machine gravity again 200 km down.
+        let def = def_with_curve(Some(vec![
+            (-200_000.0, 9.81),
+            (-100_000.0, 0.0),
+            (0.0, 9.81),
+            (100_000.0, 4.9),
+        ]));
+        assert_eq!(def.gravity_at(0.0), 9.81);
+        assert_eq!(def.gravity_at(-100_000.0), 0.0);
+        // Midpoint of the descent from surface toward the weightless band.
+        let mid = def.gravity_at(-50_000.0);
+        assert!((mid - 4.905).abs() < 1e-3, "expected ~4.905, got {mid}");
+        // Clamped flat beyond both ends.
+        assert_eq!(def.gravity_at(-1.0e6), 9.81);
+        assert_eq!(def.gravity_at(1.0e6), 4.9);
+    }
+
+    #[test]
+    fn normalize_sorts_and_drops_bad_points() {
+        // Deliberately unsorted with a NaN entry: normalize must sort by
+        // altitude and drop the NaN so lookup stays well-defined.
+        let def = def_with_curve(Some(vec![
+            (100_000.0, 4.9),
+            (0.0, 9.81),
+            (f64::NAN, 99.0),
+        ]));
+        let pts = def.gravity_curve.as_ref().expect("curve kept");
+        assert_eq!(pts.len(), 2);
+        assert!(pts[0].0 < pts[1].0);
+        // An all-invalid curve collapses back to None (constant gravity).
+        let def2 = def_with_curve(Some(vec![(f64::NAN, 1.0)]));
+        assert!(def2.gravity_curve.is_none());
+        assert_eq!(def2.gravity_at(0.0), 9.81);
+    }
+
+    #[test]
+    fn gravity_curve_parses_from_ron() {
+        let ron = r#"(
+            name: "Shellworld",
+            radius: 12742000.0,
+            gravity: 9.81,
+            terrain_seed: 7,
+            ore_seed: 8,
+            gravity_curve: Some([(0.0, 9.81), (50000.0, 2.0)]),
+        )"#;
+        let def: PlanetDef = ron::from_str(ron).expect("curve field parses");
+        let pts = def.gravity_curve.as_ref().expect("curve present");
+        assert_eq!(pts.len(), 2);
+        assert!((def.gravity_at(25_000.0) - 5.905).abs() < 1e-3);
+    }
 
     #[test]
     fn lod_level_zero_below_base_threshold() {

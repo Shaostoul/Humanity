@@ -253,6 +253,10 @@ pub(crate) fn reload_planet_defs(state: &mut EngineState) {
             match state.asset_manager.load_ron::<PlanetDef>(&rel) {
                 Ok(def) => {
                     let mut def = def.clone();
+                    // Sort + sanitize the optional gravity curve once here
+                    // so gravity_at can assume ascending finite points even
+                    // when the RON was just hand-edited mid-session.
+                    def.normalize_gravity_curve();
                     // Real-elevation grid (Earth: NOAA ETOPO1 via
                     // scripts/build-earth-heightmap.js). On success the
                     // RON's hand-tuned sea_level is OVERRIDDEN with the

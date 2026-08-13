@@ -4509,7 +4509,18 @@ mod native_app {
                                 r0,
                                 state.surface_vr,
                                 rest,
-                                def.map(|d| d.gravity as f64).unwrap_or(9.81).max(0.01),
+                                // Per-body gravity, sampled at the player's
+                                // current altitude above the def's nominal
+                                // surface radius: constant for natural
+                                // bodies, but a manufactured world's
+                                // gravity_curve (docs/design/
+                                // artificial-planet.md) varies with height
+                                // and depth. The 0.01 floor keeps a
+                                // declared 0 g band effectively weightless
+                                // without feeding radial_step a literal 0.
+                                def.map(|d| d.gravity_at(r0 - d.radius) as f64)
+                                    .unwrap_or(9.81)
+                                    .max(0.01),
                                 SURFACE_SETTLE_RATE,
                                 dt as f64,
                                 radial_wish,

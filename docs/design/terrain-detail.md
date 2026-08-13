@@ -75,4 +75,6 @@ feature and should not pretend to be:
 4. Cliff mask + edge-preserving sampling (2 above).
 5. Tectonic-modulated procedural layer.
 6. Voxel-hybrid carving; Agartha designs move to the artificial-planet doc
-   when the story arc starts.
+   when the story arc starts. (Started 2026-08-12: see
+   `docs/design/artificial-planet.md` for the physical spec, the
+   gravity_curve data model, and the per-planet physics increment ladder.)
