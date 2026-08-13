@@ -10,6 +10,10 @@ Planet(
         surface_gravity_m_s2: 3.71,
         escape_velocity_km_s: 5.03,
         age_billion_years: 4.603,
+        // Crustal REMANENT field (localized magnetization frozen into the
+        // southern-highlands crust), NOT a global dipole: Mars has none,
+        // which is why the canonical data/star_systems/sol.json lists
+        // magnetic_field_t = 0.0. Different quantity, both correct.
         magnetic_field_tesla: 0.0000001,
     ),
 

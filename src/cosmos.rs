@@ -105,15 +105,80 @@ static SOL_BODIES: OnceLock<Vec<SolBody>> = OnceLock::new();
 /// Disk-first (`<data_dir>/star_systems/sol.json`) means adding a body or
 /// editing a mass is a pure data drop, no rebuild (artificial-planet gap 7).
 /// The embedded copy keeps a bare portable exe (no data/ folder next to it)
-/// fully working. Future work: live hot-reload of orbital data via the file
-/// watcher plus a cache bust; today the OnceLock in `sol_bodies()` means the
-/// file is read once per run, so an edit needs a restart (not a rebuild).
+/// fully working. Decision order (review fixes 2026-08-12):
+///
+/// 1. No disk file: embedded, silently. The normal portable-exe case.
+/// 2. Disk file unusable as a catalog (JSON parse error, or no non-empty
+///    `bodies` array): embedded, with a warning. Before this check a
+///    malformed disk file silently produced a ZERO-body catalog, because
+///    `parse_sol_bodies` swallows parse errors by design.
+/// 3. Disk `catalog_version` OLDER than the embedded one: embedded, with an
+///    info log. Installed builds extract data/ exactly once and never
+///    refresh it (`extract_data_if_needed`), so without this gate a stale
+///    install's July-era 64-body copy would shadow the shipped 69-body
+///    catalog forever. A missing `catalog_version` counts as 0, which is
+///    what every pre-versioning disk copy looks like. Operator hand-tuning
+///    keeps working: editing the extracted file preserves its shipped
+///    version number, and same-or-newer versions win.
+/// 4. Otherwise the disk copy wins.
+///
+/// Future work: live hot-reload of orbital data via the file watcher plus a
+/// cache bust; today the OnceLock in `sol_bodies()` means the file is read
+/// once per run, so an edit needs a restart (not a rebuild).
 fn load_sol_json(data_dir: &std::path::Path) -> String {
-    crate::embedded_data::read_data_or_embedded(data_dir, "star_systems/sol.json")
-        // Unreachable in practice: the embedded table always carries this
-        // key. Kept as an explicit fallback so a future embedded-table edit
-        // cannot turn a missing disk file into a silent empty catalog.
-        .unwrap_or_else(|| crate::embedded_data::SOLAR_SYSTEM_JSON.to_string())
+    let embedded = crate::embedded_data::SOLAR_SYSTEM_JSON;
+    let disk_path = data_dir.join("star_systems").join("sol.json");
+    let disk = match std::fs::read_to_string(&disk_path) {
+        Ok(s) => s,
+        // Absent or unreadable file: the bare-portable-exe path, no log
+        // noise. (A permissions error lands here too; acceptable, since the
+        // embedded copy is always complete.)
+        Err(_) => return embedded.to_string(),
+    };
+    match sol_json_catalog_version(&disk) {
+        Err(why) => {
+            log::warn!(
+                "Cosmos: on-disk {} is unusable ({why}); using the embedded catalog instead",
+                disk_path.display()
+            );
+            embedded.to_string()
+        }
+        Ok(disk_version) => {
+            // unwrap_or(0): the embedded copy is compiled from this same
+            // repo file and always validates today; if a future edit ever
+            // broke it we would rather compare against 0 (letting any valid
+            // disk copy win) than panic at startup.
+            let embedded_version = sol_json_catalog_version(embedded).unwrap_or(0);
+            if disk_version < embedded_version {
+                log::info!(
+                    "Cosmos: on-disk catalog at {} is version {disk_version}, older than the shipped version {embedded_version}; using the embedded catalog (delete the file to stop this message, or re-copy the shipped one to hand-tune it)",
+                    disk_path.display()
+                );
+                embedded.to_string()
+            } else {
+                disk
+            }
+        }
+    }
+}
+
+/// Validate candidate sol.json text and extract its `catalog_version`.
+///
+/// `Ok(version)` when the text parses as JSON AND carries a non-empty
+/// `bodies` array. A missing `catalog_version` key maps to version 0 (every
+/// disk copy extracted before the versioning gate existed looks like that).
+/// `Err(reason)` when the text cannot serve as a catalog at all, so the
+/// caller must fall back to the embedded copy.
+fn sol_json_catalog_version(json: &str) -> Result<i64, String> {
+    let parsed: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| format!("JSON parse error: {e}"))?;
+    match parsed.get("bodies").and_then(|b| b.as_array()) {
+        Some(arr) if !arr.is_empty() => {
+            Ok(parsed.get("catalog_version").and_then(|v| v.as_i64()).unwrap_or(0))
+        }
+        Some(_) => Err("catalog has an empty bodies array".to_string()),
+        None => Err("catalog has no bodies array".to_string()),
+    }
 }
 
 /// Parse + cache the Sol system into `SolBody` rows (with parent→children
@@ -133,6 +198,9 @@ pub fn sol_bodies() -> &'static [SolBody] {
 /// The pure parse step, split from `sol_bodies()` so tests can feed it an
 /// edited JSON copy without fighting the process-wide OnceLock cache.
 fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
+    // `load_sol_json` has already validated any disk text before it reaches
+    // here, so a parse failure can only come from a test feeding garbage on
+    // purpose; Null then yields an empty catalog rather than a panic.
     let parsed: serde_json::Value = serde_json::from_str(json).unwrap_or(serde_json::Value::Null);
     let mut out: Vec<SolBody> = Vec::new();
     if let Some(arr) = parsed.get("bodies").and_then(|b| b.as_array()) {
@@ -169,7 +237,21 @@ fn parse_sol_bodies(json: &str) -> Vec<SolBody> {
             // absent for most minor bodies, so they default to 0.0 the
             // same way the other physical params do.
             let magnetic_field_t = physical.and_then(|p| p.get("magnetic_field_t")).and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let surface_pressure_pa = physical.and_then(|p| p.get("surface_pressure_pa")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            // Surface pressure lives in the catalog TWICE: the new sparse
+            // physical.surface_pressure_pa (pascals, only the majors carry
+            // it so far) and the older atmosphere.surface_pressure_atm
+            // (standard atmospheres, ~21 bodies, e.g. Titan 1.47 atm).
+            // Primary first, then the atm fallback converted at the standard
+            // atmosphere (101325 Pa). Without the fallback Titan parsed as
+            // 0.0 Pa, i.e. hard vacuum on the one moon famous for its thick
+            // atmosphere. Gas giants store null atm (no surface to measure
+            // at), and as_f64() on null is None, so they stay at 0.0.
+            let surface_pressure_pa = physical.and_then(|p| p.get("surface_pressure_pa")).and_then(|v| v.as_f64())
+                .or_else(|| body.get("atmosphere")
+                    .and_then(|a| a.get("surface_pressure_atm"))
+                    .and_then(|v| v.as_f64())
+                    .map(|atm| atm * 101_325.0))
+                .unwrap_or(0.0);
             // Build a compact atmosphere summary from the composition map
             // ("78% N₂ · 21% O₂ · …"). Empty string if no atmosphere.
             let atmosphere_summary = body.get("atmosphere")
@@ -371,7 +453,22 @@ pub fn sample_orbit_points(body: &SolBody, n: usize) -> Vec<glam::DVec3> {
 
 #[cfg(test)]
 mod tests {
+    //! Path note: `sol_bodies()` goes through `crate::data_dir()`, which in
+    //! a test process finds no exe-adjacent data/ folder and falls back to
+    //! plain "data" relative to the CURRENT WORKING DIRECTORY. So the tests
+    //! below that call `sol_bodies()` / `find_body()` depend on the test
+    //! runner being launched from a checkout root (cargo does this). The
+    //! loader tests build their own temp dirs instead, with names embedding
+    //! `std::process::id()` so parallel test runs from concurrent sessions
+    //! (routine in this repo) cannot interleave in a shared fixed path.
     use super::*;
+
+    /// Unique-per-process temp dir for loader tests. Different tests pass
+    /// different `tag`s so they also cannot collide with each other inside
+    /// one process (cargo runs test fns on parallel threads).
+    fn loader_test_dir(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("hos_cosmos_{tag}_{}", std::process::id()))
+    }
 
     #[test]
     fn sol_json_loads_core_bodies() {
@@ -402,7 +499,7 @@ mod tests {
     /// copy byte-for-byte. This is the portable-exe-in-a-bare-folder path.
     #[test]
     fn disk_load_falls_back_to_embedded_when_file_absent() {
-        let dir = std::env::temp_dir().join("hos_cosmos_fallback_test");
+        let dir = loader_test_dir("fallback_test");
         // Make sure the dir exists but is empty of star_systems/.
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp dir");
@@ -417,16 +514,27 @@ mod tests {
 
     /// Loader test half 2: an edited on-disk sol.json OVERRIDES the embedded
     /// copy. Editing a mass or adding a body is a pure data drop, no rebuild.
+    /// This is ALSO the same-catalog-version-wins half of the staleness gate:
+    /// the disk copy below carries the embedded copy's own catalog_version,
+    /// so version parity plus a disk file means the disk file wins.
     #[test]
     fn edited_disk_copy_overrides_embedded() {
-        let dir = std::env::temp_dir().join("hos_cosmos_override_test");
+        let dir = loader_test_dir("override_test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("star_systems")).expect("temp dir");
+        // Read the embedded catalog_version dynamically so bumping the
+        // shipped catalog later does not silently strand this test on an
+        // old number (a stale hardcoded version would LOSE the gate and
+        // turn this into a confusing failure).
+        let embedded_meta: serde_json::Value =
+            serde_json::from_str(crate::embedded_data::SOLAR_SYSTEM_JSON).expect("embedded parses");
+        let embedded_version = embedded_meta.get("catalog_version").and_then(|v| v.as_i64()).unwrap_or(0);
         // A minimal system: Earth with a deliberately WRONG mass (so we can
         // prove the disk value won) plus a body that does not exist in the
         // embedded catalog at all.
         let edited = r#"{
             "id": "sol-test",
+            "catalog_version": CATVER,
             "bodies": [
                 {
                     "id": "earth",
@@ -443,10 +551,10 @@ mod tests {
                     "physical": { "magnetic_field_t": 5e-5, "surface_pressure_pa": 200000 }
                 }
             ]
-        }"#;
+        }"#.replace("CATVER", &embedded_version.to_string());
         std::fs::write(dir.join("star_systems").join("sol.json"), edited).expect("write");
         let bodies = parse_sol_bodies(&load_sol_json(&dir));
-        assert_eq!(bodies.len(), 2, "disk copy (2 bodies) must win over embedded (~64)");
+        assert_eq!(bodies.len(), 2, "disk copy (2 bodies) must win over embedded (~69)");
         let earth = bodies.iter().find(|b| b.id == "earth").expect("earth from disk");
         // Relative tolerance, not ==: serde_json's decimal-to-f64 parse can
         // land one ulp away from the equivalent Rust float literal.
@@ -457,6 +565,66 @@ mod tests {
         let test = bodies.iter().find(|b| b.id == "testworld").expect("new body from disk");
         assert_eq!(test.magnetic_field_t, 5e-5);
         assert_eq!(test.surface_pressure_pa, 200_000.0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Review fix 2026-08-12: a MALFORMED on-disk sol.json must not empty
+    /// the catalog. Before the loader validated disk text, garbage JSON
+    /// sailed through to `parse_sol_bodies`, whose unwrap_or(Null) turned it
+    /// into ZERO bodies and failed 7 downstream tests (Maps, orrery, world
+    /// spawn all read this catalog). Now the loader falls back to embedded
+    /// with a warning.
+    #[test]
+    fn malformed_disk_copy_falls_back_to_embedded() {
+        let dir = loader_test_dir("garbage_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("star_systems")).expect("temp dir");
+        let embedded_count = parse_sol_bodies(crate::embedded_data::SOLAR_SYSTEM_JSON).len();
+        // Case 1: not JSON at all (a half-written or corrupted install file).
+        std::fs::write(dir.join("star_systems").join("sol.json"), "{ this is not json !!!").expect("write");
+        let bodies = parse_sol_bodies(&load_sol_json(&dir));
+        assert_eq!(
+            bodies.len(), embedded_count,
+            "garbage disk file must yield the full embedded catalog, not an empty one"
+        );
+        // Case 2: valid JSON that is not a catalog (no bodies array).
+        std::fs::write(dir.join("star_systems").join("sol.json"), r#"{"id": "not-a-catalog"}"#).expect("write");
+        let bodies = parse_sol_bodies(&load_sol_json(&dir));
+        assert_eq!(
+            bodies.len(), embedded_count,
+            "a bodies-less disk file must yield the full embedded catalog"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Review fix 2026-08-12: a STALE installed data dir must not shadow a
+    /// newer embedded catalog. Installed builds extract data/ exactly once
+    /// (`extract_data_if_needed` never refreshes), so a July-era 64-body
+    /// disk copy would otherwise hide the shipped 69-body catalog forever.
+    /// Every pre-versioning disk copy has no catalog_version key, which the
+    /// gate counts as version 0: older than shipped, so embedded wins. The
+    /// version-parity-wins half lives in `edited_disk_copy_overrides_embedded`.
+    #[test]
+    fn stale_disk_copy_without_version_loses_to_embedded() {
+        let dir = loader_test_dir("stale_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("star_systems")).expect("temp dir");
+        // Structurally VALID catalog (parses, has bodies) but no
+        // catalog_version key: exactly what an old install's extracted
+        // copy looks like.
+        let stale = r#"{
+            "id": "sol-stale",
+            "bodies": [
+                { "id": "earth", "name": "Earth", "type": "terrestrial", "parent": "sun" }
+            ]
+        }"#;
+        std::fs::write(dir.join("star_systems").join("sol.json"), stale).expect("write");
+        let json = load_sol_json(&dir);
+        assert_eq!(
+            json,
+            crate::embedded_data::SOLAR_SYSTEM_JSON,
+            "a versionless (pre-gate) disk copy must lose to the shipped embedded catalog"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -471,15 +639,32 @@ mod tests {
 
         let earth = get("earth");
         assert!((earth.magnetic_field_t - 3.05e-5).abs() < 1e-9, "Earth equatorial surface field ~0.305 gauss");
-        assert_eq!(earth.surface_pressure_pa, 101_325.0, "Earth 1 atm");
+        assert_eq!(earth.surface_pressure_pa, 101_325.0, "Earth 1 atm via physical.surface_pressure_pa");
 
         let mars = get("mars");
         assert_eq!(mars.magnetic_field_t, 0.0, "Mars has no global field");
+        // The EXACT equality below doubles as a primary-beats-fallback
+        // proof: mars stores physical.surface_pressure_pa = 610 AND
+        // atmosphere.surface_pressure_atm = 0.006 (which would convert to
+        // 607.95). Only the primary path produces exactly 610.0. Venus and
+        // the Moon below work the same way (9.2e6 vs 9.3219e6; 3e-10 vs
+        // 3.03975e-10).
         assert_eq!(mars.surface_pressure_pa, 610.0, "Mars ~6.1 mbar");
 
         let venus = get("venus");
         assert_eq!(venus.magnetic_field_t, 0.0, "Venus has no global field");
         assert_eq!(venus.surface_pressure_pa, 9.2e6, "Venus ~92 bar");
+
+        // Titan carries NO physical.surface_pressure_pa; its pressure must
+        // come from the older atmosphere.surface_pressure_atm = 1.47 atm via
+        // the fallback conversion (1.47 * 101325 = 148947.75 Pa). Before the
+        // fallback existed Titan parsed as 0.0 Pa: hard vacuum on the one
+        // moon famous for its thick atmosphere.
+        let titan = get("titan");
+        assert!(
+            (titan.surface_pressure_pa - 148_947.75).abs() < 0.5,
+            "Titan ~1.47 atm via the atm fallback (got {})", titan.surface_pressure_pa
+        );
 
         let jupiter = get("jupiter");
         assert!((jupiter.magnetic_field_t - 4.28e-4).abs() < 1e-9, "Jupiter cloud-top equatorial field");
@@ -496,6 +681,36 @@ mod tests {
         let phobos = get("phobos");
         assert_eq!(phobos.magnetic_field_t, 0.0);
         assert_eq!(phobos.surface_pressure_pa, 0.0);
+
+        // Presence guards (review fix 2026-08-12): every 0.0 assertion above
+        // would ALSO pass if the key lookup itself broke (a renamed JSON key
+        // makes every lookup miss and default to 0.0, and the test would
+        // stay green). Pin the raw JSON shape: mars carries an EXPLICIT
+        // magnetic_field_t and jupiter an EXPLICIT surface_pressure_pa (both
+        // deliberately 0-valued in the data), while phobos carries NEITHER,
+        // so its zeros above exercise the true absent-key default path.
+        let raw: serde_json::Value =
+            serde_json::from_str(crate::embedded_data::SOLAR_SYSTEM_JSON).expect("embedded sol.json parses");
+        let phys = |id: &str| -> serde_json::Value {
+            raw["bodies"].as_array().expect("bodies array").iter()
+                .find(|b| b["id"] == id)
+                .unwrap_or_else(|| panic!("{id} in raw catalog"))
+                .get("physical").cloned()
+                .unwrap_or(serde_json::Value::Null)
+        };
+        assert!(
+            phys("mars").get("magnetic_field_t").is_some(),
+            "sol.json: mars.physical must carry an explicit magnetic_field_t key (renamed?)"
+        );
+        assert!(
+            phys("jupiter").get("surface_pressure_pa").is_some(),
+            "sol.json: jupiter.physical must carry an explicit surface_pressure_pa key (renamed?)"
+        );
+        assert!(
+            phys("phobos").get("magnetic_field_t").is_none()
+                && phys("phobos").get("surface_pressure_pa").is_none(),
+            "phobos should carry neither profile key so its 0.0 asserts test the absent-key default"
+        );
     }
 
     #[test]

@@ -1,5 +1,6 @@
 {
  "id": "sol",
+ "catalog_version": 2,
  "name": "Solar System",
  "primary_star": "sun",
  "galaxy_position_ly": [

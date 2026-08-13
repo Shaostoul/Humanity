@@ -71,6 +71,79 @@ instead, copy your built `web/` files into a `client/` folder beside the binary.
 
 ---
 
+## Run your own node from your PC (no rented server needed)
+
+You do not need to rent anything. The app you already downloaded IS the server:
+the desktop build and the server are the same program, so any PC that can run
+HumanityOS can host a node for other people. A household, a classroom, a
+community center, or a food bank with a donated laptop can be part of the
+network at no cost. That is the point - a hosting bill should never be the
+barrier to helping.
+
+### The one command
+
+```
+HumanityOS --headless
+```
+
+That starts the relay (chat, and whatever else you enable) with no window and
+no GPU. Two knobs, both optional:
+
+```
+PORT=3210                      # which port to listen on (default 3210)
+DATABASE_PATH=data/relay.db    # where to keep the data (default data/relay.db)
+```
+
+For example, on Windows: `set PORT=4000 && HumanityOS --headless`. On macOS or
+Linux: `PORT=4000 HumanityOS --headless`.
+
+It is featherweight. Measured on the live server, the relay uses about **20 MB
+of memory and half a percent of one CPU core** - it will not slow your machine
+down.
+
+### The genuinely easy case: a LAN-only node
+
+If everyone who connects is on the SAME network as you - a home, a school, a
+shared building - you need nothing else. No domain, no port forwarding, no
+certificate. Start it, find your machine's local address (something like
+`192.168.1.42`), and other people on your Wi-Fi connect to
+`http://192.168.1.42:3210`. This works today and is the right first step.
+
+### Reaching the wider internet (the honest version)
+
+Letting people OUTSIDE your network connect is harder, and it is not HumanityOS
+that makes it hard - it is how home internet works. Be aware of all of it before
+you start:
+
+- **Your router hides you.** Home routers use NAT, so the internet cannot reach
+  your PC until you set up **port forwarding** on the router, or use a **tunnel**
+  (Cloudflare Tunnel and Tailscale are the two easiest, and they avoid touching
+  router settings at all).
+- **Your address probably changes.** Most home internet has a *dynamic* IP that
+  changes without warning. A **dynamic DNS** service (many are free) gives you a
+  name that follows it.
+- **Some ISPs block inbound ports** (especially 80 and 443) on home plans, or
+  put you behind carrier-grade NAT where port forwarding is impossible. A tunnel
+  is the way around this; if that fails too, a cheap VPS is the honest answer.
+- **HTTPS needs a domain.** A browser will not make a secure connection to a
+  bare IP address. If you want `https://` you need a domain name pointed at your
+  node.
+
+None of this is unique to us - it is the same for anyone self-hosting anything.
+If it sounds like a lot, the LAN-only case above skips every bit of it, and the
+VPS path below skips most of it.
+
+### When to graduate to a VPS
+
+If you want a node that is always on and reachable from anywhere without
+fighting your router, a small rented server is the simplest path. The floor is
+low: **1 GB RAM, 1 core, 20 GB disk** - the cheapest tier most hosts sell,
+often a few dollars a month. `scripts/provision-vps.sh` builds the whole thing
+from a bare Debian 12 install (it fetches a prebuilt relay binary rather than
+compiling, so even a 1 GB box provisions in minutes), and
+`scripts/node.env.example` is the three-line config you edit for your own
+domain. See "Production Setup" below.
+
 ## Becoming the first admin (fresh server)
 
 When the relay starts with NO admin configured, it prints a one-time claim
@@ -115,6 +188,74 @@ lives in the app, a /chat-command, a config file, or the server shell - is in
 `data/admin/ops_registry.json`, rendered in the app as **Server Settings >
 Admin map**. If the Admin map says an action is `vps-shell`, only then do you
 need to SSH in; everything else never requires a terminal.
+
+## Choosing what your server hosts (the capability manifest)
+
+One binary can be a chat server, a shared game world, a market directory, and a
+backup service for other people's encrypted data. You probably do not want all
+of that. Maybe you only want the chat. Maybe you want the market but not the
+game. Maybe you are happy to host conversations but not to have strangers
+storing their backups on your disk.
+
+That choice lives in the `features` block of `data/server-config.json`:
+
+```json
+"features": {
+  "chat": true,
+  "game": true,
+  "market": true,
+  "vault_backup": true,
+  "uploads": true,
+  "tasks": true,
+  "voice": true,
+  "live_video": true,
+  "federation": true,
+  "push": true
+}
+```
+
+**Every feature defaults to `true`.** A server with no `features` block at all,
+or one that is missing a key, behaves exactly as it always did, so upgrading
+changes nothing. Set a feature to `false` and restart the relay to switch it off.
+
+| Feature | What it means for you | What is refused when it is off |
+|---|---|---|
+| `chat` | Hosting conversations: public channels and direct messages | `/api/send`, `/api/messages`, `/api/search`, `/api/reactions`, `/api/pins`; the `chat`, `dm*`, `edit`, `delete`, `reaction`, `typing`, `search` and `pin_request` socket messages |
+| `game` | Running the shared game world (a 20-per-second simulation that runs whether or not anyone is playing) | Every `game_*` and `trade_*` socket message. The simulation, world save, ambient chatter and time-sync loops never start at all |
+| `market` | The market: offerings, listings, reviews, seller ratings and the order book | `/api/listings*`, `/api/sellers/*`, `/api/trade/*` |
+| `vault_backup` | Letting other people store their encrypted backups on your disk | `/api/vault/sync` (read, write and delete) and the `sync_save` / `sync_load` socket messages |
+| `uploads` | Being a file host: uploads, the shared-file library, the asset library | `/api/upload`, `/api/uploads*`, `/api/assets*`, and serving `/uploads/*` |
+| `tasks` | The task board and projects | `/api/tasks*`, `/api/projects*`, and the `task_*` socket messages |
+| `voice` | Voice channels | `/api/turn-credentials` and the `voice_*` / `webrtc_signal` socket messages |
+| `live_video` | Live video fanout | `/api/live` and `/ws/live/*` |
+| `federation` | Talking to peer servers | `/api/federation/*`, and no outbound connections to peers are made at startup |
+| `push` | Web push notifications | `/api/push/*`, `/api/vapid-public-key` |
+
+Three things worth knowing:
+
+1. **Off means refused, not hidden.** A disabled feature answers HTTP `403` with
+   a body that names the feature, and its socket messages are rejected with a
+   message explaining why. It is not merely missing from a client's menu. This
+   matters most for `vault_backup`: if it were only hidden, anyone with a
+   slightly modified client could still fill your disk.
+2. **You cannot lock yourself out.** `/health`, `/api/stats`, `/api/peers`,
+   `/api/members`, `/api/server-info`, `/api/profile`, and everything to do with
+   identity and moderation are always served, no matter what you switch off. So
+   are your own database backups (`backup_run` and friends) - those are you
+   acting on your own machine, not a stranger spending your disk.
+3. **Your visitors are told.** The live manifest is published on
+   `/api/server-info` as a `features` object, so a client can hide what it
+   cannot use instead of showing a page that errors, and a federation peer can
+   see what your node offers before trying to use it.
+
+The relay prints the switched-off list at startup, so `journalctl -u
+humanity-relay` (or `just logs`) answers "why is the market page empty" in one
+line. A typo in a feature name, or a value that is not `true`/`false`, leaves
+that feature ON: a misconfiguration should never quietly turn something off.
+
+Turning `game` off is the biggest saving on a small box: it stops a simulation
+tick loop, a 30-second world save, and two broadcast loops that otherwise run
+forever whether or not anyone is playing.
 
 ## Configuration
 
