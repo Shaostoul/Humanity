@@ -1963,6 +1963,19 @@ mod native_app {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         let pressed = event.state.is_pressed();
 
+                        // Rebindable controls (2026-08-12): gameplay keys are
+                        // identified by their KeyCode debug name ("KeyW",
+                        // "Space", "ShiftLeft" -- the same convention the
+                        // voice push key established in v0.490) and resolved
+                        // through GuiState::keybinds, so Settings > Controls
+                        // rebinds take effect the same frame. Resolved once
+                        // per event here. Fixed shortcuts (Esc, the F row,
+                        // build-mode Ctrl combos, Ctrl+V paste) still compare
+                        // raw KeyCodes below by design -- see
+                        // input::bindings::FIXED_BINDS.
+                        let key_name = format!("{:?}", key);
+                        use crate::input::bindings::GameAction as GA;
+
                         // Track Ctrl/Cmd modifier state from raw winit input.
                         // (egui-winit doesn't expose this in a way we can
                         // read for our pre-egui Ctrl+V detection.)
@@ -1978,6 +1991,19 @@ mod native_app {
                             // Hold-Alt free-look cursor (v0.735) — reconcile_cursor
                             // reads this every frame.
                             state.alt_held = pressed;
+                        }
+
+                        // Keybind CAPTURE (Settings > Controls, 2026-08-12):
+                        // while a bind cell is armed, the next key press
+                        // becomes that bind (Esc cancels, Delete clears,
+                        // reserved keys refuse, taken keys raise a confirm).
+                        // Full flow + tests: engine::keybind_capture.
+                        if crate::engine::keybind_capture::handle_keybind_capture(
+                            &mut state.gui_state,
+                            &key_name,
+                            pressed,
+                        ) {
+                            return;
                         }
 
                         // In-world modal panels own the keyboard (v0.773 chat,
@@ -2003,7 +2029,7 @@ mod native_app {
                             // when the talk card is the open modal: in the chat
                             // panel a typed 'e' is just a letter, and the creature
                             // editor has a Name text field.
-                            if key == KeyCode::KeyE
+                            if state.gui_state.keybinds.is(GA::Interact, &key_name)
                                 && pressed
                                 && state.gui_state.npc_talk_target.is_some()
                                 && !state.gui_state.chat_input_active
@@ -2129,7 +2155,7 @@ mod native_app {
                         // "CapsLock", "KeyV"). Also captures a new binding when the
                         // Settings UI is waiting for one.
                         {
-                            let name = format!("{:?}", key);
+                            let name = key_name.clone();
                             if state.gui_state.voice_binding_key {
                                 if pressed {
                                     if key != KeyCode::Escape {
@@ -2219,7 +2245,7 @@ mod native_app {
                         // when the panel is NOT already open (once open its input
                         // has egui focus, so egui_consumed is true and this is
                         // skipped; the panel handles Enter-to-send + Esc-to-close).
-                        if key == KeyCode::Enter && pressed
+                        if state.gui_state.keybinds.is(GA::OpenChat, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.chat_input_active
                             && !state.gui_state.showroom_active
@@ -2264,14 +2290,14 @@ mod native_app {
                         // Tab = HOLD to reveal hidden labels (v0.429): peek markers
                         // through walls across owned/explored rooms at x3 distance.
                         // Tracks held state (true on press, false on release).
-                        if key == KeyCode::Tab {
+                        if state.gui_state.keybinds.is(GA::RevealPeek, &key_name) {
                             state.gui_state.reveal_held = pressed;
                             if state.gui_state.active_page == GuiPage::None {
-                                return; // consume Tab in-game (it was inventory pre-v0.429)
+                                return; // consume in-game (Tab was inventory pre-v0.429)
                             }
                         }
                         // I opens inventory (took over from Tab when Tab became the reveal peek).
-                        if key == KeyCode::KeyI && pressed
+                        if state.gui_state.keybinds.is(GA::Inventory, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
                             state.gui_state.active_page = GuiPage::Inventory;
@@ -2281,7 +2307,7 @@ mod native_app {
                         // E opens/pins the targeted machine's info card (walk-up
                         // interaction, v0.431). No early return: E still drives
                         // input.interact for the ECS interaction system below.
-                        if key == KeyCode::KeyE && pressed
+                        if state.gui_state.keybinds.is(GA::Interact, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
                             // Vehicle take-over (Stage 3, v0.690) -- checked FIRST:
@@ -2462,18 +2488,7 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
-                            let slot = match key {
-                                KeyCode::Digit1 => Some(0),
-                                KeyCode::Digit2 => Some(1),
-                                KeyCode::Digit3 => Some(2),
-                                KeyCode::Digit4 => Some(3),
-                                KeyCode::Digit5 => Some(4),
-                                KeyCode::Digit6 => Some(5),
-                                KeyCode::Digit7 => Some(6),
-                                KeyCode::Digit8 => Some(7),
-                                KeyCode::Digit9 => Some(8),
-                                _ => None,
-                            };
+                            let slot = state.gui_state.keybinds.hotbar_slot(&key_name);
                             if let Some(i) = slot {
                                 let id = state
                                     .gui_state
@@ -2497,7 +2512,7 @@ mod native_app {
                         // F swings the held tool (or bare hands) at the faced
                         // creature (v0.765). The frame bridge settles it with
                         // the worn hands-slot weapon's damage + reach.
-                        if key == KeyCode::KeyF
+                        if state.gui_state.keybinds.is(GA::AttackSwing, &key_name)
                             && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
@@ -2511,7 +2526,7 @@ mod native_app {
                         // its values into the edit buffers runs next frame in
                         // the main loop (queries live there); opening frees the
                         // cursor + disables look/move via the modal guard above.
-                        if key == KeyCode::KeyG
+                        if state.gui_state.keybinds.is(GA::CreatureEditor, &key_name)
                             && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
@@ -2533,7 +2548,7 @@ mod native_app {
                         // default so the sky (stars + the real solar system) shows through the
                         // open top; on for a sealed look or atmosphere tests. Also exposed as a
                         // checkbox on the Settings page (GUI-first).
-                        if key == KeyCode::KeyR && pressed
+                        if state.gui_state.keybinds.is(GA::ToggleRoof, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
@@ -2546,7 +2561,7 @@ mod native_app {
                         // the ship reads as a vessel from outside; off for unobstructed
                         // interior screenshots or a clear top-down build view. Also exposed
                         // as a Settings checkbox next to Show roof (GUI-first).
-                        if key == KeyCode::KeyH && pressed
+                        if state.gui_state.keybinds.is(GA::ToggleHull, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
@@ -2556,7 +2571,7 @@ mod native_app {
 
                         // B toggles the construction editor (v0.455): craft each room's walls
                         // live. On open, mirror the live layout into the editable GuiState.
-                        if key == KeyCode::KeyB && pressed
+                        if state.gui_state.keybinds.is(GA::BuildEditor, &key_name) && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
                         {
@@ -2644,20 +2659,27 @@ mod native_app {
                             return;
                         }
 
-                        state.controller.process_keyboard(key, event.state);
+                        // Camera + movement route through the rebindable keymap
+                        // (2026-08-12): resolve the key to its single action and
+                        // forward it. Replaces process_keyboard's hardcoded
+                        // W/A/S/D/F/V/M/O/Q/E match in camera.rs.
+                        let key_action = state.gui_state.keybinds.action_for(&key_name);
+                        if let Some(act) = key_action {
+                            state.controller.apply_action(act, pressed);
+                        }
 
                         // Update InputState in DataStore for game systems
                         let mut input = state.data_store
                             .get::<InputState>("input_state")
                             .cloned()
                             .unwrap_or_default();
-                        match key {
-                            KeyCode::KeyW => input.forward = pressed,
-                            KeyCode::KeyS => input.backward = pressed,
-                            KeyCode::KeyA => input.left = pressed,
-                            KeyCode::KeyD => input.right = pressed,
-                            KeyCode::Space => input.jump = pressed,
-                            KeyCode::KeyE => input.interact = pressed,
+                        match key_action {
+                            Some(GA::MoveForward) => input.forward = pressed,
+                            Some(GA::MoveBack) => input.backward = pressed,
+                            Some(GA::MoveLeft) => input.left = pressed,
+                            Some(GA::MoveRight) => input.right = pressed,
+                            Some(GA::Jump) => input.jump = pressed,
+                            Some(GA::Interact) => input.interact = pressed,
                             _ => {}
                         }
                         // Dead players do not walk: freeze movement input while

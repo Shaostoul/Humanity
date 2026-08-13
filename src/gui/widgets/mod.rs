@@ -272,6 +272,50 @@ pub fn subsection_label(ui: &mut Ui, theme: &Theme, text: &str) {
     ui.add_space(theme.spacing_xs);
 }
 
+/// Pronounced SUBSECTION header for the big Settings sections (v0.1117,
+/// operator: "make the subsections more pronounced"). Sits BELOW the section
+/// title in the hierarchy: a short painted tick in the section's accent (a
+/// shape, never a font glyph, so it cannot tofu), the title in the same
+/// accent one step smaller than the big section title (font_size_heading vs
+/// font_size_title), and an optional one-line muted note tucked under it.
+/// Generous air above and a small gap below, so a long section scan-reads as
+/// labelled groups.
+///
+/// Pass the section's own accent (see `section_accent` in pages/settings.rs)
+/// so the header belongs to its tinted band: the band background is the same
+/// accent at alpha 12, and this uses the accent at full strength over a small
+/// area, which reads clearly on top of the band without fighting it. Theme
+/// tokens + the caller's accent only, no literals.
+pub fn subsection_header(ui: &mut Ui, theme: &Theme, accent: Color32, title: &str, note: &str) {
+    ui.add_space(theme.spacing_lg);
+    ui.horizontal(|ui| {
+        // Painted tick matched to the title's text height so the pair reads
+        // as one unit.
+        let tick_h = theme.font_size_heading + 4.0;
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(4.0, tick_h), Sense::hover());
+        ui.painter().rect_filled(rect, Rounding::same(2), accent);
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new(title)
+                .size(theme.font_size_heading)
+                .color(accent)
+                .strong(),
+        );
+    });
+    if !note.is_empty() {
+        // The note hugs its title (same tight rhythm as `setting_hint`).
+        let saved = ui.spacing().item_spacing.y;
+        ui.spacing_mut().item_spacing.y = theme.spacing_xs;
+        ui.label(
+            RichText::new(note)
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.spacing_mut().item_spacing.y = saved;
+    }
+    ui.add_space(theme.spacing_sm);
+}
+
 /// Muted body text — paragraph-style hint / description. Used right
 /// under headings to explain what a section does. Single source so the
 /// "muted hint" voice is consistent across pages.

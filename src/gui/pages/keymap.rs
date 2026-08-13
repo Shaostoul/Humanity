@@ -1,7 +1,10 @@
 //! Keymap reference overlay (v0.465). Held-F1 shows the bindings for the screen / mode you are
 //! in, so the keys listed are the ones that actually do something where you are (no world
 //! hotkeys while a menu is open). Data-driven from `data/keymaps.ron`; the input handlers stay
-//! the source of truth, so the list is description, not binding. Display-only (not editable).
+//! the source of truth, so the list is description, not binding. Display-only (not editable);
+//! actual REBINDING lives in Settings > Controls (src/input/bindings.rs, 2026-08-12), and this
+//! overlay lists the DEFAULT keys, so it reads stale for a user who has rebound. Making it
+//! render the live map is tracked follow-up work.
 
 use egui::{Context, RichText};
 use serde::Deserialize;

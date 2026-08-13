@@ -349,6 +349,9 @@ fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
 }
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let accent = section_accent(SettingsCategory::Account, theme);
+    // ── Identity: who you are (name, key, seed phrase, device linking) ──
+    widgets::subsection_header(ui, theme, accent, "Identity", "");
     widgets::card(ui, theme, |ui| {
         widgets::form_row(ui, theme, "Display name", |ui| {
             let resp = ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
@@ -653,6 +656,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
     ui.add_space(theme.spacing_md);
 
+    // ── Security: how the key is protected at rest and at launch ──
+    widgets::subsection_header(ui, theme, accent, "Security", "");
+
     // Change Passphrase section
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Key Encryption").color(theme.text_secondary()).strong());
@@ -821,10 +827,10 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
     ui.add_space(theme.spacing_md);
 
-    // Donation Addresses section (admin/owner)
+    // ── Donation addresses (admin/owner): the header carries the title, so
+    // the card no longer repeats it inside ──
+    widgets::subsection_header(ui, theme, accent, "Donation addresses", "");
     widgets::card(ui, theme, |ui| {
-        ui.label(RichText::new("Donation Addresses").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Configure donation addresses shown on the Donate page. Supports any cryptocurrency or URL.")
             .color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
@@ -967,6 +973,9 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     // Read the hint-display mode ONCE up front; every `setting_hint` call below
     // uses it. Captured (Copy) so it does not re-borrow `state` per call.
     let hint = state.settings.hint_display;
+    let accent = section_accent(SettingsCategory::Appearance, theme);
+    // ── Basics: the everyday knobs (theme, text size, help text, timestamps) ──
+    widgets::subsection_header(ui, theme, accent, "Basics", "");
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
@@ -1013,15 +1022,15 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
 
     ui.add_space(theme.spacing_md);
 
-    // ── Theme Colors: live-edit every color token; saves to data/gui/theme.ron ──
+    // ── Theme colors: live-edit every color token; saves to data/gui/theme.ron.
+    // The subsection header above the frame carries the title now. ──
+    widgets::subsection_header(ui, theme, accent, "Theme colors", "");
     let mut any_color_changed = false;
     let card_bg = theme.bg_card();
     let card_border = theme.border();
     let card_radius = theme.border_radius;
     let card_padding = theme.card_padding;
     let label_color = theme.text_secondary();
-    let header_color = theme.text_primary();
-    let heading_size = theme.font_size_heading;
 
     egui::Frame::none()
         .fill(card_bg)
@@ -1029,12 +1038,6 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         .inner_margin(card_padding)
         .stroke(Stroke::new(1.0, card_border))
         .show(ui, |ui| {
-            ui.label(
-                RichText::new("Theme Colors")
-                    .size(heading_size)
-                    .color(header_color)
-                    .strong(),
-            );
             ui.label(
                 RichText::new(
                     "Live-edit every color token. Click a swatch to open the picker. \
@@ -1900,6 +1903,8 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
 
 pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
+    let accent = section_accent(SettingsCategory::Audio, theme);
+    widgets::subsection_header(ui, theme, accent, "Volumes", "");
     widgets::card(ui, theme, |ui| {
         if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
             state.settings_dirty = true;
@@ -1931,8 +1936,8 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The
     // full in-app voice transport is being built in phases.
+    widgets::subsection_header(ui, theme, accent, "Voice", "");
     widgets::card(ui, theme, |ui| {
-        widgets::section_header(ui, theme, "Voice");
         // Enumerate audio devices once (cpal enumeration is slow, and the active
         // test repaints at 60fps, so never enumerate per frame). Refresh on demand.
         if !state.audio_devices_loaded {
@@ -2117,7 +2122,12 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
+    // The section accent drives every subsection header below, so the whole
+    // ladder (section title > subsection > group label) wears one colour.
+    let accent = section_accent(SettingsCategory::Graphics, theme);
     widgets::card(ui, theme, |ui| {
+        // ── General: universal traits (window, frame pacing, camera) ──
+        widgets::subsection_header(ui, theme, accent, "General", "");
         // Window presentation mode (v0.454). Default = Windowed fullscreen (maximized, title
         // bar + taskbar still visible). Selecting a mode applies it immediately.
         ui.label(RichText::new("Window mode").color(theme.text_secondary()).strong());
@@ -2170,8 +2180,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         }
         widgets::setting_hint(ui, theme, hint, "How far away objects still draw, in meters. Higher = see further but more GPU work / lower FPS.");
 
-        ui.add_space(theme.spacing_md);
-        ui.label(RichText::new("Planets").color(theme.text_secondary()).strong());
+        widgets::subsection_header(
+            ui, theme, accent,
+            "Planets seen from space",
+            "Shapes how worlds look from orbit; does nothing while you are on the ground.",
+        );
         widgets::setting_hint(ui, theme, hint, "Sky planets subdivide as they grow on screen: one more detail level each time a body's projected size doubles past the pixel threshold. Changes apply live.");
         // Procedural fractal surfaces (oceans, continents, polar caps) vs the
         // old flat single-color spheres. Data lives in data/planets/<id>.ron.
@@ -2190,6 +2203,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Levels 8-9 add real close-range detail but build big meshes; lower this if a close planet flyby stutters.");
+        widgets::subsection_header(
+            ui, theme, accent,
+            "Ground detail (on a planet)",
+            "Drives terrain while you are on or near a surface.",
+        );
         // Chunked planetary LOD (2026-07-11): quadtree surface patches that
         // follow the camera once a planet fills the screen, replacing the
         // heavy uniform level 8-9 spheres near heightmap planets (Earth).
@@ -2204,8 +2222,9 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         widgets::setting_hint(ui, theme, hint, "When ground detail changes level, the old and new versions crossfade for a third of a second instead of swapping instantly. Costs almost nothing; turn off only to compare or debug.");
         // Planet LOD knobs (v0.873, operator: "I want to see more real
         // terrain further away from me... add settings for all these
-        // variables"). All three apply live next frame.
-        widgets::setting_hint(ui, theme, hint, "The two sliders above shape planets seen from SPACE. The three below drive GROUND detail when you are on or near a planet's surface.");
+        // variables"). All three apply live next frame. (The old space-vs-
+        // ground positional hint that sat here is retired: the two
+        // subsection headers above now say it structurally.)
         if widgets::labeled_slider(ui, theme, "Terrain sharpness (px per triangle)", &mut state.settings.terrain_split_px, 2.0..=24.0) {
             state.settings_dirty = true;
         }
@@ -2222,13 +2241,6 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.");
-        // Vegetation LOD ladder (v0.923, operator: per-stage distance
-        // sliders "like LOD0, LOD1, LOD2"). Stage 1 = full 3D models,
-        // stage 2 = silhouette cards, then bare terrain. Billboard mid-stage
-        // + grass/shrub categories are the next rungs.
-        // Labels come from the LOD category registry (rung 2a): the tree row is
-        // live today; further categories (grass/shrubs/creatures) gain rows as
-        // their ladder stages activate (rungs 2b-2d).
         if widgets::toggle(ui, theme, "Tiled light lists (EXPERIMENTAL, higher light counts)", &mut state.settings.lights_tiled) {
             state.settings_dirty = true;
         }
@@ -2238,8 +2250,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // stages have not shipped yet are listed muted rather than given
         // lying sliders (honest-UI rule). Rows and labels come from the
         // LOD category registry (data/vegetation/lod_categories.ron).
-        ui.add_space(6.0);
-        ui.label(RichText::new("Detail distances by item type").color(theme.text_primary()).size(theme.font_size_body).strong());
+        // Vegetation LOD ladder (v0.923, operator: per-stage distance
+        // sliders "like LOD0, LOD1, LOD2"). Stage 1 = full 3D models,
+        // stage 2 = silhouette cards, then bare terrain. Billboard mid-stage
+        // + grass/shrub categories are the next rungs (rungs 2b-2d).
+        widgets::subsection_header(ui, theme, accent, "Detail distances by item type", "");
         widgets::setting_hint(ui, theme, hint, "How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.");
         // v0.1109 (operator: "sliders or maybe just number selectors so we can
         // go to any value ... then I wouldn't have to ask you to increase the
@@ -2393,6 +2408,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     .italics(),
             );
         }
+        widgets::subsection_header(ui, theme, accent, "Light and sky", "");
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.
         if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {
@@ -2442,49 +2458,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
             widgets::setting_hint(ui, theme, hint, "Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off = purely procedural skies.");
         }
-        // Close-range surface detail (v0.816): animated ocean waves + land
-        // micro-texture on planets with real imagery. Applies live: the sky
-        // loop rewrites the material flag every frame.
-        if widgets::toggle(ui, theme, "Surface detail", &mut state.settings.planet_surface_detail) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.");
-        // FFT ocean (v0.1029, water-fft.md increment 1). Applies live: the
-        // spectrum builds on first use; the mode flag rides the per-frame
-        // uniform so geometry and buoyancy flip together.
-        if widgets::toggle(ui, theme, "FFT ocean (experimental)", &mut state.settings.water_fft) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.");
-        // GPU particle simulation (v0.1068). Same shape as the FFT-ocean
-        // toggle: experimental, default off, CPU path stays as the fallback.
-        if widgets::toggle(ui, theme, "GPU particles (experimental)", &mut state.settings.gpu_particles) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Simulates rain and snow entirely on the GPU: the pool lives in video memory and the CPU submits one dispatch instead of moving every particle across the bus. The CPU path was measured bandwidth-bound at ~17-20 ns per particle per frame, which capped it near 160k. Off = that shipped CPU path.");
-        // Underwater clarity (v0.1054). Deliberately a slider rather than a
-        // toggle: the operator wants the physical fade AND the ability to keep
-        // seeing far underwater for exploration, and the honest way to offer
-        // both is to let them pick where on that line to sit.
-        if widgets::labeled_slider(
-            ui,
-            theme,
-            "Underwater clarity",
-            &mut state.settings.water_clarity,
-            0.0..=1.0,
-        ) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "How far you can see underwater. 0 is physical: real seawater absorbs red within a few metres, then green, so the world goes blue and then black as you descend. 1 keeps the old unlimited visibility, which is far better for finding places like Challenger Deep.");
-        // Far-tree card sheet (v0.1022, default off since v0.1029): kept
-        // for A/B against the upcoming impostor system.
-        if widgets::toggle(ui, theme, "Far tree sheet (experimental)", &mut state.settings.far_tree_sheet) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.");
         // Cloud quality ladder (clouds increment 3). Applies live: the cloud
         // material is cached per (body, quality), so flipping tiers rebuilds
-        // it the next frame the deck draws.
+        // it the next frame the deck draws. Sits beside the other cloud
+        // controls so the conditional cloud group reads as one block.
         if state.settings.planet_clouds {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Cloud quality").color(theme.text_secondary()));
@@ -2502,6 +2479,29 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             });
             widgets::setting_hint(ui, theme, hint, "High raymarches real 3D cloud shapes with sunlight scattering (puffy towers, dark bases). Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.");
         }
+        // Close-range surface detail (v0.816): animated ocean waves + land
+        // micro-texture on planets with real imagery. Applies live: the sky
+        // loop rewrites the material flag every frame.
+        if widgets::toggle(ui, theme, "Surface detail", &mut state.settings.planet_surface_detail) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.");
+        // Underwater clarity (v0.1054). Deliberately a slider rather than a
+        // toggle: the operator wants the physical fade AND the ability to keep
+        // seeing far underwater for exploration, and the honest way to offer
+        // both is to let them pick where on that line to sit. Lives under
+        // Light and sky because it is literally how light dies in water, and
+        // it is a shipped control, not an experimental one.
+        if widgets::labeled_slider(
+            ui,
+            theme,
+            "Underwater clarity",
+            &mut state.settings.water_clarity,
+            0.0..=1.0,
+        ) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "How far you can see underwater. 0 is physical: real seawater absorbs red within a few metres, then green, so the world goes blue and then black as you descend. 1 keeps the old unlimited visibility, which is far better for finding places like Challenger Deep.");
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);
@@ -2778,7 +2778,30 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             );
         }
 
-        ui.add_space(theme.spacing_md);
+        // ── Experimental: default-off features kept for A/B and early access ──
+        widgets::subsection_header(ui, theme, accent, "Experimental", "");
+        // FFT ocean (v0.1029, water-fft.md increment 1). Applies live: the
+        // spectrum builds on first use; the mode flag rides the per-frame
+        // uniform so geometry and buoyancy flip together.
+        if widgets::toggle(ui, theme, "FFT ocean (experimental)", &mut state.settings.water_fft) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.");
+        // GPU particle simulation (v0.1068). Same shape as the FFT-ocean
+        // toggle: experimental, default off, CPU path stays as the fallback.
+        if widgets::toggle(ui, theme, "GPU particles (experimental)", &mut state.settings.gpu_particles) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "Simulates rain and snow entirely on the GPU: the pool lives in video memory and the CPU submits one dispatch instead of moving every particle across the bus. The CPU path was measured bandwidth-bound at ~17-20 ns per particle per frame, which capped it near 160k. Off = that shipped CPU path.");
+        // Far-tree card sheet (v0.1022, default off since v0.1029): kept
+        // for A/B against the upcoming impostor system.
+        if widgets::toggle(ui, theme, "Far tree sheet (experimental)", &mut state.settings.far_tree_sheet) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.");
+
+        // ── Machine labels and Home view ──
+        widgets::subsection_header(ui, theme, accent, "Machine labels and Home view", "");
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
         widgets::setting_hint(ui, theme, hint, "How close (in meters) you must be before a machine shows its dot / name / info card. Higher = labels appear from further away, busier screen. Hold Tab in-game to triple these and see through walls. Session-only for now: they reset to defaults on restart.");
         // These live on GuiState (session-tunable); the defaults (21 / 13 / 8) are the
@@ -2905,6 +2928,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 }
 
 pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::input::bindings as kb;
     let hint = state.settings.hint_display;
     widgets::card(ui, theme, |ui| {
         // Range max 1.0 keeps the slider in the usable band AND selects the widget's
@@ -2922,46 +2946,205 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Keybinds").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Click a key to rebind it: press the new key to bind, Esc cancels, Delete clears \
+             the slot. Each key can drive only one action; binding a taken key asks before \
+             moving it.",
+        );
 
-        let keybinds = [
-            ("Move Forward", "W"),
-            ("Move Back", "S"),
-            ("Move Left", "A"),
-            ("Move Right", "D"),
-            ("Jump", "Space"),
-            ("Sprint", "Shift"),
-            ("Interact", "E"),
-            ("Inventory", "I"),
-            ("Reveal labels (hold)", "Tab"),
-            ("Map", "M"),
-            ("Escape Menu", "Esc"),
-        ];
-        // Three LEFT-aligned columns [Action | Primary | Secondary] in a Grid so
-        // each key sits right next to its action — was label-left / key-far-right
-        // (right_to_left layout), which the operator flagged as hard to match up.
-        // Secondary is a placeholder (", ") until per-action secondary bindings
-        // are wired through the input map.
-        egui::Grid::new("keybinds_grid")
-            .num_columns(3)
+        // One-line status from the last capture attempt ("Function keys are
+        // reserved...", the voice-key overlap note). Cleared by the next
+        // successful capture or cancel.
+        if !state.keybind_status.is_empty() {
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(state.keybind_status.clone())
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+            );
+        }
+
+        // Conflict confirm (the capture found the key on another action):
+        // name both sides and let the user move the key or keep it.
+        if let Some((c_action, c_secondary, c_key, c_holder)) = state.keybind_conflict.clone() {
+            ui.add_space(theme.spacing_xs);
+            egui::Frame::none()
+                .fill(theme.bg_tertiary())
+                .rounding(Rounding::same(4))
+                .inner_margin(Vec2::new(10.0, 8.0))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new(format!(
+                            "{} is already bound to {}.",
+                            kb::pretty_key_name(&c_key),
+                            kb::Keybinds::info(c_holder).label
+                        ))
+                        .color(theme.text_primary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    ui.horizontal(|ui| {
+                        let move_label = format!(
+                            "Move it to {}",
+                            kb::Keybinds::info(c_action).label
+                        );
+                        if widgets::compact_button(ui, theme, &move_label, widgets::ButtonVariant::Primary) {
+                            state.keybinds.force_bind(c_action, c_secondary, &c_key);
+                            state.keybind_conflict = None;
+                            state.settings_dirty = true;
+                        }
+                        if widgets::compact_button(ui, theme, "Cancel", widgets::ButtonVariant::Secondary) {
+                            state.keybind_conflict = None;
+                        }
+                    });
+                });
+        }
+
+        // The bind grid, grouped by category. Four LEFT-aligned columns
+        // [Action | Primary | Secondary | Reset] so each key sits right next
+        // to its action (the far-right layout was flagged hard to match up).
+        // The key cells are BUTTONS: clicking one arms capture for that slot.
+        for cat in kb::CATEGORIES {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new(*cat)
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small)
+                    .strong(),
+            );
+            egui::Grid::new(format!("keybinds_grid_{cat}"))
+                .num_columns(4)
+                .spacing([24.0, theme.row_gap])
+                .show(ui, |ui| {
+                    ui.label(RichText::new("Action").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new("Primary").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new("Secondary").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(RichText::new("").size(theme.font_size_small));
+                    ui.end_row();
+                    for info in kb::ACTIONS.iter().filter(|i| i.category == *cat) {
+                        ui.label(RichText::new(info.label).color(theme.text_secondary()));
+                        for secondary in [false, true] {
+                            let capturing =
+                                state.keybind_capture == Some((info.action, secondary));
+                            let (p, s) = state.keybinds.pair(info.action);
+                            let raw = if secondary { s } else { p };
+                            let text = if capturing {
+                                "Press a key...".to_string()
+                            } else {
+                                kb::pretty_key_name(raw)
+                            };
+                            let (fill, color) = if capturing {
+                                (theme.accent(), theme.text_on_accent())
+                            } else if raw.is_empty() {
+                                (theme.bg_tertiary(), theme.text_muted())
+                            } else {
+                                (theme.bg_tertiary(), theme.text_primary())
+                            };
+                            let btn = egui::Button::new(
+                                RichText::new(text)
+                                    .color(color)
+                                    .size(theme.font_size_small)
+                                    .strong(),
+                            )
+                            .fill(fill)
+                            .rounding(Rounding::same(3));
+                            let resp = ui.add(btn);
+                            // Only a real POINTER click toggles the cell. egui
+                            // also reports clicked() when Space/Enter activates
+                            // the focused button, but while capturing those
+                            // keystrokes are capture INPUT (the raw handler
+                            // binds them), not a toggle request; without this
+                            // gate, binding Space would instantly re-arm the
+                            // cell it just closed.
+                            if resp.clicked() && ui.input(|i| i.pointer.any_click()) {
+                                if capturing {
+                                    // Clicking the armed cell disarms it.
+                                    state.keybind_capture = None;
+                                } else {
+                                    state.keybind_capture = Some((info.action, secondary));
+                                    state.keybind_conflict = None;
+                                    state.keybind_status.clear();
+                                }
+                            }
+                            if capturing {
+                                // Keep egui focus off the armed cell so the
+                                // captured key can never double as a button
+                                // activation.
+                                resp.surrender_focus();
+                            }
+                        }
+                        if state.keybinds.is_default(info.action) {
+                            // Blank cell keeps the grid aligned.
+                            ui.label(RichText::new("").size(theme.font_size_small));
+                        } else if widgets::compact_button(ui, theme, "Reset", widgets::ButtonVariant::Secondary) {
+                            state.keybinds.reset(info.action);
+                            state.keybind_capture = None;
+                            state.settings_dirty = true;
+                        }
+                        ui.end_row();
+                    }
+                });
+        }
+
+        ui.add_space(theme.spacing_sm);
+        if widgets::Button::ghost("Reset all binds to defaults").show(ui, theme) {
+            state.keybinds.reset_all();
+            state.keybind_capture = None;
+            state.keybind_conflict = None;
+            state.keybind_status.clear();
+            state.settings_dirty = true;
+        }
+    });
+
+    // Fixed shortcuts: real, discoverable, deliberately not rebindable (dev
+    // and diagnostic surface, shortcut-modifier combos, capture controls).
+    // Sourced from input::bindings::FIXED_BINDS so this list and the audit
+    // stay one source of truth.
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Fixed keys").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "These shortcuts are built in and cannot be rebound yet. Hold F1 in any screen to \
+             see the keys that work there.",
+        );
+        egui::Grid::new("fixed_keys_grid")
+            .num_columns(2)
             .spacing([24.0, theme.row_gap])
             .show(ui, |ui| {
-                ui.label(RichText::new("Action").color(theme.text_muted()).size(theme.font_size_small));
-                ui.label(RichText::new("Primary").color(theme.text_muted()).size(theme.font_size_small));
-                ui.label(RichText::new("Secondary").color(theme.text_muted()).size(theme.font_size_small));
-                ui.end_row();
-                for (action, key) in &keybinds {
-                    ui.label(RichText::new(*action).color(theme.text_secondary()));
+                for (keys, what) in kb::FIXED_BINDS {
                     egui::Frame::none()
                         .fill(theme.bg_tertiary())
                         .rounding(Rounding::same(3))
                         .inner_margin(Vec2::new(8.0, 2.0))
                         .show(ui, |ui| {
-                            ui.label(RichText::new(*key).color(theme.text_primary()).size(theme.font_size_small).strong());
+                            ui.label(
+                                RichText::new(*keys)
+                                    .color(theme.text_primary())
+                                    .size(theme.font_size_small)
+                                    .strong(),
+                            );
                         });
-                    ui.label(RichText::new("(none)").color(theme.text_muted()).size(theme.font_size_small));
+                    ui.label(
+                        RichText::new(*what)
+                            .color(theme.text_secondary())
+                            .size(theme.font_size_small),
+                    );
                     ui.end_row();
                 }
             });
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new(
+                "Voice push-to-talk key: set under Settings > Audio > Voice (default CapsLock).",
+            )
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+        );
     });
 }
 

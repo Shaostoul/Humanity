@@ -15,6 +15,8 @@ pub mod home_meshes;
 pub mod home_spawn;
 pub mod ipc;
 pub mod ipc_parse;
+/// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
+pub mod keybind_capture;
 pub mod launch_focus;
 /// Near-tree model cache + sprite-atlas bake (extracted from lib.rs, v0.1108).
 pub mod near_tree_models;

@@ -682,40 +682,40 @@ impl CameraController {
         }
     }
 
-    /// Process a keyboard event from winit.
-    #[cfg(feature = "native")]
-    pub fn process_keyboard(
-        &mut self,
-        key: winit::keyboard::KeyCode,
-        state: winit::event::ElementState,
-    ) {
-        use winit::event::ElementState;
-        use winit::keyboard::KeyCode;
-
-        let pressed = state == ElementState::Pressed;
-        match key {
-            KeyCode::KeyW => self.forward = pressed,
-            KeyCode::KeyS => self.backward = pressed,
-            KeyCode::KeyA => self.left = pressed,
-            KeyCode::KeyD => self.right = pressed,
-            KeyCode::Space => self.ascend = pressed,
-            KeyCode::ShiftLeft | KeyCode::ShiftRight => self.descend = pressed,
+    /// Apply a resolved game ACTION (2026-08-12, rebindable controls).
+    /// lib.rs resolves the physical key against the user's keymap
+    /// (`GuiState::keybinds`) and forwards the action, so rebinding
+    /// forward from W to ArrowUp moves the camera without this file ever
+    /// seeing a key code. Replaces the winit `process_keyboard` that
+    /// hardcoded W/A/S/D/F/V/M/O/Q/E here.
+    ///
+    /// Context stays inside the controller: Jump doubles as fly-up, Sprint
+    /// as fly-down, ShoulderSwap banks left while flying (v0.890), Interact
+    /// banks right while flying. Non-camera actions are ignored.
+    pub fn apply_action(&mut self, action: crate::input::bindings::GameAction, pressed: bool) {
+        use crate::input::bindings::GameAction as A;
+        match action {
+            A::MoveForward => self.forward = pressed,
+            A::MoveBack => self.backward = pressed,
+            A::MoveLeft => self.left = pressed,
+            A::MoveRight => self.right = pressed,
+            A::Jump => self.ascend = pressed,
+            A::Sprint => self.descend = pressed,
             // Mode switches (on press only)
-            KeyCode::Tab if pressed => self.switch_to_next = true,
-            KeyCode::KeyF | KeyCode::KeyV if pressed => self.switch_fp_tp = true,
-            KeyCode::KeyM if pressed => self.switch_orbit = true,
-            KeyCode::KeyO if pressed => self.toggle_ortho = true,
+            A::ToggleView if pressed => self.switch_fp_tp = true,
+            A::OrbitCamera if pressed => self.switch_orbit = true,
+            A::ToggleOrtho if pressed => self.toggle_ortho = true,
             // Q/E (v0.890): flight roll while flying; Q keeps its shoulder-swap
             // role on foot (press only). E on foot is the interact key, which
-            // lives in lib.rs's game-input path, so no arm is needed here.
-            KeyCode::KeyQ => {
+            // lives in lib.rs's game-input path, so only the fly arm is here.
+            A::ShoulderSwap => {
                 if self.fly_mode {
                     self.roll_left = pressed;
                 } else if pressed {
                     self.toggle_shoulder = true;
                 }
             }
-            KeyCode::KeyE if self.fly_mode => self.roll_right = pressed,
+            A::Interact if self.fly_mode => self.roll_right = pressed,
             _ => {}
         }
     }

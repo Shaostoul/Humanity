@@ -713,7 +713,12 @@ fn settings_panel(
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_graphics_settings() {
-    render_page_png("graphics_settings", 960, 900, |ctx, theme, state| {
+    // Tall canvas (v0.1117): Graphics gained pronounced subsections (General /
+    // Planets seen from space / Ground detail / Detail distances / Light and
+    // sky / Experimental / Machine labels and Home view), and a 900 px crop
+    // showed only the first two. Render the whole section so the subsection
+    // ladder is reviewable in one image.
+    render_page_png("graphics_settings", 960, 3800, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_graphics_content);
     });
 }
@@ -721,7 +726,11 @@ fn settings_panel(
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_controls_settings() {
-    render_page_png("controls_settings", 960, 900, |ctx, theme, state| {
+    // 1900 tall (2026-08-12): the Controls section grew the full rebindable
+    // keymap (five grouped bind grids) plus the Fixed-keys reference card;
+    // at the settings-default 900 everything below the Camera group fell
+    // off the bottom of the capture.
+    render_page_png("controls_settings", 960, 1900, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_controls_content);
     });
 }

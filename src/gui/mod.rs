@@ -3194,6 +3194,23 @@ pub struct GuiState {
     /// Runtime: the settings UI is waiting for the user to press a key to bind
     /// as the push key. Not persisted.
     pub voice_binding_key: bool,
+    /// The rebindable game keymap (Settings > Controls, 2026-08-12). Defaults
+    /// plus the user's persisted overrides (config `keybind_overrides`);
+    /// lib.rs resolves every gameplay key event through this.
+    pub keybinds: crate::input::bindings::Keybinds,
+    /// Runtime: Some((action, secondary_slot)) while the Controls page waits
+    /// for the next key press to become that bind. Esc cancels, Delete clears
+    /// the slot. Not persisted.
+    pub keybind_capture: Option<(crate::input::bindings::GameAction, bool)>,
+    /// Runtime: a bind attempt hit a key another action already holds. The
+    /// Controls page shows a confirm (move the key or keep it). Fields:
+    /// (action being bound, secondary slot, key name, current holder).
+    /// Not persisted.
+    pub keybind_conflict:
+        Option<(crate::input::bindings::GameAction, bool, String, crate::input::bindings::GameAction)>,
+    /// Runtime: one-line status under the bind grid ("Function keys are
+    /// reserved..."). Empty = nothing to say. Not persisted.
+    pub keybind_status: String,
     /// Live diagnostics sampled from EngineState each frame (only while the
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
@@ -4836,6 +4853,10 @@ impl Default for GuiState {
             voice_vad_threshold: 0.05,
             voice_ptt_held: false,
             voice_binding_key: false,
+            keybinds: crate::input::bindings::Keybinds::default(),
+            keybind_capture: None,
+            keybind_conflict: None,
+            keybind_status: String::new(),
             diag_entity_count: 0,
             diag_light_count: 0,
             diag_mem_mb: 0.0,

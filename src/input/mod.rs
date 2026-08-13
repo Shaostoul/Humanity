@@ -1,6 +1,9 @@
-//! Input manager — processes keyboard, mouse, and gamepad input.
+//! Input types shared across the engine.
 //!
-//! Key bindings loaded from `config/bindings.toml`.
+//! `bindings` is the rebindable game keymap (Settings > Controls): action
+//! enum, defaults, conflict rules, and the persisted override form. lib.rs's
+//! raw winit handler resolves key events through it; `AppConfig` stores the
+//! user's overrides.
 
 pub mod bindings;
 

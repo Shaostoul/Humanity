@@ -6,6 +6,13 @@
 // Add a new context block (matched by `context`) to give a specific page its own list; an
 // unmatched page falls back to "Menu".
 //
+// 2026-08-12: gameplay keys are REBINDABLE via Settings > Controls (src/input/bindings.rs);
+// the keys listed here are the DEFAULTS. Audit fixes the same day: "Cycle camera mode: Tab"
+// removed (dead; in-world Tab is consumed by the reveal peek before the camera ever sees it),
+// first/third person moved from F to V (F was double-firing as both the tool swing and the
+// camera toggle; one key now means one thing), and the previously unlisted binds (swing, hull,
+// ortho, shoulder swap, hotbar, creature editor, hold-Alt cursor) are listed.
+//
 // The F2-F4 + F12 dev-HUD keys (v0.482) are GLOBAL (work in every context), so they are listed
 // in each block. F2 = performance (FPS + frame-time graph), F3 = network, F4 = system (RAM).
 // F11 (v0.1050) opens the live weather panel: condition presets plus wind and intensity
@@ -15,18 +22,25 @@
     (context: "World", binds: [
         (action: "Look around", keys: "Move the mouse"),
         (action: "Move", keys: "W / A / S / D"),
-        (action: "Sprint", keys: "Shift (hold)"),
-        (action: "Jump", keys: "Space"),
-        (action: "Interact / pin info card", keys: "E (look at a target)"),
+        (action: "Sprint (fly: descend)", keys: "Shift (hold)"),
+        (action: "Jump (fly: ascend)", keys: "Space"),
+        (action: "Interact / talk / pin info card", keys: "E (look at a target)"),
+        (action: "Swing tool / attack", keys: "F"),
         (action: "Inventory", keys: "I"),
+        (action: "Hotbar abilities", keys: "1 - 9"),
         (action: "Construction editor", keys: "B"),
         (action: "Toggle roof", keys: "R"),
-        (action: "Cycle camera mode", keys: "Tab"),
-        (action: "First / third person", keys: "F"),
+        (action: "Toggle hull", keys: "H"),
+        (action: "First / third person", keys: "V"),
         (action: "Orbit camera", keys: "M"),
+        (action: "Ortho view (orbit cam)", keys: "O"),
+        (action: "Shoulder swap (3rd person)", keys: "Q"),
+        (action: "Creature editor (dev)", keys: "G (face a creature)"),
         (action: "Open / close chat", keys: "Enter"),
         (action: "Menu / back", keys: "Esc"),
         (action: "Peek through walls (hold)", keys: "Tab (hold)"),
+        (action: "Free the cursor (hold)", keys: "Alt (hold)"),
+        (action: "Rebind these keys", keys: "Settings > Controls"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
@@ -43,6 +57,9 @@
         (action: "Fly focal point", keys: "W / A / S / D"),
         (action: "Move up / down (levels)", keys: "Space / Shift"),
         (action: "Select / move a room", keys: "Left-click (coming soon)"),
+        (action: "Undo / redo", keys: "Ctrl+Z / Ctrl+Y"),
+        (action: "Duplicate selection", keys: "Ctrl+D"),
+        (action: "Rotate held piece (15 degrees)", keys: "[ / ]"),
         (action: "Top-down plan overlay", keys: "checkbox in panel"),
         (action: "Close editor", keys: "B"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
@@ -67,6 +84,7 @@
     (context: "Menu", binds: [
         (action: "Navigate", keys: "Click (top nav bar + page)"),
         (action: "Back / close page", keys: "Esc"),
+        (action: "Rebind game keys", keys: "Settings > Controls"),
         (action: "Keymap (this list)", keys: "F1 (hold)"),
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),

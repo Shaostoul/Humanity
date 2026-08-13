@@ -615,6 +615,13 @@ pub struct AppConfig {
     #[serde(default = "default_voice_vad_threshold")]
     pub voice_vad_threshold: f32,
 
+    /// Game keybind overrides (Settings > Controls, 2026-08-12). Only actions
+    /// that differ from their defaults are stored, so a future default change
+    /// reaches everyone who has not overridden that action. Empty = all
+    /// defaults. See `src/input/bindings.rs` for the action table.
+    #[serde(default)]
+    pub keybind_overrides: Vec<crate::input::bindings::KeybindOverride>,
+
     /// Chat timestamp display format (operator-configurable). One of
     /// TimestampFormat::as_str() — "hour_min" (default) … "full". Empty/unknown
     /// → hour_min. Applied app-wide via chat::set_timestamp_format on load.
@@ -1215,6 +1222,7 @@ impl AppConfig {
             voice_transmit_mode: state.voice_transmit_mode,
             voice_ptt_key: state.voice_ptt_key.clone(),
             voice_vad_threshold: state.voice_vad_threshold,
+            keybind_overrides: state.keybinds.overrides(),
             timestamp_format: crate::gui::pages::chat::timestamp_format().as_str().to_string(),
             // Never write plaintext key back; use encrypted fields from state
             private_key_hex: String::new(),
@@ -1412,6 +1420,10 @@ impl AppConfig {
         state.voice_transmit_mode = self.voice_transmit_mode;
         state.voice_ptt_key = self.voice_ptt_key.clone();
         state.voice_vad_threshold = self.voice_vad_threshold;
+        // Game keybinds: defaults plus the user's stored overrides. Rebuilt
+        // from defaults first so a removed override falls back cleanly.
+        state.keybinds = crate::input::bindings::Keybinds::default();
+        state.keybinds.apply_overrides(&self.keybind_overrides);
         // Timestamp display format → the app-wide formatter (process global).
         crate::gui::pages::chat::set_timestamp_format(
             crate::gui::pages::chat::TimestampFormat::from_config_str(&self.timestamp_format),
