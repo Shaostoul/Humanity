@@ -2089,9 +2089,31 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 let current = state.server_url.trim_end_matches('/').to_string();
                 for server in state.chat_servers.clone().iter() {
                     let is_current = server.url.trim_end_matches('/') == current;
+                    // Live background link state (multi-connection stage 3):
+                    // every saved server holds its own connection now, so a
+                    // non-current row can still be online, with unread mail.
+                    let bg = state
+                        .connections
+                        .iter()
+                        .find(|c| c.url == norm_server_url(&server.url));
+                    let bg_online = bg.map_or(false, |c| c.identified);
+                    let bg_unread = bg.map_or(false, |c| {
+                        c.channels.iter().any(|ch| ch.unread) || c.dms.iter().any(|d| d.unread)
+                    });
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
+                        // Status dot: green = link up (current or background),
+                        // muted = offline. A filled accent dot on the right
+                        // marks unread activity on a background server.
+                        let (dot_rect, _) =
+                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                        let dot_color = if is_current || bg_online {
+                            theme.success()
+                        } else {
+                            theme.text_muted()
+                        };
+                        ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
                         let color = if is_current { theme.success() } else { theme.text_primary() };
                         let resp = ui
                             .add(
@@ -2108,6 +2130,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             } else {
                                 "Click to switch to this server"
                             });
+                        if bg_unread && !is_current {
+                            let (ur, _) = ui
+                                .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter().circle_filled(ur.center(), 3.0, theme.accent());
+                        }
                         if is_current {
                             ui.label(
                                 RichText::new("(current)")
