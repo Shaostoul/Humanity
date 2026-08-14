@@ -121,6 +121,10 @@ pub struct FilePickerState {
     /// Max selectable file size in bytes (0 = unlimited). Oversized files
     /// list greyed-out with their size so the limit is visible, not silent.
     pub max_size: u64,
+    /// Folder-selection mode (2026-08-14, first user: the host-node
+    /// database location). The confirm button picks the CURRENT DIRECTORY
+    /// instead of a selected file, so nobody types a path by hand.
+    pub dir_mode: bool,
 }
 
 impl FilePickerState {
@@ -136,7 +140,19 @@ impl FilePickerState {
             selected: None,
             allowed_exts: allowed_exts.iter().map(|s| s.to_string()).collect(),
             max_size,
+            dir_mode: false,
         }
+    }
+
+    /// A picker that chooses a FOLDER (navigate in, confirm the current
+    /// directory). Starts from `start` when given, else the user profile.
+    pub fn new_dir_picker(start: Option<PathBuf>) -> Self {
+        let mut s = Self::new(&[], 0);
+        if let Some(p) = start.filter(|p| p.is_dir()) {
+            s.current_dir = p;
+        }
+        s.dir_mode = true;
+        s
     }
 }
 
@@ -258,12 +274,26 @@ pub fn file_picker_modal(
                 );
             }
             ui.horizontal(|ui| {
-                let pick_label = state
-                    .selected
-                    .as_ref()
-                    .map(|s| format!("Attach {}", s.name))
-                    .unwrap_or_else(|| "Attach".to_string());
-                let can_pick = state.selected.is_some();
+                // Folder mode confirms the directory currently open; file
+                // mode confirms the selected entry.
+                let (pick_label, can_pick) = if state.dir_mode {
+                    let name = state
+                        .current_dir
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("this folder")
+                        .to_string();
+                    (format!("Use folder: {name}"), true)
+                } else {
+                    (
+                        state
+                            .selected
+                            .as_ref()
+                            .map(|s| format!("Attach {}", s.name))
+                            .unwrap_or_else(|| "Attach".to_string()),
+                        state.selected.is_some(),
+                    )
+                };
                 if ui
                     .add_enabled(
                         can_pick,
@@ -273,7 +303,9 @@ pub fn file_picker_modal(
                     )
                     .clicked()
                 {
-                    if let Some(sel) = &state.selected {
+                    if state.dir_mode {
+                        result = FilePickerResult::Picked(state.current_dir.clone());
+                    } else if let Some(sel) = &state.selected {
                         result = FilePickerResult::Picked(sel.path.clone());
                     }
                 }

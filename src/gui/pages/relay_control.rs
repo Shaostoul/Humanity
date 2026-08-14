@@ -279,7 +279,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .show(ui, theme)
             {
                 // The add-server modal lives on the Chat page; open it there.
-                state.show_add_server_modal = true;
+                // Fresh form every time: the drafts kept the PREVIOUS entry's
+                        // URL, so adding a second server opened pre-filled with the
+                        // first one (report 2026-08-14).
+                        state.add_server_url_draft.clear();
+                        state.add_server_name_draft.clear();
+                        state.show_add_server_modal = true;
                 state.active_page = GuiPage::Chat;
             }
 

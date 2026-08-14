@@ -83,6 +83,42 @@ Rules:
   identity belongs to the signed-object space_id system; revisit when
   strangers can federate.
 
+## Discovery, not auto-add (operator question answered, 2026-08-14)
+
+The operator asked: should federated servers CHAIN into every user's list
+automatically ("if Target.com joins, everyone's list grows"), since making
+each user hand-add servers feels like a Discord server list when the
+federation is meant to be a nexus?
+
+Position adopted: **the nexus is delivered by the Commons, not by the
+server list.** A federated room reaches you through ANY one door: connect
+to a single server and every room it bridges is already in your Commons.
+Users never need their server list to grow to get the mesh's content.
+What auto-adding servers would actually do at scale:
+
+- turn one operator's peering decision into every user's sidebar noise
+  (fifty corporate servers materializing unasked is the exact pattern this
+  project exists to oppose);
+- conflate operator-to-operator trust with user choice;
+- cost a live connection per listed server under the multi-connection
+  model (a socket per row does not survive a 50-server mesh);
+- hand any peer that reaches tier 2 anywhere a free advertising slot in
+  every client.
+
+What users DO need is **discoverability**: a Federation Directory. The
+data already exists (GET /api/federation/servers); the app renders each
+connected server's peer graph as a browsable directory: "united-humanity
+.us federates with: public.guide, ..." with one-click "Add to my list",
+including the extended graph ("via public.guide: ...") for depth. Autoyou
+DISCOVER, you CHOOSE to join. Plus an opt-in per-user setting, default
+OFF: "automatically follow my home server's federation" for people who
+genuinely want the growing list.
+
+Server-side trust stays **non-transitive** on purpose: A trusting B and B
+trusting C does not make A trust C. Every operator picks their own peers;
+one compromised hub cannot chain into everything. The directory shows the
+graph; it never walks it for you.
+
 ## Build order
 
 1. DONE v0.1125.0: saved-server persistence; THIS PC rail entry; the

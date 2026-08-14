@@ -1632,6 +1632,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     }
     // (disconnect is handled inside the server name row)
     if add_server_clicked {
+        // Fresh form every time: the drafts kept the PREVIOUS entry's
+        // URL, so adding a second server opened pre-filled with the
+        // first one (report 2026-08-14).
+        state.add_server_url_draft.clear();
+        state.add_server_name_draft.clear();
         state.show_add_server_modal = true;
         state.add_server_url_draft.clear();
         state.add_server_name_draft.clear();

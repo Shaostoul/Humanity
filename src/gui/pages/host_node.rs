@@ -110,6 +110,8 @@ struct LocalNode {
     /// Ready). Empty until fetched. The identity another relay's operator
     /// pins with /server-add-key to federate with this node.
     server_pubkey: String,
+    /// Open folder picker for the database location, if any.
+    db_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
 
     stop_tx: Option<tokio::sync::oneshot::Sender<()>>,
     events: Option<Receiver<NodeEvent>>,
@@ -129,6 +131,7 @@ impl LocalNode {
             started_at: None,
             lan_ip: None,
             server_pubkey: String::new(),
+            db_picker: None,
             stop_tx: None,
             events: None,
         }
@@ -659,6 +662,29 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode) {
                 &mut n.db_input,
                 "relay.db",
             );
+            // Folder picker so nobody types a path by hand (operator ask,
+            // 2026-08-14). Picks the FOLDER; the file keeps its name (or
+            // gets the default relay.db when the field was empty/a dir).
+            ui.horizontal(|ui| {
+                if widgets::Button::secondary("Browse for folder").show(ui, theme) {
+                    let start = std::path::Path::new(n.db_input.trim())
+                        .parent()
+                        .filter(|p| p.is_dir())
+                        .map(|p| p.to_path_buf());
+                    n.db_picker = Some(
+                        crate::gui::widgets::file_browser::FilePickerState::new_dir_picker(start),
+                    );
+                }
+                ui.label(
+                    RichText::new(
+                        "The default lives in your Windows user profile (AppData), which \
+                         survives app updates and needs no admin rights. Pick any folder \
+                         you prefer; a drive you back up is a fine choice.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
+            });
 
             ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
@@ -680,6 +706,31 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode) {
                     n.status = NodeStatus::Stopped;
                 }
             });
+
+            // Folder picker modal (take/put dance keeps the borrow simple).
+            if let Some(mut picker) = n.db_picker.take() {
+                use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
+                match file_picker_modal(
+                    ui.ctx(),
+                    theme,
+                    &mut picker,
+                    "Choose a folder for the node database",
+                ) {
+                    FilePickerResult::Open => n.db_picker = Some(picker),
+                    FilePickerResult::Cancelled => {}
+                    FilePickerResult::Picked(dir) => {
+                        // Keep the existing file name when there is one;
+                        // otherwise the standard relay.db.
+                        let file = std::path::Path::new(n.db_input.trim())
+                            .file_name()
+                            .and_then(|f| f.to_str())
+                            .filter(|f| f.ends_with(".db"))
+                            .unwrap_or("relay.db")
+                            .to_string();
+                        n.db_input = dir.join(file).display().to_string();
+                    }
+                }
+            }
         });
 }
 

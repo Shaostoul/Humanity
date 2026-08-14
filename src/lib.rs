@@ -16250,6 +16250,26 @@ mod native_app {
                         state.gui_state.ws_reconnect_delay = 5.0;
                         state.gui_state.ws_reconnect_attempts = 0;
                         state.gui_state.ws_reconnect_timer = 0.0;
+                        // The server we are CONNECTED to is by definition a
+                        // server worth keeping: make sure it is in the saved
+                        // list. The operator's original home server never
+                        // appeared there (only explicitly-added ones did), so
+                        // switching away meant hunting for a way back
+                        // (report 2026-08-14).
+                        let url = state.gui_state.server_url.trim_end_matches('/').to_string();
+                        if !url.is_empty()
+                            && !state.gui_state.chat_servers.iter().any(|s| s.url == url)
+                        {
+                            state.gui_state.chat_servers.push(crate::gui::ChatServer {
+                                id: format!("srv_{}", url),
+                                name: crate::gui::pages::chat::server_display_name(&url),
+                                url,
+                                connected: true,
+                                channels: Vec::new(),
+                                voice_channels: Vec::new(),
+                            });
+                            state.gui_state.settings_dirty = true;
+                        }
                     }
 
                     // ── Native WebRTC DataChannel P2P (increment 1) ──
