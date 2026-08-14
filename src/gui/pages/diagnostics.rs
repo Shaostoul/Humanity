@@ -151,6 +151,30 @@ fn draw_network(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     row(ui, theme, "Server", if host_short.is_empty() { "(none)".to_string() } else { host_short });
     row(ui, theme, "Members", state.chat_users.len().to_string());
     row(ui, theme, "Msgs in", state.ws_msgs_in.to_string());
+    // Background connections (multi-connection stage 3+): one row per
+    // parked/background server so the overlay shows the WHOLE mesh.
+    for conn in &state.connections {
+        let short = {
+            let h = conn
+                .url
+                .trim_start_matches("https://")
+                .trim_start_matches("http://");
+            if h.len() > 16 { format!("{}...", &h[..16]) } else { h.to_string() }
+        };
+        let link = if conn.identified {
+            "up"
+        } else if conn.ws.is_some() {
+            "connecting"
+        } else {
+            "down"
+        };
+        row(
+            ui,
+            theme,
+            &format!("bg {}", short),
+            format!("{} / {} in", link, conn.msgs_in),
+        );
+    }
 }
 
 fn draw_system(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {

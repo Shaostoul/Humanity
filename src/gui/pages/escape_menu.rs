@@ -246,7 +246,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // every relay the operator owns (health / control / config) from
                 // one PC. Ops-colored, next to Platform.
                 let relays_items = [
-                    NavItem { label: "Relays", page: GuiPage::RelayControl, description: "Manage the relays you own: health, control, config" },
+                    NavItem { label: "Servers", page: GuiPage::RelayControl, description: "Manage your servers: health, control, config, federation" },
                 ];
                 nav_group(ui, &relays_items, theme.nav_tools(), text_muted, theme, state);
 

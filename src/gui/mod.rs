@@ -4331,6 +4331,10 @@ pub struct GuiState {
     /// Draft inputs for the Federation "Add server" row.
     pub federation_add_url_draft: String,
     pub federation_add_name_draft: String,
+    /// Add-by-key drafts (NAT-friendly pairing: a home node with no public
+    /// URL is added by its 64-hex Ed25519 federation key instead).
+    pub federation_add_key_draft: String,
+    pub federation_add_key_name_draft: String,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -5427,6 +5431,8 @@ impl Default for GuiState {
             federation_rx: None,
             federation_add_url_draft: String::new(),
             federation_add_name_draft: String::new(),
+            federation_add_key_draft: String::new(),
+            federation_add_key_name_draft: String::new(),
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,

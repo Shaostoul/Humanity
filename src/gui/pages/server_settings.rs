@@ -727,6 +727,56 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         });
     });
     ui.add_space(theme.spacing_xs);
+    // Add-by-key row: pairs a server that has NO public URL (a home node
+    // behind NAT). It dials OUT to us; we only need its federation key,
+    // shown with a Copy button on that node's Host Node page.
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new("Add by key:")
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.add(
+            egui::TextEdit::singleline(&mut state.federation_add_key_draft)
+                .desired_width(200.0)
+                .hint_text("64-hex federation key"),
+        );
+        ui.add(
+            egui::TextEdit::singleline(&mut state.federation_add_key_name_draft)
+                .desired_width(110.0)
+                .hint_text("name"),
+        );
+        let key = state.federation_add_key_draft.trim().to_lowercase();
+        let key_ok = key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit());
+        if !key.is_empty() && !key_ok {
+            ui.label(
+                RichText::new("need 64 hex chars")
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+            );
+        }
+        ui.add_enabled_ui(key_ok, |ui| {
+            if widgets::Button::primary("Pair")
+                .tooltip("Register a NAT-friendly peer by its federation key. No URL or \
+                          port-forward needed: that node connects out to this server. \
+                          Copy the key from its Host Node page.")
+                .show(ui, theme)
+            {
+                let name = state.federation_add_key_name_draft.trim().to_string();
+                let cmd = if name.is_empty() {
+                    format!("/server-add-key {}", key)
+                } else {
+                    format!("/server-add-key {} {}", key, name)
+                };
+                send_slash(state, &cmd);
+                state.server_settings_status =
+                    format!("Sent: {} - Refresh to see it listed.", cmd);
+                state.federation_add_key_draft.clear();
+                state.federation_add_key_name_draft.clear();
+            }
+        });
+    });
+    ui.add_space(theme.spacing_xs);
     ui.horizontal(|ui| {
         if widgets::Button::secondary("Refresh")
             .tooltip("Re-fetch the federated-server list.")
@@ -1732,6 +1782,25 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
          but a single point of failure. Choose per-channel: keep #private-ops \
          local, federate #general.",
     );
+    // Say what "Federated" actually bridges to RIGHT NOW (federation-ux.md
+    // build order 5): a live peer list beats an abstract checkbox.
+    {
+        let peers: Vec<String> = state
+            .federation_servers
+            .iter()
+            .filter(|s| s.trust_tier >= 2)
+            .map(|s| s.name.clone())
+            .collect();
+        let line = if peers.is_empty() {
+            "Right now this server has NO trusted federation peers, so the Federated \
+             toggle bridges to nothing - pair a peer in the Federation section above first."
+                .to_string()
+        } else {
+            format!("Federated channels here bridge with: {}.", peers.join(", "))
+        };
+        ui.add_space(theme.spacing_xs);
+        widgets::body_hint(ui, theme, &line);
+    }
     ui.add_space(theme.spacing_sm);
 
     // Header row — visual column titles with hover tooltips so admins
@@ -3031,7 +3100,13 @@ fn resolve_scope(state: &GuiState) -> (String, String) {
     if let Some((id, name)) = resolve_group(state) {
         (format!("Group: {}", name), id)
     } else {
-        (resolve_server_url(state), String::new())
+        // Name the server LOUDLY (federation-ux.md finding #3): with several
+        // servers connected at once, every admin action on this page hits
+        // exactly this one -- the title says which, the mono line under it
+        // shows the full URL these settings are being sent to.
+        let url = resolve_server_url(state);
+        let name = crate::gui::pages::chat::server_display_name(&url);
+        (format!("Server: {}", name), url)
     }
 }
 
