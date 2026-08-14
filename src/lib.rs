@@ -14568,6 +14568,7 @@ mod native_app {
                                                 timestamp_ms: timestamp,
                                                 channel,
                                                 reply_to,
+                                                server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                                 ..Default::default()
                                             },
                                         );
@@ -14907,6 +14908,7 @@ mod native_app {
                                                     timestamp_ms: now_ms,
                                                     // Don't leak into an open P2P group / DM (it'd vanish on reload).
                                                     channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
+                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                                     ..Default::default()
                                                 },
                                             );
@@ -15292,6 +15294,7 @@ mod native_app {
                                             timestamp: crate::gui::pages::chat::format_timestamp(ts),
                                             timestamp_ms: ts,
                                             channel: dm_channel,
+                                            server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                             ..Default::default()
                                         });
                                         while state.gui_state.chat_messages.len() > 200 {
@@ -15336,6 +15339,7 @@ mod native_app {
                                                     timestamp: crate::gui::pages::chat::format_timestamp(ts),
                                                     timestamp_ms: ts,
                                                     channel: dm_channel.clone(),
+                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                                     ..Default::default()
                                                 });
                                             }
@@ -15372,6 +15376,7 @@ mod native_app {
                                             timestamp: crate::gui::pages::chat::format_timestamp(ts),
                                             timestamp_ms: ts,
                                             channel: group_channel,
+                                            server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                             ..Default::default()
                                         });
                                         while state.gui_state.chat_messages.len() > 200 {
@@ -15396,6 +15401,7 @@ mod native_app {
                                                     timestamp: crate::gui::pages::chat::format_timestamp(ts),
                                                     timestamp_ms: ts,
                                                     channel: group_channel.clone(),
+                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                                     ..Default::default()
                                                 });
                                             }
@@ -15705,29 +15711,49 @@ mod native_app {
                                         let server_name = val.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated").to_string();
                                         let server_id = val.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         if !content.is_empty() && ts > 0 {
-                                            let ts_str = {
-                                                let secs = ts / 1000;
-                                                let h = (secs / 3600) % 24;
-                                                let m = (secs / 60) % 60;
-                                                format!("{:02}:{:02}", h, m)
-                                            };
-                                            state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                                // Tag the displayed name with the origin server
-                                                // so federated messages are visually distinct.
-                                                // E.g. "Alice (other-server)".
-                                                sender_name: format!("{} ({})", from_name, server_name),
-                                                // sender_key uses the server_id so reactions/replies
-                                                // can target the federated origin (the relay won't
-                                                // honor cross-server reactions today, but the field
-                                                // shape is preserved for forward compat).
-                                                sender_key: server_id,
-                                                content,
-                                                timestamp: ts_str,
-                                                timestamp_ms: ts,
-                                                channel,
-                                                reactions: std::collections::HashMap::new(),
-                                                reply_to: None,
+                                            // Dedup across carriers: once several of our
+                                            // connections bridge the same room, each delivers
+                                            // its own copy of the same origin line. The wire
+                                            // carries no sender key (from_name only), so the
+                                            // stable identity is (origin_server, timestamp_ms,
+                                            // content) -- display formatting like server_name
+                                            // can differ per carrier and must not split it.
+                                            let duplicate = state.gui_state.chat_messages.iter().any(|m| {
+                                                m.origin_server == server_id
+                                                    && m.timestamp_ms == ts
+                                                    && m.content == content
                                             });
+                                            if !duplicate {
+                                                let ts_str = {
+                                                    let secs = ts / 1000;
+                                                    let h = (secs / 3600) % 24;
+                                                    let m = (secs / 60) % 60;
+                                                    format!("{:02}:{:02}", h, m)
+                                                };
+                                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                                    // Tag the displayed name with the origin server
+                                                    // so federated messages are visually distinct.
+                                                    // E.g. "Alice (other-server)".
+                                                    sender_name: format!("{} ({})", from_name, server_name),
+                                                    // sender_key uses the server_id so reactions/replies
+                                                    // can target the federated origin (the relay won't
+                                                    // honor cross-server reactions today, but the field
+                                                    // shape is preserved for forward compat).
+                                                    sender_key: server_id.clone(),
+                                                    content,
+                                                    timestamp: ts_str,
+                                                    timestamp_ms: ts,
+                                                    channel,
+                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
+                                                    origin_server: server_id,
+                                                    ..Default::default()
+                                                });
+                                                // Bound message buffer (this arm used to be the
+                                                // only push without the cap).
+                                                while state.gui_state.chat_messages.len() > 200 {
+                                                    state.gui_state.chat_messages.remove(0);
+                                                }
+                                            }
                                         }
                                     }
                                     Some("search_results") => {
@@ -16153,6 +16179,7 @@ mod native_app {
                                                         timestamp_ms: now_ms,
                                                         // Don't leak into an open P2P group / DM (it'd vanish on reload).
                                                         channel: crate::gui::pages::chat::notice_channel(&state.gui_state.chat_active_channel),
+                                                        server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
                                                         ..Default::default()
                                                     },
                                                 );

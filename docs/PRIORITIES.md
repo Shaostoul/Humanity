@@ -72,32 +72,23 @@
 >    first correcting it against the live page registry, then reading it where
 >    tab choice is currently hardcoded in three places.
 >
-> 3. **Federation - REPAIRED AND PROVEN v0.1123.0 (2026-08-13).** Seven
->    independent defects fixed (BUGS.md BUG-071); the two-relay integration
->    test (tests/federation_two_relays.rs) boots two full relays in-process
->    and proves handshake + signed chat replication + signed profile gossip
->    + unsigned-gossip refusal in under 2 s. REMAINING for live federation:
->    provision public.guide (DNS records pending at DreamHost), then the
->    cross-machine live test: local host-node relay <-> public.guide via the
->    native GUI (/server-add + /server-trust 2 + /server-federate), then
->    united-humanity.us <-> public.guide when Namecheap maintenance ends.
->    ORIGINAL DEFECT MAP (now historical):
->    Zero peers have EVER federated (live DB: 0 rows). A second relay booting
->    today flaps connect/disconnect ~every 35 s forever, exchanging nothing,
->    because of THREE independent never-ran-live defects:
->    (a) the v0.274 identify gate eats every inbound FederationHello (the /ws
->    pre-bind loop accepts only Identify; relay.rs:2704);
->    (b) the hello sig signs `{ts}` but the verifier checks `{ts}\n{ts}`
->    (federation.rs:239 vs msg_handlers.rs:2522);
->    (c) federated chat signs `content\nts\nchannel` but the verifier expects
->    `fed_chat\nfrom\nchannel\ncontent\nts` (federation.rs:123 vs :2588).
->    Smallest increment: fix the two preimage mismatches (minutes each) + add a
->    FederationHello path through the identify gate (hours, security-sensitive),
->    then run the '$0 test' - two relays on localhost, mutual /server-add +
->    /server-trust 2 + /server-federate via the existing native GUI, verify a
->    chat line and a profile appear on both. SECURITY in the same arc: empty-sig
->    ProfileGossip lets any authed client overwrite any cached federation
->    profile (relay.rs:6093-6106); no federation integration test exists.
+> 3. **Federation - LIVE IN PRODUCTION, both directions proven (v0.1127.0,
+>    2026-08-14).** Eight independent defects fixed (BUGS.md BUG-071, incl.
+>    defect 8: outbound sockets registered by dialed URL while messages
+>    identify by public key, so everything a peer relayed back was dropped;
+>    the two-relay test now covers BOTH chat directions and reproduced the
+>    live drop red before the fix). Live proof: bot probes crossed
+>    public.guide <-> united-humanity.us both ways, persisting as
+>    msg_type='federated_chat' with correct origin_server on the receiver.
+>    NEXT (the federation-ux.md build order, survey brief delivered
+>    2026-08-14): (2) multi-connection foundation in the native client
+>    (staged: provenance fields on ChatMessage -> ServerConnection struct
+>    -> connect-to-all -> Commons sidebar merge -> send routing/failover);
+>    (3) Commons section; (4) send-failover; (5) Servers admin merge +
+>    Federation GUI panel (peer list/status/add-by-URL/add-by-key in-app,
+>    closing the GUI-first debt of the /server-* slash commands).
+>    Also wanted: federation keepalive/ping so idle links do not silently
+>    rot behind NATs.
 >
 > **>>> SECURITY follow-ups (post-incident, ranked):**
 > - CI deploy key = the operator's personal root key and can do ANYTHING as

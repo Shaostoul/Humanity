@@ -1365,6 +1365,16 @@ pub struct ChatMessage {
     pub reactions: std::collections::HashMap<String, Vec<String>>,
     /// If this message is a reply, the parent message context.
     pub reply_to: Option<ReplyContext>,
+    /// Normalized URL of the connection of OURS that delivered this message.
+    /// Empty = legacy/local (scratchpad, pre-provenance rows). This is MY
+    /// server, not where the author lives: a federated line delivered by
+    /// united-humanity.us has server = united-humanity.us.
+    pub server: String,
+    /// Federation origin server id (the origin relay's public key hex) when
+    /// this line was bridged from another server; empty for a message native
+    /// to `server`. Dedup key across carriers is (origin_server, sender_key,
+    /// timestamp_ms) per docs/design/federation-ux.md.
+    pub origin_server: String,
 }
 
 /// Cached parent-message context for a thread reply.

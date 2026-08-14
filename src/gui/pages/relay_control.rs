@@ -31,9 +31,10 @@ struct RelayRow {
     connected: bool,
 }
 
-/// Normalize a relay URL for de-duplication + display (drop a trailing slash).
+/// Normalize a relay URL for de-duplication + display. Delegates to the
+/// canonical normalizer so rail identity matches message provenance.
 fn norm_url(u: &str) -> String {
-    u.trim().trim_end_matches('/').to_string()
+    super::chat::norm_server_url(u)
 }
 
 /// Build the relay rail from the saved servers + the currently-connected relay.

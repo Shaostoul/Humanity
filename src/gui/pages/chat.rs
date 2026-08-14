@@ -4797,6 +4797,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         timestamp_ms: ts,
         channel,
         reply_to: local_reply_to,
+        server: norm_server_url(&state.server_url),
         ..Default::default()
     });
     state.chat_reply_to = None;
@@ -5830,6 +5831,7 @@ fn replace_p2p_messages(
             timestamp: ts_str,
             timestamp_ms: m.created_at as u64,
             channel: channel.to_string(),
+            server: norm_server_url(&state.server_url),
             ..Default::default()
         });
     }
@@ -6346,6 +6348,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
         timestamp: format_timestamp(created_ms),
         timestamp_ms: created_ms,
         channel,
+        server: norm_server_url(&state.server_url),
         ..Default::default()
     });
     state.chat_messages.sort_by_key(|m| m.timestamp_ms);
@@ -6563,6 +6566,15 @@ fn viewer_role(state: &GuiState) -> String {
         .find(|u| u.public_key == state.profile_public_key)
         .map(|u| u.role.clone())
         .unwrap_or_default()
+}
+
+/// Normalize a server URL for identity comparison + provenance tagging
+/// (trim whitespace, drop a trailing slash). This is the stable key used
+/// by ChatMessage.server and, later, per-connection identity; every site
+/// that compares or stores a server URL should pass it through here so
+/// "https://x/" and "https://x" never read as two different servers.
+pub(crate) fn norm_server_url(u: &str) -> String {
+    u.trim().trim_end_matches('/').to_string()
 }
 
 /// Extract a display name from a server URL.
@@ -7650,6 +7662,7 @@ pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, stat
                     timestamp_ms: pending.timestamp_ms,
                     channel: format!("dm:{}", pending.partner_key),
                     reply_to: None,
+                    server: norm_server_url(&state.server_url),
                     ..Default::default()
                 });
                 while state.chat_messages.len() > 200 {

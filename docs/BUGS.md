@@ -979,3 +979,18 @@ swallowed it).
 layer had been "finished" separately. A feature whose halves are each
 tested but whose WHOLE has never executed once is not dormant, it is
 unbuilt; the two-relay test is now the definition of federation working.
+
+**Defect 8, found live after all seven (fixed v0.1127.0):** the first
+production deployment handshook both directions but dropped every message
+arriving on an OUTBOUND socket. The dialer registered its connection under
+the URL it dialed while messages self-identify their origin by public key,
+so the source-identity check ("peer sent chat claiming server_id X,
+dropped") rejected everything the peer relayed back. The two-relay test
+had asymmetric coverage: its chat leg only exercised dialer-to-listener,
+the exact direction that happened to work. Fixed: both directions now
+register peers under the pinned public key (the dialer resolves it from
+the trust row at connect time), and the test gained the reverse chat leg,
+which reproduced the live drop red before the fix and is green after.
+Live proof 2026-08-14: bot probes crossed BOTH ways between public.guide
+and united-humanity.us, persisting as msg_type='federated_chat' with the
+correct origin_server key on the receiving side.

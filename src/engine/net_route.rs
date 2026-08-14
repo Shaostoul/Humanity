@@ -451,16 +451,38 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                         let mut fetched = 0usize;
                         let mut skipped = 0usize;
                         for msg in messages {
-                            let sender_name = msg.get("sender_name")
-                                .or_else(|| msg.get("from_name"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Anonymous")
-                                .to_string();
-                            let sender_key = msg.get("sender_key")
-                                .or_else(|| msg.get("from"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string();
+                            // Federated rows serialize with different field names
+                            // (server_id/server_name/from_name) and must rebuild
+                            // EXACTLY like the live federated_chat arm in lib.rs,
+                            // or the same line renders two ways depending on
+                            // whether it arrived live or via history refetch.
+                            let is_federated = msg.get("type").and_then(|v| v.as_str())
+                                == Some("federated_chat");
+                            let origin_server = if is_federated {
+                                msg.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string()
+                            } else {
+                                String::new()
+                            };
+                            let sender_name = if is_federated {
+                                let from = msg.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous");
+                                let sname = msg.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated");
+                                format!("{} ({})", from, sname)
+                            } else {
+                                msg.get("sender_name")
+                                    .or_else(|| msg.get("from_name"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("Anonymous")
+                                    .to_string()
+                            };
+                            let sender_key = if is_federated {
+                                origin_server.clone()
+                            } else {
+                                msg.get("sender_key")
+                                    .or_else(|| msg.get("from"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string()
+                            };
                             let content = msg.get("content")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
@@ -488,9 +510,14 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                             // disconnect), so without checking the existing buffer
                             // it would re-append every message already on screen
                             // from the live broadcast. (sender_key, timestamp_ms)
-                            // uniquely identifies a message; skip anything we hold.
+                            // uniquely identifies a normal message; federated
+                            // lines share sender_key = origin server id, so
+                            // content joins the key there to avoid collapsing
+                            // two same-millisecond lines from one origin.
                             if state.gui_state.chat_messages.iter()
-                                .any(|m| m.sender_key == sender_key && m.timestamp_ms == timestamp)
+                                .any(|m| m.sender_key == sender_key
+                                    && m.timestamp_ms == timestamp
+                                    && (!is_federated || m.content == content))
                             {
                                 skipped += 1;
                                 continue;
@@ -503,6 +530,8 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
                                     timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
                                     timestamp_ms: timestamp,
                                     channel: ch,
+                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
+                                    origin_server,
                                     ..Default::default()
                                 },
                             );
