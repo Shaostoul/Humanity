@@ -86,11 +86,29 @@
 >    merged cross-carrier view, carrier send routing with inherent
 >    failover, and the Federation GUI (add-by-key Pair, bridged-with
 >    labels, server-named admin header, Servers nav). Statuses in
->    docs/design/federation-ux.md build order. REMAINING wants, ranked:
->    (a) operator live field test of the multi-server UX (the real gate);
+>    docs/design/federation-ux.md build order. Field test 2 findings all
+>    closed v0.1131.0-v0.1132.0 (Commons identity + carrier-only merge +
+>    composer says where a send goes; carrier history depth; per-row
+>    server cogs; host-node autostart; guaranteed local-only #local room,
+>    toggleable, LIVE on both servers; all-shared labels; parallel dials).
+>    REMAINING wants, ranked:
+>    (a) operator field test 3 (Commons identity + #local + autostart);
 >    (b) federation keepalive/ping so idle links do not silently rot
 >    behind NATs; (c) per-channel per-peer bridge scoping; (d) channel
 >    portable identity so Commons matching stops relying on names.
+>
+> 4. **BOOT TIME - measured, first win shipped (v0.1132.0-v0.1133.0).**
+>    Probe profile ([BootPhase] in run.log + debug/boot_timing.json):
+>    adapter_request 1.4-1.9 s, device 60 ms, shaders_and_pipelines
+>    4.0 s (main-thread DXC compilation - THE target), ground bake was
+>    1.0 s (now overlapped with shader compile, boot -0.65 s, v0.1133.0);
+>    world entry adds planet_defs_bake 3.8 s + star_catalog 2.1 s.
+>    NEXT, in order, each probe-gated (world entry, panics=0):
+>    (a) parallelize pipeline creation across threads (wgpu Device is
+>    Send+Sync; the ~450-line sequential create block in renderer
+>    init() is the 4 s) - biggest boot win available;
+>    (b) planet_defs_bake 3.8 s at world entry (cache or parallelize);
+>    (c) adapter_request is wgpu-internal, likely not ours to fix.
 >
 > **>>> SECURITY follow-ups (post-incident, ranked):**
 > - CI deploy key = the operator's personal root key and can do ANYTHING as
