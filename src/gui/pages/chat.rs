@@ -5297,6 +5297,9 @@ fn draw_add_server_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                             channels: Vec::new(),
                             voice_channels: Vec::new(),
                         });
+                        // Persist: saved servers used to vanish on relaunch
+                        // because nothing wrote them to AppConfig (2026-08-14).
+                        state.settings_dirty = true;
                     }
                     state.show_add_server_modal = false;
                 }

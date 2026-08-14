@@ -795,6 +795,7 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                     channels: Vec::new(),
                     voice_channels: Vec::new(),
                 });
+                state.settings_dirty = true; // saved servers persist now
             }
             state.active_page = GuiPage::Chat;
         }

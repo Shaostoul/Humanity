@@ -262,6 +262,14 @@ impl VoiceTransmitMode {
     }
 }
 
+/// One saved chat server: the identity that persists across relaunches.
+/// Connection state and channel lists are runtime and rehydrate on connect.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SavedServer {
+    pub name: String,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -348,6 +356,13 @@ pub struct AppConfig {
     /// reorderings of the enum. See `crate::gui::HintDisplay`.
     #[serde(default)]
     pub hint_display: crate::gui::HintDisplay,
+    /// Saved chat servers (name + url). Until 2026-08-14 the saved-server
+    /// list lived only in GuiState, so every server added in the Chat
+    /// sidebar or Relays rail VANISHED on relaunch (the operator hit it the
+    /// first evening two real servers existed). Channels/connection state
+    /// are runtime-only and rehydrate on connect; only identity persists.
+    #[serde(default)]
+    pub saved_servers: Vec<SavedServer>,
     /// Camera far plane in metres.
     #[serde(default = "default_render_distance")]
     pub render_distance: f32,
@@ -1160,6 +1175,11 @@ impl AppConfig {
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
+            saved_servers: state
+                .chat_servers
+                .iter()
+                .map(|s| SavedServer { name: s.name.clone(), url: s.url.clone() })
+                .collect(),
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
@@ -1302,6 +1322,20 @@ impl AppConfig {
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);
         state.settings.dark_mode = self.dark_mode;
         state.settings.hint_display = self.hint_display;
+        // Rehydrate the saved-server list (identity only; channels and
+        // connection state fill in when each server is actually connected).
+        for s in &self.saved_servers {
+            if !s.url.is_empty() && !state.chat_servers.iter().any(|cs| cs.url == s.url) {
+                state.chat_servers.push(crate::gui::ChatServer {
+                    id: format!("srv_{}", s.url),
+                    name: s.name.clone(),
+                    url: s.url.clone(),
+                    connected: false,
+                    channels: Vec::new(),
+                    voice_channels: Vec::new(),
+                });
+            }
+        }
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
         state.settings.lights_tiled = self.lights_tiled;
@@ -1844,5 +1878,43 @@ mod pbkdf2_migration_tests {
         // veteran behavior: tour marked seen.
         let old: AppConfig = serde_json::from_str("{}").unwrap();
         assert!(old.concept_tour_seen);
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod saved_servers_tests {
+    use super::*;
+
+    /// The relaunch-wipe bug (2026-08-14): servers added in the Chat sidebar
+    /// lived only in GuiState and vanished on restart, the first evening two
+    /// real servers existed to add. Identity must round-trip through the
+    /// config file; runtime state (connected, channels) must not.
+    #[test]
+    fn saved_servers_survive_a_config_round_trip() {
+        let mut state = crate::gui::GuiState::default();
+        state.chat_servers.push(crate::gui::ChatServer {
+            id: "srv_https://public.guide".into(),
+            name: "public.guide".into(),
+            url: "https://public.guide".into(),
+            connected: true, // runtime-only; must NOT come back as connected
+            channels: Vec::new(),
+            voice_channels: Vec::new(),
+        });
+        let cfg = AppConfig::from_gui_state(&state);
+        let json = serde_json::to_string(&cfg).expect("serialize");
+        let reloaded: AppConfig = serde_json::from_str(&json).expect("deserialize");
+        let mut fresh = crate::gui::GuiState::default();
+        reloaded.apply_to_gui_state(&mut fresh);
+        let s = fresh
+            .chat_servers
+            .iter()
+            .find(|s| s.url == "https://public.guide")
+            .expect("saved server survives relaunch");
+        assert_eq!(s.name, "public.guide");
+        assert!(!s.connected, "connection state is runtime-only");
+        // A config from before the field existed applies cleanly (serde
+        // default: empty list), so old installs upgrade without ceremony.
+        let old: AppConfig = serde_json::from_str("{}").expect("old config parses");
+        assert!(old.saved_servers.is_empty());
     }
 }

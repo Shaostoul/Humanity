@@ -39,6 +39,10 @@ fn norm_url(u: &str) -> String {
 /// Build the relay rail from the saved servers + the currently-connected relay.
 /// The connected relay is guaranteed present even if it isn't in `chat_servers`
 /// yet (fresh session, before the server list is populated).
+/// Rail-selection sentinel for the local "Host a node on this PC" entry.
+/// Not a URL on purpose: it can never collide with a real relay row.
+const LOCAL_NODE_SEL: &str = "local:this-pc";
+
 fn collect_relays(state: &GuiState) -> Vec<RelayRow> {
     let ws_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let connected_url = norm_url(&state.server_url);
@@ -58,20 +62,10 @@ fn collect_relays(state: &GuiState) -> Vec<RelayRow> {
             connected: ws_connected,
         });
     }
-    // A node hosted by THIS app is a relay the operator owns, so it belongs in
-    // the rail beside the remote ones. It has no WebSocket of its own, so its
-    // dot reflects "serving" rather than "chat-connected" - which is the same
-    // thing the dot means to a person reading the rail.
-    if let Some(url) = crate::gui::pages::host_node::running_local_url() {
-        let url = norm_url(&url);
-        if !rows.iter().any(|r| r.url == url) {
-            rows.push(RelayRow {
-                name: crate::gui::pages::host_node::running_local_name(),
-                url,
-                connected: true,
-            });
-        }
-    }
+    // The locally hosted node is NOT mixed into this list anymore: it has
+    // its own permanent THIS PC rail entry (operator report 2026-08-14:
+    // embedding it under whichever remote relay was selected read as if
+    // hosting were a setting of that server).
     // De-dupe by URL, keeping the first (connected-preferred) entry.
     let mut seen = std::collections::HashSet::new();
     rows.retain(|r| seen.insert(r.url.clone()));
@@ -213,9 +207,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     let relays = collect_relays(state);
-    // If the selected relay vanished (server list changed), fall back to the first.
+    // If the selected relay vanished (server list changed), fall back to the
+    // first. The THIS PC sentinel is always a valid selection: it is not a
+    // relay row, so it must not be "corrected" away here.
     if let Some(sel) = state.relay_cc_selected.clone() {
-        if !relays.iter().any(|r| r.url == sel) {
+        if sel != LOCAL_NODE_SEL && !relays.iter().any(|r| r.url == sel) {
             state.relay_cc_selected = relays.first().map(|r| r.url.clone());
         }
     } else {
@@ -286,6 +282,51 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 state.show_add_server_modal = true;
                 state.active_page = GuiPage::Chat;
             }
+
+            // ── THIS PC: a permanent home for the local node ──
+            // It used to render at the BOTTOM of whichever remote relay was
+            // selected, which read as if hosting a node were a setting OF
+            // that server (operator report, 2026-08-14). It is its own
+            // machine, so it gets its own rail entry, always present, with
+            // the dot reflecting whether the node is serving right now.
+            ui.add_space(theme.spacing_lg);
+            ui.label(RichText::new("THIS PC")
+                .size(theme.font_size_small)
+                .color(theme.text_muted())
+                .strong());
+            ui.add_space(4.0);
+            {
+                let running = host_node::running_local_url().is_some();
+                let is_sel = selected.as_deref() == Some(LOCAL_NODE_SEL);
+                let bg = if is_sel { theme.bg_tertiary() } else { Color32::TRANSPARENT };
+                let resp = Frame::none()
+                    .fill(bg)
+                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .inner_margin(theme.spacing_sm)
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            status_dot(ui, if running { theme.success() } else { theme.text_muted() });
+                            ui.vertical(|ui| {
+                                ui.label(RichText::new("Host a node on this PC")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()));
+                                ui.label(RichText::new(if running { "serving" } else { "not running" })
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()));
+                            });
+                        });
+                    })
+                    .response
+                    .interact(egui::Sense::click());
+                if resp.clicked() {
+                    state.relay_cc_selected = Some(LOCAL_NODE_SEL.to_string());
+                    state.relay_admin_stats = None;
+                    state.relay_admin_stats_status.clear();
+                }
+                if resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+            }
         });
 
     // ── Detail: header + tabs for the selected relay ──
@@ -311,6 +352,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .color(theme.text_primary())
                         .strong());
                     ui.add_space(theme.spacing_xs);
+                    host_node::draw_section(ui, theme, state);
+                });
+                return;
+            }
+            // THIS PC selected: the whole panel belongs to the local node.
+            // Its own machine, its own page; no SSH console, no VPS controls.
+            if sel_url == LOCAL_NODE_SEL {
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.label(RichText::new("Host a node on this PC")
+                        .size(theme.font_size_title)
+                        .color(theme.text_primary())
+                        .strong());
+                    ui.label(RichText::new(
+                        "Your own server, running on this computer for as long as the app is \
+                         open. Friends on your network join by address; other servers federate \
+                         with it by key, no port forward needed.")
+                        .size(theme.font_size_body)
+                        .color(theme.text_muted()));
+                    ui.add_space(theme.spacing_md);
                     host_node::draw_section(ui, theme, state);
                 });
                 return;
@@ -354,37 +414,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_md);
                 };
 
-                // Is the selected relay the node this app is hosting? Control and
-                // Console both act on the VPS over SSH, which is simply the wrong
-                // machine for a node running here, so a local node gets its own
-                // controls in their place instead of buttons that would restart
-                // somebody else's server.
-                let is_local_node =
-                    host_node::running_local_url().as_deref() == Some(sel_url.as_str());
-
                 heading(ui, "Health");
                 draw_health_tab(ui, theme, state, &sel_url, sel_connected);
                 divider(ui);
-                if is_local_node {
-                    heading(ui, "This node");
-                    host_node::draw_section(ui, theme, state);
-                } else {
-                    heading(ui, "Control");
-                    draw_control_tab(ui, theme, state, &sel_url);
-                    divider(ui);
-                    heading(ui, "Console");
-                    draw_console_section(ui, theme, state);
-                }
+                heading(ui, "Control");
+                draw_control_tab(ui, theme, state, &sel_url);
+                divider(ui);
+                heading(ui, "Console");
+                draw_console_section(ui, theme, state);
                 divider(ui);
                 heading(ui, "Config");
                 draw_config_tab(ui, theme, state);
-                if !is_local_node {
-                    divider(ui);
-                    // Last, because everything above is about the relay selected
-                    // in the rail, and this one is about THIS computer.
-                    heading(ui, "Host a node on this PC");
-                    host_node::draw_section(ui, theme, state);
-                }
+                // The local node no longer trails every remote relay's page:
+                // it lives behind the permanent THIS PC rail entry.
             });
         });
 }
