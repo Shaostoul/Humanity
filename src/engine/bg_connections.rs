@@ -60,7 +60,136 @@ pub(crate) fn pump_background_connections(state: &mut EngineState, dt: f32) {
         handle_bg_message(state, ci, &raw);
     }
 
+    pump_carrier_history(state);
     redial_dropped(state);
+}
+
+/// One-at-a-time REST history fetch for background carriers' federated
+/// channels: drain a finished fetch into the connection's buffer, then
+/// start the next queued channel. Same worker-thread + mpsc + short-timeout
+/// shape as net_route::chat_history_pump (never blocks the render thread).
+fn pump_carrier_history(state: &mut EngineState) {
+    let my_key = state.gui_state.profile_public_key.clone();
+    for conn in state.gui_state.connections.iter_mut() {
+        // Drain a finished fetch.
+        let mut done = false;
+        if let Some(rx) = conn.history_rx.as_ref() {
+            match rx.try_recv() {
+                Ok((_channel, Ok(body))) => {
+                    merge_history_into(conn, &body, &my_key);
+                    done = true;
+                }
+                Ok((channel, Err(e))) => {
+                    log::warn!("bg history fetch {}#{} failed: {}", conn.url, channel, e);
+                    done = true;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => done = true,
+            }
+        }
+        if done {
+            conn.history_rx = None;
+        }
+        // Start the next queued channel.
+        if conn.history_rx.is_none() {
+            if let Some(channel) = conn.history_queue.pop() {
+                let base = conn.display_url.trim_end_matches('/').to_string();
+                let api_url = format!("{}/api/messages?limit=50&channel={}", base, channel);
+                let (tx, rx) = std::sync::mpsc::channel();
+                conn.history_rx = Some(rx);
+                std::thread::spawn(move || {
+                    let result = ureq::get(&api_url)
+                        .timeout(std::time::Duration::from_secs(8))
+                        .call()
+                        .map_err(|e| e.to_string())
+                        .and_then(|resp| resp.into_string().map_err(|e| e.to_string()));
+                    let _ = tx.send((channel, result));
+                });
+            }
+        }
+    }
+}
+
+/// Merge a /api/messages body into a background connection's buffer,
+/// rebuilding federated rows EXACTLY like the live arm (name suffix,
+/// origin_server, server_id as sender key) and deduplicating against
+/// what the connection already holds.
+fn merge_history_into(conn: &mut crate::gui::ServerConnection, body: &str, my_key: &str) {
+    let Ok(data) = serde_json::from_str::<serde_json::Value>(body) else {
+        return;
+    };
+    let Some(messages) = data.get("messages").and_then(|v| v.as_array()) else {
+        return;
+    };
+    for msg in messages {
+        let is_federated = msg.get("type").and_then(|v| v.as_str()) == Some("federated_chat");
+        let origin_server = if is_federated {
+            msg.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string()
+        } else {
+            String::new()
+        };
+        let sender_name = if is_federated {
+            let from = msg.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous");
+            let sname = msg.get("server_name").and_then(|v| v.as_str()).unwrap_or("federated");
+            format!("{} ({})", from, sname)
+        } else {
+            msg.get("sender_name")
+                .or_else(|| msg.get("from_name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Anonymous")
+                .to_string()
+        };
+        let sender_key = if is_federated {
+            origin_server.clone()
+        } else {
+            msg.get("sender_key")
+                .or_else(|| msg.get("from"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+        let content = msg.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let timestamp = msg.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+        let channel = msg
+            .get("channel")
+            .and_then(|v| v.as_str())
+            .unwrap_or("general")
+            .to_string();
+        if content.is_empty() {
+            continue;
+        }
+        // Our own line already echoed on this connection.
+        if !my_key.is_empty() && sender_key == my_key && conn.sent_timestamps.contains(&timestamp)
+        {
+            continue;
+        }
+        // Dedup against live lines already buffered (federated needs
+        // content in the key: sender_key is the origin server for those).
+        if conn.messages.iter().any(|m| {
+            m.sender_key == sender_key
+                && m.timestamp_ms == timestamp
+                && (!is_federated || m.content == content)
+        }) {
+            continue;
+        }
+        conn.messages.push(crate::gui::ChatMessage {
+            sender_name,
+            sender_key,
+            content,
+            timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+            timestamp_ms: timestamp,
+            channel,
+            server: conn.url.clone(),
+            origin_server,
+            ..Default::default()
+        });
+    }
+    // History lands after live lines: restore chronological order for the
+    // per-channel render (the vec order IS the display order).
+    conn.messages.sort_by_key(|m| m.timestamp_ms);
+    while conn.messages.len() > 200 {
+        conn.messages.remove(0);
+    }
 }
 
 /// Open a background connection to ONE saved server that has none yet.
@@ -232,6 +361,19 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     ..Default::default()
                 });
             }
+            // Arm the one-time history fetch for this server's FEDERATED
+            // channels, so Commons rooms have depth from every carrier
+            // without the user ever visiting it. Drained one channel per
+            // in-flight fetch by the pump below.
+            if !conn.history_fetched {
+                conn.history_fetched = true;
+                conn.history_queue = conn
+                    .channels
+                    .iter()
+                    .filter(|c| c.federated)
+                    .map(|c| c.id.clone())
+                    .collect();
+            }
         }
         Some("chat") => {
             let sender_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -250,6 +392,11 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             if content.is_empty() {
                 return;
             }
+            // The open Commons view of this room counts as "on screen":
+            // don't light unread for a conversation the user is watching.
+            let room_open = crate::gui::pages::chat::commons_room_of(
+                &state.gui_state.chat_active_channel,
+            ) == Some(channel.as_str());
             let conn = &mut state.gui_state.connections[ci];
             // Our own echo from a session on this server before it was
             // parked: the sent-timestamps list rode along into the park.
@@ -258,8 +405,10 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             {
                 return;
             }
-            if let Some(c) = conn.channels.iter_mut().find(|c| c.id == channel) {
-                c.unread = true; // nothing on a parked server is on screen
+            if !room_open {
+                if let Some(c) = conn.channels.iter_mut().find(|c| c.id == channel) {
+                    c.unread = true;
+                }
             }
             conn.messages.push(crate::gui::ChatMessage {
                 sender_name,
@@ -289,6 +438,9 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             if content.is_empty() || ts == 0 {
                 return;
             }
+            let room_open = crate::gui::pages::chat::commons_room_of(
+                &state.gui_state.chat_active_channel,
+            ) == Some(channel.as_str());
             let conn = &mut state.gui_state.connections[ci];
             // Same cross-carrier dedup key as the active arm.
             if conn.messages.iter().any(|m| {
@@ -296,8 +448,10 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
             }) {
                 return;
             }
-            if let Some(c) = conn.channels.iter_mut().find(|c| c.id == channel) {
-                c.unread = true;
+            if !room_open {
+                if let Some(c) = conn.channels.iter_mut().find(|c| c.id == channel) {
+                    c.unread = true;
+                }
             }
             conn.messages.push(crate::gui::ChatMessage {
                 sender_name: format!("{} ({})", from_name, server_name),

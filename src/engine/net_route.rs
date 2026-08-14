@@ -413,7 +413,27 @@ pub(crate) fn chat_history_pump(state: &mut EngineState) {
     {
         state.gui_state.history_fetched = true;
         let base_url = state.gui_state.server_url.trim_end_matches('/').to_string();
-        let channel = state.gui_state.chat_active_channel.clone();
+        // A Commons view fetches the underlying room's history -- but only
+        // when the ACTIVE server actually carries the bridged room. A
+        // non-carrier's same-named local channel is a different room and
+        // must not be pulled into the merged view (carrier history comes
+        // from the background fetch in engine/bg_connections.rs instead).
+        let channel = match crate::gui::pages::chat::commons_room_of(
+            &state.gui_state.chat_active_channel,
+        ) {
+            Some(room) => {
+                let carries = state
+                    .gui_state
+                    .chat_channels
+                    .iter()
+                    .any(|c| c.id == room && c.federated);
+                if !carries {
+                    return; // history_fetched stays true; nothing to fetch here
+                }
+                room.to_string()
+            }
+            None => state.gui_state.chat_active_channel.clone(),
+        };
         let api_url = format!("{}/api/messages?limit=50&channel={}", base_url, channel);
         let (tx, rx) = std::sync::mpsc::channel();
         state.gui_state.history_rx = Some(rx);

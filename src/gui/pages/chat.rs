@@ -1628,6 +1628,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let header_label = format!("Servers ({})", virtual_server_count);
 
     let mut add_server_clicked = false;
+    let mut manage_servers_clicked = false;
     if tinted_section_header_with_buttons(
         ui,
         theme,
@@ -1641,10 +1642,26 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             if plus_resp.on_hover_text("Add Server").clicked() {
                 add_server_clicked = true;
             }
+            // Manage servers: the whole Server Control Center (health,
+            // control, console, config, host-a-node) opens from HERE now --
+            // the top-nav "Servers" tab was folded into this header at the
+            // operator's request (one servers concept, one place).
+            let (srv_rect, srv_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+            let srv_color = if srv_resp.hovered() { Color32::WHITE } else { theme.text_secondary() };
+            crate::gui::widgets::icons::paint_server(ui.painter(), srv_rect, srv_color);
+            if srv_resp
+                .on_hover_text("Manage servers: health, control, config, host a node on this PC")
+                .clicked()
+            {
+                manage_servers_clicked = true;
+            }
         },
     ) {
         state.chat_servers_collapsed = !state.chat_servers_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
+    }
+    if manage_servers_clicked {
+        state.push_nav_to(crate::gui::GuiPage::RelayControl);
     }
     // (disconnect is handled inside the server name row)
     if add_server_clicked {
@@ -1833,10 +1850,15 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                     let ctx_time = ui.ctx().input(|i| i.time);
                     for (idx, ch) in channels.iter().enumerate() {
-                        if commons_names.contains(&ch.id) {
-                            continue; // shown once in COMMONS, not per server
-                        }
-                        let is_active = ch.id == active;
+                        // A bridged (Commons) channel stays listed under its
+                        // server -- the federation icon marks it -- and
+                        // clicking it opens the merged Commons view. The
+                        // operator's field test found an EMPTY server section
+                        // (every channel had moved to COMMONS) more confusing
+                        // than a duplicate listing.
+                        let is_commons = ch.federated && commons_names.contains(&ch.id);
+                        let is_active = ch.id == active
+                            || (is_commons && commons_room_of(&active) == Some(ch.id.as_str()));
                         let accent = theme.accent();
                         let bg = if is_active {
                             Color32::from_rgb(
@@ -1954,6 +1976,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 voice_toggle_idx = Some((idx, !ch.voice_joined));
                             } else if gear_icon_rect.contains(click_pos) && is_channel_admin {
                                 gear_click_id = Some(ch.id.clone());
+                            } else if is_commons {
+                                // Bridged channel: open the merged Commons
+                                // view of this room (same one the COMMONS
+                                // section opens -- one room, one view).
+                                if !is_active {
+                                    open_commons_room(state, &ch.id);
+                                }
                             } else if state.chat_active_channel != ch.id {
                                 // Only swap channel context when the click actually changes
                                 // channels. Re-clicking the active channel used to clear
@@ -2100,6 +2129,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 let current = state.server_url.trim_end_matches('/').to_string();
                 for server in state.chat_servers.clone().iter() {
                     let is_current = server.url.trim_end_matches('/') == current;
+                    // The ACTIVE server already has its full entry above
+                    // (header + cog + channels + voice). A second row for it
+                    // here read as "the server list is nested under the
+                    // active server" in the operator's field test -- skip it.
+                    if is_current && connected {
+                        continue;
+                    }
                     // Live background link state (multi-connection stage 3):
                     // every saved server holds its own connection now, so a
                     // non-current row can still be online, with unread mail.
@@ -2113,7 +2149,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     });
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
-                        ui.add_space(12.0);
+                        // Same left edge as the active server's header (8 px,
+                        // not the old 12): every server reads as a peer
+                        // section, never as a child of the one above.
+                        ui.add_space(8.0);
                         // Status dot: green = link up (current or background),
                         // muted = offline. A filled accent dot on the right
                         // marks unread activity on a background server.
@@ -2145,6 +2184,51 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             let (ur, _) = ui
                                 .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
                             ui.painter().circle_filled(ur.center(), 3.0, theme.accent());
+                        }
+                        // Per-server settings cog (operator, field test 2:
+                        // "add the settings cog buttons to the server name
+                        // lines so we're not going into so many nested
+                        // menus"): switches to this server -- instant when
+                        // its background link is live -- and opens Server
+                        // Settings already pointed at it.
+                        let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 12.0);
+                        let cog_color = if cog_resp.hovered() {
+                            Color32::WHITE
+                        } else {
+                            theme.text_muted()
+                        };
+                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                        if cog_resp
+                            .on_hover_text(format!("Settings for {}", server.name))
+                            .clicked()
+                            && state.private_key_bytes.is_some()
+                        {
+                            state.park_active_connection();
+                            if !state.unpark_connection(&server.url) {
+                                state.server_url = server.url.clone();
+                                let ws_url = derive_ws_url(&server.url);
+                                let uname = state.user_name.clone();
+                                let pubkey = state.profile_public_key.clone();
+                                state.ws_client = Some(
+                                    crate::net::ws_client::WsClient::connect_with_kyber(
+                                        &ws_url,
+                                        &uname,
+                                        &pubkey,
+                                        &state.kyber_public_b64,
+                                    ),
+                                );
+                                state.connected_server_url = server.url.clone();
+                                state.ws_identified = false;
+                                state.ws_status = format!("Switching to {}...", server.name);
+                                state.ws_manually_disconnected = false;
+                                state.ws_reconnect_timer = 0.0;
+                                state.ws_reconnect_delay = 5.0;
+                                state.ws_reconnect_attempts = 0;
+                                state.chat_active_channel = "general".to_string();
+                                state.history_fetched = false;
+                            }
+                            crate::config::AppConfig::from_gui_state(state).save();
+                            state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                         }
                         if is_current {
                             ui.label(
@@ -2225,27 +2309,33 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         }
                     });
                     // This server's channels, live from its background
-                    // connection (multi-connection stage 4). Bridged rooms
-                    // shown in COMMONS are omitted here. Clicking a channel
-                    // switches to that server AND opens the room.
+                    // connection (multi-connection stage 4). ALL channels are
+                    // listed; a bridged one carries the federation badge and
+                    // opens the merged Commons view WITHOUT switching servers
+                    // (one room, one view). A plain channel switches to this
+                    // server and lands in that room.
                     if !is_current {
-                        let bg_channels: Vec<(String, String, bool)> = {
-                            let commons: std::collections::HashSet<String> =
-                                commons_rooms(state).into_iter().map(|r| r.name).collect();
-                            state
-                                .connections
-                                .iter()
-                                .find(|c| c.url == norm_server_url(&server.url))
-                                .map(|c| {
-                                    c.channels
-                                        .iter()
-                                        .filter(|ch| !commons.contains(&ch.id))
-                                        .map(|ch| (ch.id.clone(), ch.name.clone(), ch.unread))
-                                        .collect()
-                                })
-                                .unwrap_or_default()
-                        };
-                        for (ch_id, ch_name, ch_unread) in bg_channels {
+                        let commons: std::collections::HashSet<String> =
+                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        let bg_channels: Vec<(String, String, bool, bool)> = state
+                            .connections
+                            .iter()
+                            .find(|c| c.url == norm_server_url(&server.url))
+                            .map(|c| {
+                                c.channels
+                                    .iter()
+                                    .map(|ch| {
+                                        (
+                                            ch.id.clone(),
+                                            ch.name.clone(),
+                                            ch.unread,
+                                            ch.federated && commons.contains(&ch.id),
+                                        )
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels {
                             ui.horizontal(|ui| {
                                 ui.add_space(24.0);
                                 let label = ui
@@ -2257,10 +2347,25 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                         )
                                         .sense(egui::Sense::click()),
                                     )
-                                    .on_hover_text(format!(
-                                        "Open #{} on {}",
-                                        ch_name, server.name
-                                    ));
+                                    .on_hover_text(if ch_commons {
+                                        format!(
+                                            "Open the Commons view of #{} (bridged room)",
+                                            ch_name
+                                        )
+                                    } else {
+                                        format!("Open #{} on {}", ch_name, server.name)
+                                    });
+                                if ch_commons {
+                                    let (br, _) = ui.allocate_exact_size(
+                                        egui::vec2(13.0, 11.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    crate::gui::widgets::icons::paint_federation(
+                                        ui.painter(),
+                                        br,
+                                        theme.text_muted(),
+                                    );
+                                }
                                 if ch_unread {
                                     let (ur, _) = ui.allocate_exact_size(
                                         egui::vec2(8.0, 8.0),
@@ -2273,42 +2378,46 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     );
                                 }
                                 if label.clicked() && state.private_key_bytes.is_some() {
-                                    // Same switch as clicking the server name,
-                                    // then land directly in the clicked room.
-                                    state.park_active_connection();
-                                    if !state.unpark_connection(&server.url) {
-                                        state.server_url = server.url.clone();
-                                        let ws_url = derive_ws_url(&server.url);
-                                        let uname = state.user_name.clone();
-                                        let pubkey = state.profile_public_key.clone();
-                                        state.ws_client = Some(
-                                            crate::net::ws_client::WsClient::connect_with_kyber(
-                                                &ws_url,
-                                                &uname,
-                                                &pubkey,
-                                                &state.kyber_public_b64,
-                                            ),
-                                        );
-                                        state.connected_server_url = server.url.clone();
-                                        state.ws_identified = false;
-                                        state.ws_status =
-                                            format!("Switching to {}...", server.name);
-                                        state.ws_manually_disconnected = false;
-                                        state.ws_reconnect_timer = 0.0;
-                                        state.ws_reconnect_delay = 5.0;
-                                        state.ws_reconnect_attempts = 0;
+                                    if ch_commons {
+                                        open_commons_room(state, &ch_id);
+                                    } else {
+                                        // Same switch as clicking the server name,
+                                        // then land directly in the clicked room.
+                                        state.park_active_connection();
+                                        if !state.unpark_connection(&server.url) {
+                                            state.server_url = server.url.clone();
+                                            let ws_url = derive_ws_url(&server.url);
+                                            let uname = state.user_name.clone();
+                                            let pubkey = state.profile_public_key.clone();
+                                            state.ws_client = Some(
+                                                crate::net::ws_client::WsClient::connect_with_kyber(
+                                                    &ws_url,
+                                                    &uname,
+                                                    &pubkey,
+                                                    &state.kyber_public_b64,
+                                                ),
+                                            );
+                                            state.connected_server_url = server.url.clone();
+                                            state.ws_identified = false;
+                                            state.ws_status =
+                                                format!("Switching to {}...", server.name);
+                                            state.ws_manually_disconnected = false;
+                                            state.ws_reconnect_timer = 0.0;
+                                            state.ws_reconnect_delay = 5.0;
+                                            state.ws_reconnect_attempts = 0;
+                                        }
+                                        state.chat_active_channel = ch_id.clone();
+                                        state.chat_messages.clear();
+                                        state.history_fetched = false;
+                                        if let Some(c) = state
+                                            .chat_channels
+                                            .iter_mut()
+                                            .find(|c| c.id == ch_id)
+                                        {
+                                            c.unread = false;
+                                        }
+                                        crate::config::AppConfig::from_gui_state(state).save();
                                     }
-                                    state.chat_active_channel = ch_id.clone();
-                                    state.chat_messages.clear();
-                                    state.history_fetched = false;
-                                    if let Some(c) = state
-                                        .chat_channels
-                                        .iter_mut()
-                                        .find(|c| c.id == ch_id)
-                                    {
-                                        c.unread = false;
-                                    }
-                                    crate::config::AppConfig::from_gui_state(state).save();
                                 }
                             });
                         }
@@ -2791,6 +2900,33 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .color(theme.group_accent())
                             .strong(),
                     );
+                } else if let Some(room) = commons_room_of(&state.chat_active_channel) {
+                    // Commons room header: bare room name + which of my
+                    // servers bridge it, so the merged view names its
+                    // sources instead of pretending to be one server.
+                    let room = room.to_string();
+                    ui.label(
+                        RichText::new(format!("# {}", room))
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary())
+                            .strong(),
+                    );
+                    let mut carriers: Vec<String> = Vec::new();
+                    if state.chat_channels.iter().any(|c| c.id == room && c.federated)
+                        && state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+                    {
+                        carriers.push(server_display_name(&state.server_url));
+                    }
+                    for conn in state.connections.iter().filter(|c| c.identified) {
+                        if conn.channels.iter().any(|c| c.id == room && c.federated) {
+                            carriers.push(server_display_name(&conn.url));
+                        }
+                    }
+                    ui.label(
+                        RichText::new(format!("  |  Commons: {}", carriers.join(" + ")))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
                 } else {
                     // Normal channel header
                     ui.label(
@@ -2853,45 +2989,62 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .show(ui, |ui| {
                 ui.add_space(8.0);
 
-                let mut filtered: Vec<&ChatMessage> = state
-                    .chat_messages
-                    .iter()
-                    .filter(|m| m.channel == active_channel)
-                    .collect();
-                // Commons merge (federation-ux.md): when the open room is
-                // bridged across servers, every carrier connection holds its
-                // own copy of the conversation -- merge them into one view.
+                // Commons merge (federation-ux.md): a Commons view merges the
+                // conversation from every CARRIER of the bridged room -- and
+                // ONLY carriers. A same-named local channel on a non-carrier
+                // server is a different room and never blends in (the private
+                // #general vs the bridged #general).
                 // Dedup: a line native to one of my servers (origin_server
                 // empty) beats its federated echoes; federated copies from
                 // several carriers collapse on (origin, timestamp, content).
-                if commons_rooms(state).iter().any(|r| r.name == active_channel) {
-                    for conn in state.connections.iter() {
-                        filtered.extend(
-                            conn.messages.iter().filter(|m| m.channel == active_channel),
-                        );
-                    }
-                    let natives: std::collections::HashSet<(u64, &str)> = filtered
-                        .iter()
-                        .filter(|m| m.origin_server.is_empty())
-                        .map(|m| (m.timestamp_ms, m.content.as_str()))
-                        .collect();
-                    let mut seen_fed: std::collections::HashSet<(&str, u64, &str)> =
-                        std::collections::HashSet::new();
-                    filtered.retain(|m| {
-                        if m.origin_server.is_empty() {
-                            return true;
+                let filtered: Vec<&ChatMessage> =
+                    if let Some(room) = commons_room_of(&active_channel) {
+                        let active_carries = state
+                            .chat_channels
+                            .iter()
+                            .any(|c| c.id == room && c.federated);
+                        let mut merged: Vec<&ChatMessage> = Vec::new();
+                        if active_carries {
+                            merged.extend(
+                                state.chat_messages.iter().filter(|m| m.channel == room),
+                            );
                         }
-                        if natives.contains(&(m.timestamp_ms, m.content.as_str())) {
-                            return false; // the native original is present
+                        for conn in state.connections.iter() {
+                            if conn.channels.iter().any(|c| c.id == room && c.federated) {
+                                merged.extend(
+                                    conn.messages.iter().filter(|m| m.channel == room),
+                                );
+                            }
                         }
-                        seen_fed.insert((
-                            m.origin_server.as_str(),
-                            m.timestamp_ms,
-                            m.content.as_str(),
-                        ))
-                    });
-                    filtered.sort_by_key(|m| m.timestamp_ms);
-                }
+                        let natives: std::collections::HashSet<(u64, &str)> = merged
+                            .iter()
+                            .filter(|m| m.origin_server.is_empty())
+                            .map(|m| (m.timestamp_ms, m.content.as_str()))
+                            .collect();
+                        let mut seen_fed: std::collections::HashSet<(&str, u64, &str)> =
+                            std::collections::HashSet::new();
+                        merged.retain(|m| {
+                            if m.origin_server.is_empty() {
+                                return true;
+                            }
+                            if natives.contains(&(m.timestamp_ms, m.content.as_str())) {
+                                return false; // the native original is present
+                            }
+                            seen_fed.insert((
+                                m.origin_server.as_str(),
+                                m.timestamp_ms,
+                                m.content.as_str(),
+                            ))
+                        });
+                        merged.sort_by_key(|m| m.timestamp_ms);
+                        merged
+                    } else {
+                        state
+                            .chat_messages
+                            .iter()
+                            .filter(|m| m.channel == active_channel)
+                            .collect()
+                    };
 
                 if filtered.is_empty() {
                     ui.vertical_centered(|ui| {
@@ -3879,6 +4032,34 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let name = state.chat_groups.iter().find(|g| g.id == gid)
                             .map(|g| g.name.as_str()).unwrap_or("group");
                         format!("Message {}", name)
+                    } else if let Some(room) = commons_room_of(&state.chat_active_channel) {
+                        // Name the outgoing server EXPLICITLY: in the first
+                        // field test a Commons send silently routed through a
+                        // background carrier while the operator sat on an
+                        // offline private server -- the composer must say
+                        // where the message will actually go.
+                        let active_carries = state
+                            .chat_channels
+                            .iter()
+                            .any(|c| c.id == room && c.federated)
+                            && state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+                        let via = if active_carries {
+                            Some(server_display_name(&state.server_url))
+                        } else {
+                            state
+                                .connections
+                                .iter()
+                                .find(|c| {
+                                    c.identified
+                                        && c.ws.is_some()
+                                        && c.channels.iter().any(|ch| ch.id == room && ch.federated)
+                                })
+                                .map(|c| server_display_name(&c.url))
+                        };
+                        match via {
+                            Some(v) => format!("Message #{} (sends via {})", room, v),
+                            None => format!("#{}: no connected server carries this room", room),
+                        }
                     } else {
                         format!("Message #{}", state.chat_active_channel)
                     };
@@ -4840,26 +5021,34 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     // The scratchpad is LOCAL-ONLY, as its label promises (v0.702 fix).
     let is_scratchpad = channel == "scratchpad";
 
-    // Commons routing (federation-ux.md): a bridged room the ACTIVE server
-    // does not carry must go out through a background carrier connection,
-    // never onto the active relay (which would create a same-named LOCAL,
-    // unbridged channel there). None = the normal active-socket path.
-    let carrier_idx: Option<usize> = if !is_p2p_group
-        && !is_scratchpad
-        && !channel.starts_with("dm:")
-        && !channel.starts_with("group:")
-        && commons_rooms(state)
-            .iter()
-            .any(|r| r.name == channel && !r.active_carries)
-    {
-        state.connections.iter().position(|c| {
+    // Commons routing (federation-ux.md): a Commons view ("commons:<room>")
+    // sends into the underlying bridged room. If the ACTIVE server carries
+    // it (a federated channel of that name), send there; otherwise route
+    // through a background carrier connection -- never onto a relay that
+    // does not carry the room (which would fork a same-named LOCAL,
+    // unbridged channel there). Fail closed when NOTHING carries it.
+    let commons_room: Option<String> = commons_room_of(&channel).map(|s| s.to_string());
+    let wire_channel = commons_room.clone().unwrap_or_else(|| channel.clone());
+    let active_carries_room = match commons_room.as_deref() {
+        Some(room) => {
+            state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+                && state.chat_channels.iter().any(|c| c.id == room && c.federated)
+        }
+        None => true, // plain channels always use the active socket
+    };
+    let carrier_idx: Option<usize> = match commons_room.as_deref() {
+        Some(room) if !active_carries_room => state.connections.iter().position(|c| {
             c.identified
                 && c.ws.is_some()
-                && c.channels.iter().any(|ch| ch.id == channel && ch.federated)
-        })
-    } else {
-        None
+                && c.channels.iter().any(|ch| ch.id == room && ch.federated)
+        }),
+        _ => None,
     };
+    if commons_room.is_some() && !active_carries_room && carrier_idx.is_none() {
+        state.ws_status =
+            "No connected server carries this Commons room right now.".to_string();
+        return false; // keep the draft in the input box
+    }
 
     if !is_p2p_group && !is_scratchpad && carrier_idx.is_none() {
         if let Some(ref client) = state.ws_client {
@@ -4924,14 +5113,15 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                     }).to_string())
                 } else {
                     // Normal channel chat, Dilithium-signed; carries reply_to
-                    // when a reply context is active.
+                    // when a reply context is active. A Commons view sends
+                    // into the bare room name (wire_channel).
                     let mut chat_obj = serde_json::json!({
                         "type": "chat",
                         "from": state.profile_public_key,
                         "from_name": display_name,
                         "content": content,
                         "timestamp": ts,
-                        "channel": channel,
+                        "channel": wire_channel,
                     });
                     if let Some(ref r) = state.chat_reply_to {
                         chat_obj["reply_to"] = serde_json::json!({
@@ -4977,7 +5167,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             "from_name": display_name,
             "content": content,
             "timestamp": ts,
-            "channel": channel,
+            "channel": wire_channel,
         });
         if let Some(ref r) = state.chat_reply_to {
             chat_obj["reply_to"] = serde_json::json!({
@@ -5012,7 +5202,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             content: content.to_string(),
             timestamp: now,
             timestamp_ms: ts,
-            channel,
+            channel: wire_channel.clone(),
             reply_to: local_reply,
             server: echo_server,
             ..Default::default()
@@ -5052,7 +5242,9 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         content: content.to_string(),
         timestamp: now,
         timestamp_ms: ts,
-        channel,
+        // A Commons send echoes at the bare room name so the merged
+        // carrier view (which filters by room) shows it.
+        channel: wire_channel,
         reply_to: local_reply_to,
         server: norm_server_url(&state.server_url),
         ..Default::default()
@@ -6852,6 +7044,31 @@ pub(crate) struct CommonsRoom {
     pub unread: bool,
 }
 
+/// The room name behind a Commons view id ("commons:general" -> "general"),
+/// or None when the active channel is not a Commons view. A Commons room and
+/// a same-named LOCAL channel are DIFFERENT rooms: the qualified id keeps
+/// them apart (the operator's private #general must never blend into the
+/// bridged #general, and vice versa).
+pub(crate) fn commons_room_of(active_channel: &str) -> Option<&str> {
+    active_channel.strip_prefix("commons:")
+}
+
+/// Open a Commons room: qualified view id, fresh buffer, history refetch,
+/// and the unread mark cleared on every carrier.
+pub(crate) fn open_commons_room(state: &mut GuiState, name: &str) {
+    state.chat_active_channel = format!("commons:{}", name);
+    state.chat_messages.clear();
+    state.history_fetched = false;
+    if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == name) {
+        c.unread = false;
+    }
+    for conn in state.connections.iter_mut() {
+        if let Some(c) = conn.channels.iter_mut().find(|c| c.id == name) {
+            c.unread = false;
+        }
+    }
+}
+
 /// Compute the Commons rooms from the active connection + every background
 /// connection. A room qualifies when it is FLAGGED federated and at least
 /// two of my servers carry it.
@@ -6915,7 +7132,7 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             ui.set_min_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
             for room in &rooms {
-                let is_active = state.chat_active_channel == room.name;
+                let is_active = commons_room_of(&state.chat_active_channel) == Some(room.name.as_str());
                 let row_w = ui.available_width();
                 let (row_rect, response) = ui.allocate_exact_size(
                     Vec2::new(row_w, theme.row_height * 0.9),
@@ -6989,25 +7206,8 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         room.carriers
                     ));
                 }
-                if response.clicked() && state.chat_active_channel != room.name {
-                    state.chat_active_channel = room.name.clone();
-                    state.chat_messages.clear();
-                    state.history_fetched = false;
-                    // Opening clears unread on EVERY carrier of this room.
-                    if let Some(c) = state
-                        .chat_channels
-                        .iter_mut()
-                        .find(|c| c.id == room.name)
-                    {
-                        c.unread = false;
-                    }
-                    for conn in state.connections.iter_mut() {
-                        if let Some(c) =
-                            conn.channels.iter_mut().find(|c| c.id == room.name)
-                        {
-                            c.unread = false;
-                        }
-                    }
+                if response.clicked() && !is_active {
+                    open_commons_room(state, &room.name);
                 }
             }
         });
@@ -7300,6 +7500,11 @@ pub fn format_full_timestamp(ts_ms: u64) -> String {
 pub fn notice_channel(active_channel: &str) -> String {
     if active_channel.starts_with("p2pgroup:") || active_channel.starts_with("dm:") {
         "general".to_string()
+    } else if let Some(room) = commons_room_of(active_channel) {
+        // A Commons VIEW id is not a storable channel; file the notice
+        // under the underlying room so it renders in the merged view
+        // (when the active server carries it) and is never orphaned.
+        room.to_string()
     } else {
         active_channel.to_string()
     }
@@ -8169,6 +8374,26 @@ mod commons_rooms_tests {
         state.connections.push(conn("https://a", true, &[("general", false, false)]));
         state.connections.push(conn("https://b", true, &[("general", false, false)]));
         assert!(commons_rooms(&state).is_empty(), "two plain #general rooms stay separate");
+    }
+
+    #[test]
+    fn opening_a_commons_room_uses_the_qualified_id_and_clears_carrier_unread() {
+        let mut state = GuiState::default();
+        state.connections.push(conn("https://a", true, &[("general", true, true)]));
+        state.connections.push(conn("https://b", true, &[("general", true, true)]));
+        super::open_commons_room(&mut state, "general");
+        // The qualified id keeps the bridged room distinct from any
+        // same-named LOCAL channel (the private #general must never blend
+        // into the Commons view).
+        assert_eq!(state.chat_active_channel, "commons:general");
+        assert_eq!(super::commons_room_of(&state.chat_active_channel), Some("general"));
+        assert!(
+            state
+                .connections
+                .iter()
+                .all(|c| c.channels.iter().all(|ch| !ch.unread)),
+            "opening the room clears unread on every carrier"
+        );
     }
 
     #[test]

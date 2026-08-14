@@ -1576,6 +1576,10 @@ mod native_app {
             if let Some(config) = crate::config::AppConfig::load_if_exists() {
                 config.apply_to_gui_state(&mut gui_state);
             }
+            // Bring the self-hosted relay node back up if it was running at
+            // last exit (host_node_autostart, armed by Start / disarmed by
+            // Stop). Must run after the config lands so port/db/name match.
+            crate::gui::pages::host_node::autostart_if_configured(&gui_state);
             // Push the LOADED settings into the engine on the first frame. Without this the
             // camera boots at CameraController::new's hardcoded sensitivity (and the camera
             // FOV / far-plane stay at their constructor defaults) until the user nudges a
@@ -14534,10 +14538,15 @@ mod native_app {
                                             })
                                         });
                                         // Sidebar unread dot: flag the channel when the message
-                                        // isn't ours and that channel isn't the open one. Same
-                                        // pattern as the DM/group handlers. (v0.718)
+                                        // isn't ours and that channel isn't the open one. The
+                                        // open Commons view of the same room counts as open
+                                        // (its qualified id is "commons:<room>"). (v0.718)
+                                        let room_is_open = channel == state.gui_state.chat_active_channel
+                                            || crate::gui::pages::chat::commons_room_of(
+                                                &state.gui_state.chat_active_channel,
+                                            ) == Some(channel.as_str());
                                         if sender_key != state.gui_state.profile_public_key
-                                            && channel != state.gui_state.chat_active_channel
+                                            && !room_is_open
                                         {
                                             if let Some(c) = state.gui_state.chat_channels.iter_mut().find(|c| c.id == channel) {
                                                 c.unread = true;

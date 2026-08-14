@@ -144,6 +144,35 @@ fn node() -> &'static Mutex<LocalNode> {
     NODE.get_or_init(|| Mutex::new(LocalNode::new()))
 }
 
+/// Boot-time autostart: reproduce the node the operator last had running
+/// (port/db/name saved when Start was pressed; disarmed by Stop). Called
+/// once from engine init, right after the config lands in GuiState -- the
+/// field-test failure this fixes is "my self-relay is unreachable after
+/// every app restart" (the node simply was not running).
+pub fn autostart_if_configured(state: &crate::gui::GuiState) {
+    if !state.host_node_autostart {
+        return;
+    }
+    let Ok(mut n) = node().lock() else { return };
+    if matches!(n.status, NodeStatus::Running | NodeStatus::Starting) {
+        return;
+    }
+    if !state.host_node_port.trim().is_empty() {
+        n.port_input = state.host_node_port.clone();
+    }
+    if !state.host_node_db.trim().is_empty() {
+        n.db_input = state.host_node_db.clone();
+    }
+    if !state.host_node_name.trim().is_empty() {
+        n.name_input = state.host_node_name.clone();
+    }
+    log::info!(
+        "Host node autostart: starting the local relay on port {}",
+        n.port_input
+    );
+    start(&mut n);
+}
+
 /// The loopback URL of the node this app hosts, when it is up.
 ///
 /// The Relays page calls this so a running local node shows in the "MY RELAYS"
@@ -604,12 +633,12 @@ pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     match n.status {
         NodeStatus::Running | NodeStatus::Stopping => draw_running(ui, theme, state, &mut n),
-        _ => draw_setup(ui, theme, &mut n),
+        _ => draw_setup(ui, theme, state, &mut n),
     }
 }
 
 /// The editable form, shown whenever nothing is serving.
-fn draw_setup(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode) {
+fn draw_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut LocalNode) {
     let starting = n.status == NodeStatus::Starting;
 
     Frame::none()
@@ -687,6 +716,22 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode) {
             });
 
             ui.add_space(theme.spacing_xs);
+            // Autostart: the field-test failure was simply "the node is not
+            // running after an app restart". Starting the node turns this on
+            // (Stop turns it off); the checkbox is the manual override.
+            let mut auto = state.host_node_autostart;
+            if ui
+                .checkbox(&mut auto, "Start this node automatically when the app opens")
+                .on_hover_text(
+                    "Reproduces this exact node (port, database, name) at every launch, \
+                     so your self-hosted server is reachable again without visiting this page.",
+                )
+                .changed()
+            {
+                state.host_node_autostart = auto;
+                crate::config::AppConfig::from_gui_state(state).save();
+            }
+            ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
                 if widgets::Button::primary(if starting { "Starting..." } else { "Start node" })
                     .disabled(starting)
@@ -694,6 +739,15 @@ fn draw_setup(ui: &mut egui::Ui, theme: &Theme, n: &mut LocalNode) {
                     .show(ui, theme)
                 {
                     start(n);
+                    if n.status != NodeStatus::Failed {
+                        // Remember the running shape + arm autostart so an
+                        // app restart brings this server back by itself.
+                        state.host_node_autostart = true;
+                        state.host_node_port = n.port_input.clone();
+                        state.host_node_db = n.db_input.clone();
+                        state.host_node_name = n.name_input.clone();
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
                 }
                 if widgets::Button::ghost("Reset to defaults")
                     .disabled(starting)
@@ -821,10 +875,15 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
     ui.horizontal(|ui| {
         if widgets::Button::danger(if stopping { "Stopping..." } else { "Stop node" })
             .disabled(stopping)
-            .tooltip("Shuts the server down and frees the port. Nothing is deleted.")
+            .tooltip("Shuts the server down and frees the port. Nothing is deleted. \
+                      Also turns off launch autostart until you start it again.")
             .show(ui, theme)
         {
             stop(n);
+            // An explicit Stop means "I do not want this running": disarm
+            // autostart too, or the next launch would resurrect it.
+            state.host_node_autostart = false;
+            crate::config::AppConfig::from_gui_state(state).save();
         }
         if widgets::Button::secondary("Add to my servers")
             .disabled(stopping)

@@ -180,6 +180,8 @@ impl GuiState {
             rate_limited: take(&mut self.ws_rate_limited),
             msgs_in: take(&mut self.ws_msgs_in),
             history_fetched: take(&mut self.history_fetched),
+            history_queue: Vec::new(),
+            history_rx: None,
             messages: take(&mut self.chat_messages),
             channels: take(&mut self.chat_channels),
             active_channel: std::mem::replace(&mut self.chat_active_channel, "general".to_string()),
@@ -1817,6 +1819,13 @@ pub struct ServerConnection {
     pub rate_limited: bool,
     pub msgs_in: u64,
     pub history_fetched: bool,
+    /// Federated channel ids still awaiting a REST history fetch (armed once
+    /// when the channel list first arrives; drained one channel at a time by
+    /// the background pump so Commons rooms have depth from EVERY carrier,
+    /// not just servers the user has visited).
+    pub history_queue: Vec<String>,
+    /// In-flight background history fetch: (channel, body-or-error).
+    pub history_rx: Option<std::sync::mpsc::Receiver<(String, Result<String, String>)>>,
     pub messages: Vec<ChatMessage>,
     pub channels: Vec<ChatChannel>,
     /// The room the user had open on this server; restored on switch-back.
@@ -4335,6 +4344,14 @@ pub struct GuiState {
     /// URL is added by its 64-hex Ed25519 federation key instead).
     pub federation_add_key_draft: String,
     pub federation_add_key_name_draft: String,
+    /// Host-a-node autostart (operator field test 2: "I can't seem to
+    /// reconnect to my self-relay when I restart the app" -- the node was
+    /// simply not running). Set when the node is started, cleared on Stop;
+    /// the saved port/db/name reproduce the exact node at next launch.
+    pub host_node_autostart: bool,
+    pub host_node_port: String,
+    pub host_node_db: String,
+    pub host_node_name: String,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -5433,6 +5450,10 @@ impl Default for GuiState {
             federation_add_name_draft: String::new(),
             federation_add_key_draft: String::new(),
             federation_add_key_name_draft: String::new(),
+            host_node_autostart: false,
+            host_node_port: String::new(),
+            host_node_db: String::new(),
+            host_node_name: String::new(),
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,
