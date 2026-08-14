@@ -360,6 +360,30 @@ pub async fn run_relay() {
         tracing::info!("Default channels seeded (first boot): general + announcements");
     }
 
+    // Guaranteed local-only room (v0.1132): while the server-settings
+    // guarantee is ON (the default), every boot makes sure a local_only
+    // channel exists — #local, a room that provably never bridges to any
+    // other server. This runs EVERY boot, not once: recreating it if it
+    // was deleted IS the guarantee. Operators who don't want it turn the
+    // setting off (Server Settings → Federation); then nothing is seeded
+    // and any existing #local becomes an ordinary channel.
+    let local_room_wanted = db
+        .get_server_settings()
+        .map(|s| s.local_channel_enabled)
+        .unwrap_or(true);
+    if local_room_wanted && !db.any_local_only_channel().unwrap_or(false) {
+        let _ = db.create_channel(
+            "local",
+            "local",
+            Some("This server only. Never bridged to other servers."),
+            "system",
+            false,
+        );
+        let _ = db.set_channel_local_only("local", true);
+        let _ = db.set_channel_position("local", 3);
+        tracing::info!("Guaranteed local-only room seeded: #local");
+    }
+
     // One-time correction for installs seeded before the line above existed:
     // #announcements was created with voice_enabled at its column default (1),
     // so it wrongly advertised a voice channel. Disable it once. Guarded by a

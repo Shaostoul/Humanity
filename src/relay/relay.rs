@@ -550,6 +550,11 @@ pub struct ChannelInfo {
     /// in this file for other serde defaults).
     #[serde(default = "default_true")]
     pub voice_enabled: bool,
+    /// Guaranteed local-only room (v0.1132): this channel refuses to be
+    /// federated while the server's guarantee is enabled. Clients lock the
+    /// Federated toggle and can show a "stays on this server" cue.
+    #[serde(default)]
+    pub local_only: bool,
 }
 
 /// Category info sent to clients.
@@ -947,6 +952,9 @@ pub enum RelayMessage {
         /// Operator-set server display name (v0.480).
         #[serde(default)]
         server_name: Option<String>,
+        /// Guaranteed local-only room toggle (v0.1132).
+        #[serde(default)]
+        local_channel_enabled: Option<bool>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -5773,6 +5781,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 p2p_distribution_enabled,
                                 server_description,
                                 server_name,
+                                local_channel_enabled,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5851,6 +5860,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(v) = server_description { current.server_description = v.chars().take(2000).collect(); }
                                     // Operator-set server name (v0.480). Tighter cap than the description.
                                     if let Some(v) = server_name { current.server_name = v.chars().take(120).collect(); }
+                                    if let Some(v) = local_channel_enabled {
+                                        let turning_on = v && !current.local_channel_enabled;
+                                        current.local_channel_enabled = v;
+                                        // Re-enabling the guarantee reseeds #local right
+                                        // away if none is left (the boot-time seeding
+                                        // would otherwise wait for a restart).
+                                        if turning_on && !state_clone.db.any_local_only_channel().unwrap_or(false) {
+                                            let _ = state_clone.db.create_channel(
+                                                "local",
+                                                "local",
+                                                Some("This server only. Never bridged to other servers."),
+                                                "system",
+                                                false,
+                                            );
+                                            let _ = state_clone.db.set_channel_local_only("local", true);
+                                            let _ = state_clone.db.set_channel_position("local", 3);
+                                            crate::relay::handlers::broadcast::broadcast_channel_list(&state_clone);
+                                        }
+                                    }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.

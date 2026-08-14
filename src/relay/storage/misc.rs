@@ -297,13 +297,69 @@ impl Storage {
     // ── Channel Federation methods ──
 
     /// Mark a channel as federated (or un-federate it).
+    ///
+    /// The guaranteed local-only room (v0.1132): while the server-settings
+    /// guarantee is enabled, a channel flagged `local_only` REFUSES to
+    /// federate -- returns Ok(false) with nothing changed, same shape as
+    /// "no such channel", so no caller can accidentally bridge it. The
+    /// GUI disables the toggle up front; this is the backstop.
     pub fn set_channel_federated(&self, channel_id: &str, federated: bool) -> Result<bool, rusqlite::Error> {
+        if federated
+            && self.is_channel_local_only(channel_id).unwrap_or(false)
+            && self.get_server_settings().map(|s| s.local_channel_enabled).unwrap_or(true)
+        {
+            return Ok(false);
+        }
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "UPDATE channels SET federated = ?1 WHERE id = ?2",
                 params![federated as i32, channel_id],
             )?;
             Ok(rows > 0)
+        })
+    }
+
+    /// Whether a channel is flagged local-only (never bridged).
+    pub fn is_channel_local_only(&self, channel_id: &str) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let val: i32 = conn.query_row(
+                "SELECT COALESCE(local_only, 0) FROM channels WHERE id = ?1",
+                params![channel_id],
+                |row| row.get(0),
+            ).unwrap_or(0);
+            Ok(val != 0)
+        })
+    }
+
+    /// Flag (or unflag) a channel as local-only. Flagging also strips any
+    /// existing federated mark -- the two are mutually exclusive by intent.
+    pub fn set_channel_local_only(&self, channel_id: &str, local_only: bool) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let rows = if local_only {
+                conn.execute(
+                    "UPDATE channels SET local_only = 1, federated = 0 WHERE id = ?1",
+                    params![channel_id],
+                )?
+            } else {
+                conn.execute(
+                    "UPDATE channels SET local_only = 0 WHERE id = ?1",
+                    params![channel_id],
+                )?
+            };
+            Ok(rows > 0)
+        })
+    }
+
+    /// Whether ANY local-only channel exists (drives the boot-time seeding
+    /// of #local: the guarantee recreates one only when none is left).
+    pub fn any_local_only_channel(&self) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let n: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM channels WHERE COALESCE(local_only, 0) = 1",
+                [],
+                |row| row.get(0),
+            )?;
+            Ok(n > 0)
         })
     }
 
@@ -569,5 +625,89 @@ impl Storage {
             )?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod local_only_room_tests {
+    use crate::relay::storage::Storage;
+
+    fn temp_db(tag: &str) -> std::path::PathBuf {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("hum_local_only_{tag}_{pid}_{nanos}.db"))
+    }
+
+    #[test]
+    fn a_local_only_channel_refuses_federation_until_the_guarantee_is_disabled() {
+        let path = temp_db("refuse");
+        let db = Storage::open(&path).expect("open");
+        db.create_channel("local", "local", Some("stays here"), "test", false)
+            .expect("create");
+        db.set_channel_local_only("local", true).expect("flag");
+
+        // The guarantee is ON by default: federating must be refused.
+        assert!(
+            !db.set_channel_federated("local", true).expect("call ok"),
+            "local_only channel must refuse federation while the guarantee is on"
+        );
+        assert!(!db.is_channel_federated("local").expect("q"));
+
+        // Disable the guarantee: the same call now succeeds.
+        let mut s = db.get_server_settings().expect("settings");
+        assert!(s.local_channel_enabled, "guarantee defaults ON");
+        s.local_channel_enabled = false;
+        db.set_server_settings(&s, "test-admin").expect("save");
+        assert!(
+            db.set_channel_federated("local", true).expect("call ok"),
+            "with the guarantee off, the room becomes an ordinary channel"
+        );
+        assert!(db.is_channel_federated("local").expect("q"));
+
+        // Un-federating is always allowed, and re-flagging local_only
+        // strips the federated mark (mutually exclusive by intent).
+        db.set_channel_local_only("local", true).expect("reflag");
+        assert!(!db.is_channel_federated("local").expect("q"), "flagging local_only unfederates");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn opens_a_pre_v1132_database_and_migrates_both_new_columns() {
+        let path = temp_db("mig");
+        // Old shape: channels without local_only, server_settings without
+        // local_channel_enabled (the live-DB shape before this release).
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "CREATE TABLE channels (
+                    id          TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    created_by  TEXT,
+                    created_at  INTEGER NOT NULL,
+                    read_only   INTEGER DEFAULT 0
+                );
+                INSERT INTO channels (id, name, created_at) VALUES ('general', 'general', 1);",
+            )
+            .expect("seed old-shape channels");
+        }
+
+        let db = Storage::open(&path).expect("startup must survive a pre-v0.1132 DB");
+
+        // Old row intact and defaulted not-local-only; new paths work.
+        assert!(!db.is_channel_local_only("general").expect("q"));
+        assert!(!db.any_local_only_channel().expect("q"));
+        assert!(
+            db.get_server_settings().expect("settings").local_channel_enabled,
+            "migrated settings default the guarantee ON"
+        );
+        db.set_channel_local_only("general", true).expect("flag works post-migration");
+        assert!(db.any_local_only_channel().expect("q"));
+
+        let _ = std::fs::remove_file(&path);
     }
 }

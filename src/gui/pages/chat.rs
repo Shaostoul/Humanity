@@ -2118,6 +2118,20 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // the sidebar stays clean. Click the cog next to the
                     // server name to manage all channels in one place.)
 
+                    // "All shared" (operator field test 3): when every room
+                    // on the ACTIVE server is bridged, say so here too, so
+                    // clicking in never feels like something is missing.
+                    if !channels.is_empty() && channels.iter().all(|c| c.federated) {
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            ui.label(
+                                RichText::new("All rooms here are shared with other servers")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        });
+                    }
+
                     ui.add_space(2.0);
                     } // end if !svr_collapsed
                 }
@@ -2146,6 +2160,15 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     let bg_online = bg.map_or(false, |c| c.identified);
                     let bg_unread = bg.map_or(false, |c| {
                         c.channels.iter().any(|ch| ch.unread) || c.dms.iter().any(|d| d.unread)
+                    });
+                    // "All shared": every room this server has is bridged, so
+                    // its whole conversation already lives under COMMONS --
+                    // say so BEFORE the user clicks in looking for more
+                    // (operator field test 3).
+                    let bg_all_shared = bg.map_or(false, |c| {
+                        c.identified
+                            && !c.channels.is_empty()
+                            && c.channels.iter().all(|ch| ch.federated)
                     });
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
@@ -2180,6 +2203,17 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             } else {
                                 "Click to switch to this server"
                             });
+                        if bg_all_shared {
+                            ui.label(
+                                RichText::new("(all shared)")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            )
+                            .on_hover_text(
+                                "Every room on this server is bridged; its whole \
+                                 conversation appears under COMMONS.",
+                            );
+                        }
                         if bg_unread && !is_current {
                             let (ur, _) = ui
                                 .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());

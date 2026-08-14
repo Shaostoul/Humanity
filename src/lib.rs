@@ -14756,6 +14756,9 @@ mod native_app {
                                                 let federated = ch.get("federated")
                                                     .and_then(|v| v.as_bool())
                                                     .unwrap_or(false);
+                                                let local_only = ch.get("local_only")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
                                                 let unread = unread_ids.contains(&id);
                                                 state.gui_state.chat_channels.push(
                                                     crate::gui::ChatChannel {
@@ -14767,6 +14770,7 @@ mod native_app {
                                                         voice_enabled,
                                                         read_only,
                                                         federated,
+                                                        local_only,
                                                         voice_participants: Vec::new(),
                                                         unread,
                                                     },
@@ -15006,6 +15010,7 @@ mod native_app {
                                                             voice_enabled: true,
                                                             read_only: false,
                                                             federated: false,
+                                                            local_only: false,
                                                             voice_participants: roster,
                                                             unread: false,
                                                         },
@@ -15202,6 +15207,7 @@ mod native_app {
                                                         voice_enabled: true,
                                                         read_only: false,
                                                         federated: false,
+                                                        local_only: false,
                                                         voice_participants: Vec::new(),
                                                         // Group-level unread lives on ChatGroup.unread;
                                                         // per-channel dots activate with multi-channel.

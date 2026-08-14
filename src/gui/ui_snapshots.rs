@@ -183,6 +183,7 @@ fn demo_state() -> GuiState {
         voice_enabled: voice,
         read_only: ro,
         federated: true,
+        local_only: false,
         voice_participants: vec![],
         unread: false,
     };

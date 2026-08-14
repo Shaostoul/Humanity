@@ -632,6 +632,11 @@ impl Renderer {
         height: u32,
         cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<u8>, Vec<u8>)>>,
     ) -> Self {
+        // [BootPhase] sub-spans: renderer_init is the single largest boot
+        // phase (6.7 s measured 2026-08-14); these marks attribute it so
+        // optimization targets are data, not guesses. Grep run.log for
+        // "[BootPhase]" after any boot.
+        let t_phase = std::time::Instant::now();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -640,6 +645,8 @@ impl Renderer {
             })
             .await
             .expect("No suitable GPU adapter found");
+        log::info!("[BootPhase] adapter_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        let t_phase = std::time::Instant::now();
 
         // v0.784.2 BOOT FIX: the uncapped-lights storage buffer (v0.782) needs
         // fragment-stage storage buffers, but the old `downlevel_webgl2_defaults`
@@ -690,6 +697,8 @@ impl Renderer {
             )
             .await
             .expect("Failed to create device");
+        log::info!("[BootPhase] device_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        let t_phase = std::time::Instant::now();
         let patch_indirect = granted_indirect.contains(indirect_features);
         log::info!(
             "[PatchBatch] indirect multi-draw: {}",
@@ -1073,10 +1082,14 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        log::info!("[BootPhase] shaders_and_pipelines: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        let t_phase = std::time::Instant::now();
         // Ground PBR texture array (v0.907): loads the ambientCG sets from
         // assets/textures/ground/, or a neutral 1x1 fallback that renders
         // identically to the pre-texture look.
         let ground_textures = ground_textures::load(&device, &queue);
+        log::info!("[BootPhase] ground_textures_bake: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        let t_phase = std::time::Instant::now();
 
         // Atmosphere LUTs (sky arc stage 3a, v0.945): transmittance 256x64 +
         // multiple-scattering 32x32, CPU-generated (atmo_luts.rs) and uploaded
@@ -1376,6 +1389,8 @@ impl Renderer {
                 },
             ],
         });
+
+        log::info!("[BootPhase] luts_buffers_bindgroups: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
 
         Self {
             device,

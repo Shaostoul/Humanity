@@ -535,7 +535,8 @@ impl Storage {
                 description TEXT,
                 created_by  TEXT,
                 created_at  INTEGER NOT NULL,
-                read_only   INTEGER DEFAULT 0
+                read_only   INTEGER DEFAULT 0,
+                local_only  INTEGER DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS invite_codes (
@@ -869,6 +870,18 @@ impl Storage {
             info!("Migration: added read_only column to channels");
         }
 
+        // ── v0.1132 — guaranteed local-only room ──
+        // local_only channels REFUSE federation while the server-settings
+        // guarantee is enabled: whatever happens in them stays on this
+        // server. Guarded ALTER before any read of the column
+        // (migration-ordering rule, BUG-046).
+        if conn.prepare("SELECT local_only FROM channels LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN local_only INTEGER DEFAULT 0;"
+            )?;
+            info!("Migration: added local_only column to channels");
+        }
+
         // Migration: add position column to channels if missing.
         let has_position: bool = conn
             .prepare("SELECT position FROM channels LIMIT 0")
@@ -1062,6 +1075,21 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN server_name TEXT NOT NULL DEFAULT '';"
             )?;
             info!("Migration: added server_name (server_settings)");
+        }
+
+        // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
+        // server keeps a #local channel that refuses federation, so members
+        // always have a room that provably stays on this server. Operators
+        // who don't want one turn it off here (the room stops being seeded
+        // and the federation refusal lifts).
+        if conn
+            .prepare("SELECT local_channel_enabled FROM server_settings LIMIT 0")
+            .is_err()
+        {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN local_channel_enabled INTEGER NOT NULL DEFAULT 1;"
+            )?;
+            info!("Migration: added local_channel_enabled (server_settings)");
         }
 
         // ── v0.238.0 — per-role FIFO retention ──

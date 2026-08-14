@@ -270,7 +270,7 @@ impl GuiState {
 
 #[cfg(all(test, feature = "native"))]
 mod park_unpark_tests {
-    use super::{ChatChannel, ChatMessage, GuiState};
+    use super::{ChatChannel, ChatDm, ChatGroup, ChatMessage, GuiState};
 
     fn connected_state(url: &str) -> GuiState {
         let mut state = GuiState::default();
@@ -291,6 +291,26 @@ mod park_unpark_tests {
         state.chat_active_channel = "ops".to_string();
         state.ws_identified = true;
         state.history_fetched = true;
+        state.chat_dms.push(ChatDm {
+            user_name: "Bela".into(),
+            user_key: "bela_key".into(),
+            last_message: "see you there".into(),
+            timestamp: "12:00".into(),
+            unread: true,
+        });
+        state.chat_groups.push(ChatGroup {
+            name: "Builders".into(),
+            id: "g1".into(),
+            member_count: 3,
+            channels: Vec::new(),
+            collapsed: false,
+            role: "member".into(),
+            unread: false,
+        });
+        state
+            .chat_pins
+            .entry("ops".to_string())
+            .or_default();
         state
     }
 
@@ -314,6 +334,15 @@ mod park_unpark_tests {
         assert_eq!(state.connected_server_url, "https://a.example/");
         assert!(state.ws_identified, "identified state survives the round trip");
         assert!(state.history_fetched, "no needless history refetch on return");
+        // DMs, groups, and pins ride the round trip too (DM/groups
+        // verification pass, 2026-08-14): losing a DM list on switch
+        // would read as vanished conversations.
+        assert_eq!(state.chat_dms.len(), 1);
+        assert_eq!(state.chat_dms[0].user_key, "bela_key");
+        assert!(state.chat_dms[0].unread, "unread DM mark survives");
+        assert_eq!(state.chat_groups.len(), 1);
+        assert_eq!(state.chat_groups[0].id, "g1");
+        assert!(state.chat_pins.contains_key("ops"));
     }
 
     #[test]
@@ -1646,6 +1675,9 @@ pub struct PendingUnencryptedDm {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct ChatChannel {
+    /// Guaranteed local-only room (v0.1132): refuses federation while the
+    /// server's guarantee is on; the editor locks its Federated toggle.
+    pub local_only: bool,
     pub id: String,
     pub name: String,
     pub description: String,

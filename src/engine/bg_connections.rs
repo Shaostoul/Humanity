@@ -31,7 +31,7 @@ pub(crate) fn pump_background_connections(state: &mut EngineState, dt: f32) {
         return;
     }
 
-    dial_one_missing_saved_server(state);
+    dial_missing_saved_servers(state);
 
     // Drain every background socket first (only `ws` is borrowed), then
     // handle messages one at a time so handlers are free to borrow any
@@ -195,15 +195,7 @@ fn merge_history_into(conn: &mut crate::gui::ServerConnection, body: &str, my_ke
 /// Open a background connection to ONE saved server that has none yet.
 /// One dial per identify-handshake keeps a long server list from
 /// stampeding the network (and the relays' rate limits) at startup.
-fn dial_one_missing_saved_server(state: &mut EngineState) {
-    if state
-        .gui_state
-        .connections
-        .iter()
-        .any(|c| c.ws.is_some() && !c.identified)
-    {
-        return; // a dial is still handshaking; next one waits its turn
-    }
+fn dial_missing_saved_servers(state: &mut EngineState) {
     // Exclude BOTH the connected URL and the intended one (server_url):
     // at boot the active auto-connect may not have fired yet, and dialing
     // its server here first would race it into a duplicate connection.
@@ -211,32 +203,46 @@ fn dial_one_missing_saved_server(state: &mut EngineState) {
     let intended = norm_server_url(&state.gui_state.server_url);
     let existing: std::collections::HashSet<String> =
         state.gui_state.connections.iter().map(|c| c.url.clone()).collect();
-    let target = state
+    // Dial EVERY missing server in one pass (each socket handshakes on its
+    // own thread), so the sidebar settles in a single wave instead of
+    // servers popping in one by one -- the operator's boot-churn report.
+    // Server lists are a handful of entries; no stampede to throttle.
+    let targets: Vec<String> = state
         .gui_state
         .chat_servers
         .iter()
         .map(|s| s.url.clone())
-        .find(|u| {
+        .filter(|u| {
             let n = norm_server_url(u);
             !n.is_empty() && n != active && n != intended && !existing.contains(&n)
-        });
-    let Some(url) = target else { return };
-    let ws_url = crate::gui::pages::chat::derive_ws_url(&url);
+        })
+        .collect();
+    if targets.is_empty() {
+        return;
+    }
     let name = state.gui_state.user_name.clone();
     let pubkey = state.gui_state.profile_public_key.clone();
     let kyber = state.gui_state.kyber_public_b64.clone();
-    log::info!("Background connect: dialing saved server {url}");
-    state.gui_state.connections.push(crate::gui::ServerConnection {
-        url: norm_server_url(&url),
-        display_url: url.trim().to_string(),
-        ws: Some(crate::net::ws_client::WsClient::connect_with_kyber(
-            &ws_url, &name, &pubkey, &kyber,
-        )),
-        status: "Connecting...".to_string(),
-        reconnect_delay: 5.0,
-        active_channel: "general".to_string(),
-        ..Default::default()
-    });
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for url in targets {
+        let n = norm_server_url(&url);
+        if !seen.insert(n.clone()) {
+            continue; // duplicate saved entry for the same server
+        }
+        let ws_url = crate::gui::pages::chat::derive_ws_url(&url);
+        log::info!("Background connect: dialing saved server {url}");
+        state.gui_state.connections.push(crate::gui::ServerConnection {
+            url: n,
+            display_url: url.trim().to_string(),
+            ws: Some(crate::net::ws_client::WsClient::connect_with_kyber(
+                &ws_url, &name, &pubkey, &kyber,
+            )),
+            status: "Connecting...".to_string(),
+            reconnect_delay: 5.0,
+            active_channel: "general".to_string(),
+            ..Default::default()
+        });
+    }
 }
 
 /// Redial dropped background links whose backoff countdown expired.
@@ -356,6 +362,7 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     voice_enabled: ch.get("voice_enabled").and_then(|v| v.as_bool()).unwrap_or(true),
                     read_only: ch.get("read_only").and_then(|v| v.as_bool()).unwrap_or(false),
                     federated: ch.get("federated").and_then(|v| v.as_bool()).unwrap_or(false),
+                    local_only: ch.get("local_only").and_then(|v| v.as_bool()).unwrap_or(false),
                     unread: unread_ids.contains(&id),
                     id,
                     ..Default::default()

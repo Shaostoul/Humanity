@@ -42,6 +42,7 @@ pub fn build_channel_list(db: &crate::relay::storage::Storage) -> Vec<ChannelInf
     channels.into_iter().map(|(id, name, desc, ro, cat_id, voice_enabled)| {
         let cat_name = cat_id.and_then(|cid| cat_map.get(&cid).cloned());
         let federated = db.is_channel_federated(&id).unwrap_or(false);
+        let local_only = db.is_channel_local_only(&id).unwrap_or(false);
         ChannelInfo {
             id,
             name,
@@ -51,6 +52,7 @@ pub fn build_channel_list(db: &crate::relay::storage::Storage) -> Vec<ChannelInf
             category_name: cat_name,
             federated,
             voice_enabled,
+            local_only,
         }
     }).collect()
 }

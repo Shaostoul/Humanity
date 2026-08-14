@@ -604,6 +604,38 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     );
     ui.add_space(theme.spacing_xs);
 
+    // Guaranteed local-only room (v0.1132): visible right where operators
+    // think about federation, because it is the counterweight to it.
+    if let Some(draft) = state.server_settings_draft.clone().as_mut() {
+        let mut on = draft.local_channel_enabled;
+        if ui
+            .checkbox(
+                &mut on,
+                "Keep a guaranteed local-only room (#local) that can never be bridged",
+            )
+            .on_hover_text(
+                "While on, this server always has a #local channel and REFUSES to \
+                 federate it, so members have a room that provably stays here. \
+                 Turning it off makes #local an ordinary channel (bridgeable, \
+                 deletable) and stops recreating it.",
+            )
+            .changed()
+        {
+            draft.local_channel_enabled = on;
+            if let Some(d) = state.server_settings_draft.as_mut() {
+                d.local_channel_enabled = on;
+            }
+            let d = draft.clone();
+            send_server_settings_update(state, &d);
+        }
+    } else {
+        widgets::body_hint(
+            ui, theme,
+            "Local-only room toggle appears once server settings load (admin only).",
+        );
+    }
+    ui.add_space(theme.spacing_xs);
+
     if state.federation_servers.is_empty() && state.federation_status.is_empty() {
         widgets::body_hint(ui, theme, "No federated servers yet - add one below.");
     }
@@ -1844,7 +1876,26 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ).changed() { row_changed = true; }
             centered_checkbox(ui, theme, &mut draft.read_only, CHANNEL_COL_WIDTHS[2], &mut row_changed);
             centered_checkbox(ui, theme, &mut draft.voice_enabled, CHANNEL_COL_WIDTHS[3], &mut row_changed);
-            centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[4], &mut row_changed);
+            if ch.local_only {
+                // Guaranteed local-only room: the Federated toggle is locked
+                // OFF. The relay refuses it anyway (v0.1132); this makes the
+                // guarantee visible instead of a silently ignored click.
+                ui.add_sized(
+                    Vec2::new(CHANNEL_COL_WIDTHS[4], CHANNEL_ROW_H),
+                    egui::Label::new(
+                        RichText::new("local")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    ),
+                )
+                .on_hover_text(
+                    "This room is guaranteed local-only: it never bridges to other \
+                     servers while the guarantee (Federation section) is enabled.",
+                );
+                draft.federated = false;
+            } else {
+                centered_checkbox(ui, theme, &mut draft.federated, CHANNEL_COL_WIDTHS[4], &mut row_changed);
+            }
             row_button(
                 ui, theme, CHANNEL_COL_WIDTHS[5],
                 widgets::Button::primary("Save").tooltip(
@@ -2676,6 +2727,8 @@ fn send_server_settings_update(
                 "server_description":              draft.server_description,
                 // Server display name (v0.480).
                 "server_name":                    draft.server_name,
+                // Guaranteed local-only room toggle (v0.1132).
+                "local_channel_enabled":           draft.local_channel_enabled,
             });
             client.send(&msg.to_string());
             state.server_settings_status = "Server policy update sent.".into();

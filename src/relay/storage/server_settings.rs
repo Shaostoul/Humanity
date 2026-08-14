@@ -111,6 +111,14 @@ pub struct ServerSettings {
     /// admins/owners via the same admin-gated server_settings_update path.
     #[serde(default)]
     pub server_name: String,
+    /// Guaranteed local-only room (v0.1132). While ON (the default) the
+    /// relay keeps a #local channel seeded and REFUSES to federate any
+    /// channel flagged local_only, so members always have a room that
+    /// provably never leaves this server. Turning it off stops the seeding
+    /// and lifts the refusal; the room (if present) becomes an ordinary
+    /// channel an admin can federate or delete.
+    #[serde(default = "default_local_channel_enabled")]
+    pub local_channel_enabled: bool,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -131,6 +139,7 @@ fn default_uploads_kept_unverified() -> i64 { 4 }
 fn default_uploads_kept_verified() -> i64 { 20 }
 fn default_uploads_kept_mod() -> i64 { 100 }
 fn default_uploads_kept_admin() -> i64 { 500 }
+fn default_local_channel_enabled() -> bool { true }
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -159,6 +168,7 @@ impl Default for ServerSettings {
             p2p_distribution_enabled: false, // feature unbuilt; off until operator + feature ready
             server_description: String::new(),
             server_name: String::new(),
+            local_channel_enabled: default_local_channel_enabled(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -217,7 +227,8 @@ impl Storage {
                         max_uploads_per_user_unverified, max_uploads_per_user_verified,
                         max_uploads_per_user_mod, max_uploads_per_user_admin,
                         require_pq_signatures, p2p_distribution_enabled,
-                        COALESCE(server_description, ''), COALESCE(server_name, '')
+                        COALESCE(server_description, ''), COALESCE(server_name, ''),
+                        COALESCE(local_channel_enabled, 1)
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -227,6 +238,7 @@ impl Storage {
                     let video: i32 = row.get(8)?;
                     let req_pq: i32 = row.get(22)?;
                     let p2p: i32 = row.get(23)?;
+                    let local_ch: i32 = row.get(26)?;
                     Ok(ServerSettings {
                         max_chars_unverified: row.get(0)?,
                         max_chars_verified: row.get(1)?,
@@ -254,6 +266,7 @@ impl Storage {
                         p2p_distribution_enabled: p2p != 0,
                         server_description: row.get(24)?,
                         server_name: row.get(25)?,
+                        local_channel_enabled: local_ch != 0,
                     })
                 },
             ) {
@@ -305,6 +318,7 @@ impl Storage {
                     p2p_distribution_enabled        = ?24,
                     server_description              = ?25,
                     server_name                     = ?26,
+                    local_channel_enabled           = ?27,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -337,6 +351,7 @@ impl Storage {
                     s.p2p_distribution_enabled as i32,
                     s.server_description,
                     s.server_name,
+                    s.local_channel_enabled as i32,
                 ],
             )?;
             Ok(rows > 0)
