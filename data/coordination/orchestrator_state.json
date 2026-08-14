@@ -267,6 +267,11 @@
       "date": "2026-08-14",
       "decision": "v0.1124.0 shipped (NAT-friendly federation: /server-add-key admin command + Host Node page Federation key display with copy + pairing instructions). public.guide FULLY PROVISIONED and live on v0.1124.0 (TLS to Nov, relay+nginx+fail2ban+backups active, first backup written); operator admin identity seeded into its user_roles. Primary redeployed. Provisioner Debian 13 compatible as-is; one race found: certbot vs DreamHost secondary-NS propagation (ns1 had records, ns2/ns3 lagged ~20 min; provisioner failed safe, re-ran clean). Project.Universe domain: advised heritage-redirect use, NOT for the home PC relay (add-by-key exists so home nodes need no URL/port-forward). READY: the live cross-machine federation pairing ceremony (operator boots Host Node, copies Federation key, /server-add-key + /server-trust on public.guide, then adds public.guide by URL from home node).",
       "why": "Operator direction: proceed with federation so provider outages never matter again, Cloudflare declined. The mesh is now: primary (Namecheap) + public.guide (DreamHost) + home nodes by key."
+    },
+    {
+      "date": "2026-08-14",
+      "decision": "FIRST PRODUCTION FEDERATION LIVE: united-humanity.us <-> public.guide peered (mutual tier 2, keys pinned, #general bridged, both directions verified in logs). Operator field-tested multi-server UX and found 6 real gaps; 2 fixed in v0.1125.0 (saved servers now persist via AppConfig.saved_servers with round-trip test; Host-a-node moved to permanent THIS PC rail entry). Design decisions made jointly and recorded in docs/design/federation-ux.md: always-connected multi-server, merged federated rooms, unified Servers concept, and the operator-invented COMMONS sidebar section (federated rooms belong to the mesh, listed once, send routes through any healthy carrier = user-visible resilience). NEXT: multi-connection foundation (per-server ws_clients + state), then Commons sidebar, then send-failover, then Servers admin merge with Federation panel.",
+      "why": "Operator asked to seriously co-design multi-server UX after the confusing first contact; the doc is the contract for the arc."
     }
   ],
   "active_scopes_to_avoid": [
