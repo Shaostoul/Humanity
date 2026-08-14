@@ -119,6 +119,25 @@ async fn two_relays_handshake_chat_and_gossip() {
     })
     .await;
 
+    // THE REVERSE DIRECTION: chat from B must land on A, which receives it
+    // on its OUTBOUND socket. This is the leg the first live test failed
+    // (2026-08-14): the outbound connection was registered under the URL it
+    // dialed while messages identify their origin by PUBLIC KEY, so the
+    // source-identity check dropped every message arriving on an outbound
+    // socket. Both directions must key peers by their pinned key.
+    federation::forward_to_federation(&b, "general", "Bela", "hello back the other way", now_ms + 5).await;
+    let a_for_chat = a.clone();
+    eventually("A persists the federated chat line from B (outbound-socket leg)", || {
+        a_for_chat.db.load_recent_messages(50)
+            .map(|msgs| {
+                msgs.iter().any(|m| matches!(m,
+                    humanity_engine::relay::relay::RelayMessage::FederatedChat { content, .. }
+                        if content == "hello back the other way"))
+            })
+            .unwrap_or(false)
+    })
+    .await;
+
     // Profile gossip: a self-certifying (Dilithium3-signed) profile sent by
     // A must be cached by B; an UNSIGNED one must be refused (the old code
     // accepted empty signatures, which let anyone overwrite any profile).

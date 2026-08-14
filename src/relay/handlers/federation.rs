@@ -193,9 +193,10 @@ pub async fn start_federation_connections(state: &Arc<RelayState>) -> usize {
         let server_id = server.server_id.clone();
         let server_name = server.name.clone();
         let trust_tier = server.trust_tier;
+        let peer_key = server.public_key.clone();
 
         tokio::spawn(async move {
-            federation_connect_loop(state_clone, server_id, server_name, trust_tier, ws_url).await;
+            federation_connect_loop(state_clone, server_id, server_name, trust_tier, ws_url, peer_key).await;
         });
         count += 1;
     }
@@ -203,13 +204,29 @@ pub async fn start_federation_connections(state: &Arc<RelayState>) -> usize {
 }
 
 /// Connect to a single federated server with exponential backoff reconnection.
+///
+/// `peer_key` is the peer's pinned server public key from the DB row (set by
+/// the /server-add discovery fetch or /server-add-key). It is the peer's
+/// IDENTITY: the connection registers under it and every received message's
+/// source check compares against it. The row's `server_id` (typically the
+/// URL) stays the DB bookkeeping key only. Before this split (2026-08-14,
+/// caught by the operator's first live cross-post), outbound sockets
+/// registered under the URL while messages identify by key, so the source
+/// check dropped every message arriving on an outbound socket: the exact
+/// asymmetry the two-relay test's reverse-leg now pins.
 pub async fn federation_connect_loop(
     state: Arc<RelayState>,
     server_id: String,
     server_name: String,
     trust_tier: i32,
     ws_url: String,
+    peer_key: Option<String>,
 ) {
+    // Identity for the connection map + message source checks. Falls back
+    // to the row id when no key is pinned yet (discovery unreachable): the
+    // peer's messages then fail the source check until a key is pinned,
+    // which is the correct fail-closed behavior for an unverified peer.
+    let peer_id = peer_key.unwrap_or_else(|| server_id.clone());
     let mut backoff_secs = 5u64;
     loop {
         tracing::info!("Federation: connecting to {} ({})", server_name, ws_url);
@@ -221,12 +238,14 @@ pub async fn federation_connect_loop(
                 let (mut write, mut read) = ws_stream.split();
                 let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
-                // Register the connection.
+                // Register the connection under the peer's IDENTITY (key),
+                // which also naturally dedupes with an inbound connection
+                // from the same peer (same map key).
                 {
                     let mut conns = state.federation_connections.write().await;
-                    conns.insert(server_id.clone(), FederatedConnection {
+                    conns.insert(peer_id.clone(), FederatedConnection {
                         tx: tx.clone(),
-                        server_id: server_id.clone(),
+                        server_id: peer_id.clone(),
                         server_name: server_name.clone(),
                         trust_tier,
                         connected_at: Instant::now(),
@@ -278,8 +297,10 @@ pub async fn federation_connect_loop(
                 });
 
                 // Read pump: handle incoming messages from federated server.
+                // The source identity handed to handle_peer_message is the
+                // peer's KEY (peer_id), never the dialed URL.
                 let state_for_read = state.clone();
-                let _sid_for_read = server_id.clone();
+                let _sid_for_read = peer_id.clone();
                 let read_task = tokio::spawn(async move {
                     use tokio_tungstenite::tungstenite::Message as TMessage;
                     while let Some(Ok(msg)) = read.next().await {
@@ -299,10 +320,11 @@ pub async fn federation_connect_loop(
                     _ = read_task => {}
                 }
 
-                // Clean up.
+                // Clean up. The conn map is keyed by peer IDENTITY; the DB
+                // status row keeps its own id (typically the URL).
                 {
                     let mut conns = state.federation_connections.write().await;
-                    conns.remove(&server_id);
+                    conns.remove(&peer_id);
                 }
                 let _ = state.db.update_federated_server_status(&server_id, "disconnected");
                 broadcast_federation_status(&state).await;
