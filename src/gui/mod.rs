@@ -4448,6 +4448,8 @@ pub struct GuiState {
     pub chat_dm_collapsed: bool,
     pub chat_groups_collapsed: bool,
     pub chat_servers_collapsed: bool,
+    /// COMMONS section (bridged federated rooms) collapse state.
+    pub chat_commons_collapsed: bool,
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
@@ -5472,6 +5474,7 @@ impl Default for GuiState {
             chat_dm_collapsed: false,
             chat_groups_collapsed: false,
             chat_servers_collapsed: false,
+            chat_commons_collapsed: false,
             chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,

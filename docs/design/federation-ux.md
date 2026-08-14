@@ -124,13 +124,28 @@ graph; it never walks it for you.
 1. DONE v0.1125.0: saved-server persistence; THIS PC rail entry; the
    add-by-key pairing path (v0.1124.0) and the Federation config section
    opener already on the Relays page.
-2. **Multi-connection foundation** (the heavy lift): per-server
-   connections (Vec of ws_client + per-server message/channel state),
-   message routing by server, reconnect per server. Everything else
-   stacks on this.
-3. **Sidebar restructure**: Commons + per-server sections per the rules
-   above; server settings header names its server loudly.
-4. **Send-failover** for Commons rooms.
+2. DONE v0.1128.0: **Multi-connection foundation**, as the hybrid the
+   state survey recommended: the legacy active fields stay the ACTIVE
+   connection (zero churn on the router and UI); `ServerConnection`
+   parks every other server WITH its live socket; switching = park +
+   unpark, not teardown; `engine/bg_connections.rs` dials all saved
+   servers, answers their identify challenges, stores their traffic,
+   marks unread, and redials with backoff. Sidebar rows show live
+   link + unread dots.
+3. DONE v0.1129.0: **Sidebar Commons**: bridged rooms (federated flag +
+   carried by 2 or more of my servers, matched by name) render once in
+   a COMMONS section with the both-ways badge and carrier count; they
+   leave the per-server lists; background servers list their remaining
+   channels, clickable (switch + open). The center view MERGES every
+   carrier's copy of a Commons room: native lines beat federated
+   echoes on (timestamp, content); federated copies collapse on
+   (origin, timestamp, content). Still to do from the sidebar spec:
+   the server settings header naming its server loudly.
+4. PARTIAL v0.1129.0: **Send routing** for Commons rooms: a room the
+   active server does not carry sends through a background carrier
+   (never onto the active relay, which would fork a local unbridged
+   room). Failover between MULTIPLE healthy carriers when one drops is
+   still to come, with the send instrumentation (stage 5).
 5. **Servers admin page**: rename Relays -> Servers; per-server panel
    keeps Health/Control/Console/Config; Federation panel grows peer list
    with live status dots, add-by-URL, add-by-key, per-channel toggles that
