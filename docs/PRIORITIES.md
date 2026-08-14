@@ -80,15 +80,17 @@
 >    live drop red before the fix). Live proof: bot probes crossed
 >    public.guide <-> united-humanity.us both ways, persisting as
 >    msg_type='federated_chat' with correct origin_server on the receiver.
->    NEXT (the federation-ux.md build order, survey brief delivered
->    2026-08-14): (2) multi-connection foundation in the native client
->    (staged: provenance fields on ChatMessage -> ServerConnection struct
->    -> connect-to-all -> Commons sidebar merge -> send routing/failover);
->    (3) Commons section; (4) send-failover; (5) Servers admin merge +
->    Federation GUI panel (peer list/status/add-by-URL/add-by-key in-app,
->    closing the GUI-first debt of the /server-* slash commands).
->    Also wanted: federation keepalive/ping so idle links do not silently
->    rot behind NATs.
+>    THE WHOLE BUILD ORDER SHIPPED 2026-08-14 (v0.1128.0-v0.1130.0):
+>    multi-connection foundation (park/unpark + bg_connections pump, all
+>    saved servers live at once), the COMMONS sidebar section with the
+>    merged cross-carrier view, carrier send routing with inherent
+>    failover, and the Federation GUI (add-by-key Pair, bridged-with
+>    labels, server-named admin header, Servers nav). Statuses in
+>    docs/design/federation-ux.md build order. REMAINING wants, ranked:
+>    (a) operator live field test of the multi-server UX (the real gate);
+>    (b) federation keepalive/ping so idle links do not silently rot
+>    behind NATs; (c) per-channel per-peer bridge scoping; (d) channel
+>    portable identity so Commons matching stops relying on names.
 >
 > **>>> SECURITY follow-ups (post-incident, ranked):**
 > - CI deploy key = the operator's personal root key and can do ANYTHING as

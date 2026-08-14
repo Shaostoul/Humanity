@@ -141,16 +141,21 @@ graph; it never walks it for you.
    echoes on (timestamp, content); federated copies collapse on
    (origin, timestamp, content). Still to do from the sidebar spec:
    the server settings header naming its server loudly.
-4. PARTIAL v0.1129.0: **Send routing** for Commons rooms: a room the
-   active server does not carry sends through a background carrier
-   (never onto the active relay, which would fork a local unbridged
-   room). Failover between MULTIPLE healthy carriers when one drops is
-   still to come, with the send instrumentation (stage 5).
-5. **Servers admin page**: rename Relays -> Servers; per-server panel
-   keeps Health/Control/Console/Config; Federation panel grows peer list
-   with live status dots, add-by-URL, add-by-key, per-channel toggles that
-   SAY what they are bridged to ("bridged with public.guide") or "no
-   peers yet - add one first" instead of a mute checkbox.
+4. DONE v0.1129.0/v0.1130.0: **Send routing + failover** for Commons
+   rooms: a room the active server does not carry sends through a
+   background carrier (never onto the active relay, which would fork a
+   local unbridged room). Failover is inherent in the routing: carrier
+   choice re-evaluates on EVERY send against live link state, and an
+   offline active server automatically fails over to a healthy carrier.
+   Per-connection link state + message counters live in the F3 overlay.
+5. DONE v0.1130.0: **Servers admin**: nav renamed Relays -> Servers;
+   Federation panel has peer list with status + trust tiers + remove,
+   add-by-URL, and ADD BY KEY (NAT pairing, validated 64-hex + Pair
+   button); the channel editor's Federated toggle names its live bridge
+   peers ("Federated channels here bridge with: ...") or says there are
+   no peers yet; the Server Settings header names its server loudly
+   ("Server: <name>" + URL). Remaining niceties for later: per-channel
+   per-peer bridge scoping, and a merged per-server admin panel layout.
 
 ## Related
 
