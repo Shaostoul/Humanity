@@ -262,6 +262,11 @@
       "date": "2026-08-13",
       "decision": "v0.1123.0: FEDERATION REPAIRED (BUG-071, seven independent defects, each alone fatal: gate ate hellos, welcome misrouted to chat clients, two preimage mismatches, URL-vs-key peer matching, verify/persist split-brain, history loader erasing federated rows) + empty-sig gossip skeleton-key closed + user-socket federation injection closed. Proven by tests/federation_two_relays.rs (two in-process relays, full loop, <2s). serve_relay() added as the env-free boot seam. Operator DECLINED Cloudflare on principle (recorded in site-resilience.md); federation IS the anti-single-point strategy. DreamHost VPS root-ready at 208.113.211.244, provisioning blocked ONLY on public.guide DNS records (watch armed). Namecheap VPS still in provider maintenance (watch armed).",
       "why": "Operator: make outages never matter again, without Cloudflare. Next: provision public.guide when DNS lands, live cross-machine federation test host-node <-> public.guide, then primary <-> public.guide when Namecheap returns."
+    },
+    {
+      "date": "2026-08-14",
+      "decision": "v0.1124.0 shipped (NAT-friendly federation: /server-add-key admin command + Host Node page Federation key display with copy + pairing instructions). public.guide FULLY PROVISIONED and live on v0.1124.0 (TLS to Nov, relay+nginx+fail2ban+backups active, first backup written); operator admin identity seeded into its user_roles. Primary redeployed. Provisioner Debian 13 compatible as-is; one race found: certbot vs DreamHost secondary-NS propagation (ns1 had records, ns2/ns3 lagged ~20 min; provisioner failed safe, re-ran clean). Project.Universe domain: advised heritage-redirect use, NOT for the home PC relay (add-by-key exists so home nodes need no URL/port-forward). READY: the live cross-machine federation pairing ceremony (operator boots Host Node, copies Federation key, /server-add-key + /server-trust on public.guide, then adds public.guide by URL from home node).",
+      "why": "Operator direction: proceed with federation so provider outages never matter again, Cloudflare declined. The mesh is now: primary (Namecheap) + public.guide (DreamHost) + home nodes by key."
     }
   ],
   "active_scopes_to_avoid": [
