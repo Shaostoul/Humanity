@@ -14410,6 +14410,7 @@ mod native_app {
                         state.gui_state.ws_client = Some(
                             crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &kyber_public),
                         );
+                        state.gui_state.connected_server_url = state.gui_state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.gui_state.ws_identified = false;
                         state.gui_state.ws_status = "Connecting...".to_string();
@@ -15932,6 +15933,7 @@ mod native_app {
                                         // any DesktopUser-fallback session.
                                         let new_client = crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.kyber_public_b64);
                                         state.gui_state.ws_client = Some(new_client);
+                                        state.gui_state.connected_server_url = url.clone();
                                         // Fresh socket: identify handshake not yet complete (v0.794).
                                         state.gui_state.ws_identified = false;
                                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
@@ -16252,6 +16254,7 @@ mod native_app {
                             state.gui_state.ws_client = Some(
                                 crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
                             );
+                            state.gui_state.connected_server_url = state.gui_state.server_url.clone();
                             // Fresh socket: identify handshake not yet complete (v0.794).
                             state.gui_state.ws_identified = false;
                             state.gui_state.ws_reconnect_attempts += 1;

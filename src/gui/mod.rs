@@ -148,6 +148,195 @@ impl GuiState {
             })
         });
     }
+
+    /// Park the ACTIVE connection (socket and all per-server chat state) into
+    /// `connections`, keyed by normalized URL, leaving the legacy fields empty
+    /// and ready for another server. The socket stays OPEN: a parked server
+    /// keeps receiving in the background (src/engine/bg_connections.rs) and a
+    /// later unpark restores it instantly, no reconnect, no lost messages.
+    /// Admin-domain state (roles, bans, server settings, refetch latches) is
+    /// reset instead of parked -- those pages refetch on demand and must never
+    /// show one server's data while another is active.
+    pub fn park_active_connection(&mut self) {
+        use std::mem::take;
+        // Key by the URL the socket was DIALED for, never the server_url
+        // input draft (the user may have edited it since connecting).
+        let dialed = if self.connected_server_url.trim().is_empty() {
+            self.server_url.clone()
+        } else {
+            self.connected_server_url.clone()
+        };
+        let url = pages::chat::norm_server_url(&dialed);
+        let conn = ServerConnection {
+            url: url.clone(),
+            display_url: dialed.trim().to_string(),
+            ws: self.ws_client.take(),
+            status: take(&mut self.ws_status),
+            identified: take(&mut self.ws_identified),
+            manually_disconnected: take(&mut self.ws_manually_disconnected),
+            reconnect_timer: take(&mut self.ws_reconnect_timer),
+            reconnect_delay: std::mem::replace(&mut self.ws_reconnect_delay, 5.0),
+            reconnect_attempts: take(&mut self.ws_reconnect_attempts),
+            rate_limited: take(&mut self.ws_rate_limited),
+            msgs_in: take(&mut self.ws_msgs_in),
+            history_fetched: take(&mut self.history_fetched),
+            messages: take(&mut self.chat_messages),
+            channels: take(&mut self.chat_channels),
+            active_channel: std::mem::replace(&mut self.chat_active_channel, "general".to_string()),
+            users: take(&mut self.chat_users),
+            dms: take(&mut self.chat_dms),
+            groups: take(&mut self.chat_groups),
+            pins: take(&mut self.chat_pins),
+            friends: take(&mut self.chat_friends),
+            following_keys: take(&mut self.chat_following_keys),
+            followers: take(&mut self.chat_followers),
+            sent_timestamps: take(&mut self.chat_sent_timestamps),
+        };
+        // Only remember a connection that ever existed; an empty-URL park
+        // (fresh boot) would otherwise create a ghost entry.
+        if !conn.url.is_empty() && (conn.ws.is_some() || !conn.messages.is_empty()) {
+            self.connections.retain(|c| c.url != conn.url);
+            self.connections.push(conn);
+        }
+        self.ws_status = "Not connected".to_string();
+        self.server_connected = false;
+        self.reset_per_server_transients();
+    }
+
+    /// Restore a parked connection into the legacy active fields. Returns
+    /// true when `url` matched a parked entry (caller must then SKIP the
+    /// fresh-connect path: the restored socket is already live). On false
+    /// the caller connects as before.
+    pub fn unpark_connection(&mut self, url: &str) -> bool {
+        let key = pages::chat::norm_server_url(url);
+        let Some(pos) = self.connections.iter().position(|c| c.url == key) else {
+            return false;
+        };
+        let conn = self.connections.swap_remove(pos);
+        self.server_url = conn.display_url.clone();
+        self.connected_server_url = conn.display_url;
+        self.ws_client = conn.ws;
+        self.ws_status = conn.status;
+        self.ws_identified = conn.identified;
+        self.ws_manually_disconnected = conn.manually_disconnected;
+        self.ws_reconnect_timer = conn.reconnect_timer;
+        self.ws_reconnect_delay = conn.reconnect_delay;
+        self.ws_reconnect_attempts = conn.reconnect_attempts;
+        self.ws_rate_limited = conn.rate_limited;
+        self.ws_msgs_in = conn.msgs_in;
+        self.history_fetched = conn.history_fetched;
+        self.chat_messages = conn.messages;
+        self.chat_channels = conn.channels;
+        self.chat_active_channel = if conn.active_channel.is_empty() {
+            "general".to_string()
+        } else {
+            conn.active_channel
+        };
+        self.chat_users = conn.users;
+        self.chat_dms = conn.dms;
+        self.chat_groups = conn.groups;
+        self.chat_pins = conn.pins;
+        self.chat_friends = conn.friends;
+        self.chat_following_keys = conn.following_keys;
+        self.chat_followers = conn.followers;
+        self.chat_sent_timestamps = conn.sent_timestamps;
+        self.server_connected = self.ws_identified;
+        self.reset_per_server_transients();
+        true
+    }
+
+    /// Clear state that must never leak across a server switch and cannot be
+    /// parked: admin-domain caches (their pages refetch via request latches),
+    /// in-flight fetches, and per-conversation UI transients.
+    fn reset_per_server_transients(&mut self) {
+        self.chat_banned_requested = false;
+        self.chat_muted_requested = false;
+        self.game_bans_requested = false;
+        self.backup_list_requested = false;
+        self.chat_roles.clear();
+        self.chat_banned_users.clear();
+        self.chat_muted_users.clear();
+        self.server_settings = None;
+        self.server_settings_draft = None;
+        self.chat_typing_users.clear();
+        self.history_rx = None;
+        self.chat_reply_to = None;
+        self.chat_edit_target = None;
+        self.chat_search_results.clear();
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod park_unpark_tests {
+    use super::{ChatChannel, ChatMessage, GuiState};
+
+    fn connected_state(url: &str) -> GuiState {
+        let mut state = GuiState::default();
+        state.server_url = url.to_string();
+        state.connected_server_url = url.to_string();
+        state.chat_messages.push(ChatMessage {
+            sender_name: "Ada".into(),
+            content: format!("hello from {url}"),
+            channel: "ops".into(),
+            timestamp_ms: 42,
+            ..Default::default()
+        });
+        state.chat_channels.push(ChatChannel {
+            id: "ops".into(),
+            name: "Ops".into(),
+            ..Default::default()
+        });
+        state.chat_active_channel = "ops".to_string();
+        state.ws_identified = true;
+        state.history_fetched = true;
+        state
+    }
+
+    #[test]
+    fn park_then_unpark_restores_messages_room_and_identity() {
+        let mut state = connected_state("https://a.example/");
+        state.park_active_connection();
+        assert_eq!(state.connections.len(), 1, "one parked entry");
+        assert!(state.chat_messages.is_empty(), "legacy buffer handed off");
+        assert_eq!(state.chat_active_channel, "general", "fresh default room");
+        assert!(!state.ws_identified);
+
+        // Visit another server, then come back.
+        state.server_url = "https://b.example".to_string();
+        state.connected_server_url = "https://b.example".to_string();
+        assert!(state.unpark_connection("https://a.example"), "trailing-slash difference must still match");
+        assert_eq!(state.connections.len(), 0);
+        assert_eq!(state.chat_messages.len(), 1);
+        assert_eq!(state.chat_messages[0].content, "hello from https://a.example/");
+        assert_eq!(state.chat_active_channel, "ops", "returns to the room you left");
+        assert_eq!(state.connected_server_url, "https://a.example/");
+        assert!(state.ws_identified, "identified state survives the round trip");
+        assert!(state.history_fetched, "no needless history refetch on return");
+    }
+
+    #[test]
+    fn park_keys_by_dialed_url_not_the_edited_input_draft() {
+        let mut state = connected_state("https://a.example");
+        // User typed a new address into the input without connecting yet.
+        state.server_url = "https://c.example".to_string();
+        state.park_active_connection();
+        assert!(state.unpark_connection("https://a.example"), "parked under what was dialed");
+        assert_eq!(state.chat_messages.len(), 1);
+    }
+
+    #[test]
+    fn empty_park_leaves_no_ghost_and_transients_reset_on_switch() {
+        let mut state = GuiState::default();
+        state.park_active_connection();
+        assert!(state.connections.is_empty(), "nothing to park, nothing stored");
+
+        let mut state = connected_state("https://a.example");
+        state.chat_banned_requested = true;
+        state.server_settings_draft = None;
+        state.park_active_connection();
+        assert!(!state.chat_banned_requested, "admin refetch latch reset for the next server");
+        assert!(!state.unpark_connection("https://never-visited.example"));
+    }
 }
 
 #[cfg(all(test, feature = "native"))]
@@ -1453,7 +1642,7 @@ pub struct PendingUnencryptedDm {
 }
 
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ChatChannel {
     pub id: String,
     pub name: String,
@@ -1593,6 +1782,53 @@ pub struct ChatServer {
     /// True iff the websocket to this server is currently open.
     /// (v0.187.0)
     pub connected: bool,
+}
+
+/// A parked (background) relay connection: its live socket plus every piece
+/// of per-server chat state, preserved intact while another server is active.
+///
+/// Multi-connection model (docs/design/federation-ux.md, build order 2): the
+/// legacy `ws_*` / `chat_*` fields on GuiState always describe the ACTIVE
+/// connection -- the whole message router and every UI site keep reading and
+/// writing them untouched. Switching servers PARKS the active state here
+/// (socket included, still connected) and unparks the target, so a switch is
+/// a pointer swap instead of a teardown: nothing disconnects, nothing is
+/// cleared, and switching back restores messages, rosters, and even the room
+/// you had open. While parked, the socket's reader thread keeps the link
+/// alive (transport-level ping/pong) and incoming messages queue in the
+/// WsClient channel; the FULL router drains that backlog on unpark, so a
+/// parked server catches up through the same code path as live traffic.
+/// (A per-frame background pump for unread badges + parked reconnect is the
+/// next stage, alongside connect-to-all.)
+#[cfg(feature = "native")]
+#[derive(Default)]
+pub struct ServerConnection {
+    /// Normalized URL (pages::chat::norm_server_url) -- the identity key.
+    pub url: String,
+    /// The URL exactly as the user saved it (what server_url is set to on unpark).
+    pub display_url: String,
+    pub ws: Option<crate::net::ws_client::WsClient>,
+    pub status: String,
+    pub identified: bool,
+    pub manually_disconnected: bool,
+    pub reconnect_timer: f32,
+    pub reconnect_delay: f32,
+    pub reconnect_attempts: u32,
+    pub rate_limited: bool,
+    pub msgs_in: u64,
+    pub history_fetched: bool,
+    pub messages: Vec<ChatMessage>,
+    pub channels: Vec<ChatChannel>,
+    /// The room the user had open on this server; restored on switch-back.
+    pub active_channel: String,
+    pub users: Vec<ChatUser>,
+    pub dms: Vec<ChatDm>,
+    pub groups: Vec<ChatGroup>,
+    pub pins: std::collections::HashMap<String, Vec<ChatPin>>,
+    pub friends: Vec<ChatUser>,
+    pub following_keys: std::collections::HashSet<String>,
+    pub followers: std::collections::HashSet<String>,
+    pub sent_timestamps: Vec<u64>,
 }
 
 /// One snapshot of the connected server's health, from its public /health +
@@ -2415,6 +2651,10 @@ pub struct GuiState {
     pub chat_followers: std::collections::HashSet<String>,
     pub ws_client: Option<crate::net::ws_client::WsClient>,
     pub ws_status: String,
+    /// Parked (background) relay connections, sockets still live. The ACTIVE
+    /// connection is never in this list -- it lives in the legacy ws_* /
+    /// chat_* fields; see ServerConnection for the model.
+    pub connections: Vec<ServerConnection>,
     /// Native WebRTC DataChannel P2P manager handle (increment 1). Lazily
     /// started after the WS connect/identify so we have our pubkey hex. `None`
     /// until then. Native-only — relay/wasm builds don't open peer channels.
@@ -2461,6 +2701,12 @@ pub struct GuiState {
     pub onboarding_step: u8,
     /// Server URL input field.
     pub server_url: String,
+    /// The URL the CURRENT ws_client was actually dialed for. server_url
+    /// doubles as the editable input draft, so it can drift mid-session
+    /// (user typing a new address while still connected); parking and
+    /// provenance must key by what we truly connected to, never the draft.
+    /// Set at every connect site; empty when never connected.
+    pub connected_server_url: String,
     /// Whether currently connected to a server.
     pub server_connected: bool,
     /// Onboarding step 1's "Connect" button (v0.643) used to just set
@@ -4336,6 +4582,12 @@ impl GuiState {
                 self.ws_manually_disconnected = false;
                 self.ws_reconnect_timer = 0.0;
                 self.ws_reconnect_attempts = 0;
+                // Parked connections were identified under the PREVIOUS
+                // identity; their sockets are stale the moment the key
+                // changes. Drop them all (closing the sockets) -- they
+                // reconnect fresh when visited or, later, by the
+                // connect-to-all pass.
+                self.connections.clear();
                 // Governance vote tracking is PER IDENTITY (adversarial review
                 // 2026-07-01): a different seed is a different voter DID, so the
                 // previous identity's session votes must not label rows or
@@ -4513,6 +4765,7 @@ impl Default for GuiState {
             chat_following_keys: std::collections::HashSet::new(),
             chat_followers: std::collections::HashSet::new(),
             ws_client: None,
+            connections: Vec::new(),
             ws_status: "Not connected".to_string(),
             #[cfg(feature = "native")]
             webrtc: None,
@@ -4533,6 +4786,7 @@ impl Default for GuiState {
             onboarding_complete: false,
             onboarding_step: 0,
             server_url: "https://united-humanity.us".to_string(),
+            connected_server_url: String::new(),
             server_connected: false,
             server_check_rx: None,
             history_rx: None,

@@ -611,10 +611,22 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.profile_public_key.clone()
                         };
                         log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
+                        // If another server's live state is still resident
+                        // (dropped socket, message buffer), park it under
+                        // the URL it was dialed for before dialing the new
+                        // one, so nothing is lost or mis-filed.
+                        if norm_server_url(&state.connected_server_url)
+                            != norm_server_url(&state.server_url)
+                        {
+                            let target = state.server_url.clone();
+                            state.park_active_connection();
+                            state.server_url = target;
+                        }
                         // Full-PQ: manual Connect must advertise the Kyber key too.
                         state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
                             &ws_url, &name, &pubkey, &state.kyber_public_b64,
                         ));
+                        state.connected_server_url = state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.ws_identified = false;
                         state.ws_status = "Connecting...".to_string();
@@ -2126,36 +2138,47 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         }
                         if resp.clicked() && !is_current {
                             if state.private_key_bytes.is_some() {
-                                state.server_url = server.url.clone();
-                                let ws_url = derive_ws_url(&server.url);
-                                let uname = state.user_name.clone();
-                                let pubkey = if state.profile_public_key.is_empty() {
-                                    generate_random_hex_key()
-                                } else {
-                                    state.profile_public_key.clone()
-                                };
-                                state.ws_client = Some(
-                                    crate::net::ws_client::WsClient::connect_with_kyber(
-                                        &ws_url,
-                                        &uname,
-                                        &pubkey,
-                                        &state.kyber_public_b64,
-                                    ),
-                                );
-                                // Fresh socket: identify handshake not yet complete (v0.794).
-                                state.ws_identified = false;
-                                state.ws_status = format!("Switching to {}...", server.name);
-                                state.ws_manually_disconnected = false;
-                                state.ws_reconnect_timer = 0.0;
-                                state.ws_reconnect_delay = 5.0;
-                                state.ws_reconnect_attempts = 0;
-                                // Land on "general" (every relay seeds it) so we
-                                // don't show an empty view if the previous active
-                                // channel / DM / group doesn't exist on this server.
-                                state.chat_active_channel = "general".to_string();
-                                // Reload the channel view + history from the new server.
-                                state.chat_messages.clear();
-                                state.history_fetched = false;
+                                // Multi-connection switch (stage 2): PARK the
+                                // current server (socket stays live, messages
+                                // and rosters preserved), then UNPARK the
+                                // target if we were connected to it before.
+                                // Only a never-visited server gets a fresh
+                                // connect. Switching is now a swap, not a
+                                // teardown: nothing disconnects, and coming
+                                // back restores exactly what you left.
+                                state.park_active_connection();
+                                if !state.unpark_connection(&server.url) {
+                                    state.server_url = server.url.clone();
+                                    let ws_url = derive_ws_url(&server.url);
+                                    let uname = state.user_name.clone();
+                                    let pubkey = if state.profile_public_key.is_empty() {
+                                        generate_random_hex_key()
+                                    } else {
+                                        state.profile_public_key.clone()
+                                    };
+                                    state.ws_client = Some(
+                                        crate::net::ws_client::WsClient::connect_with_kyber(
+                                            &ws_url,
+                                            &uname,
+                                            &pubkey,
+                                            &state.kyber_public_b64,
+                                        ),
+                                    );
+                                    state.connected_server_url = server.url.clone();
+                                    // Fresh socket: identify handshake not yet complete (v0.794).
+                                    state.ws_identified = false;
+                                    state.ws_status = format!("Switching to {}...", server.name);
+                                    state.ws_manually_disconnected = false;
+                                    state.ws_reconnect_timer = 0.0;
+                                    state.ws_reconnect_delay = 5.0;
+                                    state.ws_reconnect_attempts = 0;
+                                    // Land on "general" (every relay seeds it) so we
+                                    // don't show an empty view if the previous active
+                                    // channel / DM / group doesn't exist on this server.
+                                    state.chat_active_channel = "general".to_string();
+                                    // Fresh server: fetch its history.
+                                    state.history_fetched = false;
+                                }
                                 crate::config::AppConfig::from_gui_state(state).save();
                             } else {
                                 state.ws_status =
