@@ -1027,7 +1027,24 @@ fn bake_material(def: &GroundMaterialDef, dir: Option<&PathBuf>, size: u32) -> B
     }
 }
 
-pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
+/// CPU-side bake output, ready for a fast GPU upload. Produced by
+/// [`bake_all`] (which can run on a background thread long before a
+/// wgpu device exists) and consumed by [`upload`].
+pub struct BakedGround {
+    size: u32,
+    mip_count: u32,
+    baked: Vec<BakedMaterial>,
+    real_count: usize,
+    material_count: usize,
+    depth: u32,
+    elapsed_ms: f32,
+}
+
+/// The CPU half of ground-texture loading: decode the ambientCG sets and
+/// build every mip chain. This is the ~1 s of the old `load` that blocked
+/// renderer init; it needs no GPU, so callers can overlap it with
+/// adapter/device/shader-compile time (the cloud-noise pattern).
+pub fn bake_all() -> BakedGround {
     let t0 = std::time::Instant::now();
     let table = material_table();
     let dir = find_ground_dir();
@@ -1067,6 +1084,28 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
         .unwrap_or(0)
         .max(OCEAN_LAYER)
         + 1;
+
+    BakedGround {
+        size,
+        mip_count,
+        baked,
+        real_count,
+        material_count: table.materials.len(),
+        depth,
+        elapsed_ms: t0.elapsed().as_secs_f32() * 1000.0,
+    }
+}
+
+/// One-call convenience: bake on the calling thread, then upload.
+pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
+    upload(device, queue, bake_all())
+}
+
+/// The GPU half: create the array texture and stream the pre-baked mips in.
+/// Fast (tens of ms) -- all the heavy work happened in [`bake_all`].
+pub fn upload(device: &wgpu::Device, queue: &wgpu::Queue, baked_ground: BakedGround) -> GroundTextures {
+    let BakedGround { size, mip_count, baked, real_count, material_count, depth, elapsed_ms } =
+        baked_ground;
 
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Ground PBR Array"),
@@ -1142,14 +1181,14 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
     });
 
     log::info!(
-        "[GroundTex] {}/{} materials baked into {} layers ({}x{}, {} mips) in {:.0} ms",
+        "[GroundTex] {}/{} materials baked into {} layers ({}x{}, {} mips) in {:.0} ms (bake)",
         real_count,
-        table.materials.len(),
+        material_count,
         depth,
         size,
         size,
         mip_count,
-        t0.elapsed().as_secs_f32() * 1000.0
+        elapsed_ms
     );
 
     let view = texture.create_view(&wgpu::TextureViewDescriptor {

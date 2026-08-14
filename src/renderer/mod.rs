@@ -542,6 +542,20 @@ impl Renderer {
             Some(rx)
         };
 
+        // Ground-texture CPU bake starts NOW too (same overlap trick,
+        // v0.1133): the ~1 s of PNG decode + mip-chain building runs while
+        // the adapter request and DXC shader compile (~5 s combined) hold
+        // the boot path. init() recv()s the finished bake and does only the
+        // fast GPU upload at the same point in the sequence as before -- no
+        // bind-group or ordering change, just no more blocking bake.
+        let ground_rx = {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(ground_textures::bake_all());
+            });
+            Some(rx)
+        };
+
         // DX12-only on Windows. wgpu unconditionally compiles Vulkan support
         // (hardcoded in wgpu's Cargo.toml for wgpu-core). Even with Backends::DX12,
         // wgpu still loads vulkan-1.dll during instance creation and enumerates
@@ -601,7 +615,7 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
-        Self::init(instance, surface, width, height, cloud_rx).await
+        Self::init(instance, surface, width, height, cloud_rx, ground_rx).await
     }
 
     /// Create a new renderer attached to a WASM canvas element.
@@ -619,7 +633,7 @@ impl Renderer {
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
             .expect("Failed to create surface from canvas");
 
-        Self::init(instance, surface, width, height, None).await
+        Self::init(instance, surface, width, height, None, None).await
     }
 
     /// Shared initialization: adapter, device, pipeline, depth buffer.
@@ -631,6 +645,7 @@ impl Renderer {
         width: u32,
         height: u32,
         cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<u8>, Vec<u8>)>>,
+        ground_rx: Option<std::sync::mpsc::Receiver<ground_textures::BakedGround>>,
     ) -> Self {
         // [BootPhase] sub-spans: renderer_init is the single largest boot
         // phase (6.7 s measured 2026-08-14); these marks attribute it so
@@ -1084,11 +1099,18 @@ impl Renderer {
         });
         log::info!("[BootPhase] shaders_and_pipelines: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
         let t_phase = std::time::Instant::now();
-        // Ground PBR texture array (v0.907): loads the ambientCG sets from
+        // Ground PBR texture array (v0.907): the ambientCG sets from
         // assets/textures/ground/, or a neutral 1x1 fallback that renders
-        // identically to the pre-texture look.
-        let ground_textures = ground_textures::load(&device, &queue);
-        log::info!("[BootPhase] ground_textures_bake: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        // identically to the pre-texture look. The CPU bake ran on a
+        // background thread since before the adapter request (v0.1133);
+        // recv() here collects it (usually already finished) and only the
+        // fast GPU upload happens on the boot path. The wasm/fallback path
+        // still bakes inline via load().
+        let ground_textures = match ground_rx.and_then(|rx| rx.recv().ok()) {
+            Some(baked) => ground_textures::upload(&device, &queue, baked),
+            None => ground_textures::load(&device, &queue),
+        };
+        log::info!("[BootPhase] ground_textures_upload: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
         let t_phase = std::time::Instant::now();
 
         // Atmosphere LUTs (sky arc stage 3a, v0.945): transmittance 256x64 +
