@@ -75,6 +75,11 @@ enum NodeEvent {
     Failed(String),
     /// The serve future returned. Expected after Stop, a fault otherwise.
     Exited(String),
+    /// This node's own federation public key, fetched from
+    /// /api/server-info once the node is up. Shown with a copy button so
+    /// the operator of ANOTHER server can register this NAT'd home node
+    /// with /server-add-key without this node needing any public URL.
+    ServerKey(String),
 }
 
 /// The one node this process hosts.
@@ -101,6 +106,10 @@ struct LocalNode {
     started_at: Option<Instant>,
     /// This machine's address on the local network, resolved once per start.
     lan_ip: Option<String>,
+    /// This node's federation public key (from /api/server-info after
+    /// Ready). Empty until fetched. The identity another relay's operator
+    /// pins with /server-add-key to federate with this node.
+    server_pubkey: String,
 
     stop_tx: Option<tokio::sync::oneshot::Sender<()>>,
     events: Option<Receiver<NodeEvent>>,
@@ -119,6 +128,7 @@ impl LocalNode {
             running_name: String::new(),
             started_at: None,
             lan_ip: None,
+            server_pubkey: String::new(),
             stop_tx: None,
             events: None,
         }
@@ -386,6 +396,24 @@ fn start(n: &mut LocalNode) {
                     .is_ok()
                 {
                     let _ = health_tx.send(NodeEvent::Ready);
+                    // Grab this node's federation public key while we are
+                    // already on a background thread: it is what another
+                    // relay's operator pins with /server-add-key, so the
+                    // page shows it copyable the moment the node is up.
+                    if let Ok(resp) = ureq::get(&format!(
+                        "http://127.0.0.1:{port}/api/server-info"
+                    ))
+                    .timeout(Duration::from_secs(3))
+                    .call()
+                    {
+                        if let Ok(body) = resp.into_string() {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
+                                if let Some(k) = v.get("public_key").and_then(|k| k.as_str()) {
+                                    let _ = health_tx.send(NodeEvent::ServerKey(k.to_string()));
+                                }
+                            }
+                        }
+                    }
                     return;
                 }
             }
@@ -427,6 +455,9 @@ fn apply(n: &mut LocalNode, ev: NodeEvent) {
                 n.message.clear();
                 n.started_at = Some(Instant::now());
             }
+        }
+        NodeEvent::ServerKey(k) => {
+            n.server_pubkey = k;
         }
         NodeEvent::Failed(m) => {
             if matches!(n.status, NodeStatus::Starting | NodeStatus::Running) {
@@ -693,6 +724,29 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                 ),
             }
             row(ui, "Database file", &n.running_db.clone(), true);
+            if !n.server_pubkey.is_empty() {
+                // Shown truncated (the full key is 64 hex chars); Copy
+                // carries the whole thing. This is the identity another
+                // relay's admin pins with /server-add-key to federate with
+                // this node, and it needs NO port forward or public URL:
+                // this node dials OUT and the peering rides that socket.
+                let short = format!(
+                    "{}\u{2026}{}",
+                    &n.server_pubkey[..n.server_pubkey.len().min(12)],
+                    &n.server_pubkey[n.server_pubkey.len().saturating_sub(6)..]
+                );
+                widgets::form_row(ui, theme, "Federation key", |ui| {
+                    ui.label(
+                        RichText::new(short)
+                            .size(theme.font_size_body)
+                            .monospace()
+                            .color(theme.text_primary()),
+                    );
+                    if widgets::Button::ghost("Copy").show(ui, theme) {
+                        ui.ctx().copy_text(n.server_pubkey.clone());
+                    }
+                });
+            }
         });
 
     ui.add_space(theme.spacing_sm);
@@ -700,7 +754,11 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
         RichText::new(
             "Anyone on the same network (same house, same wifi) can connect using the network \
              address. Reaching it from outside your home also needs a port forward on your \
-             router, which no app can set up for you.",
+             router, which no app can set up for you. FEDERATING is different: to pair this \
+             node with another server, no port forward is needed at all. Copy the Federation \
+             key above, and on the other server run: /server-add-key <key> <name>, then \
+             /server-trust <key> 2. This node then connects OUT to that server and the \
+             partnership rides that connection.",
         )
         .size(theme.font_size_small)
         .color(theme.text_muted()),

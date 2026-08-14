@@ -4824,6 +4824,53 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 }
                                             }
                                         }
+                                        // Register a peer by PUBLIC KEY instead of URL: the
+                                        // NAT-friendly half of federation (2026-08-14). A home
+                                        // node behind a router has no URL to fetch, but it can
+                                        // dial OUT; pinning its key here lets its inbound hello
+                                        // verify, and the peering rides the socket it opens.
+                                        // The key is shown copyable on that node's Host Node
+                                        // page. url is a non-http marker so the outbound
+                                        // dialer skips this row (it only dials http/https).
+                                        "/server-add-key" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can add federated servers.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
+                                                let key = parts.get(1).unwrap_or(&"").trim().to_lowercase();
+                                                let name = parts.get(2).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                                                let key_ok = key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit());
+                                                if !key_ok {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <64-hex-key> [name]\nGet the key from the other node's Host Node page (Federation key, Copy).".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let display_name = name.unwrap_or_else(|| format!("node-{}", &key[..8]));
+                                                    match state_clone.db.add_federated_server(&key, &display_name, "outbound-only") {
+                                                        Ok(true) => {
+                                                            // Pin the key immediately: it IS the identity here,
+                                                            // handed over out-of-band by the operators themselves.
+                                                            let _ = state_clone.db.update_federated_server_info(&key, &display_name, Some(&key), false);
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!(
+                                                                "✅ Added {display_name} by key. Next: /server-trust {} 2\nThen the other node adds THIS server by URL and federates; no port forward needed on their side.",
+                                                                &key[..12]
+                                                            ) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Server already in registry.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Failed to add server by key: {e}");
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                         "/server-remove" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                             if role != "admin" {
