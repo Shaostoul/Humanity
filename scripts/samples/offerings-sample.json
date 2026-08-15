@@ -1,0 +1,46 @@
+[
+  {
+    "offering_key": "flashlight_800l",
+    "kind": "good",
+    "reality": "real",
+    "title": "LED Flashlight 800L",
+    "description": "Aluminium body, 800 lumen, USB-C rechargeable. Includes 18650 cell and lanyard.",
+    "item_ref": "flashlight_0",
+    "category": "tools",
+    "tags": ["rechargeable", "usb_c"],
+    "status": "active",
+    "fulfillment": ["pickup_at_provider", "shipping"],
+    "price": { "mode": "fixed", "amount": 24.99, "currency": "USD", "unit": "each" },
+    "settlement": { "mode": "directory", "contact_via": "in_person", "instructions": "Cash or card at the counter." },
+    "good": {
+      "condition": "new",
+      "availability_mode": "in_stock",
+      "quantity_available": 12,
+      "provenance": ["factory_new"]
+    }
+  },
+  {
+    "offering_key": "bike_tuneup_std",
+    "kind": "service",
+    "reality": "real",
+    "title": "Standard Bicycle Tune-Up",
+    "description": "Brakes, gears, truing, lube, and a safety check. Parts extra, quoted before work starts.",
+    "item_ref": "bicycle_0",
+    "category": "services",
+    "status": "active",
+    "fulfillment": ["pickup_at_provider"],
+    "price": { "mode": "fixed", "amount": 45.0, "currency": "USD", "unit": "job", "notes": "No charge if it cannot be fixed." },
+    "settlement": { "mode": "directory", "contact_via": "in_person", "instructions": "Bring the bike; no appointment needed before noon." },
+    "service": {
+      "action": "repair",
+      "duration_minutes": 60,
+      "availability": {
+        "schedule_kind": "walk_in",
+        "recurring": [
+          { "day": "tuesday", "start_time": "09:00", "end_time": "12:00" },
+          { "day": "saturday", "start_time": "09:00", "end_time": "12:00" }
+        ]
+      }
+    }
+  }
+]

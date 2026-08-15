@@ -106,6 +106,77 @@ impl Storage {
             )));
         }
 
+        // Market payload validation (v0.1140): provider_v1 and offering_v1
+        // are the first KIND-validated objects -- the schemas in schemas/
+        // are the source of truth and this chokepoint enforces them for
+        // both ingest paths (REST + gossip). An offering additionally
+        // requires its provider root to be ALREADY STORED here, with the
+        // same author key (or a member key of the provider's backing
+        // group): one identity cannot publish offerings into somebody
+        // else's shop. Fail-closed on a missing provider is deliberate --
+        // an offering gossiped before its provider is rejected and will
+        // land on a later gossip round once the provider arrived.
+        match object.object_type.as_str() {
+            "provider_v1" => {
+                crate::relay::core::market_payloads::validate_provider_v1(&object.payload)
+                    .map_err(|e| {
+                        rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
+                            format!("invalid provider_v1 payload: {e}"),
+                        )))
+                    })?;
+            }
+            "offering_v1" => {
+                crate::relay::core::market_payloads::validate_offering_v1(
+                    &object.payload,
+                    &object.references,
+                    None,
+                )
+                .map_err(|e| {
+                    rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
+                        format!("invalid offering_v1 payload: {e}"),
+                    )))
+                })?;
+                // Authorization: the offering's author must be the provider
+                // root's author. (Group-backed providers: members publish
+                // via the same key today; per-member keys arrive with the
+                // group-epoch work and extend this check, not replace it.)
+                let provider_ref = object
+                    .references
+                    .first()
+                    .cloned()
+                    .unwrap_or_default();
+                match self.get_signed_object(&provider_ref)? {
+                    Some(provider) if provider.object_type == "provider_v1" => {
+                        if provider.author_pubkey != object.author_public_key {
+                            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                                SignedObjectError(
+                                    "offering author does not match the provider root author"
+                                        .to_string(),
+                                ),
+                            )));
+                        }
+                    }
+                    Some(_) => {
+                        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            SignedObjectError(
+                                "offering references an object that is not a provider_v1"
+                                    .to_string(),
+                            ),
+                        )));
+                    }
+                    None => {
+                        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                            SignedObjectError(
+                                "offering's provider root is not stored on this server yet"
+                                    .to_string(),
+                            ),
+                        )));
+                    }
+                }
+            }
+            _ => {}
+        }
+
         let object_id = object.object_id().map_err(|e| {
             rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(format!(
                 "object_id computation failed: {e}"

@@ -17,6 +17,8 @@ pub mod error;
 pub mod hash;
 pub mod identity;
 pub mod kdf;
+/// Market signed-object payload validators (provider_v1, offering_v1).
+pub mod market_payloads;
 pub mod merkle_disclosure;
 pub mod object;
 pub mod pq_crypto;

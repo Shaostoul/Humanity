@@ -136,6 +136,10 @@ enum IngestError {
     BadSignature(String),
     /// `author_pubkey` was the wrong length → HTTP 400 (client input fault).
     BadPublicKey(String),
+    /// A kind-validated payload (provider_v1 / offering_v1) failed its
+    /// schema rules, or its authorization chain → HTTP 400 with the
+    /// validator's plain-language reason (v0.1140).
+    InvalidPayload(String),
     /// object_id computation or a genuine storage fault → HTTP 500.
     Storage(String),
     /// Payload exceeded `MAX_SIGNED_OBJECT_PAYLOAD` → HTTP 413.
@@ -268,6 +272,13 @@ pub async fn post_object(
                     Err(IngestError::BadPublicKey(msg))
                 } else if msg.contains("payload too large") {
                     Err(IngestError::TooLarge(msg))
+                } else if msg.contains("invalid provider_v1 payload")
+                    || msg.contains("invalid offering_v1 payload")
+                    || msg.contains("offering author does not match")
+                    || msg.contains("provider root is not stored")
+                    || msg.contains("not a provider_v1")
+                {
+                    Err(IngestError::InvalidPayload(msg))
                 } else {
                     Err(IngestError::Storage(format!("storage error: {e}")))
                 }
@@ -284,6 +295,12 @@ pub async fn post_object(
                 .into_response();
         }
         Ok(Err(IngestError::BadPublicKey(msg))) => {
+            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+                "error": msg
+            })))
+                .into_response();
+        }
+        Ok(Err(IngestError::InvalidPayload(msg))) => {
             return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
                 "error": msg
             })))

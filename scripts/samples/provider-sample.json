@@ -1,0 +1,21 @@
+{
+  "display_name": "Rivertown Bikes",
+  "slug": "rivertown_bikes",
+  "kind": "business",
+  "description": "Bicycle sales, repair, and tune-ups on Main Street since 2019. Walk-ins welcome before noon.",
+  "backed_by": "identity",
+  "status": "active",
+  "languages": ["en"],
+  "contact": {
+    "preferred": "in_person",
+    "website": "https://rivertownbikes.example",
+    "notes": "Counter open Tue-Sat 9-17."
+  },
+  "service_areas": [
+    {
+      "mode": "fixed_location",
+      "label": "12 Main St, Rivertown",
+      "locality": "Rivertown"
+    }
+  ]
+}
