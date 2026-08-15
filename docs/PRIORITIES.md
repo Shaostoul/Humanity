@@ -52,7 +52,7 @@
 >    Bug found in passing (fix cheap): web wallet USDC send is broken by a name
 >    mismatch - wallet-app.js:394 calls sendToken; wallet.js exports sendSPLToken.
 >
-> 2. **White-label seams - what actually blocks a third party running this.**
+> 2. **White-label seams.** (a) DONE v0.1139.0: ALLOWED_ORIGINS single-source (WS-Origin + CORS + CSP; provisioner writes it; public.guide live-proven 101). Remaining seams below:
 >    Clients are MOSTLY domain-relative already (web chat uses location.host;
 >    native has a server picker). The real blockers, cited:
 >    (a) THE hard one: the relay bakes its browser WS-Origin allowlist
