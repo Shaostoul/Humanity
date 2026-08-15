@@ -664,3 +664,30 @@ fn parse_users(
     }
     users
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn merge_history_populates_the_carrier_buffer_from_the_real_api_shape() {
+        let mut conn = crate::gui::ServerConnection {
+            url: "https://a.example".into(),
+            display_url: "https://a.example".into(),
+            ..Default::default()
+        };
+        // The exact serialization /api/messages returns: RelayMessage rows,
+        // chat + federated_chat mixed.
+        let body = r#"{"messages":[
+            {"type":"chat","from":"k1","from_name":"Alice","content":"hello","timestamp":1000,"channel":"general"},
+            {"type":"chat","from":"k2","from_name":"Bela","content":"hey","timestamp":1500,"channel":"general"},
+            {"type":"federated_chat","server_id":"deadbeef","server_name":"peer","from_name":"Cyra","content":"hi from afar","timestamp":2000,"channel":"general"}
+        ],"cursor":3}"#;
+        super::merge_history_into(&mut conn, body, "");
+        assert_eq!(conn.messages.len(), 3, "all rows land in the carrier buffer");
+        assert!(conn.messages.iter().all(|m| m.channel == "general"));
+        assert_eq!(conn.messages[2].origin_server, "deadbeef");
+        assert_eq!(conn.messages[2].sender_name, "Cyra (peer)");
+        // Re-merging the same body is idempotent (dedup holds).
+        super::merge_history_into(&mut conn, body, "");
+        assert_eq!(conn.messages.len(), 3, "second merge must not duplicate");
+    }
+}

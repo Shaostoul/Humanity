@@ -889,6 +889,60 @@ macro_rules! page_snapshot {
 page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
+
+/// The Commons MERGED view, rendered from two populated background carrier
+/// connections (field test 5: the operator's Commons rooms rendered empty).
+/// This is the falsifiable repro: if the merge breaks, this snapshot shows
+/// the empty welcome instead of the four lines.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_commons() {
+    render_page_png("chat_commons", 1280, 900, |ctx, theme, state| {
+        // The closure runs once per rendered frame; only seed on the first
+        // (a second push doubled every carrier and every line, which
+        // usefully exposed the native-line dedup gap, now fixed).
+        if !state.connections.is_empty() {
+            state.chat_active_channel = "commons:general".into();
+            crate::gui::pages::chat::draw(ctx, theme, state);
+            return;
+        }
+        let mk_conn = |url: &str, lines: &[(&str, &str, u64)]| crate::gui::ServerConnection {
+            url: url.into(),
+            display_url: url.into(),
+            identified: true,
+            channels: vec![ChatChannel {
+                id: "general".into(),
+                name: "general".into(),
+                federated: true,
+                ..Default::default()
+            }],
+            messages: lines
+                .iter()
+                .map(|(who, text, ts)| ChatMessage {
+                    sender_name: (*who).into(),
+                    sender_key: format!("k_{who}"),
+                    content: (*text).into(),
+                    timestamp: "12:00".into(),
+                    timestamp_ms: *ts,
+                    channel: "general".into(),
+                    server: url.into(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+        state.connections.push(mk_conn(
+            "https://a.example",
+            &[("Alice", "hello from server A", 1000), ("Ada", "good morning", 3000)],
+        ));
+        state.connections.push(mk_conn(
+            "https://b.example",
+            &[("Bela", "hello from server B", 2000), ("Bix", "hey all", 4000)],
+        ));
+        state.chat_active_channel = "commons:general".into();
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_cosmos, "cosmos", cosmos, 1280, 900);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]

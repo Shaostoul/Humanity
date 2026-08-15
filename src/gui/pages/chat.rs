@@ -1783,9 +1783,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // section instead of a child row of the one above.
                     let hdr_bg_slot = ui.painter().add(egui::Shape::Noop);
                     let hdr_resp = ui.horizontal(|ui| {
-                        // Same left edge as the active server's header (8 px,
-                        // not the old 12): every server reads as a peer
-                        // section, never as a child of the one above.
+                        // Same height as the active server's header so
+                        // switching never changes a row's size (the jiggle,
+                        // field test 5), and the same 8 px left edge so every
+                        // server reads as a peer section.
+                        ui.set_min_size(egui::vec2(0.0, 24.0));
                         ui.add_space(8.0);
                         // Collapse triangle: hides this server's channel list
                         // (persisted). A server with NO visible channels of
@@ -2246,7 +2248,19 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     let online_count = state.chat_users.iter().filter(|u| u.status != "offline").count();
                     let svr_hdr_height = 24.0;
                     let svr_full_w = ui.available_width();
-                    let svr_name = server_display_name(&state.server_url);
+                    // Prefer the SAVED name (field test 5: switching to the
+                    // self-relay renamed it to its IP because this header
+                    // derived the label from the URL instead of the saved
+                    // entry the user named).
+                    let svr_name = {
+                        let cur = norm_server_url(&state.server_url);
+                        state
+                            .chat_servers
+                            .iter()
+                            .find(|s| norm_server_url(&s.url) == cur && !s.name.trim().is_empty())
+                            .map(|s| s.name.clone())
+                            .unwrap_or_else(|| server_display_name(&state.server_url))
+                    };
                     let svr_collapsed = state.chat_connected_server_collapsed;
                     let ctx_time = ui.ctx().input(|i| i.time);
 
@@ -2754,19 +2768,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // the sidebar stays clean. Click the cog next to the
                     // server name to manage all channels in one place.)
 
-                    // "All shared" (operator field test 3): when every room
-                    // on the ACTIVE server is bridged, say so here too, so
-                    // clicking in never feels like something is missing.
-                    if !channels.is_empty() && channels.iter().all(|c| c.federated) {
-                        ui.horizontal(|ui| {
-                            ui.add_space(20.0);
-                            ui.label(
-                                RichText::new("All rooms here are shared with other servers")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                        });
-                    }
+                    // (The "all rooms shared" hint row was removed in field
+                    // test 5: it existed only on the active entry, so the
+                    // block CHANGED HEIGHT on every switch -- the "jiggle".
+                    // The concept lives in the saved rows' inline "(all
+                    // shared)" tag and the Commons ? explainer instead.)
 
                     ui.add_space(2.0);
                     } // end if !svr_collapsed
@@ -3364,9 +3370,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             .collect();
                         let mut seen_fed: std::collections::HashSet<(&str, u64, &str)> =
                             std::collections::HashSet::new();
+                        let mut seen_native: std::collections::HashSet<(&str, u64, &str)> =
+                            std::collections::HashSet::new();
                         merged.retain(|m| {
                             if m.origin_server.is_empty() {
-                                return true;
+                                // Two carriers can both hold the same native
+                                // line (the snapshot repro proved the double
+                                // render): collapse on sender + time + text.
+                                return seen_native.insert((
+                                    m.sender_key.as_str(),
+                                    m.timestamp_ms,
+                                    m.content.as_str(),
+                                ));
                             }
                             if natives.contains(&(m.timestamp_ms, m.content.as_str())) {
                                 return false; // the native original is present
@@ -3417,14 +3432,24 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     .color(theme.text_muted()),
                             );
                         } else {
+                            // A Commons view greets by the ROOM name, never
+                            // the internal "commons:" id (field test 5).
+                            let display_room =
+                                commons_room_of(&active_channel).unwrap_or(&active_channel);
                             ui.label(
-                                RichText::new(format!("Welcome to #{}", active_channel))
+                                RichText::new(format!("Welcome to #{}", display_room))
                                     .size(theme.font_size_title)
                                     .color(theme.text_primary()),
                             );
                             ui.add_space(8.0);
+                            let hint = if commons_room_of(&active_channel).is_some() {
+                                "No messages here yet. History from your servers loads in \
+                                 the background; new posts appear as they arrive."
+                            } else {
+                                "No messages yet. Say something!"
+                            };
                             ui.label(
-                                RichText::new("No messages yet. Say something!")
+                                RichText::new(hint)
                                     .size(theme.font_size_body)
                                     .color(theme.text_muted()),
                             );
@@ -4397,9 +4422,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 })
                                 .map(|c| server_display_name(&c.url))
                         };
-                        match via {
-                            Some(v) => format!("Message #{} (sends via {})", room, v),
-                            None => format!("#{}: no connected server carries this room", room),
+                        if commons_room_read_only(state, room) == Some(true) {
+                            format!("#{} is read-only (announcements from the operators)", room)
+                        } else {
+                            match via {
+                                Some(v) => format!("Message #{} (sends via {})", room, v),
+                                None => format!("#{}: no connected server carries this room", room),
+                            }
                         }
                     } else {
                         format!("Message #{}", state.chat_active_channel)
@@ -5389,6 +5418,14 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         state.ws_status =
             "No connected server carries this Commons room right now.".to_string();
         return false; // keep the draft in the input box
+    }
+    // Read-only Commons rooms refuse sends for non-mods, whichever carrier
+    // would relay them (field test 5) -- same rule the room enforces at home.
+    if let Some(room) = commons_room.as_deref() {
+        if commons_room_read_only(state, room) == Some(true) {
+            state.ws_status = format!("#{} is read-only.", room);
+            return false; // keep the draft
+        }
     }
 
     if !is_p2p_group && !is_scratchpad && carrier_idx.is_none() {
@@ -7408,6 +7445,43 @@ pub(crate) fn open_commons_room(state: &mut GuiState, name: &str) {
             c.unread = false;
         }
     }
+}
+
+/// Whether the resolved Commons send carrier treats `room` as read-only for
+/// THIS user (admins/mods still post -- e.g. #announcements). None = no
+/// connected carrier at all. Field test 5: bridged read-only rooms must not
+/// accept posts through the side door of a different carrier.
+pub(crate) fn commons_room_read_only(state: &GuiState, room: &str) -> Option<bool> {
+    let is_mod = |role: &str| role == "admin" || role == "owner" || role == "moderator" || role == "mod";
+    let active_carries = state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+        && state.chat_channels.iter().any(|c| c.id == room && c.federated);
+    if active_carries {
+        let ro = state
+            .chat_channels
+            .iter()
+            .find(|c| c.id == room)
+            .map(|c| c.read_only)
+            .unwrap_or(false);
+        return Some(ro && !is_mod(&viewer_role(state)));
+    }
+    let conn = state.connections.iter().find(|c| {
+        c.identified
+            && c.ws.is_some()
+            && c.channels.iter().any(|ch| ch.id == room && ch.federated)
+    })?;
+    let ro = conn
+        .channels
+        .iter()
+        .find(|ch| ch.id == room)
+        .map(|ch| ch.read_only)
+        .unwrap_or(false);
+    let role = conn
+        .users
+        .iter()
+        .find(|u| u.public_key == state.profile_public_key)
+        .map(|u| u.role.clone())
+        .unwrap_or_default();
+    Some(ro && !is_mod(&role))
 }
 
 /// Compute the Commons rooms from the active connection + every background

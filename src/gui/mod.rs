@@ -180,7 +180,18 @@ impl GuiState {
             rate_limited: take(&mut self.ws_rate_limited),
             msgs_in: take(&mut self.ws_msgs_in),
             history_fetched: take(&mut self.history_fetched),
-            history_queue: Vec::new(),
+            // Re-arm the background history backfill for this server's
+            // FEDERATED rooms at every park (field test 5): the active life
+            // only fetched the room the user had open, so a parked buffer is
+            // usually NARROW -- without this, clicking through servers left
+            // every carrier with no #general history and the Commons view
+            // merged to empty. The merge dedups, so re-fetching is cheap.
+            history_queue: self
+                .chat_channels
+                .iter()
+                .filter(|c| c.federated)
+                .map(|c| c.id.clone())
+                .collect(),
             history_rx: None,
             messages: take(&mut self.chat_messages),
             channels: take(&mut self.chat_channels),
