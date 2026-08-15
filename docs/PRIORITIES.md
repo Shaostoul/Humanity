@@ -40,7 +40,7 @@
 > 4-investigation + adversarial-verify workflow, ~1M tokens - do NOT re-derive,
 > read wf_679e408f-88b in the journal). Ranked by value x independence:**
 >
-> 1. **Merchant inventory - SHIPPED v0.1140.0** (validators for provider_v1/offering_v1 at the put_signed_object chokepoint covering REST+gossip; ownership rule; directory-only settlement enforced; bulk importer scripts/import-offerings.mjs + samples + docs/admin/market-importer.md; end-to-end proven accept+reject against a live local relay). REMAINING for the merchant arc: native Market page querying offering_v1 (views: storefront/item/category), need-shaped revision of data/market/categories.json, group-backed provider member keys. Original scope note:
+> 1. **Merchant inventory - SHIPPED v0.1140.0, read side + vocabulary SHIPPED v0.1141.0** (v0.1140.0: validators for provider_v1/offering_v1 at the put_signed_object chokepoint covering REST+gossip; ownership rule; directory-only settlement enforced; bulk importer scripts/import-offerings.mjs + samples + docs. v0.1141.0: native Market page Directory tab - offering browse/storefronts/detail over GET /api/v2/objects with client-side CBOR decode + latest-revision resolution + TTL filtering + Real/Sim split; need-shaped categories.json ({id,label,desc}: food water shelter energy health care clothing tools materials repair transport growing education communication services emergency other) consumed by native + web selects + the relay validator (shared_categories at the chokepoint, fail-open); sample provider + 2 offerings PUBLISHED LIVE to united-humanity.us proving production ingest). REMAINING for the merchant arc: web Market page Directory mirror (native-first rule: pattern now exists to mirror), group-backed provider member keys, in-app "publish an offering" form (importer is script-only today). Original scope note:
 >    Define a `listing_v1` signed-object payload (schemas/listing.toml: item
 >    ref, title, desc, category, structured price {amount,currency}, stock,
 >    condition, fulfillment, location; seller = signing key) + a validated BULK
@@ -62,15 +62,27 @@
 >    env / a domain field in data/server-config.json), the five as default. One
 >    file, three sites, plus a provision line - THE single change that unblocks
 >    a self-hoster's web chat.
->    (b) native TURN + streaming defaults hardcode united-humanity.us
->    (src/net/webrtc.rs:205; gui/mod.rs:1750 is already user-editable).
+>    (b) DONE v0.1141.0: native TURN base now derives from the CONNECTED
+>    server (WebrtcManager::start takes relay_base from the active ws URL;
+>    HUMANITY_RELAY_BASE still overrides; dead TURN_SERVER const deleted).
+>    gui/mod.rs streaming default is user-editable already.
 >    (c) ~1004 branded literals (incl. "shaostoul") across ~30 data/ files,
 >    dominated by data/announcements_archive - mostly content, not config.
->    (d) DATA-DRIVEN TABS: data/gui/navigation.json exists but is consumed by
->    NOTHING and is stale (lists deleted 'civilization' page, removed real/sim
->    toggle). Wiring it (self-hoster picks tabs without forking HTML) means
->    first correcting it against the live page registry, then reading it where
->    tab choice is currently hardcoded in three places.
+>    (d) CLOSED v0.1141.0 by deletion: data/gui/navigation.json was consumed
+>    by NOTHING and stale; removed (file + embedded_data registrations). A
+>    future data-driven nav should be authored fresh against the live page
+>    registry when actually wired.
+>    (e) NEW SEAM SHIPPED v0.1141.0 - PER-NODE HOMEPAGE (operator direction
+>    2026-08-15: "not everyone wants the same homepage"): nginx serves
+>    /var/www/humanity-site/index.html over the repo default when present
+>    (scripts/nginx/humanity.conf "Landing page" block; deploys never touch
+>    the override tree; /site/ alias for custom assets; provisioner seeds
+>    README). Repo ships flavors in web/home/; technical.html (engineer-
+>    facing intro: architecture, crypto table, federation, self-hosting,
+>    market objects) is LIVE as public.guide's homepage while
+>    united-humanity.us keeps the mission page - two front doors, one
+>    platform. Docs: SELF-HOSTING.md "Your own homepage"; in-app flavor
+>    picker logged in docs/design/in-app-ops.md (Server Settings > Website).
 >
 > 3. **Federation - LIVE IN PRODUCTION, both directions proven (v0.1127.0,
 >    2026-08-14).** Eight independent defects fixed (BUGS.md BUG-071, incl.

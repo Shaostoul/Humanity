@@ -24,6 +24,7 @@ pub mod library;
 pub mod quests;
 pub mod homes;
 pub mod market;
+pub mod market_directory;
 pub mod calculator;
 pub mod calendar;
 pub mod notes;

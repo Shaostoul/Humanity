@@ -189,6 +189,31 @@ lives in the app, a /chat-command, a config file, or the server shell - is in
 Admin map**. If the Admin map says an action is `vps-shell`, only then do you
 need to SSH in; everything else never requires a terminal.
 
+## Your own homepage (per-node website differentiation)
+
+Every node serves the same web app, but the FRONT DOOR is yours. nginx
+prefers `/var/www/humanity-site/index.html` (a directory deploys never touch)
+over the stock landing page; delete the file to fall back. Ready-made flavors
+ship in the repo under `web/home/`:
+
+- `web/home/technical.html`: the engineer-facing intro (architecture, crypto,
+  federation, self-hosting, the Market as signed objects). This is what
+  public.guide runs, while united-humanity.us keeps the mission-first page:
+  two front doors, one platform.
+
+```bash
+# pick a flavor
+sudo cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# or write your own; /shared/theme.css and /shared/shell.js keep working,
+# so a custom page inherits the site nav and theme. Extra assets go in
+# /var/www/humanity-site/site/ and are served under /site/.
+```
+
+Nodes provisioned before this seam existed need the updated nginx config once:
+copy `scripts/nginx/humanity.conf` over `/etc/nginx/sites-available/humanity`,
+re-run the domain substitution from `provision-vps.sh` step 11, then
+`nginx -t && systemctl reload nginx`.
+
 ## Choosing what your server hosts (the capability manifest)
 
 One binary can be a chat server, a shared game world, a market directory, and a

@@ -8,12 +8,56 @@ let marketMyRole = '';
 const sellerRatings = {};
 /** Cache of reviews per listing: { [listing_id]: ReviewData[] } */
 const listingReviews = {};
+/* Categorical badge palette for the need-shaped vocabulary in
+ * /data/market/categories.json, keyed by lowercase id. Labels pass through
+ * toLowerCase() so both sides of the id/label pair resolve. Mirrors the
+ * native palette in src/gui/pages/market.rs::category_color. */
 const CATEGORY_COLORS = {
-  Electronics:'#4488ff', Vehicles:'#f80', Clothing:'#f48', Tools:'#8b4',
-  Furniture:'#a67', Home:'#68a', 'Books/Media':'#a88', Gaming:'#84f',
-  Sports:'#4b8', Crafts:'#fa8', 'Food/Garden':'#4a8', Services:'#88f',
-  '3D Models':'#f84', Other:'#888'
+  food:'#3c963c', water:'#3c91af', shelter:'#8b7765', energy:'#b48c32',
+  health:'#be556e', care:'#c878a0', clothing:'#966ebe', tools:'#4682b4',
+  materials:'#a08255', repair:'#cd7d3c', transport:'#8c50a0', growing:'#6eaa50',
+  education:'#5a64c8', communication:'#3296c8', services:'#c86450',
+  emergency:'#d24638', other:'#888'
 };
+function categoryColor(cat) {
+  return CATEGORY_COLORS[String(cat || '').toLowerCase()] || '#888';
+}
+
+/* The live vocabulary, fetched from the same file the native app and the
+ * relay validator read. The static <option> lists in market.html are only
+ * the no-fetch fallback; this replaces them once loaded. */
+var MARKET_CATEGORIES = [];
+function fillCategorySelect(sel, allLabel) {
+  if (!sel) return;
+  var current = sel.value;
+  sel.innerHTML = '';
+  if (allLabel !== null) {
+    var o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = allLabel;
+    sel.appendChild(o0);
+  }
+  MARKET_CATEGORIES.forEach(function(c) {
+    var o = document.createElement('option');
+    o.value = c.label;
+    o.textContent = c.label;
+    if (c.desc) o.title = c.desc;
+    sel.appendChild(o);
+  });
+  if (current) sel.value = current;
+}
+function loadMarketCategories() {
+  fetch('/data/market/categories.json', { cache: 'no-cache' })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j || !Array.isArray(j.categories) || !j.categories.length) return;
+      MARKET_CATEGORIES = j.categories;
+      fillCategorySelect(document.getElementById('market-category-filter'), 'All Categories');
+      fillCategorySelect(document.getElementById('store-category-filter'), 'All Categories');
+      fillCategorySelect(document.getElementById('listing-category'), null);
+    })
+    .catch(function() { /* fallback: the static options in market.html */ });
+}
 const STORE_DIRECTORY = [];
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -238,7 +282,7 @@ function showListingDetail(id) {
   var modal = document.getElementById('listing-detail-modal');
   var content = document.getElementById('listing-detail-content');
   var isMine = l.seller_key === marketMyKey;
-  var catColor = CATEGORY_COLORS[l.category] || '#888';
+  var catColor = categoryColor(l.category);
   var sr = sellerRatings[l.seller_key];
   var sellerRatingHtml = sr && sr.count > 0
     ? '<div class="detail-rating">' + renderStars(sr.avg) + '<span class="detail-rating-count">' + sr.avg.toFixed(1) + ' (' + sr.count + ' review' + (sr.count !== 1 ? 's' : '') + ')</span></div>'
@@ -504,7 +548,7 @@ function renderMarketListings() {
 }
 
 function renderListingCard(l, showActions) {
-  var catColor = CATEGORY_COLORS[l.category] || '#888';
+  var catColor = categoryColor(l.category);
   var isMine = l.seller_key === marketMyKey;
   var isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
   var sr = sellerRatings[l.seller_key];
@@ -654,6 +698,7 @@ function renderListingMessages(listingId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  loadMarketCategories();
   marketConnect();
   renderMarketListings();
 });

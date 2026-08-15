@@ -32,8 +32,17 @@ impl SortOrder {
     }
 }
 
+/// Which half of the Market is showing: the signed provider/offering
+/// directory (the Market vision, v0.1141) or the free-form classifieds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MarketTab {
+    Directory,
+    Classifieds,
+}
+
 /// Page-local state for the marketplace.
 struct MarketPageState {
+    tab: MarketTab,
     sort_order: SortOrder,
     detail_view: bool,
 }
@@ -41,6 +50,7 @@ struct MarketPageState {
 impl Default for MarketPageState {
     fn default() -> Self {
         Self {
+            tab: MarketTab::Directory,
             sort_order: SortOrder::Newest,
             detail_view: false,
         }
@@ -122,15 +132,27 @@ fn spawn_reviews_fetch(state: &mut GuiState, listing_id: &str) {
     });
 }
 
-fn category_color(category: &str) -> Color32 {
-    match category {
-        "Tools" => Color32::from_rgb(70, 130, 180),
-        "Materials" => Color32::from_rgb(139, 119, 101), // theme-exempt: categorical badge palette (brown), no semantic token exists for it
-        "Food" => Color32::from_rgb(60, 150, 60), // theme-exempt: categorical badge palette (green), category identity not a success state
-        "Equipment" => Color32::from_rgb(180, 140, 50), // theme-exempt: categorical badge palette (amber), category identity not a warning state
-        "Vehicles" => Color32::from_rgb(140, 80, 160), // theme-exempt: categorical badge palette (purple), no semantic token exists for it
-        "Electronics" => Color32::from_rgb(50, 150, 200), // theme-exempt: categorical badge palette (cyan blue), must stay distinct from the Tools blue
-        "Services" => Color32::from_rgb(200, 100, 80), // theme-exempt: categorical badge palette (terracotta), category identity not a danger state
+/// Categorical badge palette for the need-shaped vocabulary in
+/// `data/market/categories.json`. Keyed by lowercase id; display labels pass
+/// through `to_ascii_lowercase` so classifieds (which store labels) share it.
+pub(crate) fn category_color(category: &str) -> Color32 {
+    match category.to_ascii_lowercase().as_str() {
+        "food" => Color32::from_rgb(60, 150, 60), // theme-exempt: categorical badge palette (green), category identity not a success state
+        "water" => Color32::from_rgb(60, 145, 175), // theme-exempt: categorical badge palette (teal), no semantic token exists for it
+        "shelter" => Color32::from_rgb(139, 119, 101), // theme-exempt: categorical badge palette (earth brown), no semantic token exists for it
+        "energy" => Color32::from_rgb(180, 140, 50), // theme-exempt: categorical badge palette (amber), category identity not a warning state
+        "health" => Color32::from_rgb(190, 85, 110), // theme-exempt: categorical badge palette (rose), category identity not a danger state
+        "care" => Color32::from_rgb(200, 120, 160), // theme-exempt: categorical badge palette (pink), no semantic token exists for it
+        "clothing" => Color32::from_rgb(150, 110, 190), // theme-exempt: categorical badge palette (violet), no semantic token exists for it
+        "tools" => Color32::from_rgb(70, 130, 180), // theme-exempt: categorical badge palette (steel blue), no semantic token exists for it
+        "materials" => Color32::from_rgb(160, 130, 85), // theme-exempt: categorical badge palette (tan), must stay distinct from the Shelter brown
+        "repair" => Color32::from_rgb(205, 125, 60), // theme-exempt: categorical badge palette (orange), no semantic token exists for it
+        "transport" => Color32::from_rgb(140, 80, 160), // theme-exempt: categorical badge palette (purple), no semantic token exists for it
+        "growing" => Color32::from_rgb(110, 170, 80), // theme-exempt: categorical badge palette (leaf green), must stay distinct from the Food green
+        "education" => Color32::from_rgb(90, 100, 200), // theme-exempt: categorical badge palette (indigo), no semantic token exists for it
+        "communication" => Color32::from_rgb(50, 150, 200), // theme-exempt: categorical badge palette (cyan blue), must stay distinct from the Tools blue
+        "services" => Color32::from_rgb(200, 100, 80), // theme-exempt: categorical badge palette (terracotta), category identity not a danger state
+        "emergency" => Color32::from_rgb(210, 70, 60), // theme-exempt: categorical badge palette (signal red), category identity semantics ARE urgency here
         _ => Color32::from_rgb(120, 120, 130), // theme-exempt: categorical badge palette fallback (neutral grey) for unknown/custom categories from data/market/categories.json
     }
 }
@@ -204,7 +226,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_xs);
 
-            let cat_strs: Vec<&str> = state.market_categories.iter().map(String::as_str).collect();
+            let mut cat_strs: Vec<&str> = vec!["All"];
+            cat_strs.extend(state.market_categories.iter().map(|c| c.label.as_str()));
             let active_idx = cat_strs.iter().position(|c| {
                 (*c == "All" && state.listing_filter_category.is_empty())
                     || state.listing_filter_category == *c
@@ -221,7 +244,30 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            if showing_detail {
+            // Tab strip: Directory (signed catalog) | Classifieds (free-form).
+            let mut tab = with_state(|ps| ps.tab);
+            ui.horizontal(|ui| {
+                for (t, label) in [
+                    (MarketTab::Directory, "Directory"),
+                    (MarketTab::Classifieds, "Classifieds"),
+                ] {
+                    if ui
+                        .selectable_label(
+                            tab == t,
+                            RichText::new(label).size(theme.font_size_body),
+                        )
+                        .clicked()
+                    {
+                        tab = t;
+                    }
+                }
+            });
+            with_state(|ps| ps.tab = tab);
+            ui.separator();
+            ui.add_space(theme.spacing_xs);
+            if tab == MarketTab::Directory {
+                super::market_directory::draw(ui, theme, state);
+            } else if showing_detail {
                 // ── Detail view ──
                 let sel_id = state.listing_selected.clone().unwrap_or_default();
                 let my_key = state.profile_public_key.clone();
@@ -597,7 +643,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .desired_width(160.0));
                         });
                         widgets::form_row(ui, theme, "Category", |ui| {
-                            let create_cats: Vec<String> = state.market_categories.iter().skip(1).cloned().collect();
+                            let create_cats: Vec<String> =
+                                state.market_categories.iter().map(|c| c.label.clone()).collect();
                             egui::ComboBox::from_id_salt("new_listing_category")
                                 .selected_text(if state.listing_new_category.is_empty() { "Select..." } else { &state.listing_new_category })
                                 .show_ui(ui, |ui| {

@@ -145,6 +145,28 @@ fn enum_check(value: &str, key: &str, allowed: &[&str]) -> Result<(), String> {
     }
 }
 
+/// The federation-shared category vocabulary, loaded once from
+/// `data/market/categories.json` relative to the working directory (the VPS
+/// relay runs from /opt/Humanity; the native host node from the app dir,
+/// which ships data/). Fail-OPEN: a missing or unparsable file returns None
+/// and category MEMBERSHIP is not enforced (the snake_case shape rule still
+/// is), so a stripped-down node never rejects valid goods over a lost file.
+pub fn shared_categories() -> Option<&'static HashSet<String>> {
+    static CATS: std::sync::OnceLock<Option<HashSet<String>>> = std::sync::OnceLock::new();
+    CATS.get_or_init(|| {
+        let text = std::fs::read_to_string("data/market/categories.json").ok()?;
+        let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+        let set: HashSet<String> = v
+            .get("categories")?
+            .as_array()?
+            .iter()
+            .filter_map(|c| c.get("id").and_then(|i| i.as_str()).map(str::to_string))
+            .collect();
+        (!set.is_empty()).then_some(set)
+    })
+    .as_ref()
+}
+
 fn now_ms() -> i128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

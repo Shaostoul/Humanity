@@ -663,8 +663,22 @@ Wallet management in native UI.
 - Native: `src/gui/pages/wallet.rs`
 
 ### Market Page
-Marketplace listings in native UI.
+Two tabs: the Directory (default) and free-form Classifieds.
 - Native: `src/gui/pages/market.rs`
+
+### Market Directory (v0.1141)
+The read side of the signed catalog: background REST fetch of
+`/api/v2/objects` (provider_v1 + offering_v1), client-side CBOR decode,
+latest-revision resolution per (provider root, offering_key), TTL/expiry
+filtering, Real/Sim split via the `reality` field. Views: offering browse
+(need-shaped category sidebar + search), provider storefronts, full offering
+detail with copyable provider key for DM contact. Categories are the
+federation-shared vocabulary in `data/market/categories.json` ({id, label,
+desc}), enforced at the relay's ingest chokepoint and consumed by native,
+web (select population + badge palette), and the validator alike.
+- Native: `src/gui/pages/market_directory.rs`, `src/gui/pages/market.rs` (tabs)
+- Vocabulary: `data/market/categories.json`; relay: `market_payloads::shared_categories`
+- Web: `web/pages/market-app.js` (`loadMarketCategories`)
 
 ### Crafting Page
 Recipe browsing and crafting UI.

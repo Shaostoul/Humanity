@@ -57,6 +57,7 @@ Most of this is the TIER 0/1 ops work (built fast under incident pressure, all V
 | **Admin roster**: who's admin (ADMIN_KEYS) | edit `.env` + restart, or `set_role` | Server Settings → Roles (partly exists) | the roles editor exists; surface ADMIN_KEYS sync there. |
 | **Disk-guard / retention knobs** | env vars on the systemd unit | Server Settings → System | thresholds (warn/crit %, keep-counts) as editable settings. |
 | **Deploy / version** | `git`/CI/`just` | Ops page (web has one) | mostly informational in-app; actual deploy stays CI (a "deploy" button would need careful auth). |
+| **Homepage flavor** (per-node front door, v0.1141) | `cp /var/www/humanity/home/<flavor>.html /var/www/humanity-site/index.html` over SSH | Server Settings → Website | a relay endpoint (admin-Dilithium-authed) that lists `web/home/` flavors + current state and writes/removes the override file; UI = flavor picker with preview links. The nginx seam is already data-shaped (presence of one file), so the endpoint is a thin file write. |
 
 ## What's ALREADY in-app (the model to follow)
 

@@ -162,6 +162,31 @@ pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
         });
 }
 
+/// A `card` that acts as one big button: whole-surface click sense, hand
+/// cursor + accent border on hover. Returns the Response so callers branch
+/// on `.clicked()`. (Web mirror: `.card.clickable` gets the same treatment.)
+pub fn card_clickable(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) -> egui::Response {
+    let inner = egui::Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .stroke(Stroke::new(1.0, theme.border()))
+        .show(ui, |ui| {
+            add_contents(ui);
+        });
+    let resp = inner.response.interact(egui::Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_stroke(
+            resp.rect,
+            Rounding::same(theme.border_radius as u8),
+            Stroke::new(1.0, theme.accent()),
+            egui::epaint::StrokeKind::Outside,
+        );
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
 /// Card with a title header.
 pub fn card_with_header(ui: &mut Ui, theme: &Theme, title: &str, add_contents: impl FnOnce(&mut Ui)) {
     card(ui, theme, |ui| {

@@ -266,6 +266,26 @@ say "nginx + certs"
 # One layout definition, shared with CI's deploy step (see the header of
 # sync-web-root.sh for why a second copy of this logic is banned).
 bash "$REPO/scripts/sync-web-root.sh" "$REPO" /var/www/humanity
+# The operator-owned homepage override (nginx prefers its index.html over the
+# repo default; see the "Landing page" block in scripts/nginx/humanity.conf).
+# Deploy syncs never touch this tree, so a custom homepage survives updates.
+mkdir -p /var/www/humanity-site/site
+if [ ! -f /var/www/humanity-site/README.txt ]; then
+  cat > /var/www/humanity-site/README.txt <<'SITE'
+Your node's homepage lives here.
+
+Drop an index.html in this directory and nginx serves it at / instead of the
+stock landing page; delete it to fall back. Ready-made flavors ship in the
+repo at web/home/ (e.g. technical.html, the engineer-facing intro):
+
+  cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+
+Root-absolute includes (/shared/theme.css, /shared/shell.js) keep working in
+a custom page, so it inherits the site nav and theme. Put extra assets in
+the site/ subdirectory; they are served under /site/. Updates never touch
+this directory.
+SITE
+fi
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   systemctl stop nginx || true
   # One cert covering apex + chat subdomain + any HUMANITY_CERT_EXTRA. Each name

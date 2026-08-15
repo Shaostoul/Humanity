@@ -4418,8 +4418,8 @@ pub struct GuiState {
     pub bug_categories: Vec<String>,
     /// Crafting category filters (`data/crafting/categories.json`).
     pub crafting_category_groups: Vec<CraftCategoryGroup>,
-    /// Marketplace category filters (`data/market/categories.json`).
-    pub market_categories: Vec<String>,
+    /// Marketplace category vocabulary (`data/market/categories.json`).
+    pub market_categories: Vec<MarketCategory>,
     /// In-app Library: sections of nested categories holding documents
     /// (`data/library/`). Documents only since v0.1063.
     pub library: Vec<LibrarySection>,
@@ -6691,11 +6691,23 @@ mod crafting_recipes_load_tests {
     }
 }
 
-/// Load marketplace category filters from `data/market/categories.json`.
+/// One entry of the federation-shared market vocabulary
+/// (`data/market/categories.json`). `id` is the wire value offerings carry
+/// (lowercase snake_case, validated server-side at ingest); `label` is what
+/// UIs display; `desc` seeds tooltips and empty states.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct MarketCategory {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub desc: String,
+}
+
+/// Load the marketplace category vocabulary from `data/market/categories.json`.
 #[cfg(feature = "native")]
-pub fn load_market_categories(data_dir: &std::path::Path) -> Vec<String> {
+pub fn load_market_categories(data_dir: &std::path::Path) -> Vec<MarketCategory> {
     #[derive(serde::Deserialize)]
-    struct File { categories: Vec<String> }
+    struct File { categories: Vec<MarketCategory> }
     read_data_json::<File>(data_dir, "market/categories.json")
         .map(|f| f.categories)
         .unwrap_or_default()

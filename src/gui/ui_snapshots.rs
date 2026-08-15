@@ -244,7 +244,7 @@ fn demo_state() -> GuiState {
             description: "33-slot aeroponic tower".into(),
             price: "120 SOL".into(),
             seller_name: "Shaostoul".into(),
-            category: "Equipment".into(),
+            category: "Tools".into(),
             status: "active".into(),
             ..Default::default()
         },
@@ -254,11 +254,13 @@ fn demo_state() -> GuiState {
             description: "Greens + herbs".into(),
             price: "8 SOL".into(),
             seller_name: "Ada".into(),
-            category: "Seeds".into(),
+            category: "Growing".into(),
             status: "active".into(),
             ..Default::default()
         },
     ];
+    // Market directory (the signed catalog tab renders these without a relay).
+    crate::gui::pages::market_directory::seed_for_snapshot();
 
     // ── Notes ──
     s.notes = vec![

@@ -137,7 +137,6 @@ pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_c
 pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
 pub const HOME_OUTLINE_JSON: &str = include_str!("../data/home_outline.json");
 pub const FIBONACCI_HOMESTEAD_RON: &str = include_str!("../data/blueprints/fibonacci_homestead.ron");
-pub const GUI_NAVIGATION_JSON: &str = include_str!("../data/gui/navigation.json");
 pub const TRADE_GOODS_RON: &str = include_str!("../data/trade_goods.ron");
 pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
 pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
@@ -283,7 +282,6 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "places/seed.json" => Some(PLACES_SEED_JSON),
         "home_outline.json" => Some(HOME_OUTLINE_JSON),
         "blueprints/fibonacci_homestead.ron" => Some(FIBONACCI_HOMESTEAD_RON),
-        "gui/navigation.json" => Some(GUI_NAVIGATION_JSON),
         "trade_goods.ron" => Some(TRADE_GOODS_RON),
         "economy.ron" => Some(ECONOMY_RON),
         "equipment.csv" => Some(EQUIPMENT_CSV),
@@ -401,7 +399,6 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "places/seed.json",
     "home_outline.json",
     "blueprints/fibonacci_homestead.ron",
-    "gui/navigation.json",
     "trade_goods.ron",
     "economy.ron",
     "equipment.csv",

@@ -129,7 +129,7 @@ impl Storage {
                 crate::relay::core::market_payloads::validate_offering_v1(
                     &object.payload,
                     &object.references,
-                    None,
+                    crate::relay::core::market_payloads::shared_categories(),
                 )
                 .map_err(|e| {
                     rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(

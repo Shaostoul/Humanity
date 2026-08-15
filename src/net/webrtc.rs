@@ -197,12 +197,11 @@ const MAX_POLL_INTERVAL: Duration = Duration::from_millis(50);
 // The credentials are already hardcoded/public in that client JS, so reusing
 // them as consts here exposes nothing new.
 
-/// Default TURN server host:port if the relay does not tell us one. Resolved with
-/// `ToSocketAddrs` like the STUN servers, bare `host:port`, no `turn:` scheme.
-/// The username/password are NO LONGER constants: they are short-lived credentials
-/// fetched from the relay's `/api/turn-credentials` at allocation time (v0.857), so
-/// no TURN secret is committed here. See `fetch_turn_credentials`.
-const TURN_SERVER: &str = "united-humanity.us:3478";
+// The TURN server host:port is NOT a constant: both the host and the
+// short-lived username/password come from the connected relay's
+// `/api/turn-credentials` at allocation time (v0.857; base wired to the
+// active connection v0.1141), so no production host or secret is compiled
+// in. See `fetch_turn_credentials`.
 
 /// How often to (re)try the initial Allocate until we either succeed or give up
 /// for this session. Mirrors `STUN_RETRY_INTERVAL` — a request or its 401/reply
@@ -431,6 +430,11 @@ pub struct WebrtcManager {
     /// Gates the blocking fetch to a slow cadence so a down/unconfigured relay
     /// does not stall the WebRTC loop with a network call every turn.
     turn_last_fetch: Option<Instant>,
+    /// HTTP(S) base of the relay we are CONNECTED to, for the TURN credential
+    /// fetch (v0.1141). Derived from the active server URL at start(), so a
+    /// self-hosted node's clients ask THAT node for TURN, never a hardcoded
+    /// production host. `HUMANITY_RELAY_BASE` still overrides for debugging.
+    relay_base: String,
 }
 
 /// Per-peer connection state.
@@ -471,8 +475,11 @@ impl WebrtcManager {
     /// Spawn the WebRTC thread and return a handle the GUI uses to drive it.
     ///
     /// `my_pubkey_hex` is our Dilithium3 identity hex (the same value sent in
-    /// the WS `identify` and compared for the offerer rule).
-    pub fn start(my_pubkey_hex: String) -> WebrtcHandle {
+    /// the WS `identify` and compared for the offerer rule). `relay_base` is
+    /// the HTTP(S) base of the server this session is connected to; TURN
+    /// credentials are fetched from IT (white-label: a self-hosted node's
+    /// clients never call a hardcoded production host).
+    pub fn start(my_pubkey_hex: String, relay_base: String) -> WebrtcHandle {
         let (tx_cmd, rx_cmd) = mpsc::channel::<Command>();
         let (tx_event, rx_event) = mpsc::channel::<WebrtcEvent>();
         let (tx_outbound, rx_outbound) = mpsc::channel::<String>();
@@ -531,6 +538,7 @@ impl WebrtcManager {
                 // allocation lazily (so a startup DNS hiccup isn't fatal).
                 turn: None,
                 turn_last_fetch: None,
+                relay_base,
             };
             mgr.run();
         });
@@ -1861,12 +1869,16 @@ impl WebrtcManager {
     /// (v0.857). Returns `(host:port, username, password)` for the `turn:` entry, or
     /// `None` if the relay is unreachable or has no TURN configured (STUN-only).
     ///
-    /// The relay base defaults to the production host and can be overridden with
-    /// `HUMANITY_RELAY_BASE` for a self-hoster. A blocking call, gated by the
-    /// caller to a slow cadence; TURN is best-effort so a 4s timeout is fine.
-    fn fetch_turn_credentials() -> Option<(String, String, String)> {
+    /// The relay base is the server this session is CONNECTED to (passed at
+    /// `start()`); `HUMANITY_RELAY_BASE` overrides it for debugging. A blocking
+    /// call, gated by the caller to a slow cadence; TURN is best-effort so a
+    /// 4s timeout is fine.
+    fn fetch_turn_credentials(&self) -> Option<(String, String, String)> {
         let base = std::env::var("HUMANITY_RELAY_BASE")
-            .unwrap_or_else(|_| "https://united-humanity.us".to_string());
+            .unwrap_or_else(|_| self.relay_base.clone());
+        if base.is_empty() {
+            return None;
+        }
         let url = format!("{}/api/turn-credentials", base.trim_end_matches('/'));
         // ureq has no `json` feature here, so read the body and parse it ourselves.
         let body = ureq::get(&url)
@@ -1921,7 +1933,7 @@ impl WebrtcManager {
             // Short-lived credentials from the relay (v0.857). If the relay has no
             // TURN configured, this returns None and we stay STUN-only, exactly as
             // before when an allocation failed. No secret is compiled in.
-            let (host, username, password) = match Self::fetch_turn_credentials() {
+            let (host, username, password) = match self.fetch_turn_credentials() {
                 Some(c) => c,
                 None => return,
             };

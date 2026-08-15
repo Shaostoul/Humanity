@@ -1,14 +1,22 @@
 {
-  "_comment": "Marketplace category filters. The first entry should be the catch-all (e.g., 'All').",
+  "_comment": "The federation-shared market vocabulary. Need-shaped: each category answers 'what human need does this serve?'. `id` is the wire value offerings carry (lowercase snake_case; the relay validates membership at ingest), `label` is what UIs display, `desc` seeds tooltips and empty states. UIs prepend their own catch-all 'All' filter row; it is not a category.",
   "categories": [
-    "All",
-    "Tools",
-    "Materials",
-    "Food",
-    "Equipment",
-    "Vehicles",
-    "Electronics",
-    "Services",
-    "Other"
+    { "id": "food",          "label": "Food",          "desc": "Meals, groceries, produce, preserved food, food pantries" },
+    { "id": "water",         "label": "Water",         "desc": "Drinking water, filtration, purification, wells, rain catchment" },
+    { "id": "shelter",       "label": "Shelter",       "desc": "Housing, rooms, roofing and weatherproofing, camping and emergency shelter" },
+    { "id": "energy",        "label": "Energy",        "desc": "Power, fuel, solar, batteries, generators, heating and cooling" },
+    { "id": "health",        "label": "Health",        "desc": "Medical care, medicine, first aid, dental, vision, mental health" },
+    { "id": "care",          "label": "Care",          "desc": "Childcare, eldercare, disability support, companionship" },
+    { "id": "clothing",      "label": "Clothing",      "desc": "Clothes, shoes, textiles, sewing and mending" },
+    { "id": "tools",         "label": "Tools",         "desc": "Hand tools, power tools, equipment to borrow or own" },
+    { "id": "materials",     "label": "Materials",     "desc": "Building materials, parts, fasteners, raw stock" },
+    { "id": "repair",        "label": "Repair",        "desc": "Fixing what exists: appliances, electronics, homes, machines" },
+    { "id": "transport",     "label": "Transport",     "desc": "Rides, delivery, moving help, vehicles and their upkeep" },
+    { "id": "growing",       "label": "Growing",       "desc": "Seeds, plants, livestock, gardening and farming help" },
+    { "id": "education",     "label": "Education",     "desc": "Teaching, tutoring, skill sharing, courses, books" },
+    { "id": "communication", "label": "Communication", "desc": "Computers, phones, internet access, software help" },
+    { "id": "services",      "label": "Services",      "desc": "General labor and professional services" },
+    { "id": "emergency",     "label": "Emergency",     "desc": "Disaster relief, urgent needs, mutual aid" },
+    { "id": "other",         "label": "Other",         "desc": "Anything that fits no other shelf" }
   ]
 }

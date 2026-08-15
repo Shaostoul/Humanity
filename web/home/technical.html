@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS: the technical introduction</title>
+  <meta name="description" content="HumanityOS is one open source Rust crate that builds a desktop app and a headless federated server. Post-quantum identity on your device, no accounts, no passwords, SQLite storage, data-driven content.">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="HumanityOS: the technical introduction">
+  <meta property="og:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a seed phrase. No accounts, no passwords.">
+  <meta property="og:url" content="https://public.guide">
+  <meta property="og:image" content="https://public.guide/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="HumanityOS: open source cooperative platform.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="HumanityOS: the technical introduction">
+  <meta name="twitter:description" content="One Rust crate builds both the desktop app and the headless relay. Federation of sovereign servers. Post-quantum identity derived from a seed phrase. No accounts, no passwords.">
+  <meta name="twitter:image" content="https://public.guide/shared/social/og-banner.png">
+
+  <link rel="canonical" href="https://public.guide/">
+
+  <!-- Structured data: this page is the technical front door, so it describes
+       the software and its source repository rather than the organization. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "HumanityOS",
+        "url": "https://public.guide",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Windows, macOS, Linux, Web",
+        "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "HumanityOS source",
+        "codeRepository": "https://github.com/Shaostoul/Humanity",
+        "programmingLanguage": "Rust",
+        "license": "https://creativecommons.org/publicdomain/zero/1.0/"
+      }
+    ]
+  }
+  </script>
+
+  <link rel="manifest" href="/shared/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HumanityOS">
+  <link rel="apple-touch-icon" href="/shared/icons/icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/shared/theme.css">
+
+  <style>
+    /* ── The technical front door (web/home/technical.html) ──
+       Same project as the mission-first landing page, told for an engineer:
+       document-shaped, dense, scannable, no marketing screens. Every color,
+       radius, and space value comes from theme.css tokens (generated from
+       data/gui/theme.ron), so the Settings theme restyles this page too.
+       Class names are prefixed t- so they cannot collide with shell.js or
+       with the landing page's own inline styles. */
+    body { background: var(--bg); color: var(--text); line-height: 1.65; }
+
+    .t-wrap { max-width: 940px; margin: 0 auto; padding: 0 var(--space-xl) var(--space-3xl); }
+
+    /* ── Hero ── */
+    .t-hero { padding: clamp(40px, 8vh, 88px) 0 var(--space-3xl); }
+    .t-kicker {
+      font-size: var(--text-xs); letter-spacing: 0.14em; text-transform: uppercase;
+      font-weight: 700; color: var(--accent); margin-bottom: var(--space-md);
+    }
+    .t-hero h1 {
+      font-size: clamp(1.9rem, 5vw, 3rem); font-weight: 800; line-height: 1.15;
+      margin-bottom: var(--space-lg);
+    }
+    .t-lede { font-size: 1.08rem; color: var(--text-secondary); max-width: 68ch; }
+    .t-lede + .t-lede { margin-top: var(--space-md); }
+
+    .t-ctas { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-top: var(--space-2xl); }
+    .t-btn {
+      display: inline-block; padding: 12px 22px; border-radius: var(--radius-lg);
+      font-weight: 700; font-size: 0.98rem; text-decoration: none;
+      border: 1px solid var(--border); color: var(--text); background: var(--bg-card);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .t-btn:hover, .t-btn:focus-visible { border-color: var(--accent); color: var(--text); background: var(--bg-card-hover); }
+    .t-btn.primary { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+    .t-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--text-on-accent); }
+
+    .t-facts {
+      display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md);
+      margin-top: var(--space-2xl); font-size: var(--text-sm); color: var(--text-muted);
+    }
+    .t-facts span {
+      border: 1px solid var(--border); border-radius: var(--badge-radius);
+      padding: 4px 10px; white-space: nowrap;
+    }
+
+    /* ── Sections ── */
+    .t-sec { padding-top: var(--space-3xl); border-top: 1px solid var(--border); margin-top: var(--space-3xl); }
+    .t-sec h2 { font-size: clamp(1.35rem, 3.2vw, 1.8rem); font-weight: 800; margin-bottom: var(--space-md); }
+    .t-sec h3 { font-size: 1.02rem; font-weight: 700; margin: var(--space-xl) 0 var(--space-sm); }
+    .t-sec p { color: var(--text-secondary); max-width: 74ch; margin-bottom: var(--space-md); }
+    .t-sec ul { color: var(--text-secondary); max-width: 74ch; margin: 0 0 var(--space-md) 1.15rem; }
+    .t-sec li { margin-bottom: var(--space-sm); }
+    .t-sec b, .t-sec strong { color: var(--text); }
+
+    /* ── Card grid ── */
+    .t-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: var(--space-md); margin-top: var(--space-lg); }
+    .t-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-xl); }
+    .t-card h4 { font-size: 1rem; font-weight: 700; margin-bottom: var(--space-sm); }
+    .t-card p { font-size: 0.93rem; color: var(--text-muted); margin: 0; }
+    .t-card code { font-size: 0.86em; }
+
+    /* ── Code blocks ── */
+    pre.t-code {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent); border-radius: var(--radius);
+      padding: var(--space-lg) var(--space-xl); margin: var(--space-lg) 0;
+      overflow-x: auto; font-size: 0.86rem; line-height: 1.6; color: var(--text);
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .t-sec p code, .t-sec li code, td code {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--badge-radius); padding: 1px 5px; font-size: 0.88em; color: var(--text);
+    }
+    .t-note { font-size: var(--text-sm); color: var(--text-muted); }
+
+    /* ── Spec table (identity + crypto) ── */
+    .t-table-wrap { overflow-x: auto; margin-top: var(--space-lg); }
+    table.t-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 560px; }
+    table.t-table th, table.t-table td {
+      text-align: left; vertical-align: top; padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--border);
+    }
+    table.t-table th { color: var(--text); font-weight: 700; font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.06em; }
+    table.t-table td { color: var(--text-secondary); }
+    table.t-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+    /* ── Callout ── */
+    .t-callout {
+      background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--info);
+      border-radius: var(--radius); padding: var(--space-lg) var(--space-xl); margin: var(--space-lg) 0;
+      font-size: 0.94rem; color: var(--text-secondary);
+    }
+    .t-callout b { color: var(--text); }
+
+    /* ── Closing links ── */
+    .t-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-md); margin-top: var(--space-lg); }
+    .t-links a {
+      display: block; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-xl); text-decoration: none;
+      transition: border-color 0.15s;
+    }
+    .t-links a:hover, .t-links a:focus-visible { border-color: var(--accent); }
+    .t-links .n { color: var(--text); font-weight: 700; font-size: 0.98rem; }
+    .t-links .d { color: var(--text-muted); font-size: var(--text-sm); margin-top: 2px; }
+
+    .t-footnote { margin-top: var(--space-3xl); padding-top: var(--space-xl); border-top: 1px solid var(--border); font-size: var(--text-sm); color: var(--text-muted); }
+
+    @media (max-width: 560px) {
+      .t-btn { display: block; width: 100%; text-align: center; }
+      .t-ctas { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .t-btn, .t-links a { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <div class="t-wrap">
+
+    <!-- ══ Hero ══ -->
+    <header class="t-hero">
+      <div class="t-kicker">Open source cooperative platform</div>
+      <h1>One Rust crate. A desktop app and a server. No accounts.</h1>
+      <p class="t-lede">
+        HumanityOS is a single Rust crate that compiles into two things: a desktop application with
+        a 3D engine and an offline-first tool suite, and a headless server that anyone can run.
+        Servers federate pairwise, with no central authority and no home server for your account.
+        Your identity is a post-quantum keypair derived from a seed phrase and held on your device,
+        so there is nothing to sign up for and no password to steal.
+      </p>
+      <p class="t-lede">
+        Everything is public domain. Read the code, run a node, fork it, or take the parts you want.
+      </p>
+
+      <div class="t-ctas">
+        <a class="t-btn primary" href="/download">Download the app</a>
+        <a class="t-btn" href="https://github.com/Shaostoul/Humanity" rel="noopener">Source on GitHub</a>
+        <a class="t-btn" href="/chat">Chat</a>
+        <a class="t-btn" href="https://github.com/Shaostoul/Humanity/tree/main/docs" rel="noopener">Docs</a>
+      </div>
+
+      <div class="t-facts">
+        <span>Rust, one crate, no workspace</span>
+        <span>egui native UI</span>
+        <span>wgpu renderer</span>
+        <span>axum + SQLite server</span>
+        <span>ML-DSA-65 identity</span>
+        <span>ML-KEM-768 direct messages</span>
+        <span>Public domain (CC0 1.0)</span>
+      </div>
+    </header>
+
+    <!-- ══ Architecture ══ -->
+    <section class="t-sec" id="architecture">
+      <h2>Architecture at a glance</h2>
+      <p>
+        There is one crate at <code>src/</code>. No Cargo workspace, no sub-crates, no separate
+        server repository. Cargo features decide what gets compiled in, and the same source tree
+        produces the desktop app and the server binary.
+      </p>
+
+<pre class="t-code">cargo build --release --features native                       <span class="t-note"># desktop app</span>
+cargo build --release --features relay --no-default-features  <span class="t-note"># headless server</span>
+
+HumanityOS              <span class="t-note"># full desktop app: renderer, game, GUI, embedded relay</span>
+HumanityOS --headless   <span class="t-note"># server only, no GPU, listens on :3210</span></pre>
+
+      <div class="t-grid">
+        <div class="t-card">
+          <h4>Native app</h4>
+          <p>
+            egui immediate-mode UI over a wgpu PBR renderer, a hecs ECS, rapier3d physics, and kira
+            audio. The same window holds the 3D world and the everyday tools: chat, tasks, notes,
+            files, market, maps.
+          </p>
+        </div>
+        <div class="t-card">
+          <h4>Relay server</h4>
+          <p>
+            axum with a WebSocket at <code>/ws</code> and a REST API under <code>/api/</code>.
+            Storage is embedded SQLite, created on first run at <code>data/relay.db</code>. No
+            database server, no message broker, no external services.
+          </p>
+        </div>
+        <div class="t-card">
+          <h4>Web frontend</h4>
+          <p>
+            Plain HTML, CSS, and JavaScript served by nginx. No framework and no build step. The
+            native app is the source of truth for every UI pattern, and the web mirrors it, which is
+            why this page is styled by the same theme tokens the app uses.
+          </p>
+        </div>
+        <div class="t-card">
+          <h4>Data-driven content</h4>
+          <p>
+            Items, recipes, biomes, ships, quests, and planets live in CSV, TOML, RON, and JSON
+            under <code>data/</code>, validated against schemas in <code>schemas/</code>, and
+            hot-reloaded by a file watcher. Modding is editing those files.
+          </p>
+        </div>
+      </div>
+
+      <div class="t-callout">
+        <b>One theme source.</b> Design tokens live in <code>data/gui/theme.ron</code>. The native
+        app reads them directly and the web stylesheet is generated from the same file, so a theme
+        change moves both surfaces at once. Colors are never hardcoded, and a test fails the build
+        when they are.
+      </div>
+    </section>
+
+    <!-- ══ Identity + crypto ══ -->
+    <section class="t-sec" id="identity">
+      <h2>Identity and cryptography</h2>
+      <p>
+        There are no accounts, no passwords, and no home server. An identity is a keypair derived
+        from a BIP39 seed phrase on your own machine. Servers store what you publish and verify
+        your signatures. They never hold a credential that could be used to become you.
+      </p>
+
+      <div class="t-table-wrap">
+        <table class="t-table">
+          <thead>
+            <tr><th>Layer</th><th>What it uses</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Identity</td>
+              <td>ML-DSA-65 (Dilithium3, FIPS 204), deterministically derived from a 24 word BIP39 seed. The public key hex is the account.</td>
+            </tr>
+            <tr>
+              <td>Message signing</td>
+              <td>ML-DSA-65 over the message content and timestamp. The relay verifies before it stores, and rejects an invalid signature.</td>
+            </tr>
+            <tr>
+              <td>Connection proof</td>
+              <td>Two-phase identify. The server issues a nonce, the client signs <code>hum/identify/v1</code> with the nonce and the public key, the server verifies before binding the socket. Claiming a key is not enough.</td>
+            </tr>
+            <tr>
+              <td>Direct messages</td>
+              <td>Pure ML-KEM-768 (Kyber768, FIPS 203) encapsulation, BLAKE3 as the key derivation, AES-256-GCM for the payload. The envelope is dual sealed for recipient and sender, so both read their history on any device. The relay stores ciphertext it cannot open, and refuses to accept an unencrypted direct message.</td>
+            </tr>
+            <tr>
+              <td>Federation objects</td>
+              <td>ML-DSA-65 signatures. Profiles and market objects are signed data that any server may cache and replicate. Newest valid timestamp wins.</td>
+            </tr>
+            <tr>
+              <td>Identifier</td>
+              <td><code>did:hum:&lt;base58(BLAKE3(public key)[..16])&gt;</code>, derived from the signing key, not assigned by a registry.</td>
+            </tr>
+            <tr>
+              <td>Local vault</td>
+              <td>AES-256-GCM with PBKDF2-SHA-256 at 600,000 iterations, protecting the seed at rest on your device.</td>
+            </tr>
+            <tr>
+              <td>Ed25519</td>
+              <td>Retained for exactly two jobs: the seed scalar, and the Solana wallet address derived from it. It is not the chat identity.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        Client and server implementations are locked together by cross-language known-answer tests,
+        so the browser, the desktop app, and the server agree byte for byte on key derivation and on
+        the message envelope. The canonical inventory lives in the repository, in the Cryptography
+        section of <code>CLAUDE.md</code>, and it is updated in the same commit as any change.
+      </p>
+
+      <div class="t-callout">
+        <b>What this does not do.</b> The platform holds no funds and moves no money. A wallet
+        address is derived from your seed for your own use, and the market is a directory, not an
+        escrow. Losing your seed phrase means losing the identity, so the app also offers a split
+        backup where friends each hold an encrypted share.
+      </div>
+    </section>
+
+    <!-- ══ Federation ══ -->
+    <section class="t-sec" id="federation">
+      <h2>Federation</h2>
+      <p>
+        A server is a place with its own channels, members, and operator. Federation is a bridge
+        between the same room on two servers, and both operators have to opt in: a peer
+        relationship on each side, plus a per-channel toggle. There is no global admin, no
+        registry, and no authority that can revoke a server's membership.
+      </p>
+      <ul>
+        <li><b>Trust is not transitive.</b> A trusting B and B trusting C does not make A trust C. Every operator picks their own peers, so one compromised hub cannot chain into everything.</li>
+        <li><b>Discovery, not auto-join.</b> <code>GET /api/federation/servers</code> exposes a node's peer graph, and clients render it as a browsable directory. Adding a server is always the user's choice.</li>
+        <li><b>Rooms outlive servers.</b> A room carried by two or more of your servers is shown once, merged, in a section called the Commons. Sending picks a healthy carrier at send time, so if one carrier goes down mid-conversation the next message routes through another.</li>
+        <li><b>Deduplication</b> is by origin server, sender, and timestamp, so a message that arrives twice through two bridges is shown once.</li>
+        <li><b>Trust tiers 0 to 3</b> record how much an operator has verified a peer, and whether that peer publicly adopted the Humanity Accord. Tiers are per operator, never global.</li>
+      </ul>
+      <p class="t-note">
+        Federation shares identities, discovery, and bridged rooms. It does not hand your database
+        to anyone. Rooms you do not federate stay on your machine.
+      </p>
+    </section>
+
+    <!-- ══ Self-hosting ══ -->
+    <section class="t-sec" id="self-hosting">
+      <h2>Run your own node</h2>
+      <p>
+        The desktop build and the server are the same program, so any computer that can run the app
+        can host a node. One command starts a relay with an embedded database and no dependencies
+        to install.
+      </p>
+
+<pre class="t-code">HumanityOS --headless
+
+PORT=3210                      <span class="t-note"># optional, default 3210</span>
+DATABASE_PATH=data/relay.db    <span class="t-note"># optional, default data/relay.db</span></pre>
+
+      <ul>
+        <li><b>On a LAN it is finished right there.</b> No domain, no certificate, no port forwarding. Everyone on the same network connects to your local address.</li>
+        <li><b>For a public node</b>, <code>scripts/provision-vps.sh</code> builds the whole stack from a bare Debian 12 install, nginx and TLS included. The floor is 1 GB RAM, 1 core, and 20 GB of disk. On the live server the relay measures at roughly 20 MB of memory and half a percent of one core.</li>
+        <li><b>Browser chat on your own domain</b> needs one variable, <code>ALLOWED_ORIGINS</code>. The WebSocket origin check, CORS, and the content security policy are all built from that list, so the site runs under your name, not ours.</li>
+        <li><b>You become the first admin</b> by typing <code>/claim &lt;code&gt;</code> with the one-time code the relay prints on first start. From then on, administration happens inside the app rather than over SSH.</li>
+      </ul>
+
+      <h3>Your server, your rules</h3>
+      <p>
+        One binary can be a chat server, a shared game world, a market directory, and a backup host
+        for other people's encrypted data. You probably do not want all of that, so the
+        <code>features</code> block in <code>data/server-config.json</code> switches each capability
+        on or off.
+      </p>
+<pre class="t-code">"features": {
+  "chat": true, "game": true, "market": true, "vault_backup": true,
+  "uploads": true, "tasks": true, "voice": true, "live_video": true,
+  "federation": true, "push": true
+}</pre>
+      <p>
+        A disabled feature is refused rather than hidden: the endpoint answers 403 and names the
+        feature, so a modified client cannot use it anyway. The live manifest is published on
+        <code>/api/server-info</code> so clients and peers can see what a node offers before trying
+        to use it. Health, identity, and moderation endpoints are always served, so you cannot lock
+        yourself out of your own machine.
+      </p>
+      <p class="t-note">
+        Full walkthrough: <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md" rel="noopener">docs/admin/SELF-HOSTING.md</a>.
+      </p>
+    </section>
+
+    <!-- ══ Market ══ -->
+    <section class="t-sec" id="market">
+      <h2>The Market is a directory of signed objects</h2>
+      <p>
+        Providers and offerings are signed objects, not rows a server owns. You sign them with the
+        same identity you chat with, the server validates them against the public schemas in
+        <code>schemas/provider.toml</code> and <code>schemas/offering.toml</code>, and other nodes
+        can replicate and verify them without trusting the node that served them.
+      </p>
+      <ul>
+        <li><b>Only you can publish into your shop.</b> An offering signed by a key that does not own the referenced provider entry is rejected.</li>
+        <li><b>Re-running the import is the workflow.</b> An offering is identified by provider plus your own stable SKU, so a repeat import publishes a fresh revision instead of a duplicate, and refreshes the entry. Offerings expire on a time to live, 30 days by default, so the directory does not fill with ghosts.</li>
+        <li><b>Settlement is directory-only, by design.</b> Any other settlement mode is refused. The platform lists and introduces, it never moves money and holds no funds.</li>
+        <li><b>Every market view is a query</b> over the same public object endpoint, so anything the app can show, a script can fetch.</li>
+      </ul>
+
+<pre class="t-code">curl "https://united-humanity.us/api/v2/objects?object_type=offering_v1"
+
+node scripts/import-offerings.mjs \
+  --server https://united-humanity.us \
+  --seed-file seed.txt \
+  --provider provider.json \
+  --offerings offerings.json</pre>
+      <p class="t-note">
+        Any HumanityOS node answers the same query for its own directory. Details:
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/admin/market-importer.md" rel="noopener">docs/admin/market-importer.md</a>.
+      </p>
+    </section>
+
+    <!-- ══ Contribute ══ -->
+    <section class="t-sec" id="contribute">
+      <h2>Contribute, or just watch</h2>
+      <p>
+        The work is done in the open, released into the public domain, and shipped in small
+        versioned increments. Humans and AI agents are both first-class contributors, and the
+        onboarding documents say so explicitly.
+      </p>
+      <div class="t-links">
+        <a href="https://github.com/Shaostoul/Humanity" rel="noopener">
+          <div class="n">GitHub</div>
+          <div class="d">Source, issues, pull requests, releases.</div>
+        </a>
+        <a href="https://github.com/Shaostoul/Humanity/tree/main/docs/contributor" rel="noopener">
+          <div class="n">Contributor docs</div>
+          <div class="d">A numbered sequence from first build to module map.</div>
+        </a>
+        <a href="/roadmap">
+          <div class="n">Roadmap</div>
+          <div class="d">What is built, what is next, with status badges.</div>
+        </a>
+        <a href="/devlog">
+          <div class="n">Devlog</div>
+          <div class="d">Every release, newest first.</div>
+        </a>
+        <a href="/library">
+          <div class="n">Library</div>
+          <div class="d">The Accord, the mission documents, and real skills guides.</div>
+        </a>
+        <a href="/chat">
+          <div class="n">Chat</div>
+          <div class="d">Ask a question in the open. No sign-up form.</div>
+        </a>
+      </div>
+    </section>
+
+    <p class="t-footnote">
+      This is the technical front door. The same project, told mission first, is at
+      <a href="https://united-humanity.us" rel="noopener">united-humanity.us</a>.
+      This page ships in the repository at <code>web/home/technical.html</code> as a homepage
+      flavor, so any self-hoster can choose it for their own node.
+    </p>
+
+  </div>
+</body>
+</html>

@@ -16352,7 +16352,23 @@ mod native_app {
                         // Lazy start.
                         if ws_connected && have_key && state.gui_state.webrtc.is_none() {
                             let my_key = state.gui_state.profile_public_key.clone();
-                            let handle = crate::net::webrtc::WebrtcManager::start(my_key);
+                            // TURN credentials come from the server this session
+                            // is connected to (ws/wss URL -> http/https base,
+                            // /ws suffix dropped), not a hardcoded host.
+                            let relay_base = {
+                                let ws_url = state.gui_state.connected_server_url.trim();
+                                let ws_url = ws_url.trim_end_matches('/');
+                                let ws_url = ws_url.strip_suffix("/ws").unwrap_or(ws_url);
+                                if let Some(rest) = ws_url.strip_prefix("wss://") {
+                                    format!("https://{rest}")
+                                } else if let Some(rest) = ws_url.strip_prefix("ws://") {
+                                    format!("http://{rest}")
+                                } else {
+                                    ws_url.to_string()
+                                }
+                            };
+                            let handle =
+                                crate::net::webrtc::WebrtcManager::start(my_key, relay_base);
                             state.gui_state.webrtc = Some(handle);
                             crate::debug::push_debug("WebRTC P2P manager started");
                         }
