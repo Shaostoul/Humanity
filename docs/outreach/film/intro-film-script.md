@@ -194,11 +194,36 @@ Keep the blocks verbatim across shots so the models hold visual identity.
 21:9, deep space blacks, physically plausible lighting, volumetric engine glow, no text,
 no captions, no logos"
 
-**[FLEET]**: "human interstellar fleet of colossal kilometer-scale ships, hulls built as
-golden-ratio spiral superstructures of white ceramic and brushed gold alloy, teal
-running lights, engine torches pale blue-white, elegant and massive, cathedral-like
-formation" (the spiral hull language is the game's Fibonacci-homestead identity; it is
-also a distinctive silhouette the models can hold across shots)
+**[FLEET]** (DESIGN LOCKED 2026-08-15, 2:11 PM, model GPT Image 2, 2688x1152; the
+canonical flagship frame lives in the Cinema Studio project, saved as a Reference /
+Element): "a kilometer-long interstellar colony ship, very long straight industrial
+spine of white ceramic and brushed gold alloy, at least five times longer than the
+wheels are wide, fine panel detail, rows of tiny lit windows, open docking bays,
+communication dishes, large flat radiator panels along the midsection; near the bow two
+large parallel counter-rotating centrifuge wheels like elegant Ferris wheels, outer
+rims lined with habitat modules glowing with rows of warm lit windows, slender spokes
+converging on the hub; at the bow a stationary command sphere with a warm amber
+panoramic viewport; at the stern a heavy engine block with four pale blue-white fusion
+torches; teal running lights along hull seams, small red and green navigation strobes"
+(this is the idealized heir of the game's ColonyShip3: stationary spine, rotating
+gravity section forward, hub bridge; wheels fold flat along the spine like a closed
+umbrella and lock for high-thrust burns, the departure ritual in shot 8)
+
+**Prompt-engineering lessons learned (2026-08-15 look-dev):**
+- Image models render OBJECTS THEY KNOW, not geometric instructions. "Golden-ratio
+  spiral superstructure" produced whisk/sea-urchin artifacts; "a pair of elegant Ferris
+  wheels" and "folded like a closed umbrella" landed instantly. Describe mechanisms as
+  familiar objects. (The nautilus-shell hull direction was tested and REJECTED.)
+- AI-rendered titles come out garbled; all type is set in DaVinci in post ("titles"
+  are explicitly allowed as traditional tooling). Every prompt ends with "No text, no
+  letters, no captions, no logos."
+- Reference-first workflow: once a design is locked, save the frame as a Cinema Studio
+  Reference / Element (@tag) and write prompts as SCENE descriptions around the
+  attached reference. Cinema Studio supports up to 9 reference images per generation
+  and @character/@location/@prop mentions via the Elements system.
+- Stills model of record: GPT Image 2 (best structural coherence in testing). Do not
+  switch models for hero frames mid-production; design drift follows.
+- Watch the aspect setting every batch: some models default to portrait.
 
 **[COLONY]**: "young human colony on a pristine alien world, golden-spiral prefabricated
 habitats unfolding like nautilus shells, terraced fields spreading outward from the
