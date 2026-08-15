@@ -1756,6 +1756,27 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 .unwrap_or_default()
                         }
                     };
+                    // Bridged rooms this server carries (federation badge).
+                    let bridges: Vec<String> = {
+                        let commons: std::collections::HashSet<String> =
+                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        let pick = |chs: &Vec<crate::gui::ChatChannel>| {
+                            chs.iter()
+                                .filter(|c| c.federated && commons.contains(&c.id))
+                                .map(|c| c.id.clone())
+                                .collect::<Vec<String>>()
+                        };
+                        if is_current {
+                            pick(&state.chat_channels)
+                        } else {
+                            state
+                                .connections
+                                .iter()
+                                .find(|c| c.url == norm_server_url(&server.url))
+                                .map(|c| pick(&c.channels))
+                                .unwrap_or_default()
+                        }
+                    };
                     // Live background link state (multi-connection stage 3):
                     // every saved server holds its own connection now, so a
                     // non-current row can still be online, with unread mail.
@@ -1777,146 +1798,38 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             && c.channels.iter().all(|ch| ch.federated)
                     });
                     ui.add_space(2.0);
-                    // Tinted header strip (the same brightened wash the
-                    // active server header uses), painted BEHIND the row via
-                    // a placeholder shape so every server reads as its own
-                    // section instead of a child row of the one above.
-                    let hdr_bg_slot = ui.painter().add(egui::Shape::Noop);
-                    let hdr_resp = ui.horizontal(|ui| {
-                        // Same height as the active server's header so
-                        // switching never changes a row's size (the jiggle,
-                        // field test 5), and the same 8 px left edge so every
-                        // server reads as a peer section.
-                        ui.set_min_size(egui::vec2(0.0, 24.0));
-                        ui.add_space(8.0);
-                        // Collapse triangle: hides this server's channel list
-                        // (persisted). A server with NO visible channels of
-                        // its own (everything bridged into COMMONS, #local
-                        // merged into the name) gets no triangle -- there is
-                        // nothing to expand (field test 4).
-                        if bg_channels.is_empty() {
-                            ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
-                        } else {
-                            let (tri_rect, tri_resp) = ui
-                                .allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
-                            let tri_color = if tri_resp.hovered() {
-                                theme.text_primary()
-                            } else {
-                                theme.text_secondary()
-                            };
-                            if sec_collapsed {
-                                crate::gui::widgets::icons::paint_triangle_right(
-                                    ui.painter(),
-                                    tri_rect.shrink(1.0),
-                                    tri_color,
-                                );
-                            } else {
-                                crate::gui::widgets::icons::paint_triangle_down(
-                                    ui.painter(),
-                                    tri_rect.shrink(1.0),
-                                    tri_color,
-                                );
-                            }
-                            if tri_resp.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                            if tri_resp.clicked() {
-                                let key = norm_server_url(&server.url);
-                                if !state.chat_server_sections_collapsed.remove(&key) {
-                                    state.chat_server_sections_collapsed.insert(key);
-                                }
-                                crate::config::AppConfig::from_gui_state(state).save();
-                            }
+                    let spec = ServerRowSpec {
+                        name: server.name.clone(),
+                        url: server.url.clone(),
+                        id: server.id.clone(),
+                        is_current,
+                        link_up: bg_online || (is_current && connected),
+                        online_count: None,
+                        member_count: None,
+                        all_shared: bg_all_shared,
+                        unread: bg_unread,
+                        has_channels: !bg_channels.is_empty(),
+                        collapsed: sec_collapsed,
+                        bridges,
+                        can_forget: !is_current,
+                    };
+                    let out = draw_server_row(ui, theme, state, &spec);
+                    if out.collapse_clicked {
+                        let key = norm_server_url(&server.url);
+                        if !state.chat_server_sections_collapsed.remove(&key) {
+                            state.chat_server_sections_collapsed.insert(key);
                         }
-                        // Status dot: green = link up (current or background),
-                        // muted = offline. A filled accent dot on the right
-                        // marks unread activity on a background server.
-                        let (dot_rect, _) =
-                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                        // Green only when a link is genuinely UP: a current
-                        // but disconnected server (the operator's offline
-                        // self-relay) showed a lying green dot before.
-                        let dot_color = if bg_online || (is_current && connected) {
-                            theme.success()
-                        } else {
-                            theme.text_muted()
-                        };
-                        ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
-                        // The CURRENT server's name animates even when its
-                        // link is down (field test 4: the offline self-relay
-                        // was flat green while the connected header cycled).
-                        let color = if is_current {
-                            match theme.nav_active_border_animation {
-                                crate::gui::theme::anim::RGB_CYCLE => {
-                                    let t = ui.ctx().input(|i| i.time);
-                                    let speed = theme.nav_separator_animation_speed.max(0.0);
-                                    let hue = ((t * 0.3 * speed as f64) % 1.0) as f32;
-                                    crate::gui::pages::escape_menu::hsv_to_rgb(
-                                        hue.rem_euclid(1.0),
-                                        0.9,
-                                        1.0,
-                                    )
-                                }
-                                _ => theme.success(),
-                            }
-                        } else {
-                            theme.text_primary()
-                        };
-                        let resp = ui
-                            .add(
-                                egui::Label::new(
-                                    RichText::new(&server.name)
-                                        .size(theme.font_size_body)
-                                        .color(color)
-                                        .strong(),
-                                )
-                                .sense(egui::Sense::click()),
-                            )
-                            .on_hover_text(if is_current {
-                                "Current server"
-                            } else {
-                                "Click to switch to this server"
-                            });
-                        // A hand cursor says "clickable" (field test 4: the
-                        // selectable-text I-beam read as copy-only). The text
-                        // stays selectable; the cursor leads with the click.
-                        if resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if bg_all_shared {
-                            ui.label(
-                                RichText::new("(all shared)")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            )
-                            .on_hover_text(
-                                "Every room on this server is bridged; its whole \
-                                 conversation appears under COMMONS.",
-                            );
-                        }
-                        if bg_unread && !is_current {
-                            let (ur, _) = ui
-                                .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                            ui.painter().circle_filled(ur.center(), 3.0, theme.accent());
-                        }
-                        // Per-server settings cog (operator, field test 2:
-                        // "add the settings cog buttons to the server name
-                        // lines so we're not going into so many nested
-                        // menus"): switches to this server -- instant when
-                        // its background link is live -- and opens Server
-                        // Settings already pointed at it.
-                        let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 12.0);
-                        let cog_color = if cog_resp.hovered() {
-                            Color32::WHITE
-                        } else {
-                            theme.text_muted()
-                        };
-                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
-                        if cog_resp
-                            .on_hover_text(format!("Settings for {}", server.name))
-                            .clicked()
-                            && state.private_key_bytes.is_some()
-                        {
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
+                    if out.forget_fired {
+                        let rid = server.id.clone();
+                        state.chat_servers.retain(|s| s.id != rid);
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
+                    if out.cog.clicked() && state.private_key_bytes.is_some() {
+                        // Settings for THIS server: switch (instant when its
+                        // background link is live), then open the page.
+                        if !is_current {
                             state.park_active_connection();
                             if !state.unpark_connection(&server.url) {
                                 state.server_url = server.url.clone();
@@ -1942,142 +1855,58 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 state.history_fetched = false;
                             }
                             crate::config::AppConfig::from_gui_state(state).save();
-                            state.push_nav_to(crate::gui::GuiPage::ServerSettings);
                         }
-                        // Drag grip (three painted lines): hold and drag to
-                        // reorder the server list; the order persists.
-                        let (grip_rect, grip_resp) =
-                            ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::drag());
-                        let grip_color = if grip_resp.hovered() || grip_resp.dragged() {
-                            theme.text_primary()
-                        } else {
-                            theme.text_muted()
-                        };
-                        for k in 0..3 {
-                            let y = grip_rect.top() + 4.0 + k as f32 * 3.0;
-                            ui.painter().line_segment(
-                                [
-                                    egui::pos2(grip_rect.left() + 2.0, y),
-                                    egui::pos2(grip_rect.right() - 2.0, y),
-                                ],
-                                egui::Stroke::new(1.5, grip_color),
-                            );
-                        }
-                        if grip_resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                        }
-                        if grip_resp.drag_started() {
-                            state.server_drag = Some(server.url.clone());
-                        }
-                        grip_resp.on_hover_text("Drag to reorder");
-                        if is_current {
-                            ui.label(
-                                RichText::new("(current)")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                        } else {
-                            // Forget this saved-server bookmark. Only offered
-                            // for servers you're NOT currently on (removing the
-                            // active one mid-session is confusing); Add Server
-                            // re-adds it. (v0.712)
-                            // Hold-to-delete (field test 4): a plain click is
-                            // too easy to fat-finger for a destructive action;
-                            // hold 3 s while the pinwheel fills.
-                            if crate::gui::widgets::hold_to_confirm(
-                                ui,
-                                theme,
-                                ui.id().with(("forget_srv", &server.id)),
-                                "X",
-                                3.0,
-                                "HOLD 3 seconds to forget this server (Add Server re-adds it)",
-                            ) {
-                                let rid = server.id.clone();
-                                state.chat_servers.retain(|s| s.id != rid);
-                                crate::config::AppConfig::from_gui_state(state).save();
-                            }
-                        }
-                        if resp.clicked() && !is_current {
-                            if state.private_key_bytes.is_some() {
-                                // Multi-connection switch (stage 2): PARK the
-                                // current server (socket stays live, messages
-                                // and rosters preserved), then UNPARK the
-                                // target if we were connected to it before.
-                                // Only a never-visited server gets a fresh
-                                // connect. Switching is now a swap, not a
-                                // teardown: nothing disconnects, and coming
-                                // back restores exactly what you left.
-                                state.park_active_connection();
-                                if state.unpark_connection(&server.url) {
-                                    // Clicking a server's NAME opens its own
-                                    // room: the guaranteed #local (field test
-                                    // 4). Falls back to whatever room was
-                                    // open if this server has no local room.
-                                    if let Some(local_id) = state
-                                        .chat_channels
-                                        .iter()
-                                        .find(|c| c.local_only)
-                                        .map(|c| c.id.clone())
-                                    {
-                                        if state.chat_active_channel != local_id {
-                                            state.chat_active_channel = local_id;
-                                            state.chat_messages.clear();
-                                            state.history_fetched = false;
-                                        }
+                        state.push_nav_to(crate::gui::GuiPage::ServerSettings);
+                    }
+                    if out.clicked && !is_current {
+                        if state.private_key_bytes.is_some() {
+                            state.park_active_connection();
+                            if state.unpark_connection(&server.url) {
+                                // Land in this server's own room: #local.
+                                if let Some(local_id) = state
+                                    .chat_channels
+                                    .iter()
+                                    .find(|c| c.local_only)
+                                    .map(|c| c.id.clone())
+                                {
+                                    if state.chat_active_channel != local_id {
+                                        state.chat_active_channel = local_id;
+                                        state.chat_messages.clear();
+                                        state.history_fetched = false;
                                     }
-                                } else {
-                                    state.server_url = server.url.clone();
-                                    let ws_url = derive_ws_url(&server.url);
-                                    let uname = state.user_name.clone();
-                                    let pubkey = if state.profile_public_key.is_empty() {
-                                        generate_random_hex_key()
-                                    } else {
-                                        state.profile_public_key.clone()
-                                    };
-                                    state.ws_client = Some(
-                                        crate::net::ws_client::WsClient::connect_with_kyber(
-                                            &ws_url,
-                                            &uname,
-                                            &pubkey,
-                                            &state.kyber_public_b64,
-                                        ),
-                                    );
-                                    state.connected_server_url = server.url.clone();
-                                    // Fresh socket: identify handshake not yet complete (v0.794).
-                                    state.ws_identified = false;
-                                    state.ws_status = format!("Switching to {}...", server.name);
-                                    state.ws_manually_disconnected = false;
-                                    state.ws_reconnect_timer = 0.0;
-                                    state.ws_reconnect_delay = 5.0;
-                                    state.ws_reconnect_attempts = 0;
-                                    // Land on "general" (every relay seeds it) so we
-                                    // don't show an empty view if the previous active
-                                    // channel / DM / group doesn't exist on this server.
-                                    state.chat_active_channel = "general".to_string();
-                                    // Fresh server: fetch its history.
-                                    state.history_fetched = false;
                                 }
-                                crate::config::AppConfig::from_gui_state(state).save();
                             } else {
-                                state.ws_status =
-                                    "Unlock your identity first to connect (Settings).".to_string();
+                                state.server_url = server.url.clone();
+                                let ws_url = derive_ws_url(&server.url);
+                                let uname = state.user_name.clone();
+                                let pubkey = if state.profile_public_key.is_empty() {
+                                    generate_random_hex_key()
+                                } else {
+                                    state.profile_public_key.clone()
+                                };
+                                state.ws_client = Some(
+                                    crate::net::ws_client::WsClient::connect_with_kyber(
+                                        &ws_url,
+                                        &uname,
+                                        &pubkey,
+                                        &state.kyber_public_b64,
+                                    ),
+                                );
+                                state.connected_server_url = server.url.clone();
+                                state.ws_identified = false;
+                                state.ws_status = format!("Switching to {}...", server.name);
+                                state.ws_manually_disconnected = false;
+                                state.ws_reconnect_timer = 0.0;
+                                state.ws_reconnect_delay = 5.0;
+                                state.ws_reconnect_attempts = 0;
+                                state.chat_active_channel = "general".to_string();
+                                state.history_fetched = false;
                             }
+                            crate::config::AppConfig::from_gui_state(state).save();
+                        } else {
+                            state.ws_status =
+                                "Unlock your identity first to connect (Settings).".to_string();
                         }
-                    });
-                    {
-                        let svr_bg = Color32::from_rgba_premultiplied(
-                            theme.server_bg().r().saturating_add(20),
-                            theme.server_bg().g().saturating_add(20),
-                            theme.server_bg().b().saturating_add(20),
-                            theme.server_bg().a(),
-                        );
-                        let mut r = hdr_resp.response.rect;
-                        r.min.x = ui.max_rect().min.x;
-                        r.max.x = ui.max_rect().max.x;
-                        ui.painter().set(
-                            hdr_bg_slot,
-                            egui::Shape::rect_filled(r.expand2(egui::vec2(0.0, 1.0)), 0.0, svr_bg),
-                        );
                     }
                     // This server's channels, live from its background
                     // connection (multi-connection stage 4). ALL channels are
@@ -2238,6 +2067,282 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
 // ─────────────────────────────── RIGHT PANEL ──────────────────────────────
 
+/// Everything one server header row needs, prepared by the caller.
+struct ServerRowSpec {
+    name: String,
+    /// The row's identity for actions + the identity-color chip.
+    url: String,
+    /// Saved-entry id ("" when the active server isn't saved).
+    id: String,
+    is_current: bool,
+    link_up: bool,
+    /// Active server: online user count shown after the name.
+    online_count: Option<usize>,
+    /// Active server: total member count at the far right (the X slot,
+    /// which the current server doesn't use -- you can't forget it).
+    member_count: Option<usize>,
+    all_shared: bool,
+    unread: bool,
+    has_channels: bool,
+    collapsed: bool,
+    /// Bridged room names this server carries (federation badge + tooltip).
+    bridges: Vec<String>,
+    /// Offer the hold-to-forget X (saved, non-current rows).
+    can_forget: bool,
+}
+
+/// What the row reported back; the caller applies the effects.
+struct ServerRowOut {
+    /// Left-click anywhere on the row (not on a control).
+    clicked: bool,
+    /// Right-click anywhere on the row.
+    secondary: bool,
+    collapse_clicked: bool,
+    cog: egui::Response,
+    forget_fired: bool,
+}
+
+/// THE server header row -- one painter-based template with FIXED slots,
+/// used for the active server and every saved server alike, so nothing
+/// shifts, resizes, or reorders when the active server changes (operator
+/// field tests 3-6; this replaced two divergent implementations).
+///
+/// Layout, left to right: collapse triangle (or blank), identity color
+/// chip, link dot, name (+online count), then right-aligned at fixed
+/// offsets: "(current)"/"(all shared)", unread dot, federation badge,
+/// cog, drag grip, and the X-or-member-count slot.
+fn draw_server_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &mut GuiState,
+    spec: &ServerRowSpec,
+) -> ServerRowOut {
+    const ROW_H: f32 = 24.0;
+    let full_w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(full_w, ROW_H), egui::Sense::hover());
+    let cy = rect.center().y;
+    let row_id = ui.id().with(("srv_row", &spec.url));
+
+    // Background strip: every server reads as its own section.
+    let svr_bg = Color32::from_rgba_premultiplied(
+        theme.server_bg().r().saturating_add(20),
+        theme.server_bg().g().saturating_add(20),
+        theme.server_bg().b().saturating_add(20),
+        theme.server_bg().a(),
+    );
+    ui.painter().rect_filled(rect, 0.0, svr_bg);
+
+    // ── Right cluster, fixed offsets from the right edge ──
+    let slot_x = rect.right() - 12.0; // X / member count
+    let grip_c = egui::pos2(rect.right() - 30.0, cy);
+    let cog_c = egui::pos2(rect.right() - 48.0, cy);
+    let badge_c = egui::pos2(rect.right() - 65.0, cy);
+    let tag_right = rect.right() - 74.0;
+
+    // ── Left slots ──
+    let mut cx = rect.left() + 8.0;
+    // Collapse triangle (blank keeps alignment when there is nothing to expand).
+    let tri_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+    if spec.has_channels {
+        if spec.collapsed {
+            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), tri_rect, theme.text_secondary());
+        } else {
+            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), tri_rect, theme.text_secondary());
+        }
+    }
+    cx += 14.0;
+    // Identity color chip (matches this server's dots on Commons rooms).
+    let chip = egui::Rect::from_center_size(egui::pos2(cx + 2.0, cy), egui::vec2(4.0, 14.0));
+    ui.painter().rect_filled(chip, 2.0, server_color(&spec.url));
+    cx += 10.0;
+    // Link dot: green only when genuinely up.
+    let dot_color = if spec.link_up { theme.success() } else { theme.text_muted() };
+    ui.painter().circle_filled(egui::pos2(cx + 4.0, cy), 4.0, dot_color);
+    cx += 14.0;
+    // Name (+ online count for the active server), RGB-animated when current.
+    let name_color = if spec.is_current {
+        let t = ui.ctx().input(|i| i.time);
+        match theme.nav_active_border_animation {
+            crate::gui::theme::anim::RGB_CYCLE => {
+                let speed = theme.nav_separator_animation_speed.max(0.0);
+                let hue = ((t * 0.3 * speed as f64) % 1.0) as f32;
+                crate::gui::pages::escape_menu::hsv_to_rgb(hue.rem_euclid(1.0), 0.9, 1.0)
+            }
+            crate::gui::theme::anim::PULSE => {
+                let speed = theme.nav_separator_animation_speed.max(0.0);
+                let p = ((t * 2.0 * speed as f64).sin() * 0.5 + 0.5) as f32;
+                let a = theme.accent();
+                let b = theme.text_primary();
+                Color32::from_rgb( // theme-exempt: animated blend of two theme tokens
+                    (a.r() as f32 * p + b.r() as f32 * (1.0 - p)) as u8,
+                    (a.g() as f32 * p + b.g() as f32 * (1.0 - p)) as u8,
+                    (a.b() as f32 * p + b.b() as f32 * (1.0 - p)) as u8,
+                )
+            }
+            _ => theme.success(),
+        }
+    } else {
+        theme.text_primary()
+    };
+    let label = match spec.online_count {
+        Some(n) => format!("{} ({})", spec.name, n),
+        None => spec.name.clone(),
+    };
+    // Elide the name against the RESERVED right cluster. The tag is
+    // right-ALIGNED at tag_right, extending LEFT by its width, so the name
+    // must stop before the widest tag's left edge -- reserved constantly
+    // (whether a tag is shown or not) so a name never changes length when
+    // "(current)" appears on switch.
+    let name_font = egui::FontId::proportional(theme.body_size);
+    let tag_reserve = ui
+        .fonts(|f| {
+            f.layout_no_wrap(
+                "(all shared)".to_string(),
+                egui::FontId::proportional(theme.small_size),
+                theme.text_muted(),
+            )
+        })
+        .size()
+        .x;
+    let max_name_w = (tag_right - tag_reserve - 8.0 - cx).max(24.0);
+    let measure = |ui: &egui::Ui, s: &str| {
+        ui.fonts(|f| f.layout_no_wrap(s.to_string(), name_font.clone(), name_color))
+            .size()
+            .x
+    };
+    let mut shown = label.clone();
+    if measure(ui, &shown) > max_name_w {
+        while !shown.is_empty() && measure(ui, &format!("{}...", shown)) > max_name_w {
+            shown.pop();
+        }
+        shown = format!("{}...", shown.trim_end());
+    }
+    ui.painter().text(
+        egui::pos2(cx, cy),
+        egui::Align2::LEFT_CENTER,
+        &shown,
+        name_font.clone(),
+        name_color,
+    );
+
+    // ── Right cluster contents ──
+    // Tag: (current) / (all shared).
+    let tag = if spec.is_current {
+        Some("(current)")
+    } else if spec.all_shared {
+        Some("(all shared)")
+    } else {
+        None
+    };
+    if let Some(t) = tag {
+        ui.painter().text(
+            egui::pos2(tag_right, cy),
+            egui::Align2::RIGHT_CENTER,
+            t,
+            egui::FontId::proportional(theme.small_size),
+            theme.text_muted(),
+        );
+    }
+    // Unread dot.
+    if spec.unread && !spec.is_current {
+        ui.painter().circle_filled(egui::pos2(badge_c.x + 14.0, cy), 3.0, theme.accent());
+    }
+    // Federation badge: this server bridges rooms into the Commons.
+    if !spec.bridges.is_empty() {
+        let br = egui::Rect::from_center_size(badge_c, Vec2::splat(11.0));
+        crate::gui::widgets::icons::paint_federation(ui.painter(), br, theme.text_muted());
+        let badge_resp = ui.interact(
+            br.expand(2.0),
+            row_id.with("badge"),
+            egui::Sense::hover(),
+        );
+        badge_resp.on_hover_text(format!(
+            "Bridges into the Commons: #{}",
+            spec.bridges.join(", #")
+        ));
+    }
+    // Cog.
+    let cog_rect = egui::Rect::from_center_size(cog_c, Vec2::splat(12.0));
+    let cog = ui.interact(cog_rect.expand(3.0), row_id.with("cog"), egui::Sense::click());
+    let cog_color = if cog.hovered() { theme.accent() } else { theme.text_muted() };
+    crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+    if cog.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    // Drag grip.
+    let grip_rect = egui::Rect::from_center_size(grip_c, Vec2::splat(14.0));
+    let grip = ui.interact(grip_rect, row_id.with("grip"), egui::Sense::drag());
+    let grip_color = if grip.hovered() || grip.dragged() {
+        theme.text_primary()
+    } else {
+        theme.text_muted()
+    };
+    for k in 0..3 {
+        let y = grip_rect.top() + 4.0 + k as f32 * 3.0;
+        ui.painter().line_segment(
+            [
+                egui::pos2(grip_rect.left() + 2.0, y),
+                egui::pos2(grip_rect.right() - 2.0, y),
+            ],
+            egui::Stroke::new(1.5, grip_color),
+        );
+    }
+    if grip.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+    }
+    if grip.drag_started() {
+        state.server_drag = Some(spec.url.clone());
+    }
+    grip.on_hover_text("Drag to reorder");
+    // X (hold to forget) or member count.
+    let mut forget_fired = false;
+    if spec.can_forget {
+        let x_rect = egui::Rect::from_center_size(egui::pos2(slot_x, cy), Vec2::splat(18.0));
+        forget_fired = widgets::hold_to_confirm_at(
+            ui,
+            theme,
+            row_id.with("forget"),
+            "X",
+            x_rect,
+            3.0,
+            "HOLD 3 seconds to forget this server (Add Server re-adds it)",
+        );
+    } else if let Some(n) = spec.member_count {
+        ui.painter().text(
+            egui::pos2(rect.right() - theme.item_padding, cy),
+            egui::Align2::RIGHT_CENTER,
+            &format!("{}", n),
+            egui::FontId::proportional(theme.small_size),
+            theme.text_muted(),
+        );
+    }
+
+    // ── Whole-row interactions (registered before the sub-controls above
+    // would matter, but egui gives the LAST registered widget priority on
+    // overlap, so the row goes first here and the triangle second) ──
+    let row_resp = ui.interact(rect, row_id.with("ctx"), egui::Sense::click());
+    if row_resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    let mut collapse_clicked = false;
+    if spec.has_channels {
+        let tri_click = egui::Rect::from_min_size(rect.min, Vec2::new(22.0, ROW_H));
+        let tri = ui.interact(tri_click, row_id.with("tri"), egui::Sense::click());
+        if tri.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        collapse_clicked = tri.clicked();
+    }
+
+    ServerRowOut {
+        clicked: row_resp.clicked(),
+        secondary: row_resp.secondary_clicked(),
+        collapse_clicked,
+        cog,
+        forget_fired,
+    }
+}
+
 /// The ACTIVE server's full sidebar entry (header + cog + channels +
 /// voice rosters). Extracted verbatim from the old virtual-entry block so
 /// the servers loop can render it IN PLACE at the server's saved position.
@@ -2261,147 +2366,51 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             .map(|s| s.name.clone())
                             .unwrap_or_else(|| server_display_name(&state.server_url))
                     };
-                    let svr_collapsed = state.chat_connected_server_collapsed;
-                    let ctx_time = ui.ctx().input(|i| i.time);
-
-                    // Server header: <collapse> <cog> <name (online)> ... <member count>
-                    let (svr_rect, _) = ui.allocate_exact_size(Vec2::new(svr_full_w, svr_hdr_height), egui::Sense::hover());
-                    let cog_click_rect;
+                    // Per-server collapse set, same as saved rows (the old
+                    // separate chat_connected_server_collapsed flag is
+                    // retired from this path).
+                    let svr_collapsed = state
+                        .chat_server_sections_collapsed
+                        .contains(&norm_server_url(&state.server_url));
+                    let commons_set: std::collections::HashSet<String> =
+                        commons_rooms(state).into_iter().map(|r| r.name).collect();
+                    let bridges: Vec<String> = state
+                        .chat_channels
+                        .iter()
+                        .filter(|c| c.federated && commons_set.contains(&c.id))
+                        .map(|c| c.id.clone())
+                        .collect();
+                    let has_channels = state
+                        .chat_channels
+                        .iter()
+                        .any(|c| !c.local_only && !(c.federated && commons_set.contains(&c.id)));
+                    let _ = (svr_hdr_height, svr_full_w);
+                    let spec = ServerRowSpec {
+                        name: svr_name.clone(),
+                        url: state.server_url.clone(),
+                        id: String::new(),
+                        is_current: true,
+                        link_up: true,
+                        online_count: Some(online_count),
+                        member_count: Some(state.chat_users.len()),
+                        all_shared: false,
+                        unread: false,
+                        has_channels,
+                        collapsed: svr_collapsed,
+                        bridges,
+                        can_forget: false,
+                    };
+                    let out = draw_server_row(ui, theme, state, &spec);
                     let mut svr_disconnect = false;
-                    if ui.is_rect_visible(svr_rect) {
-                        let svr_bg = Color32::from_rgba_premultiplied(
-                            theme.server_bg().r().saturating_add(20),
-                            theme.server_bg().g().saturating_add(20),
-                            theme.server_bg().b().saturating_add(20),
-                            theme.server_bg().a(),
-                        );
-                        ui.painter().rect_filled(svr_rect, 0.0, svr_bg);
-
-                        let mut cx = svr_rect.left() + 8.0;
-                        let cy = svr_rect.center().y;
-
-                        // Collapse arrow
-                        let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
-                        if svr_collapsed {
-                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, theme.text_secondary());
-                        } else {
-                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, theme.text_secondary());
+                    if out.collapse_clicked {
+                        let key = norm_server_url(&state.server_url);
+                        if !state.chat_server_sections_collapsed.remove(&key) {
+                            state.chat_server_sections_collapsed.insert(key);
                         }
-                        cx += 14.0;
-
-                        // Cog icon (with RGB hover effect matching nav buttons)
-                        cog_click_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, svr_rect.top()), Vec2::new(14.0, svr_hdr_height));
-                        let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
-                        let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
-                        let on_cog = cog_click_rect.contains(hover_pos);
-                        let cog_color = if on_cog { theme.accent() } else { theme.text_muted() };
-                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, cog_color);
-                        if on_cog {
-                            let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                            ui.painter().rect_stroke(
-                                cog_icon_rect.expand(2.0),
-                                Rounding::same(3),
-                                Stroke::new(1.0, rgb),
-                                egui::StrokeKind::Outside,
-                            );
-                            ui.ctx().request_repaint();
-                        }
-                        cx += 14.0;
-
-                        // Green dot
-                        let dot_r = theme.status_dot_size / 2.0;
-                        ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.success());
-                        cx += theme.status_dot_size + 4.0;
-
-                        // Server name + online count. The ACTIVE server's name
-                        // animates like the main nav's active-page border
-                        // (operator field test 3), following the same theme
-                        // setting so Settings restyles both together.
-                        let name_color = match theme.nav_active_border_animation {
-                            crate::gui::theme::anim::RGB_CYCLE => {
-                                let speed = theme.nav_separator_animation_speed.max(0.0);
-                                let hue = ((ctx_time * 0.3 * speed as f64) % 1.0) as f32;
-                                crate::gui::pages::escape_menu::hsv_to_rgb(hue.rem_euclid(1.0), 0.9, 1.0)
-                            }
-                            crate::gui::theme::anim::PULSE => {
-                                let speed = theme.nav_separator_animation_speed.max(0.0);
-                                let t = ((ctx_time * 2.0 * speed as f64).sin() * 0.5 + 0.5) as f32;
-                                let a = theme.accent();
-                                let p = theme.text_primary();
-                                Color32::from_rgb( // theme-exempt: animated blend of two theme tokens
-                                    (a.r() as f32 * t + p.r() as f32 * (1.0 - t)) as u8,
-                                    (a.g() as f32 * t + p.g() as f32 * (1.0 - t)) as u8,
-                                    (a.b() as f32 * t + p.b() as f32 * (1.0 - t)) as u8,
-                                )
-                            }
-                            _ => theme.text_primary(),
-                        };
-                        ui.painter().text(
-                            egui::pos2(cx, cy),
-                            egui::Align2::LEFT_CENTER,
-                            &format!("{} ({})", svr_name, online_count),
-                            egui::FontId::proportional(theme.body_size),
-                            name_color,
-                        );
-
-                        // Member count on right
-                        ui.painter().text(
-                            egui::pos2(svr_rect.right() - theme.item_padding, cy),
-                            egui::Align2::RIGHT_CENTER,
-                            &format!("{}", state.chat_users.len()),
-                            egui::FontId::proportional(theme.small_size),
-                            theme.text_muted(),
-                        );
-
-                        // Drag grip for reordering (left of the member count):
-                        // the ACTIVE server participates in drag-reorder too.
-                        let grip_rect = egui::Rect::from_center_size(
-                            egui::pos2(svr_rect.right() - 44.0, cy),
-                            Vec2::splat(14.0),
-                        );
-                        let grip_resp = ui.interact(
-                            grip_rect,
-                            ui.id().with("active_srv_grip"),
-                            egui::Sense::drag(),
-                        );
-                        let grip_color = if grip_resp.hovered() || grip_resp.dragged() {
-                            theme.text_primary()
-                        } else {
-                            theme.text_muted()
-                        };
-                        for k in 0..3 {
-                            let y = grip_rect.top() + 4.0 + k as f32 * 3.0;
-                            ui.painter().line_segment(
-                                [
-                                    egui::pos2(grip_rect.left() + 2.0, y),
-                                    egui::pos2(grip_rect.right() - 2.0, y),
-                                ],
-                                egui::Stroke::new(1.5, grip_color),
-                            );
-                        }
-                        if grip_resp.hovered() {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
-                        }
-                        if grip_resp.drag_started() {
-                            state.server_drag = Some(state.server_url.clone());
-                        }
-                        grip_resp.on_hover_text("Drag to reorder");
-                    } else {
-                        cog_click_rect = svr_rect;
+                        crate::config::AppConfig::from_gui_state(state).save();
                     }
-
-                    // Full-header interact FIRST so later specific-region interacts (arrow, cog)
-                    // take priority. Last-registered wins hit-test for overlapping rects.
-                    let hdr_interact = ui.interact(svr_rect, ui.id().with("svr_ctx"), egui::Sense::click());
-                    let show_menu_rc = hdr_interact.secondary_clicked();
-                    if hdr_interact.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    // Clicking the server name opens ITS OWN room: the
-                    // guaranteed #local (field test 4, "the local channel
-                    // merging with the server name"). #local no longer
-                    // appears as a channel row; the server IS the room.
-                    if hdr_interact.clicked() {
+                    // Clicking the row opens the server's OWN room: #local.
+                    if out.clicked {
                         if let Some(local_id) = state
                             .chat_channels
                             .iter()
@@ -2415,27 +2424,9 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                             }
                         }
                     }
-
-                    // Collapse arrow click target (overrides hdr_interact in its 22px region)
-                    let arrow_click = egui::Rect::from_min_size(svr_rect.min, Vec2::new(22.0, svr_hdr_height));
-                    let arrow_resp = ui.interact(arrow_click, ui.id().with("svr_arrow"), egui::Sense::click());
-                    if arrow_resp.clicked() {
-                        state.chat_connected_server_collapsed = !state.chat_connected_server_collapsed;
-                        crate::config::AppConfig::from_gui_state(state).save();
-                    }
-                    if arrow_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-
-                    // Cog click target - opens settings popup (registered last = priority)
-                    let cog_resp = ui.interact(cog_click_rect, ui.id().with("svr_cog"), egui::Sense::click());
-                    if cog_resp.hovered() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    let show_svr_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
-
+                    let cog_resp = out.cog;
                     let menu_id = ui.id().with("svr_menu");
-                    if show_svr_menu || show_menu_rc {
+                    if cog_resp.clicked() || cog_resp.secondary_clicked() || out.secondary {
                         ui.memory_mut(|m| m.toggle_popup(menu_id));
                     }
                     let is_server_admin = {
@@ -7420,6 +7411,21 @@ pub(crate) struct CommonsRoom {
     pub active_carries: bool,
     /// Any carrier holds unread activity in this room.
     pub unread: bool,
+    /// The carriers' urls, for the at-a-glance identity-color dots on the
+    /// room row (field test 6: WHICH servers relay a room, without menus).
+    pub carrier_urls: Vec<String>,
+}
+
+/// A server's stable identity color, derived from its normalized URL (FNV
+/// hash to a hue). Shown as a chip on the server row and as matching dots
+/// on the Commons rooms it carries -- the glanceable "who relays what".
+pub(crate) fn server_color(url: &str) -> Color32 {
+    let mut h: u32 = 2166136261;
+    for b in norm_server_url(url).bytes() {
+        h = (h ^ b as u32).wrapping_mul(16777619);
+    }
+    let hue = (h % 360) as f32 / 360.0;
+    crate::gui::pages::escape_menu::hsv_to_rgb(hue, 0.55, 0.95)
 }
 
 /// The room name behind a Commons view id ("commons:general" -> "general"),
@@ -7489,32 +7495,36 @@ pub(crate) fn commons_room_read_only(state: &GuiState, room: &str) -> Option<boo
 /// two of my servers carry it.
 pub(crate) fn commons_rooms(state: &GuiState) -> Vec<CommonsRoom> {
     use std::collections::BTreeMap;
-    // name -> (carriers, active_carries, unread)
-    let mut rooms: BTreeMap<String, (usize, bool, bool)> = BTreeMap::new();
+    // name -> (carriers, active_carries, unread, carrier_urls)
+    let mut rooms: BTreeMap<String, (usize, bool, bool, Vec<String>)> = BTreeMap::new();
     let active_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     if active_connected {
+        let active_url = norm_server_url(&state.server_url);
         for ch in state.chat_channels.iter().filter(|c| c.federated) {
-            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false));
+            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false, Vec::new()));
             e.0 += 1;
             e.1 = true;
             e.2 |= ch.unread;
+            e.3.push(active_url.clone());
         }
     }
     for conn in state.connections.iter().filter(|c| c.identified) {
         for ch in conn.channels.iter().filter(|c| c.federated) {
-            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false));
+            let e = rooms.entry(ch.id.clone()).or_insert((0, false, false, Vec::new()));
             e.0 += 1;
             e.2 |= ch.unread;
+            e.3.push(conn.url.clone());
         }
     }
     rooms
         .into_iter()
-        .filter(|(_, (carriers, _, _))| *carriers >= 2)
-        .map(|(name, (carriers, active_carries, unread))| CommonsRoom {
+        .filter(|(_, (carriers, _, _, _))| *carriers >= 2)
+        .map(|(name, (carriers, active_carries, unread, carrier_urls))| CommonsRoom {
             name,
             carriers,
             active_carries,
             unread,
+            carrier_urls,
         })
         .collect()
 }
@@ -7612,13 +7622,54 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 } else {
                     theme.text_secondary()
                 };
+                let name_str = format!("# {}", room.name);
                 ui.painter().text(
                     egui::pos2(cx, cy),
                     egui::Align2::LEFT_CENTER,
-                    format!("# {}", room.name),
+                    &name_str,
                     egui::FontId::proportional(theme.font_size_body),
                     text_color,
                 );
+                // Carrier identity dots (field test 6): WHICH of my servers
+                // relay this room, at a glance -- each dot matches the color
+                // chip on that server's row. Hover names them.
+                {
+                    let name_w = ui.fonts(|f| {
+                        f.layout_no_wrap(
+                            name_str.clone(),
+                            egui::FontId::proportional(theme.font_size_body),
+                            text_color,
+                        )
+                    })
+                    .size()
+                    .x;
+                    let mut dx = cx + name_w + 10.0;
+                    for cu in room.carrier_urls.iter().take(6) {
+                        ui.painter().circle_filled(
+                            egui::pos2(dx, cy),
+                            3.5,
+                            server_color(cu),
+                        );
+                        dx += 10.0;
+                    }
+                    let dots_rect = egui::Rect::from_min_max(
+                        egui::pos2(cx + name_w + 4.0, row_rect.top()),
+                        egui::pos2(dx, row_rect.bottom()),
+                    );
+                    let dots_resp = ui.interact(
+                        dots_rect,
+                        ui.id().with(("commons_dots", &room.name)),
+                        egui::Sense::hover(),
+                    );
+                    dots_resp.on_hover_text(format!(
+                        "Relayed by: {}",
+                        room.carrier_urls
+                            .iter()
+                            .map(|u| server_display_name(u))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
                 // Right edge: unread dot, else the carrier count.
                 if room.unread && !is_active {
                     ui.painter().circle_filled(

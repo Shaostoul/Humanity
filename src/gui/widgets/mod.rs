@@ -342,7 +342,23 @@ pub fn hold_to_confirm(
     tooltip: &str,
 ) -> bool {
     let size = egui::vec2(18.0, 18.0);
-    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    hold_to_confirm_at(ui, theme, id, label, rect, hold_seconds, tooltip)
+}
+
+/// Rect-positioned variant of [`hold_to_confirm`] for painter-based rows
+/// (fixed slot layouts): same press-and-hold pinwheel, at an exact rect.
+pub fn hold_to_confirm_at(
+    ui: &mut Ui,
+    theme: &Theme,
+    id: egui::Id,
+    label: &str,
+    rect: egui::Rect,
+    hold_seconds: f32,
+    tooltip: &str,
+) -> bool {
+    let size = rect.size();
+    let resp = ui.interact(rect, id.with("hold"), egui::Sense::click_and_drag());
     let center = rect.center();
 
     let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
