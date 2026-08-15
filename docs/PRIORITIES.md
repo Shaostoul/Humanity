@@ -116,9 +116,12 @@
 >    1.0 s (now overlapped with shader compile, boot -0.65 s, v0.1133.0);
 >    world entry adds planet_defs_bake 3.8 s + star_catalog 2.1 s.
 >    NEXT, in order, each probe-gated (world entry, panics=0):
->    (a) parallelize pipeline creation across threads (wgpu Device is
->    Send+Sync; the ~450-line sequential create block in renderer
->    init() is the 4 s) - biggest boot win available;
+>    (a) DONE v0.1142.0: all seven PSO compiles in ONE thread scope
+>    (was 3 parallel + 4 serial). Measured: pipeline_new 3894->2404 ms,
+>    shaders_and_pipelines span 4177->2677 ms. Per-unit [BootPhase]
+>    marks kept as the instrument. Floor is now the slowest single PSO;
+>    the next boot rung there is a wgpu pipeline CACHE (descriptor
+>    cache field is wired None today; DX12 supports PipelineCache).
 >    (b) planet_defs_bake 3.8 s at world entry (cache or parallelize);
 >    (c) adapter_request is wgpu-internal, likely not ours to fix.
 >
