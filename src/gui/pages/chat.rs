@@ -1797,7 +1797,11 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             && !c.channels.is_empty()
                             && c.channels.iter().all(|ch| ch.federated)
                     });
-                    ui.add_space(2.0);
+                    // NO leading add_space here: the active path has none, and
+                    // any asymmetry between the two callers moves a row when
+                    // it changes state (field test 7, the 2 px shuffle). The
+                    // inter-server gap is the single add_space(6.0) at the
+                    // bottom of the loop, identical for both paths.
                     let spec = ServerRowSpec {
                         name: server.name.clone(),
                         url: server.url.clone(),
@@ -1920,6 +1924,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     if !sec_collapsed {
                         for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels.clone() {
                             ui.horizontal(|ui| {
+                                // Exactly the ACTIVE channel-row height: any
+                                // per-path height difference shuffles the
+                                // list on switch (field test 7 discipline).
+                                ui.set_min_height(theme.row_height);
                                 ui.add_space(24.0);
                                 let label = ui
                                     .add(
@@ -2132,6 +2140,15 @@ fn draw_server_row(
     );
     ui.painter().rect_filled(rect, 0.0, svr_bg);
 
+    // Whole-row interact registered FIRST: egui gives overlapping hits to
+    // the LAST-registered widget, so every specific control below (triangle,
+    // cog, grip, X) must come after this to win its own region. Getting
+    // this backwards is exactly how the cogs went dead in field test 7.
+    let row_resp = ui.interact(rect, row_id.with("ctx"), egui::Sense::click());
+    if row_resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
     // ── Right cluster, fixed offsets from the right edge ──
     let slot_x = rect.right() - 12.0; // X / member count
     let grip_c = egui::pos2(rect.right() - 30.0, cy);
@@ -2143,12 +2160,20 @@ fn draw_server_row(
     let mut cx = rect.left() + 8.0;
     // Collapse triangle (blank keeps alignment when there is nothing to expand).
     let tri_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+    let mut collapse_clicked = false;
     if spec.has_channels {
         if spec.collapsed {
             crate::gui::widgets::icons::paint_triangle_right(ui.painter(), tri_rect, theme.text_secondary());
         } else {
             crate::gui::widgets::icons::paint_triangle_down(ui.painter(), tri_rect, theme.text_secondary());
         }
+        // Registered after the row interact, so it wins its region.
+        let tri_click = egui::Rect::from_min_size(rect.min, Vec2::new(22.0, ROW_H));
+        let tri = ui.interact(tri_click, row_id.with("tri"), egui::Sense::click());
+        if tri.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        collapse_clicked = tri.clicked();
     }
     cx += 14.0;
     // Identity color chip (matches this server's dots on Commons rooms).
@@ -2315,23 +2340,6 @@ fn draw_server_row(
             egui::FontId::proportional(theme.small_size),
             theme.text_muted(),
         );
-    }
-
-    // ── Whole-row interactions (registered before the sub-controls above
-    // would matter, but egui gives the LAST registered widget priority on
-    // overlap, so the row goes first here and the triangle second) ──
-    let row_resp = ui.interact(rect, row_id.with("ctx"), egui::Sense::click());
-    if row_resp.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    let mut collapse_clicked = false;
-    if spec.has_channels {
-        let tri_click = egui::Rect::from_min_size(rect.min, Vec2::new(22.0, ROW_H));
-        let tri = ui.interact(tri_click, row_id.with("tri"), egui::Sense::click());
-        if tri.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-        collapse_clicked = tri.clicked();
     }
 
     ServerRowOut {
@@ -2760,12 +2768,11 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // server name to manage all channels in one place.)
 
                     // (The "all rooms shared" hint row was removed in field
-                    // test 5: it existed only on the active entry, so the
-                    // block CHANGED HEIGHT on every switch -- the "jiggle".
-                    // The concept lives in the saved rows' inline "(all
-                    // shared)" tag and the Commons ? explainer instead.)
-
-                    ui.add_space(2.0);
+                    // test 5, and the trailing add_space in field test 7:
+                    // ANYTHING the active body emits that the saved path
+                    // does not is a height delta that shuffles rows on
+                    // switch. The active entry must emit EXACTLY a 24 px
+                    // header + its channel rows, like every other server.)
                     } // end if !svr_collapsed
 }
 
