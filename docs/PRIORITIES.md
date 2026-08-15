@@ -40,7 +40,7 @@
 > 4-investigation + adversarial-verify workflow, ~1M tokens - do NOT re-derive,
 > read wf_679e408f-88b in the journal). Ranked by value x independence:**
 >
-> 1. **Merchant inventory on ONE server - needs NO federation, highest value.**
+> 1. **Merchant inventory - SHIPPED v0.1140.0** (validators for provider_v1/offering_v1 at the put_signed_object chokepoint covering REST+gossip; ownership rule; directory-only settlement enforced; bulk importer scripts/import-offerings.mjs + samples + docs/admin/market-importer.md; end-to-end proven accept+reject against a live local relay). REMAINING for the merchant arc: native Market page querying offering_v1 (views: storefront/item/category), need-shaped revision of data/market/categories.json, group-backed provider member keys. Original scope note:
 >    Define a `listing_v1` signed-object payload (schemas/listing.toml: item
 >    ref, title, desc, category, structured price {amount,currency}, stock,
 >    condition, fulfillment, location; seller = signing key) + a validated BULK
