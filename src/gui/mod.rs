@@ -4503,6 +4503,13 @@ pub struct GuiState {
     pub chat_servers_collapsed: bool,
     /// COMMONS section (bridged federated rooms) collapse state.
     pub chat_commons_collapsed: bool,
+    /// Per-server section collapse (normalized URLs). Persisted: at many
+    /// servers (the operator is on 36 Discord servers), collapsed sections
+    /// are how the list stays scannable.
+    pub chat_server_sections_collapsed: std::collections::HashSet<String>,
+    /// URL of the server row currently being dragged for reordering, if any.
+    /// Session-only; the resulting ORDER is what persists (saved_servers).
+    pub server_drag: Option<String>,
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
@@ -5534,6 +5541,8 @@ impl Default for GuiState {
             chat_groups_collapsed: false,
             chat_servers_collapsed: false,
             chat_commons_collapsed: false,
+            chat_server_sections_collapsed: std::collections::HashSet::new(),
+            server_drag: None,
             chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,

@@ -274,6 +274,28 @@ pub async fn run_relay() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
+    // admin role at startup. The in-app Host Node page sets this env var to
+    // the app identity's key before starting the node; without it, the
+    // person hosting the server had no admin sections in Server Settings on
+    // their own machine (operator field test 3). Never downgrades: an
+    // existing admin/owner role is left alone.
+    if let Ok(owner) = std::env::var("HUMANITY_OWNER_ADMIN_KEY") {
+        let owner = owner.trim().to_string();
+        if !owner.is_empty() {
+            let current = db.get_role(&owner).unwrap_or_default();
+            if current != "admin" && current != "owner" {
+                match db.set_role(&owner, "admin") {
+                    Ok(()) => tracing::info!(
+                        "Owner key {}... granted admin on this node",
+                        &owner[..12.min(owner.len())]
+                    ),
+                    Err(e) => tracing::error!("Owner admin grant failed: {e}"),
+                }
+            }
+        }
+    }
+
     // One-shot cleanup of accumulated test-bot rows from earlier
     // `scripts/ai-sample-client.js` runs (the script generates random
     // hex keys + names like "AISampleBot1234", so they didn't hit the

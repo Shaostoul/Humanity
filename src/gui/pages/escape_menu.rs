@@ -320,7 +320,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 
 
 /// Convert HSV to RGB Color32. theme-exempt: pure math helper.
-fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
+pub(crate) fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     let i = (h * 6.0).floor() as i32;
     let f = h * 6.0 - i as f32;
     let p = v * (1.0 - s);

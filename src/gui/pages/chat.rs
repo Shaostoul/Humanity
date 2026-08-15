@@ -1615,8 +1615,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Servers Section ──
 
 fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // Sort servers alphabetically by name (see draw_dm_section for rationale).
-    state.chat_servers.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    // NO sorting: the list keeps the user's saved order, stable across
+    // switches (operator field test 3: "have them maintain their place
+    // when I switch"). Reordering is drag-and-drop on the rows.
 
     let collapsed = state.chat_servers_collapsed;
 
@@ -1682,8 +1683,514 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
-                // Current connected server (virtual entry)
-                if connected {
+                // Every server renders IN ITS SAVED ORDER: the active one
+                // expands in place (draw_active_server_entry below) instead
+                // of being pulled out to the top, so the list never
+                // reshuffles on switch (operator field test 3). A connected
+                // server that is not saved yet still shows, first.
+                let current_in_list = {
+                    let cur = norm_server_url(&state.server_url);
+                    state.chat_servers.iter().any(|s| norm_server_url(&s.url) == cur)
+                };
+                if connected && !current_in_list {
+                    draw_active_server_entry(ui, theme, state);
+                    ui.add_space(6.0);
+                }
+
+                // Additional saved servers. Clicking a name SWITCHES to that
+                // server (points server_url there and reconnects with the same
+                // identity) -- the Add Server modal promises this, and before
+                // v0.712 the names were plain labels that did nothing.
+                let current = state.server_url.trim_end_matches('/').to_string();
+                // (url, top_y, bottom_y) of each server's rendered block --
+                // the drop targets for drag-reordering.
+                let mut row_spans: Vec<(String, f32, f32)> = Vec::new();
+                for server in state.chat_servers.clone().iter() {
+                    let is_current = server.url.trim_end_matches('/') == current;
+                    if is_current && connected {
+                        // The active server, rendered IN PLACE at its saved
+                        // position (full entry: header, cog, channels, voice).
+                        let span_top = ui.cursor().min.y;
+                        draw_active_server_entry(ui, theme, state);
+                        row_spans.push((server.url.clone(), span_top, ui.cursor().min.y));
+                        ui.add_space(6.0);
+                        continue;
+                    }
+                    let span_top = ui.cursor().min.y;
+                    let sec_collapsed = state
+                        .chat_server_sections_collapsed
+                        .contains(&norm_server_url(&server.url));
+                    // Live background link state (multi-connection stage 3):
+                    // every saved server holds its own connection now, so a
+                    // non-current row can still be online, with unread mail.
+                    let bg = state
+                        .connections
+                        .iter()
+                        .find(|c| c.url == norm_server_url(&server.url));
+                    let bg_online = bg.map_or(false, |c| c.identified);
+                    let bg_unread = bg.map_or(false, |c| {
+                        c.channels.iter().any(|ch| ch.unread) || c.dms.iter().any(|d| d.unread)
+                    });
+                    // "All shared": every room this server has is bridged, so
+                    // its whole conversation already lives under COMMONS --
+                    // say so BEFORE the user clicks in looking for more
+                    // (operator field test 3).
+                    let bg_all_shared = bg.map_or(false, |c| {
+                        c.identified
+                            && !c.channels.is_empty()
+                            && c.channels.iter().all(|ch| ch.federated)
+                    });
+                    ui.add_space(2.0);
+                    // Tinted header strip (the same brightened wash the
+                    // active server header uses), painted BEHIND the row via
+                    // a placeholder shape so every server reads as its own
+                    // section instead of a child row of the one above.
+                    let hdr_bg_slot = ui.painter().add(egui::Shape::Noop);
+                    let hdr_resp = ui.horizontal(|ui| {
+                        // Same left edge as the active server's header (8 px,
+                        // not the old 12): every server reads as a peer
+                        // section, never as a child of the one above.
+                        ui.add_space(8.0);
+                        // Collapse triangle: hides this server's channel list
+                        // (persisted) -- how the list stays scannable at many
+                        // servers.
+                        let (tri_rect, tri_resp) = ui
+                            .allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
+                        let tri_color = if tri_resp.hovered() {
+                            theme.text_primary()
+                        } else {
+                            theme.text_secondary()
+                        };
+                        if sec_collapsed {
+                            crate::gui::widgets::icons::paint_triangle_right(
+                                ui.painter(),
+                                tri_rect.shrink(1.0),
+                                tri_color,
+                            );
+                        } else {
+                            crate::gui::widgets::icons::paint_triangle_down(
+                                ui.painter(),
+                                tri_rect.shrink(1.0),
+                                tri_color,
+                            );
+                        }
+                        if tri_resp.clicked() {
+                            let key = norm_server_url(&server.url);
+                            if !state.chat_server_sections_collapsed.remove(&key) {
+                                state.chat_server_sections_collapsed.insert(key);
+                            }
+                            crate::config::AppConfig::from_gui_state(state).save();
+                        }
+                        // Status dot: green = link up (current or background),
+                        // muted = offline. A filled accent dot on the right
+                        // marks unread activity on a background server.
+                        let (dot_rect, _) =
+                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                        // Green only when a link is genuinely UP: a current
+                        // but disconnected server (the operator's offline
+                        // self-relay) showed a lying green dot before.
+                        let dot_color = if bg_online || (is_current && connected) {
+                            theme.success()
+                        } else {
+                            theme.text_muted()
+                        };
+                        ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
+                        let color = if is_current { theme.success() } else { theme.text_primary() };
+                        let resp = ui
+                            .add(
+                                egui::Label::new(
+                                    RichText::new(&server.name)
+                                        .size(theme.font_size_body)
+                                        .color(color)
+                                        .strong(),
+                                )
+                                .sense(egui::Sense::click()),
+                            )
+                            .on_hover_text(if is_current {
+                                "Current server"
+                            } else {
+                                "Click to switch to this server"
+                            });
+                        if bg_all_shared {
+                            ui.label(
+                                RichText::new("(all shared)")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            )
+                            .on_hover_text(
+                                "Every room on this server is bridged; its whole \
+                                 conversation appears under COMMONS.",
+                            );
+                        }
+                        if bg_unread && !is_current {
+                            let (ur, _) = ui
+                                .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter().circle_filled(ur.center(), 3.0, theme.accent());
+                        }
+                        // Per-server settings cog (operator, field test 2:
+                        // "add the settings cog buttons to the server name
+                        // lines so we're not going into so many nested
+                        // menus"): switches to this server -- instant when
+                        // its background link is live -- and opens Server
+                        // Settings already pointed at it.
+                        let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 12.0);
+                        let cog_color = if cog_resp.hovered() {
+                            Color32::WHITE
+                        } else {
+                            theme.text_muted()
+                        };
+                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                        if cog_resp
+                            .on_hover_text(format!("Settings for {}", server.name))
+                            .clicked()
+                            && state.private_key_bytes.is_some()
+                        {
+                            state.park_active_connection();
+                            if !state.unpark_connection(&server.url) {
+                                state.server_url = server.url.clone();
+                                let ws_url = derive_ws_url(&server.url);
+                                let uname = state.user_name.clone();
+                                let pubkey = state.profile_public_key.clone();
+                                state.ws_client = Some(
+                                    crate::net::ws_client::WsClient::connect_with_kyber(
+                                        &ws_url,
+                                        &uname,
+                                        &pubkey,
+                                        &state.kyber_public_b64,
+                                    ),
+                                );
+                                state.connected_server_url = server.url.clone();
+                                state.ws_identified = false;
+                                state.ws_status = format!("Switching to {}...", server.name);
+                                state.ws_manually_disconnected = false;
+                                state.ws_reconnect_timer = 0.0;
+                                state.ws_reconnect_delay = 5.0;
+                                state.ws_reconnect_attempts = 0;
+                                state.chat_active_channel = "general".to_string();
+                                state.history_fetched = false;
+                            }
+                            crate::config::AppConfig::from_gui_state(state).save();
+                            state.push_nav_to(crate::gui::GuiPage::ServerSettings);
+                        }
+                        // Drag grip (three painted lines): hold and drag to
+                        // reorder the server list; the order persists.
+                        let (grip_rect, grip_resp) =
+                            ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::drag());
+                        let grip_color = if grip_resp.hovered() || grip_resp.dragged() {
+                            theme.text_primary()
+                        } else {
+                            theme.text_muted()
+                        };
+                        for k in 0..3 {
+                            let y = grip_rect.top() + 4.0 + k as f32 * 3.0;
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(grip_rect.left() + 2.0, y),
+                                    egui::pos2(grip_rect.right() - 2.0, y),
+                                ],
+                                egui::Stroke::new(1.5, grip_color),
+                            );
+                        }
+                        if grip_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
+                        if grip_resp.drag_started() {
+                            state.server_drag = Some(server.url.clone());
+                        }
+                        grip_resp.on_hover_text("Drag to reorder");
+                        if is_current {
+                            ui.label(
+                                RichText::new("(current)")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        } else {
+                            // Forget this saved-server bookmark. Only offered
+                            // for servers you're NOT currently on (removing the
+                            // active one mid-session is confusing); Add Server
+                            // re-adds it. (v0.712)
+                            let rm = ui
+                                .add(
+                                    egui::Button::new(
+                                        RichText::new("x")
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    )
+                                    .frame(false)
+                                    .small(),
+                                )
+                                .on_hover_text("Forget this server");
+                            if rm.clicked() {
+                                let rid = server.id.clone();
+                                state.chat_servers.retain(|s| s.id != rid);
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
+                        }
+                        if resp.clicked() && !is_current {
+                            if state.private_key_bytes.is_some() {
+                                // Multi-connection switch (stage 2): PARK the
+                                // current server (socket stays live, messages
+                                // and rosters preserved), then UNPARK the
+                                // target if we were connected to it before.
+                                // Only a never-visited server gets a fresh
+                                // connect. Switching is now a swap, not a
+                                // teardown: nothing disconnects, and coming
+                                // back restores exactly what you left.
+                                state.park_active_connection();
+                                if !state.unpark_connection(&server.url) {
+                                    state.server_url = server.url.clone();
+                                    let ws_url = derive_ws_url(&server.url);
+                                    let uname = state.user_name.clone();
+                                    let pubkey = if state.profile_public_key.is_empty() {
+                                        generate_random_hex_key()
+                                    } else {
+                                        state.profile_public_key.clone()
+                                    };
+                                    state.ws_client = Some(
+                                        crate::net::ws_client::WsClient::connect_with_kyber(
+                                            &ws_url,
+                                            &uname,
+                                            &pubkey,
+                                            &state.kyber_public_b64,
+                                        ),
+                                    );
+                                    state.connected_server_url = server.url.clone();
+                                    // Fresh socket: identify handshake not yet complete (v0.794).
+                                    state.ws_identified = false;
+                                    state.ws_status = format!("Switching to {}...", server.name);
+                                    state.ws_manually_disconnected = false;
+                                    state.ws_reconnect_timer = 0.0;
+                                    state.ws_reconnect_delay = 5.0;
+                                    state.ws_reconnect_attempts = 0;
+                                    // Land on "general" (every relay seeds it) so we
+                                    // don't show an empty view if the previous active
+                                    // channel / DM / group doesn't exist on this server.
+                                    state.chat_active_channel = "general".to_string();
+                                    // Fresh server: fetch its history.
+                                    state.history_fetched = false;
+                                }
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            } else {
+                                state.ws_status =
+                                    "Unlock your identity first to connect (Settings).".to_string();
+                            }
+                        }
+                    });
+                    {
+                        let svr_bg = Color32::from_rgba_premultiplied(
+                            theme.server_bg().r().saturating_add(20),
+                            theme.server_bg().g().saturating_add(20),
+                            theme.server_bg().b().saturating_add(20),
+                            theme.server_bg().a(),
+                        );
+                        let mut r = hdr_resp.response.rect;
+                        r.min.x = ui.max_rect().min.x;
+                        r.max.x = ui.max_rect().max.x;
+                        ui.painter().set(
+                            hdr_bg_slot,
+                            egui::Shape::rect_filled(r.expand2(egui::vec2(0.0, 1.0)), 0.0, svr_bg),
+                        );
+                    }
+                    // This server's channels, live from its background
+                    // connection (multi-connection stage 4). ALL channels are
+                    // listed; a bridged one carries the federation badge and
+                    // opens the merged Commons view WITHOUT switching servers
+                    // (one room, one view). A plain channel switches to this
+                    // server and lands in that room. A CURRENT but offline
+                    // server (the operator's stopped self-relay) lists its
+                    // last-known channels from the legacy fields, so it never
+                    // looks channel-less.
+                    if !sec_collapsed {
+                        let commons: std::collections::HashSet<String> =
+                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        let bg_channels: Vec<(String, String, bool, bool)> = if is_current {
+                            state
+                                .chat_channels
+                                .iter()
+                                .map(|ch| {
+                                    (
+                                        ch.id.clone(),
+                                        ch.name.clone(),
+                                        ch.unread,
+                                        ch.federated && commons.contains(&ch.id),
+                                    )
+                                })
+                                .collect()
+                        } else { state
+                            .connections
+                            .iter()
+                            .find(|c| c.url == norm_server_url(&server.url))
+                            .map(|c| {
+                                c.channels
+                                    .iter()
+                                    .map(|ch| {
+                                        (
+                                            ch.id.clone(),
+                                            ch.name.clone(),
+                                            ch.unread,
+                                            ch.federated && commons.contains(&ch.id),
+                                        )
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default()
+                        };
+                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels {
+                            ui.horizontal(|ui| {
+                                ui.add_space(24.0);
+                                let label = ui
+                                    .add(
+                                        egui::Label::new(
+                                            RichText::new(format!("# {}", ch_name))
+                                                .size(theme.font_size_body)
+                                                .color(theme.text_secondary()),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    )
+                                    .on_hover_text(if ch_commons {
+                                        format!(
+                                            "Open the Commons view of #{} (bridged room)",
+                                            ch_name
+                                        )
+                                    } else {
+                                        format!("Open #{} on {}", ch_name, server.name)
+                                    });
+                                if ch_commons {
+                                    let (br, _) = ui.allocate_exact_size(
+                                        egui::vec2(13.0, 11.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    crate::gui::widgets::icons::paint_federation(
+                                        ui.painter(),
+                                        br,
+                                        theme.text_muted(),
+                                    );
+                                }
+                                if ch_unread {
+                                    let (ur, _) = ui.allocate_exact_size(
+                                        egui::vec2(8.0, 8.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter().circle_filled(
+                                        ur.center(),
+                                        3.0,
+                                        theme.accent(),
+                                    );
+                                }
+                                if label.clicked() && state.private_key_bytes.is_some() {
+                                    if ch_commons {
+                                        open_commons_room(state, &ch_id);
+                                    } else {
+                                        // Same switch as clicking the server name,
+                                        // then land directly in the clicked room.
+                                        state.park_active_connection();
+                                        if !state.unpark_connection(&server.url) {
+                                            state.server_url = server.url.clone();
+                                            let ws_url = derive_ws_url(&server.url);
+                                            let uname = state.user_name.clone();
+                                            let pubkey = state.profile_public_key.clone();
+                                            state.ws_client = Some(
+                                                crate::net::ws_client::WsClient::connect_with_kyber(
+                                                    &ws_url,
+                                                    &uname,
+                                                    &pubkey,
+                                                    &state.kyber_public_b64,
+                                                ),
+                                            );
+                                            state.connected_server_url = server.url.clone();
+                                            state.ws_identified = false;
+                                            state.ws_status =
+                                                format!("Switching to {}...", server.name);
+                                            state.ws_manually_disconnected = false;
+                                            state.ws_reconnect_timer = 0.0;
+                                            state.ws_reconnect_delay = 5.0;
+                                            state.ws_reconnect_attempts = 0;
+                                        }
+                                        state.chat_active_channel = ch_id.clone();
+                                        state.chat_messages.clear();
+                                        state.history_fetched = false;
+                                        if let Some(c) = state
+                                            .chat_channels
+                                            .iter_mut()
+                                            .find(|c| c.id == ch_id)
+                                        {
+                                            c.unread = false;
+                                        }
+                                        crate::config::AppConfig::from_gui_state(state).save();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    row_spans.push((server.url.clone(), span_top, ui.cursor().min.y));
+                    // Gap between server sections (operator field test 3):
+                    // each server is its own block, visually separated.
+                    ui.add_space(6.0);
+                }
+
+                // Drag-reorder resolution: while a row is held, draw the
+                // insertion line at the nearest slot; on release, move the
+                // server there and persist the new order.
+                if let Some(drag_url) = state.server_drag.clone() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                    let pointer = ui.input(|i| i.pointer.interact_pos());
+                    let released = ui.input(|i| i.pointer.any_released());
+                    if let Some(pos) = pointer {
+                        let mut insert_at = row_spans.len();
+                        for (i, (_, top, bottom)) in row_spans.iter().enumerate() {
+                            if pos.y < (top + bottom) * 0.5 {
+                                insert_at = i;
+                                break;
+                            }
+                        }
+                        let line_y = if insert_at == 0 {
+                            row_spans.first().map(|s| s.1)
+                        } else {
+                            row_spans.get(insert_at - 1).map(|s| s.2)
+                        };
+                        if let Some(y) = line_y {
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(ui.max_rect().min.x, y),
+                                    egui::pos2(ui.max_rect().max.x, y),
+                                ],
+                                egui::Stroke::new(2.0, theme.accent()),
+                            );
+                        }
+                        if released {
+                            state.server_drag = None;
+                            if let Some(from) =
+                                state.chat_servers.iter().position(|s| s.url == drag_url)
+                            {
+                                let entry = state.chat_servers.remove(from);
+                                let mut to = insert_at;
+                                if from < insert_at {
+                                    to = to.saturating_sub(1);
+                                }
+                                let to = to.min(state.chat_servers.len());
+                                state.chat_servers.insert(to, entry);
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
+                        }
+                    } else if released {
+                        state.server_drag = None;
+                    }
+                }
+            });
+    }
+
+    ui.add_space(2.0);
+}
+
+// ─────────────────────────────── RIGHT PANEL ──────────────────────────────
+
+/// The ACTIVE server's full sidebar entry (header + cog + channels +
+/// voice rosters). Extracted verbatim from the old virtual-entry block so
+/// the servers loop can render it IN PLACE at the server's saved position.
+fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    if !state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
+        return;
+    }
                     let online_count = state.chat_users.iter().filter(|u| u.status != "offline").count();
                     let svr_hdr_height = 24.0;
                     let svr_full_w = ui.available_width();
@@ -1740,13 +2247,35 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.success());
                         cx += theme.status_dot_size + 4.0;
 
-                        // Server name + online count
+                        // Server name + online count. The ACTIVE server's name
+                        // animates like the main nav's active-page border
+                        // (operator field test 3), following the same theme
+                        // setting so Settings restyles both together.
+                        let name_color = match theme.nav_active_border_animation {
+                            crate::gui::theme::anim::RGB_CYCLE => {
+                                let speed = theme.nav_separator_animation_speed.max(0.0);
+                                let hue = ((ctx_time * 0.3 * speed as f64) % 1.0) as f32;
+                                crate::gui::pages::escape_menu::hsv_to_rgb(hue.rem_euclid(1.0), 0.9, 1.0)
+                            }
+                            crate::gui::theme::anim::PULSE => {
+                                let speed = theme.nav_separator_animation_speed.max(0.0);
+                                let t = ((ctx_time * 2.0 * speed as f64).sin() * 0.5 + 0.5) as f32;
+                                let a = theme.accent();
+                                let p = theme.text_primary();
+                                Color32::from_rgb( // theme-exempt: animated blend of two theme tokens
+                                    (a.r() as f32 * t + p.r() as f32 * (1.0 - t)) as u8,
+                                    (a.g() as f32 * t + p.g() as f32 * (1.0 - t)) as u8,
+                                    (a.b() as f32 * t + p.b() as f32 * (1.0 - t)) as u8,
+                                )
+                            }
+                            _ => theme.text_primary(),
+                        };
                         ui.painter().text(
                             egui::pos2(cx, cy),
                             egui::Align2::LEFT_CENTER,
                             &format!("{} ({})", svr_name, online_count),
                             egui::FontId::proportional(theme.body_size),
-                            theme.text_primary(),
+                            name_color,
                         );
 
                         // Member count on right
@@ -1757,6 +2286,40 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             egui::FontId::proportional(theme.small_size),
                             theme.text_muted(),
                         );
+
+                        // Drag grip for reordering (left of the member count):
+                        // the ACTIVE server participates in drag-reorder too.
+                        let grip_rect = egui::Rect::from_center_size(
+                            egui::pos2(svr_rect.right() - 44.0, cy),
+                            Vec2::splat(14.0),
+                        );
+                        let grip_resp = ui.interact(
+                            grip_rect,
+                            ui.id().with("active_srv_grip"),
+                            egui::Sense::drag(),
+                        );
+                        let grip_color = if grip_resp.hovered() || grip_resp.dragged() {
+                            theme.text_primary()
+                        } else {
+                            theme.text_muted()
+                        };
+                        for k in 0..3 {
+                            let y = grip_rect.top() + 4.0 + k as f32 * 3.0;
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(grip_rect.left() + 2.0, y),
+                                    egui::pos2(grip_rect.right() - 2.0, y),
+                                ],
+                                egui::Stroke::new(1.5, grip_color),
+                            );
+                        }
+                        if grip_resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
+                        if grip_resp.drag_started() {
+                            state.server_drag = Some(state.server_url.clone());
+                        }
+                        grip_resp.on_hover_text("Drag to reorder");
                     } else {
                         cog_click_rect = svr_rect;
                     }
@@ -2134,336 +2697,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                     ui.add_space(2.0);
                     } // end if !svr_collapsed
-                }
-
-                // Additional saved servers. Clicking a name SWITCHES to that
-                // server (points server_url there and reconnects with the same
-                // identity) -- the Add Server modal promises this, and before
-                // v0.712 the names were plain labels that did nothing.
-                let current = state.server_url.trim_end_matches('/').to_string();
-                for server in state.chat_servers.clone().iter() {
-                    let is_current = server.url.trim_end_matches('/') == current;
-                    // The ACTIVE server already has its full entry above
-                    // (header + cog + channels + voice). A second row for it
-                    // here read as "the server list is nested under the
-                    // active server" in the operator's field test -- skip it.
-                    if is_current && connected {
-                        continue;
-                    }
-                    // Live background link state (multi-connection stage 3):
-                    // every saved server holds its own connection now, so a
-                    // non-current row can still be online, with unread mail.
-                    let bg = state
-                        .connections
-                        .iter()
-                        .find(|c| c.url == norm_server_url(&server.url));
-                    let bg_online = bg.map_or(false, |c| c.identified);
-                    let bg_unread = bg.map_or(false, |c| {
-                        c.channels.iter().any(|ch| ch.unread) || c.dms.iter().any(|d| d.unread)
-                    });
-                    // "All shared": every room this server has is bridged, so
-                    // its whole conversation already lives under COMMONS --
-                    // say so BEFORE the user clicks in looking for more
-                    // (operator field test 3).
-                    let bg_all_shared = bg.map_or(false, |c| {
-                        c.identified
-                            && !c.channels.is_empty()
-                            && c.channels.iter().all(|ch| ch.federated)
-                    });
-                    ui.add_space(2.0);
-                    ui.horizontal(|ui| {
-                        // Same left edge as the active server's header (8 px,
-                        // not the old 12): every server reads as a peer
-                        // section, never as a child of the one above.
-                        ui.add_space(8.0);
-                        // Status dot: green = link up (current or background),
-                        // muted = offline. A filled accent dot on the right
-                        // marks unread activity on a background server.
-                        let (dot_rect, _) =
-                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                        let dot_color = if is_current || bg_online {
-                            theme.success()
-                        } else {
-                            theme.text_muted()
-                        };
-                        ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
-                        let color = if is_current { theme.success() } else { theme.text_primary() };
-                        let resp = ui
-                            .add(
-                                egui::Label::new(
-                                    RichText::new(&server.name)
-                                        .size(theme.font_size_body)
-                                        .color(color)
-                                        .strong(),
-                                )
-                                .sense(egui::Sense::click()),
-                            )
-                            .on_hover_text(if is_current {
-                                "Current server"
-                            } else {
-                                "Click to switch to this server"
-                            });
-                        if bg_all_shared {
-                            ui.label(
-                                RichText::new("(all shared)")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            )
-                            .on_hover_text(
-                                "Every room on this server is bridged; its whole \
-                                 conversation appears under COMMONS.",
-                            );
-                        }
-                        if bg_unread && !is_current {
-                            let (ur, _) = ui
-                                .allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                            ui.painter().circle_filled(ur.center(), 3.0, theme.accent());
-                        }
-                        // Per-server settings cog (operator, field test 2:
-                        // "add the settings cog buttons to the server name
-                        // lines so we're not going into so many nested
-                        // menus"): switches to this server -- instant when
-                        // its background link is live -- and opens Server
-                        // Settings already pointed at it.
-                        let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 12.0);
-                        let cog_color = if cog_resp.hovered() {
-                            Color32::WHITE
-                        } else {
-                            theme.text_muted()
-                        };
-                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
-                        if cog_resp
-                            .on_hover_text(format!("Settings for {}", server.name))
-                            .clicked()
-                            && state.private_key_bytes.is_some()
-                        {
-                            state.park_active_connection();
-                            if !state.unpark_connection(&server.url) {
-                                state.server_url = server.url.clone();
-                                let ws_url = derive_ws_url(&server.url);
-                                let uname = state.user_name.clone();
-                                let pubkey = state.profile_public_key.clone();
-                                state.ws_client = Some(
-                                    crate::net::ws_client::WsClient::connect_with_kyber(
-                                        &ws_url,
-                                        &uname,
-                                        &pubkey,
-                                        &state.kyber_public_b64,
-                                    ),
-                                );
-                                state.connected_server_url = server.url.clone();
-                                state.ws_identified = false;
-                                state.ws_status = format!("Switching to {}...", server.name);
-                                state.ws_manually_disconnected = false;
-                                state.ws_reconnect_timer = 0.0;
-                                state.ws_reconnect_delay = 5.0;
-                                state.ws_reconnect_attempts = 0;
-                                state.chat_active_channel = "general".to_string();
-                                state.history_fetched = false;
-                            }
-                            crate::config::AppConfig::from_gui_state(state).save();
-                            state.push_nav_to(crate::gui::GuiPage::ServerSettings);
-                        }
-                        if is_current {
-                            ui.label(
-                                RichText::new("(current)")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                        } else {
-                            // Forget this saved-server bookmark. Only offered
-                            // for servers you're NOT currently on (removing the
-                            // active one mid-session is confusing); Add Server
-                            // re-adds it. (v0.712)
-                            let rm = ui
-                                .add(
-                                    egui::Button::new(
-                                        RichText::new("x")
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_muted()),
-                                    )
-                                    .frame(false)
-                                    .small(),
-                                )
-                                .on_hover_text("Forget this server");
-                            if rm.clicked() {
-                                let rid = server.id.clone();
-                                state.chat_servers.retain(|s| s.id != rid);
-                                crate::config::AppConfig::from_gui_state(state).save();
-                            }
-                        }
-                        if resp.clicked() && !is_current {
-                            if state.private_key_bytes.is_some() {
-                                // Multi-connection switch (stage 2): PARK the
-                                // current server (socket stays live, messages
-                                // and rosters preserved), then UNPARK the
-                                // target if we were connected to it before.
-                                // Only a never-visited server gets a fresh
-                                // connect. Switching is now a swap, not a
-                                // teardown: nothing disconnects, and coming
-                                // back restores exactly what you left.
-                                state.park_active_connection();
-                                if !state.unpark_connection(&server.url) {
-                                    state.server_url = server.url.clone();
-                                    let ws_url = derive_ws_url(&server.url);
-                                    let uname = state.user_name.clone();
-                                    let pubkey = if state.profile_public_key.is_empty() {
-                                        generate_random_hex_key()
-                                    } else {
-                                        state.profile_public_key.clone()
-                                    };
-                                    state.ws_client = Some(
-                                        crate::net::ws_client::WsClient::connect_with_kyber(
-                                            &ws_url,
-                                            &uname,
-                                            &pubkey,
-                                            &state.kyber_public_b64,
-                                        ),
-                                    );
-                                    state.connected_server_url = server.url.clone();
-                                    // Fresh socket: identify handshake not yet complete (v0.794).
-                                    state.ws_identified = false;
-                                    state.ws_status = format!("Switching to {}...", server.name);
-                                    state.ws_manually_disconnected = false;
-                                    state.ws_reconnect_timer = 0.0;
-                                    state.ws_reconnect_delay = 5.0;
-                                    state.ws_reconnect_attempts = 0;
-                                    // Land on "general" (every relay seeds it) so we
-                                    // don't show an empty view if the previous active
-                                    // channel / DM / group doesn't exist on this server.
-                                    state.chat_active_channel = "general".to_string();
-                                    // Fresh server: fetch its history.
-                                    state.history_fetched = false;
-                                }
-                                crate::config::AppConfig::from_gui_state(state).save();
-                            } else {
-                                state.ws_status =
-                                    "Unlock your identity first to connect (Settings).".to_string();
-                            }
-                        }
-                    });
-                    // This server's channels, live from its background
-                    // connection (multi-connection stage 4). ALL channels are
-                    // listed; a bridged one carries the federation badge and
-                    // opens the merged Commons view WITHOUT switching servers
-                    // (one room, one view). A plain channel switches to this
-                    // server and lands in that room.
-                    if !is_current {
-                        let commons: std::collections::HashSet<String> =
-                            commons_rooms(state).into_iter().map(|r| r.name).collect();
-                        let bg_channels: Vec<(String, String, bool, bool)> = state
-                            .connections
-                            .iter()
-                            .find(|c| c.url == norm_server_url(&server.url))
-                            .map(|c| {
-                                c.channels
-                                    .iter()
-                                    .map(|ch| {
-                                        (
-                                            ch.id.clone(),
-                                            ch.name.clone(),
-                                            ch.unread,
-                                            ch.federated && commons.contains(&ch.id),
-                                        )
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels {
-                            ui.horizontal(|ui| {
-                                ui.add_space(24.0);
-                                let label = ui
-                                    .add(
-                                        egui::Label::new(
-                                            RichText::new(format!("# {}", ch_name))
-                                                .size(theme.font_size_body)
-                                                .color(theme.text_secondary()),
-                                        )
-                                        .sense(egui::Sense::click()),
-                                    )
-                                    .on_hover_text(if ch_commons {
-                                        format!(
-                                            "Open the Commons view of #{} (bridged room)",
-                                            ch_name
-                                        )
-                                    } else {
-                                        format!("Open #{} on {}", ch_name, server.name)
-                                    });
-                                if ch_commons {
-                                    let (br, _) = ui.allocate_exact_size(
-                                        egui::vec2(13.0, 11.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    crate::gui::widgets::icons::paint_federation(
-                                        ui.painter(),
-                                        br,
-                                        theme.text_muted(),
-                                    );
-                                }
-                                if ch_unread {
-                                    let (ur, _) = ui.allocate_exact_size(
-                                        egui::vec2(8.0, 8.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    ui.painter().circle_filled(
-                                        ur.center(),
-                                        3.0,
-                                        theme.accent(),
-                                    );
-                                }
-                                if label.clicked() && state.private_key_bytes.is_some() {
-                                    if ch_commons {
-                                        open_commons_room(state, &ch_id);
-                                    } else {
-                                        // Same switch as clicking the server name,
-                                        // then land directly in the clicked room.
-                                        state.park_active_connection();
-                                        if !state.unpark_connection(&server.url) {
-                                            state.server_url = server.url.clone();
-                                            let ws_url = derive_ws_url(&server.url);
-                                            let uname = state.user_name.clone();
-                                            let pubkey = state.profile_public_key.clone();
-                                            state.ws_client = Some(
-                                                crate::net::ws_client::WsClient::connect_with_kyber(
-                                                    &ws_url,
-                                                    &uname,
-                                                    &pubkey,
-                                                    &state.kyber_public_b64,
-                                                ),
-                                            );
-                                            state.connected_server_url = server.url.clone();
-                                            state.ws_identified = false;
-                                            state.ws_status =
-                                                format!("Switching to {}...", server.name);
-                                            state.ws_manually_disconnected = false;
-                                            state.ws_reconnect_timer = 0.0;
-                                            state.ws_reconnect_delay = 5.0;
-                                            state.ws_reconnect_attempts = 0;
-                                        }
-                                        state.chat_active_channel = ch_id.clone();
-                                        state.chat_messages.clear();
-                                        state.history_fetched = false;
-                                        if let Some(c) = state
-                                            .chat_channels
-                                            .iter_mut()
-                                            .find(|c| c.id == ch_id)
-                                        {
-                                            c.unread = false;
-                                        }
-                                        crate::config::AppConfig::from_gui_state(state).save();
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
-            });
-    }
-
-    ui.add_space(2.0);
 }
-
-// ─────────────────────────────── RIGHT PANEL ──────────────────────────────
 
 fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ScrollArea::vertical()

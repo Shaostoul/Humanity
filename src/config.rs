@@ -375,6 +375,10 @@ pub struct AppConfig {
     pub host_node_db: String,
     #[serde(default)]
     pub host_node_name: String,
+    /// Server sections the user collapsed in the chat sidebar (normalized
+    /// URLs). Order itself persists via saved_servers.
+    #[serde(default)]
+    pub collapsed_servers: Vec<String>,
     /// Camera far plane in metres.
     #[serde(default = "default_render_distance")]
     pub render_distance: f32,
@@ -1196,6 +1200,7 @@ impl AppConfig {
             host_node_port: state.host_node_port.clone(),
             host_node_db: state.host_node_db.clone(),
             host_node_name: state.host_node_name.clone(),
+            collapsed_servers: state.chat_server_sections_collapsed.iter().cloned().collect(),
             render_distance: state.settings.render_distance,
             water_detail_depth: state.settings.water_detail_depth,
             lights_tiled: state.settings.lights_tiled,
@@ -1356,6 +1361,7 @@ impl AppConfig {
         state.host_node_port = self.host_node_port.clone();
         state.host_node_db = self.host_node_db.clone();
         state.host_node_name = self.host_node_name.clone();
+        state.chat_server_sections_collapsed = self.collapsed_servers.iter().cloned().collect();
         state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
         state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
         state.settings.lights_tiled = self.lights_tiled;

@@ -140,6 +140,27 @@ impl LocalNode {
 
 static NODE: OnceLock<Mutex<LocalNode>> = OnceLock::new();
 
+/// The app identity's public key, noted each frame by draw_section (and by
+/// autostart) so `start` can grant the node's OWNER the admin role in its
+/// database without threading GuiState into the start path.
+static OWNER_KEY: Mutex<String> = Mutex::new(String::new());
+
+pub(crate) fn note_owner_key(key: &str) {
+    if let Ok(mut g) = OWNER_KEY.lock() {
+        if *g != key {
+            *g = key.to_string();
+        }
+    }
+}
+
+fn owner_key_for_admin() -> Option<String> {
+    OWNER_KEY
+        .lock()
+        .ok()
+        .map(|g| g.clone())
+        .filter(|s| !s.trim().is_empty())
+}
+
 fn node() -> &'static Mutex<LocalNode> {
     NODE.get_or_init(|| Mutex::new(LocalNode::new()))
 }
@@ -150,6 +171,7 @@ fn node() -> &'static Mutex<LocalNode> {
 /// field-test failure this fixes is "my self-relay is unreachable after
 /// every app restart" (the node simply was not running).
 pub fn autostart_if_configured(state: &crate::gui::GuiState) {
+    note_owner_key(&state.profile_public_key);
     if !state.host_node_autostart {
         return;
     }
@@ -356,6 +378,14 @@ fn start(n: &mut LocalNode) {
     let name = n.name_input.trim().to_string();
     std::env::set_var("PORT", port.to_string());
     std::env::set_var("DATABASE_PATH", &db);
+    // The person hosting the node owns it: their identity gets the admin
+    // role in the node's database at startup (operator field test 3: the
+    // self-relay's Server Settings showed only the USER section, because
+    // nothing had ever granted the owner admin).
+    match owner_key_for_admin() {
+        Some(k) => std::env::set_var("HUMANITY_OWNER_ADMIN_KEY", k),
+        None => std::env::remove_var("HUMANITY_OWNER_ADMIN_KEY"),
+    }
     if !name.is_empty() {
         std::env::set_var("SERVER_NAME", &name);
     }
@@ -565,6 +595,7 @@ fn dot(ui: &mut egui::Ui, color: egui::Color32) {
 
 /// Draw the "Host a node" section. Rendered inside the Relays page's scroll.
 pub fn draw_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    note_owner_key(&state.profile_public_key);
     let mut n = match node().lock() {
         Ok(n) => n,
         // A poisoned lock means a previous panic happened while state was held.
