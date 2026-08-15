@@ -762,9 +762,15 @@ impl Renderer {
 
         // Off-screen scene texture (for post-processing: bloom, etc.)
         let (scene_tex, scene_tex_view) = Self::create_scene_texture(&device, width, height, surface_format);
+        let t_unit = std::time::Instant::now();
         let bloom_pass = bloom::BloomPass::new(&device, width, height, surface_format);
+        log::info!("[BootPhase]   bloom_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
+        let t_unit = std::time::Instant::now();
         let godray_pass = godrays::GodrayPass::new(&device, surface_format);
+        log::info!("[BootPhase]   godray_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
+        let t_unit = std::time::Instant::now();
         let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
+        log::info!("[BootPhase]   ssao_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
 
         // Shader + pipeline. The megashader compiles from the EMBEDDED
         // source; when assets/shaders/pbr_simple.wgsl exists on disk (dev
@@ -777,16 +783,20 @@ impl Renderer {
         // metadata read per second is free and works through every alias
         // and editor write strategy. See poll_shader_reload.
         let shader_loader = shader_loader::ShaderLoader::new();
+        let t_unit = std::time::Instant::now();
         let shader = shader_loader.load_embedded_pbr(&device);
+        log::info!("[BootPhase]   pbr_module: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         // Terrain-batch variant module (draw-batching increment 1): same
         // assembled source with the OBJECT-SOURCE block swapped for the
         // storage-array version (see shader_loader::batched_variant_of).
+        let t_unit = std::time::Instant::now();
         let batch_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("pbr_simple (terrain-batch variant)"),
             source: wgpu::ShaderSource::Wgsl(
                 shader_loader::assembled_pbr_batch_source().into(),
             ),
         });
+        log::info!("[BootPhase]   batch_module: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         #[cfg(feature = "native")]
         let shader_hot = shader_loader::find_shaders_dir().and_then(|dir| {
             // v0.973 source split: the megashader is assembled from the
@@ -796,9 +806,12 @@ impl Renderer {
             log::info!("[HotReload] armed: polling part mtimes under {:?}", dir.join("pbr"));
             Some((dir, mtime))
         });
+        let t_unit = std::time::Instant::now();
         let pipeline = Pipeline::new(&device, surface_format, &shader, &batch_shader);
+        log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
+        let t_unit = std::time::Instant::now();
         let (particle_pipeline_alpha, particle_pipeline_additive, particle_frame_bgl) =
             particles::build_particle_pipelines(
                 &device,
@@ -824,6 +837,7 @@ impl Renderer {
             surface_format,
             &pipeline.camera_bind_group_layout,
         );
+        log::info!("[BootPhase]   particles_and_line: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
 
         // Camera uniform buffer
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

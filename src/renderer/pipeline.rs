@@ -447,9 +447,16 @@ impl Pipeline {
             overlay_pipeline,
             shadow_pipeline,
             shadow_pipeline_alpha,
-        ) = Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
-        let (patch_render_pipeline, patch_shadow_pipeline) =
-            Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
+            patch_render_pipeline,
+            patch_shadow_pipeline,
+        ) = Self::build_all_pipelines(
+            device,
+            surface_format,
+            shader,
+            batch_shader,
+            &pipeline_layout,
+            &patch_pipeline_layout,
+        );
 
         Self {
             render_pipeline,
@@ -501,10 +508,15 @@ impl Pipeline {
                 ],
                 push_constant_ranges: &[],
             });
-        let (render, transparent, overlay, shadow, shadow_alpha) =
-            Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
-        let (patch_render, patch_shadow) =
-            Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
+        let (render, transparent, overlay, shadow, shadow_alpha, patch_render, patch_shadow) =
+            Self::build_all_pipelines(
+                device,
+                surface_format,
+                shader,
+                batch_shader,
+                &pipeline_layout,
+                &patch_pipeline_layout,
+            );
         self.render_pipeline = render;
         self.transparent_pipeline = transparent;
         self.overlay_pipeline = overlay;
@@ -527,16 +539,16 @@ impl Pipeline {
         }
     }
 
-    /// The two terrain-batch PSOs (opaque + depth-only shadow), compiled
-    /// from the BATCH shader module. Kept separate from build_pipeline_set
-    /// because they use a different module and pipeline layout.
-    fn build_patch_pipelines(
+    /// The terrain-batch OPAQUE PSO, compiled from the BATCH shader module
+    /// (different module + pipeline layout from the classic set). Single-PSO
+    /// helper so `build_all_pipelines` can compile it on its own thread.
+    fn build_patch_render(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         batch_shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
-    ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
-        let render = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Patch Batch Render Pipeline"),
             layout: Some(layout),
             vertex: wgpu::VertexState {
@@ -581,20 +593,27 @@ impl Pipeline {
             },
             multiview: None,
             cache: None,
-        });
-        // Shadow variant: STANDARD z (light ortho maps near->0), no cull
-        // (vegetation cards cast from both sides), and since v0.1106 the
-        // `fs_shadow` ALPHA-CUTOUT fragment stage with NO colour target.
-        //
-        // The patch path has no choice about paying for a fragment stage: a
-        // chunk's ground triangles and its sprite tree cards are one mesh in
-        // one index range, drawn together, so the only place the card's
-        // cutout can be applied is per-fragment. Before this, a 21x21 m card
-        // whose sprite is ~15-25% opaque cast a SOLID 21 m board - the dark
-        // rectangles the operator found lying on open grass. `targets: &[]`
-        // matches the shadow pass's empty `color_attachments`; fs_shadow
-        // returns nothing and only ever discards.
-        let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        })
+    }
+
+    /// The terrain-batch SHADOW PSO: STANDARD z (light ortho maps near->0),
+    /// no cull (vegetation cards cast from both sides), and since v0.1106 the
+    /// `fs_shadow` ALPHA-CUTOUT fragment stage with NO colour target.
+    ///
+    /// The patch path has no choice about paying for a fragment stage: a
+    /// chunk's ground triangles and its sprite tree cards are one mesh in
+    /// one index range, drawn together, so the only place the card's
+    /// cutout can be applied is per-fragment. Before this, a 21x21 m card
+    /// whose sprite is ~15-25% opaque cast a SOLID 21 m board - the dark
+    /// rectangles the operator found lying on open grass. `targets: &[]`
+    /// matches the shadow pass's empty `color_attachments`; fs_shadow
+    /// returns nothing and only ever discards.
+    fn build_patch_shadow(
+        device: &wgpu::Device,
+        batch_shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Patch Batch Shadow Pipeline"),
             layout: Some(layout),
             vertex: wgpu::VertexState {
@@ -623,17 +642,29 @@ impl Pipeline {
             multisample: Default::default(),
             multiview: None,
             cache: None,
-        });
-        (render, shadow)
+        })
     }
 
-    /// The four PSO compiles shared by `new` and `recreate_pipelines`.
-    fn build_pipeline_set(
+    /// ALL SEVEN PSO compiles shared by `new` and hot-reload's
+    /// `recreate_pipelines`, in ONE thread scope (v0.1142). Measured
+    /// 2026-08-15: `Pipeline::new` was 3.9 s of the 4.1 s
+    /// shaders_and_pipelines boot span, because only the three PBR variants
+    /// compiled in parallel (the 2026-07-12 scope) while the two sun-shadow
+    /// and two terrain-patch PSOs compiled serially after them on the main
+    /// thread. Each PSO bakes a full megashader fragment through Naga->DXIL,
+    /// they are all independent, and `create_render_pipeline` takes `&self`
+    /// on a Send+Sync Device, so all seven belong in the same scope: wall
+    /// time falls toward the slowest single compile.
+    fn build_all_pipelines(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
+        batch_shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
+        patch_pipeline_layout: &wgpu::PipelineLayout,
     ) -> (
+        wgpu::RenderPipeline,
+        wgpu::RenderPipeline,
         wgpu::RenderPipeline,
         wgpu::RenderPipeline,
         wgpu::RenderPipeline,
@@ -708,40 +739,7 @@ impl Pipeline {
         //  - Overlay (v0.560/563): alpha blend, no cull, depth WRITE (the pass
         //    clears depth first, so gizmos sort among themselves yet draw over
         //    the world -- visible through walls).
-        let (render_pipeline, transparent_pipeline, overlay_pipeline) =
-            std::thread::scope(|s| {
-                let opaque = s.spawn(|| {
-                    make_pbr(
-                        "PBR-lite Render Pipeline",
-                        wgpu::BlendState::REPLACE,
-                        Some(wgpu::Face::Back),
-                        true,
-                    )
-                });
-                let transparent = s.spawn(|| {
-                    make_pbr(
-                        "PBR-lite Transparent Pipeline",
-                        wgpu::BlendState::ALPHA_BLENDING,
-                        None,
-                        false,
-                    )
-                });
-                // The third compiles on this thread while the two workers run.
-                let overlay = make_pbr(
-                    "PBR-lite Overlay Pipeline",
-                    wgpu::BlendState::ALPHA_BLENDING,
-                    None,
-                    true,
-                );
-                (
-                    opaque.join().expect("opaque PBR pipeline compile panicked"),
-                    transparent
-                        .join()
-                        .expect("transparent PBR pipeline compile panicked"),
-                    overlay,
-                )
-            });
-
+        //
         // Sun-shadow pipelines (v0.899; SPLIT IN TWO v0.1106): same vertex
         // path as the colour passes (so ocean vertex displacement casts
         // correctly), STANDARD z because the light ortho maps near->0, unlike
@@ -795,16 +793,55 @@ impl Pipeline {
                 cache: None,
             })
         };
-        let shadow_pipeline = make_shadow("Sun Shadow Pipeline", false);
-        let shadow_pipeline_alpha = make_shadow("Sun Shadow Alpha Pipeline", true);
-
-        (
-            render_pipeline,
-            transparent_pipeline,
-            overlay_pipeline,
-            shadow_pipeline,
-            shadow_pipeline_alpha,
-        )
+        std::thread::scope(|s| {
+            let opaque = s.spawn(|| {
+                make_pbr(
+                    "PBR-lite Render Pipeline",
+                    wgpu::BlendState::REPLACE,
+                    Some(wgpu::Face::Back),
+                    true,
+                )
+            });
+            let transparent = s.spawn(|| {
+                make_pbr(
+                    "PBR-lite Transparent Pipeline",
+                    wgpu::BlendState::ALPHA_BLENDING,
+                    None,
+                    false,
+                )
+            });
+            let overlay = s.spawn(|| {
+                make_pbr(
+                    "PBR-lite Overlay Pipeline",
+                    wgpu::BlendState::ALPHA_BLENDING,
+                    None,
+                    true,
+                )
+            });
+            let shadow = s.spawn(|| make_shadow("Sun Shadow Pipeline", false));
+            let shadow_alpha = s.spawn(|| make_shadow("Sun Shadow Alpha Pipeline", true));
+            let patch_render = s.spawn(|| {
+                Self::build_patch_render(device, surface_format, batch_shader, patch_pipeline_layout)
+            });
+            // The seventh compiles on this thread while the six workers run.
+            let patch_shadow =
+                Self::build_patch_shadow(device, batch_shader, patch_pipeline_layout);
+            (
+                opaque.join().expect("opaque PBR pipeline compile panicked"),
+                transparent
+                    .join()
+                    .expect("transparent PBR pipeline compile panicked"),
+                overlay.join().expect("overlay PBR pipeline compile panicked"),
+                shadow.join().expect("sun shadow pipeline compile panicked"),
+                shadow_alpha
+                    .join()
+                    .expect("sun shadow alpha pipeline compile panicked"),
+                patch_render
+                    .join()
+                    .expect("patch render pipeline compile panicked"),
+                patch_shadow,
+            )
+        })
     }
 }
 
