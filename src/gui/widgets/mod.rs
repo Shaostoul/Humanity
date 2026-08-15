@@ -327,6 +327,77 @@ pub fn body_hint(ui: &mut Ui, theme: &Theme, text: &str) {
     );
 }
 
+/// Press-and-HOLD confirmation button (operator, field test 4): destructive
+/// actions fire only after the pointer is held down for `hold_seconds`,
+/// while a radial "pinwheel" arc fills around the label to show progress.
+/// Releasing early resets. Returns true exactly once, on the frame the
+/// hold completes. Reusable anywhere a click is too easy to fat-finger
+/// (forget server, delete save, etc.).
+pub fn hold_to_confirm(
+    ui: &mut Ui,
+    theme: &Theme,
+    id: egui::Id,
+    label: &str,
+    hold_seconds: f32,
+    tooltip: &str,
+) -> bool {
+    let size = egui::vec2(18.0, 18.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    let center = rect.center();
+
+    let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
+    let holding = resp.is_pointer_button_down_on();
+    if holding {
+        let dt = ui.input(|i| i.stable_dt).min(0.1);
+        progress += dt / hold_seconds.max(0.1);
+    } else {
+        progress = 0.0;
+    }
+    let fired = progress >= 1.0;
+    if fired {
+        progress = 0.0;
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+
+    let color = if holding {
+        theme.danger()
+    } else if resp.hovered() {
+        theme.text_primary()
+    } else {
+        theme.text_muted()
+    };
+    ui.painter().text(
+        center,
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::proportional(theme.font_size_small),
+        color,
+    );
+
+    // The filling pinwheel: an arc from 12 o'clock, clockwise, reaching a
+    // full circle as the hold completes.
+    if holding && progress > 0.0 {
+        let r = size.x.min(size.y) * 0.5 - 1.0;
+        let n = 32usize;
+        let filled = ((n as f32 * progress).ceil() as usize).min(n);
+        let mut points = Vec::with_capacity(filled + 1);
+        for k in 0..=filled {
+            let a = -std::f32::consts::FRAC_PI_2
+                + std::f32::consts::TAU * (k as f32 / n as f32);
+            points.push(egui::pos2(center.x + r * a.cos(), center.y + r * a.sin()));
+        }
+        ui.painter()
+            .add(egui::Shape::line(points, egui::Stroke::new(2.0, theme.danger())));
+        ui.ctx().request_repaint();
+    }
+
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.on_hover_text(tooltip);
+    fired
+}
+
 /// Emit a per-setting DESCRIPTION — the muted help line that sits under one
 /// control on the Settings page — grouped to the control above it (v0.1116,
 /// operator 2026-08-12).

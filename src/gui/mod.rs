@@ -4510,6 +4510,9 @@ pub struct GuiState {
     /// URL of the server row currently being dragged for reordering, if any.
     /// Session-only; the resulting ORDER is what persists (saved_servers).
     pub server_drag: Option<String>,
+    /// The "what is the Commons?" explainer modal (question mark on the
+    /// COMMONS section header).
+    pub show_commons_info: bool,
     pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
@@ -5543,6 +5546,7 @@ impl Default for GuiState {
             chat_commons_collapsed: false,
             chat_server_sections_collapsed: std::collections::HashSet::new(),
             server_drag: None,
+            show_commons_info: false,
             chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,

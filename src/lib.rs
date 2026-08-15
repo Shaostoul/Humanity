@@ -16245,6 +16245,23 @@ mod native_app {
                         }
                     }
 
+                    // Self-hosted fast path (field test 4): when the active
+                    // server IS the node this app hosts and that node is up,
+                    // never sit out a long backoff -- "I'm obviously connected
+                    // to myself". Cap the countdown at half a second so the
+                    // link snaps up as soon as the local node is ready.
+                    if state.gui_state.ws_client.is_none()
+                        && !state.gui_state.ws_manually_disconnected
+                        && state.gui_state.ws_reconnect_timer > 0.5
+                    {
+                        if let Some(local) = crate::gui::pages::host_node::running_local_url() {
+                            let cur = crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url);
+                            if cur == crate::gui::pages::chat::norm_server_url(&local) {
+                                state.gui_state.ws_reconnect_timer = 0.5;
+                            }
+                        }
+                    }
+
                     // ── WebSocket auto-reconnect with exponential backoff ──
                     if state.gui_state.ws_client.is_none()
                         && !state.gui_state.ws_manually_disconnected

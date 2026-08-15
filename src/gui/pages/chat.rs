@@ -641,6 +641,10 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     // ── Scrollable section area ──
+    // Thin floating scrollbar, matching the right rail (operator field
+    // test 4: the left bar sat permanently wide because the full-width
+    // interactive rows underneath kept its hover-expansion latched).
+    ui.spacing_mut().scroll = egui::style::ScrollStyle::thin();
     ScrollArea::vertical()
         .id_salt("chat_left_scroll")
         .auto_shrink([false, false])
@@ -1720,6 +1724,38 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     let sec_collapsed = state
                         .chat_server_sections_collapsed
                         .contains(&norm_server_url(&server.url));
+                    // This server's VISIBLE channels, computed up front so the
+                    // header knows whether to draw a collapse triangle at all.
+                    // Bridged rooms live only in COMMONS and #local is the
+                    // server name itself (field test 4), so most servers list
+                    // nothing here -- which is the point: the list stays
+                    // short at dozens of servers.
+                    let bg_channels: Vec<(String, String, bool, bool)> = {
+                        let commons: std::collections::HashSet<String> =
+                            commons_rooms(state).into_iter().map(|r| r.name).collect();
+                        let filter_map = |ch: &crate::gui::ChatChannel| {
+                            if ch.local_only || (ch.federated && commons.contains(&ch.id)) {
+                                None
+                            } else {
+                                Some((
+                                    ch.id.clone(),
+                                    ch.name.clone(),
+                                    ch.unread,
+                                    false,
+                                ))
+                            }
+                        };
+                        if is_current {
+                            state.chat_channels.iter().filter_map(filter_map).collect()
+                        } else {
+                            state
+                                .connections
+                                .iter()
+                                .find(|c| c.url == norm_server_url(&server.url))
+                                .map(|c| c.channels.iter().filter_map(filter_map).collect())
+                                .unwrap_or_default()
+                        }
+                    };
                     // Live background link state (multi-connection stage 3):
                     // every saved server holds its own connection now, so a
                     // non-current row can still be online, with unread mail.
@@ -1752,34 +1788,43 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         // section, never as a child of the one above.
                         ui.add_space(8.0);
                         // Collapse triangle: hides this server's channel list
-                        // (persisted) -- how the list stays scannable at many
-                        // servers.
-                        let (tri_rect, tri_resp) = ui
-                            .allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
-                        let tri_color = if tri_resp.hovered() {
-                            theme.text_primary()
+                        // (persisted). A server with NO visible channels of
+                        // its own (everything bridged into COMMONS, #local
+                        // merged into the name) gets no triangle -- there is
+                        // nothing to expand (field test 4).
+                        if bg_channels.is_empty() {
+                            ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
                         } else {
-                            theme.text_secondary()
-                        };
-                        if sec_collapsed {
-                            crate::gui::widgets::icons::paint_triangle_right(
-                                ui.painter(),
-                                tri_rect.shrink(1.0),
-                                tri_color,
-                            );
-                        } else {
-                            crate::gui::widgets::icons::paint_triangle_down(
-                                ui.painter(),
-                                tri_rect.shrink(1.0),
-                                tri_color,
-                            );
-                        }
-                        if tri_resp.clicked() {
-                            let key = norm_server_url(&server.url);
-                            if !state.chat_server_sections_collapsed.remove(&key) {
-                                state.chat_server_sections_collapsed.insert(key);
+                            let (tri_rect, tri_resp) = ui
+                                .allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::click());
+                            let tri_color = if tri_resp.hovered() {
+                                theme.text_primary()
+                            } else {
+                                theme.text_secondary()
+                            };
+                            if sec_collapsed {
+                                crate::gui::widgets::icons::paint_triangle_right(
+                                    ui.painter(),
+                                    tri_rect.shrink(1.0),
+                                    tri_color,
+                                );
+                            } else {
+                                crate::gui::widgets::icons::paint_triangle_down(
+                                    ui.painter(),
+                                    tri_rect.shrink(1.0),
+                                    tri_color,
+                                );
                             }
-                            crate::config::AppConfig::from_gui_state(state).save();
+                            if tri_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if tri_resp.clicked() {
+                                let key = norm_server_url(&server.url);
+                                if !state.chat_server_sections_collapsed.remove(&key) {
+                                    state.chat_server_sections_collapsed.insert(key);
+                                }
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
                         }
                         // Status dot: green = link up (current or background),
                         // muted = offline. A filled accent dot on the right
@@ -1795,7 +1840,26 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             theme.text_muted()
                         };
                         ui.painter().circle_filled(dot_rect.center(), 3.0, dot_color);
-                        let color = if is_current { theme.success() } else { theme.text_primary() };
+                        // The CURRENT server's name animates even when its
+                        // link is down (field test 4: the offline self-relay
+                        // was flat green while the connected header cycled).
+                        let color = if is_current {
+                            match theme.nav_active_border_animation {
+                                crate::gui::theme::anim::RGB_CYCLE => {
+                                    let t = ui.ctx().input(|i| i.time);
+                                    let speed = theme.nav_separator_animation_speed.max(0.0);
+                                    let hue = ((t * 0.3 * speed as f64) % 1.0) as f32;
+                                    crate::gui::pages::escape_menu::hsv_to_rgb(
+                                        hue.rem_euclid(1.0),
+                                        0.9,
+                                        1.0,
+                                    )
+                                }
+                                _ => theme.success(),
+                            }
+                        } else {
+                            theme.text_primary()
+                        };
                         let resp = ui
                             .add(
                                 egui::Label::new(
@@ -1811,6 +1875,12 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             } else {
                                 "Click to switch to this server"
                             });
+                        // A hand cursor says "clickable" (field test 4: the
+                        // selectable-text I-beam read as copy-only). The text
+                        // stays selectable; the cursor leads with the click.
+                        if resp.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
                         if bg_all_shared {
                             ui.label(
                                 RichText::new("(all shared)")
@@ -1909,18 +1979,17 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // for servers you're NOT currently on (removing the
                             // active one mid-session is confusing); Add Server
                             // re-adds it. (v0.712)
-                            let rm = ui
-                                .add(
-                                    egui::Button::new(
-                                        RichText::new("x")
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_muted()),
-                                    )
-                                    .frame(false)
-                                    .small(),
-                                )
-                                .on_hover_text("Forget this server");
-                            if rm.clicked() {
+                            // Hold-to-delete (field test 4): a plain click is
+                            // too easy to fat-finger for a destructive action;
+                            // hold 3 s while the pinwheel fills.
+                            if crate::gui::widgets::hold_to_confirm(
+                                ui,
+                                theme,
+                                ui.id().with(("forget_srv", &server.id)),
+                                "X",
+                                3.0,
+                                "HOLD 3 seconds to forget this server (Add Server re-adds it)",
+                            ) {
                                 let rid = server.id.clone();
                                 state.chat_servers.retain(|s| s.id != rid);
                                 crate::config::AppConfig::from_gui_state(state).save();
@@ -1937,7 +2006,24 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 // teardown: nothing disconnects, and coming
                                 // back restores exactly what you left.
                                 state.park_active_connection();
-                                if !state.unpark_connection(&server.url) {
+                                if state.unpark_connection(&server.url) {
+                                    // Clicking a server's NAME opens its own
+                                    // room: the guaranteed #local (field test
+                                    // 4). Falls back to whatever room was
+                                    // open if this server has no local room.
+                                    if let Some(local_id) = state
+                                        .chat_channels
+                                        .iter()
+                                        .find(|c| c.local_only)
+                                        .map(|c| c.id.clone())
+                                    {
+                                        if state.chat_active_channel != local_id {
+                                            state.chat_active_channel = local_id;
+                                            state.chat_messages.clear();
+                                            state.history_fetched = false;
+                                        }
+                                    }
+                                } else {
                                     state.server_url = server.url.clone();
                                     let ws_url = derive_ws_url(&server.url);
                                     let uname = state.user_name.clone();
@@ -2001,41 +2087,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // last-known channels from the legacy fields, so it never
                     // looks channel-less.
                     if !sec_collapsed {
-                        let commons: std::collections::HashSet<String> =
-                            commons_rooms(state).into_iter().map(|r| r.name).collect();
-                        let bg_channels: Vec<(String, String, bool, bool)> = if is_current {
-                            state
-                                .chat_channels
-                                .iter()
-                                .map(|ch| {
-                                    (
-                                        ch.id.clone(),
-                                        ch.name.clone(),
-                                        ch.unread,
-                                        ch.federated && commons.contains(&ch.id),
-                                    )
-                                })
-                                .collect()
-                        } else { state
-                            .connections
-                            .iter()
-                            .find(|c| c.url == norm_server_url(&server.url))
-                            .map(|c| {
-                                c.channels
-                                    .iter()
-                                    .map(|ch| {
-                                        (
-                                            ch.id.clone(),
-                                            ch.name.clone(),
-                                            ch.unread,
-                                            ch.federated && commons.contains(&ch.id),
-                                        )
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default()
-                        };
-                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels {
+                        for (ch_id, ch_name, ch_unread, ch_commons) in bg_channels.clone() {
                             ui.horizontal(|ui| {
                                 ui.add_space(24.0);
                                 let label = ui
@@ -2328,6 +2380,27 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
                     // take priority. Last-registered wins hit-test for overlapping rects.
                     let hdr_interact = ui.interact(svr_rect, ui.id().with("svr_ctx"), egui::Sense::click());
                     let show_menu_rc = hdr_interact.secondary_clicked();
+                    if hdr_interact.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    // Clicking the server name opens ITS OWN room: the
+                    // guaranteed #local (field test 4, "the local channel
+                    // merging with the server name"). #local no longer
+                    // appears as a channel row; the server IS the room.
+                    if hdr_interact.clicked() {
+                        if let Some(local_id) = state
+                            .chat_channels
+                            .iter()
+                            .find(|c| c.local_only)
+                            .map(|c| c.id.clone())
+                        {
+                            if state.chat_active_channel != local_id {
+                                state.chat_active_channel = local_id;
+                                state.chat_messages.clear();
+                                state.history_fetched = false;
+                            }
+                        }
+                    }
 
                     // Collapse arrow click target (overrides hdr_interact in its 22px region)
                     let arrow_click = egui::Rect::from_min_size(svr_rect.min, Vec2::new(22.0, svr_hdr_height));
@@ -2413,15 +2486,15 @@ fn draw_active_server_entry(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
 
                     let ctx_time = ui.ctx().input(|i| i.time);
                     for (idx, ch) in channels.iter().enumerate() {
-                        // A bridged (Commons) channel stays listed under its
-                        // server -- the federation icon marks it -- and
-                        // clicking it opens the merged Commons view. The
-                        // operator's field test found an EMPTY server section
-                        // (every channel had moved to COMMONS) more confusing
-                        // than a duplicate listing.
-                        let is_commons = ch.federated && commons_names.contains(&ch.id);
-                        let is_active = ch.id == active
-                            || (is_commons && commons_room_of(&active) == Some(ch.id.as_str()));
+                        // Field test 4 (final call after trying both ways):
+                        // bridged rooms live ONLY in COMMONS, and #local is
+                        // the server name itself -- neither repeats here.
+                        // This is what keeps the list short at many servers.
+                        if (ch.federated && commons_names.contains(&ch.id)) || ch.local_only {
+                            continue;
+                        }
+                        let is_commons = false;
+                        let is_active = ch.id == active;
                         let accent = theme.accent();
                         let bg = if is_active {
                             Color32::from_rgb(
@@ -7381,15 +7454,36 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         return; // no bridged rooms, no section -- zero noise for solo servers
     }
     let collapsed = state.chat_commons_collapsed;
-    if tinted_section_header(
+    let mut info_clicked = false;
+    if tinted_section_header_with_buttons(
         ui,
         theme,
         &format!("Commons ({})", rooms.len()),
         collapsed,
         theme.server_bg(),
+        |ui| {
+            // "?" opens the full explainer (field test 4): what the
+            // Commons is, how bridging works, what stays local.
+            let (q_rect, q_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+            let q_color = if q_resp.hovered() { Color32::WHITE } else { theme.text_secondary() };
+            ui.painter().text(
+                q_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "?",
+                egui::FontId::proportional(theme.font_size_small),
+                q_color,
+            );
+            if q_resp.on_hover_text("What is the Commons?").clicked() {
+                info_clicked = true;
+            }
+        },
     ) {
         state.chat_commons_collapsed = !state.chat_commons_collapsed;
     }
+    if info_clicked {
+        state.show_commons_info = true;
+    }
+    draw_commons_info_modal(ui.ctx(), theme, state);
     if collapsed {
         return;
     }
@@ -7479,6 +7573,71 @@ fn draw_commons_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 }
             }
         });
+}
+
+/// The "what is the Commons?" explainer, opened from the ? on the COMMONS
+/// section header. Plain language, whole story: bridged rooms, how a
+/// message travels, what stays local, and how servers come to trust each
+/// other -- the inline-first rule (explanations live ON the thing).
+fn draw_commons_info_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if !state.show_commons_info {
+        return;
+    }
+    let mut open = true;
+    egui::Window::new("The Commons")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .max_width(440.0)
+        .show(ctx, |ui| {
+            let body = |ui: &mut egui::Ui, text: &str| {
+                ui.label(
+                    RichText::new(text)
+                        .size(theme.font_size_body)
+                        .color(theme.text_primary()),
+                );
+                ui.add_space(theme.spacing_sm);
+            };
+            body(ui,
+                "The Commons is where bridged rooms live. When two or more of \
+                 your servers carry the same federated room (like #general), it \
+                 appears here ONCE, and what you read is the merged conversation \
+                 from every server that bridges it.");
+            body(ui,
+                "How a message travels: when you post in a Commons room, it is \
+                 sent through one of your connected servers that carries the \
+                 room (the box under the message says which). That server \
+                 stores it and passes a signed copy to each server it \
+                 federates with, so the conversation survives even if one \
+                 server goes down. Everyone connected to any of those servers \
+                 sees it.");
+            body(ui,
+                "How servers come to trust each other: federation is by \
+                 explicit operator choice, never automatic. A server's \
+                 identity is its cryptographic key; operators pair servers by \
+                 URL or by key and set a trust level. Only rooms an admin \
+                 marks as Federated are bridged, and only with trusted peers.");
+            body(ui,
+                "What stays local: each server's #local room is guaranteed to \
+                 never bridge anywhere (click the server's name to open it), \
+                 and any channel not marked Federated stays on its own \
+                 server. Direct messages are end-to-end encrypted and are \
+                 never part of federation.");
+            body(ui,
+                "The sidebar in one line: COMMONS = shared rooms, merged; \
+                 SERVERS = each server's own rooms; a server labeled \"(all \
+                 shared)\" keeps everything in the Commons.");
+            ui.add_space(theme.spacing_xs);
+            ui.vertical_centered(|ui| {
+                if widgets::Button::secondary("Close").show(ui, theme) {
+                    state.show_commons_info = false;
+                }
+            });
+        });
+    if !open {
+        state.show_commons_info = false;
+    }
 }
 
 /// Extract a display name from a server URL.
