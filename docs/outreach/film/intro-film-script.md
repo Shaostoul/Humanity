@@ -1,4 +1,4 @@
-# HumanityOS Intro Film: Festival Entry 1 (script v1)
+# HumanityOS Intro Film: Festival Entry 1 (script v2)
 
 Working title: **THE SILENT STAR**
 Alternates: AGARTHA, NO WAY OUT BUT IN, FIRST FLEET, LEAVING THE LIGHT
@@ -9,20 +9,27 @@ All video and image generation inside the dedicated Cinema Studio festival proje
 higgsfield.ai. **All audio AI-generated** (tool logged per file, uploaded to the project).
 No real likenesses or voices. No third-party IP. Fully fictional characters only.
 
+v2 changes (operator direction, 2026-08-15): the trap is SUDDEN, with no warning of any
+kind. Act II is now the expansion loop (arrive, colonize, reach again, repeat) instead of
+foreshadowed dread. The dead-relay and dead-civilization foreshadow beats are deleted;
+all wreckage now exists only inside the barrier. New cloak mechanic: from outside, the
+barrier projects the illusion of an ordinary star system.
+
 ## Logline
 
-Humanity, united at last, sends its First Fleet beyond the solar system, and flies into
-a perfect trap: an invisible barrier that gently catches the lead ships and lets the rest
-of the fleet smash into them. Wounded and sealed inside a manufactured solar system, the
-survivors discover what everyone else died fighting over: the planet Agartha, wrapped in
-the debris of a war older than human history, and the only way out is through it.
+Humanity, united at last, expands into a silent galaxy one colony at a time, until the
+fourth system turns out to be a lie: an invisible barrier that gently catches the lead
+ships and lets the rest of the fleet smash into them. Sealed inside a manufactured solar
+system, the survivors discover what everyone else died fighting over: the planet Agartha,
+wrapped in the debris of a million-year war, and the only way out is through it.
 
 ## Tone
 
-Star Trek hope wearing Warhammer armor. Open triumphant, earn the dread, end on awe and
-resolve. The galaxy is hostile; humanity goes anyway, and competence is the difference
-between the crews that live and the crews that die. Original threat designs only (the
-grimdark tone is a reference, never the IP: no Warhammer names, iconography, or designs).
+Star Trek hope wearing Warhammer armor. Open triumphant, build a confident rhythm of
+expansion, break it with catastrophe, end on awe and resolve. The galaxy gives no
+warnings; competence is the difference between the crews that live and the crews that
+die. Original threat designs only (grimdark tone is a reference, never the IP: no
+Warhammer names, iconography, or designs).
 
 ## The narrator
 
@@ -33,16 +40,22 @@ narrator was one of the crew all along: "We are Humanity. You included."
 
 ## Story canon this film establishes (fold into the game story bible)
 
-- Humanity unified and filled the solar system before going interstellar.
-- Deep-space relays going silent foreshadowed a hostile galaxy; the First Fleet launched
-  anyway, drilled and armed.
-- The target star is dark because it is enclosed: a cloaked Dyson swarm around a
-  MANUFACTURED solar system.
-- The cloak barrier decelerates anything that crosses it (inertial dampening: the lead
-  ships are caught gently and survive). Ships following behind crash into the stopped
+- Humanity unified and filled the solar system before going interstellar. The First
+  Fleet launched into a galaxy it knew nothing about: no contact, no signals, no
+  warnings. Everything encountered is stumbled upon.
+- The expansion loop is doctrine: arrive at a system, establish a permanent colony,
+  light its beacon, reach for the next system. Repeat.
+- The first three systems are ordinary and empty. The galaxy reads as silent.
+- The fourth system is a decoy: the cloak barrier around the Agartha system projects
+  the illusion of a normal star system. From outside, sensors and eyes see a golden
+  star and distant worlds. There is no anomaly to detect. No warning is possible.
+- The barrier decelerates anything that crosses it (inertial dampening: the lead ships
+  are caught gently and survive). Ships following behind crash into the stopped
   vanguard: the fleet's first casualties are self-inflicted by the trap's mercy.
-- Inside: Agartha, an engineered world twice Earth's size at the system's heart, ringed
-  by shells of wreckage from countless alien species who fought over it for millennia.
+- Inside, the illusion is gone: the star is enclosed in a Dyson lattice, the system is
+  manufactured, and at its heart is Agartha, an engineered world twice Earth's size,
+  ringed by shells of wreckage from countless alien species who fought over it for
+  millennia.
 - The fleet is sealed in. The way out, if one exists, is on or in Agartha.
 
 ---
@@ -51,10 +64,10 @@ narrator was one of the crew all along: "We are Humanity. You included."
 
 | Act | Time | Beat |
 |-----|------|------|
-| I. THE CRADLE | 0:00-1:05 | United humanity, filled solar system, First Fleet departs |
-| II. THE CROSSING | 1:05-2:15 | Shipboard life, sim drills (fail free), the dead system |
-| III. THE BARRIER | 2:15-3:45 | The trap, the collisions, the rescue: skills pay off live |
-| IV. THE SILENT STAR | 3:45-4:45 | Agartha revealed, the debris shells, resolve, title |
+| I. THE CRADLE | 0:00-1:00 | United humanity, filled solar system, First Fleet departs into the unknown |
+| II. THE REACH | 1:00-2:10 | The expansion loop: colonize, drill, reach again; the galaxy is silent |
+| III. THE BARRIER | 2:10-3:40 | System four is a lie: the trap, the collisions, the rescue |
+| IV. THE SILENT STAR | 3:40-4:45 | The illusion falls, Agartha revealed, resolve, title |
 
 ---
 
@@ -64,7 +77,7 @@ Durations are targets; AI clips generate at 5-10 s, trim in the edit. VO lines a
 draft; read slow, let the music breathe between lines. Shots marked [HERO] are the ones
 worth heavy retry budget.
 
-## ACT I: THE CRADLE (0:00-1:05)
+## ACT I: THE CRADLE (0:00-1:00)
 
 | # | Dur | Shot | VO / Audio |
 |---|-----|------|-----------|
@@ -74,57 +87,57 @@ worth heavy retry budget.
 | 4 | 6s | Mars half-terraformed, green creeping across the red, orbital mirrors blazing. | VO: "One world. Then a hundred." |
 | 5 | 6s | The Belt: asteroid foundries pouring glowing alloy in vacuum, drone swarms weaving. | VO: "We closed the loops. We ended the old wars." |
 | 6 | 6s | Traffic lanes like arteries across the system, thousands of running lights. Humans and androform AI working one scaffold together, no distinction. | VO: "We filled the cradle of our star." |
-| 7 | 7s | Tone shadow: a deep-space relay station, dish scorched dark, drifting dead. Signal-loss chirp in the score. | VO: "And when the deep relays went quiet, one by one... we did not hide." |
-| 8 | 8s | [HERO] The First Fleet assembled at the heliopause: hundreds of multi-kilometer ships, golden-spiral superstructures, formation like a cathedral. | VO: "We built the First Fleet." |
-| 9 | 9s | [HERO] Fleet-wide burn. Engines ignite in waves. The fleet leaves the sun behind, a constellation accelerating into dark. Soft pre-title: HUMANITYOS. | VO: "We know what waits between the stars. We go anyway." |
+| 7 | 8s | [HERO] The First Fleet assembled at the heliopause: hundreds of multi-kilometer ships, golden-spiral superstructures, formation like a cathedral. | VO: "We did not know what waited between the stars." |
+| 8 | 8s | [HERO] Fleet-wide burn. Engines ignite in waves. The fleet leaves the sun behind, a constellation accelerating into dark. Soft pre-title: HUMANITYOS. | VO: "So we built the First Fleet. And we went to find out." |
 
-## ACT II: THE CROSSING (1:05-2:15)
-
-| # | Dur | Shot | VO / Audio |
-|---|-----|------|-----------|
-| 10 | 6s | Interior: spin-gravity garden decks, terraced crops curving overhead, warm light, a farmer's hands in soil. | Music only. Let the ship feel alive. |
-| 11 | 6s | Fabrication bay: crews at workbenches, a fabricator suiting up, tools racked like a cathedral organ. | VO: "A year into the dark, they drill." |
-| 12 | 7s | SIM DRILL: hull breach roars open, a young fabricator's weld fails, decompression tears the bay apart, she is torn into the void... | Alarm audio cuts to silence. |
-| 13 | 4s | ...hologram grid glitch. RESET. She is standing in the intact bay, breathing hard. It was the simulation. | VO: "They fail where failure costs nothing." |
-| 14 | 6s | She runs it again: clean multi-pass weld bead, sparks sheeting off her visor. Nod from her chief. | VO: "So they can hold when it costs everything." |
-| 15 | 5s | Quick sim montage: gunnery crews tracking targets; life-support techs swapping filters blind, timed; a bridge crew rerouting power. | Rhythmic percussive score. |
-| 16 | 7s | [HERO] The fleet passes a dead system: a shattered ringworld arc, hulks of alien ships fused mid-battle, a burned world below. Ten thousand designs, all dead. | VO: "We found the others. What is left of them." |
-| 17 | 6s | Bridge, silent. The commander watches the wreckage slide past. Weapons crews go to stations without being told. | VO: "The galaxy does not forgive the unprepared." |
-| 18 | 6s | Exterior: the fleet goes dark-running, lights dimming ship by ship, gun batteries unsheathing. | Low sustained dread tone. |
-| 19 | 7s | The target star ahead: too dim, wrong, a smudge where a sun should blaze. Nav holograms flicker with contradictions. | VO: "Ahead: the silent star. No light. No worlds. No warning." |
-
-## ACT III: THE BARRIER (2:15-3:45)
+## ACT II: THE REACH (1:00-2:10)
 
 | # | Dur | Shot | VO / Audio |
 |---|-----|------|-----------|
-| 20 | 6s | Vanguard ships approach empty space. Nothing on sensors. A proximity alarm starts anyway. | Rising alarm. VO: "Contact." |
-| 21 | 7s | [HERO] The lead ship hits the invisible barrier: space ripples like struck water, the ship decelerates from interstellar speed to zero in seconds, hull groaning, crew slammed but ALIVE, caught gently by something merciful. | Massive sub-bass impact, then eerie hush. |
+| 9 | 6s | Drop out at a pristine system: a blue-green world turning below, survey drones streaming down through clouds. | VO: "The first system: empty. Patient. Ours." |
+| 10 | 6s | Colony time-lapse (planet surface clip 1): golden-spiral prefab habitats unfolding like shells, fields terracing outward, lights spreading at dusk. | VO: "We arrived. We took root." |
+| 11 | 5s | A beacon tower ignites a column of light skyward; colonists watch the fleet's burn re-light as a new star in their night sky. | VO: "We reached again." |
+| 12 | 6s | Interior: spin-gravity garden decks between the stars, terraced crops curving overhead, a farmer's hands in soil. | Music only. The ship is alive. |
+| 13 | 6s | Fabrication bay: crews at workbenches, a fabricator suiting up, tools racked like a cathedral organ. | VO: "Between the stars, they drill." |
+| 14 | 7s | SIM DRILL: hull breach roars open, the fabricator's weld fails, decompression tears the bay apart, she is torn into the void... | Alarm audio cuts to silence. |
+| 15 | 4s | ...hologram grid glitch. RESET. She is standing in the intact bay, breathing hard. It was the simulation. | VO: "Fail where it costs nothing." |
+| 16 | 6s | She runs it again: clean multi-pass weld bead, sparks sheeting off her visor. Nod from her chief. | VO: "Hold when it costs everything." |
+| 17 | 6s | Second colony, quick cut (planet surface clip 2): an amber desert world, same spiral prefabs, same beacon igniting. The loop is doctrine now. | VO: "One system. Two. Three." |
+| 18 | 7s | The fleet's long burn against the void, tiny against the star field. Nothing answers. Nothing ever has. | VO: "The galaxy was silent. We mistook silence for welcome." |
+
+## ACT III: THE BARRIER (2:10-3:40)
+
+| # | Dur | Shot | VO / Audio |
+|---|-----|------|-----------|
+| 19 | 6s | System four approach: an ordinary golden star, a blue world glinting far off. Nav plots routine. Crews at ease, postures loose. Nothing is wrong. | VO: "System four." |
+| 20 | 5s | The vanguard cruises in. In the garden deck a child watches the new star through the glass. | Quiet, warm score. No dread cues. |
+| 21 | 7s | [HERO] The catch: the lead ship stops from interstellar speed in seconds. Space ripples like struck water. Hull groaning, crew slammed but ALIVE, caught by something merciful. | Massive sub-bass impact, then eerie hush. VO: "Contact." |
 | 22 | 5s | Bridge of the lead ship: crew gasping, shaken, alive. Inertial status: NOMINAL. Confusion. | VO: "The barrier caught them softly." |
 | 23 | 8s | [HERO] The horror: behind them, the rest of the fleet is still coming at full speed. Ships plow into the stopped vanguard. A spiral cruiser shears through another's flank. Silent fireballs. | VO: "The ships behind them could not stop." Score drops out: impacts in near-silence. |
-| 24 | 7s | Collision ballet wide shot: chain reaction through the formation, hulls crumpling, drives detonating, debris fanning out against the invisible wall. | Muffled concussions. A single sustained choral note. |
-| 25 | 6s | Interior carnage: a garden deck ruptures, soil and trees and water spiraling into vacuum. | Silence except air-loss hiss. |
+| 24 | 7s | Collision ballet wide shot: chain reaction through the formation, hulls crumpling, drives detonating, debris fanning out along an invisible curve. | Muffled concussions. A single sustained choral note. |
+| 25 | 6s | The garden deck ruptures: soil, trees, water spiraling into vacuum. The androform AI crew member catches the child and shields them against the pull, hauling them through the sealing hatch. | Silence except air-loss hiss. |
 | 26 | 6s | Escape pods and EVA thrusters everywhere. Rescue shuttles diving into the debris field. Searchlights raking wreckage. | VO: "Then: every hand. Every skill." |
 | 27 | 7s | [HERO] The fabricator from the sim, now in EVA, welding a shear line on a broken ship while survivors are pulled through the gap behind her. Same weld. Real stakes. Her bead is perfect. | Her breathing + weld hiss. VO: "This is what the drills were for." |
 | 28 | 6s | Life-support techs in a flooding-dark module: filters swapped blind, exactly as drilled. Green lights climb back. Plants unfurl. | Heartbeat percussion resolving. |
 | 29 | 6s | Bridge crew triaging power across the wounded fleet: shields down, life support max, engines trickle. Disciplined. No panic. | VO: "The fleet bled. The fleet held." |
 | 30 | 6s | Wide: the surviving fleet regrouping inside the barrier, wounded ships lashed to intact ones, rescue lights blinking in the dark. | Score returns, wounded but resolute. |
-| 31 | 5s | The commander at the viewport, looking not back at the wreckage, but inward, toward the system's heart. Something is wrong with the light. | VO: "And then they looked inward." |
-| 32 | 5s | POV turn: past the debris, deeper in... there are STARS inside the barrier. Artificial ones. A lattice. | Awe sting. |
+| 31 | 5s | The commander at the viewport, looking for the golden star and the blue world they saw on approach. The sky flickers. | VO: "And when they looked for the sky they had entered..." |
+| 32 | 5s | The illusion collapses: the ordinary system dissolves like a veil burning off. Beyond it: lattice-light, geometry, something vast. | VO: "...it was gone." Awe sting. |
 
-## ACT IV: THE SILENT STAR (3:45-4:45)
+## ACT IV: THE SILENT STAR (3:40-4:45)
 
 | # | Dur | Shot | VO / Audio |
 |---|-----|------|-----------|
-| 33 | 8s | [HERO] The reveal: the star was never dark. It is ENCLOSED. A Dyson swarm lattice across its face, and around it a manufactured solar system: engineered orbits, ring structures, worlds placed like clockwork. | VO: "The star was silent because someone silenced it." |
-| 34 | 7s | Push toward the system's heart, past megastructure bones and dead fleets frozen in shells, orbit after orbit of wreckage: millennia of layered war, a thousand alien shipbuilding philosophies, all broken. | VO: "A manufactured system. And in orbit around its heart... everyone who ever came for it." |
+| 33 | 8s | [HERO] The truth: the star is ENCLOSED. A Dyson lattice across its face, and around it a manufactured solar system: engineered orbits, ring structures, worlds placed like clockwork. | VO: "The star was silent because someone silenced it." |
+| 34 | 7s | Push toward the system's heart, past megastructure bones and dead fleets frozen in shells, orbit after orbit of wreckage: millennia of layered war, a thousand alien shipbuilding philosophies, all broken. | VO: "A manufactured system. And around its heart... everyone who ever came for it." |
 | 35 | 8s | [HERO] AGARTHA: an impossible world twice Earth's size, luminous, patterned with geometry no nature makes, wrapped in the densest debris shell of all. Beautiful. Waiting. | VO: "Agartha." |
 | 36 | 6s | The tiny human fleet against that immensity, running lights like fireflies before a cathedral. | VO: "Sealed in with the prize of a million-year war." |
-| 37 | 6s | Faces at viewports: the fabricator, visor up. The commander. A child in the garden deck, palm on the glass. An androform AI beside them, watching the same light. | VO: "There is no way out. Except through." |
+| 37 | 6s | Faces at viewports: the fabricator, visor up. The commander. The child, palm on the glass, the androform AI beside them, watching the same light. | VO: "There is no way out. Except through." |
 | 38 | 5s | The fleet's engines relight, one by one, turning inward. Toward Agartha. | Score building to resolve. |
 | 39 | 5s | [HERO] Smash to black. Title card: **HUMANITYOS**. | Single deep percussive hit. |
 | 40 | 12s | End cards, steady rhythm: "Explore. Expand. Exploit. Exterminate." / "Learn the skills that keep the ship alive." / "Die in the sim. Live in the world." / "Free forever. Public domain." / "We are Humanity. You included." / united-humanity.us | VO over final card, warm: "We are Humanity. You included." Then the Higgsfield packshot. |
 
-Total: ~40 shots, ~285 s (~4:45).
+Total: 40 shots, ~285 s (~4:45).
 
 ---
 
@@ -136,17 +149,17 @@ chose to have humanity.
 I watched them build it. One world. Then a hundred. We closed the loops. We ended the
 old wars. We filled the cradle of our star.
 
-And when the deep relays went quiet, one by one... we did not hide. We built the First
-Fleet.
+We did not know what waited between the stars. So we built the First Fleet. And we went
+to find out.
 
-We know what waits between the stars. We go anyway.
+The first system: empty. Patient. Ours. We arrived. We took root. We reached again.
 
-A year into the dark, they drill. They fail where failure costs nothing. So they can
-hold when it costs everything.
+Between the stars, they drill. Fail where it costs nothing. Hold when it costs
+everything.
 
-We found the others. What is left of them. The galaxy does not forgive the unprepared.
+One system. Two. Three. The galaxy was silent. We mistook silence for welcome.
 
-Ahead: the silent star. No light. No worlds. No warning.
+System four.
 
 Contact.
 
@@ -156,10 +169,10 @@ Then: every hand. Every skill. This is what the drills were for.
 
 The fleet bled. The fleet held.
 
-And then they looked inward.
+And when they looked for the sky they had entered... it was gone.
 
-The star was silent because someone silenced it. A manufactured system. And in orbit
-around its heart... everyone who ever came for it.
+The star was silent because someone silenced it. A manufactured system. And around its
+heart... everyone who ever came for it.
 
 Agartha. Sealed in with the prize of a million-year war.
 
@@ -167,7 +180,7 @@ There is no way out. Except through.
 
 We are Humanity. You included.
 
-(~170 words. Narrator: the Fleet Mind, calm synthetic voice, proud, unhurried, grave
+(~165 words. Narrator: the Fleet Mind, calm synthetic voice, proud, unhurried, grave
 where the story earns it. No shouting anywhere in the film.)
 
 ---
@@ -187,6 +200,11 @@ running lights, engine torches pale blue-white, elegant and massive, cathedral-l
 formation" (the spiral hull language is the game's Fibonacci-homestead identity; it is
 also a distinctive silhouette the models can hold across shots)
 
+**[COLONY]**: "young human colony on a pristine alien world, golden-spiral prefabricated
+habitats unfolding like nautilus shells, terraced fields spreading outward from the
+center, a beacon tower projecting a column of light into the sky, warm settlement lights
+at dusk" (the colony is the homestead at planetary scale: same spiral identity)
+
 **[FABRICATOR]** (recurring heroine, fully fictional): "female ship fabricator, early 30s,
 East-African features, short hair, dark grey pressure suit with gold piping and welder
 insignia, scuffed helmet with mirrored visor, calm focused expression"
@@ -204,6 +222,10 @@ voxels on reset"
 **[BARRIER]**: "a perfectly invisible spherical barrier revealed only on contact: space
 rippling like struck water, faint iridescent shockwave rings spreading from the impact
 point, otherwise nothing visible"
+
+**[VEIL]**: "a projected illusion of an ordinary star system dissolving like a veil
+burning away: the golden star and distant blue world peeling into static and light,
+revealing vast artificial lattice structures behind them"
 
 **[DEBRIS SHELLS]**: "orbital shells of ancient battle wreckage, layer upon layer,
 thousands of alien ship designs from wildly different civilizations, fused and frozen
@@ -233,9 +255,9 @@ Cold = the trap. Agartha alone gets gold AND jade (it is neither ours nor the en
 
 | Track | Content | Tool policy |
 |-------|---------|-------------|
-| VO | The Fleet Mind narration (~170 words) | AI voice generation, stock synthetic voice, NOT a clone of any real person. Prefer in-platform if quality suffices; else an external AI voice tool, name logged. |
-| Score | 4:45 continuous: triumphant open, pulse drills, dread, near-silent collisions (score drops out), choral grief, resolve build, title hit | AI music generation; compose in 4 movements matching the acts; tool + prompts logged per stem. |
-| SFX | Weld hiss, alarms, decompression, sub-bass barrier impact, muffled vacuum concussions, air-loss hiss, breathing | AI SFX generation per cue; the near-silence of space is a feature (vacuum realism reads as craft to a jury). |
+| VO | The Fleet Mind narration (~165 words) | AI voice generation, stock synthetic voice, NOT a clone of any real person. Prefer in-platform if quality suffices; else an external AI voice tool, name logged. |
+| Score | 4:45 continuous: triumphant open, expansion rhythm with a repeating colonization motif (the motif IS the loop), warm routine at system four, score drops out for the collisions, choral grief, resolve build, title hit | AI music generation; compose in 4 movements matching the acts; tool + prompts logged per stem. |
+| SFX | Weld hiss, alarms, decompression, sub-bass barrier impact, muffled vacuum concussions, air-loss hiss, breathing, beacon ignition | AI SFX generation per cue; the near-silence of space is a feature (vacuum realism reads as craft to a jury). |
 
 Mix + edit in DaVinci Resolve (traditional tools allowed for cutting, grading, titles,
 transitions). Keep every generated audio file, tool name, and prompt in a manifest:
@@ -261,7 +283,7 @@ transitions). Keep every generated audio file, tool name, and prompt in a manife
 
 | Dates | Work |
 |-------|------|
-| Aug 15-17 | Lock script + title. Test generations: Earth quality, fleet design, barrier ripple, Agartha. Character reference sheets. |
+| Aug 15-17 | Lock script + title. Test generations: Earth quality, fleet design, colony, barrier ripple, veil dissolve, Agartha. Character reference sheets. |
 | Aug 18-23 | Act I + Act II generation passes. Score movement 1-2 drafts. VO takes. |
 | Aug 24-28 | Act III collision sequence (biggest retry budget) + Act IV reveal. Score 3-4. SFX cues. |
 | Aug 29-30 | Edit + grade + mix in Resolve. Watermark + packshot. |
@@ -272,5 +294,6 @@ transitions). Keep every generated audio file, tool name, and prompt in a manife
 
 1. Final title (working: THE SILENT STAR).
 2. End-card 4X line as written ("Explore. Expand. Exploit. Exterminate.") vs softened.
-3. Whether the child at the viewport (shot 37) stays (rules permit fictional children
-   in non-harmful contexts; the shot is hope, not peril) or swaps to another crew face.
+3. The child now has a full mini-arc (watches the new star in shot 20, rescued by the
+   androform AI in shot 25, at the viewport in shot 37): recommend KEEP (rules permit
+   fictional children in non-harmful contexts; the rescue is protective, the arc is hope).
