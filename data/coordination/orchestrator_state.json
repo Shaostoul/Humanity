@@ -312,6 +312,11 @@
    "date": "2026-08-15",
    "decision": "v0.1137.0: field test 6 closed. LESSON BANKED: three rounds of patching two divergent row implementations never converged; the fix was ONE painter-based template (draw_server_row, fixed slots, constant right-cluster reservation with width-elided names) for active AND saved servers -- when the same complaint recurs across field tests, unify the implementations instead of patching the differences. Also: rect-based hold_to_confirm_at variant; active collapse joined the per-server persisted set; federation-at-a-glance shipped per the operator design question: stable identity color per server (FNV hash to hue), chip on server rows, matching carrier dots on Commons rooms (hover names them), federation badge with bridges tooltip; badge-less server = promoted-but-not-bridging, readable at a glance. Snapshot-driven iteration caught the tag/name overlap and the narrow-panel squeeze BEFORE shipping (chat + chat_commons both render through the new row).",
    "why": "Operator field test 6: rows still shifting (root: two templates), cog jumping sides, and the design question of showing which servers relay which federated rooms without submenus."
+  },
+  {
+   "date": "2026-08-15",
+   "decision": "v0.1138.0: field test 7 closed. The v0.1137 row unification left two structural leftovers, both found by auditing EVERY emission difference between the two calling paths: (1) three spacing/height asymmetries (2px pre-space on saved rows only; 2px trailing space in the active body only; saved channel rows at label height vs theme.row_height) -- all removed, and the discipline is now written at both sites: the active path may not emit anything the saved path does not; (2) dead cogs = interact-ordering: the whole-row click registered LAST swallowed all overlapping controls (egui last-registered-wins); the row now registers FIRST, sub-controls after -- the OLD pre-unification header had a comment warning about exactly this and the rewrite dropped it. LESSON: when unifying implementations, port the load-bearing comments too; and for layout-parity bugs, diff the EMISSIONS of the two paths line by line rather than eyeballing.",
+   "why": "Operator field test 7: rows still shifted slightly + cogs dead; explicit directive: permanent fixes, not bandaids."
   }
  ],
  "active_scopes_to_avoid": [
