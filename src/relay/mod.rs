@@ -92,6 +92,116 @@ async fn feature_gate(
 /// Add security headers to every response.
 /// CSP uses unsafe-inline for now (inline scripts/handlers exist throughout the
 /// client); this still blocks external script injection and eval().
+/// ── Browser-origin allowlist: THE white-label seam (v0.1139) ──
+///
+/// ONE source builds all three browser-origin gates: the WebSocket Origin
+/// check (ws_handler), the CORS allow_origin list, and the CSP connect-src.
+/// Before this, all three baked the united-humanity hostnames, so browser
+/// chat on ANY other domain (public.guide included, and a self-hosted
+/// node's own served web client) was refused with 403.
+///
+/// Configuration: set `ALLOWED_ORIGINS` (comma-separated https origins,
+/// e.g. "https://example.org,https://chat.example.org") to run this relay
+/// on any domain; unset, the united-humanity defaults apply. The Tauri
+/// desktop origins and this relay's own loopback origins (PORT env) are
+/// ALWAYS included: the desktop app and the node's own web client must
+/// work everywhere without configuration.
+fn parse_allowed_origins(env_val: Option<&str>, port: u16) -> Vec<String> {
+    let mut v: Vec<String> = match env_val {
+        Some(s) if !s.trim().is_empty() => s
+            .split(',')
+            .map(|x| x.trim().trim_end_matches('/').to_string())
+            .filter(|x| !x.is_empty())
+            .collect(),
+        _ => vec![
+            "https://chat.united-humanity.us".to_string(),
+            "https://united-humanity.us".to_string(),
+        ],
+    };
+    v.push("http://tauri.localhost".to_string());
+    v.push("https://tauri.localhost".to_string());
+    v.push("tauri://localhost".to_string());
+    v.push(format!("http://localhost:{port}"));
+    v.push(format!("http://127.0.0.1:{port}"));
+    v.dedup();
+    v
+}
+
+pub(crate) fn allowed_origins() -> &'static Vec<String> {
+    static ORIGINS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ORIGINS.get_or_init(|| {
+        let env_val = std::env::var("ALLOWED_ORIGINS").ok();
+        let port = std::env::var("PORT")
+            .ok()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(3210);
+        let v = parse_allowed_origins(env_val.as_deref(), port);
+        tracing::info!("Browser origin allowlist: {}", v.join(", "));
+        v
+    })
+}
+
+/// The Content-Security-Policy string, with connect-src derived from the
+/// SAME origin allowlist (https origin -> wss host, http -> ws host).
+fn csp_value() -> &'static str {
+    static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CSP.get_or_init(|| {
+        let mut connect = String::from("'self'");
+        for o in allowed_origins() {
+            if let Some(host) = o.strip_prefix("https://") {
+                connect.push_str(" wss://");
+                connect.push_str(host);
+            } else if let Some(host) = o.strip_prefix("http://") {
+                connect.push_str(" ws://");
+                connect.push_str(host);
+            }
+        }
+        format!(
+            "default-src 'self'; \
+             script-src 'self' 'unsafe-inline'; \
+             style-src 'self' 'unsafe-inline'; \
+             img-src 'self' data: https:; \
+             connect-src {connect}; \
+             font-src 'self'; \
+             frame-src 'self'; \
+             object-src 'none'; \
+             base-uri 'self'; \
+             form-action 'self';"
+        )
+    })
+}
+
+#[cfg(test)]
+mod allowed_origins_tests {
+    use super::parse_allowed_origins;
+
+    #[test]
+    fn defaults_when_unset_and_custom_domain_replaces_them() {
+        let d = parse_allowed_origins(None, 3210);
+        assert!(d.contains(&"https://united-humanity.us".to_string()));
+        assert!(d.contains(&"tauri://localhost".to_string()), "desktop app always allowed");
+        assert!(d.contains(&"http://127.0.0.1:3210".to_string()), "own web client always allowed");
+
+        let c = parse_allowed_origins(Some("https://example.org, https://chat.example.org/"), 4000);
+        assert!(c.contains(&"https://example.org".to_string()));
+        assert!(
+            c.contains(&"https://chat.example.org".to_string()),
+            "trailing slash trimmed"
+        );
+        assert!(
+            !c.iter().any(|o| o.contains("united-humanity")),
+            "custom list REPLACES the defaults (a white-label host is not us)"
+        );
+        assert!(c.contains(&"http://localhost:4000".to_string()), "port follows PORT");
+    }
+
+    #[test]
+    fn empty_env_falls_back_to_defaults() {
+        let v = parse_allowed_origins(Some("  "), 3210);
+        assert!(v.contains(&"https://united-humanity.us".to_string()));
+    }
+}
+
 /// X-Frame-Options + CSP frame-ancestors together prevent clickjacking.
 async fn security_headers(
     req: axum::extract::Request,
@@ -115,18 +225,15 @@ async fn security_headers(
     h.insert("x-frame-options",          HeaderValue::from_static("SAMEORIGIN"));
     h.insert("referrer-policy",          HeaderValue::from_static("strict-origin-when-cross-origin"));
     h.insert("permissions-policy",       HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=()"));
-    h.insert("content-security-policy",  HeaderValue::from_static(
-        "default-src 'self'; \
-         script-src 'self' 'unsafe-inline'; \
-         style-src 'self' 'unsafe-inline'; \
-         img-src 'self' data: https:; \
-         connect-src 'self' wss://united-humanity.us wss://chat.united-humanity.us; \
-         font-src 'self'; \
-         frame-src 'self'; \
-         object-src 'none'; \
-         base-uri 'self'; \
-         form-action 'self';"
-    ));
+    // connect-src derives from the SAME allowlist as the WS Origin check
+    // and CORS (white-label seam) -- a static fallback only if the built
+    // string were somehow not header-safe (it is plain ASCII).
+    h.insert(
+        "content-security-policy",
+        HeaderValue::from_str(csp_value()).unwrap_or_else(|_| {
+            HeaderValue::from_static("default-src 'self'; object-src 'none'; base-uri 'self';")
+        }),
+    );
     res
 }
 
@@ -911,14 +1018,13 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .layer(middleware::from_fn(security_headers))
         .layer(
             CorsLayer::new()
-                .allow_origin([
-                    "https://chat.united-humanity.us".parse::<http::HeaderValue>().unwrap(),
-                    "https://united-humanity.us".parse::<http::HeaderValue>().unwrap(),
-                    // Tauri 2 desktop app
-                    "http://tauri.localhost".parse::<http::HeaderValue>().unwrap(),
-                    "https://tauri.localhost".parse::<http::HeaderValue>().unwrap(),
-                    "tauri://localhost".parse::<http::HeaderValue>().unwrap(),
-                ])
+                // Same single-source allowlist as the WS Origin check + CSP.
+                .allow_origin(
+                    allowed_origins()
+                        .iter()
+                        .filter_map(|o| o.parse::<http::HeaderValue>().ok())
+                        .collect::<Vec<_>>(),
+                )
                 .allow_methods([http::Method::GET, http::Method::POST, http::Method::PUT, http::Method::DELETE, http::Method::PATCH])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         )
@@ -999,14 +1105,9 @@ async fn ws_handler(
     // Non-browser clients (native apps, bots) typically don't send Origin,
     // so we only reject when Origin is present but not in the allow-list.
     if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
-        let allowed = [
-            "https://chat.united-humanity.us",
-            "https://united-humanity.us",
-            "http://tauri.localhost",
-            "https://tauri.localhost",
-            "tauri://localhost",
-        ];
-        if !allowed.iter().any(|&a| a == origin) {
+        // Same single-source allowlist as CORS + CSP (white-label seam).
+        if !allowed_origins().iter().any(|a| a == origin) {
+            tracing::warn!("WS refused: Origin {origin} not in the allowlist (set ALLOWED_ORIGINS to serve this domain)");
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }
     }

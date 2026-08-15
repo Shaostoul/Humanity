@@ -286,29 +286,70 @@ pub async fn federation_connect_loop(
                     let _ = write.send(TMessage::Text(json.into())).await;
                 }
 
-                // Spawn write pump.
+                // Spawn write pump, with a 30 s WS Ping keepalive: an idle
+                // federated link otherwise carries no traffic for hours,
+                // and a NAT/middlebox that silently drops the mapping
+                // leaves a socket that LOOKS open but delivers nothing.
+                // The peer's WS stack auto-answers Pong, which feeds the
+                // read pump's liveness timeout below.
                 let write_task = tokio::spawn(async move {
                     use tokio_tungstenite::tungstenite::Message as TMessage;
-                    while let Some(msg) = rx.recv().await {
-                        if write.send(TMessage::Text(msg.into())).await.is_err() {
-                            break;
+                    let mut ping = tokio::time::interval(tokio::time::Duration::from_secs(30));
+                    ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                    loop {
+                        tokio::select! {
+                            msg = rx.recv() => match msg {
+                                Some(m) => {
+                                    if write.send(TMessage::Text(m.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                None => break,
+                            },
+                            _ = ping.tick() => {
+                                if write.send(TMessage::Ping(Vec::new().into())).await.is_err() {
+                                    break;
+                                }
+                            }
                         }
                     }
                 });
 
                 // Read pump: handle incoming messages from federated server.
                 // The source identity handed to handle_peer_message is the
-                // peer's KEY (peer_id), never the dialed URL.
+                // peer's KEY (peer_id), never the dialed URL. A peer silent
+                // for 90 s (3 missed ping rounds) is treated as DEAD: break
+                // out so the loop reconnects instead of trusting a rotted
+                // NAT mapping forever.
                 let state_for_read = state.clone();
                 let _sid_for_read = peer_id.clone();
                 let read_task = tokio::spawn(async move {
                     use tokio_tungstenite::tungstenite::Message as TMessage;
-                    while let Some(Ok(msg)) = read.next().await {
-                        if let TMessage::Text(text) = msg {
-                            if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
-                                // One shared handler for both federation
-                                // directions; see handle_peer_message.
-                                handle_peer_message(&state_for_read, &_sid_for_read, relay_msg).await;
+                    loop {
+                        match tokio::time::timeout(
+                            tokio::time::Duration::from_secs(90),
+                            read.next(),
+                        )
+                        .await
+                        {
+                            Err(_) => {
+                                tracing::warn!(
+                                    "Federation: peer {} silent for 90s, dropping the link to reconnect",
+                                    _sid_for_read
+                                );
+                                break;
+                            }
+                            Ok(None) | Ok(Some(Err(_))) => break,
+                            Ok(Some(Ok(msg))) => {
+                                if let TMessage::Text(text) = msg {
+                                    if let Ok(relay_msg) =
+                                        serde_json::from_str::<RelayMessage>(&text)
+                                    {
+                                        // One shared handler for both federation
+                                        // directions; see handle_peer_message.
+                                        handle_peer_message(&state_for_read, &_sid_for_read, relay_msg).await;
+                                    }
+                                }
                             }
                         }
                     }
@@ -422,14 +463,30 @@ pub async fn run_inbound_peer(
             }
         }
     });
-    // Read pump: same shared handler as the outbound direction.
+    // Read pump: same shared handler as the outbound direction. The DIALER
+    // side pings every 30 s (federation_connect_loop), so a healthy link is
+    // never silent longer than that; 120 s of silence here means the peer
+    // (or its NAT path) is gone -- close so the row shows offline instead
+    // of a zombie "connected" that delivers nothing.
     let state_for_read = state.clone();
     let sid_for_read = server_id.clone();
     let read_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_rx.next().await {
-            if let AxMessage::Text(text) = msg {
-                if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
-                    handle_peer_message(&state_for_read, &sid_for_read, relay_msg).await;
+        loop {
+            match tokio::time::timeout(tokio::time::Duration::from_secs(120), ws_rx.next()).await {
+                Err(_) => {
+                    tracing::warn!(
+                        "Federation: inbound peer {} silent for 120s, closing",
+                        sid_for_read
+                    );
+                    break;
+                }
+                Ok(None) | Ok(Some(Err(_))) => break,
+                Ok(Some(Ok(msg))) => {
+                    if let AxMessage::Text(text) = msg {
+                        if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
+                            handle_peer_message(&state_for_read, &sid_for_read, relay_msg).await;
+                        }
+                    }
                 }
             }
         }

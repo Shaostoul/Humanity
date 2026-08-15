@@ -150,8 +150,15 @@ mkdir -p "$REPO/data"
 if [ ! -f "$REPO/.env" ]; then
   # ADMIN_KEYS intentionally left empty: it is the operator's chat public key,
   # set once by the operator (docs/admin/SELF-HOSTING.md "first admin").
-  printf 'ADMIN_KEYS=\nAPI_SECRET=%s\nRUST_LOG=info\n' "$(openssl rand -hex 32)" > "$REPO/.env"
+  # ALLOWED_ORIGINS is THE white-label seam (v0.1139): the relay's WS-Origin
+  # check, CORS, and CSP all build from it, so browser chat works on THIS
+  # node's domain instead of only united-humanity.us.
+  printf 'ADMIN_KEYS=\nAPI_SECRET=%s\nRUST_LOG=info\nALLOWED_ORIGINS=https://%s,https://%s\n' \
+    "$(openssl rand -hex 32)" "$DOMAIN" "$CHAT_DOMAIN" > "$REPO/.env"
   chmod 600 "$REPO/.env"
+elif ! grep -q '^ALLOWED_ORIGINS=' "$REPO/.env"; then
+  # Existing node from before the seam: append the domain allowlist once.
+  printf 'ALLOWED_ORIGINS=https://%s,https://%s\n' "$DOMAIN" "$CHAT_DOMAIN" >> "$REPO/.env"
 fi
 # ── The relay binary: FETCH if we can, build only if we must ────────────────
 #

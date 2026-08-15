@@ -391,7 +391,9 @@
       if (token === 'SOL') {
         txHash = await HosWallet.sendSOL(to, amount, privateKey);
       } else if (token === 'USDC') {
-        txHash = await HosWallet.sendToken(to, amount, USDC_MINT, privateKey);
+        // sendSPLToken (the real export; sendToken never existed) needs the
+        // mint's decimals to build the raw integer amount. USDC has 6.
+        txHash = await HosWallet.sendSPLToken(to, amount, USDC_MINT, 6, privateKey);
       }
 
       if (txHash) {
@@ -563,7 +565,10 @@
         return showError('swap-status', 'Swap not implemented in wallet.js yet.');
       }
 
-      var txHash = await HosWallet.executeSwap(inputMint, outputMint, amountLamports, slippage * 100, privateKey);
+      // wallet.js signature: (inputMint, outputMint, amount, identity,
+      // slippageBps) -- identity 4th. The old call had slippage and the
+      // key swapped, so every swap failed the identity guard.
+      var txHash = await HosWallet.executeSwap(inputMint, outputMint, amountLamports, privateKey, slippage * 100);
 
       showSuccess('swap-status',
         'Swap confirmed! <a class="tx-link" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">View on Solscan</a>'
@@ -863,21 +868,30 @@
 
   // ── Private Key Access ──
 
+  // Returns a FULL identity object ({ publicKeyHex, privateKey, publicKey }),
+  // which is what wallet.js sendSOL/sendSPLToken actually require -- the old
+  // helper returned only the raw privateKey, which failed their identity
+  // guard, so sends never worked from this page. The IndexedDB fallback now
+  // reads crypto.js's REAL store (db 'humanity-keys', store 'identity', key
+  // 'primary'); the old code opened a nonexistent 'HumanityOS'/'keys' db.
   async function getPrivateKey() {
     // Try global myIdentity first (set by app.js/crypto.js)
-    if (window.myIdentity && window.myIdentity.privateKey) {
-      return window.myIdentity.privateKey;
+    if (window.myIdentity && window.myIdentity.privateKey && window.myIdentity.publicKeyHex) {
+      return window.myIdentity;
     }
 
-    // Try loading from IndexedDB (same pattern as crypto.js getOrCreateIdentity)
+    // Fallback: crypto.js's IndexedDB identity record, which is stored as
+    // { id: 'primary', publicKeyHex, privateKey, publicKey }.
     try {
       var db = await openIdentityDB();
-      var tx = db.transaction('keys', 'readonly');
-      var store = tx.objectStore('keys');
-      var req = store.get('identity');
-      var result = await promisifyRequest(req);
-      if (result && result.privateKey) {
-        return result.privateKey;
+      if (db.objectStoreNames.contains('identity')) {
+        var tx = db.transaction('identity', 'readonly');
+        var store = tx.objectStore('identity');
+        var req = store.get('primary');
+        var result = await promisifyRequest(req);
+        if (result && result.privateKey && result.publicKeyHex) {
+          return result;
+        }
       }
     } catch (e) {
       console.warn('IndexedDB key access failed:', e);
@@ -888,12 +902,9 @@
 
   function openIdentityDB() {
     return new Promise(function (resolve, reject) {
-      var req = indexedDB.open('HumanityOS', 1);
-      req.onupgradeneeded = function () {
-        if (!req.result.objectStoreNames.contains('keys')) {
-          req.result.createObjectStore('keys');
-        }
-      };
+      // Open at the CURRENT version with no upgrade handler: this is a
+      // read-only consumer of crypto.js's database, never its creator.
+      var req = indexedDB.open('humanity-keys');
       req.onsuccess = function () { resolve(req.result); };
       req.onerror = function () { reject(req.error); };
     });

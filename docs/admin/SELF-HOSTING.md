@@ -266,6 +266,12 @@ All configuration is via environment variables. Create a `.env` file or set them
 ADMIN_KEYS=your_dilithium3_public_key_hex # Comma-separated admin public keys (Dilithium3 / ML-DSA-65 hex)
 API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 
+# Required for BROWSER chat on your own domain (v0.1139+). The relay's
+# WebSocket Origin check, CORS, and CSP all build from this one list; without
+# it, browsers on your domain get 403 and only the desktop app can connect.
+# The desktop app and the node's own localhost web client are always allowed.
+ALLOWED_ORIGINS=https://your-domain.example,https://chat.your-domain.example
+
 # Optional
 WEBHOOK_URL=https://your-webhook-endpoint # Notified on new messages
 WEBHOOK_TOKEN=your_webhook_bearer_token   # Auth for webhook calls
