@@ -680,6 +680,27 @@ web (select population + badge palette), and the validator alike.
 - Vocabulary: `data/market/categories.json`; relay: `market_payloads::shared_categories`
 - Web: `web/pages/market-app.js` (`loadMarketCategories`)
 
+### Market In-App Publishing (v0.1143)
+"+ Publish" on the native Directory tab: create/update your shop
+(provider_v1) and publish offerings (offering_v1) without a terminal.
+Payloads are validated locally with the EXACT relay validators before
+anything is sent, signed with the chat identity (`pq_object_keypair` +
+`ObjectBuilder`), POSTed to `/api/v2/objects` off-thread; a success
+refetches the directory. Enum dropdowns read the same
+`market_payloads` pub consts the validator enforces. End-to-end test:
+`market_publish::tests::end_to_end_against_local_relay` (ignored; run
+against a throwaway `--headless` relay).
+- Native: `src/gui/pages/market_publish.rs`; identity: `src/net/identity.rs::pq_object_keypair`
+
+### Market Directory (web mirror, v0.1143)
+The web market page opens on a Directory section mirroring the native tab:
+offerings browse (search + category filter), providers with storefront
+filtering, detail modal with copyable provider key, same latest-revision +
+TTL rules. CBOR decode via `decodeCanonicalCbor` (decoder extended with
+floats/negatives/bools; encoder untouched, byte-lock proven by
+`scripts/group-object-kat.mjs`).
+- Web: `web/pages/market-app.js`, `web/pages/market.html`, `web/shared/canonical-cbor.js`
+
 ### Crafting Page
 Recipe browsing and crafting UI.
 - Native: `src/gui/pages/crafting.rs`

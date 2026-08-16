@@ -1,5 +1,10 @@
 # Market bulk importer
 
+> One-at-a-time publishing needs no terminal at all: the native app's
+> Market > Directory > "+ Publish" creates your shop and offerings in-app
+> (v0.1143), signed with the same identity, validated by the same rules.
+> This importer is the BULK path: whole catalogs, nightly re-imports.
+
 Publish a provider entry and a whole catalog of offerings onto any HumanityOS
 server in one command. Everything is signed with your own identity and
 validated server-side against the schemas; the platform lists and introduces,

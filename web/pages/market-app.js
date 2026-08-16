@@ -4,6 +4,10 @@ let marketListings = [];
 let marketMyKey = '';
 let marketMyName = 'Visitor';
 let marketMyRole = '';
+/** Whether this identity's role may publish classifieds listings (set on peer_list). */
+var marketCanList = false;
+/** Which sub-section is showing; the Create Listing button follows it. */
+var _marketSection = 'directory';
 /** Cache of seller ratings: { [seller_key]: { avg: number, count: number } } */
 const sellerRatings = {};
 /** Cache of reviews per listing: { [listing_id]: ReviewData[] } */
@@ -54,7 +58,11 @@ function loadMarketCategories() {
       MARKET_CATEGORIES = j.categories;
       fillCategorySelect(document.getElementById('market-category-filter'), 'All Categories');
       fillCategorySelect(document.getElementById('store-category-filter'), 'All Categories');
+      fillCategorySelect(document.getElementById('dir-category-filter'), 'All Categories');
       fillCategorySelect(document.getElementById('listing-category'), null);
+      // The directory shows vocabulary LABELS for the ids in its payloads, so
+      // redraw once the vocabulary lands (it may arrive after the first paint).
+      renderDirectory();
     })
     .catch(function() { /* fallback: the static options in market.html */ });
 }
@@ -139,11 +147,20 @@ async function fetchListingReviews(listingId) {
 }
 
 function showMarketSection(section) {
-  ['marketplace','stores','mylistings'].forEach(function(s) {
-    document.getElementById('market-section-' + s).style.display = s === section ? '' : 'none';
+  _marketSection = section;
+  ['directory','marketplace','stores','mylistings'].forEach(function(s) {
+    var el = document.getElementById('market-section-' + s);
+    if (el) el.style.display = s === section ? '' : 'none';
     var btn = document.getElementById('market-nav-' + s);
     if (btn) { btn.classList.toggle('btn-clickable', s === section); }
   });
+  // Create Listing publishes a classifieds listing, not a directory offering
+  // (those are signed objects, published by the importer), so hide it here.
+  var createBtn = document.getElementById('market-create-btn');
+  if (createBtn) {
+    createBtn.style.display = (section !== 'directory' && marketCanList) ? 'inline-flex' : 'none';
+  }
+  if (section === 'directory') loadDirectory(false);
   if (section === 'marketplace') renderMarketListings();
   if (section === 'stores') renderStoreDirectory();
   if (section === 'mylistings') renderMyListings();
@@ -229,9 +246,10 @@ function handleMarketMessage(msg) {
       var me = msg.peers.find(function(p) { return p.public_key_hex === marketMyKey || p.public_key === marketMyKey; });
       if (me) { marketMyRole = me.role || ''; }
     }
-    var canList = marketMyRole === 'admin' || marketMyRole === 'mod' || marketMyRole === 'verified' || marketMyRole === 'donor';
+    marketCanList = marketMyRole === 'admin' || marketMyRole === 'mod' || marketMyRole === 'verified' || marketMyRole === 'donor';
     var btn = document.getElementById('market-create-btn');
-    if (btn) btn.style.display = canList ? 'inline-flex' : 'none';
+    var onDirectory = _marketSection === 'directory';
+    if (btn) btn.style.display = (marketCanList && !onDirectory) ? 'inline-flex' : 'none';
     if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'listing_browse' }));
   }
 }
@@ -643,6 +661,573 @@ function renderStoreDirectory() {
   }).join('');
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Market Directory: the signed provider/offering catalog.
+ *
+ * Web mirror of the native Directory tab (src/gui/pages/market_directory.rs).
+ * Every view here is a query over GET /api/v2/objects (object_type=provider_v1
+ * / offering_v1). Payloads are canonical CBOR signed by the merchant's chat
+ * identity, so LATEST-revision resolution happens client-side: an offering's
+ * identity is (provider root, offering_key), a provider's identity is its root
+ * object id, and the newest updated_at wins. Settlement is directory-only by
+ * design: this view lists and introduces, it never moves money.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+var DIRECTORY = {
+  sub: 'offerings',        // 'offerings' | 'providers'
+  providers: [],
+  offerings: [],
+  providerFilter: null,    // provider root_id, set by clicking a provider card
+  loaded: false,
+  loading: false,
+  error: '',
+};
+
+/* canonical-cbor.js is an ES module and this file is a classic script, so the
+ * bridge is a lazily cached dynamic import (the same pattern chat-groups-p2p.js
+ * uses for pq-object.js). Nothing here races DOMContentLoaded: every caller
+ * awaits this promise before touching the decoder. */
+var _dirCborModule = null;
+function directoryCbor() {
+  if (!_dirCborModule) _dirCborModule = import('/shared/canonical-cbor.js');
+  return _dirCborModule;
+}
+
+function dirB64Bytes(b64) {
+  var bin = atob(String(b64 || ''));
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function dirHex(bytes) {
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  return hex;
+}
+
+/* Field readers over a decoded CBOR map. Mirrors the native decoder's shapes:
+ * a missing or wrong-typed field is absent, never a thrown error, because one
+ * malformed row must not blank the whole directory. */
+function dirText(m, k) { return m && typeof m[k] === 'string' ? m[k] : ''; }
+function dirNum(m, k) {
+  var v = m ? m[k] : undefined;
+  if (typeof v === 'bigint') return Number(v);
+  return typeof v === 'number' ? v : null;
+}
+function dirStrs(m, k) {
+  var v = m ? m[k] : undefined;
+  return Array.isArray(v) ? v.filter(function(x) { return typeof x === 'string'; }) : [];
+}
+function dirTable(m, k) {
+  var v = m ? m[k] : undefined;
+  return v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Uint8Array) ? v : null;
+}
+
+function dirDecodeProvider(row, cbor) {
+  var p;
+  try { p = cbor.decodeCanonicalCbor(dirB64Bytes(row.payload_b64)); } catch (e) { return null; }
+  if (!p || typeof p !== 'object') return null;
+  var name = dirText(p, 'display_name');
+  if (!name) return null;
+  var contact = dirTable(p, 'contact');
+  return {
+    // A provider UPDATE carries provider_ref back to the root it revises; the
+    // first revision IS the root, so it has no provider_ref of its own.
+    root_id: dirText(p, 'provider_ref') || String(row.object_id || ''),
+    author_key_hex: row.author_public_key_b64 ? dirHex(dirB64Bytes(row.author_public_key_b64)) : '',
+    display_name: name,
+    kind: dirText(p, 'kind'),
+    description: dirText(p, 'description'),
+    status: dirText(p, 'status'),
+    contact_preferred: contact ? dirText(contact, 'preferred') : '',
+    website: contact ? dirText(contact, 'website') : '',
+    updated_at: dirNum(p, 'updated_at') || 0,
+  };
+}
+
+function dirDecodeOffering(row, cbor) {
+  var o;
+  try { o = cbor.decodeCanonicalCbor(dirB64Bytes(row.payload_b64)); } catch (e) { return null; }
+  if (!o || typeof o !== 'object') return null;
+  var providerRoot = dirText(o, 'provider_ref');
+  var key = dirText(o, 'offering_key');
+  var title = dirText(o, 'title');
+  if (!providerRoot || !key || !title) return null;
+  var price = dirTable(o, 'price');
+  var settlement = dirTable(o, 'settlement');
+  var good = dirTable(o, 'good');
+  var service = dirTable(o, 'service');
+  var availability = service ? dirTable(service, 'availability') : null;
+  return {
+    provider_root: providerRoot,
+    offering_key: key,
+    kind: dirText(o, 'kind'),
+    reality: dirText(o, 'reality') || 'real',
+    title: title,
+    // schemas/offering.toml names this field `description` (required).
+    summary: dirText(o, 'description') || dirText(o, 'summary'),
+    category: dirText(o, 'category'),
+    tags: dirStrs(o, 'tags'),
+    status: dirText(o, 'status'),
+    updated_at: dirNum(o, 'updated_at') || 0,
+    expires_at: dirNum(o, 'expires_at'),
+    ttl_days: dirNum(o, 'ttl_days') != null ? dirNum(o, 'ttl_days') : 30,
+    fulfillment: dirStrs(o, 'fulfillment'),
+    price_mode: price ? dirText(price, 'mode') : '',
+    price_amount: price ? dirNum(price, 'amount') : null,
+    price_amount_max: price ? dirNum(price, 'amount_max') : null,
+    price_currency: price ? dirText(price, 'currency') : '',
+    price_unit: price ? dirText(price, 'unit') : '',
+    price_accepts: price ? dirStrs(price, 'accepts') : [],
+    price_notes: price ? dirText(price, 'notes') : '',
+    contact_via: settlement ? dirText(settlement, 'contact_via') : '',
+    checkout_uri: settlement ? dirText(settlement, 'checkout_uri') : '',
+    instructions: settlement ? dirText(settlement, 'instructions') : '',
+    condition: good ? dirText(good, 'condition') : '',
+    availability_mode: good ? dirText(good, 'availability_mode') : '',
+    quantity_available: good ? dirNum(good, 'quantity_available') : null,
+    lead_time_days: good ? dirNum(good, 'lead_time_days') : null,
+    action: service ? dirText(service, 'action') : '',
+    schedule_kind: availability ? dirText(availability, 'schedule_kind') : '',
+    duration_minutes: service ? dirNum(service, 'duration_minutes') : null,
+    location_mode: dirTable(o, 'location') ? dirText(dirTable(o, 'location'), 'mode') : '',
+  };
+}
+
+/** Stable selection key for one offering. */
+function dirSelKey(o) { return o.provider_root + '/' + o.offering_key; }
+
+/* Hidden once past its explicit expiry, or past ttl_days since the last touch
+ * (default 30, the schema's freshness contract: re-importing IS the keepalive,
+ * so the directory never fills with ghosts). Timestamps are milliseconds. */
+function dirExpired(o, nowMs) {
+  if (o.expires_at != null) return o.expires_at <= nowMs;
+  var ttl = Math.min(365, Math.max(1, o.ttl_days || 30));
+  return o.updated_at + ttl * 86400000 <= nowMs;
+}
+
+/** Human price line: "Free", "24.99 USD each", "10.00 to 20.00 USD", "Ask". */
+function dirPriceLine(o) {
+  var unit = !o.price_unit ? ''
+    : (o.price_unit === 'each' ? ' each' : ' per ' + o.price_unit.replace(/_/g, ' '));
+  var a = o.price_amount;
+  var b = o.price_amount_max;
+  switch (o.price_mode) {
+    case 'free': return 'Free';
+    case 'trade': return 'Trade';
+    case 'donation': return 'Donation';
+    case 'inquire': return 'Ask';
+    case 'pay_what_you_can': return 'Pay what you can';
+    case 'sliding_scale':
+      return (a != null && b != null)
+        ? 'Sliding ' + a.toFixed(2) + ' to ' + b.toFixed(2) + ' ' + o.price_currency + unit
+        : 'Sliding scale';
+    case 'range':
+      return (a != null && b != null)
+        ? a.toFixed(2) + ' to ' + b.toFixed(2) + ' ' + o.price_currency + unit
+        : 'Range';
+    case 'fixed':
+      return a != null ? a.toFixed(2) + ' ' + o.price_currency + unit : 'Priced';
+    default:
+      return String(o.price_mode || '').replace(/_/g, ' ');
+  }
+}
+
+/** "today", "3d ago", "2mo ago" from a millisecond timestamp. */
+function dirAge(updatedMs, nowMs) {
+  var days = Math.floor(Math.max(0, nowMs - updatedMs) / 86400000);
+  if (days === 0) return 'today';
+  if (days <= 59) return days + 'd ago';
+  return Math.floor(days / 30) + 'mo ago';
+}
+
+/** Enum ids ride the wire as snake_case; humans read them with spaces. */
+function dirEnumLabel(s) { return String(s || '').replace(/_/g, ' '); }
+
+/** Vocabulary label for a category id (falls back to the id itself). */
+function dirCategoryLabel(id) {
+  for (var i = 0; i < MARKET_CATEGORIES.length; i++) {
+    if (MARKET_CATEGORIES[i].id === id) return MARKET_CATEGORIES[i].label;
+  }
+  return id;
+}
+
+/* The category <select> carries LABELS (shared with the classifieds filter),
+ * while offering payloads carry the lowercase snake_case id, so map back. */
+function dirCategoryId(label) {
+  if (!label) return '';
+  for (var i = 0; i < MARKET_CATEGORIES.length; i++) {
+    if (MARKET_CATEGORIES[i].label === label) return MARKET_CATEGORIES[i].id;
+  }
+  return String(label).toLowerCase();
+}
+
+/** Escape a value for use inside a single-quoted JS string in an onclick. */
+function dirAttr(s) {
+  return escHtml(String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+}
+
+function dirProviderByRoot(root) {
+  return DIRECTORY.providers.find(function(p) { return p.root_id === root; }) || null;
+}
+
+// ── Fetch + latest-revision resolution ──
+
+function dirFetchRows(objectType) {
+  return fetch(API_BASE + '/api/v2/objects?object_type=' + objectType + '&limit=500', { cache: 'no-cache' })
+    .then(function(r) {
+      if (!r.ok) throw new Error(objectType + ': HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(j) { return Array.isArray(j) ? j : []; });
+}
+
+/** Cached: one round per object type on section entry, then only on Refresh. */
+function loadDirectory(force) {
+  if (DIRECTORY.loading) return;
+  if (DIRECTORY.loaded && !force) { renderDirectory(); return; }
+  DIRECTORY.loading = true;
+  DIRECTORY.error = '';
+  renderDirectory();
+  Promise.all([directoryCbor(), dirFetchRows('provider_v1'), dirFetchRows('offering_v1')])
+    .then(function(res) {
+      var cbor = res[0];
+
+      // Providers: newest revision per root id wins.
+      var byRoot = {};
+      res[1].forEach(function(row) {
+        var p = dirDecodeProvider(row, cbor);
+        if (!p || !p.root_id) return;
+        var old = byRoot[p.root_id];
+        if (!old || old.updated_at < p.updated_at) byRoot[p.root_id] = p;
+      });
+
+      // Offerings: newest revision per (provider root, offering_key) wins;
+      // received_at breaks updated_at ties (a re-import touches freshness).
+      var byKey = {};
+      res[2].forEach(function(row) {
+        var o = dirDecodeOffering(row, cbor);
+        if (!o) return;
+        var received = typeof row.received_at === 'number' ? row.received_at : 0;
+        var k = o.provider_root + ' ' + o.offering_key;
+        var old = byKey[k];
+        if (!old || old.o.updated_at < o.updated_at
+            || (old.o.updated_at === o.updated_at && old.received < received)) {
+          byKey[k] = { received: received, o: o };
+        }
+      });
+
+      var newest = function(a, b) { return b.updated_at - a.updated_at; };
+      DIRECTORY.providers = Object.keys(byRoot).map(function(k) { return byRoot[k]; }).sort(newest);
+      DIRECTORY.offerings = Object.keys(byKey).map(function(k) { return byKey[k].o; }).sort(newest);
+      DIRECTORY.loaded = true;
+      DIRECTORY.error = '';
+    })
+    .catch(function(e) {
+      DIRECTORY.error = (e && e.message) ? e.message : String(e);
+    })
+    .then(function() {
+      DIRECTORY.loading = false;
+      renderDirectory();
+    });
+}
+
+// ── Views ──
+
+function setDirectorySub(sub) {
+  DIRECTORY.sub = sub;
+  renderDirectory();
+}
+
+function clearDirectoryProviderFilter() {
+  DIRECTORY.providerFilter = null;
+  renderDirectory();
+}
+
+/** Click a provider card: filter offerings down to that storefront. */
+function showProviderStorefront(root) {
+  DIRECTORY.providerFilter = root;
+  DIRECTORY.sub = 'offerings';
+  renderDirectory();
+}
+
+/** Active + unexpired + filtered, in the current sub-view's order. */
+function directoryVisibleOfferings() {
+  var now = Date.now();
+  var searchEl = document.getElementById('dir-search');
+  var catEl = document.getElementById('dir-category-filter');
+  var needle = ((searchEl && searchEl.value) || '').trim().toLowerCase();
+  var catId = dirCategoryId(catEl ? catEl.value : '');
+  return DIRECTORY.offerings.filter(function(o) {
+    if (o.status !== 'active') return false;
+    if (dirExpired(o, now)) return false;
+    if (catId && o.category !== catId) return false;
+    if (DIRECTORY.providerFilter && o.provider_root !== DIRECTORY.providerFilter) return false;
+    if (needle) {
+      var hit = o.title.toLowerCase().indexOf(needle) !== -1
+        || o.summary.toLowerCase().indexOf(needle) !== -1
+        || o.tags.some(function(t) { return t.toLowerCase().indexOf(needle) !== -1; });
+      if (!hit) return false;
+    }
+    return true;
+  });
+}
+
+function directoryActiveOfferingCount(root) {
+  var now = Date.now();
+  return DIRECTORY.offerings.filter(function(o) {
+    return o.provider_root === root && o.status === 'active' && !dirExpired(o, now);
+  }).length;
+}
+
+function renderDirectory() {
+  var grid = document.getElementById('dir-grid');
+  if (!grid) return;
+  var empty = document.getElementById('dir-empty');
+  var status = document.getElementById('dir-status');
+  var errEl = document.getElementById('dir-error');
+  var filters = document.getElementById('dir-filters');
+  var crumb = document.getElementById('dir-breadcrumb');
+  var refresh = document.getElementById('dir-refresh-btn');
+
+  ['offerings', 'providers'].forEach(function(s) {
+    var b = document.getElementById('dir-sub-' + s);
+    if (b) b.classList.toggle('btn-clickable', DIRECTORY.sub === s);
+  });
+  if (filters) filters.style.display = DIRECTORY.sub === 'offerings' ? '' : 'none';
+  if (refresh) {
+    refresh.disabled = DIRECTORY.loading;
+    refresh.textContent = DIRECTORY.loading ? 'Loading...' : 'Refresh';
+  }
+
+  var plural = function(n, word) { return n === 1 ? '1 ' + word : n + ' ' + word + 's'; };
+  if (status) {
+    status.textContent = plural(DIRECTORY.offerings.length, 'offering') + ' from '
+      + plural(DIRECTORY.providers.length, 'provider')
+      + '. Listings and introductions only: money never moves through the platform.';
+  }
+  if (errEl) {
+    errEl.style.display = DIRECTORY.error ? '' : 'none';
+    errEl.textContent = DIRECTORY.error ? 'Fetch failed: ' + DIRECTORY.error : '';
+  }
+  if (crumb) {
+    var filtered = DIRECTORY.providerFilter ? dirProviderByRoot(DIRECTORY.providerFilter) : null;
+    crumb.innerHTML = filtered
+      ? '<span class="dir-crumb">Storefront: ' + escHtml(filtered.display_name)
+        + ' <button class="btn dir-toggle" onclick="clearDirectoryProviderFilter()">All providers</button></span>'
+      : '';
+  }
+
+  if (DIRECTORY.sub === 'providers') renderDirectoryProviders(grid, empty);
+  else renderDirectoryOfferings(grid, empty);
+}
+
+function renderDirectoryOfferings(grid, empty) {
+  var rows = directoryVisibleOfferings();
+  if (!rows.length) {
+    grid.innerHTML = '';
+    if (empty) {
+      empty.style.display = '';
+      empty.textContent = DIRECTORY.loading
+        ? 'Loading directory...'
+        : 'No offerings here yet. Publish yours with scripts/import-offerings.mjs (docs/admin/market-importer.md).';
+    }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  var now = Date.now();
+  grid.innerHTML = rows.map(function(o) {
+    var catColor = categoryColor(o.category);
+    var provider = dirProviderByRoot(o.provider_root);
+    var providerName = provider ? provider.display_name : 'Unknown provider';
+    var kindNote = o.kind === 'service'
+      ? 'service: ' + dirEnumLabel(o.action)
+      : dirEnumLabel(o.condition);
+    var sel = dirAttr(dirSelKey(o));
+    var thumb = window.hosIcon ? hosIcon(o.kind === 'service' ? 'tool' : 'box', 28) : '';
+    return '<div class="listing-card" role="button" tabindex="0"' +
+      ' onclick="showOfferingDetail(\'' + sel + '\')"' +
+      ' onkeydown="if(event.key===\'Enter\'){showOfferingDetail(\'' + sel + '\')}">' +
+      '<div class="listing-thumb">' + thumb + '</div>' +
+      '<div class="listing-body">' +
+        '<div class="listing-head">' +
+          '<span class="listing-title">' + escHtml(o.title) + '</span>' +
+          '<span class="dir-age">' + escHtml(dirAge(o.updated_at, now)) + '</span>' +
+        '</div>' +
+        '<div class="listing-price">' + escHtml(dirPriceLine(o)) + '</div>' +
+        '<div class="listing-chips">' +
+          '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' +
+            escHtml(dirCategoryLabel(o.category)) + '</span>' +
+          (o.reality === 'sim' ? '<span class="cond-chip">sim</span>' : '') +
+        '</div>' +
+        '<div class="listing-seller">by ' + escHtml(providerName) + '</div>' +
+        (kindNote.trim() ? '<div class="dir-kind">' + escHtml(kindNote) + '</div>' : '') +
+        (o.summary ? '<div class="dir-summary">' + escHtml(o.summary) + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderDirectoryProviders(grid, empty) {
+  var rows = DIRECTORY.providers.filter(function(p) { return p.status === 'active'; });
+  if (!rows.length) {
+    grid.innerHTML = '';
+    if (empty) {
+      empty.style.display = '';
+      empty.textContent = DIRECTORY.loading
+        ? 'Loading directory...'
+        : 'No providers yet. Publish yours with scripts/import-offerings.mjs (docs/admin/market-importer.md).';
+    }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  grid.innerHTML = rows.map(function(p) {
+    var count = directoryActiveOfferingCount(p.root_id);
+    var root = dirAttr(p.root_id);
+    var icon = window.hosIcon ? hosIcon('storefront', 24) : '';
+    return '<div class="store-card provider-card" role="button" tabindex="0"' +
+      ' onclick="showProviderStorefront(\'' + root + '\')"' +
+      ' onkeydown="if(event.key===\'Enter\'){showProviderStorefront(\'' + root + '\')}">' +
+      '<div class="store-icon">' + icon + '</div>' +
+      '<div class="store-name">' + escHtml(p.display_name) + '</div>' +
+      '<div class="store-category">' + escHtml(dirEnumLabel(p.kind)) + '</div>' +
+      '<div class="dir-provider-count">' + count + ' active offering' + (count === 1 ? '' : 's') + '</div>' +
+      (p.description ? '<div class="store-desc">' + escHtml(p.description) + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+// ── Offering detail ──
+
+function showOfferingDetail(selKey) {
+  var o = DIRECTORY.offerings.find(function(x) { return dirSelKey(x) === selKey; });
+  if (!o) return;
+  var modal = document.getElementById('offering-detail-modal');
+  var content = document.getElementById('offering-detail-content');
+  if (!modal || !content) return;
+  var provider = dirProviderByRoot(o.provider_root);
+  var catColor = categoryColor(o.category);
+
+  var facts = '';
+  var fact = function(label, value) {
+    if (value) facts += '<div class="dir-fact"><span>' + escHtml(label) + '</span> ' + escHtml(value) + '</div>';
+  };
+  if (o.kind === 'good') {
+    fact('Condition:', dirEnumLabel(o.condition));
+    var avail;
+    if (o.availability_mode === 'in_stock' && o.quantity_available != null) {
+      avail = o.quantity_available + ' in stock';
+    } else if (o.availability_mode === 'one_off') {
+      avail = 'one of a kind';
+    } else if (o.availability_mode === 'made_to_order') {
+      avail = o.lead_time_days != null
+        ? 'made to order, ' + o.lead_time_days + ' day lead'
+        : 'made to order';
+    } else {
+      avail = dirEnumLabel(o.availability_mode);
+    }
+    fact('Availability:', avail);
+  } else {
+    fact('Service:', dirEnumLabel(o.action));
+    fact('Schedule:', dirEnumLabel(o.schedule_kind));
+    if (o.duration_minutes != null) fact('Duration:', o.duration_minutes + ' min');
+  }
+  fact('Fulfillment:', o.fulfillment.map(dirEnumLabel).join(', '));
+  fact('Location:', dirEnumLabel(o.location_mode));
+  if (o.tags.length) fact('Tags:', o.tags.join(', '));
+  fact('Updated:', dirAge(o.updated_at, Date.now()));
+
+  var providerHtml;
+  if (provider) {
+    providerHtml =
+      '<div class="dir-fact"><strong>' + escHtml(provider.display_name) + '</strong> ' +
+        '<span>' + escHtml(dirEnumLabel(provider.kind)) + '</span></div>' +
+      (provider.description ? '<div class="detail-desc">' + escHtml(provider.description) + '</div>' : '') +
+      '<div class="dir-fact"><span>Contact:</span> ' + escHtml(dirEnumLabel(o.contact_via)) + '</div>' +
+      (provider.website ? '<div class="dir-fact"><span>Website:</span> ' + escHtml(provider.website) + '</div>' : '') +
+      (provider.author_key_hex
+        ? '<div class="dir-fact"><span>Provider key (paste into Chat to send a direct message):</span></div>' +
+          '<div class="dir-key" id="offering-provider-key">' + escHtml(provider.author_key_hex) + '</div>' +
+          '<button class="btn btn-sm" id="offering-copy-key" onclick="copyProviderKey()">Copy provider key</button>'
+        : '');
+  } else {
+    providerHtml = '<div class="detail-empty">Provider entry not found on this server.</div>';
+  }
+
+  content.innerHTML =
+    '<button onclick="closeOfferingDetail()" class="detail-close" aria-label="Close offering details">' +
+      (window.hosIcon ? hosIcon('close', 14) : 'x') + '</button>' +
+    '<h3 class="detail-title">' + escHtml(o.title) + '</h3>' +
+    '<div class="detail-chips">' +
+      '<span class="cat-chip" style="--cat:' + catColor + ';--cat-bg:' + catColor + '22;">' +
+        escHtml(dirCategoryLabel(o.category)) + '</span>' +
+      (o.reality === 'sim' ? '<span class="cond-chip">sim</span>' : '') +
+    '</div>' +
+    '<div class="detail-price">' + escHtml(dirPriceLine(o)) + '</div>' +
+    (o.price_accepts.length
+      ? '<div class="detail-meta">Accepts: ' + escHtml(o.price_accepts.map(dirEnumLabel).join(', ')) + '</div>' : '') +
+    (o.price_notes ? '<div class="detail-meta">' + escHtml(o.price_notes) + '</div>' : '') +
+    (o.summary ? '<div class="detail-desc">' + escHtml(o.summary) + '</div>' : '') +
+    '<div class="detail-section">' +
+      '<h4 class="detail-section-title">Details</h4>' + facts +
+    '</div>' +
+    '<div class="detail-section">' +
+      '<h4 class="detail-section-title">Provider</h4>' + providerHtml +
+      (o.checkout_uri ? '<div class="dir-fact"><span>Checkout:</span> ' + escHtml(o.checkout_uri) + '</div>' : '') +
+      (o.instructions ? '<div class="detail-desc">' + escHtml(o.instructions) + '</div>' : '') +
+      '<div class="dir-note">Money never moves through the platform: contact the provider to ' +
+        'arrange payment and handoff.</div>' +
+    '</div>';
+
+  modal.style.display = '';
+}
+
+function closeOfferingDetail() {
+  var modal = document.getElementById('offering-detail-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+/* Copy the provider's Dilithium key. navigator.clipboard is undefined on
+ * insecure origins (a http:// LAN mirror of this page), so keep the
+ * execCommand fallback rather than leaving the button dead there. */
+function copyProviderKey() {
+  var keyEl = document.getElementById('offering-provider-key');
+  var btn = document.getElementById('offering-copy-key');
+  if (!keyEl) return;
+  var hex = keyEl.textContent || '';
+  var report = function(ok) {
+    if (!btn) return;
+    btn.textContent = ok ? 'Copied' : 'Copy failed, select the key above';
+    setTimeout(function() { btn.textContent = 'Copy provider key'; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(hex).then(
+      function() { report(true); },
+      function() { report(dirLegacyCopy(hex)); }
+    );
+  } else {
+    report(dirLegacyCopy(hex));
+  }
+}
+
+function dirLegacyCopy(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
 // ── Listing Messages (buyer-seller conversations) ──
 
 /** Cache of listing messages: { [listing_id]: MessageData[] } */
@@ -701,4 +1286,6 @@ document.addEventListener('DOMContentLoaded', function() {
   loadMarketCategories();
   marketConnect();
   renderMarketListings();
+  // Directory is the landing section, mirroring the native page's default tab.
+  showMarketSection('directory');
 });

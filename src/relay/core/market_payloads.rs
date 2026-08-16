@@ -189,7 +189,7 @@ fn check_updated_at(m: &[(Value, Value)]) -> Result<i128, String> {
 /// One location/service-area entry (the shared shape).
 fn check_location(loc: &[(Value, Value)], ctx: &str) -> Result<(), String> {
     let mode = req_text(loc, "mode")?;
-    enum_check(mode, &format!("{ctx}.mode"), &["fixed_location", "radius", "region", "remote"])?;
+    enum_check(mode, &format!("{ctx}.mode"), LOCATION_MODES)?;
     let label = req_text(loc, "label")?;
     let n = label.trim().chars().count();
     if n < 1 || n > 120 {
@@ -236,6 +236,60 @@ fn check_location(loc: &[(Value, Value)], ctx: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ── Shared enum vocabularies (single source: the validator AND the in-app
+//    publish form read these, so a new enum value reaches both at once) ──────
+
+pub const PROVIDER_KINDS: &[&str] = &[
+    "individual",
+    "household",
+    "mutual_aid",
+    "cooperative",
+    "nonprofit",
+    "public_institution",
+    "faith_community",
+    "business",
+];
+pub const CONTACT_CHANNELS: &[&str] = &["in_app_dm", "email", "phone", "website", "in_person"];
+pub const LOCATION_MODES: &[&str] = &["fixed_location", "radius", "region", "remote"];
+pub const PRICE_MODES: &[&str] = &[
+    "free",
+    "fixed",
+    "range",
+    "sliding_scale",
+    "pay_what_you_can",
+    "donation",
+    "trade",
+    "inquire",
+];
+pub const PRICE_UNITS: &[&str] = &[
+    "each", "kg", "g", "liter", "meter", "dozen", "box", "hour", "day", "week", "month",
+    "session", "visit", "job", "person", "lb", "oz", "ton", "gallon", "quart", "foot",
+    "yard", "sq_ft", "sq_meter", "acre", "cord", "bushel", "bale",
+];
+pub const FULFILLMENT_MODES: &[&str] = &[
+    "pickup_at_provider",
+    "delivery_local",
+    "shipping",
+    "mail_in",
+    "at_recipient_location",
+    "remote",
+    "digital_delivery",
+];
+pub const SETTLEMENT_CONTACTS: &[&str] =
+    &["in_app_dm", "email", "phone", "website", "in_person", "provider_checkout"];
+pub const GOOD_CONDITIONS: &[&str] =
+    &["new", "like_new", "used_good", "used_fair", "refurbished", "for_parts"];
+pub const GOOD_AVAILABILITY: &[&str] =
+    &["in_stock", "one_off", "made_to_order", "unlimited", "while_supplies_last"];
+pub const SERVICE_ACTIONS: &[&str] = &[
+    "repair", "maintain", "install", "build", "make_to_order", "process", "transport",
+    "store", "lend", "instruct", "consult", "care", "host", "other",
+];
+pub const SCHEDULE_KINDS: &[&str] =
+    &["walk_in", "by_appointment", "recurring", "on_call", "waitlist", "one_time_event"];
+pub const WEEKDAYS: &[&str] =
+    &["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
 // ── provider_v1 ─────────────────────────────────────────────────────────────
 
 pub fn validate_provider_v1(payload: &[u8]) -> Result<(), String> {
@@ -259,20 +313,7 @@ pub fn validate_provider_v1(payload: &[u8]) -> Result<(), String> {
         }
     }
     let kind = req_text(m, "kind")?;
-    enum_check(
-        kind,
-        "kind",
-        &[
-            "individual",
-            "household",
-            "mutual_aid",
-            "cooperative",
-            "nonprofit",
-            "public_institution",
-            "faith_community",
-            "business",
-        ],
-    )?;
+    enum_check(kind, "kind", PROVIDER_KINDS)?;
     text_len(m, "description", 1, 600)?.ok_or("description is required")?;
     let backed_by = req_text(m, "backed_by")?;
     enum_check(backed_by, "backed_by", &["identity", "group"])?;
@@ -309,7 +350,7 @@ pub fn validate_provider_v1(payload: &[u8]) -> Result<(), String> {
     // Contact: required table with a required preferred channel.
     let contact = table(m, "contact")?.ok_or("contact is required")?;
     let preferred = req_text(contact, "preferred")?;
-    enum_check(preferred, "contact.preferred", &["in_app_dm", "email", "phone", "website", "in_person"])?;
+    enum_check(preferred, "contact.preferred", CONTACT_CHANNELS)?;
     if let Some(w) = text(contact, "website")? {
         if !is_https(w) || w.len() > 512 {
             return Err("contact.website must be an https:// URI up to 512 characters".to_string());
@@ -461,19 +502,7 @@ pub fn validate_offering_v1(
         return Err("fulfillment requires 1 to 6 entries".to_string());
     }
     for f in &fulfillment {
-        enum_check(
-            f,
-            "fulfillment",
-            &[
-                "pickup_at_provider",
-                "delivery_local",
-                "shipping",
-                "mail_in",
-                "at_recipient_location",
-                "remote",
-                "digital_delivery",
-            ],
-        )?;
+        enum_check(f, "fulfillment", FULFILLMENT_MODES)?;
     }
 
     check_price(m, reality)?;
@@ -508,11 +537,7 @@ pub fn validate_offering_v1(
 fn check_price(m: &[(Value, Value)], reality: &str) -> Result<(), String> {
     let price = table(m, "price")?.ok_or("price is required")?;
     let mode = req_text(price, "mode")?;
-    enum_check(
-        mode,
-        "price.mode",
-        &["free", "fixed", "range", "sliding_scale", "pay_what_you_can", "donation", "trade", "inquire"],
-    )?;
+    enum_check(mode, "price.mode", PRICE_MODES)?;
     let amount = float(price, "amount")?;
     let amount_max = float(price, "amount_max")?;
     match mode {
@@ -552,15 +577,7 @@ fn check_price(m: &[(Value, Value)], reality: &str) -> Result<(), String> {
         }
     }
     if let Some(u) = text(price, "unit")? {
-        enum_check(
-            u,
-            "price.unit",
-            &[
-                "each", "kg", "g", "liter", "meter", "dozen", "box", "hour", "day", "week", "month",
-                "session", "visit", "job", "person", "lb", "oz", "ton", "gallon", "quart", "foot",
-                "yard", "sq_ft", "sq_meter", "acre", "cord", "bushel", "bale",
-            ],
-        )?;
+        enum_check(u, "price.unit", PRICE_UNITS)?;
     }
     str_array(price, "accepts", 12, 1, 48)?;
     if let Some(n) = text(price, "notes")? {
@@ -587,11 +604,7 @@ fn check_settlement(m: &[(Value, Value)]) -> Result<(), String> {
         }
     }
     let via = req_text(s, "contact_via")?;
-    enum_check(
-        via,
-        "settlement.contact_via",
-        &["in_app_dm", "email", "phone", "website", "in_person", "provider_checkout"],
-    )?;
+    enum_check(via, "settlement.contact_via", SETTLEMENT_CONTACTS)?;
     match text(s, "checkout_uri")? {
         Some(uri) => {
             if !is_https(uri) || uri.len() > 512 {
@@ -614,11 +627,7 @@ fn check_settlement(m: &[(Value, Value)]) -> Result<(), String> {
 
 fn check_good(g: &[(Value, Value)]) -> Result<(), String> {
     let condition = req_text(g, "condition")?;
-    enum_check(
-        condition,
-        "good.condition",
-        &["new", "like_new", "used_good", "used_fair", "refurbished", "for_parts"],
-    )?;
+    enum_check(condition, "good.condition", GOOD_CONDITIONS)?;
     for p in str_array(g, "provenance", 4, 1, 32)? {
         enum_check(
             &p,
@@ -627,11 +636,7 @@ fn check_good(g: &[(Value, Value)]) -> Result<(), String> {
         )?;
     }
     let avail = req_text(g, "availability_mode")?;
-    enum_check(
-        avail,
-        "good.availability_mode",
-        &["in_stock", "one_off", "made_to_order", "unlimited", "while_supplies_last"],
-    )?;
+    enum_check(avail, "good.availability_mode", GOOD_AVAILABILITY)?;
     let qty = integer(g, "quantity_available")?;
     match avail {
         "in_stock" => {
@@ -703,14 +708,7 @@ fn check_good(g: &[(Value, Value)]) -> Result<(), String> {
 
 fn check_service(s: &[(Value, Value)]) -> Result<(), String> {
     let action = req_text(s, "action")?;
-    enum_check(
-        action,
-        "service.action",
-        &[
-            "repair", "maintain", "install", "build", "make_to_order", "process", "transport",
-            "store", "lend", "instruct", "consult", "care", "host", "other",
-        ],
-    )?;
+    enum_check(action, "service.action", SERVICE_ACTIONS)?;
     if let Some(d) = integer(s, "duration_minutes")? {
         if d <= 0 {
             return Err("service.duration_minutes must be > 0".to_string());
@@ -718,11 +716,7 @@ fn check_service(s: &[(Value, Value)]) -> Result<(), String> {
     }
     let avail = table(s, "availability")?.ok_or("service.availability is required")?;
     let sk = req_text(avail, "schedule_kind")?;
-    enum_check(
-        sk,
-        "service.availability.schedule_kind",
-        &["walk_in", "by_appointment", "recurring", "on_call", "waitlist", "one_time_event"],
-    )?;
+    enum_check(sk, "service.availability.schedule_kind", SCHEDULE_KINDS)?;
     let recurring = array(avail, "recurring")?;
     if matches!(sk, "recurring" | "walk_in") && recurring.map_or(true, |r| r.is_empty()) {
         return Err(format!("service.availability.recurring required for {sk}"));
@@ -737,11 +731,7 @@ fn check_service(s: &[(Value, Value)]) -> Result<(), String> {
                 _ => return Err("recurring entries must be tables".to_string()),
             };
             let day = req_text(rm, "day")?;
-            enum_check(
-                day,
-                "recurring.day",
-                &["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-            )?;
+            enum_check(day, "recurring.day", WEEKDAYS)?;
             let start = req_text(rm, "start_time")?;
             let end = req_text(rm, "end_time")?;
             let hhmm = |t: &str| {

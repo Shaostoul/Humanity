@@ -101,6 +101,16 @@ pub fn pq_sign_chat(seed32: &[u8], content: &str, timestamp: u64) -> String {
     hex::encode(dil.sign(format!("{content}\n{timestamp}").as_bytes()))
 }
 
+/// The Dilithium3 keypair itself, for signing full Humanity Network OBJECTS
+/// (market provider/offering, votes, profiles) via
+/// `relay::core::object::ObjectBuilder::sign`. Same derivation as the chat
+/// identity: the merchant IS the chat identity, so an offering published
+/// in-app is owned by the same key the importer would use.
+pub fn pq_object_keypair(seed32: &[u8]) -> crate::relay::core::pq_crypto::DilithiumKeypair {
+    let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(seed32);
+    crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed)
+}
+
 /// Raw-bytes Dilithium3 signature (Vec<u8>, 3309 bytes). Used by Inc3b
 /// identify-challenge response, where the preimage is a domain-separated
 /// string ("hum/identify/v1\n" + nonce + "\n" + pubkey) — not chat's

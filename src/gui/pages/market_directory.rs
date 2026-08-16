@@ -48,7 +48,7 @@ pub struct DirOffering {
     pub kind: String,    // good | service
     pub reality: String, // real | sim
     pub title: String,
-    pub summary: String,
+    pub description: String,
     pub category: String, // vocabulary id (lowercase snake_case)
     pub tags: Vec<String>,
     pub status: String,
@@ -191,7 +191,7 @@ fn decode_offering(payload: &[u8]) -> Option<DirOffering> {
         kind: text(m, "kind")?,
         reality: text(m, "reality").unwrap_or_else(|| "real".to_string()),
         title: text(m, "title")?,
-        summary: text(m, "summary").unwrap_or_default(),
+        description: text(m, "description").unwrap_or_default(),
         category: text(m, "category").unwrap_or_default(),
         tags: strs(m, "tags"),
         status: text(m, "status").unwrap_or_default(),
@@ -381,7 +381,7 @@ pub fn seed_for_snapshot() {
                 kind: "good".to_string(),
                 reality: "real".to_string(),
                 title: "Cordless drill (borrow)".to_string(),
-                summary: "Weekly checkout, bring it back charged.".to_string(),
+                description: "Weekly checkout, bring it back charged.".to_string(),
                 category: "tools".to_string(),
                 tags: vec!["lending".to_string()],
                 status: "active".to_string(),
@@ -414,7 +414,7 @@ pub fn seed_for_snapshot() {
                 kind: "service".to_string(),
                 reality: "real".to_string(),
                 title: "Saturday repair drop-in".to_string(),
-                summary: "Bring the broken thing; we fix it together.".to_string(),
+                description: "Bring the broken thing; we fix it together.".to_string(),
                 category: "repair".to_string(),
                 tags: Vec::new(),
                 status: "active".to_string(),
@@ -564,6 +564,28 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         with_dir(|ps| spawn_fetch(ps));
     }
 
+    // A successful in-app publish invalidates the fetched data: refetch so
+    // the new shop/offering appears (and my_provider resolves) immediately.
+    if super::market_publish::take_published() {
+        with_dir(|ps| {
+            if ps.rx.is_none() && !ps.frozen {
+                spawn_fetch(ps);
+            }
+        });
+    }
+
+    // Publish view swallows the whole panel (form over browse, like detail).
+    if super::market_publish::is_open() {
+        let my_provider = with_dir(|ps| {
+            ps.providers
+                .iter()
+                .find(|p| p.author_key_hex == state.profile_public_key)
+                .cloned()
+        });
+        super::market_publish::draw(ui, theme, state, &base, my_provider.as_ref());
+        return;
+    }
+
     // Detail view swallows the whole panel.
     let selected = with_dir(|ps| ps.selected.clone());
     if let Some(sel) = selected {
@@ -592,6 +614,19 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .color(theme.text_primary()),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // Publishing needs a connected server + a signed-in identity.
+            if !base.is_empty()
+                && state.private_key_bytes.is_some()
+                && widgets::primary_button(ui, theme, "+ Publish")
+            {
+                let mine = with_dir(|ps| {
+                    ps.providers
+                        .iter()
+                        .find(|p| p.author_key_hex == state.profile_public_key)
+                        .cloned()
+                });
+                super::market_publish::open(mine.as_ref());
+            }
             if !base.is_empty() && widgets::secondary_button(ui, theme, "Refresh") {
                 with_dir(|ps| {
                     if ps.rx.is_none() {
@@ -691,7 +726,7 @@ fn draw_offerings(
             .filter(|o| {
                 needle.is_empty()
                     || o.title.to_ascii_lowercase().contains(&needle)
-                    || o.summary.to_ascii_lowercase().contains(&needle)
+                    || o.description.to_ascii_lowercase().contains(&needle)
                     || o.tags.iter().any(|t| t.contains(&needle))
             })
             .cloned()
@@ -768,9 +803,9 @@ fn draw_offerings(
                         );
                     });
                 });
-                if !o.summary.is_empty() {
+                if !o.description.is_empty() {
                     ui.label(
-                        RichText::new(&o.summary)
+                        RichText::new(&o.description)
                             .size(theme.font_size_small)
                             .color(theme.text_secondary()),
                     );
@@ -899,9 +934,9 @@ fn draw_detail(
             );
         }
         ui.add_space(theme.spacing_sm);
-        if !o.summary.is_empty() {
+        if !o.description.is_empty() {
             widgets::card(ui, theme, |ui| {
-                ui.label(RichText::new(&o.summary).color(theme.text_primary()));
+                ui.label(RichText::new(&o.description).color(theme.text_primary()));
             });
             ui.add_space(theme.spacing_sm);
         }

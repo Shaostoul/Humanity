@@ -1282,6 +1282,24 @@ fn snapshot_construction() {
 
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
+
+/// The Market's in-app publish view (v0.1143): the shop + offering forms
+/// rendered open, proving the whole form lays out (the plain market snapshot
+/// shows the Directory browse; this one shows "+ Publish" clicked).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_market_publish() {
+    render_page_png("market_publish", 1280, 1100, |ctx, theme, state| {
+        // An identity is required for the form to render (real key material
+        // is irrelevant to layout; publishing is never triggered here).
+        if state.private_key_bytes.is_none() {
+            state.private_key_bytes = Some(vec![7u8; 32]);
+            state.server_url = "https://united-humanity.us".into();
+            crate::gui::pages::market_publish::open(None);
+        }
+        crate::gui::pages::market::draw(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
