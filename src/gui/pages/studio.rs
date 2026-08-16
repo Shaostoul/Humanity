@@ -79,6 +79,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ScrollArea::vertical().id_salt("studio_left_scroll").show(ui, |ui| {
+        // Page title matches the nav button; before v0.1145 the page had no
+        // name anywhere on it (nav map open item 5).
+        ui.label(
+            RichText::new("Studio")
+                .size(theme.font_size_title)
+                .color(theme.text_primary()),
+        );
+        ui.add_space(theme.spacing_md);
         // ── Scenes ──
         ui.horizontal(|ui| {
             ui.label(

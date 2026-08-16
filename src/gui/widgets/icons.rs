@@ -806,7 +806,8 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and
         // paint_chart are kept (other future pages might use them).
-        P::Cosmos      => { paint_globe(painter, rect, color); true }
+        // v0.1145: Cosmos variant merged into Maps (which pays paint_globe
+        // via its own arm above).
         P::Settings    => { paint_cog(painter, rect, color); true }
         P::RelayControl => { paint_server(painter, rect, color); true }
         P::Tools       => { paint_wrench(painter, rect, color); true }

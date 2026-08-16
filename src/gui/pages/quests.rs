@@ -1,68 +1,70 @@
-//! Quests: the single quest surface — one page, two kinds (operator 2026-06-06:
-//! gameplay quests [auto-track + XP] AND learn-by-doing chains). Live sim quests
-//! from the in-game QuestSystem render first; the self-sufficiency chains
-//! (`data/onboarding/quests.json`, via the shared `onboarding::draw_quests`)
-//! follow, with First Steps (the onboarding chain) at the top. The Profile
-//! page's game-quests section was folded in here in v0.415.0.
+//! Quests: the SIM quest surface, gameplay only. Live quests from the in-game
+//! QuestSystem (auto-tracked, XP rewards): active with step progress, available
+//! to accept, then completed.
+//!
+//! The learn-by-doing chains (`data/onboarding/quests.json`) used to share this
+//! page as a second column; they moved to the Tasks page's guide panel
+//! (operator 2026-08-16: "Quests is for gameplay stuff and Tasks is for
+//! not-game stuff"). The Profile page's game-quests section was folded in here
+//! in v0.415.0.
 
 use egui::{Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use super::onboarding;
+
+/// Widest the content column gets. With the second column gone, an unclamped
+/// card would stretch the full width of an ultrawide window and read as a
+/// single line of text floating in space.
+const CONTENT_MAX_WIDTH: f32 = 820.0;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                // Page title matches the nav button; before v0.1144 the page
-                // never stated its own name (only the two section eyebrows).
-                ui.label(
-                    RichText::new("Quests")
-                        .size(theme.font_size_title)
-                        .color(theme.text_primary()),
-                );
-                ui.add_space(theme.spacing_md);
-                // Responsive two-column: the auto-tracked sim quests on the left,
-                // the learn-by-doing chains on the right when wide; stacked narrow.
-                if ui.available_width() >= 900.0 {
-                    ui.columns(2, |cols| {
-                        draw_game_quests(&mut cols[0], theme, state);
-                        onboarding::draw_quests(&mut cols[1], theme, state);
-                    });
-                } else {
+                // Single column, clamped: title, one-line subtitle, then the
+                // live sim quests.
+                ui.vertical(|ui| {
+                    ui.set_max_width(CONTENT_MAX_WIDTH);
+
+                    // Page title matches the nav button; before v0.1144 the
+                    // page never stated its own name (only section eyebrows).
+                    ui.label(
+                        RichText::new("Quests")
+                            .size(theme.font_size_title)
+                            .color(theme.text_primary()),
+                    );
+                    // Subtitle replaces the old SIM QUESTS eyebrow (the whole
+                    // page is sim now) and points at where the real-life
+                    // tutorials went.
+                    ui.label(
+                        RichText::new("Auto-tracked from the game. Real-life guides live in Tasks.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    ui.add_space(theme.spacing_md);
+
                     draw_game_quests(ui, theme, state);
-                    ui.add_space(theme.spacing_xl);
-                    onboarding::draw_quests(ui, theme, state);
-                }
+                });
             });
         });
 }
 
 /// Live sim quests from the in-game QuestSystem (auto-tracked, XP rewards):
-/// active quests with step progress, then the completed list. Moved from the
-/// Profile page's retired Quests section (v0.415.0).
+/// active quests with step progress, available quests to accept, then the
+/// completed list. Moved from the Profile page's retired Quests section
+/// (v0.415.0). The SIM QUESTS eyebrow and its "Tracked automatically in-game"
+/// heading came off when the page went sim-only: the page title plus its
+/// subtitle now say the same thing once instead of twice.
 fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(
-        RichText::new("SIM QUESTS")
-            .size(theme.font_size_small)
-            .color(theme.accent())
-            .strong(),
-    );
-    ui.add_space(theme.spacing_sm);
-    ui.label(
-        RichText::new("Tracked automatically in-game")
-            .size(theme.font_size_heading)
-            .color(theme.text_primary())
-            .strong(),
-    );
-    ui.add_space(theme.spacing_md);
-
     let has_active = state.quests.iter().any(|q| !q.completed);
     let has_completed = state.quests.iter().any(|q| q.completed);
 
-    if !has_active && !has_completed {
+    // Empty only when there is nothing at all to show. The available list has
+    // to count here too, otherwise a fresh session with acceptable quests but
+    // no accepted ones bails out above the Accept buttons.
+    if !has_active && !has_completed && state.quests_available.is_empty() {
         widgets::card(ui, theme, |ui| {
             ui.label(
                 RichText::new("No quests yet, start a game session to receive your first quest.")

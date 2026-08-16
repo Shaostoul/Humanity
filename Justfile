@@ -104,6 +104,15 @@ _nothing-staged:
 build-stars:
     node scripts/build-stars-bin.js
 
+# Regenerate data/stars-map.bin (galactic-cartesian star positions in light-years,
+# ~2.1 MB) from data/stars.csv. This is the Maps page GALAXY VIEW catalog, distinct
+# from data/stars.bin (skybox directions, `just build-stars`). Self-verifying: the
+# script re-opens the file it wrote and runs 31 structural + astronomical checks
+# (Sirius/Polaris/Rigil Kentaurus positions, sort order, galactic-plane sanity).
+# Run after ANY edit to data/stars.csv and commit the regenerated .bin.
+build-stars-map:
+    node scripts/build-stars-map-bin.js
+
 # Regenerate web/shared/theme.css + web/shared/settings.js theme-preset block
 # from data/gui/theme.ron + data/themes/presets.json (one-source theme rule).
 # Idempotent — running twice produces no diff. Wired into `just ship`.

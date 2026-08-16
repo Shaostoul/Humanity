@@ -121,6 +121,13 @@ reachable from two surfaces, both use the native label (web mirrors native).
 
 ## OPEN items (each needs a taste call or a real increment)
 
+> Resolved in v0.1145: item 1 (Cosmos variant merged into Maps; page and
+> button say "Maps"; views renamed Solar System / Galaxy / Night Sky),
+> item 2 (Quests=game, Tasks=real-life split; web entry renamed Onboarding;
+> /quests alias follows it), item 3 (web chat page titled Chat), item 5
+> partially (Studio has a title; Testing/Browser taglines remain), and the
+> operator renamed MY SERVERS to SERVERS.
+
 Ranked by user confusion:
 
 1. **Map / Maps / Cosmos (4 names, 2 duplicate variants).** Button "Map"

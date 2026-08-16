@@ -86,6 +86,92 @@ struct Constellation {
 
 static NEARBY_STARS: OnceLock<Vec<NearbyStar>> = OnceLock::new();
 static BRIGHT_STARS: OnceLock<Vec<BrightStar>> = OnceLock::new();
+static MAP_STARS: OnceLock<Vec<MapStar>> = OnceLock::new();
+
+/// One star from `data/stars-map.bin` (HOSMAP01): true galactic cartesian
+/// position in LIGHT-YEARS (+X galactic center, +Z north galactic pole),
+/// records sorted brightest-first. Generated from the HYG catalog by
+/// `scripts/build-stars-map-bin.js`; the format spec lives in its header.
+struct MapStar {
+    x: f32,
+    y: f32,
+    z: f32,
+    mag: f32,
+    ci: f32,
+    /// HYG proper name; only ~360 of ~110k stars carry one.
+    name: Option<Box<str>>,
+}
+
+/// Parse stars-map.bin. Returns None (not empty) on any structural problem
+/// so the galaxy view can distinguish "file missing/corrupt" (fall back to
+/// the curated nearby list) from "loaded fine".
+fn parse_stars_map(bytes: &[u8]) -> Option<Vec<MapStar>> {
+    if bytes.len() < 16 || &bytes[0..8] != b"HOSMAP01" {
+        return None;
+    }
+    let star_count = u32::from_le_bytes(bytes[8..12].try_into().ok()?) as usize;
+    let named_count = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
+    let records_end = 16 + star_count * 20;
+    if bytes.len() < records_end {
+        return None;
+    }
+    let f = |off: usize| -> f32 { f32::from_le_bytes(bytes[off..off + 4].try_into().unwrap()) };
+    let mut stars = Vec::with_capacity(star_count);
+    for i in 0..star_count {
+        let o = 16 + i * 20;
+        stars.push(MapStar {
+            x: f(o),
+            y: f(o + 4),
+            z: f(o + 8),
+            mag: f(o + 12),
+            ci: f(o + 16),
+            name: None,
+        });
+    }
+    // Names section: (u32 star_index, u8 len, len bytes) x named_count.
+    let mut off = records_end;
+    for _ in 0..named_count {
+        if off + 5 > bytes.len() {
+            return None;
+        }
+        let idx = u32::from_le_bytes(bytes[off..off + 4].try_into().ok()?) as usize;
+        let len = bytes[off + 4] as usize;
+        off += 5;
+        if off + len > bytes.len() || idx >= stars.len() {
+            return None;
+        }
+        stars[idx].name = std::str::from_utf8(&bytes[off..off + len])
+            .ok()
+            .map(|s| s.into());
+        off += len;
+    }
+    Some(stars)
+}
+
+/// The full-catalog map stars, loaded once. Empty slice = file missing or
+/// corrupt (the galaxy view then falls back to the curated nearby list).
+fn map_stars() -> &'static [MapStar] {
+    MAP_STARS.get_or_init(|| {
+        let dir = crate::DATA_DIR
+            .get()
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from("data"));
+        let loaded = std::fs::read(dir.join("stars-map.bin"))
+            .ok()
+            .and_then(|b| parse_stars_map(&b))
+            .unwrap_or_default();
+        if !loaded.is_empty() {
+            log::info!(
+                "Maps galaxy view: {} catalog stars loaded ({} named)",
+                loaded.len(),
+                loaded.iter().filter(|s| s.name.is_some()).count()
+            );
+        } else {
+            log::warn!("Maps galaxy view: stars-map.bin missing/unreadable, using curated nearby list");
+        }
+        loaded
+    })
+}
 static CONSTELLATIONS: OnceLock<Vec<Constellation>> = OnceLock::new();
 
 fn nearby_stars() -> &'static [NearbyStar] {
@@ -355,15 +441,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Header bar with view tabs + scale info.
             ui.horizontal(|ui| {
                 ui.add_space(theme.spacing_md);
+                // "Maps" is the page name (matches the nav button; the old
+                // "Cosmos" heading was a third name for the same page). The
+                // view ladder below follows the operator's map taxonomy:
+                // planets (future GPS/OSM view) -> solar system -> galaxy ->
+                // some day the cosmic web.
                 ui.label(
-                    RichText::new("Cosmos")
+                    RichText::new("Maps")
                         .size(theme.font_size_heading)
                         .color(theme.text_primary())
                         .strong(),
                 );
                 ui.add_space(theme.spacing_lg);
-                view_tab(ui, theme, state, CosmosView::System,    "System",          "Sol, Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
-                view_tab(ui, theme, state, CosmosView::Galactic,  "Galactic",        "Sol-centered map of nearby stars, light-year scale (2D top-down).");
+                view_tab(ui, theme, state, CosmosView::System,    "Solar System",    "Sol, Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
+                view_tab(ui, theme, state, CosmosView::Galactic,  "Galaxy",          "Sol-centered map of real catalog stars, light-year scale (2D top-down).");
                 view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines (2D RA/Dec projection).");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(theme.spacing_md);
@@ -809,7 +900,10 @@ fn allocate_canvas(
         // 1.0015 per scroll-pixel = ~1.08× per typical 50-px scroll tick.
         // Picked to feel responsive without being jumpy.
         let zoom_before = state.cosmos_zoom;
-        let zoom_after = (zoom_before * (1.0015_f32).powf(scroll_delta)).clamp(0.05, 200.0);
+        // Lower bound 0.005 (was 0.05, v0.1145): the galaxy view's real
+        // catalog spans thousands of light-years; at base scale 50 ly this
+        // reaches a ~10,000 ly view radius.
+        let zoom_after = (zoom_before * (1.0015_f32).powf(scroll_delta)).clamp(0.005, 200.0);
 
         // Cursor-anchored: shift pan so the world point under the cursor
         // ends up at the same screen position after the zoom change. Math:
@@ -1669,15 +1763,23 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let (rect, response, center, zoom) = allocate_canvas(ui, state);
     let paint = ui.painter_at(rect);
     paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(5, 5, 12));  // theme-exempt: deep-space backdrop
-    let stars = nearby_stars();
-    // Auto-fit: the most distant star in the dataset sets the base scale.
-    let max_dist = stars.iter().map(|s| s.distance_ly).fold(15.0, f64::max).max(15.0);
-    let scale = ((rect.width().min(rect.height()) as f64 / 2.0 - 30.0) / max_dist) * zoom as f64;
 
-    // Faint grid rings at 5 / 10 / 25 / 50 ly for visual reference.
-    for &ring_ly in &[5.0_f64, 10.0, 25.0, 50.0] {
+    let catalog = map_stars();
+    // Base scale: 50 ly of radius fills the canvas at zoom 1; the zoom clamp
+    // (0.005..200) then spans ~0.25 ly to ~10,000 ly of view radius, the whole
+    // catalog. (The old view auto-fit to the ~50-star curated list instead.)
+    let half = rect.width().min(rect.height()) as f64 / 2.0 - 30.0;
+    let scale = (half / 50.0) * zoom as f64;
+    let view_radius_ly = half / scale;
+
+    // Distance rings on a 1-2-5 ladder: whichever rings land visibly inside
+    // the current view, up to the whole catalog span.
+    const RINGS_LY: [f64; 13] = [
+        1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0,
+    ];
+    for &ring_ly in &RINGS_LY {
         let r = (ring_ly * scale) as f32;
-        if r > 5.0 && r < rect.width().max(rect.height()) {
+        if r > 12.0 && r < rect.width().max(rect.height()) {
             paint.circle_stroke(center, r, Stroke::new(0.5, Color32::from_rgb(25, 25, 40)));  // theme-exempt: distance-ring — faint backdrop
             paint.text(
                 center + Vec2::new(r * 0.7, -r * 0.7),
@@ -1690,7 +1792,7 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     // Sol at center — the universal anchor.
-    paint.circle_filled(center, 4.0_f32.max(2.0 * zoom), body_color("sun"));
+    paint.circle_filled(center, 4.0_f32.max(2.0 * zoom.min(2.0)), body_color("sun"));
     paint.text(
         center + Vec2::new(8.0, 0.0),
         Align2::LEFT_CENTER,
@@ -1699,14 +1801,103 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         theme.text_primary(),
     );
 
-    // Nearby stars projected to the X-Y galactic plane (Z dropped).
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
+
+    if !catalog.is_empty() {
+        // The real catalog (v0.1145): ~110k HYG stars, brightest-first. The
+        // deep field earns its keep through TWO cheap gates: a magnitude
+        // cutoff that rises as you zoom in (wide view = bright stars only,
+        // close view = everything), and the brightest-first ordering, which
+        // turns the cutoff into a plain `break`. Viewport culling skips the
+        // off-screen rest. Worst case ~20k dots painted, fine for egui.
+        let mag_cutoff = (7.5 - 5.0 * (view_radius_ly / 50.0).log10()).clamp(2.0, 21.0);
+        let mut drawn = 0usize;
+        let mut hovered: Option<(&MapStar, Pos2, f32)> = None;
+        let vis = rect.expand(8.0);
+        for star in catalog {
+            if star.mag > mag_cutoff as f32 {
+                break; // sorted brightest-first: nothing dimmer follows
+            }
+            let px = center.x + (star.x as f64 * scale) as f32;
+            let py = center.y - (star.y as f64 * scale) as f32; // screen y grows down
+            let pos = Pos2::new(px, py);
+            if !vis.contains(pos) {
+                continue;
+            }
+            // Size by margin under the cutoff: the brightest stars in the
+            // current view get ~4 px, ones at the cutoff fade in at 0.7 px.
+            let headroom = (mag_cutoff as f32 - star.mag).max(0.0);
+            let r = (0.7 + headroom * 0.55).min(4.5);
+            let [cr, cg, cb] = crate::renderer::stars::ci_to_rgb(star.ci);
+            let color = Color32::from_rgb(
+                (cr * 255.0) as u8,
+                (cg * 255.0) as u8,
+                (cb * 255.0) as u8,
+            ); // theme-exempt: star color from B-V index — physics, not theme
+            paint.circle_filled(pos, r, color);
+            drawn += 1;
+            if let Some(n) = &star.name {
+                // Named stars label once they are comfortably in view.
+                if r > 2.0 {
+                    paint.text(
+                        pos + Vec2::new(r + 2.0, 0.0),
+                        Align2::LEFT_CENTER,
+                        n.as_ref(),
+                        egui::FontId::proportional(9.0),
+                        theme.text_secondary(),
+                    );
+                }
+            }
+            if let Some(hp) = hover_pos {
+                let d = (hp - pos).length();
+                if d < r + 4.0 && hovered.map_or(true, |(_, _, hd)| d < hd) {
+                    hovered = Some((star, pos, d));
+                }
+            }
+        }
+
+        if let Some((star, _, _)) = hovered {
+            let dist = (star.x as f64 * star.x as f64
+                + star.y as f64 * star.y as f64
+                + star.z as f64 * star.z as f64)
+                .sqrt();
+            response.on_hover_ui_at_pointer(|ui| {
+                ui.set_max_width(300.0);
+                let title = star.name.as_deref().unwrap_or("Catalog star");
+                ui.label(RichText::new(title).size(theme.font_size_body).color(theme.text_primary()).strong());
+                ui.label(RichText::new(format!("{dist:.1} ly from Sol"))
+                    .size(theme.font_size_small).color(theme.text_secondary()));
+                ui.label(RichText::new(format!("Apparent magnitude {:.2}  ·  B-V {:+.2}", star.mag, star.ci))
+                    .size(theme.font_size_small).color(theme.text_muted()));
+                ui.label(RichText::new(format!("Galactic position: ({:.1}, {:.1}, {:.1}) ly", star.x, star.y, star.z))
+                    .size(theme.font_size_small).color(theme.text_muted()).monospace());
+            });
+        }
+
+        // Footer: what the view is actually showing right now.
+        paint.text(
+            Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
+            Align2::LEFT_BOTTOM,
+            format!(
+                "Top-down galactic plane · HYG catalog, {} stars · showing {} to mag {:.1} within {:.0} ly · scroll to zoom",
+                catalog.len(),
+                drawn,
+                mag_cutoff,
+                view_radius_ly,
+            ),
+            egui::FontId::proportional(10.0),
+            theme.text_muted(),
+        );
+        return;
+    }
+
+    // Fallback (stars-map.bin missing/corrupt): the curated nearby list.
+    let stars = nearby_stars();
     let mut hovered_star: Option<&NearbyStar> = None;
     for star in stars {
         let px = center.x + (star.pos_ly.x * scale) as f32;
-        let py = center.y - (star.pos_ly.y * scale) as f32; // y inverted (screen y grows down)
+        let py = center.y - (star.pos_ly.y * scale) as f32;
         let pos = Pos2::new(px, py);
-        // Brighter (lower mag) → larger dot.
         let r = ((6.0 - star.apparent_magnitude.min(6.0)) as f32 * 0.8 + 1.5).clamp(1.5, 6.0);
         paint.circle_filled(pos, r, spectral_color(&star.spectral));
         if zoom > 1.5 {
@@ -1742,11 +1933,10 @@ fn draw_galactic_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
     }
 
-    // Footer hint.
     paint.text(
         Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
         Align2::LEFT_BOTTOM,
-        format!("Top-down galactic plane · {} stars within ~{:.0} ly · X/Y plane, Z dropped", stars.len(), max_dist),
+        format!("Top-down galactic plane · curated list, {} stars (stars-map.bin not found)", stars.len()),
         egui::FontId::proportional(10.0),
         theme.text_muted(),
     );
@@ -3072,5 +3262,44 @@ mod tests {
         assert_eq!(format_geo(12.34, 56.78), "12.3°N 56.8°E");
         assert_eq!(format_geo(-12.34, -56.78), "12.3°S 56.8°W");
         assert_eq!(format_geo(0.0, 0.0), "0.0°N 0.0°E");
+    }
+
+    /// Independent check of the SHIPPED stars-map.bin against known
+    /// astronomy: the parser and the generator (scripts/build-stars-map-bin.
+    /// js) are locked together through the real file, and the file itself is
+    /// proven to carry real positions (Sirius at 8.6 ly, brightest-first
+    /// ordering), not just plausible bytes.
+    #[test]
+    fn shipped_stars_map_bin_is_real() {
+        let bytes = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/data/stars-map.bin"))
+            .expect("data/stars-map.bin ships with the repo");
+        let stars = parse_stars_map(&bytes).expect("parses");
+        assert!(stars.len() > 100_000, "full HYG catalog, got {}", stars.len());
+        // Brightest-first ordering is what makes the zoom cutoff a `break`.
+        assert!(
+            stars.windows(2).all(|w| w[0].mag <= w[1].mag),
+            "records must be sorted by magnitude ascending"
+        );
+        // Sirius: brightest star in the night sky, 8.6 ly out.
+        let sirius = stars
+            .iter()
+            .find(|s| s.name.as_deref() == Some("Sirius"))
+            .expect("Sirius is named in the catalog");
+        let dist = (sirius.x as f64 * sirius.x as f64
+            + sirius.y as f64 * sirius.y as f64
+            + sirius.z as f64 * sirius.z as f64)
+            .sqrt();
+        assert!((dist - 8.6).abs() < 0.3, "Sirius at {dist:.2} ly, expected ~8.6");
+        assert!(sirius.mag < -1.0, "Sirius mag {}, expected ~-1.44", sirius.mag);
+        // Vega: nearly on the Sun's magnitude-0 doorstep at 25 ly.
+        let vega = stars
+            .iter()
+            .find(|s| s.name.as_deref() == Some("Vega"))
+            .expect("Vega is named in the catalog");
+        let vdist = (vega.x as f64 * vega.x as f64
+            + vega.y as f64 * vega.y as f64
+            + vega.z as f64 * vega.z as f64)
+            .sqrt();
+        assert!((vdist - 25.0).abs() < 1.0, "Vega at {vdist:.2} ly, expected ~25");
     }
 }

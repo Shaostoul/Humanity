@@ -2320,7 +2320,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Cosmos page carries the same Home marker, asteroid fan,
                     // and drone dot on the REAL solar-system map.
                     if ui.link(RichText::new("Open the full map (Cosmos)").size(theme.font_size_small).color(theme.accent())).clicked() {
-                        state.active_page = crate::gui::GuiPage::Cosmos;
+                        state.active_page = crate::gui::GuiPage::Maps;
                     }
                 }
                 ui.add_space(theme.spacing_xs);

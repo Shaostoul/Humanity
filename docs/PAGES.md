@@ -26,7 +26,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
-## Native pages (37 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
+## Native pages (36 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 
@@ -38,7 +38,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Settings | `settings.rs` | Router into the 11 Settings sub-pages below (single-page sidebar layout). | everyone | both |
 | Inventory | `inventory.rs` | Inventory grid + equipment slots + weight + item details. From `data/inventory/equipment_slots.json`. | everyone | both |
 | Tasks | `tasks.rs` | Three-column kanban (Todo / In Progress / Done) with project selector. | everyone | both |
-| Maps | `cosmos.rs` (alias) | Solar system orbit view + planet details, sidebar list grouped by type. `GuiPage::Maps` has forwarded to `cosmos::draw` since v0.203.2 -- same rendered page as the Cosmos row below, reached via a different nav label (Reality overview calls it "Maps", Sim overview calls it "Cosmos"). The standalone maps.rs file was dead code (zero callers, found 2026-07-01) and was DELETED in the 2026-07-02 sweep. | everyone | both |
+| Maps | `cosmos.rs` | THE map page (nav button "Maps"; heading "Maps" since v0.1145). Views: Solar System (3D orbits + planet details), Galaxy (real-catalog stars from data/stars-map.bin, light-year scale), Night Sky (celestial sphere + constellations); a Planet GPS view (OSM roads/buildings) is the ladder's next rung. The duplicate `GuiPage::Cosmos` variant was MERGED into Maps in v0.1145 (both drew the identical page since v0.203.2, splitting nav highlight + back-stack by entry path); the module keeps the cosmos.rs name. | everyone | both |
 | Market | `market.rs` | Marketplace: browse, search, create listings. Sidebar category filter, card grid. | everyone | both |
 | Profile | `profile.rs` | Player profile with privacy-tiered sidebar sections. | everyone | both |
 | Civilization | `civilization.rs` | Community/colony stats: 3-col grid, trends, charts, timeline. | everyone | both |
@@ -64,7 +64,6 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Governance | `governance.rs` | Proposals + votes + tally (local + civilization scope). **Native is fully LIVE as of v0.660**: fetches real proposals/tallies from `/api/v2`, casts Dilithium-signed `vote_v1` votes, and submits `proposal_v1` proposals via an in-page form (built with the in-crate ObjectBuilder the relay verifies with). **WEB voting is LIVE too (2026-07-01)**: `governance.html` builds + Dilithium-signs `vote_v1` objects in the browser (`pq-object.js buildVoteV1` over the KAT-locked `canonical-cbor.js`; identity from localStorage via `pq-relay-auth.js getPqIdentity`) and POSTs them to `/api/v2/objects`; byte-equality with the Rust encoder is locked by `just vote-kat` (scripts/vote-object-kat.mjs paired with object.rs::vote_v1_cross_language_kat). Voted proposals persist per identity fingerprint in localStorage. Web still lacks the proposal-CREATION form (native-only for now). | everyone | both |
 | Laws | `laws.rs` | Location-aware rules + rights, nested Humanity to locality; HumanityOS base set + real-law summaries. Data: `data/laws/laws.json`. Web mirror `web/pages/laws.html` (shared jurisdiction-chain logic in `web/shared/laws-logic.js`). | everyone | both |
 | Recovery | `recovery.rs` | Social key recovery (Shamir M-of-N), guardian setup. | everyone | both |
-| Cosmos | `cosmos.rs` | Three-mode astronomical map: System (Sol planets), Galactic (nearby stars in ly), Night Sky (Earth-centered celestial sphere with constellations). Added v0.203.0. | everyone | both |
 | Homes | `homes.rs` | Your offline homestead (v0.379): the Fibonacci homestead blueprint as a browsable design, pick a build scale (Solo/Family/Community/Colony), see power/water demand for that scale. | everyone | both |
 | Testing | `testing.rs` | QA testing tasks; operator-facing checklist, Mark Passed / Report Issue posts to chat. From `data/testing/qa_tasks.json`. | dev | native-only |
 | Dev | `dev.rs` | Developer tools (v0.777, a Platform section not a GuiPage variant): spawn any of the 99 creatures.csv species in front of the player, despawn-all, live creature count; documents the walk-up creature editor (look at a creature, press G). Cheats-gated (Settings toggle). | dev | native-only |

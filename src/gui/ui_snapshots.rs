@@ -1283,6 +1283,17 @@ fn snapshot_construction() {
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 page_snapshot!(snapshot_market, "market", market, 1280, 900);
 
+/// The Maps page's Galaxy view (v0.1145): the real HYG catalog rendered
+/// top-down, proving the load + magnitude-ladder draw path headlessly.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_galaxy() {
+    render_page_png("maps_galaxy", 1280, 900, |ctx, theme, state| {
+        state.cosmos_view = crate::gui::pages::cosmos::CosmosView::Galactic;
+        crate::gui::pages::cosmos::draw(ctx, theme, state);
+    });
+}
+
 /// The Market's in-app publish view (v0.1143): the shop + offering forms
 /// rendered open, proving the whole form lays out (the plain market snapshot
 /// shows the Directory browse; this one shows "+ Publish" clicked).

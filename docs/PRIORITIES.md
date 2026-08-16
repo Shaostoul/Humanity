@@ -125,6 +125,39 @@
 >    (b) planet_defs_bake 3.8 s at world entry (cache or parallelize);
 >    (c) adapter_request is wgpu-internal, likely not ours to fix.
 >
+> 5. **THE MAPS LADDER (operator direction 2026-08-16; full design in
+>    docs/design/maps-ladder.md, read it, do not re-derive).** Rung 1
+>    SHIPPED v0.1145.0: the Galaxy view draws the REAL HYG catalog
+>    (data/stars-map.bin, 109,400 stars, galactic-cartesian light-years,
+>    brightest-first; generator `just build-stars-map` self-verifies with
+>    31 checks; Rust test locks Sirius/Vega). Remaining rungs ranked:
+>    (a) Planet GPS view via OpenStreetMap: region fetcher -> compact
+>    vector format (roads/building footprints) -> 2D slippy view on the
+>    Maps page -> 3D extrusion in-world on the chunked-LOD Earth ->
+>    region download browser. First increment when fenced: one
+>    hand-picked region end-to-end in 2D. NEVER hit live OSM tile
+>    servers from the app; pipeline + release-asset regions like the
+>    star-catalog tiers.
+>    (b) Solar System view improvements (operator: "needs improvement";
+>    candidates listed in the ladder doc, operator to rank).
+>    (c) Cosmic web someday: 2MASS/SDSS galaxy catalog as a Universe
+>    view above Galaxy (few MB, same brightest-first pattern).
+>
+> 6. **NAMED VISIONS captured 2026-08-16 (design items, not yet fenced):**
+>    (a) STUDIO SIMULCAST: stream from PC -> own relay -> restream to
+>    YouTube/Twitch/X/FB simultaneously; Studio page keeps a dedicated
+>    chat pane so the streamer watches chat while operating the studio.
+>    (b) WATCH AS UNIVERSAL VIEWER: watch HumanityOS streams AND
+>    Twitch/YouTube embeds through one interface; someday synced watch
+>    parties. Per-user URLs: /watch?u=<name-or-key> (the watch page
+>    already takes a stream id).
+>    (c) PLAY/CHARACTERS STRUCTURE: characters + worlds; Open Net
+>    (character visits any server) vs Closed Net (server-held
+>    characters, anti-cheat); Play = straight into the default; the
+>    showroom is the character/world manager. Operator: "close but still
+>    a bit weird", needs a design pass articulating the model before
+>    restructuring.
+>
 > **>>> SECURITY follow-ups (post-incident, ranked):**
 > - CI deploy key = the operator's personal root key and can do ANYTHING as
 >   root. Split it: CI gets its own key with a forced command in

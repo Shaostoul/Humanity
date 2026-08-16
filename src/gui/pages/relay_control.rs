@@ -228,7 +228,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             // "Servers" is the user-facing word everywhere (the chat rail
             // header, the add dialog); "relay" stays internal jargon.
-            ui.label(RichText::new("MY SERVERS")
+            ui.label(RichText::new("SERVERS")
                 .size(theme.font_size_small)
                 .color(theme.text_muted())
                 .strong());

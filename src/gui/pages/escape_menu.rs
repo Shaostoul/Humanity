@@ -222,7 +222,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // section inside the old Real tab; GuiPage::Maps forwards to the Cosmos
                 // page (the real map). Closes the game-colored cluster.
                 let map_items = [
-                    NavItem { label: "Map", page: GuiPage::Maps, description: "" },
+                    NavItem { label: "Maps", page: GuiPage::Maps, description: "" },
                 ];
                 nav_group(ui, &map_items, theme.nav_sim(), text_muted, theme, state);
 

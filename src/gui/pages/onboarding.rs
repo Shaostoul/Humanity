@@ -66,40 +66,14 @@ pub fn load_quest_chains(data_dir: &Path) -> Vec<QuestChain> {
 // v0.415.0: the page renderer (draw + hero/concepts/core-pages/CTA sections)
 // was deleted with the retired page; draw_quests below is the live surface.
 
-/// Section header — small accent-colored kicker + larger primary heading.
-fn section_header(ui: &mut egui::Ui, theme: &Theme, kicker: &str, heading: &str) {
-    ui.label(
-        RichText::new(kicker)
-            .size(theme.font_size_small)
-            .color(theme.accent())
-            .strong(),
-    );
-    ui.add_space(theme.spacing_sm);
-    ui.label(
-        RichText::new(heading)
-            .size(theme.font_size_heading)
-            .color(theme.text_primary())
-            .strong(),
-    );
-    ui.add_space(theme.spacing_md);
-}
-
-/// Render the learn-by-doing quest chains. Reused by the Real tab's Quests
-/// section (the single, unified quest surface as of 2026-06-06), not just this
-/// page. The chains come from `state.onboarding_quest_chains` (data/onboarding/
-/// quests.json); First Steps (onboarding) is the first chain, so it sits at top.
+/// Render the learn-by-doing quest chains. Since the v0.1145 Quests/Tasks
+/// split this draws inside the Tasks page's guide panel, which supplies the
+/// header and hint itself, so this fn renders chains only (its old
+/// "QUEST CHAINS" section_header + hint line were deleted with their sole
+/// caller). The chains come from `state.onboarding_quest_chains`
+/// (data/onboarding/quests.json); First Steps sits at top.
 pub fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let avail = ui.available_width();
-    section_header(ui, theme, "QUEST CHAINS", "Learn by doing");
-    ui.label(
-        RichText::new(
-            "Step-by-step guides from setup to self-sufficiency. Click a step to mark it done. \
-             Progress saved locally.",
-        )
-        .size(theme.font_size_small)
-        .color(theme.text_secondary()),
-    );
-    ui.add_space(theme.spacing_md);
 
     if state.onboarding_quest_chains.is_empty() {
         ui.label(

@@ -692,6 +692,25 @@ refetches the directory. Enum dropdowns read the same
 against a throwaway `--headless` relay).
 - Native: `src/gui/pages/market_publish.rs`; identity: `src/net/identity.rs::pq_object_keypair`
 
+### Maps Galaxy View on the Real Catalog (v0.1145)
+The Maps page's Galaxy view draws data/stars-map.bin: the full HYG catalog
+(109,400 stars) as true galactic-cartesian positions in light-years,
+brightest-first so the zoom-scaled magnitude cutoff is a plain break.
+Spectral colors via the skybox's ci_to_rgb (one physics, two renderers),
+1-2-5 distance rings to 10,000 ly, named-star labels + hover detail.
+Generator scripts/build-stars-map-bin.js (just build-stars-map) is
+self-verifying (31 checks) and the Rust parser locks it with
+shipped_stars_map_bin_is_real (Sirius 8.6 ly, Vega 25 ly, sort order).
+Ladder: docs/design/maps-ladder.md (OSM planet GPS next).
+- Native: src/gui/pages/cosmos.rs (map_stars/parse_stars_map/draw_galactic_view)
+
+### Quests/Tasks Split (v0.1145)
+Quests = gameplay (sim quests, auto-tracked, native-only). Tasks = real
+life: the kanban plus the learn-by-doing tutorial chains as a collapsible
+guide panel (wide: right of the board; narrow: stacked below). Web nav
+entry renamed Onboarding; /quests redirects to /onboarding.
+- Native: src/gui/pages/quests.rs, tasks.rs (draw_guides), onboarding.rs
+
 ### Market Directory (web mirror, v0.1143)
 The web market page opens on a Directory section mirroring the native tab:
 offerings browse (search + category filter), providers with storefront

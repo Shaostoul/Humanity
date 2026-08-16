@@ -17073,14 +17073,8 @@ mod native_app {
                                     GuiPage::Laws => crate::gui::pages::laws::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.197.0: GuiPage::Agents and GuiPage::AiUsage removed.
-                                    GuiPage::Cosmos => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
-                                    // v0.203.2: GuiPage::Maps now forwards to the new
-                                    // Cosmos page. Operator clicked "Maps" in the
-                                    // single-row nav (which still listed the OLD
-                                    // pages/maps.rs page that was just an empty
-                                    // placeholder + dead-code orbit visualization
-                                    // since v0.197 dropped the Real/Sim toggle).
-                                    // The new Cosmos page IS the universal map.
+                                    // v0.1145: GuiPage::Cosmos merged into Maps (one
+                                    // page, one name); cosmos.rs stays the module.
                                     GuiPage::Maps => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Browser => browser::draw(ctx, &state.theme, &mut state.gui_state),

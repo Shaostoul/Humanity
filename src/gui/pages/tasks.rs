@@ -1,14 +1,33 @@
-//! Task Board — three-column kanban layout with task cards.
+//! Tasks: the not-game surface. A three-column kanban (Todo/In Progress/Done)
+//! for the user's own tasks, plus the learn-by-doing guide panel.
 //!
-//! Features: project selector, kanban columns (Todo/In Progress/Done),
-//! task cards with priority badges and labels, detail panel, new task form,
-//! filter bar with search/priority/assignee filters, task count per column.
+//! Features: project selector, kanban columns, task cards with priority badges
+//! and labels, detail panel, new task form, filter bar with search/priority/
+//! assignee filters, task count per column.
+//!
+//! The guide panel renders the shared onboarding quest chains
+//! (`data/onboarding/quests.json`, via `onboarding::draw_quests`). It moved
+//! here from the Quests page in v0.1145, per the operator's split: Quests is
+//! gameplay, Tasks is real life, and the tutorial for the app itself is a Tasks
+//! thing. It sits right of the board on a wide window, drops below it when
+//! narrow, and the header's Guides button collapses it either way.
 
 use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use super::onboarding;
 use std::cell::RefCell;
+
+/// Available width at or above which the guide panel rides beside the board
+/// instead of dropping below it.
+const WIDE_LAYOUT_MIN_WIDTH: f32 = 1200.0;
+/// Fixed width of the side-by-side guide panel. The board takes the rest.
+const GUIDE_PANEL_WIDTH: f32 = 340.0;
+/// Fraction of the panel height the board keeps when the guides stack below it.
+/// Without a cap the kanban columns' own ScrollAreas eat the full height and
+/// the guides section is unreachable off the bottom.
+const STACKED_BOARD_HEIGHT_FRACTION: f32 = 0.6;
 
 /// Page-local state for the task board.
 struct TaskPageState {
@@ -20,6 +39,10 @@ struct TaskPageState {
     editing: bool,
     edit_status: TaskStatus,
     edit_priority: TaskPriority,
+    /// Guide panel visible? Default true (the tutorials are the point for a new
+    /// user); board-only users collapse it with the header toggle. Page-local
+    /// on purpose, this is a view preference, not app state.
+    show_guides: bool,
 }
 
 impl Default for TaskPageState {
@@ -35,6 +58,7 @@ impl Default for TaskPageState {
             editing: false,
             edit_status: TaskStatus::Todo,
             edit_priority: TaskPriority::Medium,
+            show_guides: true,
         }
     }
 }
@@ -251,6 +275,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     if widgets::primary_button(ui, theme, "+ New Task") {
                         state.task_show_new_form = !state.task_show_new_form;
                     }
+                    // Guide-panel toggle. Right-to-left layout puts this just
+                    // left of the New Task button.
+                    with_state(|ps| {
+                        let label = if ps.show_guides { "Hide guides" } else { "Guides" };
+                        if widgets::secondary_button(ui, theme, label) {
+                            ps.show_guides = !ps.show_guides;
+                        }
+                    });
                 });
             });
 
@@ -423,86 +455,63 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .map(|(i, _)| i)
                 .collect();
 
-            // Three-column kanban
-            let columns = [
-                ("Todo", TaskStatus::Todo),
-                ("In Progress", TaskStatus::InProgress),
-                ("Done", TaskStatus::Done),
-            ];
+            // Board + guides layout. Wide: guides ride the right edge of the
+            // board. Narrow: the board keeps a capped height and the guides
+            // stack below it. Either way the header toggle hides them.
+            let show_guides = with_state(|ps| ps.show_guides);
+            let avail_w = ui.available_width();
+            let avail_h = ui.available_height();
 
-            ui.columns(3, |cols| {
-                for (col_idx, (col_name, col_status)) in columns.iter().enumerate() {
-                    cols[col_idx].vertical(|ui| {
-                        let col_tasks: Vec<usize> = filtered.iter()
-                            .copied()
-                            .filter(|&i| state.tasks[i].status == *col_status)
-                            .collect();
-
-                        // Column header with count
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(*col_name).size(theme.font_size_heading).color(theme.text_primary()));
-                            widgets::badge(ui, theme, &col_tasks.len().to_string(), theme.bg_secondary());
-                        });
-                        ui.add_space(theme.spacing_xs);
-                        ui.separator();
-                        ui.add_space(theme.spacing_xs);
-
-                        if col_tasks.is_empty() {
-                            ui.label(RichText::new("No tasks").color(theme.text_muted()));
-                        }
-
-                        // Each kanban column needs its OWN ScrollArea id — they
-                        // live inside ui.columns(3,..) which gives each the same
-                        // auto-id, so egui flags a duplicate-id clash and the
-                        // columns can stop scrolling independently. Salt by name.
-                        ScrollArea::vertical().id_salt(*col_name).show(ui, |ui| {
-                            for &idx in &col_tasks {
-                                let task = &state.tasks[idx];
-                                let pc = priority_color(theme, task.priority);
-                                widgets::card(ui, theme, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new(&task.title).size(theme.font_size_body).color(theme.text_primary()));
-                                        widgets::badge_sm(ui, theme, priority_label(task.priority), pc);
-                                    });
-                                    // Description preview (first 80 chars)
-                                    if !task.description.is_empty() {
-                                        let preview: String = task.description.chars().take(80).collect();
-                                        let suffix = if task.description.chars().count() > 80 { "..." } else { "" };
-                                        ui.label(RichText::new(format!("{}{}", preview, suffix)).color(theme.text_muted()).size(theme.font_size_small));
-                                    }
-                                    if !task.assignee.is_empty() {
-                                        ui.label(RichText::new(format!("Assignee: {}", task.assignee)).color(theme.text_secondary()).size(theme.font_size_small));
-                                    }
-                                    // Labels as small badges
-                                    if !task.labels.is_empty() {
-                                        ui.horizontal_wrapped(|ui| {
-                                            for label in &task.labels {
-                                                widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
-                                            }
-                                        });
-                                    }
-                                    // Task ID
-                                    ui.horizontal(|ui| {
-                                        ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()).size(theme.font_size_small));
-                                        if widgets::secondary_button(ui, theme, "View") {
-                                            select_task = Some(idx);
-                                        }
-                                    });
+            if !show_guides {
+                draw_board(ui, theme, state, &filtered, &mut select_task);
+            } else if avail_w >= WIDE_LAYOUT_MIN_WIDTH {
+                ui.horizontal_top(|ui| {
+                    let board_w = (avail_w - GUIDE_PANEL_WIDTH - theme.spacing_lg).max(480.0);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(board_w, avail_h),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            // set_width so the board actually fills its share;
+                            // allocate_ui_with_layout otherwise advances by the
+                            // content's own (smaller) width.
+                            ui.set_width(board_w);
+                            draw_board(ui, theme, state, &filtered, &mut select_task);
+                        },
+                    );
+                    ui.add_space(theme.spacing_lg);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(GUIDE_PANEL_WIDTH, avail_h),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            ui.set_width(GUIDE_PANEL_WIDTH);
+                            // Own scroll id: the kanban columns already salt
+                            // theirs, and a bare auto-id would clash.
+                            ScrollArea::vertical()
+                                .id_salt("task_guides_side")
+                                .show(ui, |ui| {
+                                    draw_guides(ui, theme, state);
                                 });
-                                ui.add_space(theme.spacing_xs);
-                            }
-                        });
-                    });
-                }
-            });
-
-            // Empty state
-            if state.tasks.is_empty() {
-                ui.add_space(theme.spacing_lg);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("No tasks yet").size(theme.font_size_heading).color(theme.text_muted()));
-                    ui.label(RichText::new("Click '+ New Task' to create one.").color(theme.text_secondary()));
+                        },
+                    );
                 });
+            } else {
+                let board_h = (avail_h * STACKED_BOARD_HEIGHT_FRACTION).max(220.0);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(avail_w, board_h),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.set_width(avail_w);
+                        draw_board(ui, theme, state, &filtered, &mut select_task);
+                    },
+                );
+                ui.add_space(theme.spacing_sm);
+                ui.separator();
+                ui.add_space(theme.spacing_sm);
+                ScrollArea::vertical()
+                    .id_salt("task_guides_below")
+                    .show(ui, |ui| {
+                        draw_guides(ui, theme, state);
+                    });
             }
         });
 
@@ -513,4 +522,117 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ps.editing = false;
         });
     }
+}
+
+/// The three-column kanban itself. Split out of `draw` in v0.1145 so both the
+/// side-by-side and the stacked layout can render it into a sized child ui.
+fn draw_board(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &GuiState,
+    filtered: &[usize],
+    select_task: &mut Option<usize>,
+) {
+    let columns = [
+        ("Todo", TaskStatus::Todo),
+        ("In Progress", TaskStatus::InProgress),
+        ("Done", TaskStatus::Done),
+    ];
+
+    ui.columns(3, |cols| {
+        for (col_idx, (col_name, col_status)) in columns.iter().enumerate() {
+            cols[col_idx].vertical(|ui| {
+                let col_tasks: Vec<usize> = filtered.iter()
+                    .copied()
+                    .filter(|&i| state.tasks[i].status == *col_status)
+                    .collect();
+
+                // Column header with count
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(*col_name).size(theme.font_size_heading).color(theme.text_primary()));
+                    widgets::badge(ui, theme, &col_tasks.len().to_string(), theme.bg_secondary());
+                });
+                ui.add_space(theme.spacing_xs);
+                ui.separator();
+                ui.add_space(theme.spacing_xs);
+
+                if col_tasks.is_empty() {
+                    ui.label(RichText::new("No tasks").color(theme.text_muted()));
+                }
+
+                // Each kanban column needs its OWN ScrollArea id — they
+                // live inside ui.columns(3,..) which gives each the same
+                // auto-id, so egui flags a duplicate-id clash and the
+                // columns can stop scrolling independently. Salt by name.
+                ScrollArea::vertical().id_salt(*col_name).show(ui, |ui| {
+                    for &idx in &col_tasks {
+                        let task = &state.tasks[idx];
+                        let pc = priority_color(theme, task.priority);
+                        widgets::card(ui, theme, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(&task.title).size(theme.font_size_body).color(theme.text_primary()));
+                                widgets::badge_sm(ui, theme, priority_label(task.priority), pc);
+                            });
+                            // Description preview (first 80 chars)
+                            if !task.description.is_empty() {
+                                let preview: String = task.description.chars().take(80).collect();
+                                let suffix = if task.description.chars().count() > 80 { "..." } else { "" };
+                                ui.label(RichText::new(format!("{}{}", preview, suffix)).color(theme.text_muted()).size(theme.font_size_small));
+                            }
+                            if !task.assignee.is_empty() {
+                                ui.label(RichText::new(format!("Assignee: {}", task.assignee)).color(theme.text_secondary()).size(theme.font_size_small));
+                            }
+                            // Labels as small badges
+                            if !task.labels.is_empty() {
+                                ui.horizontal_wrapped(|ui| {
+                                    for label in &task.labels {
+                                        widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
+                                    }
+                                });
+                            }
+                            // Task ID
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(format!("#{}", task.id)).color(theme.text_muted()).size(theme.font_size_small));
+                                if widgets::secondary_button(ui, theme, "View") {
+                                    *select_task = Some(idx);
+                                }
+                            });
+                        });
+                        ui.add_space(theme.spacing_xs);
+                    }
+                });
+            });
+        }
+    });
+
+    // Empty state
+    if state.tasks.is_empty() {
+        ui.add_space(theme.spacing_lg);
+        ui.vertical_centered(|ui| {
+            ui.label(RichText::new("No tasks yet").size(theme.font_size_heading).color(theme.text_muted()));
+            ui.label(RichText::new("Click '+ New Task' to create one.").color(theme.text_secondary()));
+        });
+    }
+}
+
+/// The learn-by-doing guide panel: the app's own tutorial, from first setup
+/// through self-sufficiency. Content is the shared onboarding quest chains
+/// (`data/onboarding/quests.json`), so adding a guide never needs a recompile.
+fn draw_guides(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.label(
+        RichText::new("LEARN BY DOING")
+            .size(theme.font_size_small)
+            .color(theme.accent())
+            .strong(),
+    );
+    ui.add_space(theme.spacing_xs);
+    ui.label(
+        RichText::new(
+            "Guided tutorials from setup to self-sufficiency. Check steps off as you do them. Progress saved locally.",
+        )
+        .size(theme.font_size_small)
+        .color(theme.text_secondary()),
+    );
+    ui.add_space(theme.spacing_sm);
+    onboarding::draw_quests(ui, theme, state);
 }

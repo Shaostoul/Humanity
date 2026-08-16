@@ -598,11 +598,11 @@ pub enum GuiPage {
     // data/coordination/* + the relay agent_sessions table — the UI
     // pages weren't pulling their weight. The page modules + state
     // fields were removed in the same release.
-    /// Cosmos page (v0.203.0, Phase 3). Three-mode astronomical map:
-    /// System (Sol planets), Galactic (Sol-centered nearby stars in ly),
-    /// Night Sky (Earth-centered celestial sphere with constellations).
-    /// Lives under Sim category in the nav. See pages/cosmos.rs.
-    Cosmos,
+    // v0.1145: GuiPage::Cosmos DELETED (merged into Maps). Both variants
+    // rendered the identical cosmos::draw page since v0.203.2, so nav
+    // highlight and back-stack behaved differently by entry path. "Maps"
+    // is the one name (nav map open item 1, operator call 2026-08-16);
+    // "cosmos" persists only as the legacy config string parsed to Maps.
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
@@ -672,7 +672,6 @@ pub fn page_to_config_str(page: GuiPage) -> &'static str {
         GuiPage::Maps => "maps",
         GuiPage::Notes => "notes",
         GuiPage::Calendar => "calendar",
-        GuiPage::Cosmos => "cosmos",
         GuiPage::Library => "library",
         _ => "humanity",
     }
@@ -687,7 +686,8 @@ pub fn config_str_to_page(s: &str) -> GuiPage {
         "maps" => GuiPage::Maps,
         "notes" => GuiPage::Notes,
         "calendar" => GuiPage::Calendar,
-        "cosmos" => GuiPage::Cosmos,
+        // Legacy config value: the Cosmos variant merged into Maps (v0.1145).
+        "cosmos" => GuiPage::Maps,
         "library" => GuiPage::Library,
         // Retired pages saved in old configs land on their successors:
         // the Resources directory lives in the Library; the onboarding

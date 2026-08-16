@@ -2267,7 +2267,9 @@ fn load_constellations(catalog: &StarCatalog, data_dir: &Path) -> Vec<StarVertex
 
 /// Convert B-V color index to RGB.
 /// Approximation based on the Planck spectrum / stellar classification.
-fn ci_to_rgb(ci: f32) -> [f32; 3] {
+/// pub(crate): the Maps page's galaxy view colors its catalog stars with the
+/// SAME curve the skybox uses (one physics, two renderers).
+pub(crate) fn ci_to_rgb(ci: f32) -> [f32; 3] {
     // Clamp to valid range
     let ci = ci.clamp(-0.4, 2.0);
 

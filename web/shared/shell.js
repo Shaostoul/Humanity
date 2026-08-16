@@ -881,11 +881,14 @@
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-sim">' +
-        navTab('/onboarding', 'compass',   'Quests',    'quests') +
+        /* Quests/Tasks split (operator, 2026-08-16): Quests = in-game,
+         * auto-populated, native-only; the web tutorial chains live under
+         * the Tasks umbrella, so this entry is named for what it opens. */
+        navTab('/onboarding', 'compass',   'Onboarding', 'quests') +
         navTab('/tasks',      'tasklist',  'Tasks',     'tasks') +
         navTab('/inventory',  'inventory', 'Inventory', 'gear') +
         navTab('/crafting',   'crafting',  'Crafting',  'crafting') +
-        navTab('/maps',       'map',       'Map',       'map') +
+        navTab('/maps',       'map',       'Maps',      'map') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -999,11 +1002,11 @@
       mobileLink('/download',  'Play / Studio (desktop app)') +
       mobileLink('/profile',   'Profile') +
       mobileLink('/home',      'Home') +
-      mobileLink('/onboarding','Quests') +
+      mobileLink('/onboarding','Onboarding') +
       mobileLink('/tasks',     'Tasks') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/crafting',  'Crafting') +
-      mobileLink('/maps',      'Map') +
+      mobileLink('/maps',      'Maps') +
       mobileLink('/platform',  'Platform') +
       // Tools = the external catalog (software + real-world help services).
       // Library = everything we wrote. Split by what you DO with them (v0.1063).
@@ -1618,7 +1621,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1144.0';
+    var CURRENT_VERSION = '0.1145.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
