@@ -16,6 +16,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                // Page title matches the nav button; before v0.1144 the page
+                // never stated its own name (only the two section eyebrows).
+                ui.label(
+                    RichText::new("Quests")
+                        .size(theme.font_size_title)
+                        .color(theme.text_primary()),
+                );
+                ui.add_space(theme.spacing_md);
                 // Responsive two-column: the auto-tracked sim quests on the left,
                 // the learn-by-doing chains on the right when wide; stacked narrow.
                 if ui.available_width() >= 900.0 {

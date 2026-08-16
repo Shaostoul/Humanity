@@ -16,6 +16,10 @@
 > Real tab so they're reachable again. Earlier: `Agents`, `AiUsage`, standalone
 > `Onboarding`, and `Resources` were removed as variants (v0.197.0 / v0.415.0).
 
+> **Companion:** `docs/reference/ui-navigation-map.md` maps how these pages
+> CONNECT (nav trees, both surfaces) and tracks name consistency between
+> buttons, headings, and titles (survey + naming rule adopted 2026-08-16).
+
 ## How to use this file
 
 - **Adding a page**: append a row to the relevant table below, plus update `src/gui/mod.rs::GuiPage` (native) or place the file under `web/pages/` (web).

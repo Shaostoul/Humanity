@@ -1157,9 +1157,11 @@ function quest_esc(s) {
 function quest_setFilter(f) {
   quest_currentFilter = f;
   document.querySelectorAll('.q-cat').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
-  const labels = { all:'All Quests', daily:'Daily Quests', story:'Story Quests',
-    side:'Side Quests', personal:'Personal Quests', done:'Completed' };
-  document.getElementById('quest-heading').textContent = labels[f] || 'Quests';
+  /* "Tasks" is this page's name (nav + title); "Quests" is a DIFFERENT nav
+   * entry (/onboarding), so quest-vocabulary here collided with it. */
+  const labels = { all:'All Tasks', daily:'Daily Tasks', story:'Story Tasks',
+    side:'Side Tasks', personal:'Personal Tasks', done:'Completed' };
+  document.getElementById('quest-heading').textContent = labels[f] || 'Tasks';
   quest_renderList();
 }
 

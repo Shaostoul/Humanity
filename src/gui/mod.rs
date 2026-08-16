@@ -654,10 +654,12 @@ pub const BOOT_PAGE_OPTIONS: &[(GuiPage, &str)] = &[
     (GuiPage::Humanity, "Humanity (Mission Dashboard)"),
     (GuiPage::Chat, "Chat"),
     (GuiPage::Tasks, "Tasks"),
+    // NOTE: GuiPage::Cosmos was listed here too ("Cosmos") until v0.1144;
+    // Maps and Cosmos render the IDENTICAL page, so the dropdown offered the
+    // same destination under two names.
     (GuiPage::Maps, "Maps"),
     (GuiPage::Notes, "Notes"),
     (GuiPage::Calendar, "Calendar"),
-    (GuiPage::Cosmos, "Cosmos"),
     (GuiPage::Library, "Library"),
 ];
 
@@ -4984,7 +4986,10 @@ impl Default for GuiState {
             pending_inventory_transfers: Vec::new(),
             tower_compat: Vec::new(),
             creative_mode: true,
-            active_real_section: "inventory".to_string(),
+            // Must be an id that EXISTS in real.rs's section_nav list, or the
+            // Profile page opens with no sidebar item highlighted (the old
+            // "inventory" default was removed from the list long ago).
+            active_real_section: "body".to_string(),
             active_platform_section: "recovery".to_string(),
             active_humanity_section: "civilization".to_string(),
             map_selected_planet: None,

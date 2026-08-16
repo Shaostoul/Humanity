@@ -577,7 +577,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 // Header
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Marketplace").size(theme.font_size_title).color(theme.text_primary()));
+                    // Heading matches the tab label ("Classifieds"): the word
+                    // "Marketplace" inside the Market page named nothing.
+                    ui.label(RichText::new("Classifieds").size(theme.font_size_title).color(theme.text_primary()));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if widgets::primary_button(ui, theme, "+ Create Listing") {
                             state.listing_show_new_form = !state.listing_show_new_form;

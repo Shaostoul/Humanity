@@ -91,8 +91,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
+                // Heading matches the Profile sidebar label ("Trade").
                 ui.label(
-                    RichText::new("P2P Trading")
+                    RichText::new("Trade")
                         .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );

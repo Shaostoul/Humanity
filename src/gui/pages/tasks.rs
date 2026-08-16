@@ -245,7 +245,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Task Board").size(theme.font_size_title).color(theme.text_primary()));
+                // Heading matches the nav button ("Tasks"): one page, one name.
+                ui.label(RichText::new("Tasks").size(theme.font_size_title).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if widgets::primary_button(ui, theme, "+ New Task") {
                         state.task_show_new_form = !state.task_show_new_form;

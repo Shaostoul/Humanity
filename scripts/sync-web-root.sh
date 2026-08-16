@@ -47,6 +47,18 @@ done
 # this script exists.
 [ -f "$DST/index.html" ] || { echo "!! no index.html landed at the web root"; exit 1; }
 
+# Homepage FLAVORS (web/home/): served under /home/ so an operator can pick
+# one for the per-node override exactly as SELF-HOSTING.md documents:
+#   cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# (v0.1144 fix: the flavors shipped in-repo since v0.1141 but this script
+# never placed them, so that documented cp had nothing to copy on a fresh
+# deploy.) Note /home is the Home PAGE route; nginx's $uri.html try_files
+# resolves the file before the directory, so home.html keeps winning.
+if [ -d "$SRC/web/home" ]; then
+  mkdir -p "$DST/home"
+  rsync -a "$SRC/web/home/" "$DST/home/"
+fi
+
 for dir in activities; do
   if [ -d "$SRC/web/$dir" ]; then
     mkdir -p "$DST/$dir"
