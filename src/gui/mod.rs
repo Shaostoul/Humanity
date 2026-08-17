@@ -3174,9 +3174,10 @@ pub struct GuiState {
     /// The current decoded frame as an egui texture, re-uploaded when a new frame lands.
     pub watch_texture: Option<egui::TextureHandle>,
     /// Directory of live streams from GET /api/live: (id, title, viewers).
-    pub watch_streams: Vec<(String, String, u64)>,
+    /// (id, title, viewers, bound chat room) rows from GET /api/live.
+    pub watch_streams: Vec<(String, String, u64, String)>,
     /// Background result channel for the directory fetch.
-    pub watch_streams_rx: Option<std::sync::mpsc::Receiver<Vec<(String, String, u64)>>>,
+    pub watch_streams_rx: Option<std::sync::mpsc::Receiver<Vec<(String, String, u64, String)>>>,
     /// Last time the directory was refreshed (egui time seconds), for periodic polling.
     pub watch_last_fetch: f64,
     /// Manual "watch by name" entry on the Watch page.

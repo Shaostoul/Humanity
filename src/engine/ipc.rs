@@ -436,6 +436,9 @@ pub(crate) fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu:
             let cfg = LiveConfig {
                 server,
                 title: state.gui_state.studio.stream_key.clone(),
+                // Empty = the relay binds the default #live-<name> room. A
+                // picker at Go Live is the next rung of the studio-watch plan.
+                chat: String::new(),
                 target_height,
                 quality,
                 fps: state.gui_state.studio.stream_fps.clamp(5, 30),

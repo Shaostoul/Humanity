@@ -134,7 +134,7 @@ fn draw_directory(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     } else {
         // Clone the list so we are not borrowing state while we may mutate it.
         let streams = state.watch_streams.clone();
-        for (id, title, viewers) in streams {
+        for (id, title, viewers, chat) in streams {
             let currently = state
                 .watch_viewer
                 .as_ref()
@@ -143,8 +143,13 @@ fn draw_directory(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.horizontal(|ui| {
                 let label = if title.is_empty() { id.clone() } else { title.clone() };
                 ui.label(RichText::new(label).strong());
+                let meta = if chat.is_empty() {
+                    format!("{viewers} watching")
+                } else {
+                    format!("{viewers} watching, chat {chat}")
+                };
                 ui.label(
-                    RichText::new(format!("{viewers} watching"))
+                    RichText::new(meta)
                         .size(theme.font_size_small)
                         .color(theme.text_muted()),
                 );
@@ -219,7 +224,7 @@ pub(crate) fn poll_directory(ctx: &egui::Context, state: &mut GuiState) {
 }
 
 /// Fetch and parse `GET /api/live` into (id, title, viewers) rows.
-fn fetch_directory(base: &str) -> Option<Vec<(String, String, u64)>> {
+fn fetch_directory(base: &str) -> Option<Vec<(String, String, u64, String)>> {
     let body = ureq::get(&format!("{base}/api/live"))
         .timeout(std::time::Duration::from_secs(4))
         .call()
@@ -235,9 +240,10 @@ fn fetch_directory(base: &str) -> Option<Vec<(String, String, u64)>> {
                     s.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string(),
                     s.get("title").and_then(|x| x.as_str()).unwrap_or("").to_string(),
                     s.get("viewers").and_then(|x| x.as_u64()).unwrap_or(0),
+                    s.get("chat").and_then(|x| x.as_str()).unwrap_or("").to_string(),
                 )
             })
-            .filter(|(id, _, _)| !id.is_empty())
+            .filter(|(id, _, _, _)| !id.is_empty())
             .collect(),
     )
 }

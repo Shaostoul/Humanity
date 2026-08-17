@@ -111,6 +111,10 @@ pub struct LiveStream {
     viewers: Arc<AtomicUsize>,
     /// Operator-supplied title.
     title: std::sync::Mutex<String>,
+    /// The stream's bound chat room (studio-watch design: the pairing is
+    /// METADATA declared at go-live, never guesswork). Defaults to
+    /// #live-<name> when the publisher does not pick one.
+    chat: std::sync::Mutex<String>,
     /// When the publisher connected.
     started: Instant,
     /// Total frames relayed (diagnostics).
@@ -142,6 +146,7 @@ impl LiveRegistry {
                 serde_json::json!({
                     "id": id,
                     "title": s.title.lock().map(|t| t.clone()).unwrap_or_default(),
+                    "chat": s.chat.lock().map(|c| c.clone()).unwrap_or_default(),
                     "viewers": s.viewers.load(Ordering::Relaxed),
                     "uptime_secs": s.started.elapsed().as_secs(),
                     "frames": s.frames.load(Ordering::Relaxed),
@@ -159,6 +164,10 @@ struct AuthFrame {
     sig: String,
     #[serde(default)]
     title: String,
+    /// Bound chat room, optional: empty means "give me the default". The
+    /// field is additive, so pre-v0.1151 publishers keep working unchanged.
+    #[serde(default)]
+    chat: String,
 }
 
 /// `GET /live/pub` - publisher socket. Stream id comes from the signing key's
@@ -268,6 +277,11 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
         } else {
             clamp_title(&auth.title)
         }),
+        chat: std::sync::Mutex::new(if auth.chat.is_empty() {
+            format!("#live-{id}")
+        } else {
+            clamp_title(&auth.chat)
+        }),
         started: Instant::now(),
         frames: AtomicUsize::new(0),
     });
@@ -297,11 +311,17 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
                 // Err just means "no viewers right now" - that is not a failure.
                 let _ = stream.tx.send(frame);
             }
-            // A text frame from a live publisher is a title update.
+            // A text frame from a live publisher is a title or chat-binding
+            // update.
             Message::Text(t) => {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
                     if let Some(title) = v.get("title").and_then(|t| t.as_str()) {
                         *stream.title.lock().unwrap() = clamp_title(title);
+                    }
+                    if let Some(chat) = v.get("chat").and_then(|c| c.as_str()) {
+                        if !chat.is_empty() {
+                            *stream.chat.lock().unwrap() = clamp_title(chat);
+                        }
                     }
                 }
             }
@@ -447,6 +467,7 @@ mod tests {
         db.register_name("streamer", &pubkey).expect("register name");
 
         let state = Arc::new(RelayState::new(db));
+        let registry_handle = state.clone();
         let app = axum::Router::new()
             .route("/ws/live/pub", get(pub_handler))
             .route("/ws/live/sub/{stream}", get(sub_handler))
@@ -484,6 +505,15 @@ mod tests {
         assert_eq!(
             v["stream"], "streamer",
             "the stream id must be the key's REGISTERED NAME, resolved server-side"
+        );
+
+        // --- The directory carries the chat binding (v0.1151): the auth frame
+        // above sent none, so the relay must have bound the default room.
+        let snap = registry_handle.live.snapshot().await;
+        assert_eq!(snap.len(), 1);
+        assert_eq!(
+            snap[0]["chat"], "#live-streamer",
+            "an unbound go-live must default its chat room to #live-<name>"
         );
 
         // --- Viewer 1 subscribes BEFORE any frame is sent.
@@ -658,6 +688,7 @@ mod tests {
             last_key: std::sync::Mutex::new(Some(Arc::from(&[1u8, 0, 0, 0, 0, 0, 0, 0, 0, 7][..]))),
             viewers: Arc::new(AtomicUsize::new(0)),
             title: std::sync::Mutex::new("t".into()),
+            chat: std::sync::Mutex::new("#live-t".into()),
             started: Instant::now(),
             frames: AtomicUsize::new(0),
         });

@@ -211,8 +211,18 @@
           const n = document.createElement('div'); n.className = 'n'; n.textContent = s.id;
           const t = document.createElement('div'); t.className = 't'; t.textContent = s.title || '';
           const v = document.createElement('div'); v.className = 'v';
-          v.textContent = s.viewers + (s.viewers === 1 ? ' watching' : ' watching');
-          a.append(n, t, v);
+          v.textContent = s.viewers + ' watching';
+          // The stream's bound chat room (v0.1151): declared at go-live,
+          // default #live-<name>. Shown so a viewer knows where the
+          // conversation lives; the chat page is one tab away.
+          if (s.chat) {
+            const c = document.createElement('div'); c.className = 'v';
+            c.textContent = 'chat: ' + s.chat;
+            v.append(document.createTextNode(' '));
+            a.append(n, t, v, c);
+          } else {
+            a.append(n, t, v);
+          }
           list.appendChild(a);
         }
 

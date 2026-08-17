@@ -48,6 +48,9 @@ pub struct LiveConfig {
     /// Relay base URL, e.g. `https://united-humanity.us`.
     pub server: String,
     pub title: String,
+    /// Bound chat room (studio-watch: the stream/chat pairing is declared
+    /// metadata). Empty = let the relay default to #live-<name>.
+    pub chat: String,
     /// Target output height (720 = 720p). Width follows the source aspect ratio.
     pub target_height: u32,
     /// JPEG quality, 1-100. 70 is a reasonable live default.
@@ -77,6 +80,7 @@ impl Default for LiveConfig {
         Self {
             server: "https://united-humanity.us".into(),
             title: String::new(),
+            chat: String::new(),
             target_height: 720,
             quality: 70,
             fps: 15,
@@ -276,6 +280,7 @@ fn worker(
         "timestamp": ts,
         "sig": sig,
         "title": cfg.title,
+        "chat": cfg.chat,
     });
     socket
         .send(tungstenite::Message::Text(auth.to_string().into()))
@@ -489,6 +494,7 @@ mod tests {
         let cfg = LiveConfig {
             server: format!("http://127.0.0.1:{port}"),
             title: "E2E".into(),
+            chat: String::new(),
             target_height: 36, // tiny, so the test is fast
             quality: 90,
             fps: 30,

@@ -89,10 +89,16 @@ entry; code: src/net/live.rs, src/relay/live.rs, web/pages/watch.html.
    publisher-mirrored status, the full-width expandable LIVE STRIP at the
    top of Chat (Go Live / End / Open Studio + the live-now directory with
    one-click Watch; replaces the old right-rail section), and /watch
-   accepts ?u=<name> as an alias of ?s=. REMAINING in this increment: the
-   chat-binding field in the go-live announcement (relay AuthFrame +
-   snapshot JSON + a default #live-<name> room) and the web chat mirror
-   (chat-live.js polling /api/live beside the existing #stream-sidebar).
+   accepts ?u=<name> as an alias of ?s=. SECOND HALF SHIPPED v0.1151: the chat-binding
+   field rides the go-live announcement end to end (AuthFrame.chat,
+   optional so old publishers keep working; relay defaults #live-<name>;
+   snapshot JSON carries it; a live publisher can retarget it with a
+   {"chat": ...} text frame; locked by the fanout e2e test), both
+   watch surfaces and the Chat strip display the binding, and the web
+   chat gained its live-now mirror (web/chat/chat-live.js polling
+   /api/live, rows linking /watch?s=). INCREMENT 1 COMPLETE except the
+   Go Live binding PICKER (a room selector in Studio/strip), which
+   lands with the popout increment.
 2. **WebRTC small-audience video**: reuse the shipped WebRTC + TURN stack
    for P2P screen/camera share to small rooms (this is also the watch-party
    seed). Viewer cap documented honestly.
