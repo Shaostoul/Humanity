@@ -245,6 +245,121 @@ pub fn parse_region(bytes: &[u8]) -> Option<OsmRegion> {
     })
 }
 
+// ───────────────────── Region DEM (HOSDEM1, real elevation) ─────────────────
+
+/// Real elevation for a region's area, fetched once at dev time from the
+/// public AWS Terrain Tiles by `scripts/fetch-region-dem.mjs` (see its
+/// header for the byte-exact spec and the source attribution). ~13 m grid at
+/// Puget Sound latitudes vs the ~460 m global base heightmap: this is what
+/// gives a region real coastline gradients instead of a cliff at the carve
+/// edge (operator field report 2026-08-17).
+#[derive(Debug, Clone)]
+pub struct RegionDem {
+    pub width: u32,
+    pub height: u32,
+    /// Latitude of ROW 0's sample points (degrees). Rows go SOUTH from here.
+    pub lat_north: f64,
+    /// Longitude of column 0's sample points (degrees).
+    pub lon_west: f64,
+    /// Degrees between row sample points (positive; subtract going south).
+    pub lat_step: f64,
+    /// Degrees between column sample points (positive going east).
+    pub lon_step: f64,
+    pub min_m: f32,
+    pub max_m: f32,
+    /// Quantized elevations, row-major from the north row.
+    pub samples: Vec<u16>,
+}
+
+/// Parse one HOSDEM1 file. Same house rules as `parse_region`: strict
+/// front-to-back walk, must land exactly on EOF.
+pub fn parse_dem(bytes: &[u8]) -> Option<RegionDem> {
+    if bytes.len() < 55 || &bytes[0..7] != b"HOSDEM1" {
+        return None;
+    }
+    let u32le = |o: usize| u32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
+    let f64le = |o: usize| f64::from_le_bytes(bytes[o..o + 8].try_into().unwrap());
+    let f32le = |o: usize| f32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
+    let width = u32le(7);
+    let height = u32le(11);
+    let lat_north = f64le(15);
+    let lon_west = f64le(23);
+    let lat_step = f64le(31);
+    let lon_step = f64le(39);
+    let min_m = f32le(47);
+    let max_m = f32le(51);
+    if width == 0 || height == 0 || !(max_m > min_m) || lat_step <= 0.0 || lon_step <= 0.0 {
+        return None;
+    }
+    let n = width as usize * height as usize;
+    if n > (1 << 26) {
+        return None; // 64M samples = 128 MB: nothing legitimate is that big
+    }
+    if bytes.len() != 55 + n * 2 {
+        return None;
+    }
+    let samples = bytes[55..]
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    Some(RegionDem {
+        width,
+        height,
+        lat_north,
+        lon_west,
+        lat_step,
+        lon_step,
+        min_m,
+        max_m,
+        samples,
+    })
+}
+
+impl RegionDem {
+    /// Bilinear elevation in metres at (lat, lon) degrees, None outside the
+    /// grid. Row 0 is NORTH: the row coordinate grows southward.
+    pub fn sample_m(&self, lat: f64, lon: f64) -> Option<f32> {
+        let fx = (lon - self.lon_west) / self.lon_step;
+        let fy = (self.lat_north - lat) / self.lat_step;
+        // Half-cell slack on the bounds: a query landing EXACTLY on the
+        // boundary row computes fy = 1.0000000000000004 in f64 and a strict
+        // test rejects the very corner the caller asked for. Values inside
+        // the slack clamp onto the edge sample.
+        let max_x = (self.width - 1) as f64;
+        let max_y = (self.height - 1) as f64;
+        if fx < -0.5 || fy < -0.5 || fx > max_x + 0.5 || fy > max_y + 0.5 {
+            return None;
+        }
+        let fx = fx.clamp(0.0, max_x);
+        let fy = fy.clamp(0.0, max_y);
+        let x0 = fx.floor() as usize;
+        let y0 = fy.floor() as usize;
+        let x1 = (x0 + 1).min(self.width as usize - 1);
+        let y1 = (y0 + 1).min(self.height as usize - 1);
+        let tx = (fx - x0 as f64) as f32;
+        let ty = (fy - y0 as f64) as f32;
+        let range = self.max_m - self.min_m;
+        let at = |x: usize, y: usize| -> f32 {
+            self.min_m + self.samples[y * self.width as usize + x] as f32 / 65535.0 * range
+        };
+        Some(
+            (at(x0, y0) * (1.0 - tx) + at(x1, y0) * tx) * (1.0 - ty)
+                + (at(x0, y1) * (1.0 - tx) + at(x1, y1) * tx) * ty,
+        )
+    }
+
+    /// The grid's coverage in degrees: (lat_south, lat_north, lon_west,
+    /// lon_east), for the overlay's edge blend.
+    pub fn bounds_deg(&self) -> (f64, f64, f64, f64) {
+        (
+            self.lat_north - (self.height - 1) as f64 * self.lat_step,
+            self.lat_north,
+            self.lon_west,
+            self.lon_west + (self.width - 1) as f64 * self.lon_step,
+        )
+    }
+}
+
 // ─────────────────────── The projection contract (f64) ──────────────────────
 //
 // These two constants are the CONTRACT with scripts/fetch-osm-region.mjs.
@@ -1102,6 +1217,75 @@ mod tests {
             parse_region(&b).is_none(),
             "the walk must land exactly on EOF; trailing bytes are corruption"
         );
+    }
+
+    // ── Region DEM (HOSDEM1) ─────────────────────────────────────────────
+
+    /// A 3x2 synthetic DEM: values laid out row-major from the NORTH row.
+    fn synth_dem_bytes() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(b"HOSDEM1");
+        b.extend_from_slice(&3u32.to_le_bytes()); // width
+        b.extend_from_slice(&2u32.to_le_bytes()); // height
+        b.extend_from_slice(&48.0f64.to_le_bytes()); // lat_north
+        b.extend_from_slice(&(-123.0f64).to_le_bytes()); // lon_west
+        b.extend_from_slice(&0.1f64.to_le_bytes()); // lat_step
+        b.extend_from_slice(&0.1f64.to_le_bytes()); // lon_step
+        b.extend_from_slice(&0.0f32.to_le_bytes()); // min_m
+        b.extend_from_slice(&100.0f32.to_le_bytes()); // max_m
+        // North row: 0, 50, 100 m. South row: 100, 50, 0 m.
+        for q in [0u16, 32768, 65535, 65535, 32768, 0] {
+            b.extend_from_slice(&q.to_le_bytes());
+        }
+        b
+    }
+
+    #[test]
+    fn dem_parses_samples_and_keeps_north_up() {
+        let d = parse_dem(&synth_dem_bytes()).expect("valid DEM parses");
+        assert_eq!((d.width, d.height), (3, 2));
+        // Row 0 is NORTH: the north-west corner (lat_north, lon_west) must
+        // read the FIRST sample (0 m), and the south-west corner the fourth
+        // (100 m). An orientation flip would swap these, which on the real
+        // Silverdale file would put the ridge in the inlet.
+        let nw = d.sample_m(48.0, -123.0).unwrap();
+        let sw = d.sample_m(48.0 - 0.1, -123.0).unwrap();
+        assert!(nw < 0.01, "north-west corner must be 0 m, got {nw}");
+        assert!((sw - 100.0).abs() < 0.01, "south-west corner must be 100 m, got {sw}");
+        // Bilinear midpoint between 0 and 50 on the north row.
+        let mid = d.sample_m(48.0, -123.0 + 0.05).unwrap();
+        assert!((mid - 25.0).abs() < 0.1, "bilinear midpoint {mid}, want 25");
+        // Outside coverage (past the half-cell edge slack): None, never an
+        // extrapolation.
+        assert!(d.sample_m(48.06, -123.0).is_none());
+        assert!(d.sample_m(47.84, -123.0).is_none());
+        // Truncation + trailing bytes are refused.
+        let full = synth_dem_bytes();
+        assert!(parse_dem(&full[..full.len() - 1]).is_none());
+        let mut extra = full.clone();
+        extra.push(0);
+        assert!(parse_dem(&extra).is_none());
+    }
+
+    /// The SHIPPED silverdale.dem.bin against known geography, mirroring the
+    /// fetcher's own gates so parser and generator lock through the real
+    /// file: mid Dyes Inlet at sea level, the SW ridge high. An orientation
+    /// or step-sign bug lands the ridge in the inlet and fails loudly.
+    #[test]
+    fn shipped_silverdale_dem_is_real() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/maps/regions/silverdale.dem.bin"
+        ))
+        .expect("data/maps/regions/silverdale.dem.bin ships with the repo");
+        let d = parse_dem(&bytes).expect("parses to exactly EOF");
+        let inlet = d.sample_m(47.6230, -122.6870).expect("inlet is inside coverage");
+        assert!(inlet <= 2.0, "mid Dyes Inlet must be at sea level, got {inlet} m");
+        let town = d.sample_m(47.6450, -122.6950).expect("town is inside coverage");
+        assert!((5.0..=120.0).contains(&town), "central Silverdale terrace, got {town} m");
+        // The highest ground is in the SW (toward Green/Gold Mountain).
+        let ridge = d.sample_m(47.57184, -122.75220).unwrap_or(0.0);
+        assert!(ridge > 150.0, "SW ridge must exceed 150 m, got {ridge} m");
     }
 
     // ── Projection contract ──────────────────────────────────────────────

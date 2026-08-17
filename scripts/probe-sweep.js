@@ -226,12 +226,38 @@ function setupRig() {
     process.exit(1);
   }
   if (!NO_REFRESH) {
-    fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
+    // A stale rig instance from a crashed prior sweep holds the exe locked
+    // (EBUSY at this exact copy). Anything running FROM the rig copy is a
+    // leftover of ours, never the operator's game: clear it, then copy.
+    killRigProcesses();
+    try {
+      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
+    } catch (e) {
+      if (e.code !== "EBUSY") throw e;
+      // The file lock can outlive the kill by a moment; one retry.
+      execSync("ping -n 3 127.0.0.1 >nul", { shell: "cmd.exe" });
+      fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
+    }
     // DXC dlls beside the exe drop boot from ~25 s (FXC) to ~5 s.
     for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
       const s = path.join(path.dirname(EXE_SRC), dll);
       if (fs.existsSync(s)) fs.copyFileSync(s, path.join(RIG, dll));
     }
+  }
+}
+
+// Kill every process whose executable IS the rig's exe copy. Safe by
+// construction: only sweeps launch from .probe-rig, so the operator's own
+// game (repo root / installed path) can never match.
+function killRigProcesses() {
+  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
+  try {
+    execSync(
+      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
+      { stdio: "ignore" },
+    );
+  } catch {
+    /* none running, or PowerShell hiccup: the copy retry still covers us */
   }
 }
 
@@ -471,10 +497,18 @@ async function main() {
     if (killed) return;
     killed = true;
     try {
-      execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
+      // /T kills the process TREE: the exe can delegate to a second copy of
+      // itself, and killing only the recorded pid left that copy running,
+      // holding the rig exe locked so the NEXT sweep died at copyfile with
+      // EBUSY (three zombies in one session, 2026-08-17).
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
     } catch {
       /* already gone */
     }
+    // Belt and braces: anything still running FROM the rig copy is ours by
+    // definition (the operator's game runs from the repo root or an
+    // installed path, never from .probe-rig), so sweep it too.
+    killRigProcesses();
   };
   process.on("exit", () => { if (!KEEP_OPEN) kill(); });
 

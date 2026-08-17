@@ -223,14 +223,60 @@ pub(crate) fn tick(
         rm.carve_built = true;
         let detail = crate::terrain::planet_chunks::DetailNoise::new(def.terrain_seed);
         let sea_r = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
-        let mut masks = Vec::new();
+        // Sibling .dem.bin files (real ~13 m elevation, v0.1153): keyed by
+        // region name order, loaded once here.
+        let dem_dir = crate::DATA_DIR
+            .get()
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from("data"))
+            .join("maps/regions");
+        let mut dems: Vec<Option<crate::terrain::osm_region::RegionDem>> = Vec::new();
         for r in &rm.regions {
-            if r.water.is_empty() {
+            // The mesher never learned file paths (regions arrive parsed),
+            // so recover the stem by matching origin: cheapest robust key is
+            // scanning the dir for a .dem.bin whose parsed bounds contain
+            // the region origin.
+            let mut found = None;
+            if let Ok(entries) = std::fs::read_dir(&dem_dir) {
+                for ent in entries.flatten() {
+                    let p = ent.path();
+                    if !p.file_name().is_some_and(|n| n.to_string_lossy().ends_with(".dem.bin")) {
+                        continue;
+                    }
+                    if let Some(d) =
+                        std::fs::read(&p).ok().and_then(|b| crate::terrain::osm_region::parse_dem(&b))
+                    {
+                        let (s, n, w, e) = d.bounds_deg();
+                        if r.origin_lat > s && r.origin_lat < n && r.origin_lon > w && r.origin_lon < e
+                        {
+                            log::info!(
+                                "[Region] \"{}\" real elevation: {} ({}x{}, {:.0}..{:.0} m)",
+                                r.name,
+                                p.file_name().unwrap_or_default().to_string_lossy(),
+                                d.width,
+                                d.height,
+                                d.min_m,
+                                d.max_m
+                            );
+                            found = Some(d);
+                            break;
+                        }
+                    }
+                }
+            }
+            dems.push(found);
+        }
+        let mut masks = Vec::new();
+        for (ri, r) in rm.regions.iter().enumerate() {
+            if r.water.is_empty() && r.buildings.is_empty() && r.roads.is_empty() {
                 continue;
             }
             // A lake's surface: the LOWEST shore point of its ring against
             // the uncarved ground, floored just above sea level so an
-            // estuary-grade polygon cannot duck under the ocean shell.
+            // estuary-grade polygon cannot duck under the ocean shell. With
+            // a DEM installed, the shore reads the ~13 m survey directly:
+            // the real lake level, not the 460 m average.
+            let dem = &dems[ri];
             let lake_level = |wi: usize| -> f64 {
                 let w = &r.water[wi];
                 let mut min_rel = f64::MAX;
@@ -241,6 +287,12 @@ pub(crate) fn tick(
                         e as f64,
                         n as f64,
                     );
+                    if let Some(d) = dem {
+                        if let Some(m) = d.sample_m(lat, lon) {
+                            min_rel = min_rel.min(m as f64);
+                            continue;
+                        }
+                    }
                     let dir = osm_region::latlon_to_dir_f64(lat, lon);
                     let gr = crate::engine::frame_lock::ground_radius_m(
                         Some(def),
@@ -253,9 +305,11 @@ pub(crate) fn tick(
                 }
                 min_rel.max(0.5)
             };
-            if let Some(m) =
-                crate::terrain::water_carve::RegionMask::from_region(r, &lake_level)
-            {
+            if let Some(m) = crate::terrain::water_carve::RegionMask::from_region_with_dem(
+                r,
+                &lake_level,
+                dems[ri].clone(),
+            ) {
                 masks.push(m);
             }
         }

@@ -761,6 +761,27 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Real Coastlines and Hills: Region DEM + Shore Taper (v0.1153)
+Operator field report: the carved water edge was a sheer cliff and the
+heightmap had no coastal gradients. Two-part fix. (1) SHORE TAPER: the
+region mask now builds a distance-field beach profile (two chamfer
+feature transforms): water reaches full carve depth only 90 m from
+shore (0.7 m at the waterline), and land within 60 m of water blends
+down toward its adjacent waterline (sea or lake, propagated per cell),
+never raised. (2) REAL ELEVATION: scripts/fetch-region-dem.mjs pulls
+public AWS Terrain Tiles (terrarium decode, minimal zero-dependency
+PNG reader, ~13 m grid) into HOSDEM1 files beside each region;
+inside coverage the drawn ground IS the survey data (edge-blended over
+400 m; bathymetry spikes floored at -2 m since the carve owns
+underwater), applied at the shared carve seam so patches, walk clamp,
+grass, and region grids all agree. Locks: north-up orientation test +
+shipped-file geography gates (Dyes Inlet <= 2 m, the SW ridge > 150 m:
+an orientation flip would land the ridge in the inlet). Probe rig
+hardened the same day: tree-kill + rig-path process sweep + EBUSY
+retry (three zombie instances in one session).
+- Native: src/terrain/osm_region.rs (parse_dem/RegionDem), water_carve.rs (taper + dem_overlay), src/engine/region_meshes.rs (DEM load + lake levels)
+- Generator: scripts/fetch-region-dem.mjs (HOSDEM1, 17 self-checks + geography gates)
+
 ### Vegetation Keeps Off the Streets (v0.1152)
 The region mask gained a BUILT channel: building footprints filled,
 road ribbons stroked at their real class width plus a 1.5 m curb strip,

@@ -38,6 +38,13 @@
 
 use crate::terrain::osm_region::{dir_to_latlon_f64, latlon_to_region_meters, OsmRegion, WaterKind};
 use glam::DVec3;
+
+/// Hermite smoothstep on 0..=1 input (clamped), local copy so this module
+/// stays pure std + glam in every feature set.
+fn smoothstep01(x: f32) -> f32 {
+    let t = x.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
 use std::sync::{Arc, RwLock};
 
 /// Sea beds carve to this many metres BELOW sea level. Depth drives the
@@ -69,6 +76,27 @@ const CELL_BUILT: u8 = 3;
 /// over the lane.
 const ROAD_CURB_MARGIN_M: f64 = 1.5;
 
+// ── Shore taper (v0.1153, operator: "the water edge looks like a sheer
+// cliff instead of tapering into the water") ────────────────────────────────
+// The first carve pressed full depth one bilinear cell from the polygon
+// edge: a 5 m drop over ~10 m horizontal, i.e. a seawall. Real shorelines
+// grade over tens of metres on BOTH sides of the waterline, so the mask now
+// carries a distance-field beach profile: water reaches full depth only
+// SHORE_TAPER_WATER_M from land, and land within SHORE_TAPER_LAND_M of
+// water is pulled down toward the waterline (never raised), which kills
+// the bluff the coarse base heightmap otherwise leaves standing at the
+// polygon edge.
+
+/// Water reaches its full carve depth this many metres from the shoreline.
+const SHORE_TAPER_WATER_M: f64 = 90.0;
+/// Land blends toward the waterline within this many metres of water.
+const SHORE_TAPER_LAND_M: f64 = 60.0;
+/// Depth right at the waterline: enough to read as wet, shallow enough to
+/// wade in from the beach.
+const SHORE_MIN_DEPTH_M: f32 = 0.7;
+/// Beach land sits this far above its adjacent water surface.
+const SHORE_LAND_TARGET_M: f32 = 0.75;
+
 /// One region rasterized into cells: water (the terrain carve) AND the
 /// built-over footprint (vegetation suppression), one grid, one lookup.
 pub struct RegionMask {
@@ -83,9 +111,29 @@ pub struct RegionMask {
     lon_max: f64,
     /// Per cell: the CELL_* constants above. Row-major, row 0 south.
     kind: Vec<u8>,
-    /// Bed target in metres relative to SEA LEVEL, valid on water cells.
-    bed_rel_sea_m: Vec<f32>,
+    /// Per-cell carve TARGET surface in metres relative to SEA LEVEL. On
+    /// water cells this is the tapered bed; on shore land it is the beach
+    /// blend level. Valid where `carve_w > 0`.
+    target_rel_sea_m: Vec<f32>,
+    /// Per-cell carve weight, 0..=255. Water cells are 255; shore land ramps
+    /// down with distance from the waterline; open land is 0.
+    carve_w: Vec<u8>,
+    /// Real elevation for the region's area (HOSDEM1, ~13 m grid), when its
+    /// sibling .dem.bin is installed. Inside its coverage the drawn ground
+    /// IS this data (edge-blended into the coarse base over
+    /// [`DEM_EDGE_BLEND_M`]); the carve then applies on top.
+    dem: Option<crate::terrain::osm_region::RegionDem>,
 }
+
+/// The DEM fades into the coarse base heightmap over this many metres at its
+/// coverage edge, so the region boundary never shows a terrain step.
+const DEM_EDGE_BLEND_M: f64 = 400.0;
+
+/// Bathymetry-seam spikes in the source data reach kilometres below sea
+/// level over inlets (fetcher report, 2026-08-17: 0.1% of samples, deepest
+/// -2827 m). The DEM governs LAND; underwater depth is the carve's job, so
+/// floor it just below the waterline.
+const DEM_FLOOR_M: f32 = -2.0;
 
 impl RegionMask {
     /// Rasterize one region: water polygons first (sea, lakes, islands in
@@ -98,6 +146,16 @@ impl RegionMask {
     pub fn from_region(
         region: &OsmRegion,
         lake_surface_rel_sea_m: &dyn Fn(usize) -> f64,
+    ) -> Option<Self> {
+        Self::from_region_with_dem(region, lake_surface_rel_sea_m, None)
+    }
+
+    /// `from_region` plus the region's real-elevation DEM (the sibling
+    /// .dem.bin, when installed).
+    pub fn from_region_with_dem(
+        region: &OsmRegion,
+        lake_surface_rel_sea_m: &dyn Fn(usize) -> f64,
+        dem: Option<crate::terrain::osm_region::RegionDem>,
     ) -> Option<Self> {
         if region.water.is_empty() && region.buildings.is_empty() && region.roads.is_empty() {
             return None;
@@ -138,6 +196,46 @@ impl RegionMask {
             return None;
         }
 
+        // ── Shore taper: turn the binary water mask into a beach profile ──
+        // Two chamfer feature transforms over the grid: distance to the
+        // nearest LAND (for water cells: depth taper) and distance to the
+        // nearest WATER plus that water's SURFACE level (for land cells:
+        // beach blend toward the right waterline, sea and lakes alike).
+        let cell_m =
+            ((2.0 * half_e / GRID_N as f64) + (2.0 * half_n / GRID_N as f64)) * 0.5;
+        let is_water = |k: u8| k == CELL_SEA || k == CELL_LAKE;
+        let d_land = chamfer_distance(&kind, |k| !is_water(k));
+        // Water SURFACE per water cell: sea = 0, lake = bed + LAKE_CARVE_M.
+        let surface_of = |i: usize| -> f32 {
+            if kind[i] == CELL_LAKE {
+                bed[i] + LAKE_CARVE_M as f32
+            } else {
+                0.0
+            }
+        };
+        let (d_water, near_surface) = chamfer_feature(&kind, is_water, &surface_of);
+
+        let mut target = vec![0.0f32; GRID_N * GRID_N];
+        let mut carve_w = vec![0u8; GRID_N * GRID_N];
+        for i in 0..GRID_N * GRID_N {
+            if is_water(kind[i]) {
+                let surface = surface_of(i);
+                let full_depth = surface - bed[i]; // 5 m sea, 1.5 m lake
+                let d_m = d_land[i] as f64 * cell_m;
+                let t = smoothstep01((d_m / SHORE_TAPER_WATER_M) as f32);
+                let depth = SHORE_MIN_DEPTH_M + (full_depth - SHORE_MIN_DEPTH_M).max(0.0) * t;
+                target[i] = surface - depth;
+                carve_w[i] = 255;
+            } else {
+                let d_m = d_water[i] as f64 * cell_m;
+                if d_m < SHORE_TAPER_LAND_M {
+                    let w = 1.0 - smoothstep01((d_m / SHORE_TAPER_LAND_M) as f32);
+                    target[i] = near_surface[i] + SHORE_LAND_TARGET_M;
+                    carve_w[i] = (w * 255.0) as u8;
+                }
+            }
+        }
+
         // Degree bounds for the pre-reject: invert the projection at the
         // region corners (the projection is axis-aligned, so corners bound).
         let m_per_lat = crate::terrain::osm_region::M_PER_DEG_LAT;
@@ -155,14 +253,39 @@ impl RegionMask {
             lon_min: region.origin_lon - dlon,
             lon_max: region.origin_lon + dlon,
             kind,
-            bed_rel_sea_m: bed,
+            target_rel_sea_m: target,
+            carve_w,
+            dem,
         })
     }
 
-    /// Bilinear water read at region meters (e, n): `Some((weight, bed))`
-    /// where weight in 0..=1 is how watery the 2x2 cell neighborhood is and
-    /// bed is the weighted bed target (metres relative to sea level).
-    /// None outside the grid or on solid land.
+    /// The DEM-overlaid elevation at (lat, lon), replacing `e` inside the
+    /// DEM's coverage and blending back to `e` over [`DEM_EDGE_BLEND_M`] at
+    /// the edge. `e` is normalized; `sea`/`range` map metres to that domain.
+    fn dem_overlay(&self, lat: f64, lon: f64, e: f32, sea: f32, range: f32) -> f32 {
+        let Some(dem) = &self.dem else { return e };
+        let Some(raw_m) = dem.sample_m(lat, lon) else { return e };
+        let dem_m = raw_m.max(DEM_FLOOR_M);
+        let e_dem = sea + dem_m / range;
+        // Edge blend: distance INSIDE the coverage box, in metres.
+        let (lat_s, lat_n, lon_w, lon_e) = dem.bounds_deg();
+        let m_per_lat = crate::terrain::osm_region::M_PER_DEG_LAT;
+        let m_per_lon = crate::terrain::osm_region::M_PER_DEG_LON_EQUATOR
+            * self.origin_lat.to_radians().cos().abs().max(1e-9);
+        let inside_m = ((lat - lat_s) * m_per_lat)
+            .min((lat_n - lat) * m_per_lat)
+            .min((lon - lon_w) * m_per_lon)
+            .min((lon_e - lon) * m_per_lon);
+        let w = smoothstep01((inside_m / DEM_EDGE_BLEND_M) as f32);
+        e + (e_dem - e) * w
+    }
+
+    /// Bilinear carve read at region meters (e, n): `Some((weight, target))`
+    /// where weight in 0..=1 blends the carve in (water 1.0, beach land
+    /// ramping to 0 with distance from the waterline) and target is the
+    /// weighted TARGET surface (metres relative to sea level: tapered bed on
+    /// water, beach level on shore land). None outside the grid or where no
+    /// cell in the 2x2 neighborhood carves.
     fn sample(&self, e: f64, n: f64) -> Option<(f32, f32)> {
         let step_e = (2.0 * self.half_e) / GRID_N as f64;
         let step_n = (2.0 * self.half_n) / GRID_N as f64;
@@ -181,23 +304,19 @@ impl RegionMask {
                 return (0.0, 0.0);
             }
             let i = y as usize * GRID_N + x as usize;
-            // Built cells are LAND to the carve: roads and buildings sit ON
-            // the terrain, they do not change it.
-            if self.kind[i] == CELL_SEA || self.kind[i] == CELL_LAKE {
-                (1.0, self.bed_rel_sea_m[i])
-            } else {
-                (0.0, 0.0)
-            }
+            let w = self.carve_w[i] as f32 / 255.0;
+            (w, self.target_rel_sea_m[i])
         };
         let (w00, b00) = cell(x0, y0);
         let (w10, b10) = cell(x0 + 1, y0);
         let (w01, b01) = cell(x0, y0 + 1);
         let (w11, b11) = cell(x0 + 1, y0 + 1);
         let w = (w00 * (1.0 - tx) + w10 * tx) * (1.0 - ty) + (w01 * (1.0 - tx) + w11 * tx) * ty;
-        if w <= 0.0 {
+        if w <= 0.001 {
             return None;
         }
-        // Bed blended over the WATER cells only (land cells carry no bed).
+        // Target blended weight-proportionally (zero-weight cells carry no
+        // meaningful target).
         let bw = (b00 * w00 * (1.0 - tx) + b10 * w10 * tx) * (1.0 - ty)
             + (b01 * w01 * (1.0 - tx) + b11 * w11 * tx) * ty;
         Some((w.min(1.0), bw / w))
@@ -322,6 +441,123 @@ fn rasterize_ring(
             }
         }
     }
+}
+
+/// Two-pass 3-4 chamfer distance transform: distance in CELLS from every
+/// cell to the nearest cell where `is_source` holds. Distances are exact
+/// enough for a 60-90 m taper (error < 8% of Euclidean), and the two passes
+/// are O(n) over the megacell grid.
+fn chamfer_distance(kind: &[u8], is_source: impl Fn(u8) -> bool) -> Vec<f32> {
+    const ORTHO: f32 = 1.0;
+    const DIAG: f32 = 1.4142135;
+    let mut d = vec![f32::MAX; GRID_N * GRID_N];
+    for i in 0..GRID_N * GRID_N {
+        if is_source(kind[i]) {
+            d[i] = 0.0;
+        }
+    }
+    // Forward pass: relax from W, N, NW, NE.
+    for y in 0..GRID_N {
+        for x in 0..GRID_N {
+            let i = y * GRID_N + x;
+            let mut best = d[i];
+            if x > 0 {
+                best = best.min(d[i - 1] + ORTHO);
+            }
+            if y > 0 {
+                best = best.min(d[i - GRID_N] + ORTHO);
+                if x > 0 {
+                    best = best.min(d[i - GRID_N - 1] + DIAG);
+                }
+                if x + 1 < GRID_N {
+                    best = best.min(d[i - GRID_N + 1] + DIAG);
+                }
+            }
+            d[i] = best;
+        }
+    }
+    // Backward pass: relax from E, S, SE, SW.
+    for y in (0..GRID_N).rev() {
+        for x in (0..GRID_N).rev() {
+            let i = y * GRID_N + x;
+            let mut best = d[i];
+            if x + 1 < GRID_N {
+                best = best.min(d[i + 1] + ORTHO);
+            }
+            if y + 1 < GRID_N {
+                best = best.min(d[i + GRID_N] + ORTHO);
+                if x + 1 < GRID_N {
+                    best = best.min(d[i + GRID_N + 1] + DIAG);
+                }
+                if x > 0 {
+                    best = best.min(d[i + GRID_N - 1] + DIAG);
+                }
+            }
+            d[i] = best;
+        }
+    }
+    d
+}
+
+/// `chamfer_distance` that ALSO propagates a per-source payload (the nearest
+/// water cell's surface level), so a beach on a lake shore blends toward the
+/// LAKE's waterline, not sea level.
+fn chamfer_feature(
+    kind: &[u8],
+    is_source: impl Fn(u8) -> bool,
+    payload_of: &impl Fn(usize) -> f32,
+) -> (Vec<f32>, Vec<f32>) {
+    const ORTHO: f32 = 1.0;
+    const DIAG: f32 = 1.4142135;
+    let mut d = vec![f32::MAX; GRID_N * GRID_N];
+    let mut p = vec![0.0f32; GRID_N * GRID_N];
+    for i in 0..GRID_N * GRID_N {
+        if is_source(kind[i]) {
+            d[i] = 0.0;
+            p[i] = payload_of(i);
+        }
+    }
+    let mut relax = |i: usize, j: usize, cost: f32, d: &mut [f32], p: &mut [f32]| {
+        if d[j] + cost < d[i] {
+            d[i] = d[j] + cost;
+            p[i] = p[j];
+        }
+    };
+    for y in 0..GRID_N {
+        for x in 0..GRID_N {
+            let i = y * GRID_N + x;
+            if x > 0 {
+                relax(i, i - 1, ORTHO, &mut d, &mut p);
+            }
+            if y > 0 {
+                relax(i, i - GRID_N, ORTHO, &mut d, &mut p);
+                if x > 0 {
+                    relax(i, i - GRID_N - 1, DIAG, &mut d, &mut p);
+                }
+                if x + 1 < GRID_N {
+                    relax(i, i - GRID_N + 1, DIAG, &mut d, &mut p);
+                }
+            }
+        }
+    }
+    for y in (0..GRID_N).rev() {
+        for x in (0..GRID_N).rev() {
+            let i = y * GRID_N + x;
+            if x + 1 < GRID_N {
+                relax(i, i + 1, ORTHO, &mut d, &mut p);
+            }
+            if y + 1 < GRID_N {
+                relax(i, i + GRID_N, ORTHO, &mut d, &mut p);
+                if x + 1 < GRID_N {
+                    relax(i, i + GRID_N + 1, DIAG, &mut d, &mut p);
+                }
+                if x > 0 {
+                    relax(i, i + GRID_N - 1, DIAG, &mut d, &mut p);
+                }
+            }
+        }
+    }
+    (d, p)
 }
 
 /// Even-odd fill like `rasterize_ring`, but painting CELL_BUILT and ONLY
@@ -468,6 +704,11 @@ pub fn carve_normalized_with(
         if !m.latlon_hit(lat, lon) {
             continue;
         }
+        // Real elevation first (v0.1153): inside the region's DEM the drawn
+        // ground IS the ~13 m survey data, not the ~460 m base average. The
+        // carve then applies on top, so real coastal gradients and the
+        // beach-profile taper compose.
+        let e = m.dem_overlay(lat, lon, e, sea_norm, range);
         let (me, mn) = latlon_to_region_meters(m.origin_lat, m.origin_lon, lat, lon);
         if let Some((w, bed_rel)) = m.sample(me, mn) {
             let target = sea_norm + bed_rel / range;
@@ -623,21 +864,81 @@ mod tests {
     fn lake_cells_carve_below_the_lake_surface() {
         let r = test_region();
         let m = masks();
-        let e = carve_normalized_with(&m, dir_at(&r, 900.0, -50.0), 0.2, MIN_M, MAX_M, SEA_NORM);
+        // The island (950..1050, 50..150) occupies the lake's centre, so the
+        // widest water gap is between the west shore (e=800) and the island:
+        // (875, 100) is ~75 m from land on both sides. That is inside the
+        // 90 m taper, so expect NEAR-full depth (within 1 m), not exact.
+        let e = carve_normalized_with(&m, dir_at(&r, 875.0, 100.0), 0.2, MIN_M, MAX_M, SEA_NORM);
         // Lake surface 50 m above sea, bed 1.5 m under it.
         let want = SEA_NORM + (50.0 - LAKE_CARVE_M as f32) / (MAX_M - MIN_M);
         assert!(
-            (e - want).abs() < 1e-4,
-            "lake bed carved to {e}, want {want}"
+            (e - want).abs() < 1.0 / (MAX_M - MIN_M),
+            "lake bed carved to {e}, want about {want} (within 1 m)"
         );
     }
 
     #[test]
-    fn island_and_dry_land_stay_uncarved() {
+    fn shore_water_is_shallow_and_deepens_with_distance() {
+        // The taper itself: just inside the sea edge must be SHALLOW, the
+        // middle must be full depth, and depth must increase monotonically
+        // walking away from shore.
         let r = test_region();
         let m = masks();
+        let land = 0.5f32;
+        let near =
+            carve_normalized_with(&m, dir_at(&r, -1010.0, 0.0), land, MIN_M, MAX_M, SEA_NORM);
+        let mid = carve_normalized_with(&m, dir_at(&r, -1400.0, 0.0), land, MIN_M, MAX_M, SEA_NORM);
+        let full = SEA_NORM - SEA_CARVE_M as f32 / (MAX_M - MIN_M);
+        assert!(
+            near > full + 2.0 / (MAX_M - MIN_M),
+            "10 m from shore must be metres shallower than the full bed: near {near}, full {full}"
+        );
+        assert!((mid - full).abs() < 0.5 / (MAX_M - MIN_M), "mid-sea reaches full depth");
+        let mut prev = near;
+        for e_pos in [-1030.0, -1060.0, -1100.0, -1200.0] {
+            let d = carve_normalized_with(&m, dir_at(&r, e_pos, 0.0), land, MIN_M, MAX_M, SEA_NORM);
+            assert!(d <= prev + 1e-5, "depth must not decrease moving offshore at e={e_pos}");
+            prev = d;
+        }
+    }
+
+    #[test]
+    fn beach_land_blends_toward_the_waterline() {
+        // Land 20 m from the sea edge: a 150 m bluff must be pulled well
+        // down toward the waterline (the operator's cliff report), while
+        // land past the taper reach stays untouched.
+        let r = test_region();
+        let m = masks();
+        let bluff = 0.25f32; // 250 m elevation = 150 m above the 100 m sea
+        let at_beach =
+            carve_normalized_with(&m, dir_at(&r, -980.0, 0.0), bluff, MIN_M, MAX_M, SEA_NORM);
+        assert!(
+            at_beach < 0.17,
+            "a bluff 20 m from the water must drop toward the waterline, got {at_beach}"
+        );
+        let inland =
+            carve_normalized_with(&m, dir_at(&r, -900.0, 0.0), bluff, MIN_M, MAX_M, SEA_NORM);
+        assert!(
+            (inland - bluff).abs() < 1e-6,
+            "100 m inland is past the taper and must be untouched, got {inland}"
+        );
+    }
+
+    #[test]
+    fn island_stays_dry_and_far_land_stays_uncarved() {
+        let r = test_region();
+        let m = masks();
+        // The island centre (1000, 100) sits ~50 m from the lake on every
+        // side: the beach blend MAY lower it, but never below its lake's
+        // waterline (it must stay a dry island, not a flooded shoal).
+        let island_c =
+            carve_normalized_with(&m, dir_at(&r, 1000.0, 100.0), 0.3, MIN_M, MAX_M, SEA_NORM);
+        let lake_surface = SEA_NORM + 50.0 / (MAX_M - MIN_M);
+        assert!(
+            island_c > lake_surface,
+            "island ground must stay above its lake's waterline: {island_c} vs {lake_surface}"
+        );
         for (e, n, what) in [
-            (1000.0, 100.0, "island centre"),
             (0.0, 0.0, "dry land between sea and lake"),
             (-1900.0, 1900.0, "region corner"),
         ] {

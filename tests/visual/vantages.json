@@ -677,7 +677,8 @@
    "perf_note": "floor is 10 not 15: the dense procedural forest at walk height costs ~100 ms/frame (the known unexplained forest cost, see PRIORITIES); the region itself adds 4 class meshes. Raise the floor when the forest cost item is fixed.",
    "showcase": {
     "time": "20.2",
-    "sea": "0.3"
+    "sea": "0.3",
+    "weather": "clear"
    }
   },
   {
@@ -702,7 +703,33 @@
    "perf_floor_fps": 15,
    "showcase": {
     "time": "20.2",
-    "sea": "0.3"
+    "sea": "0.3",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "silverdale-osm-night",
+   "desc": "Night rain over Silverdale: hunting the water/rain/low-LOD glow (operator report 2026-08-17)",
+   "camera": {
+    "body": "earth",
+    "lat": 47.634,
+    "lon": -122.6925,
+    "altitude_km": 2.5,
+    "look_offset_deg": 25
+   },
+   "hold_altitude": true,
+   "settle_s": 14,
+   "expect": "Dark town, dark rainy water: no self-luminous water, no glowing rain sheet, no bright coastline seams at low LOD.",
+   "regressions": [
+    "water does not glow at night",
+    "panics=0"
+   ],
+   "perf_floor_fps": 10,
+   "showcase": {
+    "time": "8.2",
+    "sea": "0.3",
+    "weather": "rain",
+    "lights_tiled": "0"
    }
   },
   {
@@ -725,7 +752,8 @@
    "perf_floor_fps": 15,
    "showcase": {
     "time": "20.2",
-    "sea": "0.3"
+    "sea": "0.3",
+    "weather": "clear"
    }
   }
  ]
