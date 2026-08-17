@@ -38,7 +38,7 @@ ephemeris the sky uses, moons beyond the majors, asteroid-belt density from
 the real MPC distribution, transfer-window overlay (ties into gameplay),
 click-through to the in-game body (the Inventory/Maps cross-links exist).
 
-## Rung 3: Planet GPS view (OpenStreetMap)
+## Rung 3: Planet GPS view (OpenStreetMap) - FIRST INCREMENT SHIPPED v0.1146
 
 The big one: real roads and buildings, on the Maps page like a GPS map AND
 in the 3D world.
@@ -59,9 +59,12 @@ in the 3D world.
   buildings extruded from footprints (height tag, else floors x 3 m, else
   a class default). This rides the existing chunked-LOD Earth: a region's
   vector pack loads with its terrain chunks.
-- **First increment when fenced**: one hand-picked region (the operator's
-  home area), fetcher + format + 2D Maps view; 3D extrusion is the second
-  increment; region browser + downloads third.
+- **First increment SHIPPED v0.1146**: scripts/fetch-osm-region.mjs (Overpass
+  -> HOSMREG1 binary, self-verifying, byte-deterministic) + the Maps Planet
+  view rendering the Seattle Center demo region. Fetch YOUR area:
+  node scripts/fetch-osm-region.mjs --bbox south,west,north,east --name "My Town" --out data/maps/regions/my-town.bin
+  Next: 3D extrusion in-world (second increment); region browser +
+  release-asset downloads (third); multipolygon buildings (v2 fetcher).
 
 ## Rung 4: Cosmic web (far future)
 

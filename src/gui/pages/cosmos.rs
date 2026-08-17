@@ -394,6 +394,10 @@ fn project_to_screen(pos_au: glam::DVec3, cam: &Cosmos3DCamera, rect: Rect) -> O
 /// View mode — operator selectable via tab bar at the top of the page.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CosmosView {
+    /// 2D GPS-style map of a real Earth region: OpenStreetMap roads and
+    /// building footprints from data/maps/regions/*.bin (maps ladder rung 3,
+    /// v0.1146; generator scripts/fetch-osm-region.mjs).
+    Planet,
     /// 3D System view of Sol — Sun at origin, planets in their orbits,
     /// moons in real positions relative to their planets. Rotatable
     /// camera (drag), zoomable (scroll), pannable target (shift+drag).
@@ -453,12 +457,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .strong(),
                 );
                 ui.add_space(theme.spacing_lg);
+                view_tab(ui, theme, state, CosmosView::Planet,    "Planet",          "Real Earth regions from OpenStreetMap: roads and buildings, GPS-map style (2D).");
                 view_tab(ui, theme, state, CosmosView::System,    "Solar System",    "Sol, Sun + planets + moons in 3D. Drag to rotate, scroll to zoom, shift+drag to pan.");
                 view_tab(ui, theme, state, CosmosView::Galactic,  "Galaxy",          "Sol-centered map of real catalog stars, light-year scale (2D top-down).");
                 view_tab(ui, theme, state, CosmosView::NightSky,  "Night Sky",       "Earth-centered celestial sphere with constellation lines (2D RA/Dec projection).");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(theme.spacing_md);
                     let hint = match state.cosmos_view {
+                        CosmosView::Planet    => "2D map · scroll to zoom · click-drag to pan",
                         CosmosView::System    => "3D camera · drag to rotate · scroll to zoom · shift+drag to pan",
                         CosmosView::Galactic  => "2D top-down · scroll to zoom · click-drag to pan",
                         CosmosView::NightSky  => "2D celestial sphere · scroll to zoom · click-drag to pan",
@@ -474,6 +480,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
 
             match state.cosmos_view {
+                CosmosView::Planet    => draw_planet_view(ui, theme, state),
                 CosmosView::System    => draw_system_view(ui, theme, state),
                 CosmosView::Galactic  => draw_galactic_view(ui, theme, state),
                 CosmosView::NightSky  => draw_night_sky_view(ui, theme, state),
@@ -1755,6 +1762,390 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             *color,
         );
     }
+}
+
+// ─────────────────────── Planet view (OSM regions, meters) ──────────────────
+
+/// One road from a HOSMREG1 region file. Coordinates are METERS east/north
+/// of the region origin (see `scripts/fetch-osm-region.mjs` for the spec).
+struct RegionRoad {
+    /// 0 motorway/trunk, 1 primary, 2 secondary, 3 tertiary/residential,
+    /// 4 service, 5 footway/path/cycleway/pedestrian.
+    class: u8,
+    name: Option<Box<str>>,
+    points: Vec<(f32, f32)>,
+    /// Precomputed bounds (min_e, min_n, max_e, max_n) for viewport culling.
+    bounds: (f32, f32, f32, f32),
+}
+
+/// One building footprint ring, meters east/north; height 0.0 = unknown.
+struct RegionBuilding {
+    height_m: f32,
+    ring: Vec<(f32, f32)>,
+    bounds: (f32, f32, f32, f32),
+}
+
+/// One installed OSM region (data/maps/regions/*.bin).
+struct MapRegion {
+    name: String,
+    half_east_m: f32,
+    half_north_m: f32,
+    origin_lat: f64,
+    origin_lon: f64,
+    roads: Vec<RegionRoad>,
+    buildings: Vec<RegionBuilding>,
+}
+
+static MAP_REGIONS: OnceLock<Vec<MapRegion>> = OnceLock::new();
+
+fn bounds_of(points: &[(f32, f32)]) -> (f32, f32, f32, f32) {
+    let mut b = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+    for &(e, n) in points {
+        b.0 = b.0.min(e);
+        b.1 = b.1.min(n);
+        b.2 = b.2.max(e);
+        b.3 = b.3.max(n);
+    }
+    b
+}
+
+/// Parse one HOSMREG1 file. None on any structural problem.
+fn parse_region(bytes: &[u8]) -> Option<MapRegion> {
+    if bytes.len() < 16 || &bytes[0..8] != b"HOSMREG1" {
+        return None;
+    }
+    let road_count = u32::from_le_bytes(bytes[8..12].try_into().ok()?) as usize;
+    let building_count = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
+    let mut off = 16usize;
+    let take = |off: &mut usize, n: usize| -> Option<&[u8]> {
+        let s = bytes.get(*off..*off + n)?;
+        *off += n;
+        Some(s)
+    };
+    let f64le = |b: &[u8]| f64::from_le_bytes(b.try_into().unwrap());
+    let f32le = |b: &[u8]| f32::from_le_bytes(b.try_into().unwrap());
+    let origin_lat = f64le(take(&mut off, 8)?);
+    let origin_lon = f64le(take(&mut off, 8)?);
+    let half_east_m = f32le(take(&mut off, 4)?);
+    let half_north_m = f32le(take(&mut off, 4)?);
+    let name_len = take(&mut off, 1)?[0] as usize;
+    let name = std::str::from_utf8(take(&mut off, name_len)?).ok()?.to_string();
+
+    let mut roads = Vec::with_capacity(road_count);
+    for _ in 0..road_count {
+        let class = take(&mut off, 1)?[0];
+        let rn_len = take(&mut off, 1)?[0] as usize;
+        let rname = if rn_len > 0 {
+            Some(std::str::from_utf8(take(&mut off, rn_len)?).ok()?.into())
+        } else {
+            None
+        };
+        let pc = u16::from_le_bytes(take(&mut off, 2)?.try_into().ok()?) as usize;
+        if pc < 2 {
+            return None;
+        }
+        let mut points = Vec::with_capacity(pc);
+        for _ in 0..pc {
+            let e = f32le(take(&mut off, 4)?);
+            let n = f32le(take(&mut off, 4)?);
+            points.push((e, n));
+        }
+        let bounds = bounds_of(&points);
+        roads.push(RegionRoad { class, name: rname, points, bounds });
+    }
+    let mut buildings = Vec::with_capacity(building_count);
+    for _ in 0..building_count {
+        let height_m = f32le(take(&mut off, 4)?);
+        let pc = u16::from_le_bytes(take(&mut off, 2)?.try_into().ok()?) as usize;
+        if pc < 3 {
+            return None;
+        }
+        let mut ring = Vec::with_capacity(pc);
+        for _ in 0..pc {
+            let e = f32le(take(&mut off, 4)?);
+            let n = f32le(take(&mut off, 4)?);
+            ring.push((e, n));
+        }
+        let bounds = bounds_of(&ring);
+        buildings.push(RegionBuilding { height_m, ring, bounds });
+    }
+    if off != bytes.len() {
+        return None; // trailing garbage = corrupt file
+    }
+    Some(MapRegion { name, half_east_m, half_north_m, origin_lat, origin_lon, roads, buildings })
+}
+
+/// All installed regions, loaded once (data dir scan). Empty = none
+/// installed; the view shows how to fetch one.
+fn map_regions() -> &'static [MapRegion] {
+    MAP_REGIONS.get_or_init(|| {
+        let dir = crate::DATA_DIR
+            .get()
+            .cloned()
+            .unwrap_or_else(|| std::path::PathBuf::from("data"))
+            .join("maps/regions");
+        let mut out = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            let mut paths: Vec<_> = entries
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.extension().is_some_and(|x| x == "bin"))
+                .collect();
+            paths.sort();
+            for p in paths {
+                if let Some(region) = std::fs::read(&p).ok().and_then(|b| parse_region(&b)) {
+                    log::info!(
+                        "Maps planet view: region \"{}\" loaded ({} roads, {} buildings)",
+                        region.name,
+                        region.roads.len(),
+                        region.buildings.len()
+                    );
+                    out.push(region);
+                }
+            }
+        }
+        out
+    })
+}
+
+/// Per-class road style: (stroke width at zoom 1, color). Widths scale with
+/// sqrt(zoom) so streets thicken as you close in without becoming ribbons.
+fn road_style(class: u8, zoom: f32) -> (f32, Color32) {
+    let w = zoom.sqrt().clamp(0.5, 6.0);
+    match class {
+        0 => (3.2 * w, Color32::from_rgb(235, 170, 80)),  // theme-exempt: cartographic palette (motorway amber), map convention not theme
+        1 => (2.6 * w, Color32::from_rgb(220, 205, 160)), // theme-exempt: cartographic palette (primary)
+        2 => (2.0 * w, Color32::from_rgb(190, 190, 190)), // theme-exempt: cartographic palette (secondary)
+        3 => (1.5 * w, Color32::from_rgb(150, 150, 158)), // theme-exempt: cartographic palette (residential)
+        4 => (1.0 * w, Color32::from_rgb(110, 110, 120)), // theme-exempt: cartographic palette (service)
+        _ => (0.7 * w, Color32::from_rgb(95, 115, 95)),   // theme-exempt: cartographic palette (footpath green-grey)
+    }
+}
+
+thread_local! {
+    /// Selected region index (page-local view preference).
+    static PLANET_REGION_IDX: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let regions = map_regions();
+    if regions.is_empty() {
+        ui.add_space(theme.spacing_lg);
+        widgets::card(ui, theme, |ui| {
+            ui.label(
+                RichText::new("No map regions installed")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary()),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(
+                    "Fetch any place on Earth as roads + buildings from OpenStreetMap:",
+                )
+                .color(theme.text_secondary()),
+            );
+            ui.label(
+                RichText::new(
+                    "node scripts/fetch-osm-region.mjs --bbox <south,west,north,east> --name \"My Town\" --out data/maps/regions/my-town.bin",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted())
+                .monospace(),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new("The build order for this view: docs/design/maps-ladder.md, rung 3.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        });
+        return;
+    }
+
+    // Region picker (only when there is a choice to make).
+    let mut idx = PLANET_REGION_IDX.with(|c| c.get()).min(regions.len() - 1);
+    if regions.len() > 1 {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Region:").color(theme.text_secondary()));
+            egui::ComboBox::from_id_salt("planet_region")
+                .selected_text(&regions[idx].name)
+                .show_ui(ui, |ui| {
+                    for (i, r) in regions.iter().enumerate() {
+                        if ui.selectable_label(idx == i, &r.name).clicked() {
+                            idx = i;
+                            state.cosmos_zoom = 1.0;
+                            state.cosmos_pan = Vec2::ZERO;
+                        }
+                    }
+                });
+        });
+        PLANET_REGION_IDX.with(|c| c.set(idx));
+    }
+    let region = &regions[idx];
+
+    let (rect, response, center, zoom) = allocate_canvas(ui, state);
+    let paint = ui.painter_at(rect);
+    paint.rect_filled(rect, Rounding::ZERO, Color32::from_rgb(14, 15, 13)); // theme-exempt: map ground backdrop (near-black green)
+
+    // Meters -> pixels: the region's larger half-extent fills the canvas at
+    // zoom 1. Screen north is up (n grows up, screen y grows down).
+    let half = rect.width().min(rect.height()) as f64 / 2.0 - 10.0;
+    let scale = (half / region.half_east_m.max(region.half_north_m) as f64) * zoom as f64;
+    let to_screen = |e: f32, n: f32| -> Pos2 {
+        Pos2::new(
+            center.x + (e as f64 * scale) as f32,
+            center.y - (n as f64 * scale) as f32,
+        )
+    };
+    // Viewport in meters, for culling against precomputed record bounds.
+    let view_e = |x: f32| ((x - center.x) as f64 / scale) as f32;
+    let view_n = |y: f32| ((center.y - y) as f64 / scale) as f32;
+    let (min_e, max_e) = (view_e(rect.left()), view_e(rect.right()));
+    let (max_n, min_n) = (view_n(rect.top()), view_n(rect.bottom()));
+    let visible = |b: &(f32, f32, f32, f32)| -> bool {
+        b.2 >= min_e && b.0 <= max_e && b.3 >= min_n && b.1 <= max_n
+    };
+
+    // Buildings first (under the roads). Outline-only: footprints are often
+    // concave and egui only fills convex polygons; a clean stroke reads as
+    // GPS-map. Height tints the line (unknown dim, taller lighter). Skip
+    // buildings smaller than ~3 px so a zoomed-out view stays uncluttered.
+    let min_px = 3.0 / scale as f32;
+    let mut buildings_drawn = 0usize;
+    for b in &region.buildings {
+        if !visible(&b.bounds) || (b.bounds.2 - b.bounds.0).max(b.bounds.3 - b.bounds.1) < min_px {
+            continue;
+        }
+        let pts: Vec<Pos2> = b.ring.iter().map(|&(e, n)| to_screen(e, n)).collect();
+        let t = (b.height_m / 60.0).clamp(0.0, 1.0);
+        let g = 70 + (t * 70.0) as u8;
+        let color = Color32::from_rgb(g, g, g + 8); // theme-exempt: building outline, height-tinted grey — cartography
+        paint.add(egui::Shape::closed_line(pts, Stroke::new(0.8, color)));
+        buildings_drawn += 1;
+    }
+
+    // Roads, minor classes first so majors draw on top. At low zoom skip
+    // service/footpaths entirely (class gate), the standard slippy-map ladder.
+    let class_gate: u8 = if zoom < 0.7 {
+        3
+    } else if zoom < 1.6 {
+        4
+    } else {
+        5
+    };
+    let mut roads_drawn = 0usize;
+    for pass_class in (0..=class_gate).rev() {
+        for road in region.roads.iter().filter(|r| r.class == pass_class) {
+            if !visible(&road.bounds) {
+                continue;
+            }
+            let pts: Vec<Pos2> = road.points.iter().map(|&(e, n)| to_screen(e, n)).collect();
+            let (w, color) = road_style(road.class, zoom);
+            paint.add(egui::Shape::line(pts, Stroke::new(w, color)));
+            roads_drawn += 1;
+        }
+    }
+
+    // Named-road labels once zoomed in: majors first, capped so the map
+    // never becomes a word cloud.
+    if zoom >= 1.6 {
+        let label_classes: u8 = if zoom >= 4.0 { 5 } else { 2 };
+        let mut labels = 0usize;
+        for road in &region.roads {
+            if labels >= 60 {
+                break;
+            }
+            let (Some(name), true) = (&road.name, road.class <= label_classes) else {
+                continue;
+            };
+            if !visible(&road.bounds) {
+                continue;
+            }
+            let mid = road.points[road.points.len() / 2];
+            paint.text(
+                to_screen(mid.0, mid.1),
+                Align2::CENTER_CENTER,
+                name.as_ref(),
+                egui::FontId::proportional(9.5),
+                Color32::from_rgb(210, 210, 200), // theme-exempt: cartographic label — must read over both roads and ground
+            );
+            labels += 1;
+        }
+    }
+
+    // Hover: nearest named road within reach.
+    if let Some(hp) = hover_named_road(region, ui, &to_screen) {
+        response.clone().on_hover_ui_at_pointer(|ui| {
+            ui.label(
+                RichText::new(hp)
+                    .size(theme.font_size_small)
+                    .color(theme.text_primary()),
+            );
+        });
+    }
+
+    // Scale bar: a round-number length that spans 60-140 px at this zoom.
+    let target_m = 100.0 / scale;
+    let nice = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0]
+        .into_iter()
+        .min_by(|a: &f64, b: &f64| {
+            (a / target_m - 1.0).abs().partial_cmp(&(b / target_m - 1.0).abs()).unwrap()
+        })
+        .unwrap_or(100.0);
+    let bar_px = (nice * scale) as f32;
+    let bar_y = rect.bottom() - 18.0;
+    let bar_x = rect.right() - 16.0 - bar_px;
+    paint.line_segment(
+        [Pos2::new(bar_x, bar_y), Pos2::new(bar_x + bar_px, bar_y)],
+        Stroke::new(2.0, theme.text_secondary()),
+    );
+    let bar_label = if nice >= 1000.0 {
+        format!("{:.0} km", nice / 1000.0)
+    } else {
+        format!("{nice:.0} m")
+    };
+    paint.text(
+        Pos2::new(bar_x + bar_px / 2.0, bar_y - 4.0),
+        Align2::CENTER_BOTTOM,
+        bar_label,
+        egui::FontId::proportional(10.0),
+        theme.text_secondary(),
+    );
+
+    // Footer: region + stats + the ODbL attribution OpenStreetMap requires.
+    paint.text(
+        Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
+        Align2::LEFT_BOTTOM,
+        format!(
+            "{} ({:.4}, {:.4}) · {} roads, {} buildings in view · Map data (c) OpenStreetMap contributors (ODbL)",
+            region.name, region.origin_lat, region.origin_lon, roads_drawn, buildings_drawn,
+        ),
+        egui::FontId::proportional(10.0),
+        theme.text_muted(),
+    );
+}
+
+/// The nearest named road within ~7 px of the pointer, by segment distance.
+fn hover_named_road(
+    region: &MapRegion,
+    ui: &egui::Ui,
+    to_screen: &dyn Fn(f32, f32) -> Pos2,
+) -> Option<String> {
+    let hp = ui.input(|i| i.pointer.hover_pos())?;
+    let mut best: Option<(f32, &RegionRoad)> = None;
+    for road in &region.roads {
+        let Some(_) = road.name else { continue };
+        for seg in road.points.windows(2) {
+            let a = to_screen(seg[0].0, seg[0].1);
+            let b = to_screen(seg[1].0, seg[1].1);
+            let ab = b - a;
+            let t = ((hp - a).dot(ab) / ab.length_sq().max(1e-6)).clamp(0.0, 1.0);
+            let d = (a + ab * t - hp).length();
+            if d < 7.0 && best.map_or(true, |(bd, _)| d < bd) {
+                best = Some((d, road));
+            }
+        }
+    }
+    best.and_then(|(_, r)| r.name.as_ref().map(|n| n.to_string()))
 }
 
 // ─────────────────────── Galactic view (Sol-centered, ly) ───────────────────
@@ -3262,6 +3653,40 @@ mod tests {
         assert_eq!(format_geo(12.34, 56.78), "12.3°N 56.8°E");
         assert_eq!(format_geo(-12.34, -56.78), "12.3°S 56.8°W");
         assert_eq!(format_geo(0.0, 0.0), "0.0°N 0.0°E");
+    }
+
+    /// Independent check of the SHIPPED seattle-center.bin against known
+    /// geography: parser and generator (scripts/fetch-osm-region.mjs) are
+    /// locked through the real file, and the file is proven to carry real
+    /// OSM data (Pike Street exists, Rainier Square Tower's 259 m height),
+    /// not just plausible bytes.
+    #[test]
+    fn shipped_seattle_region_is_real() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/maps/regions/seattle-center.bin"
+        ))
+        .expect("data/maps/regions/seattle-center.bin ships with the repo");
+        let region = parse_region(&bytes).expect("parses to exactly EOF");
+        assert_eq!(region.name, "Seattle Center");
+        assert!(region.roads.len() > 5_000, "downtown road count, got {}", region.roads.len());
+        assert!(region.buildings.len() > 1_000, "building count, got {}", region.buildings.len());
+        assert!(
+            region.roads.iter().any(|r| r.name.as_deref() == Some("Pike Street")),
+            "Pike Street is in the region"
+        );
+        // Every coordinate within the half-spans + the 400 m clip slack.
+        let (he, hn) = (region.half_east_m + 400.0, region.half_north_m + 400.0);
+        for r in &region.roads {
+            assert!(r.bounds.0 >= -he && r.bounds.2 <= he && r.bounds.1 >= -hn && r.bounds.3 <= hn);
+        }
+        // The tallest building is Rainier Square Tower, 259 m.
+        let tallest = region
+            .buildings
+            .iter()
+            .map(|b| b.height_m)
+            .fold(0.0f32, f32::max);
+        assert!((tallest - 259.0).abs() < 1.0, "tallest {tallest} m, expected ~259");
     }
 
     /// Independent check of the SHIPPED stars-map.bin against known

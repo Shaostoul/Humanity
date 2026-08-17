@@ -1294,6 +1294,18 @@ fn snapshot_maps_galaxy() {
     });
 }
 
+/// The Maps page's Planet view (v0.1146): the Seattle Center OSM region
+/// rendered GPS-style (roads by class, building footprints, labels).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_maps_planet() {
+    render_page_png("maps_planet", 1280, 900, |ctx, theme, state| {
+        state.cosmos_view = crate::gui::pages::cosmos::CosmosView::Planet;
+        state.cosmos_zoom = 2.0;
+        crate::gui::pages::cosmos::draw(ctx, theme, state);
+    });
+}
+
 /// The Market's in-app publish view (v0.1143): the shop + offering forms
 /// rendered open, proving the whole form lays out (the plain market snapshot
 /// shows the Directory browse; this one shows "+ Publish" clicked).
