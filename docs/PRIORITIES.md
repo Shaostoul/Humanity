@@ -136,15 +136,20 @@
 >    (src/terrain/osm_region.rs parser/projection/mesher +
 >    src/engine/region_meshes.rs progressive elevation grid + background
 >    worker; Seattle Center + Silverdale WA shipped; probe vantages
->    silverdale-osm-ground + seattle-osm-5km). NEVER hit live OSM tile
->    servers from the app; regions ship like star-catalog tiers.
->    Remaining rungs ranked:
+>    silverdale-osm-ground + seattle-osm-5km). Water increment SHIPPED
+>    v0.1149.0 (operator field report: Dyes Inlet + lakes missing):
+>    HOSMREG2 water records + src/terrain/water_carve.rs terrain carve
+>    (sea polygons press ground below sea level so the ocean shell fills
+>    inlets; lakes get flat sheets; 2D Planet view fills the polygons).
+>    NEVER hit live OSM tile servers from the app; regions ship like
+>    star-catalog tiers. Remaining rungs ranked:
 >    (a) Vegetation suppression inside region footprints (the probe
 >    showed the procedural forest growing through Silverdale's streets;
->    placement should skip road ribbons + building footprints, the
->    region file carries both); region browser + release-asset region
->    downloads (increment 3); multipolygon buildings (fetcher v2); road
->    smoothing + intersection blending (polish).
+>    placement should skip road ribbons + building footprints + water
+>    polygons, the region file carries all three); region browser +
+>    release-asset region downloads (increment 3); multipolygon
+>    buildings (the fetcher's relation assembly now exists for water);
+>    road smoothing + intersection blending (polish).
 >    (b) Solar System view improvements (operator: "needs improvement";
 >    candidates listed in the ladder doc, operator to rank).
 >    (c) Cosmic web someday: 2MASS/SDSS galaxy catalog as a Universe

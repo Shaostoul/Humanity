@@ -8963,7 +8963,7 @@ mod native_app {
                                     // grid sampling, background mesh builds,
                                     // and the per-frame class-mesh draws all
                                     // live in region_meshes::tick.
-                                    crate::engine::region_meshes::tick(
+                                    let carve_published = crate::engine::region_meshes::tick(
                                         &mut state.region_meshes,
                                         d,
                                         hm,
@@ -8975,6 +8975,56 @@ mod native_app {
                                         rot_d,
                                         rotation,
                                     );
+                                    // The water carve just changed the
+                                    // elevation formula itself: every
+                                    // terrain/water patch cached before
+                                    // this frame is stale (v0.1149). In
+                                    // the normal flow this tick precedes
+                                    // the world's first patch build, so
+                                    // the purge finds empty caches; it is
+                                    // load-bearing for ordering surprises
+                                    // and future mid-session region
+                                    // installs.
+                                    if carve_published {
+                                        let keys: Vec<String> = state
+                                            .planet_chunk_states
+                                            .keys()
+                                            .filter(|k| {
+                                                k.as_str() == b.id
+                                                    || k.starts_with(&format!("{}::", b.id))
+                                            })
+                                            .cloned()
+                                            .collect();
+                                        let mut purged = 0usize;
+                                        for k in keys {
+                                            let Some(cs2) =
+                                                state.planet_chunk_states.get_mut(&k)
+                                            else {
+                                                continue;
+                                            };
+                                            for (_, mesh_idx, aslot) in cs2.purge_all() {
+                                                purged += 1;
+                                                if let Some(s) = aslot {
+                                                    state.renderer.patch_arena_release(s);
+                                                } else if mesh_idx != usize::MAX {
+                                                    state.renderer.replace_mesh(
+                                                        mesh_idx,
+                                                        Mesh::placeholder(
+                                                            &state.renderer.device,
+                                                        ),
+                                                    );
+                                                    state
+                                                        .planet_patch_free_slots
+                                                        .push(mesh_idx);
+                                                }
+                                            }
+                                        }
+                                        if purged > 0 {
+                                            log::info!(
+                                                "[Region] water carve: purged {purged} pre-carve patches"
+                                            );
+                                        }
+                                    }
                                 }
                                 let tiles_ref = (b.id == "earth"
                                     && state.terrain_tiles.tier_installed())

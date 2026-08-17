@@ -31,7 +31,7 @@ use crate::gui::GuiState;
 
 // The OSM region reader (HOSMREG1) lives in the terrain module now, shared
 // with the in-world 3D extruder. See src/terrain/osm_region.rs.
-use crate::terrain::osm_region::{parse_region, OsmRegion, OsmRoad};
+use crate::terrain::osm_region::{parse_region, triangulate_ring, OsmRegion, OsmRoad, WaterKind};
 
 // Canonical Sol model — v0.262.8: moved out of this GUI page into the
 // engine-wide `crate::cosmos` so the FPS world + in-home orrery consume
@@ -1908,7 +1908,40 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         b.2 >= min_e && b.0 <= max_e && b.3 >= min_n && b.1 <= max_n
     };
 
-    // Buildings first (under the roads). Outline-only: footprints are often
+    // Water first: the map's bottom layer. Filled through the shared ear
+    // clipper (footprint-grade concave rings; egui alone only fills convex
+    // shapes); islands repaint the backdrop over their parent water, so
+    // file order (parents before their islands) is the painting order. Sea
+    // reads a shade deeper than lakes, like any paper chart.
+    let mut water_drawn = 0usize;
+    for w in &region.water {
+        if !visible(&w.bounds) {
+            continue;
+        }
+        let color = match w.kind {
+            WaterKind::Sea => Color32::from_rgb(21, 38, 51), // theme-exempt: cartography sea fill
+            WaterKind::Inland => Color32::from_rgb(25, 45, 55), // theme-exempt: cartography lake fill
+            WaterKind::Island => Color32::from_rgb(14, 15, 13), // theme-exempt: island = map backdrop
+        };
+        let Some(tris) = triangulate_ring(&w.ring) else {
+            continue;
+        };
+        let mut mesh = egui::epaint::Mesh::default();
+        for &(e, n) in &w.ring {
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: to_screen(e, n),
+                uv: egui::epaint::WHITE_UV,
+                color,
+            });
+        }
+        mesh.indices = tris;
+        paint.add(egui::Shape::mesh(mesh));
+        if w.kind != WaterKind::Island {
+            water_drawn += 1;
+        }
+    }
+
+    // Buildings next (under the roads). Outline-only: footprints are often
     // concave and egui only fills convex polygons; a clean stroke reads as
     // GPS-map. Height tints the line (unknown dim, taller lighter). Skip
     // buildings smaller than ~3 px so a zoomed-out view stays uncluttered.
@@ -1975,6 +2008,31 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
+    // Named water labels (lakes, bays): centred on the polygon bounds, in
+    // the italic-adjacent blue-grey every chart uses for water names.
+    if zoom >= 0.7 {
+        let mut labels = 0usize;
+        for w in &region.water {
+            if labels >= 20 {
+                break;
+            }
+            let (Some(name), true) = (&w.name, w.kind != WaterKind::Island) else {
+                continue;
+            };
+            if !visible(&w.bounds) {
+                continue;
+            }
+            paint.text(
+                to_screen((w.bounds.0 + w.bounds.2) * 0.5, (w.bounds.1 + w.bounds.3) * 0.5),
+                Align2::CENTER_CENTER,
+                name.as_ref(),
+                egui::FontId::proportional(9.5),
+                Color32::from_rgb(150, 185, 205), // theme-exempt: cartographic water label
+            );
+            labels += 1;
+        }
+    }
+
     // Hover: nearest named road within reach.
     if let Some(hp) = hover_named_road(region, ui, &to_screen) {
         response.clone().on_hover_ui_at_pointer(|ui| {
@@ -2019,8 +2077,8 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
         Align2::LEFT_BOTTOM,
         format!(
-            "{} ({:.4}, {:.4}) · {} roads, {} buildings in view · Map data (c) OpenStreetMap contributors (ODbL)",
-            region.name, region.origin_lat, region.origin_lon, roads_drawn, buildings_drawn,
+            "{} ({:.4}, {:.4}) · {} roads, {} buildings, {} water in view · Map data (c) OpenStreetMap contributors (ODbL)",
+            region.name, region.origin_lat, region.origin_lon, roads_drawn, buildings_drawn, water_drawn,
         ),
         egui::FontId::proportional(10.0),
         theme.text_muted(),

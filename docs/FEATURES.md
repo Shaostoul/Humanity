@@ -734,10 +734,32 @@ height band, asphalt, footpath), roads lifted +0.18/+0.12 m over the
 ground, building walls skirted 2.5 m below grade so slopes never show
 gaps, sea-clamped bases. Regions auto-load from data/maps/regions/*.bin
 within 40 km (drawn to 60 km) and rebuild once when terrain tiles sharpen.
-Shipped regions: Seattle Center + Silverdale WA (3,943 roads, 5,314
-buildings, the operator's real town). Probe vantages silverdale-osm-ground
-+ seattle-osm-5km lock it visually.
+Shipped regions: Seattle Center + Silverdale WA (the operator's real
+town). Probe vantages silverdale-osm-ground + seattle-osm-5km +
+silverdale-osm-2km lock it visually.
 - Native: src/terrain/osm_region.rs, src/engine/region_meshes.rs (lib.rs hook in the earth branch)
+
+### Region Water: Real Inlets, Lakes, and the Terrain Carve (v0.1149)
+Operator field report: "the water isn't right... Dyes Inlet is missing.
+Lakes are missing too." Root cause: the sea only renders where the coarse
+(460 m) heightmap dips below sea level, so narrow inlets vanish, and
+lakes sit above sea level where the ocean shell cannot exist. Fix is the
+flight-simulator technique: vector water masks override raster terrain.
+HOSMREG2 adds water records (sea assembled from OSM coastline ways with
+the land-left/water-right closure rule, inland water incl. multipolygon
+relations, island inner rings). src/terrain/water_carve.rs rasterizes
+each region's water to a 1024x1024 mask and the terrain formula sites
+(build_patch_mesh + drawn_elevation_normalized, i.e. patches, walk clamp,
+grass, region grids) press ground under sea polygons 2 m below sea level,
+so the EXISTING animated ocean fills the inlet; the water shell's
+coverage + depth bake honor the mask too. Lakes get flat sheets at their
+lowest-shore level (RegionMeshKind::WaterInland) with beds carved 1.5 m
+under. The 2D Planet view draws the same polygons (ear-clipped fills,
+island repaint, named-water labels). Rust locks: 7 water_carve tests +
+shipped-file locks (Dyes Inlet sea area > 5 km2, Island Lake + its Clark
+Island hole, Lake Union in Seattle Center).
+- Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
+- Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
 ### Quests/Tasks Split (v0.1145)
 Quests = gameplay (sim quests, auto-tracked, native-only). Tasks = real

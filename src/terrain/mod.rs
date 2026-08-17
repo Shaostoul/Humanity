@@ -18,13 +18,18 @@ pub mod grass;
 /// tillers and near-field trees both stand on it).
 pub mod drawn_surface;
 pub mod far_trees;
-/// Real OpenStreetMap regions (data/maps/regions/*.bin): the HOSMREG1
+/// Real OpenStreetMap regions (data/maps/regions/*.bin): the HOSMREG2
 /// reader, the fetcher's projection contract, a polygon ear clipper, and the
 /// 3D extrusion mesher. Shared by the Maps page's 2D Planet view and the
 /// in-world extruder so the two cannot drift (v0.1148, maps ladder rung 3
 /// increment 2). Parser/projection/clipper are relay-safe; only the mesher
 /// is native-gated.
 pub mod osm_region;
+/// Region water polygons pressed into the drawn terrain: rasterized masks
+/// that carve sea inlets to below sea level (the ocean shell fills them) and
+/// lake beds under their surface sheets. The flight-sim vector-water-mask
+/// technique (v0.1149, water arc). Relay-safe, pure std + glam.
+pub mod water_carve;
 pub mod ocean_fft;
 pub mod ocean_mask;
 pub mod ocean_waves;

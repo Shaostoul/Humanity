@@ -692,9 +692,11 @@
    },
    "hold_altitude": true,
    "settle_s": 14,
-   "expect": "The Silverdale road network (Silverdale Way, Bucklin Hill Rd, the NW grid) with extruded low-rise buildings around the Kitsap Mall area and Old Town at the Dyes Inlet shore; geometry conforms to the terrain, water of Dyes Inlet adjacent.",
+   "expect": "The Silverdale road network (Silverdale Way, Bucklin Hill Rd, the NW grid) with extruded low-rise buildings around the Kitsap Mall area and Old Town at the Dyes Inlet shore; Dyes Inlet itself is REAL SEA WATER (the v0.1149 carve: terrain pressed below sea level under the OSM sea polygons, the ocean shell fills it) reaching the town's shoreline, with ponds/lakes as dark flat sheets.",
    "regressions": [
     "no misplaced region (town must sit at the Dyes Inlet shore)",
+    "Dyes Inlet is water, not dry land (the water-carve regression)",
+    "no carved water under the town's streets (sea side-convention)",
     "panics=0"
    ],
    "perf_floor_fps": 15,
@@ -715,7 +717,7 @@
    },
    "hold_altitude": true,
    "settle_s": 14,
-   "expect": "The downtown Seattle street grid as dark ribbons with the extruded building cluster including one ~259 m tower; geometry aligned with the terrain coastline of Elliott Bay.",
+   "expect": "The downtown Seattle street grid as dark ribbons with the extruded building cluster including one ~259 m tower; geometry aligned with the terrain coastline of Elliott Bay, and the waterfront edge wet (the region sea polygons extend the ocean to the piers).",
    "regressions": [
     "no misplaced region (geometry must sit at the Seattle coastline, not offset)",
     "panics=0"

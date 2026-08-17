@@ -382,6 +382,9 @@ pub fn near_tree_instances_at_density(
     let ang = radius_m / def.radius.max(1.0);
     let cos_ang = ang.cos();
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // One registry lock per harvest, mirroring the card bake's per-patch
+    // snapshot (see water_carve docs).
+    let carve_masks = crate::terrain::water_carve::snapshot();
     let range_m = match source {
         ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
         ElevationSource::Noise(_) => 1.0,
@@ -490,8 +493,23 @@ pub fn near_tree_instances_at_density(
                 let (e, _tile) = match source {
                     ElevationSource::Heightmap { hm, tiles, .. } => {
                         // Depth 20 = the deepest bake tier, so the tile-
-                        // gated sampler matches close patches.
-                        tile_or_base(hm, *tiles, dir, 20)
+                        // gated sampler matches close patches. Then the water
+                        // carve (v0.1149), mirroring the card bake exactly:
+                        // carved seabed reads underwater, so the 6 m gate
+                        // below rejects it in BOTH streams together.
+                        let (e, t) = tile_or_base(hm, *tiles, dir, 20);
+                        let e = match &carve_masks {
+                            Some(cm) => crate::terrain::water_carve::carve_normalized_with(
+                                cm,
+                                dir,
+                                e,
+                                hm.min_meters(),
+                                hm.max_meters(),
+                                sea,
+                            ),
+                            None => e,
+                        };
+                        (e, t)
                     }
                     ElevationSource::Noise(sm) => (sm.elevation_at(dir.as_vec3()), false),
                 };

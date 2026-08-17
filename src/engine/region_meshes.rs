@@ -91,12 +91,22 @@ pub(crate) struct RegionMeshState {
     grid: Option<ElevGrid>,
     pending: Option<(usize, bool, Receiver<RegionMeshes>)>,
     /// Renderer material index per RegionMeshKind ordinal, registered once.
-    materials: Option<[usize; 5]>,
+    materials: Option<[usize; 6]>,
+    /// Water-carve masks rasterized + published once (see tick step 0).
+    carve_built: bool,
 }
 
 impl Default for RegionMeshState {
     fn default() -> Self {
-        Self { regions: Vec::new(), loaded: false, active: Vec::new(), grid: None, pending: None, materials: None }
+        Self {
+            regions: Vec::new(),
+            loaded: false,
+            active: Vec::new(),
+            grid: None,
+            pending: None,
+            materials: None,
+            carve_built: false,
+        }
     }
 }
 
@@ -107,6 +117,7 @@ fn kind_ordinal(k: RegionMeshKind) -> usize {
         RegionMeshKind::BuildingHigh => 2,
         RegionMeshKind::RoadAsphalt => 3,
         RegionMeshKind::RoadFoot => 4,
+        RegionMeshKind::WaterInland => 5,
     }
 }
 
@@ -142,11 +153,11 @@ impl RegionMeshState {
         }
     }
 
-    /// Register the five class materials once. Colors are cartography /
+    /// Register the six class materials once. Colors are cartography /
     /// architecture reads, not theme (the theme lint scopes gui+renderer
     /// sources; engine constants for world materials follow the material
     /// system's own registry pattern).
-    fn ensure_materials(&mut self, renderer: &mut crate::renderer::Renderer) -> [usize; 5] {
+    fn ensure_materials(&mut self, renderer: &mut crate::renderer::Renderer) -> [usize; 6] {
         *self.materials.get_or_insert_with(|| {
             let m = |renderer: &mut crate::renderer::Renderer,
                      rgba: [f32; 4],
@@ -166,6 +177,10 @@ impl RegionMeshState {
                 m(renderer, [0.16, 0.16, 0.17, 1.0], 0.0, 0.95, 2.0),
                 // Footpath: light aggregate.
                 m(renderer, [0.45, 0.44, 0.41, 1.0], 0.0, 0.9, 2.0),
+                // Inland water sheet: deep blue-green, near-mirror smooth.
+                // Lakes sit above sea level where the ocean shell cannot
+                // reach, so this flat sheet is their whole surface for now.
+                m(renderer, [0.09, 0.20, 0.24, 1.0], 0.1, 0.08, 2.0),
             ]
         })
     }
@@ -174,6 +189,13 @@ impl RegionMeshState {
 /// Per-frame driver, called from the Earth branch of the celestial pass.
 /// `cam_local` is the camera in the planet's unrotated local frame (f64);
 /// the RenderObject transform inputs match the classic-patch push exactly.
+///
+/// Returns true on the ONE frame the water-carve masks were published, so
+/// the caller can drop any terrain/water patches cached before the carve
+/// existed (in practice this fires before the first patch build of the
+/// world, because this tick runs earlier in the frame; the purge is the
+/// belt-and-braces for ordering surprises and future mid-session region
+/// installs).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tick(
     rm: &mut RegionMeshState,
@@ -186,10 +208,63 @@ pub(crate) fn tick(
     render_off: DVec3,
     rot_d: glam::DQuat,
     rotation: glam::Quat,
-) {
+) -> bool {
     rm.ensure_loaded();
     if rm.regions.is_empty() {
-        return;
+        return false;
+    }
+
+    // 0. Rasterize + publish the water-carve masks ONCE. This must happen
+    //    while the global registry is still empty: the lake-surface probe
+    //    below reads the UNCARVED drawn ground through the same oracle the
+    //    walk clamp uses.
+    let mut carve_published = false;
+    if !rm.carve_built {
+        rm.carve_built = true;
+        let detail = crate::terrain::planet_chunks::DetailNoise::new(def.terrain_seed);
+        let sea_r = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+        let mut masks = Vec::new();
+        for r in &rm.regions {
+            if r.water.is_empty() {
+                continue;
+            }
+            // A lake's surface: the LOWEST shore point of its ring against
+            // the uncarved ground, floored just above sea level so an
+            // estuary-grade polygon cannot duck under the ocean shell.
+            let lake_level = |wi: usize| -> f64 {
+                let w = &r.water[wi];
+                let mut min_rel = f64::MAX;
+                for &(e, n) in &w.ring {
+                    let (lat, lon) = osm_region::region_meters_to_latlon(
+                        r.origin_lat,
+                        r.origin_lon,
+                        e as f64,
+                        n as f64,
+                    );
+                    let dir = osm_region::latlon_to_dir_f64(lat, lon);
+                    let gr = crate::engine::frame_lock::ground_radius_m(
+                        Some(def),
+                        Some(hm),
+                        Some(&detail),
+                        Some(tiles),
+                        dir,
+                    );
+                    min_rel = min_rel.min(gr - sea_r);
+                }
+                min_rel.max(0.5)
+            };
+            if let Some(m) =
+                crate::terrain::water_carve::RegionWaterMask::from_region(r, &lake_level)
+            {
+                masks.push(m);
+            }
+        }
+        if !masks.is_empty() {
+            let count = masks.len();
+            crate::terrain::water_carve::set_global(std::sync::Arc::new(masks));
+            carve_published = true;
+            log::info!("[Region] water carve published for {count} region(s)");
+        }
     }
 
     // 1. Progress the elevation grid, if one is building (main thread: the
@@ -372,4 +447,6 @@ pub(crate) fn tick(
             });
         }
     }
+
+    carve_published
 }

@@ -182,6 +182,8 @@ pub fn build_far_tree_sheet(
     let radius = def.radius;
     let sea = def.sea_level.clamp(0.0, 1.0) as f32;
     let range_m = hm.max_meters() - hm.min_meters();
+    // One water-carve snapshot per sheet build (see water_carve docs).
+    let carve_masks = crate::terrain::water_carve::snapshot();
     let cam_dir = cam_local.normalize_or_zero();
     if cam_dir.length_squared() < 0.5 {
         return None;
@@ -278,6 +280,19 @@ pub fn build_far_tree_sheet(
                     continue;
                 }
                 let e = hm.normalized_at(dir.as_vec3());
+                // Water carve (v0.1149): the far sheet must agree with the
+                // card bake or the handoff shows trees appearing over water.
+                let e = match &carve_masks {
+                    Some(cm) => crate::terrain::water_carve::carve_normalized_with(
+                        cm,
+                        dir,
+                        e,
+                        hm.min_meters(),
+                        hm.max_meters(),
+                        sea,
+                    ),
+                    None => e,
+                };
                 let elev_m = (e - sea) * range_m;
                 if elev_m < 6.0 || elev_m > TREELINE_M {
                     continue;

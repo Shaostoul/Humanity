@@ -72,13 +72,29 @@ in the 3D world.
   live wiring in src/engine/region_meshes.rs (progressive main-thread
   elevation grid + background mesh worker, 40 km build / 60 km draw).
   Regions shipped: Seattle Center + Silverdale WA (the operator's town).
+- **Water increment SHIPPED v0.1149** (operator field report: Dyes Inlet
+  and the lakes were missing): HOSMREG2 water records (sea assembled from
+  OSM coastline with the land-left/water-right rule, inland multipolygon
+  water, island holes) + the terrain CARVE (src/terrain/water_carve.rs):
+  ground under sea polygons is pressed 2 m below sea level at every
+  terrain formula site, so the existing animated ocean shell becomes the
+  inlet's water; lakes get flat sheets at lowest-shore level with beds
+  carved under them. The 2D Planet view fills the same polygons. This is
+  the flight-sim vector-water-mask technique, the real 2030 architecture,
+  not a stopgap.
+  Vegetation over WATER is already handled: all three tree streams (card
+  bake, near-model mirror, far sheet) and the grass run their land gate
+  on the CARVED elevation, so carved seabed reads underwater and grows
+  nothing (the first probe had a forest standing in the inlet).
   Next: region browser + release-asset downloads (third increment);
-  vegetation suppression inside region footprints (the probe showed the
-  procedural forest growing straight through Silverdale's streets and
-  buildings; tree/grass placement should skip road ribbons + building
-  footprints, the region file already carries both); multipolygon
-  buildings (v2 fetcher); road smoothing + intersection blending
-  (polish).
+  vegetation suppression inside ROAD and BUILDING footprints (the forest
+  still grows through Silverdale's streets; the region file carries the
+  data); multipolygon buildings (v2 fetcher pattern now exists for
+  water); road smoothing + intersection blending; real bathymetry inside
+  sea polygons (the carve is a 5 m constant today); the region-boundary
+  water seam (the carve ends at the bbox edge mid-inlet, so the sea
+  floor steps up there; bigger regions or a coarse global water vector
+  layer someday).
 
 ## Rung 4: Cosmic web (far future)
 

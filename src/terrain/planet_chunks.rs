@@ -656,7 +656,17 @@ pub fn drawn_elevation_normalized(
     } else {
         base
     };
-    e.clamp(0.0, 1.0)
+    // Region water carve (v0.1149): OSM sea/lake polygons press the drawn
+    // ground down. This is the SHARED formula site, so the walk clamp, the
+    // grass, and the region-mesh elevation grid all agree with the patches.
+    crate::terrain::water_carve::carve_normalized(
+        dir,
+        e.clamp(0.0, 1.0),
+        hm.min_meters(),
+        hm.max_meters(),
+        sea,
+    )
+    .clamp(0.0, 1.0)
 }
 
 /// Depth high enough that `DetailNoise::sample_m` enables EVERY fine octave
@@ -1691,6 +1701,8 @@ pub fn build_patch_mesh_at_density(
     let radius_m = def.radius;
     let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // One registry lock per patch, not per vertex (see water_carve docs).
+    let carve_masks = crate::terrain::water_carve::snapshot();
     // Stays 0.0 unless the vegetation pass below actually emits cards (this
     // patch is too shallow for trees, or polar). See `PatchMesh::tree_density`.
     let mut card_tree_density = 0.0f32;
@@ -1736,7 +1748,22 @@ pub fn build_patch_mesh_at_density(
                     } else {
                         base
                     };
-                    e.clamp(0.0, 1.0)
+                    // Region water carve: MUST mirror the tail of
+                    // `drawn_elevation_normalized` or patches and the walk
+                    // clamp disagree over inlets. `carve_masks` is the
+                    // one-per-patch snapshot taken above.
+                    match &carve_masks {
+                        Some(cm) => crate::terrain::water_carve::carve_normalized_with(
+                            cm,
+                            dir,
+                            e.clamp(0.0, 1.0),
+                            hm.min_meters(),
+                            hm.max_meters(),
+                            sea,
+                        )
+                        .clamp(0.0, 1.0),
+                        None => e.clamp(0.0, 1.0),
+                    }
                 }
                 ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
             };
@@ -2142,10 +2169,29 @@ pub fn build_patch_mesh_at_density(
                         if !inside(dir) {
                             continue;
                         }
-                        // Elevation through the SAME sampler as the grid.
+                        // Elevation through the SAME sampler as the grid,
+                        // then the water carve (v0.1149): carved seabed and
+                        // lake beds read their true underwater elevation, so
+                        // the 6 m land gate below keeps trees out of Dyes
+                        // Inlet. MUST stay identical in the near-model
+                        // mirror (near_trees) or cards and models disagree.
                         let (e, _tile) = match source {
                             ElevationSource::Heightmap { hm, tiles, .. } => {
-                                tile_or_base(hm, *tiles, dir, id.depth)
+                                let (e, t) = tile_or_base(hm, *tiles, dir, id.depth);
+                                let e = match &carve_masks {
+                                    Some(cm) => {
+                                        crate::terrain::water_carve::carve_normalized_with(
+                                            cm,
+                                            dir,
+                                            e,
+                                            hm.min_meters(),
+                                            hm.max_meters(),
+                                            sea,
+                                        )
+                                    }
+                                    None => e,
+                                };
+                                (e, t)
                             }
                             ElevationSource::Noise(sm) => {
                                 (sm.elevation_at(dir.as_vec3()), false)
@@ -2483,6 +2529,15 @@ pub fn build_water_patch_mesh_at(
 
     // Same bit-identical border walk as the terrain builder (commutative
     // f64 midpoint math), so same-depth water neighbors share borders.
+    // Region sea polygons (v0.1149 water carve) extend coverage into inlets
+    // the 5.56 km ocean mask misses entirely: one snapshot per patch.
+    let carve_masks = crate::terrain::water_carve::snapshot();
+    let region_sea = |dir: DVec3| -> f32 {
+        match &carve_masks {
+            Some(cm) => crate::terrain::water_carve::sea_weight_at(cm, dir),
+            None => 0.0,
+        }
+    };
     let vert_count = ((n + 1) * (n + 2) / 2) as usize;
     let mut dirs: Vec<DVec3> = Vec::with_capacity(vert_count);
     let mut any_ocean = false;
@@ -2498,7 +2553,7 @@ pub fn build_water_patch_mesh_at(
             // strips of drawn-underwater seabed bare. The per-vertex depth
             // feather trims the shell back to the real waterline, so being
             // generous here costs nothing but closes those strips.
-            if ocean.is_ocean_near(dir.as_vec3()) {
+            if ocean.is_ocean_near(dir.as_vec3()) || region_sea(dir) > 0.0 {
                 any_ocean = true;
             }
             dirs.push(dir);
@@ -2526,10 +2581,16 @@ pub fn build_water_patch_mesh_at(
     // Without a heightmap every vertex reads 30 m (open-deep default).
     let depth_color = |dir: DVec3| -> [f32; 3] {
         // sample_meters is real elevation relative to sea level, so depth
-        // below the surface is simply its negation.
-        let depth_m = hm
+        // below the surface is simply its negation. Region sea polygons
+        // override upward: the carve pressed that ground to SEA_CARVE_M
+        // below sea level, so the depth bake must agree or the shader's
+        // shoreline feather trims the shell off the very inlet the carve
+        // just made wet (weight-scaled so the feather still ramps ashore).
+        let base_depth = hm
             .map(|h| (-h.sample_meters(dir.as_vec3())).max(0.0))
             .unwrap_or(300.0);
+        let depth_m = base_depth
+            .max(crate::terrain::water_carve::SEA_CARVE_M as f32 * region_sea(dir));
         let dm = (depth_m * 10.0).clamp(0.0, 65535.0) as u32;
         [((dm >> 8) & 255) as f32 / 255.0, (dm & 255) as f32 / 255.0, 0.0]
     };
@@ -2959,6 +3020,19 @@ impl ChunkState {
             }
         }
         d
+    }
+
+    /// Drop EVERY cached patch unconditionally, roots included. This is a
+    /// CORRECTNESS purge, not an LRU trim: the elevation formula itself
+    /// changed under this state (the region water carve published), so
+    /// every cached mesh is stale by construction. Same return contract as
+    /// `collect_evictions`; the caller frees the renderer resources.
+    pub fn purge_all(
+        &mut self,
+    ) -> Vec<(PatchId, usize, Option<crate::renderer::patch_arena::PatchSlot>)> {
+        self.sel_dirty = true;
+        self.last_drawn.clear();
+        self.cache.drain().map(|(id, e)| (id, e.mesh, e.slot)).collect()
     }
 
     /// Pop LRU entries until under the byte cap. Returns (id, mesh index,

@@ -27,11 +27,17 @@
  * carries the same licence forward. This is a licence obligation, not a
  * courtesy: dropping the credit makes the build non-compliant.
  *
- * Usage:
+ * Usage (these two invocations are the canonical shipped regions; re-run both
+ * after any format change so every shipped .bin carries the current format):
  *   node scripts/fetch-osm-region.mjs \
  *     --bbox 47.6050,-122.3560,47.6280,-122.3280 \
  *     --name "Seattle Center" \
  *     --out data/maps/regions/seattle-center.bin
+ *
+ *   node scripts/fetch-osm-region.mjs \
+ *     --bbox 47.5900,-122.7300,47.6900,-122.6200 \
+ *     --name "Silverdale" \
+ *     --out data/maps/regions/silverdale.bin
  *
  *   node scripts/fetch-osm-region.mjs --verify-only data/maps/regions/seattle-center.bin
  *
@@ -41,23 +47,29 @@
  *   --out          output path; parent directories are created.
  *   --verify-only  skip the network entirely and just re-verify a file.
  *
- * ══ FORMAT SPEC "HOSMREG1" ════════════════════════════════════════════════
+ * ══ FORMAT SPEC "HOSMREG2" ════════════════════════════════════════════════
  * All integers and floats are LITTLE-ENDIAN. There is no padding and no
  * alignment anywhere: every field starts immediately after the previous one,
  * so the whole file is walked strictly front to back.
  *
- *   Header (16 bytes):
- *     0..8    magic  b"HOSMREG1" (8 ASCII bytes, no NUL)
+ * v2 adds WATER: sea polygons assembled from the OSM coastline, inland water
+ * surfaces (lakes, ponds, river surfaces), and islands. v1 ("HOSMREG1", a
+ * 16-byte header without water_count) is dead: nothing shipped, both region
+ * files are rebuilt as v2, and the Rust reader reads only v2.
+ *
+ *   Header (20 bytes):
+ *     0..8    magic  b"HOSMREG2" (8 ASCII bytes, no NUL)
  *     8..12   u32    road_count      (number of road records)
  *     12..16  u32    building_count  (number of building records)
+ *     16..20  u32    water_count     (number of water records)
  *
  *   Meta block (immediately after the header, 25 + name_len bytes):
- *     16..24  f64    origin_lat_deg      bbox CENTRE latitude, degrees
- *     24..32  f64    origin_lon_deg      bbox CENTRE longitude, degrees
- *     32..36  f32    half_span_east_m    bbox half-width, metres
- *     36..40  f32    half_span_north_m   bbox half-height, metres
- *     40..41  u8     name_len            0..=255, UTF-8 BYTES (not chars)
- *     41..    bytes  name_len bytes of UTF-8 display name, no NUL
+ *     20..28  f64    origin_lat_deg      bbox CENTRE latitude, degrees
+ *     28..36  f64    origin_lon_deg      bbox CENTRE longitude, degrees
+ *     36..40  f32    half_span_east_m    bbox half-width, metres
+ *     40..44  f32    half_span_north_m   bbox half-height, metres
+ *     44..45  u8     name_len            0..=255, UTF-8 BYTES (not chars)
+ *     45..    bytes  name_len bytes of UTF-8 display name, no NUL
  *
  *   COORDINATES. Every coordinate after the meta block is METRES EAST and
  *   METRES NORTH of the origin, as f32, in a local tangent-plane projection:
@@ -112,15 +124,69 @@
  *   first. Consecutive duplicate points are dropped. Rings left with fewer
  *   than 3 distinct points are degenerate and are not written at all.
  *
- *   ORDERING: roads then buildings, each group in ascending OSM way id, so a
- *   rebuild against the same OSM snapshot is byte-identical regardless of the
- *   order Overpass happened to answer in. A way split by the margin clip
- *   (below) contributes its pieces consecutively, in geometry order.
+ *   Water records: water_count consecutive, variable length, starting right
+ *   after the last building record:
+ *     u8     kind         0 = sea: tidal water assembled from the OSM
+ *                             natural=coastline, clipped to the EXACT bbox
+ *                         1 = inland water: lake / pond / river surface,
+ *                             from natural=water or waterway=riverbank ways
+ *                             and multipolygon relations
+ *                         2 = island: an inner LAND ring lying inside the
+ *                             nearest PRECEDING kind 0 or kind 1 record (a
+ *                             coastline island inside the sea, or a
+ *                             multipolygon inner ring inside its lake)
+ *     u8     name_len     0..=40 UTF-8 bytes, truncated on a CHARACTER
+ *                         boundary exactly like road names; 0 = unnamed
+ *     bytes  name         name_len bytes of UTF-8 (relation name for
+ *                         multipolygon water, way name otherwise; a sea
+ *                         polygon takes a name from a named coastline way
+ *                         when one participates)
+ *     u16    point_count  >= 3
+ *     then point_count * (f32 east_m, f32 north_m)  -- the ring
+ *
+ *   Water rings follow the SAME conventions as building footprints: the
+ *   duplicated closing point is removed (the reader closes the ring itself),
+ *   consecutive duplicate points are dropped, and rings left with fewer than
+ *   3 distinct points are degenerate and are not written at all. Same
+ *   projection, same two constants, as every other coordinate in the file.
+ *
+ *   SEA ASSEMBLY (kind 0). OSM maps the sea as open natural=coastline lines,
+ *   not polygons, with one hard convention: following a coastline way's node
+ *   order, LAND is on the LEFT and WATER is on the RIGHT. Coastline ways are
+ *   stitched into chains on shared endpoint NODE IDS (never reversed: the
+ *   direction is the data). A chain that closes on itself entirely inside
+ *   the bbox is an island, emitted as kind 2. A chain that crosses the bbox
+ *   is clipped to the exact bbox rectangle, and each clipped piece is closed
+ *   into a polygon by walking along the bbox boundary from the piece's EXIT
+ *   point to the nearest piece ENTRY point CLOCKWISE (in east/north metre
+ *   space, corners included as vertices). Clockwise is derived, not guessed:
+ *   traversing the finished water polygon with each coastline piece in its
+ *   OSM direction keeps the water (the polygon interior) on the RIGHT, so
+ *   the polygon is clockwise, and the boundary-walk part of a clockwise
+ *   polygon is exactly the walk that keeps the bbox interior on the right,
+ *   which is the clockwise walk around the rectangle. Multiple pieces chain
+ *   through this walk into one polygon per connected water region. verify()
+ *   proves the convention on real data: a known open-water point must land
+ *   INSIDE the assembled sea and a known on-land point must land OUTSIDE it.
+ *
+ *   ORDERING (byte-determinism): roads then buildings, each group in
+ *   ascending OSM way id, exactly as v1 (a way split by the margin clip
+ *   contributes its pieces consecutively, in geometry order). Then water:
+ *   kind 0 sea polygons first, ordered by the smallest OSM way id
+ *   participating in each polygon, each immediately followed by its kind 2
+ *   islands ordered by their own smallest way id; then inland water ordered
+ *   by OSM way id (plain ways) or relation id (multipolygons), each record
+ *   immediately followed by its kind 2 inner islands ordered by their own
+ *   smallest way id. A rebuild against the same OSM snapshot is
+ *   byte-identical regardless of the order Overpass happened to answer in,
+ *   and the build asserts it: the records are converted and serialized twice
+ *   from the same parsed answer and the two buffers must match.
  *
  *   The file is exactly
- *       16 + 25 + region_name_len
+ *       20 + 25 + region_name_len
  *          + sum over roads     (4 + name_len_i + 8*point_count_i)
  *          + sum over buildings (6 + 8*point_count_j)
+ *          + sum over waters    (4 + name_len_k + 8*point_count_k)
  *   bytes, and verify() walks it record by record and asserts it lands
  *   exactly on EOF.
  *
@@ -152,6 +218,23 @@
  * Drop and clip counts are printed on every run; a sudden change in them is
  * the signal that OSM data, or this script, moved.
  *
+ * Water follows the same philosophy with one deliberate difference per kind:
+ *   - SEA polygons (kind 0) are clipped to the EXACT bbox rectangle, because
+ *     the bbox boundary is literally part of their geometry (the clockwise
+ *     boundary walk that closes them); letting them spill into the margin
+ *     would move that boundary.
+ *   - INLAND water (kind 1) and multipolygon inner islands are polygons like
+ *     buildings, but unlike buildings they can dwarf the region (Lake Union
+ *     vs the Seattle Center bbox), so they ARE clipped, with a true polygon
+ *     clip (Sutherland-Hodgman) against the keep rectangle.
+ *   - Coastline islands (kind 2 from sea assembly) lie entirely inside the
+ *     bbox by construction and are stored verbatim.
+ * Multipolygon relation member ways are fetched with the bbox grown by
+ * REL_MEMBER_MARGIN_DEG on every side so a lake moderately larger than the
+ * bbox still closes its rings before clipping; a ring that cannot be closed
+ * from the fetched data is skipped with a warning naming the relation id and
+ * counted in the skipped-rings stat printed at the end of the run.
+ *
  * The Rust loader lives on the Maps side (Planet view). Keep it in sync with
  * this spec -- this header is the contract.
  */
@@ -161,11 +244,19 @@ import { dirname, basename, resolve } from 'node:path';
 
 // ── Format constants (the contract; verify() re-asserts the literals) ──────
 
-const MAGIC = 'HOSMREG1';
-const HEADER_SIZE = 16;
+const MAGIC = 'HOSMREG2';
+const HEADER_SIZE = 20;
 const MAX_ROAD_NAME_BYTES = 40;
+/** Water record names share the road cap (and the same truncation helper). */
+const MAX_WATER_NAME_BYTES = 40;
 const MAX_REGION_NAME_BYTES = 255;
 const MAX_POINTS = 65535; // u16 point_count ceiling
+
+/** Water record kinds (u8); see the format spec above. */
+const WATER_KIND_SEA = 0;    // tidal water assembled from natural=coastline
+const WATER_KIND_INLAND = 1; // lake / pond / river surface polygon
+const WATER_KIND_ISLAND = 2; // inner LAND ring inside the preceding 0 or 1
+const MAX_WATER_KIND = 2;
 
 /** Metres per degree of longitude AT THE EQUATOR; scaled by cos(lat). */
 const M_PER_DEG_LON_EQ = 111320.0;
@@ -176,6 +267,16 @@ const M_PER_DEG_LAT = 110540.0;
 const KEEP_MARGIN_M = 300;
 /** verify() rejects any coordinate beyond half_span + this, metres. */
 const COORD_SLOP_M = 400;
+/**
+ * Relation member ways are fetched with the bbox grown by this many degrees
+ * on every side (about 5.5 km), so a water body moderately larger than the
+ * bbox (Lake Union vs the Seattle Center bbox) still closes its multipolygon
+ * rings before clipping. A body larger than even this margin fails ring
+ * closure and is skipped with a warning; the sea (coastline) is unaffected.
+ */
+const REL_MEMBER_MARGIN_DEG = 0.05;
+/** A clipped run endpoint within this of a bbox edge counts as ON it, metres. */
+const BOUNDARY_EPS_M = 0.01;
 
 /** Heights above this are data errors (tallest building on Earth ~828 m). */
 const MAX_BUILDING_HEIGHT_M = 1000;
@@ -227,6 +328,20 @@ const REGION_GATES = {
     // Silverdale's main drag + a crosstown arterial: local knowledge that
     // proves the bbox is really Silverdale, WA.
     anyRoadNamed: ['Silverdale Way Northwest', 'Silverdale Way NW', 'Bucklin Hill Road'],
+    // Water: the whole northern lobe of Dyes Inlet is inside the bbox, so a
+    // real sea polygon of several km^2 must exist, plus the suburb's many
+    // ponds. Island Lake (a multipolygon relation) proves the relation ring
+    // assembly, and its inner ring Clark Island proves the kind 2 path.
+    minSeaPolygons: 1,
+    minSeaAreaKm2: 2,
+    minInlandWater: 10,
+    anyInlandWaterNamed: ['Island Lake'],
+    anyIslandNamed: ['Clark Island'],
+    // The sea SIDE-CONVENTION proof (land left / water right): mid Dyes
+    // Inlet north lobe must be INSIDE the assembled sea, central Silverdale
+    // (dry land) must be OUTSIDE it. Point-in-polygon in region metre space.
+    seaContainsLatLon: [[47.6230, -122.6870]],
+    seaExcludesLatLon: [[47.6450, -122.6950]],
   },
   'seattle-center.bin': {
     minRoads: 100,
@@ -234,11 +349,25 @@ const REGION_GATES = {
     minBuildingsWithHeight: 50,
     // At least ONE road must carry one of these names.
     anyRoadNamed: ['Pike Street', 'Pine Street'],
+    // Water: the Elliott Bay waterfront cuts the bbox's south-west corner,
+    // and the south tip of Lake Union (a 31-member multipolygon relation)
+    // pokes into the north-east corner.
+    minSeaPolygons: 1,
+    minSeaAreaKm2: 0.05,
+    minInlandWater: 5,
+    anyInlandWaterNamed: ['Lake Union'],
+    anyIslandNamed: [],
+    // Open water off the piers vs dry land at Seattle Center itself.
+    seaContainsLatLon: [[47.6080, -122.3520]],
+    seaExcludesLatLon: [[47.6205, -122.3493]],
   },
 };
 /** Used for a region with no entry above: structure only, no local knowledge. */
 const DEFAULT_GATES = {
   minRoads: 1, minBuildings: 0, minBuildingsWithHeight: 0, anyRoadNamed: [],
+  minSeaPolygons: 0, minSeaAreaKm2: 0, minInlandWater: 0,
+  anyInlandWaterNamed: [], anyIslandNamed: [],
+  seaContainsLatLon: [], seaExcludesLatLon: [],
 };
 
 const DEG = Math.PI / 180;
@@ -407,6 +536,78 @@ function dedupeConsecutive(points) {
  */
 const distinctCount = (points) => new Set(points.map(([e, n]) => `${e.toFixed(3)},${n.toFixed(3)}`)).size;
 
+// ── Polygon helpers (water rings) ─────────────────────────────────────────
+
+/**
+ * Signed shoelace area of an open ring, square metres. Positive means the
+ * ring winds counter-clockwise in east/north space (the mathematical
+ * positive direction). The assembled sea polygons come out CLOCKWISE by
+ * construction (water kept on the right), coastline islands as mapped in
+ * OSM come out counter-clockwise (land kept on the left).
+ */
+function signedAreaM2(ring) {
+  let s = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    s += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  }
+  return s / 2;
+}
+
+/**
+ * Even-odd ray-casting point-in-ring test on an open ring (a duplicated
+ * closing point is harmless: the wrap edge is zero-length). Used to attach
+ * islands to the water record that contains them, and by verify() to prove
+ * the sea side convention against known on-water / on-land points.
+ */
+function pointInRing(pt, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if ((yi > pt[1]) !== (yj > pt[1])
+      && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * True polygon clip (Sutherland-Hodgman) of an OPEN ring against an
+ * axis-aligned rectangle, one half-plane at a time. Returns a new OPEN
+ * ring, possibly empty. Buildings are kept whole or dropped, but inland
+ * water can dwarf the region (Lake Union vs the Seattle Center bbox), so
+ * water genuinely gets cut. The intersection helpers are only called when
+ * the segment truly crosses the clip line, so the divisions never see 0.
+ */
+function clipRingToRect(ring, r) {
+  const crossE = (a, b, e) => [e, a[1] + ((e - a[0]) / (b[0] - a[0])) * (b[1] - a[1])];
+  const crossN = (a, b, n) => [a[0] + ((n - a[1]) / (b[1] - a[1])) * (b[0] - a[0]), n];
+  const passes = [
+    [(p) => p[0] >= r.minE, (a, b) => crossE(a, b, r.minE)],
+    [(p) => p[0] <= r.maxE, (a, b) => crossE(a, b, r.maxE)],
+    [(p) => p[1] >= r.minN, (a, b) => crossN(a, b, r.minN)],
+    [(p) => p[1] <= r.maxN, (a, b) => crossN(a, b, r.maxN)],
+  ];
+  let poly = ring;
+  for (const [inside, cross] of passes) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const cur = poly[i];
+      const prev = poly[(i + poly.length - 1) % poly.length];
+      const curIn = inside(cur);
+      const prevIn = inside(prev);
+      if (curIn) {
+        if (!prevIn) out.push(cross(prev, cur));
+        out.push(cur);
+      } else if (prevIn) {
+        out.push(cross(prev, cur));
+      }
+    }
+    poly = out;
+    if (poly.length === 0) return poly;
+  }
+  return poly;
+}
+
 // ── Tag parsing ───────────────────────────────────────────────────────────
 
 /**
@@ -455,22 +656,43 @@ function buildingHeight(tags) {
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
 /**
- * The Overpass QL query. ONE POST, two way-only clauses:
- *   - highways whose value is in ROAD_CLASS (the regex is generated from it),
- *   - anything tagged building=* .
- * Relations (multipolygon buildings with courtyards, route relations) are
- * deliberately NOT requested: v1 simplifies to ways, which is the bulk of the
- * data and needs no ring assembly. `out body geom` gives us tags plus the
- * full node coordinates inline, so no second node lookup is needed.
+ * The Overpass QL query. Still ONE POST, now three parts:
+ *   1. The bbox union of ways: highways whose value is in ROAD_CLASS (the
+ *      regex is generated from it), anything tagged building=*, the three
+ *      water sources (natural=water, waterway=riverbank surfaces,
+ *      natural=coastline). `out body geom` gives tags, the NODE ID list AND
+ *      the node coordinates inline; the node ids are what water ring
+ *      stitching joins on, so no second node lookup is needed.
+ *   2. Water multipolygon relations touching the bbox, `out body` (members
+ *      and tags; their geometry comes from part 3).
+ *   3. `way(r)` -- the member ways of those relations, limited to the bbox
+ *      grown by REL_MEMBER_MARGIN_DEG, with `out body geom` again. A way in
+ *      both part 1 and part 3 is printed twice; convert() dedupes by id.
+ * Building multipolygon relations (courtyards) are still deliberately not
+ * requested: ways are the bulk of the data there. Water is different: real
+ * lakes (Island Lake, Lake Union) ARE multipolygon relations, so skipping
+ * relations would lose exactly the water the format exists to show.
  */
 function buildQuery(bbox) {
   const box = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`;
+  const m = REL_MEMBER_MARGIN_DEG;
+  const rbox = `${bbox.south - m},${bbox.west - m},${bbox.north + m},${bbox.east + m}`;
   const highways = [...ROAD_CLASS.keys()].join('|');
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];
 (
   way["highway"~"^(${highways})$"](${box});
   way["building"](${box});
+  way["natural"="water"](${box});
+  way["waterway"="riverbank"](${box});
+  way["natural"="coastline"](${box});
 );
+out body geom;
+(
+  relation["natural"="water"](${box});
+  relation["waterway"="riverbank"](${box});
+);
+out body;
+way(r)(${rbox});
 out body geom;`;
 }
 
@@ -519,12 +741,277 @@ function parseOverpass(text) {
   return json;
 }
 
+// ── Water assembly ────────────────────────────────────────────────────────
+
+/**
+ * Project one fetched way into water-pass form: parallel node-id and
+ * projected-point arrays plus the name tag. Returns null (and counts it)
+ * when Overpass did not deliver node ids alongside the geometry; water ring
+ * stitching joins on NODE IDS, the one identity that survives OSM splitting
+ * a shoreline at arbitrary vertices.
+ */
+function waterWayGeom(el, proj, stats) {
+  const geom = el.geometry;
+  const nodes = el.nodes;
+  if (!Array.isArray(geom) || geom.length === 0
+    || !Array.isArray(nodes) || nodes.length !== geom.length) {
+    stats.waterWaysBadGeometry++;
+    return null;
+  }
+  return {
+    id: el.id,
+    nodes,
+    pts: geom.map((p) => proj.project(p.lat, p.lon)),
+    name: el.tags && typeof el.tags.name === 'string' ? el.tags.name : '',
+  };
+}
+
+/**
+ * Assemble closed rings from an UNORDERED set of relation member ways by
+ * joining shared endpoint node ids, reversing members where needed (relation
+ * members carry no reliable direction; only the ring matters). One ring may
+ * span several member ways, and one member list may hold several rings (a
+ * relation with many separate outer lakes). Deterministic: ring starts and
+ * joins always take the smallest unused way id. Rings that cannot be closed
+ * from the data present come back in `failures`; the caller logs the
+ * relation id and counts them in the skipped-rings stat.
+ */
+function assembleRings(items) {
+  const rings = [];
+  const failures = [];
+  const ordered = items.slice().sort((a, b) => a.id - b.id);
+  const used = new Set();
+  for (const start of ordered) {
+    if (used.has(start.id)) continue;
+    used.add(start.id);
+    const nodes = start.nodes.slice();
+    const pts = start.pts.slice();
+    const wayIds = [start.id];
+    let guard = ordered.length + 1;
+    while (nodes[0] !== nodes[nodes.length - 1] && guard-- > 0) {
+      const tail = nodes[nodes.length - 1];
+      let next = null;
+      let reversed = false;
+      for (const cand of ordered) {
+        if (used.has(cand.id)) continue;
+        if (cand.nodes[0] === tail) { next = cand; reversed = false; break; }
+        if (cand.nodes[cand.nodes.length - 1] === tail) { next = cand; reversed = true; break; }
+      }
+      if (!next) break;
+      used.add(next.id);
+      wayIds.push(next.id);
+      if (reversed) {
+        nodes.push(...next.nodes.slice(0, -1).reverse());
+        pts.push(...next.pts.slice(0, -1).reverse());
+      } else {
+        nodes.push(...next.nodes.slice(1));
+        pts.push(...next.pts.slice(1));
+      }
+    }
+    if (nodes.length >= 2 && nodes[0] === nodes[nodes.length - 1]) {
+      rings.push({ pts, wayIds, minWayId: Math.min(...wayIds) });
+    } else {
+      failures.push({ wayIds });
+    }
+  }
+  return { rings, failures };
+}
+
+/**
+ * Stitch coastline ways into chains WITHOUT ever reversing one: coastline
+ * direction is meaningful (land left, water right), so ways join only where
+ * one way's LAST node id is another way's FIRST node id. Deterministic:
+ * chain starts are walked in ascending way id, and if the data ever branches
+ * (two coastline ways starting at one node, which is broken data) the
+ * smallest way id wins and the branch is counted. Open chains are walked
+ * first from the ways nothing flows into; whatever remains sits on closed
+ * loops (islands mapped as one or more coastline ways).
+ */
+function stitchCoastChains(ways, stats) {
+  const byFirst = new Map(); // first node id -> ways ascending id
+  for (const w of ways) {
+    const list = byFirst.get(w.nodes[0]) || [];
+    list.push(w);
+    byFirst.set(w.nodes[0], list);
+  }
+  for (const list of byFirst.values()) {
+    list.sort((a, b) => a.id - b.id);
+    if (list.length > 1) stats.coastlineBranches++;
+  }
+  const continuations = new Set(); // ways some other way flows into
+  for (const w of ways) {
+    for (const c of byFirst.get(w.nodes[w.nodes.length - 1]) || []) continuations.add(c.id);
+  }
+  const used = new Set();
+  const chains = [];
+  const walk = (start) => {
+    const members = [];
+    const nodes = [];
+    const pts = [];
+    let cur = start;
+    let guard = ways.length + 1;
+    while (cur && !used.has(cur.id) && guard-- > 0) {
+      used.add(cur.id);
+      members.push(cur);
+      const skip = nodes.length > 0 ? 1 : 0; // the join node is already present
+      nodes.push(...cur.nodes.slice(skip));
+      pts.push(...cur.pts.slice(skip));
+      if (nodes[0] === nodes[nodes.length - 1]) break; // chain closed on itself
+      cur = (byFirst.get(nodes[nodes.length - 1]) || []).find((w) => !used.has(w.id)) || null;
+    }
+    const named = members.filter((m) => m.name).sort((a, b) => a.id - b.id);
+    chains.push({
+      wayIds: members.map((m) => m.id),
+      minWayId: Math.min(...members.map((m) => m.id)),
+      pts,
+      closed: nodes.length >= 2 && nodes[0] === nodes[nodes.length - 1],
+      name: named.length > 0 ? named[0].name : '',
+    });
+  };
+  const ordered = ways.slice().sort((a, b) => a.id - b.id);
+  for (const w of ordered) if (!used.has(w.id) && !continuations.has(w.id)) walk(w);
+  for (const w of ordered) if (!used.has(w.id)) walk(w);
+  return chains;
+}
+
+/**
+ * Sea assembly: coastline chains in, closed kind 0 water polygons plus
+ * fully-inside island chains out. The format spec header tells the whole
+ * story; the mechanical core is: clip every boundary-crossing chain to the
+ * EXACT bbox, then close each clipped piece by walking the bbox boundary
+ * CLOCKWISE (east/north metre space, SW -> NW -> NE -> SE parameterisation)
+ * from the piece's exit to the nearest piece entry, inserting the corner
+ * vertices passed on the way. Clockwise keeps the water side (the RIGHT of
+ * the coastline direction) enclosed; verify() proves that against known
+ * on-water and on-land points.
+ */
+function assembleSea(chains, rect, warnings, stats) {
+  const H = rect.maxN - rect.minN;
+  const W = rect.maxE - rect.minE;
+  const P = 2 * H + 2 * W;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const perimPos = (p) => {
+    if (Math.abs(p[0] - rect.minE) <= BOUNDARY_EPS_M) return clamp(p[1] - rect.minN, 0, H);
+    if (Math.abs(p[1] - rect.maxN) <= BOUNDARY_EPS_M) return H + clamp(p[0] - rect.minE, 0, W);
+    if (Math.abs(p[0] - rect.maxE) <= BOUNDARY_EPS_M) return H + W + clamp(rect.maxN - p[1], 0, H);
+    if (Math.abs(p[1] - rect.minN) <= BOUNDARY_EPS_M) return H + W + H + clamp(rect.maxE - p[0], 0, W);
+    return null; // not on the boundary at all
+  };
+  const corners = [
+    { pos: 0, pt: [rect.minE, rect.minN] },         // SW
+    { pos: H, pt: [rect.minE, rect.maxN] },         // NW
+    { pos: H + W, pt: [rect.maxE, rect.maxN] },     // NE
+    { pos: 2 * H + W, pt: [rect.maxE, rect.minN] }, // SE
+  ];
+  const cyc = (d) => ((d % P) + P) % P;
+
+  const islands = [];
+  const pieces = [];
+  for (const chain of chains) {
+    let pts = chain.pts;
+    if (chain.closed) {
+      // A closed chain either lies entirely inside the bbox (an island) or
+      // crosses the boundary; when it crosses, rotate it to start at a
+      // vertex OUTSIDE the rectangle so the closing wrap cannot split one
+      // crossing run in two, then clip it exactly like an open chain.
+      const k = pts.findIndex((p) => !inRect(p, rect));
+      if (k < 0) { islands.push(chain); continue; }
+      const open = pts.slice(0, -1);
+      pts = [...open.slice(k), ...open.slice(0, k), open[k]];
+    }
+    for (const run of clipPolyline(pts, rect)) {
+      if (run.length < 2) continue;
+      const entryPos = perimPos(run[0]);
+      const exitPos = perimPos(run[run.length - 1]);
+      if (entryPos === null || exitPos === null) {
+        warnings.push(`coastline chain starting at way ${chain.wayIds[0]} has an endpoint `
+          + 'strictly inside the bbox (broken coastline data); run skipped');
+        stats.seaRunsSkippedInsideEnd++;
+        continue;
+      }
+      pieces.push({ run, entryPos, exitPos, minWayId: chain.minWayId, name: chain.name });
+    }
+  }
+  stats.seaPieces = pieces.length;
+
+  const seas = [];
+  const used = new Set();
+  const startOrder = pieces.slice()
+    .sort((a, b) => (a.minWayId - b.minWayId) || (a.entryPos - b.entryPos));
+  for (const start of startOrder) {
+    if (used.has(start)) continue;
+    const poly = [];
+    const wayIds = [];
+    const names = [];
+    let cur = start;
+    let ok = true;
+    let guard = pieces.length + 1;
+    for (;;) {
+      if (guard-- <= 0) {
+        warnings.push('sea assembly failed to terminate on a polygon; abandoned');
+        stats.seaPolygonsAbandoned++;
+        ok = false;
+        break;
+      }
+      used.add(cur);
+      poly.push(...cur.run);
+      wayIds.push(cur.minWayId);
+      if (cur.name) names.push({ id: cur.minWayId, name: cur.name });
+      // The nearest piece ENTRY walking clockwise from this piece's exit.
+      // Only the start piece may be revisited (that is what closes the
+      // polygon); every other used piece belongs to a finished polygon.
+      let next = null;
+      let nextDelta = Infinity;
+      for (const cand of pieces) {
+        if (used.has(cand) && cand !== start) continue;
+        const d = cyc(cand.entryPos - cur.exitPos);
+        if (d < nextDelta - 1e-9
+          || (Math.abs(d - nextDelta) <= 1e-9 && next !== null && cand.minWayId < next.minWayId)) {
+          next = cand;
+          nextDelta = d;
+        }
+      }
+      if (next === null) {
+        warnings.push('sea assembly found no entry point to continue to; polygon abandoned');
+        stats.seaPolygonsAbandoned++;
+        ok = false;
+        break;
+      }
+      // Consistency: in valid data no piece EXIT lies strictly between this
+      // exit and the entry we walk to (two coastlines would have to cross).
+      for (const cand of pieces) {
+        if (cand === cur) continue;
+        const d = cyc(cand.exitPos - cur.exitPos);
+        if (d > 1e-9 && d < nextDelta - 1e-9) { stats.seaBoundaryInconsistencies++; break; }
+      }
+      // Corner vertices passed on the clockwise walk from exit to entry.
+      const passed = corners
+        .map((c) => ({ pt: c.pt, d: cyc(c.pos - cur.exitPos) }))
+        .filter((c) => c.d > 1e-9 && c.d < nextDelta - 1e-9)
+        .sort((a, b) => a.d - b.d);
+      for (const c of passed) poly.push(c.pt);
+      if (next === start) break; // polygon closed
+      cur = next;
+    }
+    if (!ok) continue;
+    const named = names.sort((a, b) => a.id - b.id);
+    seas.push({
+      pts: poly,
+      minWayId: Math.min(...wayIds),
+      name: named.length > 0 ? named[0].name : '',
+    });
+  }
+  return { seas, islands };
+}
+
 // ── Build ─────────────────────────────────────────────────────────────────
 
 /**
- * Convert an Overpass answer into the road and building records of the
- * format. Returns { roads, buildings, stats } with coordinates already in
- * metres east/north.
+ * Convert an Overpass answer into the road, building and water records of
+ * the format. Returns { roads, buildings, waters, stats, warnings } with
+ * coordinates already in metres east/north. Deterministic by construction:
+ * the same parsed answer always yields the same record set, and main()
+ * proves it by converting and serializing twice and comparing buffers.
  */
 function convert(json, proj) {
   const keep = {
@@ -533,12 +1020,20 @@ function convert(json, proj) {
     minN: -proj.halfSpanNorth - KEEP_MARGIN_M,
     maxN: proj.halfSpanNorth + KEEP_MARGIN_M,
   };
+  // The EXACT bbox rectangle: the sea is assembled against this, never the
+  // keep rectangle, because the bbox edge is part of the sea geometry.
+  const exact = {
+    minE: -proj.halfSpanEast, maxE: proj.halfSpanEast,
+    minN: -proj.halfSpanNorth, maxN: proj.halfSpanNorth,
+  };
 
   const roads = [];
   const buildings = [];
+  const warnings = [];
   const stats = {
     elements: json.elements.length,
     notWay: 0, noGeometry: 0, unclassified: 0, dualTagged: 0,
+    relationsSeen: 0, duplicateElements: 0, relationMemberOnlyWays: 0,
     roadWaysSeen: 0, roadWaysKept: 0, roadWaysClipped: 0, roadWaysDroppedOutside: 0,
     roadWaysDroppedShort: 0, roadExtraRecordsFromSplits: 0, roadWaysSplitForU16: 0,
     roadPoints: 0, roadNamesTruncated: 0, roadsNamed: 0,
@@ -546,10 +1041,231 @@ function convert(json, proj) {
     buildingDroppedOutside: 0, buildingDroppedDegenerate: 0, buildingDroppedTooManyPoints: 0,
     buildingClosingPointsDropped: 0, buildingPoints: 0,
     heightFromTag: 0, heightFromLevels: 0, heightUnknown: 0, heightUnparseable: 0,
+    coastlineWays: 0, coastlineChains: 0, coastlineClosedChains: 0, coastlineBranches: 0,
+    seaPieces: 0, seaPolygons: 0, seaIslands: 0, seaAreaM2: 0,
+    seaRunsSkippedInsideEnd: 0, seaPolygonsAbandoned: 0, seaBoundaryInconsistencies: 0,
+    waterRelations: 0, waterRelationsNotMultipolygon: 0, waterRelationMembersMissing: 0,
+    waterRingsAssembled: 0, waterRingsSkipped: 0,
+    waterWaysStandalone: 0, waterWaysInRelations: 0, waterWaysUnclosed: 0,
+    waterWaysBadGeometry: 0, waterAndBuildingTagged: 0,
+    waterDroppedOutside: 0, waterDroppedDegenerate: 0, waterDroppedTooManyPoints: 0,
+    waterIslandsUnassigned: 0, waterNamesTruncated: 0,
+    waterInlandRecords: 0, waterInnerIslands: 0, waterRecords: 0, waterPoints: 0,
   };
 
+  // ── Index the answer. The query prints a way TWICE when it matches the
+  // bbox union AND is a member of a fetched relation; dedupe by id so every
+  // pass below sees each way exactly once.
+  const waysById = new Map();
+  const relations = [];
   for (const el of json.elements) {
-    if (el.type !== 'way') { stats.notWay++; continue; }
+    if (el.type === 'way') {
+      if (waysById.has(el.id)) { stats.duplicateElements++; continue; }
+      waysById.set(el.id, el);
+    } else if (el.type === 'relation') {
+      relations.push(el);
+      stats.relationsSeen++;
+    } else {
+      stats.notWay++;
+    }
+  }
+
+  const isWaterTags = (tags) => tags.natural === 'water' || tags.waterway === 'riverbank';
+
+  // Spec conventions shared by every water ring: drop the duplicated closing
+  // point, drop consecutive duplicates, reject rings left with fewer than 3
+  // distinct points or more points than a u16 can count.
+  const finishWaterRing = (pts) => {
+    let ring = pts;
+    if (ring.length >= 2 && samePoint(ring[0], ring[ring.length - 1])) ring = ring.slice(0, -1);
+    ring = dedupeConsecutive(ring);
+    if (ring.length < 3 || distinctCount(ring) < 3) { stats.waterDroppedDegenerate++; return null; }
+    if (ring.length > MAX_POINTS) { stats.waterDroppedTooManyPoints++; return null; }
+    return ring;
+  };
+  const waterNameBuf = (name) => {
+    if (!name) return Buffer.alloc(0);
+    const buf = truncateUtf8(name, MAX_WATER_NAME_BYTES);
+    if (buf.length < Buffer.byteLength(name, 'utf8')) stats.waterNamesTruncated++;
+    return buf;
+  };
+  // The name of an assembled ring: the name tag of its smallest-id named
+  // member way (relation inner rings are how "Clark Island" gets its name).
+  const ringName = (ring, items) => {
+    const byId = new Map(items.map((w) => [w.id, w]));
+    for (const id of ring.wayIds.slice().sort((a, b) => a - b)) {
+      const w = byId.get(id);
+      if (w && w.name) return w.name;
+    }
+    return '';
+  };
+
+  // ══ WATER: multipolygon relations (outer -> kind 1, inner -> kind 2) ══
+  const memberConsumed = new Set();
+  const inland = []; // { sortA, rank, sortB, nameBuf, ring, unclipped, islands }
+  for (const rel of relations.slice().sort((a, b) => a.id - b.id)) {
+    const tags = rel.tags || {};
+    if (!isWaterTags(tags)) continue;
+    stats.waterRelations++;
+    if (tags.type !== 'multipolygon') {
+      stats.waterRelationsNotMultipolygon++;
+      warnings.push(`relation ${rel.id}: type is "${tags.type || ''}", not multipolygon; skipped`);
+      continue;
+    }
+    const groups = { outer: [], inner: [] };
+    for (const m of rel.members || []) {
+      if (m.type !== 'way') continue; // label nodes, subarea members, etc.
+      const role = m.role === 'inner' ? 'inner' : 'outer'; // empty role = outer by OSM convention
+      const way = waysById.get(m.ref);
+      if (!way) { stats.waterRelationMembersMissing++; continue; }
+      memberConsumed.add(m.ref);
+      const g = waterWayGeom(way, proj, stats);
+      if (g) groups[role].push(g);
+    }
+    const relName = typeof tags.name === 'string' ? tags.name : '';
+
+    const outerAsm = assembleRings(groups.outer);
+    const innerAsm = assembleRings(groups.inner);
+    for (const f of [...outerAsm.failures, ...innerAsm.failures]) {
+      stats.waterRingsSkipped++;
+      warnings.push(`relation ${rel.id}: ring over ways [${f.wayIds.join(', ')}] cannot be `
+        + 'closed from the fetched data; ring skipped');
+    }
+    stats.waterRingsAssembled += outerAsm.rings.length + innerAsm.rings.length;
+
+    const outerRecords = [];
+    for (const ring of outerAsm.rings.sort((a, b) => a.minWayId - b.minWayId)) {
+      const clipped = clipRingToRect(ring.pts.slice(0, -1), keep);
+      if (clipped.length === 0) { stats.waterDroppedOutside++; continue; }
+      const finished = finishWaterRing(clipped);
+      if (!finished) continue;
+      outerRecords.push({
+        sortA: rel.id, rank: 1, sortB: ring.minWayId,
+        nameBuf: waterNameBuf(relName), ring: finished,
+        unclipped: ring.pts, islands: [],
+      });
+    }
+    for (const ring of innerAsm.rings.sort((a, b) => a.minWayId - b.minWayId)) {
+      // Attach the island to the outer ring that CONTAINS it (tested against
+      // the unclipped outer, since the island may sit outside the clip).
+      const parent = outerRecords.find((o) => pointInRing(ring.pts[0], o.unclipped));
+      if (!parent) {
+        stats.waterIslandsUnassigned++;
+        warnings.push(`relation ${rel.id}: inner ring over ways [${ring.wayIds.join(', ')}] `
+          + 'is not inside any surviving outer ring; island skipped');
+        continue;
+      }
+      const clipped = clipRingToRect(ring.pts.slice(0, -1), keep);
+      if (clipped.length === 0) { stats.waterDroppedOutside++; continue; }
+      const finished = finishWaterRing(clipped);
+      if (!finished) continue;
+      parent.islands.push({
+        minWayId: ring.minWayId,
+        nameBuf: waterNameBuf(ringName(ring, groups.inner)),
+        ring: finished,
+      });
+    }
+    inland.push(...outerRecords);
+  }
+
+  // ══ WATER: standalone closed ways tagged natural=water / riverbank ══
+  for (const el of [...waysById.values()].sort((a, b) => a.id - b.id)) {
+    const tags = el.tags || {};
+    if (!isWaterTags(tags)) continue;
+    if (memberConsumed.has(el.id)) { stats.waterWaysInRelations++; continue; }
+    const g = waterWayGeom(el, proj, stats);
+    if (!g) continue;
+    stats.waterWaysStandalone++;
+    if (typeof tags.building === 'string' && tags.building !== 'no') stats.waterAndBuildingTagged++;
+    if (g.nodes[0] !== g.nodes[g.nodes.length - 1]) {
+      stats.waterWaysUnclosed++;
+      warnings.push(`way ${el.id}: tagged `
+        + `${tags.natural === 'water' ? 'natural=water' : 'waterway=riverbank'}`
+        + ' but not a closed ring; skipped');
+      continue;
+    }
+    const clipped = clipRingToRect(g.pts.slice(0, -1), keep);
+    if (clipped.length === 0) { stats.waterDroppedOutside++; continue; }
+    const finished = finishWaterRing(clipped);
+    if (!finished) continue;
+    inland.push({
+      sortA: el.id, rank: 0, sortB: 0,
+      nameBuf: waterNameBuf(typeof tags.name === 'string' ? tags.name : ''),
+      ring: finished, unclipped: g.pts, islands: [],
+    });
+  }
+
+  // ══ WATER: the sea, assembled from the coastline ══
+  const coastGeoms = [];
+  for (const el of waysById.values()) {
+    if ((el.tags || {}).natural !== 'coastline') continue;
+    const g = waterWayGeom(el, proj, stats);
+    if (g) coastGeoms.push(g);
+  }
+  stats.coastlineWays = coastGeoms.length;
+  const chains = stitchCoastChains(coastGeoms, stats);
+  stats.coastlineChains = chains.length;
+  stats.coastlineClosedChains = chains.filter((c) => c.closed).length;
+  const { seas, islands: coastIslands } = assembleSea(chains, exact, warnings, stats);
+
+  const seaRecords = [];
+  for (const sea of seas.sort((a, b) => a.minWayId - b.minWayId)) {
+    const finished = finishWaterRing(sea.pts);
+    if (!finished) continue;
+    const area = signedAreaM2(finished);
+    if (area >= 0) {
+      // Water-on-the-right makes every assembled sea polygon clockwise
+      // (negative area); a counter-clockwise result means the assembly and
+      // the data disagree somewhere. Emit it anyway (the gates will judge)
+      // but say so loudly.
+      warnings.push(`assembled sea polygon (smallest way ${sea.minWayId}) is `
+        + 'counter-clockwise; coastline direction and assembly disagree');
+      stats.seaBoundaryInconsistencies++;
+    }
+    stats.seaAreaM2 += Math.abs(area);
+    seaRecords.push({
+      minWayId: sea.minWayId, nameBuf: waterNameBuf(sea.name), ring: finished, islands: [],
+    });
+  }
+  stats.seaPolygons = seaRecords.length;
+  for (const isl of coastIslands.sort((a, b) => a.minWayId - b.minWayId)) {
+    const finished = finishWaterRing(isl.pts);
+    if (!finished) continue;
+    const parent = seaRecords.find((s) => pointInRing(finished[0], s.ring));
+    if (!parent) {
+      stats.waterIslandsUnassigned++;
+      warnings.push(`coastline island (ways [${isl.wayIds.join(', ')}]) is not inside any `
+        + 'assembled sea polygon; island skipped');
+      continue;
+    }
+    parent.islands.push({ minWayId: isl.minWayId, nameBuf: waterNameBuf(isl.name), ring: finished });
+    stats.seaIslands++;
+  }
+
+  // ══ WATER: final record order (the byte-determinism contract) ══
+  const waters = [];
+  const pushWater = (kind, nameBuf, ring) => {
+    waters.push({ kind, nameBuf, points: ring });
+    stats.waterRecords++;
+    stats.waterPoints += ring.length;
+  };
+  for (const sea of seaRecords) {
+    pushWater(WATER_KIND_SEA, sea.nameBuf, sea.ring);
+    for (const isl of sea.islands.sort((a, b) => a.minWayId - b.minWayId)) {
+      pushWater(WATER_KIND_ISLAND, isl.nameBuf, isl.ring);
+    }
+  }
+  for (const rec of inland.sort((a, b) => (a.sortA - b.sortA) || (a.rank - b.rank) || (a.sortB - b.sortB))) {
+    pushWater(WATER_KIND_INLAND, rec.nameBuf, rec.ring);
+    stats.waterInlandRecords++;
+    for (const isl of rec.islands.sort((a, b) => a.minWayId - b.minWayId)) {
+      pushWater(WATER_KIND_ISLAND, isl.nameBuf, isl.ring);
+      stats.waterInnerIslands++;
+    }
+  }
+
+  // ══ ROADS AND BUILDINGS (identical record logic to v1) ══
+  for (const el of waysById.values()) {
     const tags = el.tags || {};
     const geom = el.geometry;
     if (!Array.isArray(geom) || geom.length === 0) { stats.noGeometry++; continue; }
@@ -600,6 +1316,11 @@ function convert(json, proj) {
       continue;
     }
 
+    // Water-tagged ways belong to the water pass above (water wins over a
+    // building tag: a pond is a surface, not a structure), coastline ways
+    // to the sea assembly, and bare relation-member ways to their relation.
+    if (isWaterTags(tags)) continue;
+
     if (isBuilding) {
       stats.buildingWaysSeen++;
       // building=no is an explicit "there is no building here".
@@ -629,6 +1350,8 @@ function convert(json, proj) {
       continue;
     }
 
+    if (tags.natural === 'coastline') continue;
+    if (memberConsumed.has(el.id)) { stats.relationMemberOnlyWays++; continue; }
     stats.unclassified++;
   }
 
@@ -640,15 +1363,16 @@ function convert(json, proj) {
     .sort((a, b) => (a.r.id - b.r.id) || (a.i - b.i))
     .map((x) => x.r);
 
-  return { roads: stable(roads), buildings: stable(buildings), stats };
+  return { roads: stable(roads), buildings: stable(buildings), waters, stats, warnings };
 }
 
-/** Serialize records into the HOSMREG1 byte layout. */
-function serialize(proj, regionNameBuf, roads, buildings) {
+/** Serialize records into the HOSMREG2 byte layout. */
+function serialize(proj, regionNameBuf, roads, buildings, waters) {
   const header = Buffer.alloc(HEADER_SIZE);
   header.write(MAGIC, 0, 'ascii');
   header.writeUInt32LE(roads.length, 8);
   header.writeUInt32LE(buildings.length, 12);
+  header.writeUInt32LE(waters.length, 16);
 
   const meta = Buffer.alloc(25 + regionNameBuf.length);
   meta.writeDoubleLE(proj.originLat, 0);
@@ -680,6 +1404,20 @@ function serialize(proj, regionNameBuf, roads, buildings) {
     buf.writeUInt16LE(b.points.length, 4);
     let o = 6;
     for (const [e, n] of b.points) {
+      buf.writeFloatLE(e, o); buf.writeFloatLE(n, o + 4); o += 8;
+    }
+    parts.push(buf);
+  }
+
+  for (const w of waters) {
+    const buf = Buffer.alloc(4 + w.nameBuf.length + w.points.length * 8);
+    buf.writeUInt8(w.kind, 0);
+    buf.writeUInt8(w.nameBuf.length, 1);
+    w.nameBuf.copy(buf, 2);
+    let o = 2 + w.nameBuf.length;
+    buf.writeUInt16LE(w.points.length, o);
+    o += 2;
+    for (const [e, n] of w.points) {
       buf.writeFloatLE(e, o); buf.writeFloatLE(n, o + 4); o += 8;
     }
     parts.push(buf);
@@ -728,7 +1466,7 @@ function haversineMetres(lat1, lon1, lat2, lon2) {
  * are present on a build run and unlock the cross-checks against the input;
  * --verify-only runs the structural and region gates only.
  */
-function verify(path, { source = null, bbox = null, expectedName = null } = {}) {
+function verify(path, { source = null, bbox = null, expectedName = null, determinismOk = null } = {}) {
   console.log(`verify: re-opening ${path}`);
   const bin = readFileSync(path);
   const gates = REGION_GATES[basename(path)] || DEFAULT_GATES;
@@ -737,10 +1475,11 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
   // The Rust parser hardcodes these numbers, so assert the LITERALS, not the
   // constants above: otherwise editing a constant would move the whole format
   // while every self-consistent check kept passing.
-  check('spec literals: magic "HOSMREG1", 16-byte header, 25-byte meta stem, 40-byte road name cap',
-    MAGIC === 'HOSMREG1' && HEADER_SIZE === 16 && MAX_ROAD_NAME_BYTES === 40
+  check('spec literals: magic "HOSMREG2", 20-byte header, 25-byte meta stem, 40-byte road and water name caps',
+    MAGIC === 'HOSMREG2' && HEADER_SIZE === 20 && MAX_ROAD_NAME_BYTES === 40
+    && MAX_WATER_NAME_BYTES === 40 && MAX_WATER_KIND === 2
     && M_PER_DEG_LON_EQ === 111320.0 && M_PER_DEG_LAT === 110540.0,
-    `magic "${MAGIC}", header ${HEADER_SIZE}, name cap ${MAX_ROAD_NAME_BYTES}, ` +
+    `magic "${MAGIC}", header ${HEADER_SIZE}, name caps ${MAX_ROAD_NAME_BYTES}/${MAX_WATER_NAME_BYTES}, ` +
     `lon ${M_PER_DEG_LON_EQ} m/deg, lat ${M_PER_DEG_LAT} m/deg`);
 
   if (bin.length < HEADER_SIZE + 25) {
@@ -749,17 +1488,18 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
   }
 
   const magic = bin.subarray(0, 8).toString('ascii');
-  check('magic is "HOSMREG1"', magic === MAGIC, `got "${magic}"`);
+  check('magic is "HOSMREG2"', magic === MAGIC, `got "${magic}"`);
   if (magic !== MAGIC) return report();
 
   const roadCount = bin.readUInt32LE(8);
   const buildingCount = bin.readUInt32LE(12);
-  const originLat = bin.readDoubleLE(16);
-  const originLon = bin.readDoubleLE(24);
-  const halfE = bin.readFloatLE(32);
-  const halfN = bin.readFloatLE(36);
-  const nameLen = bin.readUInt8(40);
-  const nameBytes = bin.subarray(41, 41 + nameLen);
+  const waterCount = bin.readUInt32LE(16);
+  const originLat = bin.readDoubleLE(20);
+  const originLon = bin.readDoubleLE(28);
+  const halfE = bin.readFloatLE(36);
+  const halfN = bin.readFloatLE(40);
+  const nameLen = bin.readUInt8(44);
+  const nameBytes = bin.subarray(45, 45 + nameLen);
   const regionName = nameBytes.toString('utf8');
 
   check('meta: origin is a real lat/lon',
@@ -770,7 +1510,7 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
     Number.isFinite(halfE) && Number.isFinite(halfN) && halfE > 0 && halfN > 0,
     `east ${halfE.toFixed(1)} m, north ${halfN.toFixed(1)} m`);
   check('meta: region name fits and is valid UTF-8',
-    41 + nameLen <= bin.length && nameLen <= MAX_REGION_NAME_BYTES
+    45 + nameLen <= bin.length && nameLen <= MAX_REGION_NAME_BYTES
     && Buffer.byteLength(regionName, 'utf8') === nameLen,
     `"${regionName}" (${nameLen} bytes)`);
   if (expectedName !== null) {
@@ -780,9 +1520,10 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
 
   // ── Walk every record. Any overrun, any impossible field, and the walk
   // stops with structureOk=false rather than reading garbage.
-  let off = 41 + nameLen;
+  let off = 45 + nameLen;
   const roads = [];
   const buildings = [];
+  const waters = [];
   let structureOk = true;
   let stopReason = '';
   const fail = (why) => { structureOk = false; stopReason = why; };
@@ -819,19 +1560,48 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
     off += 6 + pc * 8;
   }
 
-  check(`walked all ${roadCount} road + ${buildingCount} building records`,
-    structureOk && roads.length === roadCount && buildings.length === buildingCount,
-    structureOk ? `${roads.length} roads, ${buildings.length} buildings`
+  // ── Water records: kind, name, ring. The walk enforces every field range
+  // the Rust reader is entitled to assume, and tracks each island's parent
+  // kind (the nearest preceding non-island record) for the gates below.
+  const watersStart = off;
+  let lastParentKind = null;
+  for (let i = 0; i < waterCount && structureOk; i++) {
+    if (off + 2 > bin.length) { fail(`water ${i}: truncated header at ${off}`); break; }
+    const kind = bin.readUInt8(off);
+    const nlen = bin.readUInt8(off + 1);
+    if (kind > MAX_WATER_KIND) { fail(`water ${i}: kind ${kind} > ${MAX_WATER_KIND}`); break; }
+    if (nlen > MAX_WATER_NAME_BYTES) { fail(`water ${i}: name_len ${nlen} > ${MAX_WATER_NAME_BYTES}`); break; }
+    if (off + 2 + nlen + 2 > bin.length) { fail(`water ${i}: truncated name/count at ${off}`); break; }
+    const nameRaw = bin.subarray(off + 2, off + 2 + nlen);
+    const name = nameRaw.toString('utf8');
+    if (Buffer.byteLength(name, 'utf8') !== nlen) { fail(`water ${i}: name is not valid UTF-8`); break; }
+    const pc = bin.readUInt16LE(off + 2 + nlen);
+    if (pc < 3) { fail(`water ${i}: point_count ${pc} < 3`); break; }
+    const pointsOff = off + 4 + nlen;
+    if (pointsOff + pc * 8 > bin.length) { fail(`water ${i}: truncated points at ${pointsOff}`); break; }
+    if (kind !== WATER_KIND_ISLAND) lastParentKind = kind;
+    waters.push({
+      kind, name, pc, pointsOff,
+      parentKind: kind === WATER_KIND_ISLAND ? lastParentKind : null,
+    });
+    off = pointsOff + pc * 8;
+  }
+
+  check(`walked all ${roadCount} road + ${buildingCount} building + ${waterCount} water records`,
+    structureOk && roads.length === roadCount && buildings.length === buildingCount
+    && waters.length === waterCount,
+    structureOk ? `${roads.length} roads, ${buildings.length} buildings, ${waters.length} water`
       : `stopped: ${stopReason}`);
   check('records end exactly at EOF', structureOk && off === bin.length,
     `ended at ${off}, file is ${bin.length}`);
   if (!structureOk) return report();
 
   // Independent size arithmetic, using the literals a Rust reader would use.
-  const expectedLen = 16 + 25 + nameLen
+  const expectedLen = 20 + 25 + nameLen
     + roads.reduce((a, r) => a + 4 + Buffer.byteLength(r.name, 'utf8') + 8 * r.pc, 0)
-    + buildings.reduce((a, b) => a + 6 + 8 * b.pc, 0);
-  check('file length matches 16 + 25 + name + sum(road) + sum(building)',
+    + buildings.reduce((a, b) => a + 6 + 8 * b.pc, 0)
+    + waters.reduce((a, w) => a + 4 + Buffer.byteLength(w.name, 'utf8') + 8 * w.pc, 0);
+  check('file length matches 20 + 25 + name + sum(road) + sum(building) + sum(water)',
     expectedLen === bin.length, `computed ${expectedLen}, actual ${bin.length}`);
 
   check(`every road class is 0..=${MAX_ROAD_CLASS}`,
@@ -856,12 +1626,57 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
       }
     }
   };
-  scan(roads); scan(buildings);
+  scan(roads); scan(buildings); scan(waters);
   check('every coordinate is finite', allFinite);
   check(`every coordinate is inside the half spans + ${COORD_SLOP_M} m`,
     worstE <= boundE && worstN <= boundN,
     `worst |east| ${worstE.toFixed(1)} m (bound ${boundE.toFixed(1)}), ` +
     `worst |north| ${worstN.toFixed(1)} m (bound ${boundN.toFixed(1)})`);
+
+  // ── Water ring conventions, re-checked from the BYTES rather than the
+  // build's in-memory rings: closing point removed, no consecutive
+  // duplicates, 3+ distinct points, sea confined to the exact bbox, and
+  // islands only ever following a parent water record.
+  const readRing = (w) => {
+    const ring = [];
+    for (let k = 0; k < w.pc; k++) {
+      ring.push([bin.readFloatLE(w.pointsOff + k * 8), bin.readFloatLE(w.pointsOff + k * 8 + 4)]);
+    }
+    return ring;
+  };
+  let ringsOk = true;
+  let ringProblem = 'all rings clean';
+  for (let i = 0; i < waters.length && ringsOk; i++) {
+    const ring = readRing(waters[i]);
+    if (distinctCount(ring) < 3) {
+      ringsOk = false; ringProblem = `water ${i}: fewer than 3 distinct points`;
+    } else if (samePoint(ring[0], ring[ring.length - 1])) {
+      ringsOk = false; ringProblem = `water ${i}: duplicated closing point survived`;
+    } else {
+      for (let k = 1; k < ring.length; k++) {
+        if (samePoint(ring[k - 1], ring[k])) {
+          ringsOk = false; ringProblem = `water ${i}: consecutive duplicate at point ${k}`;
+          break;
+        }
+      }
+    }
+  }
+  check('every water ring has 3+ distinct points, no closing duplicate, no consecutive duplicates',
+    ringsOk, ringProblem);
+
+  let seaInBbox = true;
+  for (const w of waters) {
+    if (w.kind !== WATER_KIND_SEA) continue;
+    for (const [e, n] of readRing(w)) {
+      if (Math.abs(e) > halfE + 0.5 || Math.abs(n) > halfN + 0.5) { seaInBbox = false; break; }
+    }
+    if (!seaInBbox) break;
+  }
+  check('sea polygons are clipped to the exact bbox (every kind 0 point within half spans + 0.5 m)',
+    seaInBbox);
+
+  check('a kind 2 island only ever follows a kind 0 or kind 1 record',
+    waters.every((w) => w.kind !== WATER_KIND_ISLAND || w.parentKind !== null));
 
   // ── Region plausibility gates.
   const named = roads.filter((r) => r.name.length > 0);
@@ -876,6 +1691,59 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
     const hit = gates.anyRoadNamed.filter((want) => named.some((r) => r.name === want));
     check(`gates [${gateName}]: a road named ${gates.anyRoadNamed.map((n) => `"${n}"`).join(' or ')} exists`,
       hit.length > 0, hit.length ? `found ${hit.map((n) => `"${n}"`).join(', ')}` : 'found none');
+  }
+
+  // ── Water gates: counts, shoelace area, named records, and the sea
+  // side-convention proof by point-in-polygon in region metre space.
+  const seasV = waters.filter((w) => w.kind === WATER_KIND_SEA);
+  const inlandV = waters.filter((w) => w.kind === WATER_KIND_INLAND);
+  const islandsV = waters.filter((w) => w.kind === WATER_KIND_ISLAND);
+  const seaAreaKm2 = seasV.reduce((a, w) => a + Math.abs(signedAreaM2(readRing(w))), 0) / 1e6;
+  check(`gates [${gateName}]: at least ${gates.minSeaPolygons} sea polygons`,
+    seasV.length >= gates.minSeaPolygons, `${seasV.length} sea polygons`);
+  if (gates.minSeaAreaKm2 > 0) {
+    check(`gates [${gateName}]: total sea area over ${gates.minSeaAreaKm2} km^2 (shoelace)`,
+      seaAreaKm2 > gates.minSeaAreaKm2, `${seaAreaKm2.toFixed(3)} km^2`);
+  }
+  check(`gates [${gateName}]: at least ${gates.minInlandWater} inland water records`,
+    inlandV.length >= gates.minInlandWater, `${inlandV.length} inland`);
+  if (gates.anyInlandWaterNamed.length > 0) {
+    const hit = gates.anyInlandWaterNamed.filter((want) => inlandV.some((w) => w.name === want));
+    check(`gates [${gateName}]: inland water named ${gates.anyInlandWaterNamed.map((n) => `"${n}"`).join(' or ')} exists`,
+      hit.length > 0, hit.length ? `found ${hit.map((n) => `"${n}"`).join(', ')}` : 'found none');
+  }
+  if (gates.anyIslandNamed.length > 0) {
+    const hit = gates.anyIslandNamed.filter((want) => islandsV.some((w) => w.name === want));
+    check(`gates [${gateName}]: an island named ${gates.anyIslandNamed.map((n) => `"${n}"`).join(' or ')} exists`,
+      hit.length > 0, hit.length ? `found ${hit.map((n) => `"${n}"`).join(', ')}` : 'found none');
+  }
+  // Known coordinates projected through the FILE's own meta (origin + the
+  // two spec constants), tested against the rings read back from the bytes.
+  // Inside the sea = in some kind 0 ring and not inside any island the sea
+  // carries; outside = in no kind 0 ring at all. This is the proof that the
+  // land-left/water-right walking direction was derived correctly.
+  const projectGate = ([lat, lon]) => [
+    (lon - originLon) * Math.cos(originLat * DEG) * M_PER_DEG_LON_EQ,
+    (lat - originLat) * M_PER_DEG_LAT,
+  ];
+  const seaIslandsV = islandsV.filter((w) => w.parentKind === WATER_KIND_SEA);
+  for (const ll of gates.seaContainsLatLon) {
+    const pt = projectGate(ll);
+    const inSea = seasV.some((w) => pointInRing(pt, readRing(w)))
+      && !seaIslandsV.some((w) => pointInRing(pt, readRing(w)));
+    check(`gates [${gateName}]: open-water point ${ll[0]}, ${ll[1]} is INSIDE the assembled sea`,
+      inSea, `${pt[0].toFixed(1)} m E, ${pt[1].toFixed(1)} m N`);
+  }
+  for (const ll of gates.seaExcludesLatLon) {
+    const pt = projectGate(ll);
+    const inSea = seasV.some((w) => pointInRing(pt, readRing(w)));
+    check(`gates [${gateName}]: on-land point ${ll[0]}, ${ll[1]} is OUTSIDE the assembled sea`,
+      !inSea, `${pt[0].toFixed(1)} m E, ${pt[1].toFixed(1)} m N`);
+  }
+
+  if (determinismOk !== null) {
+    check('rebuild from the same parsed data is byte-identical (convert + serialize run twice)',
+      determinismOk === true);
   }
 
   // ── Meta vs the requested bbox (build runs only).
@@ -947,10 +1815,16 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
     let srcTallest = 0;
     let srcTallestPoints = 0;
     const srcHeights = [];
+    const countedWays = new Set(); // way(r) can print a way twice; count once
     for (const el of source.elements) {
       if (el.type !== 'way' || !Array.isArray(el.geometry) || el.geometry.length === 0) continue;
+      if (countedWays.has(el.id)) continue;
+      countedWays.add(el.id);
       const tags = el.tags || {};
       if (typeof tags.highway === 'string' && ROAD_CLASS.has(tags.highway)) { srcRoadWays++; continue; }
+      // Water-tagged ways belong to the water records, never to buildings
+      // (mirrors the build's classification, re-derived from the spec text).
+      if (tags.natural === 'water' || tags.waterway === 'riverbank') continue;
       if (typeof tags.building !== 'string' || tags.building === 'no') continue;
       const ring = el.geometry.map((p) => [
         (p.lon - originLon) * lonScale, (p.lat - originLat) * M_PER_DEG_LAT,
@@ -1010,7 +1884,18 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
   console.log(
     `verify: "${regionName}" at ${originLat.toFixed(5)}, ${originLon.toFixed(5)} | ` +
     `${roadCount} roads (${named.length} named), ${buildingCount} buildings ` +
-    `(${withHeight.length} with height) | ${bytes} bytes (${(bytes / 1024).toFixed(1)} KiB)`
+    `(${withHeight.length} with height), ${waterCount} water | ` +
+    `${bytes} bytes (${(bytes / 1024).toFixed(1)} KiB)`
+  );
+  const kindLabel = ['sea', 'inland', 'island'];
+  const namedWater = waters.filter((w) => w.name.length > 0);
+  console.log(
+    `verify: water -- ${seasV.length} sea (${seaAreaKm2.toFixed(2)} km^2 by shoelace), ` +
+    `${inlandV.length} inland, ${islandsV.length} islands` +
+    (namedWater.length > 0
+      ? ` | named: ${namedWater.slice(0, 4).map((w) => `"${w.name}" (${kindLabel[w.kind]})`).join(', ')}` +
+        (namedWater.length > 4 ? ` and ${namedWater.length - 4} more` : '')
+      : ' | none named')
   );
   console.log(
     `verify: extent east [${minE.toFixed(1)}, ${maxE.toFixed(1)}] m, ` +
@@ -1043,9 +1928,11 @@ function verify(path, { source = null, bbox = null, expectedName = null } = {}) 
   }
   console.log(`verify: data (c) OpenStreetMap contributors, ODbL 1.0 -- credit required wherever this file is drawn`);
 
-  // buildingsStart is only used for the debug line below; keeping it named
-  // documents where the building section begins for anyone hex-diving.
-  if (process.env.HOSMREG_DEBUG) console.log(`verify: building section starts at byte ${buildingsStart}`);
+  // buildingsStart / watersStart are only used for the debug line below;
+  // keeping them named documents the section starts for anyone hex-diving.
+  if (process.env.HOSMREG_DEBUG) {
+    console.log(`verify: building section starts at byte ${buildingsStart}, water section at ${watersStart}`);
+  }
 
   return report();
 }
@@ -1087,7 +1974,8 @@ async function main() {
   console.log(`overpass: ${text.length} bytes, ${json.elements.length} elements in ${fetchMs} ms`);
 
   const t1 = Date.now();
-  const { roads, buildings, stats } = convert(json, proj);
+  const { roads, buildings, waters, stats, warnings } = convert(json, proj);
+  for (const w of warnings) console.warn(`convert: WARNING: ${w}`);
   console.log(
     `convert: roads -- ${stats.roadWaysSeen} source ways, ${stats.roadWaysKept} kept, ` +
     `${stats.roadWaysClipped} clipped at the ${KEEP_MARGIN_M} m margin ` +
@@ -1104,14 +1992,50 @@ async function main() {
     `height: ${stats.heightFromTag} from tag, ${stats.heightFromLevels} from levels, ` +
     `${stats.heightUnknown} unknown (${stats.heightUnparseable} unparseable tags)`
   );
-  if (stats.notWay || stats.noGeometry || stats.unclassified || stats.dualTagged) {
+  console.log(
+    `convert: water/sea -- ${stats.coastlineWays} coastline ways -> ${stats.coastlineChains} chains ` +
+    `(${stats.coastlineClosedChains} closed), ${stats.seaPieces} bbox-crossing pieces -> ` +
+    `${stats.seaPolygons} sea polygons (${(stats.seaAreaM2 / 1e6).toFixed(2)} km^2) + ` +
+    `${stats.seaIslands} coastline islands` +
+    (stats.seaRunsSkippedInsideEnd || stats.seaPolygonsAbandoned || stats.seaBoundaryInconsistencies
+      ? ` | PROBLEMS: ${stats.seaRunsSkippedInsideEnd} runs skipped, ` +
+        `${stats.seaPolygonsAbandoned} polygons abandoned, ` +
+        `${stats.seaBoundaryInconsistencies} boundary inconsistencies`
+      : '')
+  );
+  console.log(
+    `convert: water/inland -- ${stats.waterRelations} relations ` +
+    `(${stats.waterRingsAssembled} rings assembled, ${stats.waterRelationsNotMultipolygon} not multipolygon, ` +
+    `${stats.waterRelationMembersMissing} members unfetched), ` +
+    `${stats.waterWaysStandalone} standalone ways (${stats.waterWaysUnclosed} unclosed, ` +
+    `${stats.waterWaysInRelations} consumed by relations) | ` +
+    `${stats.waterInlandRecords} inland records + ${stats.waterInnerIslands} inner islands, ` +
+    `${stats.waterDroppedOutside} dropped outside, ${stats.waterDroppedDegenerate} degenerate, ` +
+    `${stats.waterIslandsUnassigned} islands unassigned, ${stats.waterNamesTruncated} names truncated`
+  );
+  console.log(
+    `convert: water -- ${waters.length} records / ${stats.waterPoints} points | ` +
+    `skipped rings total: ${stats.waterRingsSkipped}`
+  );
+  if (stats.notWay || stats.noGeometry || stats.unclassified || stats.dualTagged
+    || stats.relationsSeen || stats.duplicateElements || stats.relationMemberOnlyWays) {
     console.log(
-      `convert: other -- ${stats.notWay} non-way elements, ${stats.noGeometry} ways without geometry, ` +
-      `${stats.unclassified} ways matching neither filter, ${stats.dualTagged} tagged both road and building (kept as road)`
+      `convert: other -- ${stats.notWay} non-way elements, ${stats.relationsSeen} relations, ` +
+      `${stats.duplicateElements} duplicate way prints, ${stats.relationMemberOnlyWays} bare member ways, ` +
+      `${stats.noGeometry} ways without geometry, ${stats.unclassified} ways matching neither filter, ` +
+      `${stats.dualTagged} tagged both road and building (kept as road)`
     );
   }
 
-  const bin = serialize(proj, regionNameBuf, roads, buildings);
+  const bin = serialize(proj, regionNameBuf, roads, buildings, waters);
+
+  // Byte-determinism proof: convert and serialize AGAIN from the same parsed
+  // answer; the ordering contract in the spec says the two buffers must be
+  // identical. (The second run's warnings are the same set; not re-printed.)
+  const again = convert(json, proj);
+  const bin2 = serialize(proj, regionNameBuf, again.roads, again.buildings, again.waters);
+  const determinismOk = bin.equals(bin2);
+
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, bin);
   console.log(
@@ -1119,7 +2043,7 @@ async function main() {
     `converted + serialized in ${Date.now() - t1} ms`
   );
 
-  verify(outPath, { source: json, bbox, expectedName: regionNameBuf.toString('utf8') });
+  verify(outPath, { source: json, bbox, expectedName: regionNameBuf.toString('utf8'), determinismOk });
 }
 
 await main();

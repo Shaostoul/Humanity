@@ -1,4 +1,4 @@
-//! OSM regions: the HOSMREG1 reader, the fetcher's projection contract, a
+//! OSM regions: the HOSMREG2 reader, the fetcher's projection contract, a
 //! polygon ear clipper, and the 3D extrusion mesher.
 //!
 //! One region file (`data/maps/regions/*.bin`) is a bounding box of REAL
@@ -47,7 +47,7 @@ use crate::renderer::mesh::Vertex;
 
 // ───────────────────────────── Region data types ────────────────────────────
 
-/// One road from a HOSMREG1 region file. Coordinates are METRES east/north
+/// One road from a HOSMREG2 region file. Coordinates are METRES east/north
 /// of the region origin (see `scripts/fetch-osm-region.mjs` for the spec).
 #[derive(Debug, Clone)]
 pub struct OsmRoad {
@@ -72,6 +72,31 @@ pub struct OsmBuilding {
     pub bounds: (f32, f32, f32, f32),
 }
 
+/// Water polygon kind (HOSMREG2 water records).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaterKind {
+    /// Tidal water assembled from OSM coastline ways: render/carve at SEA
+    /// level (the global ocean shell is the water surface).
+    Sea,
+    /// Lake / pond / river surface (OSM natural=water, waterway=riverbank):
+    /// sits at its OWN level, derived from the terrain around its shore.
+    Inland,
+    /// An inner LAND ring (island) belonging to the nearest preceding Sea or
+    /// Inland record. Renderers paint land over water here; the carve
+    /// rasterizer un-marks these cells.
+    Island,
+}
+
+/// One water polygon from a HOSMREG2 region file, metres east/north.
+/// Ring convention matches buildings: open ring, closing point not repeated.
+#[derive(Debug, Clone)]
+pub struct OsmWater {
+    pub kind: WaterKind,
+    pub name: Option<Box<str>>,
+    pub ring: Vec<(f32, f32)>,
+    pub bounds: (f32, f32, f32, f32),
+}
+
 /// One installed OSM region (`data/maps/regions/*.bin`).
 #[derive(Debug, Clone)]
 pub struct OsmRegion {
@@ -85,6 +110,9 @@ pub struct OsmRegion {
     pub half_north_m: f32,
     pub roads: Vec<OsmRoad>,
     pub buildings: Vec<OsmBuilding>,
+    /// Water polygons (HOSMREG2): sea first, then inland records each
+    /// followed immediately by its islands. See `WaterKind`.
+    pub water: Vec<OsmWater>,
 }
 
 /// Axis-aligned bounds (min_e, min_n, max_e, max_n) of a point run.
@@ -106,18 +134,23 @@ fn bounds_of(points: &[(f32, f32)]) -> (f32, f32, f32, f32) {
 /// and still fails if the bytes are not there.
 const CAPACITY_SANITY_CAP: usize = 1 << 20;
 
-/// Parse one HOSMREG1 file. `None` on any structural problem.
+/// Parse one HOSMREG2 file. `None` on any structural problem.
 ///
 /// The walk is strictly front to back with no padding and no alignment, and
 /// it must land EXACTLY on EOF: trailing bytes mean the file disagrees with
 /// its own header, which is corruption, not a tolerable extension.
+///
+/// v2 (water polygons) replaced v1 outright per the no-compat-debt rule:
+/// both shipped region files were refetched the same commit, and nothing
+/// else ever wrote v1.
 pub fn parse_region(bytes: &[u8]) -> Option<OsmRegion> {
-    if bytes.len() < 16 || &bytes[0..8] != b"HOSMREG1" {
+    if bytes.len() < 20 || &bytes[0..8] != b"HOSMREG2" {
         return None;
     }
     let road_count = u32::from_le_bytes(bytes[8..12].try_into().ok()?) as usize;
     let building_count = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
-    let mut off = 16usize;
+    let water_count = u32::from_le_bytes(bytes[16..20].try_into().ok()?) as usize;
+    let mut off = 20usize;
     let take = |off: &mut usize, n: usize| -> Option<&[u8]> {
         let s = bytes.get(*off..*off + n)?;
         *off += n;
@@ -170,10 +203,46 @@ pub fn parse_region(bytes: &[u8]) -> Option<OsmRegion> {
         let bounds = bounds_of(&ring);
         buildings.push(OsmBuilding { height_m, ring, bounds });
     }
+    let mut water = Vec::with_capacity(water_count.min(CAPACITY_SANITY_CAP));
+    for _ in 0..water_count {
+        let kind = match take(&mut off, 1)?[0] {
+            0 => WaterKind::Sea,
+            1 => WaterKind::Inland,
+            2 => WaterKind::Island,
+            _ => return None,
+        };
+        let wn_len = take(&mut off, 1)?[0] as usize;
+        let wname = if wn_len > 0 {
+            Some(std::str::from_utf8(take(&mut off, wn_len)?).ok()?.into())
+        } else {
+            None
+        };
+        let pc = u16::from_le_bytes(take(&mut off, 2)?.try_into().ok()?) as usize;
+        if pc < 3 {
+            return None;
+        }
+        let mut ring = Vec::with_capacity(pc);
+        for _ in 0..pc {
+            let e = f32le(take(&mut off, 4)?);
+            let n = f32le(take(&mut off, 4)?);
+            ring.push((e, n));
+        }
+        let bounds = bounds_of(&ring);
+        water.push(OsmWater { kind, name: wname, ring, bounds });
+    }
     if off != bytes.len() {
         return None; // trailing garbage = corrupt file
     }
-    Some(OsmRegion { name, origin_lat, origin_lon, half_east_m, half_north_m, roads, buildings })
+    Some(OsmRegion {
+        name,
+        origin_lat,
+        origin_lon,
+        half_east_m,
+        half_north_m,
+        roads,
+        buildings,
+        water,
+    })
 }
 
 // ─────────────────────── The projection contract (f64) ──────────────────────
@@ -477,17 +546,22 @@ pub enum RegionMeshKind {
     RoadAsphalt,
     /// Footways, paths, cycleways (class 5).
     RoadFoot,
+    /// INLAND water surfaces (lakes, ponds): a flat sheet at each polygon's
+    /// own level (the lowest shore point). Sea polygons are NOT meshed here;
+    /// the terrain carve lets the global ocean shell be the sea surface.
+    WaterInland,
 }
 
 #[cfg(feature = "native")]
 impl RegionMeshKind {
     /// Fixed emission order, also the slot order of the internal buffers.
-    pub const ALL: [RegionMeshKind; 5] = [
+    pub const ALL: [RegionMeshKind; 6] = [
         RegionMeshKind::BuildingLow,
         RegionMeshKind::BuildingMid,
         RegionMeshKind::BuildingHigh,
         RegionMeshKind::RoadAsphalt,
         RegionMeshKind::RoadFoot,
+        RegionMeshKind::WaterInland,
     ];
 
     fn slot(self) -> usize {
@@ -497,6 +571,7 @@ impl RegionMeshKind {
             RegionMeshKind::BuildingHigh => 2,
             RegionMeshKind::RoadAsphalt => 3,
             RegionMeshKind::RoadFoot => 4,
+            RegionMeshKind::WaterInland => 5,
         }
     }
 }
@@ -678,7 +753,7 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
     let origin_dir = latlon_to_dir_f64(region.origin_lat, region.origin_lon);
     let anchor_local = origin_dir * elev(origin_dir);
 
-    let mut bufs: [ClassBuf; 5] = Default::default();
+    let mut bufs: [ClassBuf; 6] = Default::default();
     let mut skipped_rings = 0usize;
 
     // Region metres -> unit direction in the planet's unrotated frame.
@@ -838,6 +913,57 @@ pub fn build_region_meshes(region: &OsmRegion, elev: &dyn Fn(DVec3) -> f64) -> R
         }
     }
 
+    // ── Inland water: flat sheets at each polygon's own level ────────────
+    // Sea polygons are deliberately NOT meshed: the terrain carve
+    // (water_carve) lowers the ground under them below sea level and the
+    // global ocean shell becomes the water surface, waves and all. A lake
+    // sits ABOVE sea level, where no shell exists, so it gets its own flat
+    // sheet at the LOWEST shore point of its ring (water cannot stand above
+    // its lowest shore). Island rings need no geometry here: the terrain
+    // inside them stays uncarved and pokes through the sheet on its own.
+    for w in &region.water {
+        if w.kind != WaterKind::Inland {
+            continue;
+        }
+        let Some(tris) = triangulate_ring(&w.ring) else {
+            skipped_rings += 1;
+            continue;
+        };
+        let mut level_r = f64::MAX;
+        dirs.clear();
+        dirs.reserve(w.ring.len());
+        for &(e, n) in &w.ring {
+            let d = to_dir(e, n);
+            let r = elev(d);
+            if r < level_r {
+                level_r = r;
+            }
+            dirs.push(d);
+        }
+        if !level_r.is_finite() {
+            skipped_rings += 1;
+            continue;
+        }
+        // A hair above the shore-min ground so the sheet never z-fights the
+        // terrain right at its own waterline.
+        let level_r = level_r + 0.35;
+        let buf = &mut bufs[RegionMeshKind::WaterInland.slot()];
+        let base = buf.vertices.len() as u32;
+        for (i, &(e, n)) in w.ring.iter().enumerate() {
+            let d = dirs[i];
+            let p = (d * level_r - anchor_local).as_vec3();
+            let nrm = d.as_vec3();
+            buf.vertices.push(Vertex {
+                position: [p.x, p.y, p.z],
+                normal: [nrm.x, nrm.y, nrm.z],
+                uv: [e / 12.0, n / 12.0],
+            });
+        }
+        for t in &tris {
+            buf.indices.push(base + t);
+        }
+    }
+
     // Emit only the classes that got geometry, in the fixed ALL order.
     let mut classes = Vec::new();
     for (buf, kind) in bufs.into_iter().zip(RegionMeshKind::ALL) {
@@ -857,12 +983,14 @@ mod tests {
 
     // ── Parser ───────────────────────────────────────────────────────────
 
-    /// A minimal but structurally valid HOSMREG1 file: 1 road, 1 building.
+    /// A minimal but structurally valid HOSMREG2 file: 1 road, 1 building,
+    /// 2 water records (a sea polygon and a named lake).
     fn synth_region_bytes() -> Vec<u8> {
         let mut b = Vec::new();
-        b.extend_from_slice(b"HOSMREG1");
+        b.extend_from_slice(b"HOSMREG2");
         b.extend_from_slice(&1u32.to_le_bytes()); // road_count
         b.extend_from_slice(&1u32.to_le_bytes()); // building_count
+        b.extend_from_slice(&2u32.to_le_bytes()); // water_count
         b.extend_from_slice(&47.6f64.to_le_bytes()); // origin_lat
         b.extend_from_slice(&(-122.3f64).to_le_bytes()); // origin_lon
         b.extend_from_slice(&1000.0f32.to_le_bytes()); // half_east_m
@@ -885,6 +1013,22 @@ mod tests {
             b.extend_from_slice(&e.to_le_bytes());
             b.extend_from_slice(&n.to_le_bytes());
         }
+        // Water: an unnamed sea triangle, then a named square lake.
+        b.push(0); // kind Sea
+        b.push(0); // unnamed
+        b.extend_from_slice(&3u16.to_le_bytes());
+        for &(e, n) in &[(-900.0f32, -900.0f32), (-500.0, -900.0), (-700.0, -600.0)] {
+            b.extend_from_slice(&e.to_le_bytes());
+            b.extend_from_slice(&n.to_le_bytes());
+        }
+        b.push(1); // kind Inland
+        b.push(9);
+        b.extend_from_slice(b"Test Lake");
+        b.extend_from_slice(&4u16.to_le_bytes());
+        for &(e, n) in &[(400.0f32, 400.0f32), (500.0, 400.0), (500.0, 500.0), (400.0, 500.0)] {
+            b.extend_from_slice(&e.to_le_bytes());
+            b.extend_from_slice(&n.to_le_bytes());
+        }
         b
     }
 
@@ -904,6 +1048,27 @@ mod tests {
         assert_eq!(r.buildings[0].height_m, 12.0);
         assert_eq!(r.buildings[0].ring.len(), 4);
         assert_eq!(r.buildings[0].bounds, (0.0, 0.0, 10.0, 10.0));
+        assert_eq!(r.water.len(), 2);
+        assert_eq!(r.water[0].kind, WaterKind::Sea);
+        assert!(r.water[0].name.is_none());
+        assert_eq!(r.water[0].ring.len(), 3);
+        assert_eq!(r.water[1].kind, WaterKind::Inland);
+        assert_eq!(r.water[1].name.as_deref(), Some("Test Lake"));
+        assert_eq!(r.water[1].bounds, (400.0, 400.0, 500.0, 500.0));
+    }
+
+    #[test]
+    fn parser_rejects_unknown_water_kind() {
+        let mut b = synth_region_bytes();
+        // The first water record's kind byte sits right after the building
+        // ring. Find it robustly: it is the first of the last two records,
+        // whose combined size is fixed (4 + 3*8) + (2 + 9 + 2 + 4*8).
+        let sea_rec = 1 + 1 + 2 + 3 * 8;
+        let lake_rec = 1 + 1 + 9 + 2 + 4 * 8;
+        let kind_off = b.len() - sea_rec - lake_rec;
+        assert_eq!(b[kind_off], 0, "offset arithmetic must land on the Sea kind byte");
+        b[kind_off] = 7;
+        assert!(parse_region(&b).is_none(), "unknown water kind must be refused");
     }
 
     #[test]
@@ -1173,6 +1338,57 @@ mod tests {
         // The tallest building is Rainier Square Tower, 259 m.
         let tallest = region.buildings.iter().map(|b| b.height_m).fold(0.0f32, f32::max);
         assert!((tallest - 259.0).abs() < 1.0, "tallest {tallest} m, expected ~259");
+        // v2 water: the Elliott Bay corner assembled from coastline, and
+        // Lake Union's south tip as a named multipolygon.
+        assert!(
+            region.water.iter().any(|w| w.kind == WaterKind::Sea),
+            "Elliott Bay sea polygon missing"
+        );
+        assert!(
+            region.water.iter().any(|w| w.name.as_deref() == Some("Lake Union")),
+            "Lake Union missing from the water records"
+        );
+    }
+
+    /// Same real-geography lock for the operator's town: Dyes Inlet must be
+    /// SEA (the whole reason the water arc exists: their field report showed
+    /// the inlet dry) and Island Lake must be an inland record with its
+    /// Clark Island hole following it.
+    #[test]
+    fn shipped_silverdale_region_has_its_water() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/maps/regions/silverdale.bin"
+        ))
+        .expect("data/maps/regions/silverdale.bin ships with the repo");
+        let region = parse_region(&bytes).expect("parses to exactly EOF");
+        assert_eq!(region.name, "Silverdale");
+        assert!(region.roads.len() > 5_000, "road count, got {}", region.roads.len());
+        let sea_count = region.water.iter().filter(|w| w.kind == WaterKind::Sea).count();
+        assert!(sea_count >= 1, "Dyes Inlet sea polygon missing");
+        // Sea area via the shoelace: the inlet plus the Port Orchard arm
+        // measured 14.5 km2 at fetch; anything under 5 km2 means the
+        // coastline assembly regressed.
+        let sea_m2: f64 = region
+            .water
+            .iter()
+            .filter(|w| w.kind == WaterKind::Sea)
+            .map(|w| signed_area2(&w.ring).abs() * 0.5)
+            .sum();
+        assert!(sea_m2 > 5.0e6, "sea area {sea_m2:.0} m2, expected > 5 km2");
+        let island_lake = region
+            .water
+            .iter()
+            .position(|w| w.name.as_deref() == Some("Island Lake"))
+            .expect("Island Lake is in the region");
+        assert_eq!(region.water[island_lake].kind, WaterKind::Inland);
+        assert!(
+            region.water[island_lake + 1..]
+                .iter()
+                .take_while(|w| w.kind == WaterKind::Island)
+                .any(|w| w.name.as_deref() == Some("Clark Island")),
+            "Clark Island must follow Island Lake as its inner ring"
+        );
     }
 
     // ── Mesher (native only: it speaks renderer::mesh::Vertex) ───────────
@@ -1190,6 +1406,7 @@ mod tests {
             half_north_m: 1000.0,
             roads,
             buildings,
+            water: Vec::new(),
         }
     }
 
@@ -1208,6 +1425,62 @@ mod tests {
     }
 
     #[cfg(feature = "native")]
+    #[cfg(feature = "native")]
+    #[test]
+    fn mesher_builds_a_lake_sheet_at_shore_min_and_skips_sea() {
+        let mut region = flat_region(vec![], vec![]);
+        region.water = vec![
+            // Sea polygon: must produce NO geometry (the carve + ocean shell
+            // own the sea surface).
+            OsmWater {
+                kind: WaterKind::Sea,
+                name: None,
+                ring: vec![(-900.0, -900.0), (-500.0, -900.0), (-700.0, -600.0)],
+                bounds: (-900.0, -900.0, -500.0, -600.0),
+            },
+            // A square lake on ground that dips: the sheet must sit at the
+            // LOWEST shore point (+0.35 m anti-z-fight lift), not the mean.
+            OsmWater {
+                kind: WaterKind::Inland,
+                name: Some("Test Lake".into()),
+                ring: vec![(400.0, 400.0), (500.0, 400.0), (500.0, 500.0), (400.0, 500.0)],
+                bounds: (400.0, 400.0, 500.0, 500.0),
+            },
+            // An island ring: also no geometry (terrain pokes through).
+            OsmWater {
+                kind: WaterKind::Island,
+                name: None,
+                ring: vec![(440.0, 440.0), (460.0, 440.0), (450.0, 460.0)],
+                bounds: (440.0, 440.0, 460.0, 460.0),
+            },
+        ];
+        // Ground dips by 3 m toward the lake's north-east corner.
+        let dip_dir = latlon_to_dir_f64(
+            region_meters_to_latlon(region.origin_lat, region.origin_lon, 500.0, 500.0).0,
+            region_meters_to_latlon(region.origin_lat, region.origin_lon, 500.0, 500.0).1,
+        );
+        let elev = move |d: DVec3| -> f64 {
+            if d.dot(dip_dir) > 0.999_999_999_9 { FLAT_R - 3.0 } else { FLAT_R }
+        };
+        let out = build_region_meshes(&region, &elev);
+
+        assert_eq!(out.classes.len(), 1, "sea + island make no geometry, the lake does");
+        let c = &out.classes[0];
+        assert_eq!(c.kind, RegionMeshKind::WaterInland);
+        assert_eq!(c.vertices.len(), 4, "one flat sheet vertex per ring point");
+        assert_eq!(c.indices.len(), 2 * 3, "a quad ear-clips into two triangles");
+        let want = FLAT_R - 3.0 + 0.35;
+        for v in &c.vertices {
+            let r = vertex_radius(out.anchor_local, v);
+            assert!(
+                (r - want).abs() < 1e-2,
+                "lake sheet at {} relative to flat ground, expected {}",
+                r - FLAT_R,
+                want - FLAT_R
+            );
+        }
+    }
+
     #[test]
     fn mesher_extrudes_a_square_building_on_flat_ground() {
         let h = 20.0f32; // 12..50 -> mid-rise class
@@ -1424,7 +1697,11 @@ mod tests {
         );
         // A whole 2.5 km downtown is a handful of draw calls, not a budget
         // problem: this catches a mesher that starts emitting 10x geometry.
-        assert!(out.classes.len() <= 5);
+        assert!(out.classes.len() <= 6);
+        assert!(
+            out.classes.iter().any(|c| c.kind == RegionMeshKind::WaterInland),
+            "the v2 file carries Lake Union: an inland water sheet must exist"
+        );
         assert!(tris < 400_000, "{tris} triangles for one region is a regression");
         for c in &out.classes {
             assert!(!c.indices.is_empty());
