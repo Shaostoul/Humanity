@@ -67,31 +67,10 @@ pub(crate) fn poll_stats(ctx: &egui::Context, state: &mut GuiState) {
     }
 }
 
-pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    poll_stats(ctx, state);
-
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Community Dashboard")
-                        .size(theme.font_size_title)
-                        .color(theme.text_primary()),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::secondary_button(ui, theme, "Refresh") {
-                        state.civ_stats_loaded = false;
-                    }
-                });
-            });
-            ui.add_space(theme.spacing_md);
-
-            ScrollArea::vertical().show(ui, |ui| {
-                draw_live_body(ui, theme, state);
-            });
-        });
-}
+// v0.1147: the standalone full-page `draw` (the "Community Dashboard"
+// CentralPanel wrapper) was DELETED with the GuiPage::Civilization variant.
+// This module is now a helper library for the Humanity tab's Mission
+// Dashboard: poll_stats + draw_live_body + draw_stat_card below.
 
 /// The live relay dashboard itself: fetch status, the stat grid, the activity
 /// summary. No panel and no ScrollArea of its own, so a host page can drop it

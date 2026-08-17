@@ -2219,6 +2219,16 @@ mod native_app {
                             // in-world mirror/wardrobe (modes 1/2, opened from FPS)
                             // returns to first-person. (v0.476.1)
                             if state.gui_state.showroom_active {
+                                // "Edit look" borrows the appearance editor FROM the
+                                // picker, so Esc there backs out to the picker rather
+                                // than dropping into the world past the Enter bar.
+                                if state.gui_state.showroom_return_to_picker
+                                    && state.gui_state.showroom_mode != 0
+                                {
+                                    state.gui_state.showroom_return_to_picker = false;
+                                    state.gui_state.showroom_mode = 0;
+                                    return;
+                                }
                                 let was_picker = state.gui_state.showroom_mode == 0;
                                 state.gui_state.showroom_active = false;
                                 state.gui_state.showroom_confirm = false;
@@ -6721,6 +6731,7 @@ mod native_app {
                         let was_picker = state.gui_state.showroom_mode == 0;
                         state.gui_state.showroom_active = false;
                         state.gui_state.showroom_confirm = false;
+                        state.gui_state.showroom_return_to_picker = false;
                         state.controller.showroom_lock = false;
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                         state.camera.position = state.showroom_return_pos;
@@ -6728,18 +6739,25 @@ mod native_app {
                             state.gui_state.active_page = state.gui_state.last_page;
                         }
                     }
-                    // "Enter your home": persist appearance + emerge into first-person.
+                    // Enter: commit the WHO/WHERE pairing. Persist appearance + emerge
+                    // into first-person, and remember the pairing so Play repeats it.
                     if state.gui_state.showroom_confirm {
                         state.gui_state.showroom_confirm = false;
                         state.gui_state.showroom_active = false;
+                        state.gui_state.showroom_return_to_picker = false;
                         // SOLO vs SHARED intent (v0.801, operator: "I tried to join my
                         // offline world from the character select but that didn't work"):
-                        // picking a RED offline home means solo - no game_join, no avatar
-                        // in the shared world, and the Dev travel tools stay usable.
-                        // Picking a server card means shared. The co-presence gate reads
-                        // this flag; flipping to solo while joined sends game_leave.
+                        // a RED offline home means solo - no game_join, no avatar in the
+                        // shared world, and the Dev travel tools stay usable. A server
+                        // world means shared. The co-presence gate reads this flag;
+                        // flipping to solo while joined sends game_leave.
                         state.gui_state.copresence_solo =
-                            state.gui_state.launcher_selected_kind == crate::gui::LauncherSel::Home;
+                            state.gui_state.launcher_where_kind == crate::gui::LauncherWhere::Home;
+                        // Automatic last pairing (docs/design/play-characters.md): every
+                        // successful Enter is what Play repeats, so there is no default
+                        // toggle to find and no dead end to escape.
+                        state.gui_state.record_pairing();
+                        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
                         let app = state.gui_state.appearance.clone();
                         let outfit = state.gui_state.outfit.clone();
                         let cname = if state.gui_state.character_name.trim().is_empty() {
@@ -16497,10 +16515,12 @@ mod native_app {
                     // launcher page is gone.
                     if state.gui_state.launcher_open_select && state.world_loaded {
                         state.gui_state.launcher_open_select = false;
-                        // Always land on the character (Home) tab, not a stale server selection.
-                        state.gui_state.launcher_selected_kind = crate::gui::LauncherSel::Home;
+                        // Rescan the saves and re-derive the WHO/WHERE selection from
+                        // the last pairing, so the picker always opens on rows that
+                        // still exist (showroom::load_homes -> preselect).
+                        state.gui_state.launcher_homes_loaded = false;
                         state.gui_state.active_page = GuiPage::None;
-                        open_showroom(state, 0); // mode 0 = character select
+                        open_showroom(state, 0); // mode 0 = the Play picker
                     }
 
                     // Apply a launcher-selected character once the world exists
@@ -17049,7 +17069,6 @@ mod native_app {
                                     GuiPage::Platform => platform::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Library => library::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Calendar => calendar::draw(ctx, &state.theme, &mut state.gui_state),

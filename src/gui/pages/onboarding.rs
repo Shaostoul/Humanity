@@ -206,7 +206,9 @@ fn page_from_link(link: &str) -> Option<GuiPage> {
         "notes" => Some(GuiPage::Notes),
         "calendar" => Some(GuiPage::Calendar),
         "crafting" => Some(GuiPage::Crafting),
-        "civilization" => Some(GuiPage::Civilization),
+        // v0.1147: the Civilization page variant merged into the Humanity
+        // tab's Mission Dashboard; the link lands on the hub that holds it.
+        "civilization" => Some(GuiPage::Humanity),
         "guilds" => Some(GuiPage::Guilds),
         "tools" => Some(GuiPage::Tools),
         // Library and Platform became top-level tabs in v0.1063; without these

@@ -88,16 +88,15 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // nav bar + pages hide and the cursor is grabbed for mouse-look (the
                 // post-egui reconcile in lib.rs); Esc brings the menu back. Leftmost,
                 // so the way into the world is the very first thing in the nav.
-                // Play enters the world (page None). With no default character it
-                // opens the unified character picker (the showroom); with a default
-                // set it skips straight into first-person. "Characters" ALWAYS opens
-                // the picker (even when a default is set) so there is always a way
-                // back to change homes/characters or clear the default -- otherwise
-                // a default is a dead-end (operator, 2026-06-16). The nav_group click
+                // Play enters the world (page None). It repeats the LAST pairing you
+                // entered (a character plus a world); with no pairing recorded yet it
+                // opens the picker. "Characters" ALWAYS opens the picker, so a pairing
+                // is never a dead end (operator, 2026-06-16; the automatic-last-pairing
+                // memory is docs/design/play-characters.md). The nav_group click
                 // handler branches on the label (v0.476.1).
                 let play_items = [
                     NavItem { label: "Play", page: GuiPage::None, description: "" },
-                    NavItem { label: "Characters", page: GuiPage::None, description: "Choose a home, character, or server. Always opens the picker." },
+                    NavItem { label: "Characters", page: GuiPage::None, description: "Pick who you play as and where. Always opens the picker." },
                 ];
                 nav_group(ui, &play_items, theme.nav_sim(), text_muted, theme, state);
 
@@ -604,17 +603,17 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
                 if state.active_page != GuiPage::None {
                     state.last_page = state.active_page;
                 }
-                // "Characters" ALWAYS opens the picker (the way back when a default
-                // is set). "Play" honors the default: with one set it skips the
-                // picker and loads that character straight into first-person; with
-                // none it opens the picker too. (The showroom is opened by the
-                // per-frame handler in lib.rs when launcher_open_select is set.)
+                // "Characters" ALWAYS opens the picker (the way back to change who
+                // or where). "Play" replays the last pairing straight into
+                // first-person; with none recorded it opens the picker too.
+                // apply_last_pairing restores the selection, asks for the character
+                // load, and sets solo/shared from the world kind. (The showroom is
+                // opened by the per-frame handler in lib.rs when launcher_open_select
+                // is set.)
                 let force_picker = item.label == "Characters";
-                if force_picker || state.launcher_default_character.is_empty() {
+                if force_picker || !state.apply_last_pairing() {
                     state.launcher_open_select = true;
-                    state.launcher_saves_loaded = false; // refresh the save list
-                } else {
-                    state.launcher_pending_load = Some(state.launcher_default_character.clone());
+                    state.launcher_homes_loaded = false; // rescan the saves
                 }
                 state.active_page = GuiPage::None;
             } else {

@@ -1,6 +1,6 @@
 # Play and Characters: the WHO/WHERE restructure
 
-Status: PROPOSAL (2026-08-16, from operator direction: "characters could go between worlds on
+Status: SHIPPED v0.1147.0 (built 2026-08-17 exactly as proposed; all four open questions resolved per the recommendations, operator-approved). Section 2 describes the PRE-restructure surface, kept as the historical rationale. Originally: PROPOSAL (2026-08-16, from operator direction: "characters could go between worlds on
 different servers or saves... the characters page shows characters AND worlds... not quite
 structured right"). Each section is separable; react per section. Pairs with
 [characters-and-servers.md](characters-and-servers.md) (custody + open/closed policy),

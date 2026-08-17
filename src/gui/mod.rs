@@ -519,20 +519,37 @@ pub struct ServerInfo {
     pub funding: Option<serde_json::Value>,
 }
 
-/// Which kind of thing the unified launcher (the showroom in character-select
-/// mode) currently has selected in its left pane. Drives what the right pane
-/// shows: a character editor (Home / OpenNet / ClosedNet) or server details.
+/// The WHERE half of a Play pairing (docs/design/play-characters.md): which
+/// kind of world the picker has selected. The WHO half is a character, held
+/// separately in `launcher_who`, so the two axes can be composed independently.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LauncherSel {
-    /// A local, self-custodial home/character save (the wired path today).
+pub enum LauncherWhere {
+    /// A local, self-custodial home save. Playing one is SOLO.
     Home,
-    /// A self-custodial character used on an open-net server (multiplayer).
-    OpenNet,
-    /// A server-held, anti-cheat character (multiplayer).
-    ClosedNet,
-    /// A server row: the right pane shows server details instead of a character.
+    /// An Open Net server world: you bring your own character, the server
+    /// trusts what you bring. Playing one is SHARED.
     Server,
+    /// A Closed Net server world: the server holds the character so progress
+    /// cannot be forged. Arrives with multiplayer; no rows yet.
+    ClosedNet,
+}
+
+/// One local save as the picker sees it: the WHO (character) and the WHERE
+/// (home world) halves of the SAME file. `WorldSave` fuses them today
+/// (src/persistence.rs), so the picker presents both axes from one row and
+/// greys the pairings the fused file cannot honour yet.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct LauncherHome {
+    /// The save/world display name (`WorldSave.name`). The WHERE id today.
+    pub world: String,
+    /// The character living in that save (`WorldSave.character_name`).
+    pub character: String,
+    /// Home design id (fibonacci, etc.) for the inline summary.
+    pub design: String,
+    /// Save timestamp (unix seconds), shown as "last played".
+    pub timestamp: u64,
 }
 
 #[cfg(feature = "native")]
@@ -549,7 +566,11 @@ pub enum GuiPage {
     Maps,
     Market,
     Profile,
-    Civilization,
+    // v0.1147: GuiPage::Civilization DELETED (operator call 2026-08-17,
+    // nav-map open item 7): the standalone "Community Dashboard" page was
+    // reachable only through one onboarding link, while the Humanity tab's
+    // Mission Dashboard (built FROM civilization.rs's helpers) is the real
+    // surface. The module stays; only the page variant died.
     Chat,
     Calculator,
     Notes,
@@ -3794,9 +3815,13 @@ pub struct GuiState {
     pub outfit: crate::ecs::components::Outfit,
     /// Set when the outfit changes; the main loop rebuilds the avatar.
     pub outfit_dirty: bool,
-    /// Which showroom panel is shown: 0 = character select (spawn), 1 = appearance editor
+    /// Which showroom panel is shown: 0 = the Play picker, 1 = appearance editor
     /// (wetroom mirror), 2 = wardrobe (bedroom).
     pub showroom_mode: u8,
+    /// True while the appearance editor was opened by the picker's "Edit look",
+    /// so Done (and Esc) return to the picker instead of entering the world.
+    /// Launching must never walk through editing (play-characters.md, section 3).
+    pub showroom_return_to_picker: bool,
     /// Cosmetic catalog mirror for the wardrobe UI: (id, name, slot).
     pub cosmetics_list: Vec<(String, String, String)>,
     /// The GAME character's name being edited in the showroom (v0.448). DECOUPLED from the
@@ -4269,37 +4294,43 @@ pub struct GuiState {
     /// Last status / error line shown on the Game Admin page.
     pub game_admin_status: String,
 
-    // ── Character launcher (v0.474). Play opens this screen: pick a home /
-    //    character, customize your look offline, set a default to skip the
-    //    picker next time, then Enter World. See pages/launcher.rs.
-    /// Cached local save list (filename stem, modified-unix-secs), refreshed
-    /// when the launcher opens. Each save is a self-custodial home+character.
-    pub launcher_saves: Vec<(String, u64)>,
-    /// False until the launcher has loaded `launcher_saves` once this opening.
-    /// Reset to false every time the launcher page is entered so the list is
-    /// fresh (a new save made in-session shows up).
-    pub launcher_saves_loaded: bool,
-    /// The save stem currently highlighted in the launcher ("" = the active
-    /// offline home / default character).
-    pub launcher_selected: String,
-    /// The default character's save stem ("" = no default, always show the
-    /// launcher). Persisted to AppConfig.default_character. When non-empty,
-    /// Play skips the launcher and enters the world with this character.
-    pub launcher_default_character: String,
-    /// A non-active save stem the launcher asked to load on Enter World; lib.rs
-    /// applies it to the live player after the world loads, then clears this.
-    pub launcher_pending_load: Option<String>,
-    /// One-shot signal (v0.476): Play wants the unified character picker (the
-    /// showroom in mode 0). Distinguishes "Play -> show the picker" from "Esc ->
-    /// plain first-person". load_world only opens the showroom when this is set,
-    /// then clears it -- so Esc to FPS never surfaces the old character-select.
-    pub launcher_open_select: bool,
-    /// Which left-pane category the unified launcher has selected, so the right
-    /// pane knows whether to draw the character editor or server details.
-    pub launcher_selected_kind: LauncherSel,
-    /// The id/url of the selected server row (when launcher_selected_kind ==
-    /// Server), so the detail pane knows which server to describe.
+    // ── The Play picker (docs/design/play-characters.md). The screen composes
+    //    ONE pairing: a WHO (character) entering a WHERE (a local home world or
+    //    a server world). Play repeats the last pairing, Characters always
+    //    opens the picker. See pages/showroom.rs (mode 0).
+    /// Local saves as (character, home) rows, rescanned each time the picker
+    /// opens. Each save is a self-custodial home plus the character in it.
+    pub launcher_homes: Vec<LauncherHome>,
+    /// False until the picker has scanned the saves directory this opening.
+    /// Reset to false every time the picker is opened so the rows are fresh
+    /// (a save made in-session shows up).
+    pub launcher_homes_loaded: bool,
+    /// WHO: the save name the selected character lives in ("" = the "+ New
+    /// character" row). A character IS its save until the character/world file
+    /// split, so its home's name is the only stable id it has today.
+    pub launcher_who: String,
+    /// WHERE: which kind of world the picker has selected.
+    pub launcher_where_kind: LauncherWhere,
+    /// WHERE, home half: the selected save name ("" = a fresh homestead).
+    pub launcher_selected_world: String,
+    /// WHERE, server half: the selected server's id (or the virtual row id for
+    /// the connection you are live on), so the card can describe it.
     pub launcher_selected_server: Option<String>,
+    /// The WHO of the last successful Enter, persisted to
+    /// `AppConfig.default_character`. Play replays it with `launcher_last_world`.
+    pub launcher_last_character: String,
+    /// The WHERE of the last successful Enter, persisted to
+    /// `AppConfig.last_world` as "home:<save name>" or "server:<id>". Empty
+    /// means no pairing yet, so Play opens the picker instead of entering.
+    pub launcher_last_world: String,
+    /// A save the picker asked to load; lib.rs applies it to the live player
+    /// after the world loads, then clears this.
+    pub launcher_pending_load: Option<String>,
+    /// One-shot signal (v0.476): Play wants the picker (the showroom in mode
+    /// 0). Distinguishes "Play -> show the picker" from "Esc -> plain
+    /// first-person". lib.rs only opens the showroom when this is set, then
+    /// clears it -- so Esc to FPS never surfaces the picker.
+    pub launcher_open_select: bool,
     /// Set by the picker's "Back" button to cancel the showroom and return to
     /// the menu without entering the world (lib.rs handles it, same as Esc).
     pub showroom_cancel: bool,
@@ -4633,6 +4664,53 @@ pub struct GuiState {
 
 #[cfg(feature = "native")]
 impl GuiState {
+    /// Remember the pairing that was just entered, so Play can repeat it
+    /// (docs/design/play-characters.md, open question 1: automatic last
+    /// pairing, no manual default toggle). The caller persists the config.
+    pub fn record_pairing(&mut self) {
+        self.launcher_last_character = self.launcher_who.clone();
+        self.launcher_last_world = match self.launcher_where_kind {
+            // "home:" with an empty name is the fresh homestead, which is a
+            // real pairing: the empty STRING is what means "nothing recorded".
+            LauncherWhere::Home => format!("home:{}", self.launcher_selected_world),
+            LauncherWhere::Server => match &self.launcher_selected_server {
+                Some(id) => format!("server:{id}"),
+                None => String::new(),
+            },
+            // Closed Net holds its own characters; nothing local to replay.
+            LauncherWhere::ClosedNet => String::new(),
+        };
+    }
+
+    /// Restore the last pairing into the picker's selection and ask lib.rs to
+    /// load its character. Returns false when there is nothing to repeat (first
+    /// run, or a pairing shape this build no longer understands), which is the
+    /// caller's signal to open the picker instead.
+    pub fn apply_last_pairing(&mut self) -> bool {
+        let last = self.launcher_last_world.clone();
+        if let Some(id) = last.strip_prefix("server:") {
+            if id.is_empty() {
+                return false;
+            }
+            self.launcher_where_kind = LauncherWhere::Server;
+            self.launcher_selected_server = Some(id.to_string());
+            // Shared: the co-presence gate joins the server world.
+            self.copresence_solo = false;
+        } else if let Some(world) = last.strip_prefix("home:") {
+            self.launcher_where_kind = LauncherWhere::Home;
+            self.launcher_selected_world = world.to_string();
+            // Solo: no game_join, no avatar in the shared world.
+            self.copresence_solo = true;
+        } else {
+            return false;
+        }
+        self.launcher_who = self.launcher_last_character.clone();
+        if !self.launcher_who.is_empty() {
+            self.launcher_pending_load = Some(self.launcher_who.clone());
+        }
+        true
+    }
+
     /// Full-PQ: derive the Dilithium3 identity + Kyber768 DM key from
     /// the in-memory BIP39 seed (`private_key_bytes`) and force a clean
     /// reconnect so `identify` re-advertises `kyber_public`. Idempotent;
@@ -5306,6 +5384,7 @@ impl Default for GuiState {
             outfit: crate::ecs::components::Outfit::default(),
             outfit_dirty: false,
             showroom_mode: 0,
+            showroom_return_to_picker: false,
             cosmetics_list: Vec::new(),
             character_name: "Wanderer".to_string(),
             settings_dirty: false,
@@ -5421,15 +5500,17 @@ impl Default for GuiState {
             game_admin_target_key: String::new(),
             game_admin_ban_reason: String::new(),
             game_admin_status: String::new(),
-            // Character launcher
-            launcher_saves: Vec::new(),
-            launcher_saves_loaded: false,
-            launcher_selected: String::new(),
-            launcher_default_character: String::new(),
+            // The Play picker (WHO/WHERE pairing)
+            launcher_homes: Vec::new(),
+            launcher_homes_loaded: false,
+            launcher_who: String::new(),
+            launcher_where_kind: LauncherWhere::Home,
+            launcher_selected_world: String::new(),
+            launcher_selected_server: None,
+            launcher_last_character: String::new(),
+            launcher_last_world: String::new(),
             launcher_pending_load: None,
             launcher_open_select: false,
-            launcher_selected_kind: LauncherSel::Home,
-            launcher_selected_server: None,
             showroom_cancel: false,
             server_info_cache: std::collections::HashMap::new(),
             server_info_loader: None,

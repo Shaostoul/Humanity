@@ -54,6 +54,7 @@ const REQUIRED_KEYS = [
 // too, so a config key added later cannot leak just because nobody updated
 // this list.
 const PRIVATE_KEYS = new Set([
+  "last_world",
   "server_url",
   "user_name",
   "public_key_hex",

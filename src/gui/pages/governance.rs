@@ -418,7 +418,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(widgets::page_frame(theme))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
-                widgets::section_header(ui, theme, "Civic Participation");
+                // Heading = the nav label; the old "Civic Participation"
+                // phrase survives as the subtitle (naming rule 2026-08-16).
+                widgets::section_header(ui, theme, "Governance");
+                ui.label(
+                    RichText::new("Civic participation: propose, deliberate, vote.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+                ui.add_space(theme.spacing_sm);
                 ui.label(
                     RichText::new(
                         "Local-scope proposals run on this server. Civilization-scope proposals \

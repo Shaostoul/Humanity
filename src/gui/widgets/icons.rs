@@ -801,7 +801,8 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         P::Maps        => { paint_pin(painter, rect, color); true }
         P::Market      => { paint_bag(painter, rect, color); true }
         P::Crafting    => { paint_hammer(painter, rect, color); true }
-        P::Civilization => { paint_building(painter, rect, color); true }
+        // v0.1147: Civilization variant merged into Humanity (paint_building
+        // stays for future use).
         P::Studio      => { paint_palette(painter, rect, color); true }
         // v0.415.0: Onboarding + Play variants removed with their pages.
         // v0.197.0: Agents + AiUsage variants removed. paint_robot and

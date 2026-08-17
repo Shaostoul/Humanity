@@ -165,7 +165,6 @@ Solana wallet support is **optional** and decoupled from your identity. Using Hu
 
 This project is built in the open by a two-person team: one human (Shaostoul) and one AI (Claude), working together daily. When workload calls for it, the AI dispatches short-lived helper agents for parallel tasks -- every one of them coordinated and reviewed through:
 
-- **[Agent dashboard](https://united-humanity.us/agents)** - live status of every AI scope (active / passive / blocked, last audit, gaps)
 - **[Agent registry](data/coordination/agent_registry.ron)** - who owns what; rules for claiming a scope
 - **[Orchestrator state](data/coordination/orchestrator_state.json)** - running session journal that survives across chat sessions
 - **[Multi-agent design doc](docs/design/multi-agent-development.md)** - how it all fits together

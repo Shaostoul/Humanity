@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Humanity, HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* Web mirror of the native Humanity tab (src/gui/pages/humanity.rs). The
+       app folds the mission surfaces into one tab with a section sidebar; the
+       web keeps them as standalone pages, so this hub is the grouping (the
+       operator noted 2026-08-16 that the web only had the subpages scattered
+       in the drawer). Same sections, same order, same words as the app. The
+       node's own homepage stays the per-node front door at /. */
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+
+    .hum-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .hum-mission { color:var(--accent); font-size:var(--text-lg); font-weight:700; margin-bottom:var(--space-xs); }
+    .hum-header p { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-xl); }
+    .hum-header a { color:var(--accent); }
+
+    .hum-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:var(--space-md); }
+    .hum-card { display:block; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:var(--space-lg); text-decoration:none; color:inherit; transition:border-color 0.15s; }
+    .hum-card:hover, .hum-card:focus-visible { border-color:var(--accent); }
+    .hum-name { font-size:var(--text-base); font-weight:700; color:var(--text); margin-bottom:var(--space-xs); }
+    .hum-desc { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+
+    @media (max-width:600px) { .hum-grid { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion: reduce) { .hum-card { transition:none; } }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="humanity"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<p class="page-hint">The mission and the shared civic machinery: how we govern, what we agree to, who we are, and how the work is funded.</p>
+
+<div id="page-app">
+  <div class="hum-header">
+    <h1>Humanity</h1>
+    <div class="hum-mission">End poverty. Unite humanity.</div>
+    <p>These are the same sections the app's Humanity tab holds. This node's own front door lives at <a href="/">the homepage</a>; the full mission text is in the <a href="/library">Library</a>.</p>
+  </div>
+
+  <div class="hum-grid">
+    <a class="hum-card" href="/civilization">
+      <div class="hum-name">Mission Dashboard</div>
+      <div class="hum-desc">Community stats and trends: how the shared work is actually going.</div>
+    </a>
+    <a class="hum-card" href="/governance">
+      <div class="hum-name">Governance</div>
+      <div class="hum-desc">Civic participation: propose, deliberate, vote. Local proposals run on this server; civilization-scope proposals federate.</div>
+    </a>
+    <a class="hum-card" href="/laws">
+      <div class="hum-name">Laws</div>
+      <div class="hum-desc">HumanityOS base rules and real-world laws, filterable by jurisdiction.</div>
+    </a>
+    <a class="hum-card" href="/identity">
+      <div class="hum-name">Identity</div>
+      <div class="hum-desc">Your DID, credentials, and trust: who you are across the federation.</div>
+    </a>
+    <a class="hum-card" href="/donate">
+      <div class="hum-name">Donate</div>
+      <div class="hum-desc">Support HumanityOS. Free and public domain; donations keep the work going.</div>
+    </a>
+    <a class="hum-card" href="/accord">
+      <div class="hum-name">Humanity Accord</div>
+      <div class="hum-desc">The agreement underneath everything: rights, duties, and how humans and AI share this platform.</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

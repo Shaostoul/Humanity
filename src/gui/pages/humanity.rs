@@ -166,8 +166,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.painter().rect_filled(badge, Rounding::same(8), theme.accent());
         widgets::icons::paint_heart(ui.painter(), badge.shrink(8.0), theme.text_on_accent());
         ui.add_space(theme.spacing_sm);
+        // Heading = the nav label ("Humanity", the tab), not the product
+        // name (naming rule 2026-08-16). The mission line below stays.
         ui.label(
-            RichText::new("HumanityOS")
+            RichText::new("Humanity")
                 .size(theme.font_size_title * 1.3)
                 .strong()
                 .color(theme.text_primary()),

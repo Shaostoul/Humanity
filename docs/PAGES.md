@@ -13,7 +13,7 @@
 > `Watch` v0.857) bring the current total to **38** (37 pages + `None`). All 17 were unreachable since the v0.196 single-row-nav rewrite;
 > Settings content is untouched (it lives in `settings.rs`'s internal router). The same
 > release rehomed Calculator + Files into the Platform tab and Trade + Guilds into the
-> Real tab so they're reachable again. Earlier: `Agents`, `AiUsage`, standalone
+> Real tab so they're reachable again. v0.1147 (2026-08-17): `Civilization` variant merged into the Humanity tab (its Mission Dashboard embeds civilization.rs's draw_live_body; the standalone page was reachable only via one onboarding link). Earlier: `Agents`, `AiUsage`, standalone
 > `Onboarding`, and `Resources` were removed as variants (v0.197.0 / v0.415.0).
 
 > **Companion:** `docs/reference/ui-navigation-map.md` maps how these pages
@@ -26,7 +26,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
-## Native pages (36 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
+## Native pages (35 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 
@@ -41,7 +41,6 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Maps | `cosmos.rs` | THE map page (nav button "Maps"; heading "Maps" since v0.1145). Views: Solar System (3D orbits + planet details), Galaxy (real-catalog stars from data/stars-map.bin, light-year scale), Night Sky (celestial sphere + constellations); a Planet GPS view (OSM roads/buildings) is the ladder's next rung. The duplicate `GuiPage::Cosmos` variant was MERGED into Maps in v0.1145 (both drew the identical page since v0.203.2, splitting nav highlight + back-stack by entry path); the module keeps the cosmos.rs name. | everyone | both |
 | Market | `market.rs` | Marketplace: browse, search, create listings. Sidebar category filter, card grid. | everyone | both |
 | Profile | `profile.rs` | Player profile with privacy-tiered sidebar sections. | everyone | both |
-| Civilization | `civilization.rs` | Community/colony stats: 3-col grid, trends, charts, timeline. | everyone | both |
 | Chat | `chat.rs` | 3-panel chat: server/channel browser, messages, member list. | everyone | both |
 | Calculator | `calculator.rs` | Full scientific calculator + history. | everyone | both |
 | Notes | `notes.rs` | Notes app with sidebar, editor, toolbar, autosave. | everyone | both |
@@ -136,7 +135,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 40 standalone; devlog added 2026-08-01; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 40 standalone; humanity hub added + agents removed 2026-08-17; devlog added 2026-08-01; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -161,7 +160,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Library | `library.html` | **Web mirror of the native Library** (built 2026-07-30). Document tree + reader + Dictionary, reading the SAME `data/library/index.json` manifest and the SAME markdown files native reads from disk. Before this, web exposed only the 17 Accord docs via the relay while the app shipped 53: the single worst parity gap in the registry. Enforced now by `tests/page_parity_lint.rs`. | everyone | both |
 | Platform | `platform.html` | **Web mirror of the native Platform tab** (built 2026-07-30). A hub linking the sections native folds into its sidebar (Recovery, Calculator, Notes, Calendar, Files, Bugs, Testing, Dev, Planet Tuner, Browser). Before this, the web nav pill labeled "Platform" pointed at `/tools`, i.e. one tenth of what native's Platform is. Testing and Planet Tuner are desktop-only (no web pages exist; the tuner drives the live 3D world). | everyone | both |
 
-Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (functional agent dashboard, secured v0.698.0, linked from README), `settings.html`.
+Plus mirrors of native pages: `humanity.html` (the Humanity tab hub: mission + links to civilization/governance/laws/identity/donate/accord; added 2026-08-17 so the web finally groups what the app sidebar groups), `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `settings.html`.
 
 **Retired 2026-07-30:** `resources.html` + `resources-app.js`. It rendered `data/resources.json`, a curation that shared only 17 URLs with the `data/resources/catalog.json` the native Library rendered. Both files and `data/tools/catalog.json` merged into a single `data/external/catalog.json` (24 categories, 103 entries, 18 duplicate URLs collapsed) now rendered by the Tools page on both sides. The in-game "sim" half of `resources.json` was not external at all and was preserved to `data/onboarding/sim_guides.json`, which still needs a render surface.
 

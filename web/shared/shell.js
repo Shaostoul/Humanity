@@ -858,7 +858,9 @@
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-red">' +
-        '<a href="/" class="tab' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">' +
+        /* Points at the /humanity HUB (the app's Humanity tab mirror,
+         * v0.1147) rather than /, which stays the per-node front door. */
+        '<a href="/humanity" class="tab' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">' +
           '<span class="tab-icon" style="font-weight:900;color:var(--accent);font-size:15px;line-height:1;">H</span>' +
           '<span class="tab-label">Humanity</span>' +
         '</a>' +
@@ -868,7 +870,10 @@
 
       '<span class="nav-group-red">' +
         navTab('/chat',     'chat',  'Chat',   'chat') +
-        navTab('/download', 'video', 'Studio', 'studio') +
+        /* Studio dropped from the web header (operator, 2026-08-17): it is
+         * a native feature today, and two tabs opening /download read as a
+         * bug. The streaming surface's future home is the Chat page (see
+         * docs/design/studio-watch.md). */
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -997,9 +1002,9 @@
     // Scrolling body holds the full grouped page list beneath the fixed close button.
     '<div class="mobile-hub-scroll">' +
     '<div class="mobile-hub-group group-red"><h4>Main (mirrors the app)</h4>' +
-      mobileLink('/',          'Humanity') +
+      mobileLink('/humanity',  'Humanity') +
       mobileLink('/chat',      'Chat') +
-      mobileLink('/download',  'Play / Studio (desktop app)') +
+      mobileLink('/download',  'Play (desktop app)') +
       mobileLink('/profile',   'Profile') +
       mobileLink('/home',      'Home') +
       mobileLink('/onboarding','Onboarding') +
@@ -1041,6 +1046,9 @@
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
+      mobileLink('/devlog',    'Devlog') +
+      mobileLink('/admin',     'Admin') +
+      mobileLink('/agents',    'Agents') +
     '</div>' +
     '</div>'; // close .mobile-hub-scroll
   document.body.appendChild(mobileBackdrop);
@@ -1621,7 +1629,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1146.0';
+    var CURRENT_VERSION = '0.1147.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

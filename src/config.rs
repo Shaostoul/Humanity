@@ -776,12 +776,18 @@ pub struct AppConfig {
     /// existing configs without this field also get "onboarding".
     #[serde(default = "default_boot_page")]
     pub default_page: String,
-    /// Default character/home the launcher loads on Play (v0.474). A local save
-    /// stem ("" = no default, always show the launcher's character picker).
-    /// When non-empty, Play skips the launcher and enters the world with this
-    /// character. See gui/pages/launcher.rs.
+    /// The WHO of the last pairing you entered: the save name the character
+    /// lives in ("" = a brand new character). Play replays this together with
+    /// `last_world`. Kept under its original key so existing configs keep
+    /// their value. See docs/design/play-characters.md.
     #[serde(default)]
     pub default_character: String,
+    /// The WHERE of the last pairing you entered, encoded "home:<save name>"
+    /// or "server:<id>" ("home:" alone = a fresh homestead). Empty means no
+    /// pairing recorded yet, so Play opens the picker. serde-defaulted, so
+    /// configs written before the WHO/WHERE restructure still load.
+    #[serde(default)]
+    pub last_world: String,
 }
 
 fn default_water_clarity_cfg() -> f32 { 0.35 }
@@ -1300,7 +1306,8 @@ impl AppConfig {
             nav_two_tier: state.nav_two_tier,
             nav_top_category: state.nav_top_category.clone(),
             default_page: crate::gui::page_to_config_str(state.default_page).to_string(),
-            default_character: state.launcher_default_character.clone(),
+            default_character: state.launcher_last_character.clone(),
+            last_world: state.launcher_last_world.clone(),
         }
     }
 
@@ -1519,8 +1526,11 @@ impl AppConfig {
         if !self.default_page.is_empty() {
             state.default_page = crate::gui::config_str_to_page(&self.default_page);
         }
-        // Default launcher character (v0.474). Empty = no default (show picker).
-        state.launcher_default_character = self.default_character.clone();
+        // The last pairing Play repeats. An empty `last_world` (every config
+        // written before the WHO/WHERE restructure) means "no pairing yet", so
+        // Play opens the picker and the next Enter records one.
+        state.launcher_last_character = self.default_character.clone();
+        state.launcher_last_world = self.last_world.clone();
         state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
             network: a.network.clone(),
             addr_type: a.addr_type.clone(),

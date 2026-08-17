@@ -189,10 +189,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Hero section
                 ui.add_space(theme.spacing_lg);
                 ui.vertical_centered(|ui| {
+                    // Heading = the nav label ("Donate"); the warm phrase
+                    // moves to the subtitle line below (naming rule).
                     ui.label(
-                        RichText::new("Support HumanityOS")
+                        RichText::new("Donate")
                             .size(theme.title_size + 8.0)
                             .color(theme.text_primary()),
+                    );
+                    ui.label(
+                        RichText::new("Support HumanityOS")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_secondary()),
                     );
                     ui.add_space(theme.spacing_sm);
                     ui.label(

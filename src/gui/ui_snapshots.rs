@@ -1294,6 +1294,18 @@ fn snapshot_maps_galaxy() {
     });
 }
 
+/// The WHO/WHERE picker (v0.1147): the Play/Characters restructure's mode-0
+/// surface with the bottom pairing bar, proving the three-panel layout.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_showroom_picker() {
+    render_page_png("showroom_picker", 1280, 900, |ctx, theme, state| {
+        state.showroom_mode = 0;
+        state.launcher_open_select = true;
+        crate::gui::pages::showroom::draw(ctx, theme, state);
+    });
+}
+
 /// The Maps page's Planet view (v0.1146): the Seattle Center OSM region
 /// rendered GPS-style (roads by class, building footprints, labels).
 #[test]

@@ -340,14 +340,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             report.tiles_baked
         );
     }
-    // Optional "enter":"default" mimics the Play button: load the default
-    // character into the world (machines + garden come alive), falling
-    // back to the character picker when no default is set.
+    // Optional "enter":"default" mimics the Play button: replay the last
+    // WHO/WHERE pairing into the world (machines + garden come alive),
+    // falling back to the character picker when none is recorded yet.
     if grab("enter").is_some() {
-        if !state.gui_state.launcher_default_character.is_empty() {
-            state.gui_state.launcher_pending_load =
-                Some(state.gui_state.launcher_default_character.clone());
-        } else {
+        if !state.gui_state.apply_last_pairing() {
             state.gui_state.launcher_open_select = true;
         }
         state.gui_state.active_page = crate::gui::GuiPage::None;
