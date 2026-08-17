@@ -729,6 +729,12 @@ pub fn near_grass_instances(
         ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
         ElevationSource::Noise(_) => 1.0,
     };
+    // One region-mask snapshot per harvest (v0.1152): grass keeps off road
+    // ribbons and building footprints, like the tree streams. The disc
+    // pre-reject makes the per-tiller gate free everywhere outside a region.
+    let carve_masks = crate::terrain::water_carve::snapshot().filter(|cm| {
+        crate::terrain::water_carve::any_mask_in_disc(cm, center, far_m + margin_m)
+    });
     let mut ground = DrawnPatchSurface::new(def, source, depth);
     // Pin the shared prefix of the patch walk to the whole harvest disc
     // (plus a cell of slop). Without this, every one of ~47,000 base
@@ -1009,6 +1015,20 @@ pub fn near_grass_instances(
                 // that varies over hundreds of metres); the POSITION does not.
                 if elev_m < 6.0 || elev_m > TREELINE_M {
                     continue;
+                }
+                // Built-over gate (v0.1152): no tillers through asphalt or
+                // floors. Threshold 0.6 is TIGHTER than the trees' 0.35:
+                // grass growing right up to the curb reads natural, a canopy
+                // over the lane does not.
+                if let Some(cm) = &carve_masks {
+                    if crate::terrain::water_carve::built_weight_at_deg(
+                        cm,
+                        lat.to_degrees(),
+                        lon.to_degrees(),
+                    ) > 0.6
+                    {
+                        continue;
+                    }
                 }
                 // BIOME AS A DENSITY WEIGHT (v0.1108), not a verdict. Folded in
                 // exactly the way the clump gain is: it DIVIDES the instance's

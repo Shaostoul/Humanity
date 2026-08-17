@@ -51,12 +51,27 @@ pub const SEA_CARVE_M: f64 = 5.0;
 pub const LAKE_CARVE_M: f64 = 1.5;
 
 /// Mask resolution per axis. 1024 over the ~9 km Silverdale region is ~9 m
-/// cells; the bilinear read in [`RegionWaterMask::sample`] turns cell edges
+/// cells; the bilinear read in [`RegionMask::sample`] turns cell edges
 /// into one-cell shoreline ramps instead of stair steps.
 const GRID_N: usize = 1024;
 
-/// One region's rasterized water, in that region's meter space.
-pub struct RegionWaterMask {
+/// Cell kinds in a region mask. Values are the paint layering order.
+const CELL_LAND: u8 = 0;
+const CELL_SEA: u8 = 1;
+const CELL_LAKE: u8 = 2;
+/// Road ribbon or building footprint: vegetation must not grow here. Never
+/// painted OVER water cells (a bridge crossing the inlet must not un-carve
+/// the water beneath it).
+const CELL_BUILT: u8 = 3;
+
+/// Curb strip added around a road's real carriageway when stroking the
+/// built channel: trees at the exact asphalt edge would still hang canopy
+/// over the lane.
+const ROAD_CURB_MARGIN_M: f64 = 1.5;
+
+/// One region rasterized into cells: water (the terrain carve) AND the
+/// built-over footprint (vegetation suppression), one grid, one lookup.
+pub struct RegionMask {
     origin_lat: f64,
     origin_lon: f64,
     half_e: f64,
@@ -66,28 +81,30 @@ pub struct RegionWaterMask {
     lat_max: f64,
     lon_min: f64,
     lon_max: f64,
-    /// Per cell: 0 land, 1 sea, 2 inland water. Row-major, row 0 south.
+    /// Per cell: the CELL_* constants above. Row-major, row 0 south.
     kind: Vec<u8>,
-    /// Bed target in metres relative to SEA LEVEL, valid where kind != 0.
+    /// Bed target in metres relative to SEA LEVEL, valid on water cells.
     bed_rel_sea_m: Vec<f32>,
 }
 
-impl RegionWaterMask {
-    /// Rasterize one region's water polygons. `lake_surface_rel_sea_m` maps
-    /// an INLAND polygon to its surface level in metres above sea level (the
-    /// caller samples its shore ring against the uncarved drawn ground; see
-    /// `engine::region_meshes`). Returns None when the region has no water
-    /// at all, so maskless regions cost nothing at sample time.
+impl RegionMask {
+    /// Rasterize one region: water polygons first (sea, lakes, islands in
+    /// file order, islands un-marking their parent), then buildings and
+    /// road ribbons as CELL_BUILT over remaining land. `lake_surface_rel_sea_m`
+    /// maps an INLAND polygon to its surface level in metres above sea level
+    /// (the caller samples its shore ring against the uncarved drawn ground;
+    /// see `engine::region_meshes`). Returns None for a region with nothing
+    /// to mask, so empty regions cost nothing at sample time.
     pub fn from_region(
         region: &OsmRegion,
         lake_surface_rel_sea_m: &dyn Fn(usize) -> f64,
     ) -> Option<Self> {
-        if region.water.is_empty() {
+        if region.water.is_empty() && region.buildings.is_empty() && region.roads.is_empty() {
             return None;
         }
         let half_e = region.half_east_m as f64;
         let half_n = region.half_north_m as f64;
-        let mut kind = vec![0u8; GRID_N * GRID_N];
+        let mut kind = vec![CELL_LAND; GRID_N * GRID_N];
         let mut bed = vec![0.0f32; GRID_N * GRID_N];
 
         // File order is the layering order (sea, then each inland polygon
@@ -95,15 +112,29 @@ impl RegionWaterMask {
         // islands un-mark whatever water they sit inside.
         for (wi, w) in region.water.iter().enumerate() {
             let (k, b) = match w.kind {
-                WaterKind::Sea => (1u8, -SEA_CARVE_M as f32),
+                WaterKind::Sea => (CELL_SEA, -SEA_CARVE_M as f32),
                 WaterKind::Inland => {
-                    (2u8, (lake_surface_rel_sea_m(wi) - LAKE_CARVE_M) as f32)
+                    (CELL_LAKE, (lake_surface_rel_sea_m(wi) - LAKE_CARVE_M) as f32)
                 }
-                WaterKind::Island => (0u8, 0.0),
+                WaterKind::Island => (CELL_LAND, 0.0),
             };
             rasterize_ring(&w.ring, half_e, half_n, &mut kind, &mut bed, k, b);
         }
-        if kind.iter().all(|&c| c == 0) {
+
+        // Built channel (v0.1152, operator: trees must not grow through
+        // roads, buildings, or water). Buildings fill their footprint; roads
+        // stroke their real class width plus a curb strip. Both paint ONLY
+        // over land cells so a pier or bridge never un-carves the water.
+        for b in &region.buildings {
+            rasterize_ring_where_land(&b.ring, half_e, half_n, &mut kind);
+        }
+        for r in &region.roads {
+            let half_w = crate::terrain::osm_region::road_full_width_m(r.class) as f64 * 0.5
+                + ROAD_CURB_MARGIN_M;
+            stroke_polyline_where_land(&r.points, half_w, half_e, half_n, &mut kind);
+        }
+
+        if kind.iter().all(|&c| c == CELL_LAND) {
             return None;
         }
 
@@ -150,10 +181,12 @@ impl RegionWaterMask {
                 return (0.0, 0.0);
             }
             let i = y as usize * GRID_N + x as usize;
-            if self.kind[i] == 0 {
-                (0.0, 0.0)
-            } else {
+            // Built cells are LAND to the carve: roads and buildings sit ON
+            // the terrain, they do not change it.
+            if self.kind[i] == CELL_SEA || self.kind[i] == CELL_LAKE {
                 (1.0, self.bed_rel_sea_m[i])
+            } else {
+                (0.0, 0.0)
             }
         };
         let (w00, b00) = cell(x0, y0);
@@ -188,7 +221,35 @@ impl RegionWaterMask {
             if x < 0 || y < 0 || x >= GRID_N as i64 || y >= GRID_N as i64 {
                 return 0.0;
             }
-            if self.kind[y as usize * GRID_N + x as usize] == 1 {
+            if self.kind[y as usize * GRID_N + x as usize] == CELL_SEA {
+                1.0
+            } else {
+                0.0
+            }
+        };
+        (cell(x0, y0) * (1.0 - tx) + cell(x0 + 1, y0) * tx) * (1.0 - ty)
+            + (cell(x0, y0 + 1) * (1.0 - tx) + cell(x0 + 1, y0 + 1) * tx) * ty
+    }
+
+    /// Built-over weight (roads/buildings) at region meters, bilinear like
+    /// the water reads so the suppression edge is a ramp, not a stair.
+    fn built_sample(&self, e: f64, n: f64) -> f32 {
+        let step_e = (2.0 * self.half_e) / GRID_N as f64;
+        let step_n = (2.0 * self.half_n) / GRID_N as f64;
+        let fx = (e + self.half_e) / step_e - 0.5;
+        let fy = (n + self.half_n) / step_n - 0.5;
+        if fx < -1.0 || fy < -1.0 || fx > GRID_N as f64 || fy > GRID_N as f64 {
+            return 0.0;
+        }
+        let x0 = fx.floor() as i64;
+        let y0 = fy.floor() as i64;
+        let tx = (fx - x0 as f64) as f32;
+        let ty = (fy - y0 as f64) as f32;
+        let cell = |x: i64, y: i64| -> f32 {
+            if x < 0 || y < 0 || x >= GRID_N as i64 || y >= GRID_N as i64 {
+                return 0.0;
+            }
+            if self.kind[y as usize * GRID_N + x as usize] == CELL_BUILT {
                 1.0
             } else {
                 0.0
@@ -263,12 +324,115 @@ fn rasterize_ring(
     }
 }
 
+/// Even-odd fill like `rasterize_ring`, but painting CELL_BUILT and ONLY
+/// onto CELL_LAND cells: water keeps its carve under piers and lakeside
+/// decks, and built never downgrades to land by a later polygon.
+fn rasterize_ring_where_land(ring: &[(f32, f32)], half_e: f64, half_n: f64, kind: &mut [u8]) {
+    if ring.len() < 3 {
+        return;
+    }
+    let step_e = (2.0 * half_e) / GRID_N as f64;
+    let step_n = (2.0 * half_n) / GRID_N as f64;
+    let (mut n_min, mut n_max) = (f64::MAX, f64::MIN);
+    for &(_, n) in ring {
+        n_min = n_min.min(n as f64);
+        n_max = n_max.max(n as f64);
+    }
+    let y_lo = (((n_min + half_n) / step_n - 0.5).ceil().max(0.0)) as usize;
+    let y_hi = (((n_max + half_n) / step_n - 0.5).floor().min(GRID_N as f64 - 1.0)) as i64;
+    if y_hi < y_lo as i64 {
+        return;
+    }
+    let mut xs: Vec<f64> = Vec::with_capacity(8);
+    for y in y_lo..=(y_hi as usize) {
+        let n = -half_n + (y as f64 + 0.5) * step_n;
+        xs.clear();
+        for i in 0..ring.len() {
+            let a = ring[i];
+            let c = ring[(i + 1) % ring.len()];
+            let (ay, cy) = (a.1 as f64, c.1 as f64);
+            if (ay > n) != (cy > n) {
+                let t = (n - ay) / (cy - ay);
+                xs.push(a.0 as f64 + t * (c.0 as f64 - a.0 as f64));
+            }
+        }
+        xs.sort_by(|p, q| p.partial_cmp(q).unwrap_or(std::cmp::Ordering::Equal));
+        for pair in xs.chunks_exact(2) {
+            let x_lo = (((pair[0] + half_e) / step_e - 0.5).ceil().max(0.0)) as usize;
+            let x_hi =
+                (((pair[1] + half_e) / step_e - 0.5).floor().min(GRID_N as f64 - 1.0)) as i64;
+            if x_hi < x_lo as i64 {
+                continue;
+            }
+            for x in x_lo..=(x_hi as usize) {
+                let i = y * GRID_N + x;
+                if kind[i] == CELL_LAND {
+                    kind[i] = CELL_BUILT;
+                }
+            }
+        }
+    }
+}
+
+/// Stroke a road centreline into CELL_BUILT: every land cell whose centre
+/// lies within `half_w` metres of any segment. Cell-bbox bounded per
+/// segment, so cost tracks road length, not grid area.
+fn stroke_polyline_where_land(
+    points: &[(f32, f32)],
+    half_w: f64,
+    half_e: f64,
+    half_n: f64,
+    kind: &mut [u8],
+) {
+    if points.len() < 2 {
+        return;
+    }
+    let step_e = (2.0 * half_e) / GRID_N as f64;
+    let step_n = (2.0 * half_n) / GRID_N as f64;
+    for seg in points.windows(2) {
+        let (a, b) = (seg[0], seg[1]);
+        let (ax, ay) = (a.0 as f64, a.1 as f64);
+        let (bx, by) = (b.0 as f64, b.1 as f64);
+        let (min_x, max_x) = (ax.min(bx) - half_w, ax.max(bx) + half_w);
+        let (min_y, max_y) = (ay.min(by) - half_w, ay.max(by) + half_w);
+        let x_lo = (((min_x + half_e) / step_e - 0.5).floor().max(0.0)) as usize;
+        let x_hi = (((max_x + half_e) / step_e - 0.5).ceil().min(GRID_N as f64 - 1.0)) as i64;
+        let y_lo = (((min_y + half_n) / step_n - 0.5).floor().max(0.0)) as usize;
+        let y_hi = (((max_y + half_n) / step_n - 0.5).ceil().min(GRID_N as f64 - 1.0)) as i64;
+        if x_hi < x_lo as i64 || y_hi < y_lo as i64 {
+            continue;
+        }
+        let (dx, dy) = (bx - ax, by - ay);
+        let len2 = dx * dx + dy * dy;
+        for y in y_lo..=(y_hi as usize) {
+            let cn = -half_n + (y as f64 + 0.5) * step_n;
+            for x in x_lo..=(x_hi as usize) {
+                let ce = -half_e + (x as f64 + 0.5) * step_e;
+                // Point-to-segment distance, squared.
+                let t = if len2 > 0.0 {
+                    (((ce - ax) * dx + (cn - ay) * dy) / len2).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let (pe, pn) = (ax + t * dx, ay + t * dy);
+                let d2 = (ce - pe) * (ce - pe) + (cn - pn) * (cn - pn);
+                if d2 <= half_w * half_w {
+                    let i = y * GRID_N + x;
+                    if kind[i] == CELL_LAND {
+                        kind[i] = CELL_BUILT;
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── The global registry ─────────────────────────────────────────────────────
 
-static CARVE: RwLock<Option<Arc<Vec<RegionWaterMask>>>> = RwLock::new(None);
+static CARVE: RwLock<Option<Arc<Vec<RegionMask>>>> = RwLock::new(None);
 
 /// Publish the rasterized masks (region load). Replaces any prior set.
-pub fn set_global(masks: Arc<Vec<RegionWaterMask>>) {
+pub fn set_global(masks: Arc<Vec<RegionMask>>) {
     *CARVE.write().expect("water carve lock poisoned") = Some(masks);
 }
 
@@ -279,7 +443,7 @@ pub fn clear_global() {
 
 /// One lock, one `Arc` clone: take this once per PATCH and use
 /// [`carve_normalized_with`] per vertex.
-pub fn snapshot() -> Option<Arc<Vec<RegionWaterMask>>> {
+pub fn snapshot() -> Option<Arc<Vec<RegionMask>>> {
     CARVE.read().expect("water carve lock poisoned").clone()
 }
 
@@ -288,7 +452,7 @@ pub fn snapshot() -> Option<Arc<Vec<RegionWaterMask>>> {
 /// `sea_norm` the planet's normalized sea level. Returns `e` untouched
 /// outside every region.
 pub fn carve_normalized_with(
-    masks: &[RegionWaterMask],
+    masks: &[RegionMask],
     dir: DVec3,
     e: f32,
     min_m: f32,
@@ -330,10 +494,51 @@ pub fn carve_normalized(dir: DVec3, e: f32, min_m: f32, max_m: f32, sea_norm: f3
     }
 }
 
+/// Built-over weight at `dir` (0 = open ground, 1 = fully road/building),
+/// for the vegetation gates: every tree/grass stream MUST consult this with
+/// the same threshold discipline as the water carve, or streams disagree
+/// about where a tree can stand.
+pub fn built_weight_at(masks: &[RegionMask], dir: DVec3) -> f32 {
+    let (lat, lon) = dir_to_latlon_f64(dir);
+    built_weight_at_deg(masks, lat, lon)
+}
+
+/// `built_weight_at` for callers that already HAVE degrees. The vegetation
+/// streams generate candidates AS lat/lon and only derive the dir from
+/// them, so going dir-first would pay an asin+atan2 per candidate to
+/// recover numbers the caller was holding all along.
+pub fn built_weight_at_deg(masks: &[RegionMask], lat: f64, lon: f64) -> f32 {
+    for m in masks {
+        if !m.latlon_hit(lat, lon) {
+            continue;
+        }
+        let (me, mn) = latlon_to_region_meters(m.origin_lat, m.origin_lon, lat, lon);
+        return m.built_sample(me, mn);
+    }
+    0.0
+}
+
+/// True when a disc of `radius_m` around `center_dir` touches any mask's
+/// bounds: ONE call per vegetation harvest, so the gates below cost nothing
+/// anywhere on the planet outside an installed region.
+pub fn any_mask_in_disc(masks: &[RegionMask], center_dir: DVec3, radius_m: f64) -> bool {
+    let (lat, lon) = dir_to_latlon_f64(center_dir);
+    let dlat = radius_m / crate::terrain::osm_region::M_PER_DEG_LAT;
+    let dlon = radius_m
+        / (crate::terrain::osm_region::M_PER_DEG_LON_EQUATOR
+            * lat.to_radians().cos().abs().max(1e-6));
+    masks.iter().any(|m| {
+        lat + dlat >= m.lat_min
+            && lat - dlat <= m.lat_max
+            && lon + dlon >= m.lon_min
+            && lon - dlon <= m.lon_max
+    })
+}
+
 /// SEA coverage weight at `dir` (0 = no sea, 1 = fully sea), for the ocean
 /// shell's coverage test and depth bake. Lakes report 0: they have their own
 /// surface sheets.
-pub fn sea_weight_at(masks: &[RegionWaterMask], dir: DVec3) -> f32 {
+pub fn sea_weight_at(masks: &[RegionMask], dir: DVec3) -> f32 {
     let (lat, lon) = dir_to_latlon_f64(dir);
     for m in masks {
         if !m.latlon_hit(lat, lon) {
@@ -396,9 +601,9 @@ mod tests {
     const MAX_M: f32 = 1000.0;
     const SEA_NORM: f32 = 0.1;
 
-    fn masks() -> Vec<RegionWaterMask> {
+    fn masks() -> Vec<RegionMask> {
         // Lake surface 50 m above sea level.
-        vec![RegionWaterMask::from_region(&test_region(), &|_| 50.0).expect("has water")]
+        vec![RegionMask::from_region(&test_region(), &|_| 50.0).expect("has water")]
     }
 
     #[test]
@@ -489,6 +694,70 @@ mod tests {
         assert!(sea_weight_at(&m, dir_at(&r, -1400.0, 0.0)) > 0.99, "sea centre");
         assert!(sea_weight_at(&m, dir_at(&r, 900.0, -50.0)) < 0.01, "lake is not sea");
         assert!(sea_weight_at(&m, dir_at(&r, 0.0, 0.0)) < 0.01, "dry land");
+    }
+
+    #[test]
+    fn built_mask_covers_buildings_and_roads_but_never_water() {
+        use crate::terrain::osm_region::{OsmBuilding, OsmRoad};
+        let mut region = test_region();
+        // A 100 m building square on open land.
+        region.buildings.push(OsmBuilding {
+            height_m: 8.0,
+            ring: vec![(-200.0, 1000.0), (-100.0, 1000.0), (-100.0, 1100.0), (-200.0, 1100.0)],
+            bounds: (-200.0, 1000.0, -100.0, 1100.0),
+        });
+        // A straight north-south residential road (class 3: 6.5 m + curb).
+        region.roads.push(OsmRoad {
+            class: 3,
+            name: None,
+            points: vec![(500.0, -1500.0), (500.0, 1500.0)],
+            bounds: (500.0, -1500.0, 500.0, 1500.0),
+        });
+        // A pier road straight across the SEA square: it must NOT un-carve
+        // the water under it.
+        region.roads.push(OsmRoad {
+            class: 4,
+            name: None,
+            points: vec![(-1700.0, 0.0), (-1100.0, 0.0)],
+            bounds: (-1700.0, 0.0, -1100.0, 0.0),
+        });
+        let m = vec![RegionMask::from_region(&region, &|_| 50.0).expect("has content")];
+
+        // Building interior and road centreline are built.
+        assert!(
+            built_weight_at(&m, dir_at(&region, -150.0, 1050.0)) > 0.9,
+            "building interior must be built"
+        );
+        assert!(
+            built_weight_at(&m, dir_at(&region, 500.0, 200.0)) > 0.9,
+            "road centreline must be built"
+        );
+        // 30 m off the road: open ground.
+        assert!(
+            built_weight_at(&m, dir_at(&region, 530.0, 200.0)) < 0.1,
+            "30 m from a residential road must be open"
+        );
+        // Under the pier the SEA carve survives, and the cell does not
+        // count as built (water wins the layering).
+        let e = carve_normalized_with(&m, dir_at(&region, -1400.0, 0.0), 0.15, MIN_M, MAX_M, SEA_NORM);
+        assert!(e < SEA_NORM, "the pier road must not un-carve the sea beneath it");
+        assert!(
+            built_weight_at(&m, dir_at(&region, -1400.0, 0.0)) < 0.1,
+            "water cells never read as built"
+        );
+        // A region with ONLY roads/buildings (no water) still masks.
+        let dry = OsmRegion {
+            name: "Dry".into(),
+            origin_lat: 47.0,
+            origin_lon: -122.0,
+            half_east_m: 2000.0,
+            half_north_m: 2000.0,
+            roads: region.roads.clone(),
+            buildings: region.buildings.clone(),
+            water: Vec::new(),
+        };
+        let dm = RegionMask::from_region(&dry, &|_| 0.0).expect("dry region still masks");
+        assert!(built_weight_at(&[dm], dir_at(&dry, 500.0, 200.0)) > 0.9);
     }
 
     #[test]

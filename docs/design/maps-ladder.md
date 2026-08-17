@@ -82,16 +82,25 @@ in the 3D world.
   carved under them. The 2D Planet view fills the same polygons. This is
   the flight-sim vector-water-mask technique, the real 2030 architecture,
   not a stopgap.
-  Vegetation over WATER is already handled: all three tree streams (card
-  bake, near-model mirror, far sheet) and the grass run their land gate
-  on the CARVED elevation, so carved seabed reads underwater and grows
-  nothing (the first probe had a forest standing in the inlet).
+  Vegetation over WATER is handled by the carve itself: all three tree
+  streams and the grass run their land gate on the CARVED elevation, so
+  carved seabed reads underwater and grows nothing.
+- **Vegetation suppression on ROADS + BUILDINGS SHIPPED v0.1152**
+  (operator-approved): the region mask gained a BUILT channel (building
+  footprints filled, road ribbons stroked at real class width + a 1.5 m
+  curb strip, never painted over water so bridges keep their carve), and
+  all four vegetation streams gate on it in lockstep (trees at bilinear
+  weight > 0.35 for canopy clearance, grass at > 0.6 so it hugs curbs).
+  PERF LESSON, A/B-proven: the first gate implementation recomputed
+  lat/lon from the candidate dir (asin+atan2 per candidate) and halved
+  in-region fps (30 -> 9..17); the streams already HOLD lat/lon, so
+  built_weight_at_deg takes degrees directly and the cost vanished
+  (29.8 fps vs the 30 fps ungated baseline). A disc pre-reject per
+  harvest keeps the gates free everywhere outside a region.
   Next: region browser + release-asset downloads (third increment);
-  vegetation suppression inside ROAD and BUILDING footprints (the forest
-  still grows through Silverdale's streets; the region file carries the
-  data); multipolygon buildings (v2 fetcher pattern now exists for
-  water); road smoothing + intersection blending; real bathymetry inside
-  sea polygons (the carve is a 5 m constant today); the region-boundary
+  multipolygon buildings (v2 fetcher pattern now exists for water);
+  road smoothing + intersection blending; real bathymetry inside sea
+  polygons (the carve is a 5 m constant today); the region-boundary
   water seam (the carve ends at the bbox edge mid-inlet, so the sea
   floor steps up there; bigger regions or a coarse global water vector
   layer someday).

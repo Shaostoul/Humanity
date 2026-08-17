@@ -508,7 +508,9 @@ pub const DEFAULT_BUILDING_HEIGHT_M: f64 = 6.0;
 pub const ROAD_MAX_SEGMENT_M: f32 = 15.0;
 
 /// Total carriageway width in metres for a road class (0 motorway .. 5 foot).
-#[cfg(feature = "native")]
+/// Ungated (pure math): the mesher widths its ribbons with this AND the
+/// water_carve built-mask rasterizer strokes road cells with it, and the
+/// rasterizer compiles in every feature set.
 pub fn road_full_width_m(class: u8) -> f32 {
     match class {
         0 => 14.0, // motorway/trunk

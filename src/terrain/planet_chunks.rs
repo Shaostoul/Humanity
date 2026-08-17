@@ -2209,6 +2209,21 @@ pub fn build_patch_mesh_at_density(
                         if elev_m < 6.0 || elev_m > TREELINE_M {
                             continue;
                         }
+                        // Built-over gate (v0.1152): no trees on road ribbons
+                        // or building footprints. Threshold 0.35 on the
+                        // bilinear weight gives roughly a half-cell (~5 m)
+                        // clearance beyond the curb strip. MUST match the
+                        // near-model mirror exactly.
+                        if let Some(cm) = &carve_masks {
+                            if crate::terrain::water_carve::built_weight_at_deg(
+                                cm,
+                                lat.to_degrees(),
+                                lon.to_degrees(),
+                            ) > 0.35
+                            {
+                                continue;
+                            }
+                        }
                         // Biome gate (v0.896, loosened v0.955): vegetation
                         // where the surface COLOR reads vegetated - the same
                         // imagery/ramp the ground renders with. Real Earth

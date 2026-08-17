@@ -761,6 +761,21 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Vegetation Keeps Off the Streets (v0.1152)
+The region mask gained a BUILT channel: building footprints filled,
+road ribbons stroked at their real class width plus a 1.5 m curb strip,
+never painted over water cells (a bridge keeps the carve beneath it).
+All four vegetation streams gate on it in lockstep: the card bake, the
+near-model mirror, and the far sheet reject candidates at bilinear
+weight > 0.35 (canopy clearance), grass at > 0.6 (hugs the curb). The
+gates take lat/lon in DEGREES directly (the streams generate candidates
+as lat/lon; recomputing them from the dir halved in-region fps before
+the A/B caught it) and a per-harvest disc pre-reject makes them free
+outside any region. Probe-proven: Silverdale's streets and homes read
+through the forest instead of under it, 29.8 fps vs the 30 fps ungated
+baseline.
+- Native: src/terrain/water_carve.rs (CELL_BUILT + built_weight_at_deg + any_mask_in_disc), planet_chunks.rs, near_trees.rs, far_trees.rs, grass.rs
+
 ### Chat Live Strip + Streaming Revive (v0.1150)
 The v0.855-0.857 broadcast pipeline (app-window capture, MJPEG over a
 binary WebSocket: /ws/live/pub in-band-signed, /ws/live/sub/<name>,

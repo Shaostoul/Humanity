@@ -182,12 +182,16 @@ pub fn build_far_tree_sheet(
     let radius = def.radius;
     let sea = def.sea_level.clamp(0.0, 1.0) as f32;
     let range_m = hm.max_meters() - hm.min_meters();
-    // One water-carve snapshot per sheet build (see water_carve docs).
-    let carve_masks = crate::terrain::water_carve::snapshot();
     let cam_dir = cam_local.normalize_or_zero();
     if cam_dir.length_squared() < 0.5 {
         return None;
     }
+    // One water-carve snapshot per sheet build (see water_carve docs), with
+    // the disc pre-reject sized to the sheet's outermost band so the
+    // per-candidate gate is free away from any region.
+    let carve_masks = crate::terrain::water_carve::snapshot().filter(|cm| {
+        crate::terrain::water_carve::any_mask_in_disc(cm, cam_dir, FAR_TREE_FAR_M)
+    });
     let anchor = cam_dir * radius;
     let cam_lat = cam_dir.y.clamp(-1.0, 1.0).asin();
     let cam_lon = (-cam_dir.z).atan2(cam_dir.x);
@@ -296,6 +300,19 @@ pub fn build_far_tree_sheet(
                 let elev_m = (e - sea) * range_m;
                 if elev_m < 6.0 || elev_m > TREELINE_M {
                     continue;
+                }
+                // Built-over gate (v0.1152), same threshold as the near
+                // streams so the ~1200 m handoff never pops trees onto a
+                // road that the near field keeps clear.
+                if let Some(cm) = &carve_masks {
+                    if crate::terrain::water_carve::built_weight_at_deg(
+                        cm,
+                        lat.to_degrees(),
+                        lon.to_degrees(),
+                    ) > 0.35
+                    {
+                        continue;
+                    }
                 }
                 let sc = surface_color(def, albedo, dir.as_vec3(), e);
                 // Biome edges are GRADIENTS, not cliffs (v0.1108), and the far

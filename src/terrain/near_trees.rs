@@ -383,8 +383,10 @@ pub fn near_tree_instances_at_density(
     let cos_ang = ang.cos();
     let sea = def.sea_level.clamp(0.0, 1.0);
     // One registry lock per harvest, mirroring the card bake's per-patch
-    // snapshot (see water_carve docs).
-    let carve_masks = crate::terrain::water_carve::snapshot();
+    // snapshot (see water_carve docs). Disc pre-reject: outside a region
+    // the per-candidate gates cost nothing.
+    let carve_masks = crate::terrain::water_carve::snapshot()
+        .filter(|cm| crate::terrain::water_carve::any_mask_in_disc(cm, center, radius_m));
     let range_m = match source {
         ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
         ElevationSource::Noise(_) => 1.0,
@@ -520,6 +522,19 @@ pub fn near_tree_instances_at_density(
                         elev_samples.push(elev_m);
                     }
                     continue;
+                }
+                // Built-over gate (v0.1152), byte-identical to the card
+                // bake's copy: same query, same 0.35 threshold, or a model
+                // stands where its card refused to (and vice versa).
+                if let Some(cm) = &carve_masks {
+                    if crate::terrain::water_carve::built_weight_at_deg(
+                        cm,
+                        lat.to_degrees(),
+                        lon.to_degrees(),
+                    ) > 0.35
+                    {
+                        continue;
+                    }
                 }
                 // v0.1108: the biome gate is a DENSITY WEIGHT now, thinned by
                 // the item's index in the cell stream. MUST stay byte-identical

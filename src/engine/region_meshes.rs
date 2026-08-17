@@ -254,7 +254,7 @@ pub(crate) fn tick(
                 min_rel.max(0.5)
             };
             if let Some(m) =
-                crate::terrain::water_carve::RegionWaterMask::from_region(r, &lake_level)
+                crate::terrain::water_carve::RegionMask::from_region(r, &lake_level)
             {
                 masks.push(m);
             }
