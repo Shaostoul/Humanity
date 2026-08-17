@@ -29,6 +29,10 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
 
+// The OSM region reader (HOSMREG1) lives in the terrain module now, shared
+// with the in-world 3D extruder. See src/terrain/osm_region.rs.
+use crate::terrain::osm_region::{parse_region, OsmRegion, OsmRoad};
+
 // Canonical Sol model — v0.262.8: moved out of this GUI page into the
 // engine-wide `crate::cosmos` so the FPS world + in-home orrery consume
 // the SAME source of truth (was 4 drifted copies). Behavior here is
@@ -1766,118 +1770,17 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 // ─────────────────────── Planet view (OSM regions, meters) ──────────────────
 
-/// One road from a HOSMREG1 region file. Coordinates are METERS east/north
-/// of the region origin (see `scripts/fetch-osm-region.mjs` for the spec).
-struct RegionRoad {
-    /// 0 motorway/trunk, 1 primary, 2 secondary, 3 tertiary/residential,
-    /// 4 service, 5 footway/path/cycleway/pedestrian.
-    class: u8,
-    name: Option<Box<str>>,
-    points: Vec<(f32, f32)>,
-    /// Precomputed bounds (min_e, min_n, max_e, max_n) for viewport culling.
-    bounds: (f32, f32, f32, f32),
-}
+// The HOSMREG1 parser and the region types used to live here, private to
+// this page. They moved to `crate::terrain::osm_region` (v0.1148) when the
+// in-world 3D extruder became a second reader of the same files: one parser,
+// one projection contract, no drift. This view is unchanged otherwise; the
+// field names are identical.
 
-/// One building footprint ring, meters east/north; height 0.0 = unknown.
-struct RegionBuilding {
-    height_m: f32,
-    ring: Vec<(f32, f32)>,
-    bounds: (f32, f32, f32, f32),
-}
-
-/// One installed OSM region (data/maps/regions/*.bin).
-struct MapRegion {
-    name: String,
-    half_east_m: f32,
-    half_north_m: f32,
-    origin_lat: f64,
-    origin_lon: f64,
-    roads: Vec<RegionRoad>,
-    buildings: Vec<RegionBuilding>,
-}
-
-static MAP_REGIONS: OnceLock<Vec<MapRegion>> = OnceLock::new();
-
-fn bounds_of(points: &[(f32, f32)]) -> (f32, f32, f32, f32) {
-    let mut b = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
-    for &(e, n) in points {
-        b.0 = b.0.min(e);
-        b.1 = b.1.min(n);
-        b.2 = b.2.max(e);
-        b.3 = b.3.max(n);
-    }
-    b
-}
-
-/// Parse one HOSMREG1 file. None on any structural problem.
-fn parse_region(bytes: &[u8]) -> Option<MapRegion> {
-    if bytes.len() < 16 || &bytes[0..8] != b"HOSMREG1" {
-        return None;
-    }
-    let road_count = u32::from_le_bytes(bytes[8..12].try_into().ok()?) as usize;
-    let building_count = u32::from_le_bytes(bytes[12..16].try_into().ok()?) as usize;
-    let mut off = 16usize;
-    let take = |off: &mut usize, n: usize| -> Option<&[u8]> {
-        let s = bytes.get(*off..*off + n)?;
-        *off += n;
-        Some(s)
-    };
-    let f64le = |b: &[u8]| f64::from_le_bytes(b.try_into().unwrap());
-    let f32le = |b: &[u8]| f32::from_le_bytes(b.try_into().unwrap());
-    let origin_lat = f64le(take(&mut off, 8)?);
-    let origin_lon = f64le(take(&mut off, 8)?);
-    let half_east_m = f32le(take(&mut off, 4)?);
-    let half_north_m = f32le(take(&mut off, 4)?);
-    let name_len = take(&mut off, 1)?[0] as usize;
-    let name = std::str::from_utf8(take(&mut off, name_len)?).ok()?.to_string();
-
-    let mut roads = Vec::with_capacity(road_count);
-    for _ in 0..road_count {
-        let class = take(&mut off, 1)?[0];
-        let rn_len = take(&mut off, 1)?[0] as usize;
-        let rname = if rn_len > 0 {
-            Some(std::str::from_utf8(take(&mut off, rn_len)?).ok()?.into())
-        } else {
-            None
-        };
-        let pc = u16::from_le_bytes(take(&mut off, 2)?.try_into().ok()?) as usize;
-        if pc < 2 {
-            return None;
-        }
-        let mut points = Vec::with_capacity(pc);
-        for _ in 0..pc {
-            let e = f32le(take(&mut off, 4)?);
-            let n = f32le(take(&mut off, 4)?);
-            points.push((e, n));
-        }
-        let bounds = bounds_of(&points);
-        roads.push(RegionRoad { class, name: rname, points, bounds });
-    }
-    let mut buildings = Vec::with_capacity(building_count);
-    for _ in 0..building_count {
-        let height_m = f32le(take(&mut off, 4)?);
-        let pc = u16::from_le_bytes(take(&mut off, 2)?.try_into().ok()?) as usize;
-        if pc < 3 {
-            return None;
-        }
-        let mut ring = Vec::with_capacity(pc);
-        for _ in 0..pc {
-            let e = f32le(take(&mut off, 4)?);
-            let n = f32le(take(&mut off, 4)?);
-            ring.push((e, n));
-        }
-        let bounds = bounds_of(&ring);
-        buildings.push(RegionBuilding { height_m, ring, bounds });
-    }
-    if off != bytes.len() {
-        return None; // trailing garbage = corrupt file
-    }
-    Some(MapRegion { name, half_east_m, half_north_m, origin_lat, origin_lon, roads, buildings })
-}
+static MAP_REGIONS: OnceLock<Vec<OsmRegion>> = OnceLock::new();
 
 /// All installed regions, loaded once (data dir scan). Empty = none
 /// installed; the view shows how to fetch one.
-fn map_regions() -> &'static [MapRegion] {
+fn map_regions() -> &'static [OsmRegion] {
     MAP_REGIONS.get_or_init(|| {
         let dir = crate::DATA_DIR
             .get()
@@ -2126,12 +2029,12 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 /// The nearest named road within ~7 px of the pointer, by segment distance.
 fn hover_named_road(
-    region: &MapRegion,
+    region: &OsmRegion,
     ui: &egui::Ui,
     to_screen: &dyn Fn(f32, f32) -> Pos2,
 ) -> Option<String> {
     let hp = ui.input(|i| i.pointer.hover_pos())?;
-    let mut best: Option<(f32, &RegionRoad)> = None;
+    let mut best: Option<(f32, &OsmRoad)> = None;
     for road in &region.roads {
         let Some(_) = road.name else { continue };
         for seg in road.points.windows(2) {
@@ -3655,39 +3558,9 @@ mod tests {
         assert_eq!(format_geo(0.0, 0.0), "0.0°N 0.0°E");
     }
 
-    /// Independent check of the SHIPPED seattle-center.bin against known
-    /// geography: parser and generator (scripts/fetch-osm-region.mjs) are
-    /// locked through the real file, and the file is proven to carry real
-    /// OSM data (Pike Street exists, Rainier Square Tower's 259 m height),
-    /// not just plausible bytes.
-    #[test]
-    fn shipped_seattle_region_is_real() {
-        let bytes = std::fs::read(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/data/maps/regions/seattle-center.bin"
-        ))
-        .expect("data/maps/regions/seattle-center.bin ships with the repo");
-        let region = parse_region(&bytes).expect("parses to exactly EOF");
-        assert_eq!(region.name, "Seattle Center");
-        assert!(region.roads.len() > 5_000, "downtown road count, got {}", region.roads.len());
-        assert!(region.buildings.len() > 1_000, "building count, got {}", region.buildings.len());
-        assert!(
-            region.roads.iter().any(|r| r.name.as_deref() == Some("Pike Street")),
-            "Pike Street is in the region"
-        );
-        // Every coordinate within the half-spans + the 400 m clip slack.
-        let (he, hn) = (region.half_east_m + 400.0, region.half_north_m + 400.0);
-        for r in &region.roads {
-            assert!(r.bounds.0 >= -he && r.bounds.2 <= he && r.bounds.1 >= -hn && r.bounds.3 <= hn);
-        }
-        // The tallest building is Rainier Square Tower, 259 m.
-        let tallest = region
-            .buildings
-            .iter()
-            .map(|b| b.height_m)
-            .fold(0.0f32, f32::max);
-        assert!((tallest - 259.0).abs() < 1.0, "tallest {tallest} m, expected ~259");
-    }
+    // `shipped_seattle_region_is_real` moved to
+    // `crate::terrain::osm_region` (v0.1148) along with the parser it
+    // exercises. It is the same assertions on the same shipped file.
 
     /// Independent check of the SHIPPED stars-map.bin against known
     /// astronomy: the parser and the generator (scripts/build-stars-map-bin.

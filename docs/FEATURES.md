@@ -719,6 +719,26 @@ Ladder: docs/design/maps-ladder.md rung 3 (next: 3D extrusion in-world).
 - Native: src/gui/pages/cosmos.rs (parse_region/map_regions/draw_planet_view)
 - Generator: scripts/fetch-osm-region.mjs
 
+### OSM Regions Extruded In-World (v0.1148)
+The same HOSMREG1 regions stand up in the 3D world: real roads draped on
+the terrain and real buildings extruded from their footprints, planet-
+fixed (they ride Earth's spin like the trees). src/terrain/osm_region.rs
+is the shared parser + projection contract (region meters <-> lat/lon <->
+unit dir, f64 end-to-end per the planet-scale discipline) + ear-clipper
+triangulation + build_region_meshes, which takes an elevation closure so
+mesh building stays testable without a renderer. src/engine/region_meshes.rs
+wires it live: a progressive 512x512 elevation grid sampled on the main
+thread (TerrainTiles cannot cross threads; 16,384 samples/frame), a
+background mesh-build worker, five materials (masonry/concrete/glass by
+height band, asphalt, footpath), roads lifted +0.18/+0.12 m over the
+ground, building walls skirted 2.5 m below grade so slopes never show
+gaps, sea-clamped bases. Regions auto-load from data/maps/regions/*.bin
+within 40 km (drawn to 60 km) and rebuild once when terrain tiles sharpen.
+Shipped regions: Seattle Center + Silverdale WA (3,943 roads, 5,314
+buildings, the operator's real town). Probe vantages silverdale-osm-ground
++ seattle-osm-5km lock it visually.
+- Native: src/terrain/osm_region.rs, src/engine/region_meshes.rs (lib.rs hook in the earth branch)
+
 ### Quests/Tasks Split (v0.1145)
 Quests = gameplay (sim quests, auto-tracked, native-only). Tasks = real
 life: the kanban plus the learn-by-doing tutorial chains as a collapsible

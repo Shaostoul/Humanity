@@ -1666,6 +1666,7 @@ mod native_app {
                 terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
+                region_meshes: Default::default(),
                 // Connected-ocean mask (v0.876): bathymetric terrain + the
                 // water shell need it; absent/corrupt file = the pre-v0.876
                 // clamped sea sphere, never a crash.
@@ -8957,6 +8958,23 @@ mod native_app {
                                             cs.sel_dirty = true;
                                         }
                                     }
+                                    // OSM regions standing in the world
+                                    // (v0.1148, maps ladder rung 3 inc. 2):
+                                    // grid sampling, background mesh builds,
+                                    // and the per-frame class-mesh draws all
+                                    // live in region_meshes::tick.
+                                    crate::engine::region_meshes::tick(
+                                        &mut state.region_meshes,
+                                        d,
+                                        hm,
+                                        &state.terrain_tiles,
+                                        &mut state.renderer,
+                                        &mut celestial_objects,
+                                        cam_local,
+                                        render_off,
+                                        rot_d,
+                                        rotation,
+                                    );
                                 }
                                 let tiles_ref = (b.id == "earth"
                                     && state.terrain_tiles.tier_installed())

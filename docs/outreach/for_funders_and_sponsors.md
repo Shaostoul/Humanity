@@ -76,7 +76,7 @@ change, this section changes.
 
 Income, per month:
 
-- Sponsor-A-Can stipend: $600, steady since January 2024.
+- Funding from my side-job: $600/month.
 - Patreon: about $21 net over the last twelve months. (Twelve years of
   history there: $15,812 lifetime net since 2014, with a peak around
   $220 a month in 2019.)

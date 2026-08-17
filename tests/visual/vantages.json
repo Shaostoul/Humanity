@@ -654,6 +654,77 @@
     "no white-out"
    ],
    "perf_floor_fps": 30
+  },
+  {
+   "id": "silverdale-osm-ground",
+   "desc": "Ground level over Silverdale WA: OSM buildings + roads standing on real terrain (v0.1148)",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 0.25,
+    "look_offset_deg": 75
+   },
+   "hold_altitude": true,
+   "settle_s": 30,
+   "expect": "Extruded low-rise buildings and grey road ribbons conforming to the terrain around Dyes Inlet, seen through the procedural forest (which still overruns the town; vegetation suppression is a logged next increment); buildings sit ON the ground, no floating or buried blocks.",
+   "regressions": [
+    "no z-fighting flicker on road ribbons",
+    "no buildings floating above or sunk below the terrain by tens of meters",
+    "panics=0 with the region build running"
+   ],
+   "perf_floor_fps": 10,
+   "perf_note": "floor is 10 not 15: the dense procedural forest at walk height costs ~100 ms/frame (the known unexplained forest cost, see PRIORITIES); the region itself adds 4 class meshes. Raise the floor when the forest cost item is fixed.",
+   "showcase": {
+    "time": "20.2",
+    "sea": "0.3"
+   }
+  },
+  {
+   "id": "silverdale-osm-2km",
+   "desc": "2.5 km aerial of the whole Silverdale WA region: the operator's real town GPS-style (v0.1148)",
+   "camera": {
+    "body": "earth",
+    "lat": 47.634,
+    "lon": -122.6925,
+    "altitude_km": 2.5,
+    "look_offset_deg": 25
+   },
+   "hold_altitude": true,
+   "settle_s": 14,
+   "expect": "The Silverdale road network (Silverdale Way, Bucklin Hill Rd, the NW grid) with extruded low-rise buildings around the Kitsap Mall area and Old Town at the Dyes Inlet shore; geometry conforms to the terrain, water of Dyes Inlet adjacent.",
+   "regressions": [
+    "no misplaced region (town must sit at the Dyes Inlet shore)",
+    "panics=0"
+   ],
+   "perf_floor_fps": 15,
+   "showcase": {
+    "time": "20.2",
+    "sea": "0.3"
+   }
+  },
+  {
+   "id": "seattle-osm-5km",
+   "desc": "5 km overview of the Seattle Center OSM region: the downtown grid + tower cluster (v0.1148)",
+   "camera": {
+    "body": "earth",
+    "lat": 47.6165,
+    "lon": -122.342,
+    "altitude_km": 5,
+    "look_offset_deg": 25
+   },
+   "hold_altitude": true,
+   "settle_s": 14,
+   "expect": "The downtown Seattle street grid as dark ribbons with the extruded building cluster including one ~259 m tower; geometry aligned with the terrain coastline of Elliott Bay.",
+   "regressions": [
+    "no misplaced region (geometry must sit at the Seattle coastline, not offset)",
+    "panics=0"
+   ],
+   "perf_floor_fps": 15,
+   "showcase": {
+    "time": "20.2",
+    "sea": "0.3"
+   }
   }
  ]
 }

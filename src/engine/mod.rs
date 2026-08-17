@@ -20,6 +20,7 @@ pub mod keybind_capture;
 pub mod launch_focus;
 /// Near-tree model cache + sprite-atlas bake (extracted from lib.rs, v0.1108).
 pub mod near_tree_models;
+pub mod region_meshes;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).
 pub mod bg_connections;

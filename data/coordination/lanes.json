@@ -51,6 +51,14 @@
         ".github/workflows/deploy.yml",
         "scripts/pq-wipe.sh"
       ]
+    },
+    {
+      "id": "film",
+      "label": "Higgsfield festival intro film (movie-only session; does NOT push)",
+      "owns": [
+        "docs/outreach/film/"
+      ],
+      "_note": "Active Aug 2026 until the Sep 3 festival deadline. This session works ONLY on the film (operator directive 2026-08-15): it edits docs/outreach/film/* locally and never commits or pushes. GAME SESSIONS: please sweep docs/outreach/film/ changes into your next normal push (stage them by name alongside your own work, a plain docs change, no version implications beyond your usual bump). Film state of record: docs/outreach/film/intro-film-script.md + memory project_higgsfield_film.md. docs/outreach/film/ is carved out of the ui lane's docs/ ownership while this lane is active."
     }
   ],
   "shared": {

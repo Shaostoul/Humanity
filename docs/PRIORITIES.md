@@ -128,16 +128,23 @@
 > 5. **THE MAPS LADDER (operator direction 2026-08-16; full design in
 >    docs/design/maps-ladder.md, read it, do not re-derive).** Rung 1
 >    SHIPPED v0.1145.0: the Galaxy view draws the REAL HYG catalog
->    (data/stars-map.bin, 109,400 stars, galactic-cartesian light-years,
->    brightest-first; generator `just build-stars-map` self-verifies with
->    31 checks; Rust test locks Sirius/Vega). Remaining rungs ranked:
->    (a) Planet GPS view via OpenStreetMap: region fetcher -> compact
->    vector format (roads/building footprints) -> 2D slippy view on the
->    Maps page -> 3D extrusion in-world on the chunked-LOD Earth ->
->    region download browser. First increment when fenced: one
->    hand-picked region end-to-end in 2D. NEVER hit live OSM tile
->    servers from the app; pipeline + release-asset regions like the
->    star-catalog tiers.
+>    (data/stars-map.bin, 109,400 stars). Rung 3 increment 1 SHIPPED
+>    v0.1146.0: fetch-osm-region.mjs (Overpass -> HOSMREG1, deterministic,
+>    self-verifying) + the Maps Planet GPS view (Seattle Center region).
+>    Increment 2 SHIPPED v0.1148.0: 3D extrusion in-world; roads draped +
+>    buildings extruded on the chunked-LOD Earth, planet-fixed
+>    (src/terrain/osm_region.rs parser/projection/mesher +
+>    src/engine/region_meshes.rs progressive elevation grid + background
+>    worker; Seattle Center + Silverdale WA shipped; probe vantages
+>    silverdale-osm-ground + seattle-osm-5km). NEVER hit live OSM tile
+>    servers from the app; regions ship like star-catalog tiers.
+>    Remaining rungs ranked:
+>    (a) Vegetation suppression inside region footprints (the probe
+>    showed the procedural forest growing through Silverdale's streets;
+>    placement should skip road ribbons + building footprints, the
+>    region file carries both); region browser + release-asset region
+>    downloads (increment 3); multipolygon buildings (fetcher v2); road
+>    smoothing + intersection blending (polish).
 >    (b) Solar System view improvements (operator: "needs improvement";
 >    candidates listed in the ladder doc, operator to rank).
 >    (c) Cosmic web someday: 2MASS/SDSS galaxy catalog as a Universe

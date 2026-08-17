@@ -206,8 +206,16 @@ converging on the hub; at the bow a stationary command sphere with a warm amber
 panoramic viewport; at the stern a heavy engine block with four pale blue-white fusion
 torches; teal running lights along hull seams, small red and green navigation strobes"
 (this is the idealized heir of the game's ColonyShip3: stationary spine, rotating
-gravity section forward, hub bridge; wheels fold flat along the spine like a closed
-umbrella and lock for high-thrust burns, the departure ritual in shot 8)
+gravity section forward, hub bridge. FOLD MECHANIC DROPPED 2026-08-15: the
+wheels-fold-for-burn idea died in testing, every model mangled the transformation;
+in the film the wheels stay deployed and turning at all times, including burns.
+TWO flagship references exist in the project and both stay in play: @prop_flagship_1,
+the generated canonical frame, and @flagship_v2, the operator's uploaded ColonyShip3
+3D model. Model bake-off verdicts (2026-08-15): Seedream 5.0 Pro = most consistent
+generator, new model of record for hero stills; GPT Image 2 = secondary; Nano Banana
+= REJECTED for ship work (adds artifact thrusters pointing fore/aft). Drifted
+panel-wing variants from the bake-off are candidate ESCORT/FREIGHTER classes, not
+rejects; tag the good ones as separate Elements when fleet-diversity shots come up.)
 
 **Prompt-engineering lessons learned (2026-08-15 look-dev):**
 - Image models render OBJECTS THEY KNOW, not geometric instructions. "Golden-ratio

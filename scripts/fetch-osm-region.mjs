@@ -220,6 +220,14 @@ const CLASS_LABEL = [
  * deliberately specific (a downtown must contain its own named streets).
  */
 const REGION_GATES = {
+  'silverdale.bin': {
+    minRoads: 200,
+    minBuildings: 300,
+    minBuildingsWithHeight: 0,
+    // Silverdale's main drag + a crosstown arterial: local knowledge that
+    // proves the bbox is really Silverdale, WA.
+    anyRoadNamed: ['Silverdale Way Northwest', 'Silverdale Way NW', 'Bucklin Hill Road'],
+  },
   'seattle-center.bin': {
     minRoads: 100,
     minBuildings: 500,

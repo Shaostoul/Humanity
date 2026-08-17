@@ -63,8 +63,22 @@ in the 3D world.
   -> HOSMREG1 binary, self-verifying, byte-deterministic) + the Maps Planet
   view rendering the Seattle Center demo region. Fetch YOUR area:
   node scripts/fetch-osm-region.mjs --bbox south,west,north,east --name "My Town" --out data/maps/regions/my-town.bin
-  Next: 3D extrusion in-world (second increment); region browser +
-  release-asset downloads (third); multipolygon buildings (v2 fetcher).
+- **Second increment SHIPPED v0.1148**: 3D extrusion in-world. The same
+  region files stand up on the chunked-LOD Earth: roads draped on the
+  terrain (asphalt/footpath materials, +0.18/+0.12 m lift), buildings
+  extruded from footprints with 2.5 m below-grade skirts, planet-fixed so
+  they ride Earth's spin. Shared parser/projection/mesher in
+  src/terrain/osm_region.rs (build plan: docs/design/osm-extrusion-plan.md);
+  live wiring in src/engine/region_meshes.rs (progressive main-thread
+  elevation grid + background mesh worker, 40 km build / 60 km draw).
+  Regions shipped: Seattle Center + Silverdale WA (the operator's town).
+  Next: region browser + release-asset downloads (third increment);
+  vegetation suppression inside region footprints (the probe showed the
+  procedural forest growing straight through Silverdale's streets and
+  buildings; tree/grass placement should skip road ribbons + building
+  footprints, the region file already carries both); multipolygon
+  buildings (v2 fetcher); road smoothing + intersection blending
+  (polish).
 
 ## Rung 4: Cosmic web (far future)
 

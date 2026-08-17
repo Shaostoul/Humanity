@@ -851,6 +851,15 @@
          Inventory, Crafting, Map), RED = platform entry (Humanity, Chat, Studio,
          Library), GREEN = you (Profile, Home), BLUE = tools (Platform), GRAY =
          Settings. Tabs render as category-bordered pills like the app. ── */
+      /* Front door: with the Humanity tab now opening /humanity (v0.1147),
+       * this is the one reliable way back to the node's own homepage. Icon
+       * only; the tooltip names THIS node's domain, honest on every server. */
+      '<a href="/" class="tab" aria-label="Front door" data-tip="' + location.host + '" style="padding-left:7px;padding-right:7px;">' +
+        '<span class="tab-icon" aria-hidden="true"><span class="pg-ico" data-icon="home" data-size="16"></span></span>' +
+      '</a>' +
+
+      '<div class="nav-divider"></div>' +
+
       '<span class="nav-group-sim">' +
         navTab('/download', 'games', 'Play', 'play') +
       '</span>' +
@@ -1002,6 +1011,7 @@
     // Scrolling body holds the full grouped page list beneath the fixed close button.
     '<div class="mobile-hub-scroll">' +
     '<div class="mobile-hub-group group-red"><h4>Main (mirrors the app)</h4>' +
+      mobileLink('/',          location.host + ' (front door)') +
       mobileLink('/humanity',  'Humanity') +
       mobileLink('/chat',      'Chat') +
       mobileLink('/download',  'Play (desktop app)') +
@@ -1629,7 +1639,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1147.0';
+    var CURRENT_VERSION = '0.1148.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

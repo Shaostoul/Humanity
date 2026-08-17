@@ -18,6 +18,13 @@ pub mod grass;
 /// tillers and near-field trees both stand on it).
 pub mod drawn_surface;
 pub mod far_trees;
+/// Real OpenStreetMap regions (data/maps/regions/*.bin): the HOSMREG1
+/// reader, the fetcher's projection contract, a polygon ear clipper, and the
+/// 3D extrusion mesher. Shared by the Maps page's 2D Planet view and the
+/// in-world extruder so the two cannot drift (v0.1148, maps ladder rung 3
+/// increment 2). Parser/projection/clipper are relay-safe; only the mesher
+/// is native-gated.
+pub mod osm_region;
 pub mod ocean_fft;
 pub mod ocean_mask;
 pub mod ocean_waves;
