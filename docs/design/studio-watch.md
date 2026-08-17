@@ -66,11 +66,33 @@ click to swap focus.
 - Watch stays a full page (browse + grid + external embeds later); the
   per-user URL is /watch/<name> on the web.
 
+## Mechanism correction (v0.1150 recon, read before citing this doc)
+
+The pipeline is a BINARY WEBSOCKET FANOUT, not segment POSTs: the app
+captures its own window, encodes MJPEG, and publishes frames
+([1B tag][8B PTS][payload]) over wss://<relay>/ws/live/pub with in-band
+Dilithium auth; viewers subscribe at /ws/live/sub/<name>; GET /api/live is
+only the JSON directory. Stream id = the publisher's registered name. The
+relay keeps nothing on disk (last codec-config + keyframe cached in memory
+for joiners). Full map with file:line cites lives in the v0.1150 journal
+entry; code: src/net/live.rs, src/relay/live.rs, web/pages/watch.html.
+
 ## Increments, in order
 
 1. **Revive + bind**: the v0.857 pipeline works end to end on one server;
    increment 1 polishes it and adds the chat BINDING to the go-live
    announcement plus the Chat live-now strip. No new video path needed.
+   **FIRST HALF SHIPPED v0.1150**: pipeline re-verified (34 live tests,
+   including the real-encoder-to-decoded-pixels e2e), the Chat page's dead
+   Go Live fixed (it never set broadcast_request, so it silently broadcast
+   NOTHING), the four stale "rehearsal only" strings replaced with honest
+   publisher-mirrored status, the full-width expandable LIVE STRIP at the
+   top of Chat (Go Live / End / Open Studio + the live-now directory with
+   one-click Watch; replaces the old right-rail section), and /watch
+   accepts ?u=<name> as an alias of ?s=. REMAINING in this increment: the
+   chat-binding field in the go-live announcement (relay AuthFrame +
+   snapshot JSON + a default #live-<name> room) and the web chat mirror
+   (chat-live.js polling /api/live beside the existing #stream-sidebar).
 2. **WebRTC small-audience video**: reuse the shipped WebRTC + TURN stack
    for P2P screen/camera share to small rooms (this is also the watch-party
    seed). Viewer cap documented honestly.

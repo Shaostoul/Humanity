@@ -1,8 +1,10 @@
 //! Broadcasting Studio page — simplified OBS-like streaming control UI.
 //!
 //! Layout: left panel (scenes + sources), center (Program/Preview canvases + controls),
-//! right panel (properties + settings). UI only; no actual WebRTC/streaming
-//! implementation yet.
+//! right panel (properties + settings). Go Live drives a REAL broadcast (v0.855
+//! pipeline): the engine captures the app window each frame, encodes MJPEG, and
+//! publishes over `wss://<relay>/ws/live/pub`; viewers watch at /watch?s=<name>
+//! and the native Watch page. See src/net/live.rs + src/relay/live.rs.
 //!
 //! PROGRAM/PREVIEW SPLIT (v0.664, OBS-style): clicking a scene stages it into
 //! PREVIEW only; the PROGRAM side (what would be broadcast) does not change until
@@ -397,8 +399,9 @@ fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: 
     // One shared wording for both panes, so PROGRAM/PREVIEW mean the same thing
     // wherever they are hovered (wide split and narrow single-canvas alike).
     const PROGRAM_TIP: &str =
-        "PROGRAM is the live side: what your viewers would see right now. It changes ONLY when \
-         you press Cut to Program. (Rehearsal for now: nothing is actually broadcast yet.)";
+        "PROGRAM is the live side: what your viewers see while you are broadcasting. It changes \
+         ONLY when you press Cut to Program. (Today the broadcast captures your whole app \
+         window; per-scene compositing is the next rung.)";
     const PREVIEW_TIP: &str =
         "PREVIEW is your staging area: nobody sees it. Set up the next scene here, then press \
          Cut to Program to put it on air.";
@@ -737,7 +740,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .tooltip(
                 "Swap what is in PREVIEW onto the live PROGRAM side, in other words go on air \
                  with it. This is the ONLY thing that changes the Program side. Shortcut: \
-                 Ctrl+Enter. Honest limit: rehearsal only, no video or audio is broadcast yet.",
+                 Ctrl+Enter. Honest limit: the broadcast captures your whole app window today, \
+                 so scene composition affects these canvases, not yet the outgoing video.",
             )
             .show(ui, theme)
         {
@@ -749,10 +753,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.panel_margin);
 
-        // Go Live / LIVE button — Success variant when live (green), Primary when not.
-        // Real capture/encoding/transport isn't built yet (STATUS.md TIER 2 gap) --
-        // this drives scene/source rehearsal state only, so both labels carry an
-        // honest tooltip rather than implying a real broadcast is happening.
+        // Go Live / LIVE button — Success variant when live (green), Primary when
+        // not. Go Live asks the engine to start the REAL publisher (v0.855
+        // pipeline); ON AIR vs LIVE below distinguishes relay-accepted broadcast
+        // from a session the relay has not (yet) accepted.
         if state.studio.is_live {
             // Indicator only — clicking does nothing (use Stop to end stream).
             let (label, tip): (&str, &str) = if state.studio.broadcast_live {
@@ -918,29 +922,57 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         };
         painter.rect_filled(fill_rect, 2.0, meter_color);
 
-        // Connection status. No real transport exists yet (see the Go Live tooltip
-        // above), so this must not claim a live bitrate/drop count that was never
-        // measured -- it previously showed a hardcoded "0 dropped | 3500 kbps" that
-        // looked like a real stat regardless of whether anything was connected.
+        // Connection status, read from the REAL publisher mirror
+        // (broadcast_live / viewers / kbps / dropped), never a hardcoded stat.
+        // Pre-v0.1150 this said "Rehearsing (not broadcasting)" whenever
+        // is_live, right beside the honest ON AIR readout: the two labels
+        // contradicted each other for every real broadcast.
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if state.studio.is_live {
+            if state.studio.broadcast_live {
                 ui.label(
-                    RichText::new("Rehearsing (not broadcasting)")
-                        .size(theme.font_size_small)
-                        .color(theme.warning()),
+                    RichText::new(format!(
+                        "On air: {} watching, {} kbps, {} dropped",
+                        state.studio.broadcast_viewers,
+                        state.studio.broadcast_kbps,
+                        state.studio.broadcast_dropped,
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.success()),
                 )
                 .on_hover_text(
-                    "Studio can build, arrange, and switch scenes today. The streaming transport \
-                     (capture, encode, send) is not built yet, so nothing is leaving this machine. \
-                     Everything you set up here is what WOULD go out once it lands.",
+                    "Live counters mirrored from the publisher each frame. The watch link is in \
+                     the status line below.",
                 );
+            } else if state.studio.is_live {
+                let (label, tip): (String, String) = if state.studio.broadcast_error.is_empty() {
+                    (
+                        "Connecting to relay...".to_string(),
+                        "Go Live was pressed and the publisher is dialing the relay. If this \
+                         never turns ON AIR, check the server URL in Stream settings and that \
+                         you are signed in with a registered name."
+                            .to_string(),
+                    )
+                } else {
+                    (
+                        format!("Broadcast failed: {}", state.studio.broadcast_error),
+                        "The publisher reported an error. Fix it and press Go Live again."
+                            .to_string(),
+                    )
+                };
+                let color = if state.studio.broadcast_error.is_empty() {
+                    theme.warning()
+                } else {
+                    theme.danger()
+                };
+                ui.label(RichText::new(label).size(theme.font_size_small).color(color))
+                    .on_hover_text(tip);
             } else {
                 ui.label(
                     RichText::new("Offline")
                         .size(theme.font_size_small)
                         .color(theme.text_muted()),
                 )
-                .on_hover_text("No session running. Press Go Live to start a local rehearsal.");
+                .on_hover_text("No session running. Press Go Live to start broadcasting.");
             }
         });
     });

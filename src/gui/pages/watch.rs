@@ -187,15 +187,18 @@ fn draw_directory(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-/// Open a viewer for `stream_id`, replacing any current one.
-fn start_watching(state: &mut GuiState, stream_id: &str) {
+/// Open a viewer for `stream_id`, replacing any current one. pub(crate):
+/// the Chat live strip starts a watch with one click too (v0.1150).
+pub(crate) fn start_watching(state: &mut GuiState, stream_id: &str) {
     let server = state.server_url.trim_end_matches('/').to_string();
     state.watch_texture = None;
     state.watch_viewer = Some(crate::net::live_viewer::LiveViewer::start(&server, stream_id));
 }
 
-/// Drain a finished directory fetch and start a new one on the refresh cadence.
-fn poll_directory(ctx: &egui::Context, state: &mut GuiState) {
+/// Drain a finished directory fetch and start a new one on the refresh
+/// cadence. pub(crate): the Chat live strip keeps the directory fresh while
+/// Chat is the open page, so the strip header count is honest (v0.1150).
+pub(crate) fn poll_directory(ctx: &egui::Context, state: &mut GuiState) {
     if let Some(rx) = &state.watch_streams_rx {
         if let Ok(list) = rx.try_recv() {
             state.watch_streams = list;

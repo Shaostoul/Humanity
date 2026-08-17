@@ -761,6 +761,22 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Chat Live Strip + Streaming Revive (v0.1150)
+The v0.855-0.857 broadcast pipeline (app-window capture, MJPEG over a
+binary WebSocket: /ws/live/pub in-band-signed, /ws/live/sub/<name>,
+GET /api/live directory) re-verified live (34 tests incl. the real-frame
+e2e) and surfaced where the operator wanted it: a full-width EXPANDABLE
+LIVE STRIP at the top of the Chat page. Collapsed: one row with your
+on-air state and the server's live count. Expanded: Go Live / End Stream
+/ Open Studio plus the live-now directory with one-click Watch. Fixes
+the dead Chat Go Live (it never set broadcast_request, so it silently
+broadcast nothing) and replaces four stale "rehearsal only" strings with
+honest publisher-mirrored status (ON AIR viewers/kbps/dropped,
+Connecting, or the verbatim error). Web /watch accepts ?u=<name> as an
+alias of ?s=. Design + remaining increment work: docs/design/studio-watch.md.
+- Native: src/gui/pages/chat.rs (draw_live_strip), studio.rs, watch.rs (helpers shared)
+- Web: web/pages/watch.html (?u= alias)
+
 ### Quests/Tasks Split (v0.1145)
 Quests = gameplay (sim quests, auto-tracked, native-only). Tasks = real
 life: the kanban plus the learn-by-doing tutorial chains as a collapsible

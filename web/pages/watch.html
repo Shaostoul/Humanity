@@ -100,12 +100,14 @@
       const ctx = canvas.getContext('2d');
 
       const params = new URLSearchParams(location.search);
-      // Accept ?s=name, and also a trailing path segment (/watch/name) if nginx ever
-      // routes it that way. Guard against the page's own filename: /watch.html with no
-      // query is the DIRECTORY view, not a request to watch a stream called ".html".
+      // Accept ?s=name (canonical), ?u=name (the per-user spelling people
+      // share: a stream id IS the streamer's registered name), and also a
+      // trailing path segment (/watch/name) if nginx ever routes it that way.
+      // Guard against the page's own filename: /watch.html with no query is
+      // the DIRECTORY view, not a request to watch a stream called ".html".
       let pathTail = location.pathname.replace(/^\/watch\/?/, '');
       if (pathTail === '.html' || pathTail === 'watch.html') pathTail = '';
-      const streamId = (params.get('s') || pathTail || '').trim().toLowerCase();
+      const streamId = (params.get('s') || params.get('u') || pathTail || '').trim().toLowerCase();
 
       let socket = null;
       let frames = 0;
