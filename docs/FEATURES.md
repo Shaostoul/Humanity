@@ -761,6 +761,19 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Night-Honest Rain (v0.1154)
+Operator field report: the rain shader glows at night. The particle
+billboard shader rendered every authored tint at full brightness
+regardless of scene light (correct only in daylight). The particle
+frame uniform now carries a scene-illumination scalar in its free pad
+(Renderer::scene_illum: sun + fill luminance, clamped to a small
+moon/ambient floor), and non-emissive particles (rain, snow, leaves,
+dust) scale by it while emissive ones (sparks, embers) stay self-lit.
+Night rain now reads as faint grey streaks. The wider night-glow
+report is bisected to the tiled-lights setting (A/B proven, mechanism
+hunt journaled) and stays open.
+- Native: assets/shaders/particles.wgsl, src/renderer/mod.rs (scene_illum)
+
 ### Real Coastlines and Hills: Region DEM + Shore Taper (v0.1153)
 Operator field report: the carved water edge was a sheer cliff and the
 heightmap had no coastal gradients. Two-part fix. (1) SHORE TAPER: the

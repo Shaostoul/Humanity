@@ -2041,6 +2041,17 @@ impl Renderer {
         u
     }
 
+    /// Scene illumination scalar for effects that carry no lighting of
+    /// their own (particle billboards): 1.0 in daylight, clamped to a small
+    /// moon/ambient floor at night so unlit rain dims to near-invisible
+    /// instead of glowing, but never vanishes entirely.
+    fn scene_illum(&self) -> f32 {
+        let luma = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        let (_, sc, si) = self.cur_sun;
+        let (_, fc, fi) = self.cur_fill;
+        (si * luma(sc) + fi * luma(fc)).clamp(0.04, 1.0)
+    }
+
     /// How many scene lights are currently uploaded (v0.782): feeds the F2
     /// overlay so the operator can watch the uncapped count against FPS.
     pub fn light_count(&self) -> usize {
@@ -3462,7 +3473,12 @@ impl Renderer {
         );
         let right = camera.right();
         let up = right.cross(camera.forward()).normalize_or_zero() * -1.0;
-        let frame: [f32; 8] = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0];
+        // right.w carries the scene illumination scalar (v0.1154): particle
+        // billboards have no lighting of their own, and an authored-tint
+        // raindrop rendered at full brightness at midnight (the operator's
+        // "rain glows at night" report). Daylight = 1, night = the floor.
+        let frame: [f32; 8] =
+            [right.x, right.y, right.z, self.scene_illum(), up.x, up.y, up.z, 0.0];
         self.queue
             .write_buffer(&self.particle_frame_buffer, 0, bytemuck::cast_slice(&frame));
         // Grow-to-high-water-mark, then refill. Reallocating only when the
@@ -3602,7 +3618,12 @@ impl Renderer {
         );
         let right = camera.right();
         let up = right.cross(camera.forward()).normalize_or_zero() * -1.0;
-        let frame: [f32; 8] = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0];
+        // right.w carries the scene illumination scalar (v0.1154): particle
+        // billboards have no lighting of their own, and an authored-tint
+        // raindrop rendered at full brightness at midnight (the operator's
+        // "rain glows at night" report). Daylight = 1, night = the floor.
+        let frame: [f32; 8] =
+            [right.x, right.y, right.z, self.scene_illum(), up.x, up.y, up.z, 0.0];
         self.queue
             .write_buffer(&self.particle_frame_buffer, 0, bytemuck::cast_slice(&frame));
         let mut enc = self

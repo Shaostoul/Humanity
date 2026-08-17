@@ -17,6 +17,11 @@ struct CameraUniforms {
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 
 struct ParticleFrame {
+    // right.w carries the SCENE ILLUMINATION scalar (v0.1154): daylight 1.0,
+    // night clamped to a small floor on the CPU (Renderer::scene_illum).
+    // Billboards have no lighting of their own, and an authored-tint
+    // raindrop at full brightness at midnight was the operator's "rain
+    // glows at night" report.
     right: vec4<f32>,
     up: vec4<f32>,
 };
@@ -27,6 +32,7 @@ struct VsOut {
     @location(0) color: vec4<f32>,
     @location(1) corner: vec2<f32>,
     @location(2) emissive: f32,
+    @location(3) scene_illum: f32,
 };
 
 @vertex
@@ -63,6 +69,7 @@ fn vs_main(
     out.color = color;
     out.corner = vec2<f32>(cx, cy);
     out.emissive = size_emissive.y;
+    out.scene_illum = frame.right.w;
     return out;
 }
 
@@ -78,8 +85,11 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (a < 0.004) {
         discard;
     }
-    // Emissive lifts the color toward self-lit (sparks, embers); ambience
-    // like leaves and dust stays at its authored tint.
-    let rgb = in.color.rgb * (1.0 + in.emissive);
+    // Emissive lifts the color toward self-lit (sparks, embers) AND exempts
+    // the particle from the day/night scale: a spark is its own light. A
+    // non-emissive particle (rain, snow, leaves, dust) only reflects the
+    // scene, so it dims with the scene's illumination at night.
+    let lit = mix(in.scene_illum, 1.0, clamp(in.emissive, 0.0, 1.0));
+    let rgb = in.color.rgb * (1.0 + in.emissive) * lit;
     return vec4<f32>(rgb, a);
 }
