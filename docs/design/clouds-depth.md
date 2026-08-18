@@ -5,6 +5,39 @@
 > depth?" Fidelity-expert investigation, same day, measured on the probe
 > rig at the operator's settings. VERDICT UP FRONT: it is NOT a texture
 > resolution problem. Do not grow the noise volumes.
+>
+> **STATUS: PHASE 1 SHIPPED (v0.1156); PHASE 2 = the underside.** All six
+> structural steps below are in: physical per-planet slab
+> (`cloud_base_km`/`cloud_top_km` in earth.ron, carried to the shader in
+> the new `material.params2` vector), the metric noise ladder
+> (`*_TILE_KM`/`*_KM` constants via `g_cloud_upkm`), metric extinction
+> (`CLOUD_*_SIGMA_KM` - the old per-drawn-unit sigmas left the thin slab
+> invisible from orbit), CLOUD_BASE_DROP, eroded-density light-march taps,
+> depth-aware ambient + ground bounce + third-octave sigma 0.20 + tau cap
+> 16, family bands re-authored in km, Medium on the physical slab, and the
+> vantages + dev pins (showcase `cloud_quality`, `cloud_cover` - the pin
+> also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
+> The ORBITAL look is verified good with live MODIS.
+>
+> **PHASE 2 (next, the actual operator-report surface): from-below
+> presence.** Probe-bisected on the rig (sweeps 20260818-0227..0241): the
+> pre-erosion carve is strong from below (diagnostic green), but the
+> density that survives erosion stays near zero at under-deck distances -
+> the carve thresholds, erosion strengths, and sample budget were all
+> calibrated against the 51 km slab. First fixes already in (fine-band
+> edge protection - it was the only band eroding CORES at full strength -
+> and a 2x slant-ray sample budget); the remaining calibration must hit
+> the acceptance gates below ON the silverdale-flight-2km capture.
+>
+> **Harness rules learned the hard way (2026-08-18):** the exe compiles
+> shaders from EMBEDDED include_str! sources - a shader-only edit needs
+> `--reload-shaders` on the probe sweep (or a rebuild) to reach the GPU;
+> naga REJECTS a bare `return` diagnostic above live code
+> (InstructionsAfterReturn - wrap it in an `if`); and the rig's assets/
+> junction can silently degrade to a stale real directory (self-heal now
+> in probe-sweep.js ensureJunction). Two sessions of cloud probes were
+> invalidated by exactly these three traps.
+> Gate measurements: `node scripts/measure-cloud-depth.mjs <capture.png>`.
 
 ## What ships today (do not rebuild)
 

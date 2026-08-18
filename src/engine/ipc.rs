@@ -289,6 +289,30 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.settings.planet_clouds = c == "1";
         log::info!("Planet clouds: {}", state.gui_state.settings.planet_clouds);
     }
+    // Optional "cloud_cover":"0.75" pins the cloud deck's effective
+    // coverage (clouds depth increment); "cloud_cover":"auto" returns
+    // control to live MODIS weather + event boosts. A cloud-verification
+    // vantage must not depend on the real sky being cloudy on capture day.
+    if let Some(c) = grab("cloud_cover") {
+        state.cloud_cover_override = if c == "auto" {
+            None
+        } else {
+            c.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
+        };
+        log::info!("Showcase: cloud_cover -> {:?}", state.cloud_cover_override);
+    }
+    // Optional "cloud_quality":"low"/"medium"/"high" pins the cloud tier
+    // live (clouds depth increment): Medium now consumes the same
+    // per-planet slab bounds as High, and BUG-049 taught us that a tier
+    // with zero rig coverage rots silently - this key is what lets a
+    // vantage photograph the Medium march at all.
+    if let Some(q) = grab("cloud_quality") {
+        state.gui_state.settings.cloud_quality = q.to_ascii_lowercase();
+        log::info!(
+            "Showcase: cloud_quality -> {}",
+            state.gui_state.settings.cloud_quality
+        );
+    }
     // Optional "bake":"trees" runs the automated billboard sprite baker
     // (v0.959) over EVERY species in data/vegetation/trees.ron (v0.1083, was
     // the six hardcoded conifers): each tile renders side-on into

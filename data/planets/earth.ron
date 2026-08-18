@@ -36,6 +36,16 @@
     // zones open to ~0.39 (scattered). Omit (or None) for cloudless worlds --
     // Mars deliberately has none.
     cloud_coverage: Some(0.42),
+    // Physical cloud slab altitudes in km (clouds depth increment,
+    // docs/design/clouds-depth.md). Real Earth: bases from ~400 m
+    // (coastal stratus), cirrus tops at the ~12 km tropopause. The old
+    // hardcoded planet-radius fractions put the slab at 25.5-76.5 km -
+    // a leftover from the 4x terrain exaggeration deleted in v0.883.2 -
+    // which is why every cloud family read as one distant flat ceiling.
+    // Mountains genuinely rise through this deck (peaks reach ~9 km);
+    // that is real and intended.
+    cloud_base_km: Some(0.4),
+    cloud_top_km: Some(12.0),
     has_water: true,
     // The only world whose open air an unsuited human can breathe.
     // Serde-default is false, so every other body suffocates outside the

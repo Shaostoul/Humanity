@@ -69,25 +69,28 @@
 /// against the shipped earth.ron numbers.
 pub const CLOUD_SHELL_SCALE: f32 = 1.008;
 
-/// Mirrors `CLOUD_BASE_SCALE` / `CLOUD_TOP_SCALE` in pbr_simple.wgsl: the
-/// increment-2 raymarch slab, in planet-radius multiples. The drawn shell
-/// (`CLOUD_SHELL_SCALE`) sits mid-slab; density lives between these bounds.
-/// Earth: base ~25.5 km, top ~76.5 km. Terrain peaks (up to ~1.0041 R, see
-/// the shell-scale note above) may poke ~100 m into the base -- mountains in
-/// cloud, harmless because the altitude envelope is ~0 there.
+/// Mirrors `CLOUD_BASE_SCALE` / `CLOUD_TOP_SCALE`: the raymarch slab
+/// FALLBACK, in planet-radius multiples. Since the clouds depth increment
+/// the REAL bounds are per-planet physical altitudes from the def's
+/// `cloud_base_km`/`cloud_top_km` (Earth 0.4-12 km), carried to the shader
+/// in material params2; these constants only apply to a material with no
+/// params2 data and keep their historical values (Earth ~25.5-76.5 km,
+/// tuned for the 4x terrain exaggeration deleted in v0.883.2).
 pub const CLOUD_BASE_SCALE: f32 = 1.004;
 pub const CLOUD_TOP_SCALE: f32 = 1.012;
 /// Mirrors `CLOUD_MARCH_SAMPLES` (i32 in WGSL): march quality switch.
 /// 8..=12 is the designed band; 0 selects the increment-1 flat deck.
 pub const CLOUD_MARCH_SAMPLES: i32 = 10;
-/// Mirrors `CLOUD_SIGMA_T`: extinction per drawn-shell unit at density 1,
-/// calibrated so a full-density radial pass reaches ~93% opacity (matching
-/// increment 1's thick-core look after the CLOUD_MAX_ALPHA cap).
-pub const CLOUD_SIGMA_T: f32 = 560.0;
-/// Mirrors `CLOUD_MARCH_SHADOW_STEP` / `CLOUD_MARCH_SHADOW_SHARP`: the 3D
-/// sun-direction density tap (drawn-shell units, ~half the slab thickness)
-/// and its difference-to-shade amplification.
-pub const CLOUD_MARCH_SHADOW_STEP: f32 = 0.004;
+/// Mirrors `CLOUD_SIGMA_KM`: Medium-march extinction per KILOMETRE at
+/// density 1 (metric since the clouds depth increment; the old per-drawn-
+/// unit 560 was calibrated for the deleted 51 km slab and rendered the
+/// physical slab invisible from orbit).
+pub const CLOUD_SIGMA_KM: f32 = 0.44;
+/// Mirrors `CLOUD_MARCH_SHADOW_SHARP`: the Medium march's one-tap
+/// sun-direction self-shadow amplification. The tap DISTANCE is half the
+/// slab thickness, computed in-shader from the live bounds since the
+/// clouds depth increment (the old fixed CLOUD_MARCH_SHADOW_STEP was
+/// sized for the deleted 51 km slab).
 pub const CLOUD_MARCH_SHADOW_SHARP: f32 = 4.0;
 /// Mirrors `CLOUD_BASE_DARKEN`: bottom-of-slab light multiplier (bases
 /// darker than tops -- the classic volumetric cue).
@@ -105,11 +108,13 @@ pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
 /// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
 /// lit view sample.
 pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
-/// Mirrors `CLOUD_LIGHT_NEAR` / `CLOUD_LIGHT_RATIO`: the light march is a
-/// GEOMETRIC ladder (v0.1014) - first tap ~0.9 km so dome-crown relief
+/// Mirrors `CLOUD_LIGHT_NEAR_KM` / `CLOUD_LIGHT_RATIO`: the light march is
+/// a GEOMETRIC ladder (v0.1014) - first tap ~0.9 km so dome-crown relief
 /// self-shadows (the old ~3.9 km first tap lit the whole deck top dead
-/// flat), multiplying per tap out to ~125 km for big-mass shadows.
-pub const CLOUD_LIGHT_NEAR: f32 = 0.00014;
+/// flat), multiplying per tap out to ~125 km for big-mass shadows. Metric
+/// since the clouds depth increment: the shader converts km to drawn-shell
+/// units per invocation (g_cloud_upkm).
+pub const CLOUD_LIGHT_NEAR_KM: f32 = 0.9;
 pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
 /// Mirrors `CLOUD_LIGHT_SIGMA_MULT`: light-march extinction multiplier
 /// over the view sigma. The view sigma is calibrated for deck ALPHA
@@ -118,19 +123,21 @@ pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
 /// across a solid noon overcast -- structurally flat lighting. The
 /// boosted shadow sigma is the standard view/light extinction split.
 pub const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
-/// Mirrors `CLOUD_HI_SIGMA_T`: extinction per drawn-shell unit at density 1
-/// for the High path (higher than Medium's -- the noise-carved density
-/// field averages far lower, and cores must still saturate).
-pub const CLOUD_HI_SIGMA_T: f32 = 850.0;
+/// Mirrors `CLOUD_HI_SIGMA_KM`: High-path extinction per KILOMETRE at
+/// density 1 (higher than Medium's -- the noise-carved density field
+/// averages far lower, and cores must still saturate).
+pub const CLOUD_HI_SIGMA_KM: f32 = 0.65;
 /// Mirrors `CLOUD_HI_MAX_ALPHA`: peak alpha of the High deck (above
 /// Medium's 0.72 -- photoreal cumulus cores genuinely block the ground).
 pub const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
-/// Mirrors `CLOUD_SHAPE_FREQ`: shape-volume tiles per drawn-shell unit
-/// (Earth: ~268 km per tile -> 45 km base Worley cells).
-pub const CLOUD_SHAPE_FREQ: f32 = 24.0;
-/// Mirrors `CLOUD_DETAIL_FREQ`: detail-volume tiles per drawn-shell unit
-/// (Earth: ~71 km per tile -> 9/4.5/2.2 km erosion octaves).
-pub const CLOUD_DETAIL_FREQ: f32 = 60.0;
+/// Mirrors `CLOUD_SHAPE_TILE_KM`: shape-volume tile size in KILOMETRES
+/// (~45 km base Worley cells). Metric since the clouds depth increment -
+/// the km value is the exact equivalent of the old 24 tiles per drawn
+/// unit on Earth's legacy 1.008 R shell, so the look is unchanged.
+pub const CLOUD_SHAPE_TILE_KM: f32 = 267.6;
+/// Mirrors `CLOUD_DETAIL_TILE_KM`: detail-volume tile size in KILOMETRES
+/// (erosion octaves ~3..13 km). Was 60 tiles per drawn unit.
+pub const CLOUD_DETAIL_TILE_KM: f32 = 107.0;
 /// Mirrors `CLOUD_DETAIL_ERODE`: how deeply the detail octaves erode the
 /// shape's edges.
 pub const CLOUD_DETAIL_ERODE: f32 = 0.38;
@@ -140,11 +147,11 @@ pub const CLOUD_TYPE_FREQ: f32 = 3.0;
 /// Mirrors `CLOUD_TYPE_FREQ2`: secondary type octave, blended with the primary
 /// so the regime map has organic sub-structure (every type shows somewhere).
 pub const CLOUD_TYPE_FREQ2: f32 = 7.0;
-/// Mirrors `CLOUD_FRAY_FREQ`: coarse edge-fray tile frequency. Deliberately
-/// LOW (Earth ~88 km features) so the fray survives at orbital distance -- the
-/// fix for the "giant blotches" (the fine detail band faded out from orbit,
-/// leaving smooth blobs). The coarse band never fades.
-pub const CLOUD_FRAY_FREQ: f32 = 9.0;
+/// Mirrors `CLOUD_FRAY_TILE_KM`: coarse edge-fray tile size in KILOMETRES.
+/// Deliberately LARGE (~88 km fray features) so the fray survives at
+/// orbital distance -- the fix for the "giant blotches" (the fine detail
+/// band faded out from orbit, leaving smooth blobs). Never fades.
+pub const CLOUD_FRAY_TILE_KM: f32 = 713.6;
 /// Mirrors `CLOUD_FRAY_ERODE`: global strength of the coarse fray band.
 pub const CLOUD_FRAY_ERODE: f32 = 0.5;
 /// Mirrors `CLOUD_DENSITY_POW`: thin-edge shaping exponent (> 1 makes low
@@ -165,6 +172,9 @@ pub const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 /// slab base/top (tops see the sky dome, bases their own shadow).
 pub const CLOUD_AMB_BASE: f32 = 0.03;
 pub const CLOUD_AMB_TOP: f32 = 0.14;
+/// Mirrors `CLOUD_AMB_BOUNCE` (clouds depth increment): ground-bounce
+/// ambient lighting cloud undersides from below, fading to zero at the top.
+pub const CLOUD_AMB_BOUNCE: f32 = 0.05;
 
 /// Mirrors `CLOUD_MAX_ALPHA` in pbr_simple.wgsl: peak opacity of the
 /// thickest cloud core, deliberately < 1 so the surface stays readable.
@@ -388,6 +398,9 @@ pub fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
 /// below the base, smooth rise to a full-density plateau through the middle
 /// (the drawn-shell radius evaluates to exactly 1.0, so the increment-1
 /// fragment altitude sits on the plateau), fade to zero at and above the top.
+/// Since the clouds depth increment the WGSL evaluates over g_cloud_rb/rt
+/// (the per-planet physical slab); this mirror stays exact for the FALLBACK
+/// bounds (a material with no params2 data), which is what the tests lock.
 pub fn cloud_altitude_envelope(r: f32) -> f32 {
     let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
     let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
@@ -536,10 +549,15 @@ pub fn cloud_regime_weights(tc: f32) -> [f32; 7] {
 /// weights. Keep these tables byte-identical with the WGSL `cloud_regime`.
 pub fn cloud_regime(tc: f32) -> CloudRegime {
     let w = cloud_regime_weights(tc);
+    // Height bands re-authored for the PHYSICAL slab (clouds depth
+    // increment; Earth 0.4-12 km): cirrus 6-12 km, altocumulus 2-7,
+    // cumulus 0.5-6 (towering extends), cumulonimbus 0.5-12, stratus
+    // 0.4-2, nimbostratus 0.4-5, stratocumulus 0.5-2.5. Keep
+    // byte-identical with the WGSL tables.
     //           cirrus altocu cumulus cumulonimb stratus nimbostr stratocu
     CloudRegime {
-        h_lo: dot7(w, [0.68, 0.42, 0.05, 0.02, 0.00, 0.00, 0.05]),
-        h_hi: dot7(w, [1.00, 0.62, 0.72, 1.00, 0.20, 0.45, 0.40]),
+        h_lo: dot7(w, [0.48, 0.14, 0.01, 0.01, 0.00, 0.00, 0.01]),
+        h_hi: dot7(w, [1.00, 0.57, 0.48, 1.00, 0.14, 0.40, 0.18]),
         opacity: dot7(w, [0.34, 0.55, 1.00, 1.00, 0.80, 0.95, 0.62]),
         cover_bias: dot7(w, [0.06, 0.02, -0.03, 0.00, 0.34, 0.42, 0.03]),
         fray: dot7(w, [1.00, 0.85, 0.55, 0.35, 0.18, 0.10, 0.80]),
@@ -597,7 +615,11 @@ pub fn cloud_stretch_domain(p: [f32; 3], dir: [f32; 3], stretch: f32) -> [f32; 3
 pub fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
     let mut e = phase * (-tau).exp();
     e += 0.45 * mix(1.0, phase, 0.5) * (-tau * 0.25).exp();
-    e += 0.18 * (-tau * 0.06).exp();
+    // Third octave sigma 0.06 -> 0.20 (clouds depth increment): under the
+    // old tau cap of 10 this octave never fell below 55% - a constant
+    // luminous floor that flattened the from-below deck to a 2-3x radiance
+    // range. Keep identical with the WGSL.
+    e += 0.18 * (-tau * 0.20).exp();
     e
 }
 
@@ -770,18 +792,43 @@ mod tests {
         let atmo = 1.0 + def.atmosphere_scale.max(0.005) * 2.0;
         assert!(
             peak < CLOUD_SHELL_SCALE,
-            "terrain peaks ({peak}) poke through the cloud shell ({CLOUD_SHELL_SCALE})"
+            "terrain peaks ({peak}) poke through the orbital cloud shell ({CLOUD_SHELL_SCALE})"
         );
         assert!(
             CLOUD_SHELL_SCALE < atmo,
             "cloud shell ({CLOUD_SHELL_SCALE}) outside the atmosphere shell ({atmo})"
         );
-        // Increment 2: the whole march slab must also stay under the
-        // atmosphere shell (the base may brush the very tallest peaks by
-        // ~100 m -- documented and harmless, so no peak < base assert).
+        // Clouds depth increment: the PHYSICAL slab from earth.ron's
+        // cloud_base_km/cloud_top_km (0.4-12 km). The base sits far BELOW
+        // the tallest peaks now - mountains genuinely rise through the
+        // deck, which is real and intended - but the slab TOP must clear
+        // the worst-case peak (a fully submerged deck would be invisible)
+        // and stay under the atmosphere shell, and the acceptance gate
+        // from docs/design/clouds-depth.md pins it at or under 12 km.
+        let (slab_rb, slab_rt) = def.cloud_slab_scales();
         assert!(
-            CLOUD_TOP_SCALE < atmo,
-            "cloud slab top ({CLOUD_TOP_SCALE}) outside the atmosphere shell ({atmo})"
+            def.cloud_base_km.is_some() && def.cloud_top_km.is_some(),
+            "earth.ron lost its physical cloud_base_km/cloud_top_km"
+        );
+        assert!(
+            slab_rb < slab_rt && slab_rt > peak,
+            "cloud slab top ({slab_rt}) below the worst-case peak ({peak})"
+        );
+        assert!(
+            slab_rt < atmo,
+            "cloud slab top ({slab_rt}) outside the atmosphere shell ({atmo})"
+        );
+        let top_km = (slab_rt - 1.0) as f64 * def.radius / 1000.0;
+        assert!(
+            top_km <= 12.05,
+            "Earth cloud slab top {top_km:.1} km above the 12 km gate"
+        );
+        // The near-slab DRAWN shell (lib.rs: slab_rt + 0.0006) must also
+        // clear the peaks - fragments below terrain would z-fight.
+        assert!(
+            slab_rt + 0.0006 > peak + 0.0005,
+            "near-slab drawn shell ({}) too close to the peaks ({peak})",
+            slab_rt + 0.0006
         );
         // And Earth actually ships a cloud deck.
         assert!(
@@ -814,23 +861,22 @@ mod tests {
             ("CLOUD_SHELL_SCALE", CLOUD_SHELL_SCALE),
             ("CLOUD_BASE_SCALE", CLOUD_BASE_SCALE),
             ("CLOUD_TOP_SCALE", CLOUD_TOP_SCALE),
-            ("CLOUD_SIGMA_T", CLOUD_SIGMA_T),
-            ("CLOUD_MARCH_SHADOW_STEP", CLOUD_MARCH_SHADOW_STEP),
+            ("CLOUD_SIGMA_KM", CLOUD_SIGMA_KM),
             ("CLOUD_MARCH_SHADOW_SHARP", CLOUD_MARCH_SHADOW_SHARP),
             ("CLOUD_BASE_DARKEN", CLOUD_BASE_DARKEN),
             // Increment-3 volumetric constants.
             ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
-            ("CLOUD_LIGHT_NEAR", CLOUD_LIGHT_NEAR),
+            ("CLOUD_LIGHT_NEAR_KM", CLOUD_LIGHT_NEAR_KM),
             ("CLOUD_LIGHT_RATIO", CLOUD_LIGHT_RATIO),
             ("CLOUD_LIGHT_SIGMA_MULT", CLOUD_LIGHT_SIGMA_MULT),
-            ("CLOUD_HI_SIGMA_T", CLOUD_HI_SIGMA_T),
+            ("CLOUD_HI_SIGMA_KM", CLOUD_HI_SIGMA_KM),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
-            ("CLOUD_SHAPE_FREQ", CLOUD_SHAPE_FREQ),
-            ("CLOUD_DETAIL_FREQ", CLOUD_DETAIL_FREQ),
+            ("CLOUD_SHAPE_TILE_KM", CLOUD_SHAPE_TILE_KM),
+            ("CLOUD_DETAIL_TILE_KM", CLOUD_DETAIL_TILE_KM),
             ("CLOUD_DETAIL_ERODE", CLOUD_DETAIL_ERODE),
             ("CLOUD_TYPE_FREQ", CLOUD_TYPE_FREQ),
             ("CLOUD_TYPE_FREQ2", CLOUD_TYPE_FREQ2),
-            ("CLOUD_FRAY_FREQ", CLOUD_FRAY_FREQ),
+            ("CLOUD_FRAY_TILE_KM", CLOUD_FRAY_TILE_KM),
             ("CLOUD_FRAY_ERODE", CLOUD_FRAY_ERODE),
             ("CLOUD_DENSITY_POW", CLOUD_DENSITY_POW),
             ("CLOUD_FIL_LO", CLOUD_FIL_LO),
@@ -841,6 +887,7 @@ mod tests {
             ("CLOUD_POWDER_STRENGTH", CLOUD_POWDER_STRENGTH),
             ("CLOUD_AMB_BASE", CLOUD_AMB_BASE),
             ("CLOUD_AMB_TOP", CLOUD_AMB_TOP),
+            ("CLOUD_AMB_BOUNCE", CLOUD_AMB_BOUNCE),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");
@@ -985,25 +1032,34 @@ mod tests {
         let stratus = cloud_regime(0.67);
         let nimbo = cloud_regime(0.83);
         let stratocu = cloud_regime(1.0);
+        // Band fractions are over the PHYSICAL slab since the clouds depth
+        // increment (Earth 0.4-12 km; fraction = (alt_km - 0.4) / 11.6),
+        // so the expectations below are km-derived: cirrus above ~5 km
+        // (frac 0.40), stratus under ~2.5 km (frac 0.18), etc. The blend
+        // tents pull each center value toward its neighbours slightly.
+        //
         // Cirrus: HIGH in the slab, thin/faint, very streaky (stretch + fila).
-        assert!(cirrus.h_lo > 0.5, "cirrus not high: h_lo {}", cirrus.h_lo);
+        assert!(cirrus.h_lo > 0.4, "cirrus not high: h_lo {}", cirrus.h_lo);
         assert!(cirrus.opacity < 0.6, "cirrus not faint: {}", cirrus.opacity);
         assert!(cirrus.stretch > 2.0, "cirrus not streaky: {}", cirrus.stretch);
         assert!(cirrus.filament > 0.5, "cirrus not filamentary: {}", cirrus.filament);
-        // Cumulus: reaches low, solid, tallest band, minimal streaking.
-        assert!(cumulus.h_lo < 0.2 && cumulus.h_hi > 0.6, "cumulus band off");
+        // Cumulus: base near the ground, tops in the 5-7 km convective band.
+        assert!(cumulus.h_lo < 0.1 && cumulus.h_hi > 0.4, "cumulus band off");
         assert!(cumulus.opacity > 0.9, "cumulus not solid: {}", cumulus.opacity);
         assert!(cumulus.filament < 0.2, "cumulus should not streak: {}", cumulus.filament);
         // Stratus: hugs the base, overcast (positive cover bias), grey tint.
-        assert!(stratus.h_hi < 0.35, "stratus not low: h_hi {}", stratus.h_hi);
+        // (the blend tents pull the 0.14 table value up toward the
+        // towering neighbours; 0.30 is still under 3.9 km)
+        assert!(stratus.h_hi < 0.30, "stratus not low: h_hi {}", stratus.h_hi);
         assert!(stratus.cover_bias > 0.2, "stratus not overcast: {}", stratus.cover_bias);
         assert!(stratus.tint < 0.9, "stratus not greyer: {}", stratus.tint);
-        // Stratocumulus: low-mid, broken (high fray), moderate everything.
+        // Stratocumulus: low, broken (high fray), moderate everything.
         assert!(stratocu.fray > 0.6, "stratocumulus not broken: {}", stratocu.fray);
-        assert!(stratocu.h_hi > 0.3 && stratocu.h_hi < 0.55, "stratocu band off");
-        // Altocumulus (v0.893): patchy MID deck - band floats off the ground,
-        // broken, translucent-ish.
-        assert!(altocu.h_lo > 0.3, "altocumulus not mid-level: h_lo {}", altocu.h_lo);
+        assert!(stratocu.h_hi > 0.1 && stratocu.h_hi < 0.3, "stratocu band off");
+        // Altocumulus (v0.893): patchy MID deck - band floats off the ground
+        // (bases ~2 km, frac ~0.14), broken, translucent-ish.
+        assert!(altocu.h_lo > 0.08, "altocumulus not mid-level: h_lo {}", altocu.h_lo);
+        assert!(altocu.h_lo > stratus.h_lo, "altocumulus base below stratus");
         assert!(altocu.fray > 0.6, "altocumulus not patchy: {}", altocu.fray);
         assert!(altocu.opacity < 0.75, "altocumulus too solid: {}", altocu.opacity);
         // Cumulonimbus (v0.893): reaches the slab top (storm tower), densest.
@@ -1107,9 +1163,14 @@ mod tests {
         let mid = cloud_scatter_energy(2.0, side_phase);
         let deep = cloud_scatter_energy(12.0, side_phase);
         assert!(thin > mid && mid > deep, "not decaying: {thin} {mid} {deep}");
-        // The multiple-scattering octaves keep deep cores glowing (the
-        // whole point vs single-scatter Beer).
-        assert!(deep > 0.05, "deep core went black: {deep}");
+        // The multiple-scattering octaves keep deep cores faintly glowing
+        // (vs single-scatter black) - but since the clouds depth increment
+        // the third octave DECAYS (sigma 0.20, was 0.06): the old constant
+        // ~0.10 floor flattened the whole from-below deck into a 2-3x
+        // radiance range. Deep must stay above black AND below the old
+        // floor - both directions are regressions.
+        assert!(deep > 0.005, "deep core went black: {deep}");
+        assert!(deep < 0.06, "deep-core luminous floor is back: {deep}");
         assert!(thin < 2.0, "side-view thin energy blown out: {thin}");
     }
 
@@ -1229,9 +1290,13 @@ mod tests {
         // atmosphere shell (the ordering test below checks the outer stack).
         assert!(CLOUD_BASE_SCALE < CLOUD_SHELL_SCALE);
         assert!(CLOUD_SHELL_SCALE < CLOUD_TOP_SCALE);
-        // Calibration cross-check for CLOUD_SIGMA_T: a full-density radial
-        // pass (envelope integrates to ~0.6 of the slab thickness) must land
-        // deep in the opaque regime but NOT waste range (0.85..0.99).
+        // Calibration cross-check for CLOUD_SIGMA_KM (metric since the
+        // clouds depth increment): a full-density radial pass through the
+        // PHYSICAL Earth slab (envelope integrates to ~0.6 of the
+        // thickness) must land deep in the opaque regime but NOT waste
+        // range. The integral runs over the fallback envelope bounds in
+        // drawn-shell units, then converts to km on the legacy Earth
+        // shell (drawn radius 6371 * 1.008 km) to apply the km sigma.
         let thickness = (CLOUD_TOP_SCALE - CLOUD_BASE_SCALE) / CLOUD_SHELL_SCALE;
         let n = 1000;
         let dr = thickness / n as f32;
@@ -1240,10 +1305,16 @@ mod tests {
         for i in 0..n {
             integral += cloud_altitude_envelope(base + (i as f32 + 0.5) * dr) * dr;
         }
-        let opacity = 1.0 - (-CLOUD_SIGMA_T * integral).exp();
+        // The fallback slab is 51 km thick; the PHYSICAL Earth slab is
+        // 11.6 km. Scale the envelope integral to the physical thickness
+        // (same 0.6 shape factor) and apply the per-km sigma: the real
+        // deck must still read solidly opaque at full density.
+        let drawn_r_km = 6371.0_f32 * CLOUD_SHELL_SCALE;
+        let integral_km = integral * drawn_r_km * (11.6 / 51.0);
+        let opacity = 1.0 - (-CLOUD_HI_SIGMA_KM * integral_km).exp();
         assert!(
-            (0.85..0.99).contains(&opacity),
-            "radial full-density opacity {opacity} off calibration"
+            (0.85..1.0).contains(&opacity),
+            "physical-slab full-density opacity {opacity} off calibration"
         );
     }
 

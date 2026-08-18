@@ -1865,6 +1865,7 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 sea_state_override: None,
+                cloud_cover_override: None,
                 ocean_fft_wind: 8.0,
                 ocean_fft_built_wind: 8.0,
                 ocean_fft_rebuild_cooldown: 0.0,
@@ -11324,11 +11325,24 @@ mod native_app {
                                             .length()
                                             / visual_scale)
                                             .max(0.0);
+                                        // Physical slab bounds (clouds depth
+                                        // increment): planet-radius multiples
+                                        // from the def's cloud_base_km /
+                                        // cloud_top_km (Earth: 0.4-12 km, the
+                                        // real altitude band - not the legacy
+                                        // 25.5-76.5 km constants). Forwarded
+                                        // to the shader in params2 below.
+                                        let (slab_rb, slab_rt) = d.cloud_slab_scales();
                                         let shell_ratio = if (cam_r_ratio as f64)
-                                            < crate::renderer::clouds::CLOUD_TOP_SCALE as f64
-                                                * 1.05
+                                            < slab_rt as f64 * 1.05
                                         {
-                                            crate::renderer::clouds::CLOUD_TOP_SCALE + 0.004
+                                            // Near/inside the slab: draw the
+                                            // shell just above the top so its
+                                            // fragments cover the whole sky.
+                                            // ~4 km of margin keeps it well
+                                            // clear of the tallest terrain
+                                            // (peaks reach ~1.0014 R).
+                                            slab_rt + 0.0006
                                         } else {
                                             crate::renderer::clouds::CLOUD_SHELL_SCALE
                                         };
@@ -11339,8 +11353,29 @@ mod native_app {
                                         // = tint, .a = coverage) - zero shader
                                         // changes, docs at 40-clouds.wgsl top.
                                         let ev_t = state.cloud_event_tint;
-                                        let cov_eff =
-                                            (cov + state.cloud_event_boost).min(1.0);
+                                        // Dev/showcase coverage pin wins over
+                                        // the live weather + event boost (see
+                                        // EngineState::cloud_cover_override).
+                                        let cov_eff = state.cloud_cover_override.unwrap_or(
+                                            (cov + state.cloud_event_boost).min(1.0),
+                                        );
+                                        // params2 FIRST so the full-uniform
+                                        // write below carries the fresh slab
+                                        // bounds (update_material_full writes
+                                        // the stored params2 back).
+                                        // params2.w = 1 tells cloud_weather to
+                                        // ignore the live MODIS placement (the
+                                        // dev coverage pin - see
+                                        // cloud_cover_override).
+                                        let pin = if state.cloud_cover_override.is_some() {
+                                            1.0
+                                        } else {
+                                            0.0
+                                        };
+                                        state.renderer.update_material_params2(
+                                            cmat,
+                                            [slab_rb, slab_rt, (d.radius / 1000.0) as f32, pin],
+                                        );
                                         state.renderer.update_material_full(
                                             cmat,
                                             [ev_t[0], ev_t[1], ev_t[2], cov_eff],

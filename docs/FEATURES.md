@@ -761,6 +761,22 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Physical Cloud Slab (v0.1156, phase 1)
+The cloud deck now lives at REAL altitudes: per-planet cloud_base_km /
+cloud_top_km in the RON (Earth 0.4-12 km - the old hardcoded fractions
+put it at 25.5-76.5 km, a leftover of the deleted 4x terrain
+exaggeration). A second per-material data vector (params2) carries the
+slab + planet radius to the shader; the whole noise/extinction ladder is
+metric now (km constants converted per invocation), the seven family
+bands are re-authored to real altitude bands, Medium marches the same
+physical slab (with its first rig vantage as the BUG-049 lock), and the
+rig gained cloud_quality / cloud_cover showcase pins. Orbit look
+verified with live MODIS. Phase 2 (from-below presence calibration on
+the thin slab) is fenced in docs/design/clouds-depth.md.
+- Native: src/terrain/planet.rs (cloud_slab_scales), renderer pipeline
+  params2, assets/shaders/pbr/40-clouds.wgsl, data/planets/earth.ron
+- Dev: scripts/measure-cloud-depth.mjs, probe-sweep junction self-heal
+
 ### Tiled Lights Stay In Their Lane (v0.1155)
 The other half of the night-glow report: with tiled lighting on, the
 whole terrain lit up at night. Mechanism: the tile lists are built

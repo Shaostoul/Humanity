@@ -155,6 +155,12 @@ pub struct Material {
     /// the selector below drifts from what the shader actually does; the two
     /// writers are `add_material_full` and `update_material_full`.
     material_type: f32,
+    /// CPU copy of the shader's `material.params2` (clouds depth increment:
+    /// per-planet slab bounds + radius ride here for the type-15 cloud
+    /// shell; zero for everything else). Kept so `update_material_full` -
+    /// which rewrites the WHOLE uniform buffer - preserves it instead of
+    /// silently zeroing per-planet data every frame.
+    params2: [f32; 4],
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
     /// Group-3 texture bind groups for materials that carry real imagery

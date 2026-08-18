@@ -25,6 +25,17 @@ pub struct MaterialUniforms {
     /// the type dispatch in 90-fragment-main.wgsl. (The old comment here said
     /// "z/w unused", which is exactly how accidental-glow bugs get written.)
     pub params: [f32; 4],
+    /// Second per-material data vector (clouds depth increment): the first
+    /// 8 floats were fully subscribed, so per-planet physical data had no
+    /// channel to the shader. Semantics are per-material-type; today only
+    /// the cloud shell (type 15) uses it: x = slab BASE as a planet-radius
+    /// multiple, y = slab TOP, z = planet radius in KM (converts the
+    /// metre-expressed noise ladder into drawn-shell units), w = 1 when the
+    /// dev coverage pin is active (cloud_weather then ignores the live
+    /// MODIS placement so a verification vantage always has clouds).
+    /// Zero (every other material) means "no data" - shader paths must
+    /// treat 0 as absent, never as a value.
+    pub params2: [f32; 4],
 }
 
 /// PBR-lite render pipeline with three bind group layouts.

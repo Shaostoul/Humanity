@@ -129,7 +129,21 @@ function log(msg) {
 // ── Rig setup: a portable, self-contained copy that reads the repo's data +
 // assets via NTFS junctions, so a sweep always exercises the CURRENT tree. ──
 function ensureJunction(link, target) {
-  if (fs.existsSync(link)) return;
+  if (fs.existsSync(link)) {
+    // SELF-HEAL (2026-08-18): a July-29 shipped-assets attempt left
+    // .probe-rig/assets as a REAL directory full of hard links, and this
+    // early-return kept it forever - every sweep since silently exercised
+    // 3-week-old shader/asset copies (write-new+rename repo edits break
+    // hard links). A junction is the whole point of the normal rig; if the
+    // path exists but is NOT a reparse point, delete it and re-link.
+    try {
+      execSync(`fsutil reparsepoint query "${link}"`, { stdio: "ignore" });
+      return; // real junction: live, nothing to do
+    } catch {
+      log(`  HEAL: ${link} was a REAL directory (stale copies) - replacing with a junction`);
+      fs.rmSync(link, { recursive: true, force: true });
+    }
+  }
   execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: "ignore" });
 }
 

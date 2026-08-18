@@ -147,6 +147,20 @@ pub struct PlanetDef {
     /// threshold, so 0.0 is honest clear sky and 1.0 full overcast.
     #[serde(default)]
     pub cloud_coverage: Option<f32>,
+    /// Cloud slab bottom altitude in KILOMETERS above the nominal surface
+    /// (clouds depth increment, docs/design/clouds-depth.md). Real Earth
+    /// cloud bases start at a few hundred meters; the deck used to sit at a
+    /// hardcoded 25.5-76.5 km because its planet-radius fractions were tuned
+    /// for a 4x terrain vertical exaggeration deleted in v0.883.2 - every
+    /// family rendered 10-50x above its real band and read as one distant
+    /// flat ceiling. None = an Earth-proportional default (see
+    /// `cloud_slab_scales`), so modded worlds get plausible decks unprompted.
+    #[serde(default)]
+    pub cloud_base_km: Option<f32>,
+    /// Cloud slab top altitude in KILOMETERS (see `cloud_base_km`). Earth
+    /// ships 12.0 - the real tropopause ceiling for cirrus.
+    #[serde(default)]
+    pub cloud_top_km: Option<f32>,
     /// Optional altitude-varying gravity (the artificial-planet hook, see
     /// docs/design/artificial-planet.md): control points of
     /// (altitude_m, g_m_s2), piecewise-linear between points, clamped flat
@@ -170,6 +184,24 @@ impl PlanetDef {
     pub fn scale_height_or_default(&self) -> f32 {
         self.scale_height_m
             .unwrap_or((self.radius * crate::renderer::atmosphere::EARTH_SCALE_HEIGHT_RATIO) as f32)
+    }
+
+    /// The cloud slab bounds as PLANET-RADIUS multiples (base, top), from the
+    /// physical `cloud_base_km`/`cloud_top_km` altitudes. Defaults are
+    /// Earth-proportional REAL fractions (0.4 km and 12 km on a 6371 km
+    /// radius), not the legacy 25.5-76.5 km constants - a modded world gets
+    /// realistic cloud altitudes without hand-tuning. The top is clamped at
+    /// least 500 m above the base so the slab never degenerates. Consumed by
+    /// the cloud material producer in lib.rs, which forwards the ratios to
+    /// the shader through material params2 (see renderer::pipeline).
+    pub fn cloud_slab_scales(&self) -> (f32, f32) {
+        let r_km = (self.radius / 1000.0).max(1.0) as f32;
+        let base_km = self.cloud_base_km.unwrap_or(r_km * (0.4 / 6371.0));
+        let top_km = self
+            .cloud_top_km
+            .unwrap_or(r_km * (12.0 / 6371.0))
+            .max(base_km + 0.5);
+        (1.0 + base_km / r_km, 1.0 + top_km / r_km)
     }
 
     /// Gravity at `alt_m` meters above the nominal surface (negative =

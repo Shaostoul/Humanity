@@ -72,6 +72,7 @@ impl Renderer {
         let uniforms = MaterialUniforms {
             base_color,
             params: [metallic, roughness, material_type, emissive],
+            params2: [0.0; 4],
         };
         let buffer = self
             .device
@@ -95,6 +96,7 @@ impl Renderer {
             roughness,
             emissive,
             material_type,
+            params2: [0.0; 4],
             buffer,
             bind_group,
             albedo_bind_group: None,
@@ -383,6 +385,10 @@ impl Renderer {
             let uniforms = MaterialUniforms {
                 base_color,
                 params: [metallic, roughness, material_type, emissive],
+                // Preserve the stored per-material data vector: this method
+                // rewrites the whole buffer, and zeroing params2 here would
+                // wipe the cloud slab bounds on every frame update.
+                params2: mat.params2,
             };
             // The CPU-side copy tracks the uniform (v0.1108). A slot reused
             // for a different type - the machine rebuild does exactly this -
@@ -390,6 +396,23 @@ impl Renderer {
             mat.material_type = material_type;
             self.queue
                 .write_buffer(&mat.buffer, 0, bytemuck::bytes_of(&uniforms));
+        }
+    }
+
+    /// Set the material's second data vector (`material.params2` in the
+    /// shader) in place: stores the CPU copy (so `update_material_full`
+    /// preserves it) and writes just that 16-byte slice of the uniform
+    /// buffer. Today's only consumer is the type-15 cloud shell:
+    /// [slab base ratio, slab top ratio, planet radius km, 0].
+    pub fn update_material_params2(&mut self, idx: usize, params2: [f32; 4]) {
+        if let Some(mat) = self.materials.get_mut(idx) {
+            if mat.params2 == params2 {
+                return;
+            }
+            mat.params2 = params2;
+            // params2 sits after base_color (16 B) + params (16 B).
+            self.queue
+                .write_buffer(&mat.buffer, 32, bytemuck::bytes_of(&params2));
         }
     }
 

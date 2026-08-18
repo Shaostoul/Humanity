@@ -70,6 +70,12 @@ struct MaterialUniforms {
     base_color: vec4<f32>,
     // x = metallic, y = roughness, z = material_type, w = emissive_strength
     params: vec4<f32>,
+    // Second per-material data vector (clouds depth increment). Semantics
+    // per material type; today only the cloud shell (type 15): x = slab
+    // BASE as a planet-radius multiple, y = slab TOP, z = planet radius in
+    // KM, w = 1 when the dev coverage pin is active (cloud_weather ignores
+    // the live MODIS placement). Zero everywhere else - treat 0 as "absent".
+    params2: vec4<f32>,
 };
 
 // One scene light in the UNCAPPED storage-buffer list (v0.782). Packing

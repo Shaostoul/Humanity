@@ -149,7 +149,7 @@
 >    ignored each pass declared light_count and smuggled interior
 >    lights onto the terrain pass; one shader guard; night vantage now
 >    pins lights_tiled ON as the permanent regression lock).
->    (ii) CLOUD DEPTH: fenced 6-step increment in clouds-depth.md (deck
+>    (ii) CLOUD DEPTH [phase 1 SHIPPED v0.1156: physical 0.4-12 km slab, metric ladder+extinction, orbit-proven; PHASE 2 NEXT: from-below presence calibration - carve/erosion/sampling were tuned for the deleted 51 km slab; harness is ready (junction heal + --reload-shaders + naga-safe diagnostics), gates in clouds-depth.md]: fenced 6-step increment in clouds-depth.md (deck
 >    10-50x too high on a v0.883.2-stale constant; light march blind to
 >    erosion; NOT texture resolution). Measured acceptance gates ready.
 >    (a) Vegetation suppression inside region footprints (the probe

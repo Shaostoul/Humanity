@@ -777,6 +777,12 @@ pub(crate) struct EngineState {
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,
+    /// Dev/showcase pin for the cloud deck's effective coverage (None =
+    /// live MODIS weather + event boost). Set via showcase_request
+    /// {"cloud_cover":"0.75"|"auto"}. Exists because a cloud-verification
+    /// vantage cannot depend on the real sky over Silverdale being cloudy
+    /// on capture day (clouds depth increment).
+    pub(crate) cloud_cover_override: Option<f32>,
     /// F6 pressed (v0.890): save a location bookmark next frame, where
     /// current_spin and the frame-lock state are fresh.
     pub(crate) bookmark_save_requested: bool,

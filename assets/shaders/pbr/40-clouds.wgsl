@@ -115,11 +115,13 @@ const CLOUD_SILVER_GAIN: f32 = 0.3;
 const CLOUD_AMBIENT: f32 = 0.08;
 const CLOUD_NIGHT_FLOOR: f32 = 0.006;
 // ── Increment-2 raymarch constants (Rust mirror: renderer::clouds) ──
-// The slab, in PLANET-RADIUS multiples: the drawn shell (fragments/rays only)
-// sits mid-slab at CLOUD_SHELL_SCALE; density lives between BASE and TOP.
-// For Earth: base ~25.5 km, drawn shell ~51 km, top ~76.5 km. Terrain peaks
-// (up to ~1.0041 R) may poke ~100 m into the base -- mountains in cloud,
-// physically charming and harmless (the envelope is ~0 there).
+// The slab, in PLANET-RADIUS multiples. Since the clouds DEPTH increment
+// (docs/design/clouds-depth.md) the REAL bounds are per-planet physical
+// altitudes (material.params2: Earth 0.4-12 km) - these constants are the
+// FALLBACK for a material with no params2 data, kept at their historical
+// values so a stale material degrades to the old look instead of breaking.
+// The old values were tuned for a 4x terrain vertical exaggeration deleted
+// in v0.883.2, which left every cloud family 10-50x above its real band.
 const CLOUD_SHELL_SCALE: f32 = 1.008;
 const CLOUD_BASE_SCALE: f32 = 1.004;
 const CLOUD_TOP_SCALE: f32 = 1.012;
@@ -132,17 +134,20 @@ const CLOUD_TOP_SCALE: f32 = 1.012;
 // gate and the saturation early-out keep the worst case cheap, and the
 // ~90 FPS orbit baseline holds with the march on.
 const CLOUD_MARCH_SAMPLES: i32 = 10;
-// Extinction per drawn-shell unit at density 1. Calibrated so a full-density
-// radial pass through the slab (envelope integral ~0.6 * thickness) reaches
-// ~93% opacity -- matching increment 1's thick-core look after the
-// CLOUD_MAX_ALPHA cap: 1 - exp(-560 * 0.6 * 0.00794) ~ 0.93.
-const CLOUD_SIGMA_T: f32 = 560.0;
-// Self-shadow tap for the march: a 3D offset TOWARD the sun (drawn-shell
-// units, ~half the slab thickness) replaces increment 1's great-circle step;
+// Extinction per KILOMETRE at density 1 for the Medium march (clouds depth
+// increment: metric, like the rest of the ladder - the old 560 per
+// drawn-shell unit was calibrated against the deleted 51 km slab, and on
+// the physical 0.4-12 km slab it left every deck a see-through gauze;
+// the orbital marble lost its clouds entirely). 0.44/km restores the old
+// per-cloud optical depth at the real band thicknesses.
+const CLOUD_SIGMA_KM: f32 = 0.44;
+// Self-shadow tap for the Medium march: a 3D offset TOWARD the sun of HALF
+// THE SLAB THICKNESS (computed from g_cloud_rb/rt at the tap site since the
+// clouds depth increment - the old fixed 0.004 drawn units was ~half of the
+// legacy 51 km slab, which overshoots the physical 12 km slab entirely);
 // density rising toward the sun = this sample sits in a cloud mass's shadow.
 // SHARP converts the (envelope-scaled, so smaller) density difference into a
 // usable shading range.
-const CLOUD_MARCH_SHADOW_STEP: f32 = 0.004;
 const CLOUD_MARCH_SHADOW_SHARP: f32 = 4.0;
 // Height gradient: cloud BASES receive less sky/sun light than tops. The
 // classic volumetric cue -- flat bottoms read dark, sunlit tops read bright.
@@ -198,14 +203,63 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 // low-flight view did not.
 var<private> g_cloud_rb: f32 = CLOUD_RB;
 var<private> g_cloud_rt: f32 = CLOUD_RT;
-// Per-invocation slab bounds from the material's drawn-radius ratio. MUST
-// be called before ANY g_cloud_rb / g_cloud_rt read.
+// Drawn-shell units per kilometre (clouds depth increment): converts the
+// metre-expressed noise ladder + fade constants below into the march's
+// coordinate space, so feature sizes are anchored to physical lengths
+// instead of a drawn radius that flips with camera altitude. Default is
+// the legacy Earth value (1 / (6371 km * 1.008)).
+var<private> g_cloud_upkm: f32 = 0.00015572;
+// Derived per-invocation ladder (set in cloud_set_slab_bounds; all in
+// drawn-shell units): texture tile frequencies + fade distances + the
+// light-march first step.
+var<private> g_shape_freq: f32 = 24.0;
+var<private> g_detail_freq: f32 = 60.0;
+var<private> g_puff_freq: f32 = 140.0;
+var<private> g_fray_freq: f32 = 9.0;
+var<private> g_detail_fade_near: f32 = 0.03;
+var<private> g_detail_fade_far: f32 = 0.70;
+var<private> g_puff_fade_near: f32 = 0.008;
+var<private> g_puff_fade_far: f32 = 0.045;
+var<private> g_light_near: f32 = 0.00014;
+// Extinction per drawn-shell unit (the km sigmas converted; defaults are
+// the legacy Earth values so a caller that never sets bounds keeps the old
+// look on the fallback slab).
+var<private> g_sigma_hi: f32 = 850.0;
+var<private> g_sigma_med: f32 = 560.0;
+// Per-invocation slab bounds + metric ladder from the material. MUST be
+// called before ANY g_cloud_* read. The physical slab (params2.x/y as
+// planet-radius multiples, params2.z = planet radius km) comes from the
+// planet def's cloud_base_km/cloud_top_km; a zero params2 (stale or
+// non-planet material) falls back to the legacy constants.
 fn cloud_set_slab_bounds() {
     let inv_drawn = material.params.w;
     if (inv_drawn > 0.001) {
-        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
-        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
+        var rb_p = CLOUD_BASE_SCALE;
+        var rt_p = CLOUD_TOP_SCALE;
+        if (material.params2.y > 0.5) {
+            rb_p = material.params2.x;
+            rt_p = material.params2.y;
+        }
+        g_cloud_rb = rb_p * inv_drawn;
+        g_cloud_rt = rt_p * inv_drawn;
+        if (material.params2.z > 0.5) {
+            // drawn_r_km = planet_r_km / inv_drawn, so units-per-km is
+            // inv_drawn / planet_r_km.
+            g_cloud_upkm = inv_drawn / material.params2.z;
+        }
     }
+    g_shape_freq = 1.0 / (CLOUD_SHAPE_TILE_KM * g_cloud_upkm);
+    g_detail_freq = 1.0 / (CLOUD_DETAIL_TILE_KM * g_cloud_upkm);
+    g_puff_freq = 1.0 / (CLOUD_PUFF_TILE_KM * g_cloud_upkm);
+    g_fray_freq = 1.0 / (CLOUD_FRAY_TILE_KM * g_cloud_upkm);
+    g_detail_fade_near = CLOUD_DETAIL_FADE_NEAR_KM * g_cloud_upkm;
+    g_detail_fade_far = CLOUD_DETAIL_FADE_FAR_KM * g_cloud_upkm;
+    g_puff_fade_near = CLOUD_PUFF_FADE_NEAR_KM * g_cloud_upkm;
+    g_puff_fade_far = CLOUD_PUFF_FADE_FAR_KM * g_cloud_upkm;
+    g_light_near = CLOUD_LIGHT_NEAR_KM * g_cloud_upkm;
+    // Extinction: per-km sigma over drawn-units-per-km = per drawn unit.
+    g_sigma_hi = CLOUD_HI_SIGMA_KM / g_cloud_upkm;
+    g_sigma_med = CLOUD_SIGMA_KM / g_cloud_upkm;
 }
 // View-march samples through the slab. Exponentially spaced (dense near
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
@@ -225,10 +279,13 @@ const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 // spacing starts at ~0.9 km (dome-scale self-shadow) and multiplies by
 // RATIO each tap, reaching ~125 km by tap 8 (big-mass shadows keep their
 // range). Same 8-tap cost. NEAR is the first step, shell units.
-const CLOUD_LIGHT_NEAR: f32 = 0.00014;
+// First light-march step in KILOMETRES (clouds depth increment: the ladder
+// is metric now - see g_light_near). ~0.9 km keeps dome-crown relief
+// self-shadowing on any planet.
+const CLOUD_LIGHT_NEAR_KM: f32 = 0.9;
 const CLOUD_LIGHT_RATIO: f32 = 1.8;
 // Light-march extinction multiplier over the view sigma (2026-07-27, the
-// flat-lighting root cause): CLOUD_HI_SIGMA_T is calibrated for VIEW
+// flat-lighting root cause): the view sigma is calibrated for VIEW
 // opacity (kept low so deck edges feather instead of reading as carved
 // stencils), but reusing it for the SUN path made every shadow shallower
 // than e^-0.5 -- the tau heat-map probe showed tau ~0.1 across a solid
@@ -238,33 +295,37 @@ const CLOUD_LIGHT_RATIO: f32 = 1.8;
 // for alpha, boosted sigma for the light march), with the multi-scatter
 // octaves in cloud_scatter_energy keeping deep shadows luminous, not black.
 const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
-// Extinction per drawn-shell unit at density 1 for the High path. Tuned so
-// dense cores saturate but thin edges stay translucent -- too high (the
-// first 1400 value) turned every density onset into a hard opaque cliff, so
-// clouds read as carved stencils from orbit; this softer value feathers the
-// edges while the CLOUD_HI_MAX_ALPHA cap still lets cores block the ground.
-const CLOUD_HI_SIGMA_T: f32 = 850.0;
+// Extinction per KILOMETRE at density 1 for the High path (metric since
+// the clouds depth increment - see CLOUD_SIGMA_KM). Tuned so dense cores
+// saturate but thin edges stay translucent: the balance the old 850 per
+// drawn unit struck on the 51 km slab, re-expressed for real band
+// thicknesses (0.65/km ~ the old per-cloud tau at a 5x thinner deck).
+const CLOUD_HI_SIGMA_KM: f32 = 0.65;
 // Peak alpha of the High deck. Above Medium's 0.72: photoreal cumulus
 // cores genuinely block the ground; thin skirts stay translucent anyway.
 const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
-// SHAPE texture tiles per drawn-shell unit. Earth: one tile = 6422/24 =
-// ~268 km, so the base Worley cells (6 per tile) are ~45 km features and
-// the finest shape octave (24 per tile) ~11 km -- the 30..80 km "cloud
-// mass" band the design calls for.
-const CLOUD_SHAPE_FREQ: f32 = 24.0;
-// DETAIL texture tiles per drawn-shell unit. Lowered 90 -> 60 so the erosion
-// features are ~3..13 km (larger, less prone to sub-pixel aliasing) -- the
-// distance fade below removes what remains from orbit.
-const CLOUD_DETAIL_FREQ: f32 = 60.0;
+// ── The noise ladder, in KILOMETRES (clouds depth increment) ──
+// Every tile size and fade distance below is a physical length, converted
+// to drawn-shell units per invocation (cloud_set_slab_bounds). The values
+// are the exact km equivalents of the old per-drawn-unit constants on
+// Earth's legacy 1.008 R shell, so the horizontal look is unchanged - what
+// changed is that they no longer drift when the drawn radius flips with
+// camera altitude, and they stay physical on any planet.
+//
+// SHAPE tile: ~268 km per tile -> base Worley cells (6/tile) ~45 km, the
+// finest shape octave (24/tile) ~11 km - the "cloud mass" band.
+const CLOUD_SHAPE_TILE_KM: f32 = 267.6;
+// DETAIL tile: erosion features ~3..13 km (the distance fade removes them
+// from orbit).
+const CLOUD_DETAIL_TILE_KM: f32 = 107.0;
 // How deeply the detail octaves erode the shape's edges (0 = off).
 const CLOUD_DETAIL_ERODE: f32 = 0.38;
-// Detail erosion distance fade (drawn-shell units of camera-to-sample
-// distance): full cauliflower within NEAR, gone by FAR. Keeps the orbital
-// marble smooth (the ~km detail is sub-pixel there and would alias into
-// salt-and-pepper stipple) while the low fly-by keeps its billowy edges.
-// NEAR ~0.03 R = ~190 km; FAR ~0.35 R = ~2200 km.
-const CLOUD_DETAIL_FADE_NEAR: f32 = 0.03;
-const CLOUD_DETAIL_FADE_FAR: f32 = 0.70;
+// Detail erosion distance fade (km of camera-to-sample distance): full
+// cauliflower within NEAR, gone by FAR. Keeps the orbital marble smooth
+// (the ~km detail is sub-pixel there and would alias into salt-and-pepper
+// stipple) while the low fly-by keeps its billowy edges.
+const CLOUD_DETAIL_FADE_NEAR_KM: f32 = 192.7;
+const CLOUD_DETAIL_FADE_FAR_KM: f32 = 4495.0;
 // ── PUFF band (v0.1011, clouds STRUCTURE arc: "real clouds are pillowy /
 // cauliflower-like") ── a THIRD erosion band at ~4x the fine-detail
 // frequency. The existing ladder bottomed out at ~2.2 km features, so
@@ -274,10 +335,10 @@ const CLOUD_DETAIL_FADE_FAR: f32 = 0.70;
 // (the deck overhead when standing on the surface), gone by ~290 km, so
 // the orbital marble and the horizon-distance deck pay nothing.
 // Shader-only tuning (texture-sampling path; not mirrorable).
-const CLOUD_PUFF_FREQ: f32 = 140.0;
+const CLOUD_PUFF_TILE_KM: f32 = 45.9;
 const CLOUD_PUFF_ERODE: f32 = 0.38;
-const CLOUD_PUFF_FADE_NEAR: f32 = 0.008;
-const CLOUD_PUFF_FADE_FAR: f32 = 0.045;
+const CLOUD_PUFF_FADE_NEAR_KM: f32 = 51.4;
+const CLOUD_PUFF_FADE_FAR_KM: f32 = 289.0;
 // Crevice occlusion from the SAME puff noise (already sampled for the
 // erosion, so this shading is free): surviving density next to a carved
 // cavity darkens, which is what makes individual lobes read as 3D bumps
@@ -306,6 +367,15 @@ const CLOUD_COV_HI: f32 = 0.52;
 // light march shares cloud_carve, so inter-dome valleys catch real shadow
 // from above. Shader-only tuning (texture-sampling path; not mirrorable).
 const CLOUD_TOP_RISE: f32 = 0.45;
+// Base-height field (clouds depth increment): the symmetric partner of
+// CLOUD_TOP_RISE that was always missing. Without it every column's BASE
+// sat on one shared iso-surface - a dead-level plane the light march could
+// not shade, which is most of why the from-below deck read flat. The carve
+// threshold now also rises toward the band BOTTOM, weighted by the shape
+// volume's low-frequency support, so weakly supported columns get lifted,
+// undulating bases while solid cores keep their low flat condensation
+// deck. The light march shares cloud_carve, so base relief self-shadows.
+const CLOUD_BASE_DROP: f32 = 0.35;
 // Width of the soft density onset above the coverage threshold (in shape-noise
 // units). Wider = more feathered mass edges; too wide washes coverage out.
 // Widened 0.20 -> 0.28 (v0.1014): the narrow onset ended low skirts in
@@ -335,16 +405,20 @@ const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 // range that makes puffs look 3D) instead of a flat bright white sheet.
 const CLOUD_AMB_BASE: f32 = 0.03;
 const CLOUD_AMB_TOP: f32 = 0.14;
+// Ground-bounce ambient at the slab base (clouds depth increment):
+// surface-reflected sunlight lighting cloud undersides from below.
+// Fraction of sun energy, faded to zero at the slab top.
+const CLOUD_AMB_BOUNCE: f32 = 0.05;
 // ── Wispiness + cloud-type regime constants (v0.828, Rust mirror: clouds) ──
 // The "giant blotches" of the first volumetric pass came from the detail
 // erosion FADING OUT with distance (CLOUD_DETAIL_FADE_*): from orbit only the
 // smooth round Perlin-Worley body survived, so masses read as blobs. The fix
 // is a SECOND, COARSER erosion band that never fades -- big enough (tens of
 // km) to stay well above a pixel from orbit, so the marble keeps frayed,
-// wispy edges. CLOUD_FRAY_FREQ tiles per drawn-shell unit: Earth ~708 km per
+// wispy edges. CLOUD_FRAY_TILE_KM sets the tile size: ~714 km per
 // tile -> the detail volume's 8-cell Worley reads as ~88 km fray features
 // (supra-pixel from 12,000 km, so no salt-and-pepper stipple).
-const CLOUD_FRAY_FREQ: f32 = 9.0;
+const CLOUD_FRAY_TILE_KM: f32 = 713.6;
 // Global strength of the coarse fray (the per-regime FRAY weight scales it).
 const CLOUD_FRAY_ERODE: f32 = 0.5;
 // Density-response shaping exponent applied to the carved cloud body before
@@ -474,9 +548,10 @@ fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
 // fragment altitude evaluates at envelope 1), fade to zero at the top.
 // Pure in r; mirrored + unit-tested in renderer::clouds.
 fn cloud_altitude_envelope(r: f32) -> f32 {
-    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
-    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
-    let u = clamp((r - base) / (top - base), 0.0, 1.0);
+    // g_cloud_rb/rt (clouds depth increment): the Medium march sets them
+    // from the material's physical slab, same as High; the defaults equal
+    // the old static ratios for any caller that never sets them.
+    let u = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
     return smoothstep(0.0, 0.4, u) * (1.0 - smoothstep(0.6, 1.0, u));
 }
 
@@ -506,9 +581,7 @@ fn cloud_density(p: vec3<f32>, t: f32, seed: f32, coverage: f32) -> f32 {
     // thin skirts are LOW and cores tower - edges slope down into wisps
     // instead of ending as full-height walls, and the deck's roof gains
     // real height variation. Mirrored in renderer::clouds.
-    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
-    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
-    let u = clamp((r - base) / (top - base), 0.0, 1.0);
+    let u = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
     let squash = 0.30 + 0.70 * a_h;
     let uq = u / squash;
     if (uq > 1.0) {
@@ -701,6 +774,12 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     if (front_facing == cam_inside) {
         discard;
     }
+    // Physical slab bounds (clouds depth increment): Medium now marches
+    // the SAME per-planet slab as High. It deliberately did not for a
+    // long time (BUG-049 was Medium consuming params.w for the first
+    // time), which the design doc allowed only until Medium had its own
+    // probe-rig vantage - it has one now (silverdale-2km-medium).
+    cloud_set_slab_bounds();
 
     // transpose(normal_matrix) IS model.inverse() exactly (see the flat
     // path); it maps world points into the unit-icosphere local frame.
@@ -719,8 +798,8 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     // marched: a ray that dives below the base either hits the planet (the
     // far-side re-entry is depth-occluded) or grazes the limb where the near
     // interval alone already saturates opacity.
-    let rb = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
-    let rt = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let rb = g_cloud_rb;
+    let rt = g_cloud_rt;
     let tca = -dot(ro, rd);
     let perp = ro + rd * tca;
     let d2 = dot(perp, perp);
@@ -788,16 +867,17 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
         if (dens <= 0.0005) {
             continue; // empty sample: skip the lighting taps
         }
-        let a_i = 1.0 - exp(-CLOUD_SIGMA_T * dens * dtm);
+        let a_i = 1.0 - exp(-g_sigma_med * dens * dtm);
         // Macro lighting from the sample's own sphere normal (local frame
         // preserves dots), soft terminator as in increment 1.
         let n_i = normalize(p);
         let ndl = dot(n_i, sun_local);
         let day = smoothstep(-0.05, 0.3, ndl);
         let lit = clamp(ndl, 0.0, 1.0);
-        // One-tap self-shadow: density gradient toward the sun in 3D.
+        // One-tap self-shadow: density gradient toward the sun in 3D, half
+        // the slab thickness up-sun (see CLOUD_MARCH_SHADOW_SHARP note).
         let d_sun = cloud_density(
-            p + sun_local * CLOUD_MARCH_SHADOW_STEP, t, seed, coverage);
+            p + sun_local * ((rt - rb) * 0.5), t, seed, coverage);
         let shade = 1.0
             - CLOUD_SHADOW_STRENGTH
                 * clamp((d_sun - dens) * CLOUD_MARCH_SHADOW_SHARP, 0.0, 1.0);
@@ -922,7 +1002,13 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // broken deck (~instantaneous look); real clear zones (deserts) go clear.
     let envelope = smoothstep(0.35, 0.9, w.r);
     let live = envelope * smoothstep(0.15, 0.7, meso_f * 2.5);
-    return mix(proc, live, w.g);
+    // Dev coverage pin (params2.w = 1, set with the showcase cloud_cover
+    // override): ignore the live MODIS placement and let the procedural
+    // field own the sky - a cloud-verification vantage cannot depend on
+    // the real sky being cloudy over the capture site today, and below
+    // coverage ~1 no coverage value can resurrect a live-zeroed field.
+    let live_w = w.g * (1.0 - clamp(material.params2.w, 0.0, 1.0));
+    return mix(proc, live, live_w);
 }
 
 // ── Cloud-TYPE regimes (v0.828: the four real-Earth cloud families) ──
@@ -985,9 +1071,15 @@ fn cloud_type_coord(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
 // pipeline creation). Local arrays indexed in-function are fine.
 fn cloud_regime(tc: f32) -> CloudRegime {
     var centers = array<f32, 7>(0.0, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0);
+    // Height bands re-authored for the PHYSICAL slab (clouds depth
+    // increment; Earth 0.4-12 km, fraction = (alt_km - 0.4) / 11.6):
+    // cirrus 6-12 km, altocumulus 2-7, cumulus 0.5-6 (towering extends),
+    // cumulonimbus 0.5-12, stratus 0.4-2, nimbostratus 0.4-5,
+    // stratocumulus 0.5-2.5. The old fractions were tuned for the deleted
+    // 25.5-76.5 km slab, where "stratus" floated at 10 km.
     //                 cirrus altocu cumulus cumulonimb stratus nimbostr stratocu
-    var t_h_lo    = array<f32, 7>(0.68, 0.42, 0.05, 0.02, 0.00, 0.00, 0.05);
-    var t_h_hi    = array<f32, 7>(1.00, 0.62, 0.72, 1.00, 0.20, 0.45, 0.40);
+    var t_h_lo    = array<f32, 7>(0.48, 0.14, 0.01, 0.01, 0.00, 0.00, 0.01);
+    var t_h_hi    = array<f32, 7>(1.00, 0.57, 0.48, 1.00, 0.14, 0.40, 0.18);
     var t_opacity = array<f32, 7>(0.34, 0.55, 1.00, 1.00, 0.80, 0.95, 0.62);
     var t_cover   = array<f32, 7>(0.06, 0.02, -0.03, 0.00, 0.34, 0.42, 0.03);
     var t_fray    = array<f32, 7>(1.00, 0.85, 0.55, 0.35, 0.18, 0.10, 0.80);
@@ -1084,7 +1176,7 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
     let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
     let s = textureSampleLevel(
-        cloud_shape_tex, cloud_tile_sampler, ps * CLOUD_SHAPE_FREQ, 0.0);
+        cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq, 0.0);
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     let body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
     // Domed tops (see CLOUD_TOP_RISE): the threshold climbs quadratically
@@ -1094,7 +1186,13 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
     let u_band = clamp(
         (h - reg.h_lo) / max(h_hi_eff - reg.h_lo, 1.0e-4), 0.0, 1.0);
     let thr_base = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
-    let thr = thr_base + CLOUD_TOP_RISE * u_band * u_band;
+    // Base-height field (see CLOUD_BASE_DROP): the threshold rises toward
+    // the band bottom too, weighted by how weak this column's low-frequency
+    // support is - undulating bases instead of one shared level plane.
+    let v_band = 1.0 - u_band;
+    let thr = thr_base
+        + CLOUD_TOP_RISE * u_band * u_band
+        + CLOUD_BASE_DROP * v_band * v_band * (1.0 - lofi);
     let carve = clamp((body - thr) / CLOUD_COV_SOFT, 0.0, 1.0) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
@@ -1139,7 +1237,7 @@ fn cloud_density_hi(
     // it streaks. Erode HARDER where the body is thin (the 1-base weight):
     // frayed filaments at the edges, solid cores -- erode-edges-keep-cores.
     let fr = textureSampleLevel(
-        cloud_detail_tex, cloud_tile_sampler, cs.ps * CLOUD_FRAY_FREQ, 0.0);
+        cloud_detail_tex, cloud_tile_sampler, cs.ps * g_fray_freq, 0.0);
     let frfbm = fr.r * 0.625 + fr.g * 0.25 + fr.b * 0.125;
     let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base));
     base = clamp(cloud_remap(base, erode_c, 1.0, 0.0, 1.0), 0.0, 1.0);
@@ -1166,15 +1264,22 @@ fn cloud_density_hi(
     // distance so orbit stays smooth -- the standard Nubis distance trick.
     if (detail_amt > 0.01) {
         let d = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * CLOUD_DETAIL_FREQ, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * g_detail_freq, 0.0);
         let dfbm = d.r * 0.625 + d.g * 0.25 + d.b * 0.125;
         // Crown-weighted (v0.1014): erosion bites up to ~1.5x deeper near
         // the column's own domed top, so crowns break into individual
         // 3-13 km turrets (real cumulus castellation) instead of staying
         // one smooth slab surface; bases keep the calmer carve.
+        // EDGE-weighted since the clouds depth increment: the fine band
+        // was the ONLY erosion pass with no core protection - it removed
+        // up to 0.54 of density FLAT, which on the physical thin slab
+        // annihilated the entire from-below deck (the fray and puff bands
+        // both carry a (1-base) edge weight for exactly this reason).
+        // Cores now keep most of their mass; edges still shred.
         let dmod = mix(dfbm, 1.0 - dfbm, clamp(cs.h * 3.0, 0.0, 1.0))
             * CLOUD_DETAIL_ERODE * reg.fine * detail_amt
-            * (0.60 + 0.90 * cs.crown);
+            * (0.60 + 0.90 * cs.crown)
+            * (0.35 + 0.65 * (1.0 - base));
         base = clamp(cloud_remap(base, dmod, 1.0, 0.0, 1.0), 0.0, 1.0);
     }
     // PUFF band (v0.1011): the cauliflower-lobe scale the ladder was
@@ -1187,7 +1292,7 @@ fn cloud_density_hi(
         // Unstretched domain (v0.1012.x fix; pu0 hoisted above since the
         // fine band now shares it).
         let pu = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * CLOUD_PUFF_FREQ, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * g_puff_freq, 0.0);
         let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
         let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));
         let pmod = phased
@@ -1223,8 +1328,18 @@ fn cloud_density_light(
 }
 
 // Optical depth toward the sun from a sample point: CLOUD_HI_LIGHT_SAMPLES
-// taps with quadratically widening spacing (dense near the point for
+// taps with geometrically widening spacing (dense near the point for
 // self-shadow detail, sparse toward the slab exit for the big-mass shadow).
+//
+// Clouds depth increment: the FIRST TWO taps sample the fully eroded
+// density (fine + puff bands, same fade amounts as the view sample)
+// instead of the smooth carved body. This is the change that makes lobes
+// read as lobes: before it, fray/detail/puff carved the silhouette but
+// cast ZERO self-shadow (from-above captures had 6-15x the structural
+// detail energy of from-below on the same build - all shipped structure
+// was top-surface). Two taps cover ~0.9-2.5 km, exactly the lobe scale;
+// the remaining taps keep the cheap body-only density for the big-mass
+// shadow, where erosion detail is sub-shadow anyway.
 fn cloud_sun_tau(
     p: vec3<f32>,
     sun_local: vec3<f32>,
@@ -1232,25 +1347,34 @@ fn cloud_sun_tau(
     seed: f32,
     weather_a: f32,
     reg: CloudRegime,
+    detail_amt: f32,
+    puff_amt: f32,
 ) -> f32 {
     var tau = 0.0;
     var dist = 0.0;
-    var step_d = CLOUD_LIGHT_NEAR;
+    var step_d = g_light_near;
     for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
         // Geometric ladder: the segment IS the step, positions run
         // ~0.9 / 2.5 / 5.5 / 11 / 21 / 38 / 69 / 125 km (see
-        // CLOUD_LIGHT_NEAR / RATIO above).
+        // CLOUD_LIGHT_NEAR_KM / RATIO above).
         dist = dist + step_d;
         let seg = step_d;
         step_d = step_d * CLOUD_LIGHT_RATIO;
         let lp = p + sun_local * dist;
-        let dens = cloud_density_light(lp, t, seed, weather_a, reg);
-        tau = tau + CLOUD_HI_SIGMA_T * CLOUD_LIGHT_SIGMA_MULT * dens * seg;
+        var dens = 0.0;
+        if (i < 2 && (detail_amt > 0.01 || puff_amt > 0.01)) {
+            dens = cloud_density_hi(
+                lp, t, seed, weather_a, reg, detail_amt, puff_amt).x;
+        } else {
+            dens = cloud_density_light(lp, t, seed, weather_a, reg);
+        }
+        tau = tau + g_sigma_hi * CLOUD_LIGHT_SIGMA_MULT * dens * seg;
         // v0.911 (perf audit #3): once the sun path is this optically deep
         // every scatter octave is effectively zero - later taps cannot
-        // change the pixel. Saves up to half the light taps inside dense
-        // decks (the 10-16 FPS worst case), bit-identical output.
-        if (tau > 10.0) {
+        // change the pixel. Cap raised 10 -> 16 with the depth increment:
+        // at 10, the third scatter octave still held 55% of its energy, so
+        // the cap itself was the luminous floor flattening the underside.
+        if (tau > 16.0) {
             break;
         }
     }
@@ -1264,7 +1388,13 @@ fn cloud_sun_tau(
 fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
     var e = phase * exp(-tau);
     e = e + 0.45 * mix(1.0, phase, 0.5) * exp(-tau * 0.25);
-    e = e + 0.18 * exp(-tau * 0.06);
+    // Third octave sigma 0.06 -> 0.20 (clouds depth increment): with the
+    // old tau cap of 10, exp(-tau*0.06) never fell below 0.55 - a constant
+    // 0.10 luminous floor that compressed the whole from-below deck into a
+    // 2-3x radiance range (two-stream physics gives ~7.6x from thickness
+    // alone). At 0.20 the deep-shadow octave actually decays while thin
+    // veils keep their glow.
+    e = e + 0.18 * exp(-tau * 0.20);
     return e;
 }
 
@@ -1385,7 +1515,13 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // limb path does. Same step distribution, fewer steps on short rays;
     // the under-deck flight worst case gets its samples back.
     let slab_h = g_cloud_rt - g_cloud_rb;
-    let n_samp_f = clamp(seg / (slab_h * 6.0), 0.34, 1.0) * f32(CLOUD_HI_SAMPLES);
+    // Divisor 6 -> 3 (clouds depth increment): the heuristic was tuned on
+    // the 51 km slab, where even a slant ray's band-relative sample
+    // spacing was fine. The physical slab is ~4.4x thinner, so its
+    // 1-2 km family bands need the budget back on slanted under-deck
+    // rays (a 25-degree ray crosses ~27 km of slab and was getting 18
+    // samples - band-sized gaps between them). Verticals keep the floor.
+    let n_samp_f = clamp(seg / (slab_h * 3.0), 0.34, 1.0) * f32(CLOUD_HI_SAMPLES);
     let n_samp = max(i32(n_samp_f), 8);
     var s_prev = 0.0;
     var trans = 1.0;
@@ -1409,32 +1545,44 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         // detail_amt ~0 (no sub-pixel stipple); close fly-by samples get full
         // cauliflower. The COARSE fray band inside cloud_density_hi is always
         // on, so orbit keeps its wispy frayed edges.
-        let detail_amt = 1.0 - smoothstep(CLOUD_DETAIL_FADE_NEAR, CLOUD_DETAIL_FADE_FAR, tm);
+        let detail_amt = 1.0 - smoothstep(g_detail_fade_near, g_detail_fade_far, tm);
         // Puff-band fade (v0.1011): full cauliflower within ~50 km of the
         // camera, gone by ~290 km - surface and fly-through views get the
         // lobes, the orbital marble never pays for them.
-        let puff_amt = 1.0 - smoothstep(CLOUD_PUFF_FADE_NEAR, CLOUD_PUFF_FADE_FAR, tm);
+        let puff_amt = 1.0 - smoothstep(g_puff_fade_near, g_puff_fade_far, tm);
         let dc = cloud_density_hi(p, t, seed, weather_a, reg, detail_amt, puff_amt);
         let dens = dc.x;
         if (dens <= 0.001) {
             continue;
         }
-        let a_i = 1.0 - exp(-CLOUD_HI_SIGMA_T * dens * dt);
+        let a_i = 1.0 - exp(-g_sigma_hi * dens * dt);
 
         // Day/night from the sample's own sphere normal (soft terminator).
         let ndl = dot(dirp, sun_local);
         let day = smoothstep(-0.05, 0.3, ndl);
 
-        // Light march toward the sun + Beer-powder edge darkening.
-        let tau = cloud_sun_tau(p, sun_local, t, seed, weather_a, reg);
+        // Light march toward the sun + Beer-powder edge darkening. The
+        // first two taps see the same eroded density this view sample does
+        // (clouds depth increment), so lobes self-shadow.
+        let tau = cloud_sun_tau(
+            p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt);
         let powder = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
         let pw = mix(powder, 1.0, powder_gate);
         let direct = cloud_scatter_energy(tau, phase) * pw;
 
-        // Ambient skylight proportional to height in the slab: tops see the
-        // sky dome, bases see mostly their own shadow.
+        // Ambient skylight (clouds depth increment): height across the slab
+        // picks the base value (tops see the sky dome), then the sun-path
+        // optical depth attenuates it - a sample buried under real cloud
+        // sees less sky than one at the same altitude in a thin veil. tau
+        // is the sun path, not the zenith path, but they coincide at high
+        // sun and the error at low sun only deepens dusk shading. Plus a
+        // GROUND BOUNCE term: real cloud bases over land/ocean are lit
+        // from below by surface-reflected sunlight - the cue that keeps
+        // undersides readable instead of uniformly mud-grey.
         let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
-        let amb = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h);
+        let amb = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h)
+            * (0.35 + 0.65 * exp(-tau * 0.12))
+            + CLOUD_AMB_BOUNCE * (1.0 - h);
 
         // Crevice occlusion (v0.1011): the puff cavity field darkens the
         // sample - lobes shade individually even though the light march
