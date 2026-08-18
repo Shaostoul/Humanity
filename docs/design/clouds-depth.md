@@ -19,6 +19,18 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 7 stage 1 SHIPPED (v0.1163): per-family winds.** CloudRegime
+> wind_lo/wind_hi columns (cirrus 28/60 m/s down to stratus 3/7); carve
+> + erosion domains drift at mix(lo,hi,band_height) via cloud_wind_omega
+> (real planet radius from params2.z); placement follows the family BASE
+> wind through cloud_weather_adv on the High path (v0.1021 coherence
+> rule); Medium/Low keep the legacy constant. Replaces the single
+> 127 m/s solid-body drift - and per the motion-agent math it drops the
+> temporal-map smear to sub-texel for standing viewers. REMAINING motion
+> stages: differential detail/cell evolution + updraft scroll, history
+> reprojection through a mid-band shell anchor for in-slab flight,
+> velocity-aware EMA alpha, curl churn.**
+>
 > **PHASE 6 SHIPPED (v0.1162): the lighting energy rework** (fidelity
 > findings 3/4/5/11): cloud_scatter_energy is the true
 > Wrenninge/Schneider octave ladder (per-octave HG with g halving) plus

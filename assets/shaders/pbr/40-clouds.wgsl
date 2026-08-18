@@ -1018,8 +1018,25 @@ fn cloud_phase(cos_t: f32) -> f32 {
 // band-stretch posture so coverage semantics and motion carry over).
 // Amplitude renormalized (0.5 + 0.25 + 0.35 = 1.10) through the same
 // empirical contrast window.
+// Wind angular rate, rad/s, for a wind speed in m/s at this planet's
+// radius (params2.z, km). Falls back to the legacy solid-body rate on a
+// material with no planet radius (params2 zeroed).
+fn cloud_wind_omega(mps: f32) -> f32 {
+    if (material.params2.z > 0.5) {
+        return mps / (material.params2.z * 1000.0);
+    }
+    return CLOUD_DRIFT_ZONAL;
+}
+
 fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
-    let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    // Legacy drift for the Medium/Low paths, which have no regime in
+    // scope; the High path passes the family's own base wind through
+    // cloud_weather_adv (phase 7 motion).
+    return cloud_weather_adv(dir, t, seed, t * CLOUD_DRIFT_ZONAL);
+}
+
+fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32) -> f32 {
+    let da0 = cloud_rot_y(dir, drift_ang);
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
     // Five octaves from synoptic (~2500 km systems) down to broken fields
@@ -1108,6 +1125,15 @@ struct CloudRegime {
     // cumulus base is the flat lifting-condensation level and must NOT
     // be lifted per column.
     base_drop: f32,
+    // Per-family wind, m/s, at the band bottom (wind_lo) and top
+    // (wind_hi) - phase 7 motion. The single CLOUD_DRIFT_ZONAL rotation
+    // was 127 m/s at the equator for EVERY family at EVERY altitude,
+    // 10-40x too fast for a low deck; real winds run stratus 3-7 m/s up
+    // to cirrus 28-70, with shear between the band bottom and top. The
+    // carve mixes these by the sample's own band height, so a towering
+    // cloud's top genuinely outruns its base.
+    wind_lo: f32,
+    wind_hi: f32,
 };
 
 // The carved cloud body plus the values the fray/detail passes reuse.
@@ -1194,6 +1220,10 @@ fn cloud_regime(tc: f32) -> CloudRegime {
     // Base-undulation weight (see CloudRegime.base_drop): full for the
     // broken low decks, near zero for flat-based convective families.
     var t_bdrop   = array<f32, 7>(0.0, 0.50, 0.10, 0.20, 0.30, 0.80, 1.00);
+    // Per-family band-bottom / band-top winds, m/s (see CloudRegime
+    // wind_lo/wind_hi): cirrus rides the jet, low decks amble.
+    var t_wlo     = array<f32, 7>(28.0, 11.0, 5.0, 8.0, 3.0, 8.0, 6.0);
+    var t_whi     = array<f32, 7>(60.0, 22.0, 10.0, 20.0, 7.0, 16.0, 11.0);
     let hw = 0.22;
     var s = 0.0;
     var h_lo = 0.0;
@@ -1207,6 +1237,8 @@ fn cloud_regime(tc: f32) -> CloudRegime {
     var tint = 0.0;
     var ext = 0.0;
     var bdrop = 0.0;
+    var wlo = 0.0;
+    var whi = 0.0;
     for (var i = 0u; i < 7u; i = i + 1u) {
         var wi = clamp(1.0 - abs(tc - centers[i]) / hw, 0.0, 1.0);
         wi = wi * wi * (3.0 - 2.0 * wi); // smoothstep each tent
@@ -1222,6 +1254,8 @@ fn cloud_regime(tc: f32) -> CloudRegime {
         tint = tint + wi * t_tint[i];
         ext = ext + wi * t_ext[i];
         bdrop = bdrop + wi * t_bdrop[i];
+        wlo = wlo + wi * t_wlo[i];
+        whi = whi + wi * t_whi[i];
     }
     let inv = 1.0 / max(s, 1.0e-4);
     return CloudRegime(
@@ -1236,6 +1270,8 @@ fn cloud_regime(tc: f32) -> CloudRegime {
         tint * inv,
         ext * inv,
         bdrop * inv,
+        wlo * inv,
+        whi * inv,
     );
 }
 
@@ -1289,8 +1325,14 @@ fn cloud_carve(
     if (cloud_height_band(h, reg.h_lo, h_hi_max) <= 0.002 || wa <= 0.003) {
         return CloudSample(0.0, p, h, 0.0);
     }
-    // Drift the sample like weather set A, then stretch for streaks.
-    let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
+    // Drift at the sample's own family wind for its band height (phase 7
+    // motion): a stratus deck ambles at 3-7 m/s while cirrus rides the
+    // jet at 28-60 - and because the rate mixes across the band, a
+    // tower's top genuinely outruns its base (wind-shear skew). Replaces
+    // the single solid-body CLOUD_DRIFT_ZONAL, which was 127 m/s at the
+    // equator for every family at every altitude.
+    let omega_c = cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, h));
+    let ps0 = cloud_rot_y(p, t * omega_c);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
     let s = textureSampleLevel(
         cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
@@ -1412,7 +1454,8 @@ fn cloud_density_hi(
     // reported onset). Cauliflower turbulence is isotropic; only the coarse
     // FRAY band and the filament mask keep the stretch (mares'-tail streaks
     // at 88 km scale are the intended look).
-    let pu0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
+    let pu0 = cloud_rot_y(
+        p, t * cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, cs.h)));
     // FINE cauliflower (near only): high-frequency Worley erosion, phase
     // flipping with height (wispy bases, billowy tops). Fades out with
     // distance so orbit stays smooth -- the standard Nubis distance trick.
@@ -1778,21 +1821,25 @@ fn cloud_march_core(
     let seg = m1 - m0;
     let mid_dir = normalize(ro + rd * (m0 + seg * 0.5));
     let reg = cloud_regime(cloud_type_coord(mid_dir, t, seed));
+    // Placement moves at the family's BASE wind (phase 7 motion, the
+    // v0.1021 coherence rule: silhouettes must not slide through
+    // interiors - the carve's own drift mixes up from this same value).
+    let wind_ang = t * cloud_wind_omega(reg.wind_lo);
 
     // Clear-sky gate: 3 weather probes (regime coverage bias folded in) before
     // paying for the march.
     let probe = max(
         max(
             clamp(cloud_alpha_from_field(
-                cloud_weather(normalize(ro + rd * m0), t, seed), coverage)
-                + reg.cover_bias, 0.0, 1.0),
+                cloud_weather_adv(normalize(ro + rd * m0), t, seed, wind_ang),
+                coverage) + reg.cover_bias, 0.0, 1.0),
             clamp(cloud_alpha_from_field(
-                cloud_weather(mid_dir, t, seed), coverage)
+                cloud_weather_adv(mid_dir, t, seed, wind_ang), coverage)
                 + reg.cover_bias, 0.0, 1.0),
         ),
         clamp(cloud_alpha_from_field(
-            cloud_weather(normalize(ro + rd * m1), t, seed), coverage)
-            + reg.cover_bias, 0.0, 1.0),
+            cloud_weather_adv(normalize(ro + rd * m1), t, seed, wind_ang),
+            coverage) + reg.cover_bias, 0.0, 1.0),
     );
     if (probe <= 0.002) {
         return vec4<f32>(0.0);
@@ -1858,7 +1905,8 @@ fn cloud_march_core(
         let p = ro + rd * tm;
         let dirp = normalize(p);
         let weather_a = clamp(
-            cloud_alpha_from_field(cloud_weather(dirp, t, seed), coverage)
+            cloud_alpha_from_field(
+                cloud_weather_adv(dirp, t, seed, wind_ang), coverage)
                 + reg.cover_bias, 0.0, 1.0);
         // Distance fade for the FINE cauliflower band only: tm is the sample's
         // distance from the camera (drawn-shell units). Far/orbit samples get

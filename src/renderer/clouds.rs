@@ -517,6 +517,13 @@ pub struct CloudRegime {
     /// (stratocumulus/nimbostratus), near zero for flat-based convective
     /// families whose base is the lifting condensation level.
     pub base_drop: f32,
+    /// Per-family wind at the band bottom, m/s (phase 7 motion): stratus
+    /// ambles at 3, cirrus rides the jet at 28. Replaces the single
+    /// solid-body CLOUD_DRIFT_ZONAL (127 m/s equatorial) on the High path.
+    pub wind_lo: f32,
+    /// Wind at the band top, m/s - the carve mixes lo..hi by the sample's
+    /// band height, so tower tops outrun their bases (shear skew).
+    pub wind_hi: f32,
 }
 
 /// Dot of a 7-weight vector with a per-regime parameter table (v0.893).
@@ -579,6 +586,9 @@ pub fn cloud_regime(tc: f32) -> CloudRegime {
         // (keep byte-identical with the WGSL t_ext / t_bdrop tables).
         ext_km: dot7(w, [1.2, 8.0, 45.0, 60.0, 22.0, 30.0, 20.0]),
         base_drop: dot7(w, [0.0, 0.50, 0.10, 0.20, 0.30, 0.80, 1.00]),
+        // Phase 7 motion: keep byte-identical with the WGSL t_wlo / t_whi.
+        wind_lo: dot7(w, [28.0, 11.0, 5.0, 8.0, 3.0, 8.0, 6.0]),
+        wind_hi: dot7(w, [60.0, 22.0, 10.0, 20.0, 7.0, 16.0, 11.0]),
     }
 }
 
@@ -1221,6 +1231,30 @@ mod tests {
         assert!(clear < earth && earth < overcast, "not monotonic");
         assert!(overcast > 0.6, "coverage 1 should blanket: {overcast}");
         assert!((0.15..0.8).contains(&earth), "earth band off: {earth}");
+    }
+
+    #[test]
+    fn regime_winds_follow_the_real_ladder() {
+        // Phase 7 motion: family winds must sit in the real bands -
+        // cirrus rides the jet, low decks amble - and every blend must
+        // carry positive shear (tops outrun bases). The old single
+        // CLOUD_DRIFT_ZONAL was 127 m/s at the equator for everything.
+        let cirrus = cloud_regime(0.0);
+        let cumulus = cloud_regime(0.33);
+        let stratus = cloud_regime(0.67);
+        assert!(cirrus.wind_lo > 20.0, "cirrus too slow: {}", cirrus.wind_lo);
+        assert!(
+            cumulus.wind_lo > 2.0 && cumulus.wind_lo < 10.0,
+            "cumulus base wind off: {}",
+            cumulus.wind_lo
+        );
+        assert!(stratus.wind_lo < 6.0, "stratus too fast: {}", stratus.wind_lo);
+        assert!(stratus.wind_hi < 20.0, "stratus top too fast: {}", stratus.wind_hi);
+        for tc in [0.0f32, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0] {
+            let r = cloud_regime(tc);
+            assert!(r.wind_hi > r.wind_lo, "no wind shear at tc {tc}");
+            assert!(r.wind_hi < 70.0, "unphysical wind at tc {tc}: {}", r.wind_hi);
+        }
     }
 
     #[test]

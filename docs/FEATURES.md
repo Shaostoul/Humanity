@@ -761,6 +761,18 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Clouds Move Like Weather (v0.1163, phase 7 stage 1)
+Per-family winds replace the single solid-body drift (which moved every
+family at every altitude at 127 m/s equatorial, 10-40x too fast for a
+low deck). CloudRegime carries wind_lo/wind_hi per family (cirrus rides
+the jet at 28-60 m/s, stratus ambles at 3-7); the carve and erosion
+domains drift at the sample's own band height so tower tops outrun
+their bases (wind-shear skew), and placement follows the family's base
+wind (coherence: silhouettes never slide through interiors). Realistic
+rates also make the temporal map's deep EMA sub-texel for standing
+viewers - the motion fix and the smear fix are the same change.
+- Native: assets/shaders/pbr/40-clouds.wgsl (CloudRegime winds, cloud_wind_omega, cloud_weather_adv), src/renderer/clouds.rs (mirror + regime_winds_follow_the_real_ladder)
+
 ### The Luminous Deck (v0.1162, phase 6)
 The cloud lighting energy rework (fidelity findings 3/4/5/11): the
 multi-scatter is the true Wrenninge/Schneider octave ladder (extinction,
