@@ -19,6 +19,14 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 4 SHIPPED (v0.1159): temporal accumulation - the direction-
+> indexed Lambert cloud map (docs in 45-cloud-temporal.wgsl +
+> renderer/cloud_temporal.rs). The static/boil is gone; remaining
+> tuning: map resolution vs edge sharpness, convergence under fast
+> weather drift, and the measure-script chroma-unmixing mask. Octa
+> mapping was tried first and its fold smeared a band - Lambert has no
+> interior fold; the trap is documented in the mapping comment.**
+>
 > **PHASE 3 SHIPPED (v0.1158): fidelity findings 1-5 - physical
 > per-family extinction with silhouette/density separation, hard
 > condensation base + convection-keyed towering + regime-weighted base

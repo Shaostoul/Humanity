@@ -761,6 +761,18 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Clouds Stop Being Static (v0.1159, phase 4)
+Temporal accumulation, Horizon/Nubis-class: a 1024x1024 direction-
+indexed cloud map (Lambert azimuthal on the local up - no reprojection
+matrix, no fold seams) re-marched each frame with the animated
+golden-ratio jitter and EMA-blended (0.10 at rest, 0.6 on hard change).
+The type-15 composite samples the map through the albedo slot - zero
+bind-group-layout changes - and is NET FASTER than the direct march.
+Active under/near the deck at High quality; the direct path froze its
+jitter (animation without accumulation was the boiling static).
+- Native: assets/shaders/pbr/45-cloud-temporal.wgsl,
+  src/renderer/cloud_temporal.rs, pipeline.rs (octa PSO in hot-reload)
+
 ### The Physical Cloud Medium (v0.1158, phase 3)
 The fidelity-expert six-finding rewrite: silhouette/density separation
 (interior = full density, Nubis-style), physical per-family extinction

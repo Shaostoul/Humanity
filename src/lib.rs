@@ -8732,6 +8732,10 @@ mod native_app {
                         // is ever close enough to be chunk-active).
                         let mut patch_builds_this_frame = 0usize;
 
+                        // Temporal clouds (phase 4): cleared each frame; the
+                        // near-slab cloud branch below re-arms it for the
+                        // (single) body whose deck the camera is under.
+                        state.renderer.set_cloud_temporal(None);
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11334,8 +11338,9 @@ mod native_app {
                                         // 25.5-76.5 km constants). Forwarded
                                         // to the shader in params2 below.
                                         let (slab_rb, slab_rt) = d.cloud_slab_scales();
-                                        let shell_ratio = if (cam_r_ratio as f64)
-                                            < slab_rt as f64 * 1.05
+                                        let near_slab =
+                                            (cam_r_ratio as f64) < slab_rt as f64 * 1.05;
+                                        let shell_ratio = if near_slab
                                         {
                                             // Near/inside the slab: draw the
                                             // shell just above the top so its
@@ -11413,6 +11418,19 @@ mod native_app {
                                             (true, None) => 1.0,
                                             _ => wx_bypass,
                                         };
+                                        // Temporal accumulation (phase 4):
+                                        // ON when the camera is under/near
+                                        // the deck at High quality - the
+                                        // exact regime where march grain is
+                                        // visible. The +4 flag tells the
+                                        // type-15 fragment to composite
+                                        // from the octa map instead of
+                                        // marching (see cloud_pin_base).
+                                        let temporal = near_slab && quality > 1.5;
+                                        if temporal {
+                                            state.renderer.set_cloud_temporal(Some(cmat));
+                                        }
+                                        let pin = pin + if temporal { 4.0 } else { 0.0 };
                                         state.renderer.update_material_params2(
                                             cmat,
                                             [slab_rb, slab_rt, (d.radius / 1000.0) as f32, pin],

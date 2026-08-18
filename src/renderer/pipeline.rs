@@ -73,6 +73,10 @@ pub struct Pipeline {
     /// its tree cards share one index range, so this path cannot be split
     /// the way the classic one is.
     pub patch_shadow_pipeline: wgpu::RenderPipeline,
+    /// Temporal-cloud octa accumulation pass (clouds phase 4): fullscreen
+    /// triangle into the direction-indexed RGBA16F cloud map, standard
+    /// group layouts (history rides the albedo slot).
+    pub cloud_octa_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     /// Group-1 layout for the terrain-batch pipelines: one shared batch
@@ -468,6 +472,8 @@ impl Pipeline {
             &pipeline_layout,
             &patch_pipeline_layout,
         );
+        let cloud_octa_pipeline =
+            Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
 
         Self {
             render_pipeline,
@@ -477,12 +483,52 @@ impl Pipeline {
             overlay_pipeline,
             patch_render_pipeline,
             patch_shadow_pipeline,
+            cloud_octa_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
             patch_bind_group_layout,
             material_bind_group_layout,
             texture_bind_group_layout,
         }
+    }
+
+    /// The temporal-cloud octa pass (clouds phase 4): a fullscreen triangle
+    /// over the direction-indexed cloud accumulation map. Uses the SAME
+    /// group layouts as the main pipeline (camera/object/material/texture),
+    /// with the history map riding the albedo slot of a dedicated group-3
+    /// bind group - zero layout changes, so the v0.1029 every-site hazard
+    /// never applies. Renders to RGBA16F with no depth and no blending
+    /// (the EMA happens in-shader against the ping-pong partner).
+    fn build_cloud_octa_pipeline(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Cloud Octa Temporal Pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_cloud_octa"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_cloud_octa"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        })
     }
 
     /// Rebuild the four PSOs from a NEW shader module while keeping every
@@ -535,6 +581,8 @@ impl Pipeline {
         self.shadow_pipeline_alpha = shadow_alpha;
         self.patch_render_pipeline = patch_render;
         self.patch_shadow_pipeline = patch_shadow;
+        self.cloud_octa_pipeline =
+            Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
     }
 
     /// The sun-shadow PSO a CLASSIC caster should draw with (v0.1106).

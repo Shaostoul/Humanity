@@ -33,6 +33,7 @@ pub mod capture;
 #[cfg(feature = "native")]
 pub mod stream_capture;
 pub mod cloud_noise;
+pub mod cloud_temporal;
 pub mod clouds;
 /// Live per-pass / per-stage / per-allocation cost measurement (resource
 /// budgets increment 1). Ungated: `renderer` compiles in the relay build too.
@@ -415,6 +416,14 @@ pub struct Renderer {
     /// excluded: it is undisplaced and sits below the troughs, so it could only
     /// shadow the seabed.
     pub water_caster_mats: Vec<usize>,
+    /// Temporal cloud accumulation state (clouds phase 4): the octa map
+    /// pair + their group-3 bind groups. None until the first frame that
+    /// activates the path (see cloud_temporal::set_cloud_temporal).
+    pub(crate) cloud_temporal: Option<cloud_temporal::CloudTemporal>,
+    /// The cloud MATERIAL index whose type-15 draw composites from the
+    /// octa map this frame (None = direct march everywhere). Set per
+    /// frame by lib.rs alongside the params2.w temporal flag.
+    pub(crate) cloud_temporal_mat: Option<usize>,
     /// Draw the water shell on the DEPTH-WRITING pipeline (v0.1060). Set by
     /// lib.rs only when the camera is inside an atmosphere, which is exactly
     /// when v0.1053 also sorts water to the END of the transparent list - so
@@ -1485,6 +1494,8 @@ impl Renderer {
             sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
             underwater_ext: 0.0,
             water_caster_mats: Vec::new(),
+            cloud_temporal: None,
+            cloud_temporal_mat: None,
             water_depth_write: false,
             sea_sphere: [0.0, 0.0, 0.0, 0.0],
             // Matches the shader's own fallback direction; speed 0 means the
@@ -3159,6 +3170,58 @@ impl Renderer {
             self.sky_view.encode(&self.queue, &mut encoder, &u);
         }
 
+        // ── Temporal cloud octa pass (clouds phase 4) ── re-march + EMA the
+        // direction-indexed cloud map BEFORE the main pass so this frame's
+        // composite samples this frame's accumulation. The object uniforms
+        // were staged above (shells continue the index range after the
+        // opaque list); the pass binds the cloud SHELL's slot so obj_model()
+        // gives the march its planet frame, and the group-3 with the
+        // ping-pong PARTNER in the albedo slot supplies the history.
+        if let (Some(ct), Some(mat_idx)) =
+            (self.cloud_temporal.as_ref(), self.cloud_temporal_mat)
+        {
+            if let (Some(i), Some(material)) = (
+                transparent.iter().position(|o| o.material == mat_idx),
+                self.materials.get(mat_idx),
+            ) {
+                let slot = objects.len() + i;
+                if slot < MAX_OBJECTS {
+                    // The main pass's shared upload runs later; stage the
+                    // object uniforms now so the octa pass sees them.
+                    self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
+                    let read = ct.cur.get();
+                    let write = 1 - read;
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Cloud Octa Temporal Pass"),
+                        timestamp_writes: self.pass_timer("gpu.cloud_octa"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &ct.views[write],
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        ..Default::default()
+                    });
+                    pass.set_pipeline(&self.pipeline.cloud_octa_pipeline);
+                    pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                    let uniform_align = 256_u64;
+                    pass.set_bind_group(
+                        1,
+                        &self.object_bind_group,
+                        &[(uniform_align as u32) * (slot as u32)],
+                    );
+                    pass.set_bind_group(2, &material.bind_group, &[]);
+                    pass.set_bind_group(3, &ct.groups[read].colour, &[]);
+                    pass.draw(0..3, 0..1);
+                    drop(pass);
+                    ct.cur.set(write);
+                }
+            }
+        }
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Celestial Pass"),
@@ -3378,10 +3441,19 @@ impl Renderer {
                         bound_material = obj.material;
                         render_pass.set_bind_group(2, &material.bind_group, &[]);
                         // Group 3 fallback/texture -- same rule as the opaque
-                        // loop.
+                        // loop. Temporal-cloud override (phase 4): the cloud
+                        // material's composite samples the freshly written
+                        // octa map through the albedo slot.
+                        let g3 = if Some(obj.material) == self.cloud_temporal_mat {
+                            self.cloud_temporal
+                                .as_ref()
+                                .map(|ct| &ct.groups[ct.cur.get()].colour)
+                        } else {
+                            material.albedo_group()
+                        };
                         render_pass.set_bind_group(
                             3,
-                            material.albedo_group().unwrap_or(&self.default_texture_bind_group),
+                            g3.unwrap_or(&self.default_texture_bind_group),
                             &[],
                         );
                     }

@@ -178,9 +178,22 @@ impl Renderer {
             );
         }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        // ONE entry list, two bind groups. `depth6` is the ONLY difference:
-        // the real sun map for colour passes, the 1x1 dummy for the shadow
-        // pass (which writes the real one and so may not sample it).
+        self.build_albedo_group_from_view(&view, sampler)
+    }
+
+    /// Build the two group-3 bind groups (colour + shadow) around an
+    /// EXISTING texture view in the albedo slot. Split out of
+    /// `build_material_texture_bind_group` for the temporal cloud map
+    /// (phase 4), whose render target rides the albedo slot so the
+    /// composite needs NO layout change. ONE entry list, two bind groups:
+    /// `depth6` is the ONLY difference - the real sun map for colour
+    /// passes, the 1x1 dummy for the shadow pass (which writes the real
+    /// one and so may not sample it).
+    pub(super) fn build_albedo_group_from_view(
+        &self,
+        view: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) -> AlbedoBindGroup {
         let build = |depth6: &wgpu::TextureView, label: &str| {
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some(label),
@@ -188,7 +201,7 @@ impl Renderer {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
+                        resource: wgpu::BindingResource::TextureView(view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,

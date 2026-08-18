@@ -1019,8 +1019,9 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // coverage ~1 a live-zeroed field cannot be resurrected by the
     // coverage knob alone, which is why the blend must move WITH the
     // coverage floor.
-    var bypass = clamp(material.params2.w, 0.0, 1.0);
-    if (material.params2.w >= 1.5) {
+    let pin = cloud_pin_base();
+    var bypass = clamp(pin, 0.0, 1.0);
+    if (pin >= 1.5) {
         bypass = 1.0;
     }
     let live_w = w.g * (1.0 - bypass);
@@ -1072,13 +1073,27 @@ struct CloudSample {
 
 // The type coordinate at a planet-fixed direction: two low-frequency octaves
 // so regime patches are organic (not a few giant zones). In [0,1].
+// The pin channel with the phase-4 temporal flag (+4) stripped: params2.w
+// encodes [0,1] = live-MODIS bypass fraction, 1 = dev coverage pin,
+// 2 + tc = coverage AND type pin, and +4.0 on top of any of those means
+// "the temporal octa map is active" (a flag the pin decodes below must
+// ignore).
+fn cloud_pin_base() -> f32 {
+    var w = material.params2.w;
+    if (w >= 3.5) {
+        w = w - 4.0;
+    }
+    return w;
+}
+
 fn cloud_type_coord(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // Dev type pin (params2.w = 2 + tc, showcase cloud_type override):
     // a cloud-verification vantage needs a KNOWN family - the natural
     // type field can deal the capture site a faint cirrus/stratocu hand
     // and the underside gates would measure the family, not the shader.
-    if (material.params2.w >= 1.5) {
-        return clamp(material.params2.w - 2.0, 0.0, 1.0);
+    let pin = cloud_pin_base();
+    if (pin >= 1.5) {
+        return clamp(pin - 2.0, 0.0, 1.0);
     }
     let d = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
     let a = cloud_noise(d, CLOUD_TYPE_FREQ, seed + 211.0);
@@ -1496,12 +1511,63 @@ fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
     return e;
 }
 
+// Direction<->uv mapping for the temporal cloud map (phase 4): a LAMBERT
+// AZIMUTHAL EQUAL-AREA projection centred on the LOCAL UP at the camera.
+// The history buffer is indexed by direction, so camera rotation needs no
+// reprojection matrix at all, and translation against km-distant clouds
+// moves a direction by well under a texel per frame - the EMA absorbs it.
+// Lambert (and not octahedral, which shipped for one probe and smeared a
+// wide diagonal band across the sky): the azimuthal map is CONTINUOUS
+// over the whole sphere except the single antipodal point - straight
+// DOWN, where no cloud is ever seen from under a deck - so bilinear
+// sampling never crosses a fold. The basis derives from the planet
+// centre, identically in the accumulate and composite paths; it turns
+// slowly as the camera travels and the EMA absorbs that too.
+fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
+    return normalize(camera.view_pos.xyz - center);
+}
+
+fn cloud_map_tangents(up: vec3<f32>) -> mat3x3<f32> {
+    var t1 = cross(up, vec3<f32>(0.0, 1.0, 0.0));
+    if (dot(t1, t1) < 1.0e-6) {
+        t1 = cross(up, vec3<f32>(1.0, 0.0, 0.0));
+    }
+    t1 = normalize(t1);
+    let t2 = cross(up, t1);
+    return mat3x3<f32>(t1, up, t2);
+}
+
+fn cloud_map_encode(d: vec3<f32>, center: vec3<f32>) -> vec2<f32> {
+    let b = cloud_map_tangents(cloud_map_up(center));
+    // Local frame: y = altitude toward up, xz = the azimuth plane.
+    let l = vec3<f32>(dot(d, b[0]), dot(d, b[1]), dot(d, b[2]));
+    let r2 = clamp((1.0 - l.y) * 0.5, 0.0, 1.0);
+    let xz_len = max(length(l.xz), 1.0e-6);
+    let p = (l.xz / xz_len) * sqrt(r2);
+    return p * 0.5 + vec2<f32>(0.5);
+}
+
+fn cloud_map_decode(uv: vec2<f32>, center: vec3<f32>) -> vec3<f32> {
+    let b = cloud_map_tangents(cloud_map_up(center));
+    let p = uv * 2.0 - vec2<f32>(1.0);
+    let r2 = clamp(dot(p, p), 0.0, 1.0);
+    let y = 1.0 - 2.0 * r2;
+    let s = 2.0 * sqrt(max(1.0 - r2, 0.0));
+    let l = vec3<f32>(p.x * s, y, p.y * s);
+    return normalize(b[0] * l.x + b[1] * l.y + b[2] * l.z);
+}
+
 // Increment-3 raymarch (High quality): precomputed tiling 3D noise +
 // weather map + per-sample light march. Same spherical-slab geometry, ray
 // setup, probe gate, and compositing posture as the increment-2 march; the
 // interior is the standard photoreal recipe -- exponential view sampling,
 // Beer-Lambert light march with Beer-powder, dual-lobe HG phase, height-
 // proportional ambient.
+//
+// Phase 4 split: the wrapper below owns the shell-fragment concerns
+// (discard rule, limb fade, the temporal-composite branch); the MARCH
+// lives in cloud_march_core so the temporal octa pass can drive it from a
+// direction instead of a fragment.
 fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
@@ -1519,11 +1585,50 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // high (76-128 km instead of 25.5-76.5 km) below ~400 km altitude.
     cloud_set_slab_bounds();
 
+    let rd_w = normalize(world_position - camera.view_pos.xyz);
+    // Limb fade, as in the other paths: ease the deck off where the view
+    // grazes the sphere so it never stacks into a hard white ring.
+    let n_frag = normalize(world_position - center);
+    let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
+    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+
+    // TEMPORAL COMPOSITE (phase 4, pin flag +4 in params2.w): the octa
+    // pass has already marched and accumulated this direction - sample
+    // the map instead of marching again. This is where the boiling
+    // static dies: the map is an exponential average of many jittered
+    // marches, i.e. the supersampling the single-frame march never had.
+    if (material.params2.w >= 3.5) {
+        let s = textureSampleLevel(
+            albedo_texture, albedo_sampler, cloud_map_encode(rd_w, center), 0.0);
+        return vec4<f32>(s.rgb, s.a * limb);
+    }
+
+    let inv_model = transpose(obj_normal_matrix());
+    let dirf = normalize((inv_model * vec4<f32>(world_position, 1.0)).xyz);
+    // Stratified per-ray jitter, FROZEN on the direct path (phase 4): an
+    // animated jitter with no history accumulation reads as boiling TV
+    // static. The octa pass animates its own jitter as the accumulation
+    // sequence, where it belongs.
+    let jitter = fract(
+        hash21(dirf.xy * 49152.0 + vec2<f32>(dirf.z * 12288.0, 17.0)),
+    );
+    let s = cloud_march_core(rd_w, center, shell_r, jitter);
+    return vec4<f32>(s.rgb, s.a * limb);
+}
+
+// The marched slab integral: everything from the ray/slab intersection
+// through lighting, aerial perspective, and ACES, WITHOUT the
+// fragment-specific discard/limb concerns. Callable from the inline
+// fragment path and the temporal octa pass.
+fn cloud_march_core(
+    rd_w: vec3<f32>,
+    center: vec3<f32>,
+    shell_r: f32,
+    jitter: f32,
+) -> vec4<f32> {
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
-    let rd_w = normalize(world_position - camera.view_pos.xyz);
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);
-    let dirf = normalize((inv_model * vec4<f32>(world_position, 1.0)).xyz);
 
     let t = camera.sun_color.w;
     let seed = material.params.x;
@@ -1595,19 +1700,8 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // lobe (silver lining) must win, so the powder eases off there.
     let powder_gate = smoothstep(0.3, 0.9, cos_vs);
 
-    // Stratified per-ray jitter, ANIMATED (v0.872): the old planet-fixed hash
-    // dithered banding into a frozen stipple pattern. Adding a golden-ratio
-    // step per cloud-clock tick keeps the dither moving so the eye averages
-    // it out (the precursor to real temporal accumulation).
-    // Hash frequency x12 (phase 3): at physical extinction the march is
-    // sharp enough that correlated jitter between neighbouring pixels of a
-    // DISTANT mass (where dirf barely changes per pixel) rendered banding
-    // as concentric moire rings; the finer domain decorrelates adjacent
-    // pixels into unstructured grain instead.
-    let jitter = fract(
-        hash21(dirf.xy * 49152.0 + vec2<f32>(dirf.z * 12288.0, 17.0))
-            + fract(camera.sun_color.w * 7.0) * 0.618034,
-    );
+    // (Jitter is the caller's: frozen hash on the direct fragment path,
+    // the animated accumulation sequence on the temporal octa pass.)
 
     // Exponentially spaced front-to-back march: t = m0 + seg * u^EXP puts
     // over half the samples in the nearest third of the segment -- the
@@ -1765,11 +1859,9 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         vec3<f32>(1.0),
     );
 
-    // Limb fade, as in the other paths: ease the deck off where the view
-    // grazes the sphere so it never stacks into a hard white ring.
-    let n_frag = normalize(world_position - center);
-    let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
-    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    return vec4<f32>(mapped, body_total * limb * CLOUD_HI_MAX_ALPHA);
+    // (Limb fade is the fragment wrapper's concern - the octa map must
+    // store the un-limbed march so the composite can apply the CURRENT
+    // fragment's grazing angle.)
+    return vec4<f32>(mapped, body_total * CLOUD_HI_MAX_ALPHA);
 }
 
