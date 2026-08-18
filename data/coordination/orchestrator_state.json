@@ -440,6 +440,11 @@
       "date": "2026-08-18",
       "decision": "v0.1161 (mips+premultiply+sunset-wire+limb-gate+octa-cull) and v0.1162 (lighting energy: Wrenninge octave ladder + two-stream diffusion floor, HG 0.8, two-tone sky/ground ambient, first-hit aerial + haze-raised alpha) shipped back-to-back, each probe-verified (flight visibly transformed: opaque bright cumulus, solid thickening horizon deck; orbital marble pixel-stable both times). gpu.cloud_octa measured 1.9 ms post-cull. Cloud arc remaining, ranked: per-family winds (#72 - also fixes temporal smear per motion-agent math), sun-clock phase mismatch (#78 - gates sunset gates), stacked genera + curl lobes + size distribution (#76), strided 2048 map (#77), Medium map (#74), interior softening (#71). Orbital granulation confirmed PRE-EXISTING (identical across v0.1159/1161/1162 captures - data-driven, likely binary MODIS mask; fold into #76).",
       "why": "Max-realism cloud directive; audit findings implemented in leverage order with per-release probe verification."
+    },
+    {
+      "date": "2026-08-18",
+      "decision": "v0.1163 (per-family winds) + v0.1164 (sun-clock coherence: HUD local solar time, camera-request local time pin, 7 vantage pins migrated, astronomical elevation lock; BUG-072) shipped. Investigator disproved the audit 3h-drift framing: game clock is lon-0 solar time by design, offset was exactly lon/15. NO axial tilt exists (eternal equinox) - flagged as future increment. Cloud ladder remaining: #71 interior softening, #73 edge/sunset tail, #74 Medium map, #76 stacked genera + curl lobes + size distribution + orbital MODIS granulation, #77 strided 2048 map + in-slab reprojection.",
+      "why": "Sun-clock gated every sunset acceptance gate; fixed before the remaining lighting tuning so future measurements are honest."
     }
   ],
   "active_scopes_to_avoid": [

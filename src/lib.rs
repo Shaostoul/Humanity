@@ -13618,11 +13618,38 @@ mod native_app {
                         .get::<std::sync::Mutex<GameTime>>("game_time")
                         .and_then(|m| m.lock().ok())
                     {
+                        // LOCAL mean solar time at the frame-locked site
+                        // (sun-clock fix): the game clock is lon-0 solar
+                        // time by construction, so the wall clock a PLAYER
+                        // should read is hour + lon/15. The frame-lock
+                        // anchor is stored in the body's UNROTATED local
+                        // frame, so its lat/lon IS the geographic
+                        // coordinate.
+                        let local_hour = {
+                            let a = state.frame_lock_anchor;
+                            if a.length_squared() > 1.0 {
+                                let d = a.normalize();
+                                let (_, lon) =
+                                    crate::terrain::planet_heightmap::dir_to_latlon_deg(
+                                        glam::Vec3::new(d.x as f32, d.y as f32, d.z as f32),
+                                    );
+                                Some(
+                                    ((gt.hour as f64 + lon as f64 / 15.0)
+                                        .rem_euclid(24.0)) as f32,
+                                )
+                            } else {
+                                None
+                            }
+                        };
+                        let wall = local_hour.unwrap_or(gt.hour);
                         state.gui_state.game_time = Some(GuiGameTime {
                             hour: gt.hour,
                             day_count: gt.day_count,
                             season: format!("{:?}", gt.season),
-                            is_daytime: gt.hour >= 6.0 && gt.hour <= 18.0,
+                            // Day/night from the clock the player READS -
+                            // the local one where it exists.
+                            is_daytime: wall >= 6.0 && wall <= 18.0,
+                            local_hour,
                         });
                     }
 

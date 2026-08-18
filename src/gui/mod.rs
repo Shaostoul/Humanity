@@ -734,10 +734,19 @@ pub struct GuiItemSlot {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct GuiGameTime {
+    /// The GLOBAL game clock: lon-0 mean solar time by construction
+    /// (dev_travel::planet_spin_from_time ties the planet's spin to it).
     pub hour: f32,
     pub day_count: u32,
     pub season: String,
     pub is_daytime: bool,
+    /// LOCAL mean solar time at the frame-locked surface site (global
+    /// hour + lon/15), None when not standing on a planet. This is what
+    /// the HUD clock shows: before it existed the HUD printed the global
+    /// hour as if it were local, which at Silverdale (lon -122.7) put
+    /// "20:04" beside a noon sun - the clock ran exactly lon/15 = 8.2 h
+    /// ahead of the sky (the sun-clock incident, 2026-08-18).
+    pub local_hour: Option<f32>,
 }
 
 /// Weather snapshot bridged from WeatherSystem for GUI display.

@@ -994,3 +994,34 @@ which reproduced the live drop red before the fix and is green after.
 Live proof 2026-08-14: bot probes crossed BOTH ways between public.guide
 and united-humanity.us, persisting as msg_type='federated_chat' with the
 correct origin_server key on the receiving side.
+
+## BUG-072: The HUD clock ran exactly lon/15 hours ahead of the sky (fixed v0.1164.0)
+
+**Symptom:** at Silverdale (lon -122.7) the HUD read "20:04" while the sun
+stood at 42 degrees due south - local NOON. The realism audit initially
+read it as a ~3-hour ephemeris drift; the investigation found no drift at
+all.
+
+**Root cause:** the game clock is LON-0 mean solar time BY CONSTRUCTION
+(dev_travel::planet_spin_from_time ties the planet spin to it, documented
+there since v0.878), but every local-facing surface (the HUD clock, the
+showcase "time" pin, and human reasoning about captures) treated it as
+LOCAL time at the camera. The disagreement is exactly lon/15 = 8.18 h at
+Silverdale. Smoking gun: every lit Silverdale vantage pinned time 20.2
+(= local noon + 8.18) and the night vantage 8.2 (= midnight + 8.18) - the
+authors had been hand-compensating without knowing it, and the warm-up
+vantage at lon 13 (where the offset is ~50 min) never surfaced it.
+
+**Fix:** one global clock stays authoritative (multiplayer needs
+observer-independent planet orientation); the local-facing surfaces
+convert: the HUD shows local solar time from the frame-lock anchor's
+longitude (GuiGameTime.local_hour), and the camera request's "time" is
+now the LOCAL hour at the vantage's lat/lon, converted in ipc.rs. The 7
+hand-compensated vantage pins migrated to their true local values.
+
+**Lock:** dev_travel::local_solar_time_puts_the_sun_at_the_astronomical_elevation
+- the full chain vs the astronomical formula at 4 latitudes x 4 local
+hours; the old behavior fails the Silverdale-noon cell by ~62 degrees.
+
+**Deliberately unfixed here:** the model has no axial tilt (eternal
+equinox; Season is decorative). Obliquity is its own future increment.

@@ -682,7 +682,8 @@
     "lat": 47.645,
     "lon": -122.6925,
     "altitude_km": 0.25,
-    "look_offset_deg": 75
+    "look_offset_deg": 75,
+    "time": 12.02
    },
    "hold_altitude": true,
    "settle_s": 30,
@@ -695,7 +696,6 @@
    "perf_floor_fps": 10,
    "perf_note": "floor is 10 not 15: the dense procedural forest at walk height costs ~100 ms/frame (the known unexplained forest cost, see PRIORITIES); the region itself adds 4 class meshes. Raise the floor when the forest cost item is fixed.",
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "clear"
    }
@@ -708,7 +708,8 @@
     "lat": 47.634,
     "lon": -122.6925,
     "altitude_km": 2.5,
-    "look_offset_deg": 25
+    "look_offset_deg": 25,
+    "time": 12.02
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -721,7 +722,6 @@
    ],
    "perf_floor_fps": 15,
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "clear"
    }
@@ -734,7 +734,8 @@
     "lat": 47.634,
     "lon": -122.6925,
     "altitude_km": 2.5,
-    "look_offset_deg": 25
+    "look_offset_deg": 25,
+    "time": 0.02
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -745,7 +746,6 @@
    ],
    "perf_floor_fps": 10,
    "showcase": {
-    "time": "8.2",
     "sea": "0.3",
     "weather": "rain",
     "lights_tiled": "1"
@@ -759,7 +759,8 @@
     "lat": 47.6165,
     "lon": -122.342,
     "altitude_km": 5,
-    "look_offset_deg": 25
+    "look_offset_deg": 25,
+    "time": 12.04
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -770,7 +771,6 @@
    ],
    "perf_floor_fps": 15,
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "clear"
    }
@@ -783,7 +783,8 @@
     "lat": 47.645,
     "lon": -122.6925,
     "altitude_km": 0.3,
-    "look_offset_deg": 115
+    "look_offset_deg": 115,
+    "time": 12.02
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -796,7 +797,6 @@
    ],
    "perf_floor_fps": 10,
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "cloudy",
     "clouds": "1",
@@ -812,7 +812,8 @@
     "lat": 47.645,
     "lon": -122.68584,
     "altitude_km": 0.3,
-    "look_offset_deg": 115
+    "look_offset_deg": 115,
+    "time": 12.02
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -825,7 +826,6 @@
    ],
    "perf_floor_fps": 10,
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "cloudy",
     "clouds": "1",
@@ -841,7 +841,8 @@
     "lat": 47.645,
     "lon": -122.6925,
     "altitude_km": 0.3,
-    "look_offset_deg": 115
+    "look_offset_deg": 115,
+    "time": 12.02
    },
    "hold_altitude": true,
    "settle_s": 14,
@@ -853,7 +854,6 @@
    ],
    "perf_floor_fps": 10,
    "showcase": {
-    "time": "20.2",
     "sea": "0.3",
     "weather": "cloudy",
     "cloud_quality": "medium",

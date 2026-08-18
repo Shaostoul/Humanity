@@ -835,6 +835,27 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         (Some(la), Some(lo)) => Some((la, lo)),
         _ => scenic.as_ref().map(|s| (s.lat as f64, s.lon as f64)),
     };
+    // Optional "time": the LOCAL mean solar hour at this vantage's
+    // longitude (sun-clock fix, 2026-08-18). The game clock is lon-0
+    // solar time by construction (dev_travel::planet_spin_from_time), so
+    // "local noon at Silverdale" means global hour 12 + 122.7/15 = 20.2
+    // - a conversion vantage authors were doing BY HAND (every lit
+    // Silverdale vantage pinned exactly 20.2). Writing the local hour
+    // here converts it; the showcase "time" verb stays GLOBAL (it has no
+    // site to be local to) and this later write wins over it when a
+    // vantage carries both.
+    if let (Some(t_local), Some((_, lon))) =
+        (v.get("time").and_then(|a| a.as_f64()), latlon)
+    {
+        if let Some(req) = state
+            .data_store
+            .get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request")
+        {
+            if let Ok(mut r) = req.lock() {
+                *r = Some(((t_local - lon / 15.0).rem_euclid(24.0)) as f32);
+            }
+        }
+    }
     let Some(body) = crate::cosmos::find_body(&body_id) else {
         fail(format!("unknown body id {body_id}"));
         return;

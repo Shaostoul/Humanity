@@ -186,6 +186,53 @@ mod tests {
         );
     }
 
+    /// The sun-clock relation (2026-08-18 incident): the game clock is
+    /// LON-0 mean solar time, so the local hour at a site is
+    /// hour + lon/15 - and the ipc camera "time" pin converts the other
+    /// way (global = local - lon/15). This test drives the FULL chain
+    /// (latlon_to_dir -> Ry(planet_spin_from_time) -> dot with the sun)
+    /// at 4 latitudes x 4 local hours and demands the astronomical
+    /// elevation. Feeding the local hour straight in as global (the old
+    /// HUD/pin behavior) fails the Silverdale-noon cell by ~62 degrees -
+    /// the test is unfakeable. Tolerance 2 degrees is headroom for a
+    /// future axial-tilt term; today the model is eternal equinox
+    /// (dec = 0: sol.json Earth inclination 0, spin a bare Ry).
+    #[test]
+    fn local_solar_time_puts_the_sun_at_the_astronomical_elevation() {
+        // Sun in the model's ecliptic plane (Y = 0), nonzero azimuth.
+        let sun_world = DVec3::new(0.6, 0.0, 0.75).normalize();
+        let sun_az = (-sun_world.z).atan2(sun_world.x);
+        for (lat, lon) in [
+            (47.645f64, -122.6925f64), // Silverdale (the incident site)
+            (0.0, 0.0),                // null island
+            (-33.9, 151.2),            // Sydney
+            (65.0, -18.4),             // Iceland
+        ] {
+            for t_local in [6.0f64, 9.0, 12.0, 16.0] {
+                // The ipc conversion under test.
+                let h_global = (t_local - lon / 15.0).rem_euclid(24.0);
+                let spin = planet_spin_from_time(h_global, sun_az);
+                let d = crate::terrain::planet_heightmap::latlon_to_dir(
+                    lat as f32, lon as f32,
+                );
+                let up = glam::DQuat::from_rotation_y(spin)
+                    * DVec3::new(d.x as f64, d.y as f64, d.z as f64);
+                let el_engine =
+                    up.normalize().dot(sun_world).asin().to_degrees();
+                // Astronomical elevation at declination 0:
+                // sin(el) = cos(lat) * cos(hour_angle).
+                let ha = ((t_local - 12.0) * 15.0f64).to_radians();
+                let el_expected =
+                    (lat.to_radians().cos() * ha.cos()).asin().to_degrees();
+                assert!(
+                    (el_engine - el_expected).abs() < 2.0,
+                    "lat {lat} lon {lon} local {t_local}: \
+                     engine {el_engine:.1} vs astronomical {el_expected:.1}"
+                );
+            }
+        }
+    }
+
     /// Rebuild Camera::forward() from (yaw, pitch) in f64 to verify look_angles.
     fn forward_of(yaw: f32, pitch: f32) -> DVec3 {
         let (yaw, pitch) = (yaw as f64, pitch as f64);

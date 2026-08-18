@@ -179,11 +179,16 @@ pub fn draw(
 
             // ── Day/Night + Time indicator (below FPS) ──
             if let Some(ref gt) = state.game_time {
+                // The clock a player READS is local solar time at their
+                // site (sun-clock fix, 2026-08-18): the raw game hour is
+                // lon-0 time and at Silverdale printed "20:04" beside a
+                // noon sun. Off-planet falls back to the global hour.
+                let wall = gt.local_hour.unwrap_or(gt.hour);
                 let time_str = format!(
                     "Day {} {:02}:{:02} {}",
                     gt.day_count + 1,
-                    gt.hour as u32,
-                    ((gt.hour.fract()) * 60.0) as u32,
+                    wall as u32,
+                    ((wall.fract()) * 60.0) as u32,
                     gt.season,
                 );
                 let day_icon = if gt.is_daytime { "☀" } else { "☾" };
