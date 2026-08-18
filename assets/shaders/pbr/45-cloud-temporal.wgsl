@@ -65,11 +65,20 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
             + fract(camera.sun_color.w * 11.0) * 0.618034,
     );
     let cur = cloud_march_core(rd_w, center, shell_r, jitter);
-    // Adaptive EMA: calm texels converge deep (alpha 0.10); a hard
-    // disagreement (rolling weather, lighting change, pin flip) catches
-    // up fast instead of ghosting.
+    // EMA, DEEP and nearly flat (the v0.1159 lesson, from the operator's
+    // "tiny dots became big dots"): the first cut raised the blend
+    // aggressively wherever the new sample disagreed with history - but
+    // in a noisy region the new sample ALWAYS disagrees, that is what
+    // noise is, so the map kept chasing individual marches exactly where
+    // it most needed to average them, and its unconverged texel churn
+    // upscaled into the big dots. Convergence IS the feature: alpha 0.04
+    // averages ~25 recent marches per direction (about 1.5 s), which is
+    // the supersample that turns grain into cloud. The adaptive term is
+    // now a whisper - real changes (weather fronts, the sun, dev pins)
+    // evolve over many seconds and a 1.5 s catch-up never reads as
+    // ghosting on a cloud.
     let diff = abs(cur.a - hist.a)
         + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
-    let alpha = clamp(0.10 + diff * 0.8, 0.10, 0.6);
+    let alpha = clamp(0.04 + diff * 0.05, 0.04, 0.12);
     return mix(hist, cur, alpha);
 }

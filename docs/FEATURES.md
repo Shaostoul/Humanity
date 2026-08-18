@@ -761,6 +761,14 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### The Converged Sky (v0.1160)
+The v0.1159 adaptive EMA chased noise instead of averaging it (in a
+noisy region the new sample ALWAYS disagrees with history, so the blend
+stayed high exactly where convergence mattered - the operator: tiny
+dots became big dots). Now a deep near-flat EMA (0.04, ~25-march
+average per direction) with a whisper of catch-up: grain converges into
+soft cumulus bodies; real change still lands within ~1.5 s.
+
 ### Clouds Stop Being Static (v0.1159, phase 4)
 Temporal accumulation, Horizon/Nubis-class: a 1024x1024 direction-
 indexed cloud map (Lambert azimuthal on the local up - no reprojection
