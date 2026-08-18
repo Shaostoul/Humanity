@@ -11426,7 +11426,13 @@ mod native_app {
                                         // type-15 fragment to composite
                                         // from the octa map instead of
                                         // marching (see cloud_pin_base).
-                                        let temporal = near_slab && quality > 1.5;
+                                        // Medium included since phase 8:
+                                        // it used to march per-pixel at
+                                        // full res and measured SLOWER
+                                        // than High at the same vantage
+                                        // (the quality-ladder inversion,
+                                        // perf audit finding 5).
+                                        let temporal = near_slab && quality > 0.5;
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
                                         }

@@ -1234,6 +1234,26 @@ mod tests {
     }
 
     #[test]
+    fn wgsl_map_pixel_angle_matches_the_octa_size() {
+        // The temporal map's LOD footprint constant must track the map
+        // resolution: a Lambert equal-area texel subtends 4/SIZE radians
+        // (hemisphere in the inscribed disc of radius SIZE/2 -> angular
+        // texel = 2/(SIZE/2)). Resizing the map without retuning the
+        // constant silently over- or under-blurs every map march.
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let needle = "const CLOUD_PIX_ANG_MAP: f32 = ";
+        let start = wgsl.find(needle).expect("CLOUD_PIX_ANG_MAP missing");
+        let rest = &wgsl[start + needle.len()..];
+        let end = rest.find(';').expect("unterminated const");
+        let ang: f32 = rest[..end].trim().parse().expect("unparseable");
+        let want = 4.0 / crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32;
+        assert!(
+            (ang - want).abs() / want < 0.02,
+            "CLOUD_PIX_ANG_MAP {ang} vs 4/CLOUD_OCTA_SIZE {want}"
+        );
+    }
+
+    #[test]
     fn regime_winds_follow_the_real_ladder() {
         // Phase 7 motion: family winds must sit in the real bands -
         // cirrus rides the jet, low decks amble - and every blend must

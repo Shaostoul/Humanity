@@ -19,6 +19,19 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 8 SHIPPED (v0.1165): 2048 map + Medium rides it.** The
+> ground-occlusion cull's headroom spent on 4x map texels (0.22 ->
+> 0.11 deg/texel, the edge-sharpness ceiling halved; gpu.cloud_octa
+> measured 6.4 ms at 2048; CLOUD_PIX_ANG_MAP locked to the size by
+> wgsl_map_pixel_angle_matches_the_octa_size). Medium tier now arms and
+> composites the same map (the quality-ladder inversion fix - its
+> per-pixel full-res march measured SLOWER than High; celestial pass
+> dropped 21.5 -> 7.0 ms at the Medium vantage). REMAINING map ladder:
+> 4x4 Bayer-strided refresh (for 4096 or low-end headroom), screen-space
+> accumulation with reprojection by the transmittance-weighted distance
+> (the true full-pixel-sharpness endgame), in-slab-flight history
+> reprojection through a mid-band shell anchor + velocity-aware alpha.**
+>
 > **PHASE 7 stage 1 SHIPPED (v0.1163): per-family winds.** CloudRegime
 > wind_lo/wind_hi columns (cirrus 28/60 m/s down to stratus 3/7); carve
 > + erosion domains drift at mix(lo,hi,band_height) via cloud_wind_omega

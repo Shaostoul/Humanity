@@ -376,10 +376,12 @@ const CLOUD_LODC_DETAIL: f32 = -0.259;
 const CLOUD_LODC_PUFF: f32 = -1.479;
 const CLOUD_LODC_FRAY: f32 = 2.479;
 // Angular pixel size feeding the ray-cone width: the temporal map's
-// Lambert texel (sqrt(4pi sr / (pi * 512^2) texels) ~ 3.9 mrad) and a
-// screen-pixel estimate for the direct path (~60 deg fov over ~1080
-// rows ~ 1 mrad; +-30% here moves the lod by under half a level).
-const CLOUD_PIX_ANG_MAP: f32 = 0.0039;
+// Lambert texel (4 / CLOUD_OCTA_SIZE radians - 2048 since phase 8, so
+// ~1.95 mrad; locked to the Rust size constant by
+// wgsl_map_pixel_angle_matches_the_octa_size) and a screen-pixel
+// estimate for the direct path (~60 deg fov over ~1080 rows ~ 1 mrad;
+// +-30% here moves the lod by under half a level).
+const CLOUD_PIX_ANG_MAP: f32 = 0.00195;
 const CLOUD_PIX_ANG_SCREEN: f32 = 0.001;
 
 // Mip level for one sample site: log2 footprint minus the site's log2
@@ -657,7 +659,14 @@ fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     if (quality < 0.5) {
         return cloud_layer_flat(world_position, front_facing);
     }
-    if (quality < 1.5) {
+    // Medium rides the temporal map when it is armed (phase 8, the
+    // quality-ladder inversion fix): only High used to get the map, so
+    // Medium - the tier weak GPUs select - marched per-pixel at full
+    // resolution every frame and MEASURED SLOWER than High at the same
+    // vantage (84 vs 66 ms). With the flag set (params2.w +4) the
+    // volumetric path's composite branch is ONE texture sample; without
+    // it (orbit, or the map not armed) Medium keeps its own march.
+    if (quality < 1.5 && material.params2.w < 3.5) {
         return cloud_layer_march(world_position, front_facing);
     }
     return cloud_layer_volumetric(world_position, front_facing);

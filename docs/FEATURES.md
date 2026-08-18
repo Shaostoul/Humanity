@@ -761,6 +761,16 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### The Sharp Converged Sky (v0.1165, phase 8)
+The temporal cloud map is 2048^2 (edge-sharpness ceiling halved to
+~0.11 deg/texel = 1.7 screen px; the v0.1161 ground-occlusion cull paid
+for the 4x texels - pass measured 6.4 ms), and the MEDIUM quality tier
+now arms and composites the same map instead of marching per-pixel at
+full resolution (the quality-ladder inversion: Medium measured SLOWER
+than High; its celestial pass dropped 21.5 to 7.0 ms). Orbit and
+unarmed cases keep their existing paths.
+- Native: src/renderer/cloud_temporal.rs (size), src/lib.rs (Medium gate), assets/shaders/pbr/40-clouds.wgsl (dispatch + map texel angle), 45-cloud-temporal.wgsl (jitter stratum), src/renderer/clouds.rs (size-angle lock)
+
 ### Clouds Move Like Weather (v0.1163, phase 7 stage 1)
 Per-family winds replace the single solid-body drift (which moved every
 family at every altitude at 127 m/s equatorial, 10-40x too fast for a

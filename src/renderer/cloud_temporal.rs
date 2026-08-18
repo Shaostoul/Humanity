@@ -30,7 +30,12 @@ use super::{AlbedoBindGroup, Renderer};
 /// ~0.18 deg/texel - a touch softer than the screen's ~0.035 deg/px,
 /// which reads as gentle edge softness rather than blur, at ~30% of the
 /// march cost of a full-res sky.
-pub const CLOUD_OCTA_SIZE: u32 = 1024;
+// 2048 since phase 8 (the edge-sharpness ceiling): at 1024 a Lambert
+// texel subtended 0.22 deg = 3.4 screen pixels at the operator's FOV -
+// a hard cap no tuning could lift, and the visible "grain" autocorrelated
+// at exactly 1-2 map texels. The ground-occlusion cull (v0.1161) cut the
+// pass to 1.9 ms, buying the 4x texel budget for ~0.11 deg/texel.
+pub const CLOUD_OCTA_SIZE: u32 = 2048;
 
 pub struct CloudTemporal {
     _textures: [wgpu::Texture; 2],

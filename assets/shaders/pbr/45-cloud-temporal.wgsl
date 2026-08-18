@@ -68,7 +68,7 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // a low-discrepancy sequence of sample offsets, which is exactly the
     // supersampling the EMA converges.
     let jitter = fract(
-        hash21(in.uv * 4096.0 + vec2<f32>(17.0, 39.0))
+        hash21(in.uv * 8192.0 + vec2<f32>(17.0, 39.0))
             + fract(camera.sun_color.w * 11.0) * 0.618034,
     );
     // Footprint for band-limited volume sampling: this pass's pixel is a
