@@ -82,10 +82,10 @@ pub const CLOUD_TOP_SCALE: f32 = 1.012;
 /// 8..=12 is the designed band; 0 selects the increment-1 flat deck.
 pub const CLOUD_MARCH_SAMPLES: i32 = 10;
 /// Mirrors `CLOUD_SIGMA_KM`: Medium-march extinction per KILOMETRE at
-/// density 1 (metric since the clouds depth increment; the old per-drawn-
-/// unit 560 was calibrated for the deleted 51 km slab and rendered the
-/// physical slab invisible from orbit).
-pub const CLOUD_SIGMA_KM: f32 = 0.44;
+/// density 1 (metric since the clouds depth increment; phase 2 raised the
+/// look-preserving conversion ~4x toward physical so the short vertical
+/// under-deck path reads as cloud, not haze).
+pub const CLOUD_SIGMA_KM: f32 = 1.75;
 /// Mirrors `CLOUD_MARCH_SHADOW_SHARP`: the Medium march's one-tap
 /// sun-direction self-shadow amplification. The tap DISTANCE is half the
 /// slab thickness, computed in-shader from the live bounds since the
@@ -125,8 +125,10 @@ pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
 pub const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
 /// Mirrors `CLOUD_HI_SIGMA_KM`: High-path extinction per KILOMETRE at
 /// density 1 (higher than Medium's -- the noise-carved density field
-/// averages far lower, and cores must still saturate).
-pub const CLOUD_HI_SIGMA_KM: f32 = 0.65;
+/// averages far lower, and cores must still saturate). Phase 2: 2.6/km
+/// puts a thin-band under-deck crossing at real overcast opacity;
+/// orbital decks go solid white like the real blue marble.
+pub const CLOUD_HI_SIGMA_KM: f32 = 2.6;
 /// Mirrors `CLOUD_HI_MAX_ALPHA`: peak alpha of the High deck (above
 /// Medium's 0.72 -- photoreal cumulus cores genuinely block the ground).
 pub const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
@@ -1312,8 +1314,12 @@ mod tests {
         let drawn_r_km = 6371.0_f32 * CLOUD_SHELL_SCALE;
         let integral_km = integral * drawn_r_km * (11.6 / 51.0);
         let opacity = 1.0 - (-CLOUD_HI_SIGMA_KM * integral_km).exp();
+        // Full density through the whole physical slab must be solidly
+        // opaque (real overcast IS opaque; the density field, pow shaping
+        // and erosion keep everyday decks translucent long before sigma
+        // does). No upper bound: at phase-2 extinction this saturates.
         assert!(
-            (0.85..1.0).contains(&opacity),
+            opacity > 0.85,
             "physical-slab full-density opacity {opacity} off calibration"
         );
     }

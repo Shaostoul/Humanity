@@ -761,6 +761,16 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Clouds Read From Below (v0.1157, phase 2)
+The from-below presence fix: extinction moved toward physical (2.6/km
+High, 1.75/km Medium - phase 1 look-preserved the old value, which left
+the short vertical under-deck path at tau under 1, the probe-bisected
+invisible-deck failure). The deck now renders as real cloud from under
+it and orbital decks go solid white like actual Blue Marble imagery.
+Plus the cloud_type dev pin (params2.w = 2+tc) so cloud vantages
+measure a KNOWN family.
+- Native: assets/shaders/pbr/40-clouds.wgsl, src/engine/ipc.rs
+
 ### Physical Cloud Slab (v0.1156, phase 1)
 The cloud deck now lives at REAL altitudes: per-planet cloud_base_km /
 cloud_top_km in the RON (Earth 0.4-12 km - the old hardcoded fractions

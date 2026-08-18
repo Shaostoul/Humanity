@@ -301,6 +301,20 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         };
         log::info!("Showcase: cloud_cover -> {:?}", state.cloud_cover_override);
     }
+    // Optional "cloud_type":"0.4" pins the cloud TYPE coordinate (0 =
+    // cirrus, 0.34 = cumulus, 0.5 = cumulonimbus, 0.67 = stratus, 1 =
+    // stratocumulus); "auto" restores the natural field. Only takes
+    // effect together with cloud_cover (the params2.w encoding requires
+    // the coverage pin) - it exists so the from-below cloud gates measure
+    // a KNOWN family.
+    if let Some(c) = grab("cloud_type") {
+        state.cloud_type_override = if c == "auto" {
+            None
+        } else {
+            c.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
+        };
+        log::info!("Showcase: cloud_type -> {:?}", state.cloud_type_override);
+    }
     // Optional "cloud_quality":"low"/"medium"/"high" pins the cloud tier
     // live (clouds depth increment): Medium now consumes the same
     // per-planet slab bounds as High, and BUG-049 taught us that a tier

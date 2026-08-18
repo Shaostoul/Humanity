@@ -783,6 +783,13 @@ pub(crate) struct EngineState {
     /// vantage cannot depend on the real sky over Silverdale being cloudy
     /// on capture day (clouds depth increment).
     pub(crate) cloud_cover_override: Option<f32>,
+    /// Dev/showcase pin for the cloud TYPE coordinate (None = the natural
+    /// two-octave type field). Set via showcase_request
+    /// {"cloud_type":"0.4"|"auto"}; 0 = cirrus .. 0.34 = cumulus .. 1 =
+    /// stratocumulus (the seven family centers). Only meaningful together
+    /// with cloud_cover_override - the from-below gates need a KNOWN
+    /// family, not whatever faint hand the noise deals the capture site.
+    pub(crate) cloud_type_override: Option<f32>,
     /// F6 pressed (v0.890): save a location bookmark next frame, where
     /// current_spin and the frame-lock state are fresh.
     pub(crate) bookmark_save_requested: bool,

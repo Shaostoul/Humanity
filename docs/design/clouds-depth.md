@@ -19,8 +19,14 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
-> **PHASE 2 (next, the actual operator-report surface): from-below
-> presence.** Probe-bisected on the rig (sweeps 20260818-0227..0241): the
+> **PHASE 2 core SHIPPED (v0.1157): metric extinction raised toward
+> physical (2.6/km) - the deck reads from below now, orbit goes solid
+> white like the real marble. Remaining tuning: coverage boldness and
+> underside shading against the gates; the measure script mask needs a
+> blue-tint-tolerant cloud heuristic to score thin veils. Original
+> phase-2 analysis follows.**
+>
+> **PHASE 2 (original fence): from-below presence.** Probe-bisected on the rig (sweeps 20260818-0227..0241): the
 > pre-erosion carve is strong from below (diagnostic green), but the
 > density that survives erosion stays near zero at under-deck distances -
 > the carve thresholds, erosion strengths, and sample budget were all

@@ -777,7 +777,7 @@
   },
   {
    "id": "silverdale-flight-2km",
-   "desc": "Under the cloud deck over Silverdale, looking up (clouds depth increment): the from-below verification of the physical 0.4-12 km slab. Cloudy (not rain) on purpose: rain's fog whiteout hides all structure, and at 2 km the camera sat INSIDE the nimbostratus band - first-run lesson.",
+   "desc": "Under the cloud deck over Silverdale, looking up: the clouds depth phase-2 from-below verification (physical slab + metric extinction + pinned cumulus).",
    "camera": {
     "body": "earth",
     "lat": 47.645,
@@ -787,7 +787,7 @@
    },
    "hold_altitude": true,
    "settle_s": 14,
-   "expect": "PHASE 2 CALIBRATION TARGET (clouds depth increment): the physical slab renders correctly from orbit, but the from-below density presence is still weak - the carve/erosion pipeline was calibrated for the deleted 51 km slab. Until the underside calibration lands, expect a thin-to-clear sky here; the vantage exists to measure that improving, not to alarm.",
+   "expect": "Discrete cumulus masses with bases CLOSE overhead (0.5-1.5 km, not a 25 km ceiling): shadowed undersides with real opacity and lobe structure, sky gaps between masses, a wide bright-to-dark radiance range (gates: measure-cloud-depth.mjs p95/p05 >= 6, high-pass >= 0.05/0.08). Type pinned to cumulus so the gates measure the shader, not the current regime.",
    "regressions": [
     "cloud bases within a few km (parallax against terrain must be obvious)",
     "underside shows structure (not a uniform luminous sheet)",
@@ -800,7 +800,8 @@
     "sea": "0.3",
     "weather": "cloudy",
     "clouds": "1",
-    "cloud_cover": "0.95"
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
    }
   },
   {
@@ -815,7 +816,7 @@
    },
    "hold_altitude": true,
    "settle_s": 14,
-   "expect": "The Medium field-march tier at the physical slab (BUG-049 coverage lock): no concentric rings, no crash. Cloud presence from below shares the phase-2 calibration caveat of silverdale-flight-2km.",
+   "expect": "The Medium field-march tier at the physical slab with pinned cumulus (BUG-049 coverage lock): visible deck overhead, no concentric rings, no crash.",
    "regressions": [
     "no BUG-049 concentric rings at any altitude",
     "cloud deck present (Medium must not render an empty sky under cloudy weather)",
@@ -828,7 +829,8 @@
     "weather": "cloudy",
     "cloud_quality": "medium",
     "clouds": "1",
-    "cloud_cover": "0.95"
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
    }
   }
  ]

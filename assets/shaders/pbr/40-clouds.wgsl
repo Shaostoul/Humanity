@@ -138,9 +138,14 @@ const CLOUD_MARCH_SAMPLES: i32 = 10;
 // increment: metric, like the rest of the ladder - the old 560 per
 // drawn-shell unit was calibrated against the deleted 51 km slab, and on
 // the physical 0.4-12 km slab it left every deck a see-through gauze;
-// the orbital marble lost its clouds entirely). 0.44/km restores the old
-// per-cloud optical depth at the real band thicknesses.
-const CLOUD_SIGMA_KM: f32 = 0.44;
+// the orbital marble lost its clouds entirely). Phase 2 raised the
+// look-preserving 0.44 conversion ~4x toward physical: a family band is
+// 1-2 km thick now, and the eroded density field averages well under
+// 0.2, so the under-deck vertical path needs real per-km extinction to
+// read as cloud instead of haze (real stratus is 30-100/km; we stay far
+// below that because the density field, pow shaping and erosion already
+// discount the medium).
+const CLOUD_SIGMA_KM: f32 = 1.75;
 // Self-shadow tap for the Medium march: a 3D offset TOWARD the sun of HALF
 // THE SLAB THICKNESS (computed from g_cloud_rb/rt at the tap site since the
 // clouds depth increment - the old fixed 0.004 drawn units was ~half of the
@@ -296,11 +301,15 @@ const CLOUD_LIGHT_RATIO: f32 = 1.8;
 // octaves in cloud_scatter_energy keeping deep shadows luminous, not black.
 const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
 // Extinction per KILOMETRE at density 1 for the High path (metric since
-// the clouds depth increment - see CLOUD_SIGMA_KM). Tuned so dense cores
-// saturate but thin edges stay translucent: the balance the old 850 per
-// drawn unit struck on the 51 km slab, re-expressed for real band
-// thicknesses (0.65/km ~ the old per-cloud tau at a 5x thinner deck).
-const CLOUD_HI_SIGMA_KM: f32 = 0.65;
+// the clouds depth increment - see CLOUD_SIGMA_KM). Phase 2: 0.65 was
+// the look-preserving conversion of the old 850-per-drawn-unit value; it
+// kept the LONG slant paths (orbit) right but left the short vertical
+// under-deck path at tau well under 1 - the probe-bisected "carve is
+// strong, deck reads as nothing" failure. 2.6/km puts a dens~0.1
+// under-deck crossing at real overcast opacity while orbital decks go
+// properly solid white (which is what the real blue marble shows;
+// feathered edges come from the density falloff, not weak extinction).
+const CLOUD_HI_SIGMA_KM: f32 = 2.6;
 // Peak alpha of the High deck. Above Medium's 0.72: photoreal cumulus
 // cores genuinely block the ground; thin skirts stay translucent anyway.
 const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
@@ -1002,12 +1011,13 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // broken deck (~instantaneous look); real clear zones (deserts) go clear.
     let envelope = smoothstep(0.35, 0.9, w.r);
     let live = envelope * smoothstep(0.15, 0.7, meso_f * 2.5);
-    // Dev coverage pin (params2.w = 1, set with the showcase cloud_cover
-    // override): ignore the live MODIS placement and let the procedural
-    // field own the sky - a cloud-verification vantage cannot depend on
-    // the real sky being cloudy over the capture site today, and below
-    // coverage ~1 no coverage value can resurrect a live-zeroed field.
-    let live_w = w.g * (1.0 - clamp(material.params2.w, 0.0, 1.0));
+    // Dev coverage pin (params2.w >= 1, set with the showcase cloud_cover
+    // override; w = 2+tc adds the cloud_type pin, see cloud_type_coord):
+    // ignore the live MODIS placement and let the procedural field own
+    // the sky - a cloud-verification vantage cannot depend on the real
+    // sky being cloudy over the capture site today, and below coverage
+    // ~1 no coverage value can resurrect a live-zeroed field.
+    let live_w = w.g * (1.0 - clamp(material.params2.w * 2.0, 0.0, 1.0));
     return mix(proc, live, live_w);
 }
 
@@ -1046,6 +1056,13 @@ struct CloudSample {
 // The type coordinate at a planet-fixed direction: two low-frequency octaves
 // so regime patches are organic (not a few giant zones). In [0,1].
 fn cloud_type_coord(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
+    // Dev type pin (params2.w = 2 + tc, showcase cloud_type override):
+    // a cloud-verification vantage needs a KNOWN family - the natural
+    // type field can deal the capture site a faint cirrus/stratocu hand
+    // and the underside gates would measure the family, not the shader.
+    if (material.params2.w >= 1.5) {
+        return clamp(material.params2.w - 2.0, 0.0, 1.0);
+    }
     let d = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
     let a = cloud_noise(d, CLOUD_TYPE_FREQ, seed + 211.0);
     let b = cloud_noise(d, CLOUD_TYPE_FREQ2, seed + 331.0);

@@ -1866,6 +1866,7 @@ mod native_app {
                 frame_lock_body: None,
                 sea_state_override: None,
                 cloud_cover_override: None,
+                cloud_type_override: None,
                 ocean_fft_wind: 8.0,
                 ocean_fft_built_wind: 8.0,
                 ocean_fft_rebuild_cooldown: 0.0,
@@ -11363,14 +11364,20 @@ mod native_app {
                                         // write below carries the fresh slab
                                         // bounds (update_material_full writes
                                         // the stored params2 back).
-                                        // params2.w = 1 tells cloud_weather to
-                                        // ignore the live MODIS placement (the
-                                        // dev coverage pin - see
-                                        // cloud_cover_override).
-                                        let pin = if state.cloud_cover_override.is_some() {
-                                            1.0
-                                        } else {
-                                            0.0
+                                        // params2.w encodes the dev pins (see
+                                        // cloud_cover_override /
+                                        // cloud_type_override): 0 = none,
+                                        // 1 = coverage pin (cloud_weather
+                                        // ignores live MODIS), 2 + tc =
+                                        // coverage AND type pin
+                                        // (cloud_type_coord returns tc).
+                                        let pin = match (
+                                            state.cloud_cover_override.is_some(),
+                                            state.cloud_type_override,
+                                        ) {
+                                            (true, Some(tc)) => 2.0 + tc.clamp(0.0, 1.0),
+                                            (true, None) => 1.0,
+                                            _ => 0.0,
                                         };
                                         state.renderer.update_material_params2(
                                             cmat,
