@@ -11354,22 +11354,56 @@ mod native_app {
                                         // = tint, .a = coverage) - zero shader
                                         // changes, docs at 40-clouds.wgsl top.
                                         let ev_t = state.cloud_event_tint;
+                                        // The in-game weather owns the LOCAL
+                                        // sky (the clouds-depth taste call,
+                                        // resolved by "make clouds as good as
+                                        // possible"): when the sim says
+                                        // Cloudy/Rain/Storm/Snow the deck must
+                                        // show matching coverage even where
+                                        // the live MODIS map is clear - the
+                                        // HUD label and the sky must never
+                                        // disagree. The floor raises effective
+                                        // coverage AND blends placement toward
+                                        // the procedural field in the same
+                                        // measure (params2.w), because below
+                                        // coverage ~1 a live-zeroed field
+                                        // cannot be resurrected by the
+                                        // coverage knob alone.
+                                        let (wx_floor, wx_bypass) = state
+                                            .data_store
+                                            .get::<std::sync::Mutex<Weather>>("weather")
+                                            .and_then(|m| m.lock().ok())
+                                            .map(|w| {
+                                                use crate::systems::weather::WeatherCondition as WC;
+                                                match w.condition {
+                                                    WC::Storm => (0.95, 0.95),
+                                                    WC::Rain => (0.85, 0.85),
+                                                    WC::Snow => (0.85, 0.85),
+                                                    WC::Cloudy => (0.55, 0.5),
+                                                    WC::Fog => (0.45, 0.35),
+                                                    _ => (0.0, 0.0),
+                                                }
+                                            })
+                                            .unwrap_or((0.0, 0.0));
                                         // Dev/showcase coverage pin wins over
                                         // the live weather + event boost (see
                                         // EngineState::cloud_cover_override).
                                         let cov_eff = state.cloud_cover_override.unwrap_or(
-                                            (cov + state.cloud_event_boost).min(1.0),
+                                            (cov + state.cloud_event_boost)
+                                                .max(wx_floor)
+                                                .min(1.0),
                                         );
                                         // params2 FIRST so the full-uniform
                                         // write below carries the fresh slab
                                         // bounds (update_material_full writes
                                         // the stored params2 back).
-                                        // params2.w encodes the dev pins (see
-                                        // cloud_cover_override /
-                                        // cloud_type_override): 0 = none,
-                                        // 1 = coverage pin (cloud_weather
-                                        // ignores live MODIS), 2 + tc =
-                                        // coverage AND type pin
+                                        // params2.w encodes the placement
+                                        // blend + dev pins: [0,1] = fraction
+                                        // of the live MODIS placement to
+                                        // BYPASS toward the procedural field
+                                        // (the weather floor above; 1 = the
+                                        // dev coverage pin's full bypass),
+                                        // 2 + tc = full bypass AND type pin
                                         // (cloud_type_coord returns tc).
                                         let pin = match (
                                             state.cloud_cover_override.is_some(),
@@ -11377,7 +11411,7 @@ mod native_app {
                                         ) {
                                             (true, Some(tc)) => 2.0 + tc.clamp(0.0, 1.0),
                                             (true, None) => 1.0,
-                                            _ => 0.0,
+                                            _ => wx_bypass,
                                         };
                                         state.renderer.update_material_params2(
                                             cmat,

@@ -116,19 +116,10 @@ pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 /// units per invocation (g_cloud_upkm).
 pub const CLOUD_LIGHT_NEAR_KM: f32 = 0.9;
 pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
-/// Mirrors `CLOUD_LIGHT_SIGMA_MULT`: light-march extinction multiplier
-/// over the view sigma. The view sigma is calibrated for deck ALPHA
-/// (feathered edges); reusing it for the sun path capped every shadow at
-/// ~e^-0.5, which the 2026-07-27 tau heat-map probe exposed as tau ~0.1
-/// across a solid noon overcast -- structurally flat lighting. The
-/// boosted shadow sigma is the standard view/light extinction split.
-pub const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
-/// Mirrors `CLOUD_HI_SIGMA_KM`: High-path extinction per KILOMETRE at
-/// density 1 (higher than Medium's -- the noise-carved density field
-/// averages far lower, and cores must still saturate). Phase 2: 2.6/km
-/// puts a thin-band under-deck crossing at real overcast opacity;
-/// orbital decks go solid white like the real blue marble.
-pub const CLOUD_HI_SIGMA_KM: f32 = 2.6;
+/// (CLOUD_LIGHT_SIGMA_MULT and the global CLOUD_HI_SIGMA_KM retired in
+/// phase 3: the High path's extinction is per-family - see
+/// `CloudRegime::ext_km` - and with a physical medium the view and light
+/// marches share it, so the artificial view/shadow split is gone.)
 /// Mirrors `CLOUD_HI_MAX_ALPHA`: peak alpha of the High deck (above
 /// Medium's 0.72 -- photoreal cumulus cores genuinely block the ground).
 pub const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
@@ -512,6 +503,14 @@ pub struct CloudRegime {
     pub filament: f32,
     /// Luminance factor (overcast reads greyer).
     pub tint: f32,
+    /// PHYSICAL extinction per km at density 1 (phase 3): cumulus 45,
+    /// cumulonimbus 60, stratus 22, cirrus 1.2. Replaces the global
+    /// CLOUD_HI_SIGMA_KM for the High path.
+    pub ext_km: f32,
+    /// Base-undulation weight (phase 3): full for broken low decks
+    /// (stratocumulus/nimbostratus), near zero for flat-based convective
+    /// families whose base is the lifting condensation level.
+    pub base_drop: f32,
 }
 
 /// Dot of a 7-weight vector with a per-regime parameter table (v0.893).
@@ -570,6 +569,10 @@ pub fn cloud_regime(tc: f32) -> CloudRegime {
         // families brilliant white) - keep byte-identical with the WGSL
         // t_tint table.
         tint: dot7(w, [1.00, 0.96, 0.98, 0.55, 0.74, 0.42, 0.85]),
+        // Phase 3: physical per-family extinction + base-undulation weight
+        // (keep byte-identical with the WGSL t_ext / t_bdrop tables).
+        ext_km: dot7(w, [1.2, 8.0, 45.0, 60.0, 22.0, 30.0, 20.0]),
+        base_drop: dot7(w, [0.0, 0.50, 0.10, 0.20, 0.30, 0.80, 1.00]),
     }
 }
 
@@ -590,7 +593,10 @@ pub fn cloud_type_coord(dir: [f32; 3], t: f32, seed: f32) -> f32 {
 /// Mirrors `cloud_height_band`: smooth rise / plateau / fall over the slab
 /// fraction h for a regime's [h_lo, h_hi] altitude band.
 pub fn cloud_height_band(h: f32, h_lo: f32, h_hi: f32) -> f32 {
-    let a = mix(h_lo, h_hi, 0.30);
+    // Phase 3: lower knee 30% -> 3% of the band. A cloud base is the
+    // lifting condensation level - density goes zero-to-full within tens
+    // of metres - and the old knee smeared it over kilometres.
+    let a = mix(h_lo, h_hi, 0.03);
     let b = mix(h_lo, h_hi, 0.62);
     smoothstep(h_lo, a, h) * (1.0 - smoothstep(b, h_hi, h))
 }
@@ -870,8 +876,6 @@ mod tests {
             ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
             ("CLOUD_LIGHT_NEAR_KM", CLOUD_LIGHT_NEAR_KM),
             ("CLOUD_LIGHT_RATIO", CLOUD_LIGHT_RATIO),
-            ("CLOUD_LIGHT_SIGMA_MULT", CLOUD_LIGHT_SIGMA_MULT),
-            ("CLOUD_HI_SIGMA_KM", CLOUD_HI_SIGMA_KM),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
             ("CLOUD_SHAPE_TILE_KM", CLOUD_SHAPE_TILE_KM),
             ("CLOUD_DETAIL_TILE_KM", CLOUD_DETAIL_TILE_KM),
@@ -1313,14 +1317,35 @@ mod tests {
         // deck must still read solidly opaque at full density.
         let drawn_r_km = 6371.0_f32 * CLOUD_SHELL_SCALE;
         let integral_km = integral * drawn_r_km * (11.6 / 51.0);
-        let opacity = 1.0 - (-CLOUD_HI_SIGMA_KM * integral_km).exp();
-        // Full density through the whole physical slab must be solidly
-        // opaque (real overcast IS opaque; the density field, pow shaping
-        // and erosion keep everyday decks translucent long before sigma
-        // does). No upper bound: at phase-2 extinction this saturates.
+        // Phase 3: extinction is per-family. A full-density crossing of
+        // the slab at the CUMULUS family's physical extinction must be
+        // solidly opaque (real overcast IS opaque; the density field, pow
+        // shaping and erosion keep everyday decks translucent long before
+        // sigma does), and even CIRRUS - the thinnest family - must still
+        // be VISIBLE over the same path (its whole point is a translucent
+        // veil, not nothing).
+        let cumulus = cloud_regime(0.34);
+        let cirrus = cloud_regime(0.0);
+        let op_cu = 1.0 - (-cumulus.ext_km * integral_km).exp();
         assert!(
-            opacity > 0.85,
-            "physical-slab full-density opacity {opacity} off calibration"
+            op_cu > 0.95,
+            "cumulus full-density slab opacity {op_cu} off calibration"
+        );
+        // Cirrus stays a translucent veil through its PHYSICS, not its
+        // path length: a real cirrus sheet is a few hundred metres of
+        // sub-1 water content. Over 0.3 km at density ~0.3 its optical
+        // depth must stay under ~1 while cumulus at the same geometry
+        // is already several times thicker.
+        assert!(
+            cirrus.ext_km < 5.0 && cumulus.ext_km > 30.0,
+            "family extinction ordering broken: cirrus {} cumulus {}",
+            cirrus.ext_km,
+            cumulus.ext_km
+        );
+        assert!(
+            cirrus.ext_km * 0.3 * 0.3 < 1.0,
+            "a thin cirrus sheet should stay translucent (tau {})",
+            cirrus.ext_km * 0.3 * 0.3
         );
     }
 

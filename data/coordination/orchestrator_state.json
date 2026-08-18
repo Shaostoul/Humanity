@@ -415,6 +415,11 @@
    "date": "2026-08-18",
    "decision": "v0.1157.0 cloud phase 2 core: extinction to physical (CLOUD_HI_SIGMA_KM 0.65 -> 2.6, Medium 0.44 -> 1.75) fixed the from-below invisible deck; cloud_type dev pin (params2.w = 2+tc) gives verification vantages a known family (cumulus). From-below capture shows real cloud masses from 200 m; orbital decks now solid white with live MODIS - closer to actual Blue Marble imagery than the old translucent look. Remaining: coverage boldness + underside shading tuning against the gates; measure-cloud-depth mask needs blue-tint tolerance.",
    "why": "The bisect had already localized the failure to per-sample density x extinction on the short vertical path; sigma was the single lever that fixes below without hurting orbit (long slant paths saturate at the alpha cap either way, and real orbital decks ARE opaque)."
+  },
+  {
+   "date": "2026-08-18",
+   "decision": "v0.1158.0 cloud phase 3 (the physical medium): fidelity-expert findings 1-5 in one density-chain rewrite - per-family physical extinction + interior renormalization (bases now DARKER than sky, was 1.16x brighter), hard 3% condensation-base knee + lofi-keyed towering (bases at the real band, was floated to 4-8 km), 8 km cell-split tap (discrete 1-2 km cumuli, was nothing under 11 km), aerial perspective at mean marched depth (low-cam alpha hack removed), moire jitter decorrelation, weather-owned local sky (Cloudy/Rain floor + MODIS bypass via params2.w fraction). Probe: discrete dark-based cumuli + horizon depth ramp at 17 fps, orbit + Medium clean, 25 mirror tests green.",
+   "why": "The expert measured the mechanisms (density chain at 0.054/km effective vs 20-100 real; tower-from-coverage; 11 km minimum feature; no aerial) so each fix was one targeted change. Finding 6 (temporal reprojection) is deliberately its own increment: new render targets + history reprojection is bind-group-hazard territory that deserves fresh context and its own boot verification."
   }
  ],
  "active_scopes_to_avoid": [
@@ -444,7 +449,7 @@
   "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
  ],
  "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
- "last_updated": "2026-08-18 (v0.1157.0 cloud phase 2 core)",
+ "last_updated": "2026-08-18 (v0.1158.0 cloud phase 3)",
  "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
  "overnight_plan_2026_08_01": {
   "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

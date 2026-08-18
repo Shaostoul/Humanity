@@ -805,6 +805,35 @@
    }
   },
   {
+   "id": "silverdale-flight-2km-b",
+   "desc": "The parallax partner of silverdale-flight-2km: same sky, camera 500 m east. The clouds-depth parallax gate compares the two captures - a 1 km cloud base must shift ~27 degrees, a 23 km backdrop ~1.2 degrees.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.68584,
+    "altitude_km": 0.3,
+    "look_offset_deg": 115
+   },
+   "hold_altitude": true,
+   "settle_s": 14,
+   "expect": "Same deck as silverdale-flight-2km from 500 m east; used only for the parallax measurement.",
+   "regressions": [
+    "cloud bases within a few km (parallax against terrain must be obvious)",
+    "underside shows structure (not a uniform luminous sheet)",
+    "no BUG-049 concentric rings",
+    "panics=0"
+   ],
+   "perf_floor_fps": 10,
+   "showcase": {
+    "time": "20.2",
+    "sea": "0.3",
+    "weather": "cloudy",
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
+   }
+  },
+  {
    "id": "silverdale-2km-medium",
    "desc": "The MEDIUM cloud tier from under the deck (clouds depth increment): Medium now consumes the per-planet slab via cloud_set_slab_bounds - this vantage is its first and only rig coverage (the BUG-049 lesson)",
    "camera": {

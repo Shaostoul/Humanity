@@ -761,6 +761,19 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### The Physical Cloud Medium (v0.1158, phase 3)
+The fidelity-expert six-finding rewrite: silhouette/density separation
+(interior = full density, Nubis-style), physical per-family extinction
+(cumulus 45/km, cirrus 1.2/km), a hard condensation base (band knee 3%),
+convection-keyed towering, the 8 km cell-split tap (discrete 1-2 km
+cumuli near the camera), aerial perspective at the cloud own depth, the
+moire jitter fix, and the in-game weather owning the local sky (a
+Cloudy/Rain HUD label now guarantees matching clouds). From below: a
+field of discrete dark-based cumulus with sky gaps and a horizon depth
+ramp. Fenced next: temporal reprojection (the grain unlock).
+- Native: assets/shaders/pbr/40-clouds.wgsl, src/renderer/clouds.rs,
+  src/lib.rs (weather floor), src/engine/ipc.rs (cloud_type pin)
+
 ### Clouds Read From Below (v0.1157, phase 2)
 The from-below presence fix: extinction moved toward physical (2.6/km
 High, 1.75/km Medium - phase 1 look-preserved the old value, which left

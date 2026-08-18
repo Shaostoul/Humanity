@@ -19,6 +19,19 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 3 SHIPPED (v0.1158): fidelity findings 1-5 - physical
+> per-family extinction with silhouette/density separation, hard
+> condensation base + convection-keyed towering + regime-weighted base
+> undulation, cell-split tap (discrete cumuli), aerial perspective at
+> cloud depth (low-cam alpha hack removed from High), moire jitter fix,
+> weather-owned local sky. REMAINING: finding 6, temporal reprojection
+> (quarter-res history buffer + camera reprojection + neighbourhood
+> clamp) to resolve the sampling grain, then edge-crispness tuning and
+> the Q2 chroma-unmixing mask rewrite of measure-cloud-depth.mjs (the
+> full expert report with acceptance gates is in the 2026-08-18 journal
+> + task a00c transcript; prototypes profile.mjs / mask.mjs in the
+> session scratchpad).**
+>
 > **PHASE 2 core SHIPPED (v0.1157): metric extinction raised toward
 > physical (2.6/km) - the deck reads from below now, orbit goes solid
 > white like the real marble. Remaining tuning: coverage boldness and
