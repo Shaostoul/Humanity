@@ -761,6 +761,20 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### Tiled Lights Stay In Their Lane (v0.1155)
+The other half of the night-glow report: with tiled lighting on, the
+whole terrain lit up at night. Mechanism: the tile lists are built
+once per frame from the lit interior pass, but the celestial/terrain
+pass writes its camera uniform without lit_uniform, so its declared
+light_count is 0 - the classic loop correctly gives terrain no point
+lights, while the tiled path ignored light_count and smuggled the
+interior lights onto the night terrain through the tile lists. Fix:
+the tiled loop skips any index >= the pass declared light_count. A/B
+locked by the silverdale-osm-night vantage, which now pins
+lights_tiled ON: dark terrain, dim rain, and 15 -> 22 fps at that
+vantage since terrain stopped evaluating phantom lights.
+- Native: assets/shaders/pbr/90-fragment-main.wgsl (one guard)
+
 ### Night-Honest Rain (v0.1154)
 Operator field report: the rain shader glows at night. The particle
 billboard shader rendered every authored tint at full brightness

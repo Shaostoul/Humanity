@@ -1864,6 +1864,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         var i = j;
         if (use_tiles) {
             i = i32(tile_indices[tile_base + u32(j)]);
+            // Respect THIS pass's declared light count (v0.1155, the
+            // tiled-only night glow): the tile lists are built once per
+            // frame from the lit interior pass, but the celestial/terrain
+            // pass writes its camera uniform without lit_uniform, so its
+            // light_count is 0 - the classic loop gives terrain NO point
+            // lights, and the tiled path must not smuggle them in through
+            // the tile lists. Without this guard, interior lights lit the
+            // whole night terrain whenever tiling was on.
+            if (i >= num_lights) {
+                continue;
+            }
         }
         var light_pos = scene_lights[i].pos_intensity.xyz;
         let intensity = scene_lights[i].pos_intensity.w;

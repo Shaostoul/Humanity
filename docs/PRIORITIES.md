@@ -145,12 +145,10 @@
 >    star-catalog tiers. Remaining rungs ranked:
 >    GRAPHICS FIELD-REPORT QUEUE (operator 2026-08-17, evidence in the
 >    journal + docs/design/clouds-depth.md):
->    (i) TILED-LIGHTS NIGHT GLOW: terrain lit at night with
->    lights_tiled on, dark with it off (A/B captures). Static analysis
->    exhausted; next step is runtime instrumentation (log lights.len +
->    tile_counts sum on the rig at night); leading suspect: stale
->    tile-buffer bind group after the light storage buffer doubling
->    reallocation. The night vantage pins lights_tiled:0 until fixed.
+>    (i) TILED-LIGHTS NIGHT GLOW: FIXED v0.1155.0 (the tiled loop
+>    ignored each pass declared light_count and smuggled interior
+>    lights onto the terrain pass; one shader guard; night vantage now
+>    pins lights_tiled ON as the permanent regression lock).
 >    (ii) CLOUD DEPTH: fenced 6-step increment in clouds-depth.md (deck
 >    10-50x too high on a v0.883.2-stale constant; light march blind to
 >    erosion; NOT texture resolution). Measured acceptance gates ready.

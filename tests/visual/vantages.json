@@ -709,7 +709,7 @@
   },
   {
    "id": "silverdale-osm-night",
-   "desc": "Night rain over Silverdale: hunting the water/rain/low-LOD glow (operator report 2026-08-17)",
+   "desc": "Night rain over Silverdale at TILED lighting: the v0.1155 regression lock (tiled must not light terrain the pass never declared)",
    "camera": {
     "body": "earth",
     "lat": 47.634,
@@ -729,7 +729,7 @@
     "time": "8.2",
     "sea": "0.3",
     "weather": "rain",
-    "lights_tiled": "0"
+    "lights_tiled": "1"
    }
   },
   {
