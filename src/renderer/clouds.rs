@@ -155,10 +155,16 @@ pub const CLOUD_DENSITY_POW: f32 = 1.7;
 pub const CLOUD_FIL_LO: f32 = 0.30;
 pub const CLOUD_FIL_HI: f32 = 0.74;
 /// Mirrors `CLOUD_HG_FWD` / `CLOUD_HG_BACK` / `CLOUD_HG_FWD_WEIGHT`: the
-/// dual-lobe Henyey-Greenstein phase.
-pub const CLOUD_HG_FWD: f32 = 0.55;
+/// dual-lobe Henyey-Greenstein phase. Forward g raised 0.55 -> 0.80 in
+/// the phase-5 lighting rework (droplet scattering is g ~ 0.85; the old
+/// forward peak was ~6x under-strength, so backlit rims never blazed).
+pub const CLOUD_HG_FWD: f32 = 0.80;
 pub const CLOUD_HG_BACK: f32 = -0.15;
 pub const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
+/// Mirrors `CLOUD_MS_DIFFUSE`: weight of the two-stream diffusion floor
+/// in cloud_scatter_energy - the algebraic (1/(1+0.75(1-g)tau)) term
+/// that keeps a thick deck luminous grey instead of exponentially black.
+pub const CLOUD_MS_DIFFUSE: f32 = 0.22;
 /// Mirrors `CLOUD_POWDER_STRENGTH`: Beer-powder edge darkening strength.
 pub const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 /// Mirrors `CLOUD_AMB_BASE` / `CLOUD_AMB_TOP`: ambient skylight at the
@@ -617,18 +623,31 @@ pub fn cloud_stretch_domain(p: [f32; 3], dir: [f32; 3], stretch: f32) -> [f32; 3
     [p[0] - tang[0] * k, p[1] - tang[1] * k, p[2] - tang[2] * k]
 }
 
-/// Mirrors `cloud_scatter_energy`: 3-octave multiple-scattering
-/// approximation -- deep cores fade to a diffuse glow instead of the black
-/// that single-scatter Beer-Lambert would give.
-pub fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
-    let mut e = phase * (-tau).exp();
-    e += 0.45 * mix(1.0, phase, 0.5) * (-tau * 0.25).exp();
-    // Third octave sigma 0.06 -> 0.20 (clouds depth increment): under the
-    // old tau cap of 10 this octave never fell below 55% - a constant
-    // luminous floor that flattened the from-below deck to a 2-3x radiance
-    // range. Keep identical with the WGSL.
-    e += 0.18 * (-tau * 0.20).exp();
-    e
+/// Mirrors `cloud_scatter_energy` (phase 5 lighting rework): the true
+/// Wrenninge/Schneider octave ladder - each octave halves extinction,
+/// halves energy, and WIDENS the phase toward isotropic by halving g,
+/// evaluating the dual-lobe HG per octave - plus the two-stream
+/// diffusion floor (algebraic 1/(1+0.75(1-g)tau) transmittance, the
+/// physical reason a thick overcast is luminous grey, never black).
+/// Keep identical with the WGSL.
+pub fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
+    let mut e = 0.0;
+    let mut c_n = 1.0_f32;
+    let mut a_n = 1.0_f32;
+    let mut g_n = 1.0_f32;
+    for _ in 0..4 {
+        let ph = mix(
+            cloud_hg(cos_vs, CLOUD_HG_BACK * g_n),
+            cloud_hg(cos_vs, CLOUD_HG_FWD * g_n),
+            CLOUD_HG_FWD_WEIGHT,
+        );
+        e += c_n * ph * (-tau * a_n).exp();
+        c_n *= 0.5;
+        a_n *= 0.5;
+        g_n *= 0.5;
+    }
+    let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau);
+    e + CLOUD_MS_DIFFUSE * t_diff
 }
 
 #[cfg(test)]
@@ -890,6 +909,7 @@ mod tests {
             ("CLOUD_HG_FWD", CLOUD_HG_FWD),
             ("CLOUD_HG_BACK", CLOUD_HG_BACK),
             ("CLOUD_HG_FWD_WEIGHT", CLOUD_HG_FWD_WEIGHT),
+            ("CLOUD_MS_DIFFUSE", CLOUD_MS_DIFFUSE),
             ("CLOUD_POWDER_STRENGTH", CLOUD_POWDER_STRENGTH),
             ("CLOUD_AMB_BASE", CLOUD_AMB_BASE),
             ("CLOUD_AMB_TOP", CLOUD_AMB_TOP),
@@ -1205,20 +1225,35 @@ mod tests {
 
     #[test]
     fn scatter_energy_decays_but_never_reaches_black() {
-        let side_phase = cloud_phase(0.0);
-        let thin = cloud_scatter_energy(0.0, side_phase);
-        let mid = cloud_scatter_energy(2.0, side_phase);
-        let deep = cloud_scatter_energy(12.0, side_phase);
-        assert!(thin > mid && mid > deep, "not decaying: {thin} {mid} {deep}");
-        // The multiple-scattering octaves keep deep cores faintly glowing
-        // (vs single-scatter black) - but since the clouds depth increment
-        // the third octave DECAYS (sigma 0.20, was 0.06): the old constant
-        // ~0.10 floor flattened the whole from-below deck into a 2-3x
-        // radiance range. Deep must stay above black AND below the old
-        // floor - both directions are regressions.
-        assert!(deep > 0.005, "deep core went black: {deep}");
-        assert!(deep < 0.06, "deep-core luminous floor is back: {deep}");
+        // Phase 5 lighting: side-view (cos 0) energy must decay
+        // monotonically with depth, and the two-stream diffusion floor
+        // must keep even a tau-40 deck LUMINOUS - real droplet albedo is
+        // ~0.9999, so thickness darkens geometrically, never to black.
+        let thin = cloud_scatter_energy(0.0, 0.0);
+        let mid = cloud_scatter_energy(2.0, 0.0);
+        let deep = cloud_scatter_energy(12.0, 0.0);
+        let vdeep = cloud_scatter_energy(40.0, 0.0);
+        assert!(
+            thin > mid && mid > deep && deep > vdeep,
+            "not decaying: {thin} {mid} {deep} {vdeep}"
+        );
+        assert!(deep > 0.05, "deep core lost its diffusion glow: {deep}");
+        assert!(vdeep > 0.02, "tau-40 deck went black: {vdeep}");
+        // The tail must be ALGEBRAIC, not exponential: tau 12 -> 40 may
+        // dim a handful of times, never by e^28.
+        assert!(
+            deep / vdeep < 6.0,
+            "diffusion tail decays exponentially: {deep} / {vdeep}"
+        );
         assert!(thin < 2.0, "side-view thin energy blown out: {thin}");
+        // Toward the sun (cos 1) the g=0.8 forward lobe must blaze well
+        // past the side view on a thin veil - the silver-lining energy.
+        let rim = cloud_scatter_energy(0.5, 1.0);
+        let side = cloud_scatter_energy(0.5, 0.0);
+        assert!(
+            rim > side * 5.0,
+            "forward lobe too weak for a silver lining: rim {rim} side {side}"
+        );
     }
 
     #[test]

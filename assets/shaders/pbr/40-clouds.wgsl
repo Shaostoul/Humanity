@@ -427,9 +427,26 @@ const CLOUD_TYPE_FREQ: f32 = 3.0;
 // Dual-lobe Henyey-Greenstein phase: strong forward lobe (silver linings,
 // bright toward-sun rims) + mild back lobe (retro-reflection when the sun
 // is behind the camera), blended by the forward weight.
-const CLOUD_HG_FWD: f32 = 0.55;
+// Forward g raised 0.55 -> 0.80 (phase 5 lighting, fidelity finding 5):
+// cloud droplets scatter at g ~ 0.85 in the geometric-optics regime, and
+// the relative-HG forward peak at g=0.55 was ~6x under-strength - the
+// measured backlit rim was 1.35x the sky where a real one is 3-10x and
+// clips. The multi-scatter octaves widen g per octave (see
+// cloud_scatter_energy), which is what keeps deep samples from
+// over-glowing at this stronger lobe. (cloud_phase feeds the aerial Mie
+// term too - fog's own physical g is ~0.85, so the tighter halo there is
+// a move TOWARD its own documented target.)
+const CLOUD_HG_FWD: f32 = 0.80;
 const CLOUD_HG_BACK: f32 = -0.15;
 const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
+// Two-stream diffusion floor (phase 5 lighting, fidelity finding 3):
+// droplet single-scatter albedo is ~0.9999, so a thick cloud is BRIGHT -
+// conservative-scattering transmittance decays ALGEBRAICALLY
+// (1 / (1 + 0.75*(1-g)*tau)), never exponentially to black. This is the
+// energy floor that keeps a deep overcast luminous grey instead of the
+// measured ambient-only mud (direct+multiscatter was ~0 across an entire
+// 0.95-coverage frame). Weight of that floor in scatter energy.
+const CLOUD_MS_DIFFUSE: f32 = 0.22;
 // Beer-powder strength: thin media darken (little in-scattering) -- the
 // classic dark-translucent-edge cue. Raised 0.75 -> 0.92 to kill a bright
 // RIM the orbital marble showed: thin cloud skirts over dark ocean were
@@ -1539,21 +1556,41 @@ fn cloud_sun_tau(
     return tau;
 }
 
-// Sun in-scatter energy at optical depth tau: a 3-octave multiple-
-// scattering approximation (Wrenninge-style -- each octave attenuates
-// sigma and widens the phase toward isotropic), so deep cores fade to a
-// diffuse glow instead of going black the way single-scatter Beer does.
-fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
-    var e = phase * exp(-tau);
-    e = e + 0.45 * mix(1.0, phase, 0.5) * exp(-tau * 0.25);
-    // Third octave sigma 0.06 -> 0.20 (clouds depth increment): with the
-    // old tau cap of 10, exp(-tau*0.06) never fell below 0.55 - a constant
-    // 0.10 luminous floor that compressed the whole from-below deck into a
-    // 2-3x radiance range (two-stream physics gives ~7.6x from thickness
-    // alone). At 0.20 the deep-shadow octave actually decays while thin
-    // veils keep their glow.
-    e = e + 0.18 * exp(-tau * 0.20);
-    return e;
+// Sun in-scatter energy at optical depth tau (rewritten, phase 5
+// lighting - fidelity finding 3). The old form was three Beer octaves
+// with FIXED decay rates; at a low sun through a dense deck every
+// octave collapsed below 1e-3 and the medium went BLACK with thickness,
+// while a real cloud (droplet albedo ~0.9999) goes WHITE. Two changes:
+//
+// - The true Wrenninge/Schneider octave ladder: each octave HALVES the
+//   extinction (a^n), HALVES the energy (c^n), and WIDENS the phase
+//   toward isotropic by halving g (b^n) - evaluating the dual-lobe HG
+//   per octave instead of scaling one precomputed phase value. The
+//   widening is what lets the strong g=0.8 forward lobe coexist with
+//   deep samples that must not over-glow.
+// - A two-stream diffusion floor: conservative-scattering transmittance
+//   through a plane-parallel cloud decays ALGEBRAICALLY,
+//   1/(1 + 0.75*(1-g)*tau) (similarity theory, J. Atmos. Sci. 72(11)) -
+//   the physical reason an overcast is luminous grey from below, never
+//   black. Isotropic by the time it has diffused, so no phase factor.
+fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
+    var e = 0.0;
+    var c_n = 1.0;
+    var a_n = 1.0;
+    var g_n = 1.0;
+    for (var n = 0; n < 4; n = n + 1) {
+        let ph = mix(
+            cloud_hg(cos_vs, CLOUD_HG_BACK * g_n),
+            cloud_hg(cos_vs, CLOUD_HG_FWD * g_n),
+            CLOUD_HG_FWD_WEIGHT,
+        );
+        e = e + c_n * ph * exp(-tau * a_n);
+        c_n = c_n * 0.5;
+        a_n = a_n * 0.5;
+        g_n = g_n * 0.5;
+    }
+    let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau);
+    return e + CLOUD_MS_DIFFUSE * t_diff;
 }
 
 // Direction<->uv mapping for the temporal cloud map (phase 4): a LAMBERT
@@ -1765,9 +1802,10 @@ fn cloud_march_core(
     let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
     let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
 
-    // Phase + powder gate are per-RAY (cos view-sun is constant along it).
+    // Powder gate is per-RAY (cos view-sun is constant along it). The
+    // phase itself is evaluated per octave inside cloud_scatter_energy
+    // since the phase-5 lighting rework (g widens per octave).
     let cos_vs = dot(rd_w, sun);
-    let phase = cloud_phase(cos_vs);
     // Beer-powder shows on the sun-facing side of masses, i.e. when the
     // sun is roughly BEHIND the camera; looking toward the sun the forward
     // lobe (silver lining) must win, so the powder eases off there.
@@ -1804,6 +1842,11 @@ fn cloud_march_core(
     // finding 5): feeds the engine's own aerial perspective after the
     // loop, so a far cumulus hazes like the terrain beside it.
     var acc_d = 0.0;
+    // First-hit distance (phase 5 lighting, fidelity finding 11): the
+    // VISIBLE cloud surface, where aerial perspective belongs - the mean
+    // marched distance sits inside the mass, behind what the eye sees,
+    // so haze was over-applied relative to the surface.
+    var first_t = -1.0;
     for (var i = 0; i < n_samp; i = i + 1) {
         let fi = f32(i);
         let s_next = pow((fi + 1.0) / n_samp_f, CLOUD_HI_STEP_EXP);
@@ -1844,6 +1887,9 @@ fn cloud_march_core(
             continue;
         }
         let a_i = 1.0 - exp(-sigma_v * dens * dt);
+        if (first_t < 0.0) {
+            first_t = tm;
+        }
 
         // Day/night from the sample's own sphere normal (soft terminator).
         let ndl = dot(dirp, sun_local);
@@ -1857,7 +1903,7 @@ fn cloud_march_core(
             lodb);
         let powder = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
         let pw = mix(powder, 1.0, powder_gate);
-        let direct = cloud_scatter_energy(tau, phase) * pw;
+        let direct = cloud_scatter_energy(tau, cos_vs) * pw;
 
         // Ambient skylight (clouds depth increment): height across the slab
         // picks the base value (tops see the sky dome), then the sun-path
@@ -1869,9 +1915,27 @@ fn cloud_march_core(
         // from below by surface-reflected sunlight - the cue that keeps
         // undersides readable instead of uniformly mud-grey.
         let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
-        let amb = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h)
-            * (0.35 + 0.65 * exp(-tau * 0.12))
-            + CLOUD_AMB_BOUNCE * (1.0 - h);
+        // TWO-TONE ambient (phase 5 lighting, fidelity finding 4): the
+        // strongest photographic cloud cue is CHROMATIC - sunlit faces
+        // warm, shadowed faces and bases BLUE (lit by the sky dome),
+        // undersides warm-grey from ground bounce. The old scalar amb
+        // multiplied the sun's own colour, so shadow and light differed
+        // only in brightness. The sky term now takes its HUE from the
+        // aerial sky colour (light2_cone_inner.yzw - the same
+        // transmittance-tinted, weather-tinted, day-faded sky the haze
+        // uses, so dusk ambient goes orange and night goes dark for
+        // free); the ground bounce keeps a fixed warm hue. Magnitudes
+        // are hue-normalized so overall energy matches the old scalar.
+        let amb_h = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h)
+            * (0.35 + 0.65 * exp(-tau * 0.12));
+        let sky_aer = vec3<f32>(
+            camera.light2_cone_inner.y,
+            camera.light2_cone_inner.z,
+            camera.light2_cone_inner.w,
+        );
+        let sky_peak = max(max(sky_aer.x, sky_aer.y), max(sky_aer.z, 1.0e-4));
+        let amb_col = (sky_aer / sky_peak) * amb_h
+            + vec3<f32>(1.0, 0.93, 0.82) * (CLOUD_AMB_BOUNCE * (1.0 - h));
 
         // Crevice occlusion (v0.1011): the puff cavity field darkens the
         // sample - lobes shade individually even though the light march
@@ -1888,10 +1952,16 @@ fn cloud_march_core(
         let crown_floor = mix(0.88, 0.70, reg.opacity);
         let crown_shade = mix(crown_floor, 1.12, dc.z);
         let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade;
-        let lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5) + amb * ao;
+        // Direct carries the SUN's colour; ambient carries the SKY's (the
+        // two-tone split above). Ambient magnitude rides the sun's
+        // luminance so total energy matches the old single-hue form.
+        let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5);
+        let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
 
         let c_i = material.base_color.rgb
-            * (sun_energy * lit * day + vec3<f32>(CLOUD_NIGHT_FLOOR));
+            * (sun_energy * (direct_lit * day)
+                + amb_col * (sun_lum * ao * day)
+                + vec3<f32>(CLOUD_NIGHT_FLOOR));
         acc = acc + c_i * (trans * a_i);
         acc_w = acc_w + trans * a_i;
         acc_d = acc_d + tm * (trans * a_i);
@@ -1923,9 +1993,20 @@ fn cloud_march_core(
     // cloud_low_cam_haze on this path - that ratio hack was calibrated
     // when the deck WAS the drawn shell, and on the physical slab it
     // erased real clouds below ~5 degrees elevation.
+    // Phase 5 lighting (fidelity finding 11): aerial at the FIRST-HIT
+    // distance - the visible surface - not the transmittance-weighted
+    // mean, which sits inside the mass and over-hazed it. And the haze's
+    // own opacity RAISES the fragment alpha below, so a distant cumulus
+    // fades toward the haze colour while KEEPING its silhouette instead
+    // of dissolving to transparent.
     let mean_t = acc_d / max(acc_w, 1.0e-4);
-    let mean_world = camera.view_pos.xyz + rd_w * (mean_t * shell_r);
-    radiance = aerial_apply(radiance, mean_world);
+    var srf_t = mean_t;
+    if (first_t > 0.0) {
+        srf_t = first_t;
+    }
+    let srf_world = camera.view_pos.xyz + rd_w * (srf_t * shell_r);
+    radiance = aerial_apply(radiance, srf_world);
+    let t_aer = aerial_transmittance(srf_world);
 
     // Same ACES curve as the rest of the pipeline (linear in, sRGB target).
     let aces_a = 2.51;
@@ -1943,6 +2024,7 @@ fn cloud_march_core(
     // (Limb fade is the fragment wrapper's concern - the octa map must
     // store the un-limbed march so the composite can apply the CURRENT
     // fragment's grazing angle.)
-    return vec4<f32>(mapped, body_total * CLOUD_HI_MAX_ALPHA);
+    let a_body = body_total * CLOUD_HI_MAX_ALPHA;
+    return vec4<f32>(mapped, clamp(1.0 - (1.0 - a_body) * t_aer, 0.0, 1.0));
 }
 

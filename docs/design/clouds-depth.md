@@ -19,6 +19,20 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 6 SHIPPED (v0.1162): the lighting energy rework** (fidelity
+> findings 3/4/5/11): cloud_scatter_energy is the true
+> Wrenninge/Schneider octave ladder (per-octave HG with g halving) plus
+> a TWO-STREAM DIFFUSION FLOOR (algebraic 1/(1+0.75(1-g)tau) - thick
+> decks are luminous grey, never black; locked by
+> scatter_energy_decays_but_never_reaches_black); CLOUD_HG_FWD 0.55 ->
+> 0.80 (real droplet g ~0.85 - silver linings blaze; rim-vs-side lock in
+> the same test); ambient is TWO-TONE (sky-hued from the aerial sky
+> colour + warm ground bounce - warm-lit/blue-shadow separation; the
+> aerial sky is sunset-tinted so dusk ambient warms for free); aerial
+> perspective moved to the FIRST-HIT distance and the haze's own opacity
+> raises fragment alpha (far masses recede into haze, keeping their
+> silhouette; helper aerial_transmittance in 90-fragment-main.wgsl).**
+>
 > **PHASE 5 SHIPPED (v0.1161): band-limited + premultiplied + sunset-lit.**
 > From the 5-agent realism audit (2026-08-18, wf_f49e94e5-d69, 12
 > pixel-measured findings - full details in the orchestrator journal):

@@ -112,6 +112,33 @@ fn sky_ambient(n: vec3<f32>, up: vec3<f32>) -> vec3<f32> {
 // the operator's "I can see waves behind waves... there's no extra shading" -
 // with the sea meeting the sky at a hard contrast step instead of hazing into
 // it. Same math, one definition, called from both paths so they cannot drift.
+// Transmittance-only twin of aerial_apply (phase 5 clouds): how much of
+// what sits AT world_pos still reaches the camera through the haze. The
+// cloud march raises its fragment alpha by the haze's own opacity so a
+// far mass recedes into haze colour while keeping its silhouette. Path
+// math kept identical to aerial_apply's (near cutoff + slant cap).
+fn aerial_transmittance(world_pos: vec3<f32>) -> f32 {
+    let aer_sigma = camera.light1_cone_inner.y;
+    if (aer_sigma <= 1.0e-9) {
+        return 1.0;
+    }
+    let aer_vec = world_pos - camera.view_pos.xyz;
+    let aer_dist = length(aer_vec);
+    let near_cut = clamp(120.0 * (2.2e-5 / max(aer_sigma, 1.0e-9)), 0.0, 120.0);
+    if (aer_dist <= near_cut) {
+        return 1.0;
+    }
+    let aer_up = vec3<f32>(
+        camera.light3_cone_inner.y,
+        camera.light3_cone_inner.z,
+        camera.light3_cone_inner.w,
+    );
+    let up_dot = abs(dot(aer_vec / aer_dist, aer_up));
+    let slant_cap = camera.light1_cone_inner.z / max(up_dot, 0.035);
+    let path = min(aer_dist - near_cut, slant_cap);
+    return exp(-aer_sigma * path);
+}
+
 fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     let aer_sigma = camera.light1_cone_inner.y;
     if (aer_sigma <= 1.0e-9) {

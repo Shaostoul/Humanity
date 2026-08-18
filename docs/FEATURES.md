@@ -761,6 +761,21 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### The Luminous Deck (v0.1162, phase 6)
+The cloud lighting energy rework (fidelity findings 3/4/5/11): the
+multi-scatter is the true Wrenninge/Schneider octave ladder (extinction,
+energy, and phase-g each halve per octave) plus a two-stream diffusion
+floor - conservative-scattering transmittance decays ALGEBRAICALLY, so a
+thick overcast is luminous grey from below, never exponentially black.
+Forward HG g raised 0.55 to 0.80 (droplet optics): backlit rims blaze
+into real silver linings. Ambient is two-tone - sky-hued (from the
+aerial sky colour, so dusk ambient warms and night darkens for free)
+plus a warm ground bounce - giving warm-lit/blue-shadow chromatic
+separation. Aerial perspective applies at the cloud's FIRST-HIT surface
+and its opacity raises the fragment alpha, so far masses recede into
+haze colour while keeping their silhouette.
+- Native: assets/shaders/pbr/40-clouds.wgsl (scatter ladder, two-tone ambient, first-hit aerial), 90-fragment-main.wgsl (aerial_transmittance), src/renderer/clouds.rs (mirror + re-banded locks)
+
 ### The Band-Limited Sky (v0.1161, phase 5)
 From the 5-agent realism audit (12 pixel-measured findings): both cloud
 noise volumes carry variance-renormalized box-filter mip chains and
