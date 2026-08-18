@@ -761,6 +761,24 @@ Island hole, Lake Union in Seattle Center).
 - Native: src/terrain/water_carve.rs, osm_region.rs (HOSMREG2 + lake sheets), planet_chunks.rs (carve + shell), src/engine/region_meshes.rs (mask publish), src/gui/pages/cosmos.rs (2D)
 - Generator: scripts/fetch-osm-region.mjs (HOSMREG2, coastline sea assembly, 34 self-checks)
 
+### The Band-Limited Sky (v0.1161, phase 5)
+From the 5-agent realism audit (12 pixel-measured findings): both cloud
+noise volumes carry variance-renormalized box-filter mip chains and
+every march sample picks the mip matching its physical footprint (LOD
+at all five volume tap sites + per-tap light-march LOD - distant clouds
+read pre-averaged noise instead of aliasing). The temporal map now
+accumulates PREMULTIPLIED colour: straight-alpha EMA darkened every
+cloud by its own hit fraction twice and bilinear-dragged edges toward
+black (the "grey gauze"; measured cores at alpha 0.32). The celestial
+pass sun colour is the transmittance-tinted cur_sun (was a hardcoded
+white since v0.639 - sunset now reddens clouds, terrain, water). Limb
+fade gates to outside cameras (the horizon deck thickens, as real).
+Octa-map rays that strike the planet before the slab are culled (61%
+marched the ANTIPODAL slab through the Earth; pass cost measured down
+to 1.9 ms) and out-of-disc texels skip.
+- Native: src/renderer/cloud_noise.rs (mip_chain + renormalize), mod.rs (per-mip upload, tinted sun), assets/shaders/pbr/40-clouds.wgsl (phase 5 LOD block), 45-cloud-temporal.wgsl (premultiply, disc skip)
+- Locks: wgsl_lod_offsets_match_the_tile_ladder, mip_chain_sizes_match_wgpu_and_preserve_the_mean
+
 ### The Converged Sky (v0.1160)
 The v0.1159 adaptive EMA chased noise instead of averaging it (in a
 noisy region the new sample ALWAYS disagrees with history, so the blend

@@ -357,6 +357,36 @@ const CLOUD_CELL_FADE_FAR_KM: f32 = 60.0;
 // even though the light march steps (~4 km) are far coarser than the
 // lobes themselves. Fraction of ambient+scatter removed at full cavity.
 const CLOUD_PUFF_AO: f32 = 0.60;
+// ── Band-limited volume sampling (phase 5, the mip ladder) ──
+// Both noise volumes carry full box-filtered mip chains (built CPU-side
+// in renderer::cloud_noise::mip_chain). Every march sample computes its
+// FOOTPRINT - the larger of the ray-cone width at that distance and the
+// march step length - and each tap samples the mip whose voxels match
+// that footprint, so distant clouds read pre-averaged noise instead of
+// point-sampling full-frequency texels. This is the structural fix for
+// distant shimmer: temporal averaging can only clean noise AFTER it
+// aliases; band-limiting prevents the alias at the source.
+//
+// lodb is log2(footprint in km); each sample site subtracts its own
+// log2 voxel size (tile_km / texture resolution): shape 267.6/192,
+// cell tap 8/192, detail 107/128, puff 45.9/128, fray 713.6/128 km.
+const CLOUD_LODC_SHAPE: f32 = 0.479;
+const CLOUD_LODC_CELL: f32 = -4.585;
+const CLOUD_LODC_DETAIL: f32 = -0.259;
+const CLOUD_LODC_PUFF: f32 = -1.479;
+const CLOUD_LODC_FRAY: f32 = 2.479;
+// Angular pixel size feeding the ray-cone width: the temporal map's
+// Lambert texel (sqrt(4pi sr / (pi * 512^2) texels) ~ 3.9 mrad) and a
+// screen-pixel estimate for the direct path (~60 deg fov over ~1080
+// rows ~ 1 mrad; +-30% here moves the lod by under half a level).
+const CLOUD_PIX_ANG_MAP: f32 = 0.0039;
+const CLOUD_PIX_ANG_SCREEN: f32 = 0.001;
+
+// Mip level for one sample site: log2 footprint minus the site's log2
+// voxel size, clamped to the 8-level chain (0..7).
+fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
+    return clamp(lodb - site_c, 0.0, 7.0);
+}
 // Coverage carve thresholds (shader-only tuning; not mirrored -- the density
 // function they live in samples textures and cannot be mirrored). The shape
 // noise must clear a weather-driven threshold to become cloud: where the
@@ -1231,6 +1261,7 @@ fn cloud_carve(
     wa: f32,
     reg: CloudRegime,
     cell_amt: f32,
+    lodb: f32,
 ) -> CloudSample {
     let r = length(p);
     let h = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
@@ -1245,7 +1276,8 @@ fn cloud_carve(
     let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
     let s = textureSampleLevel(
-        cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq, 0.0);
+        cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
+        cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     let body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
     // Towering (v0.880), re-keyed in phase 3: v0.880 drove the tower from
@@ -1284,7 +1316,8 @@ fn cloud_carve(
     // Distance-faded like the puff band so orbit never pays or changes.
     if (cell_amt > 0.01) {
         let c = textureSampleLevel(
-            cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq, 0.0);
+            cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
+            cloud_lod(lodb, CLOUD_LODC_CELL));
         thr = thr + CLOUD_CELL_SPLIT * cell_amt * reg.fine * (1.0 - c.g);
     }
     // Nubis-form carve (phase 3, fidelity finding 1): the old fixed
@@ -1327,8 +1360,9 @@ fn cloud_density_hi(
     detail_amt: f32,
     puff_amt: f32,
     cell_amt: f32,
+    lodb: f32,
 ) -> vec3<f32> {
-    let cs = cloud_carve(p, t, seed, weather_a, reg, cell_amt);
+    let cs = cloud_carve(p, t, seed, weather_a, reg, cell_amt, lodb);
     var base = cs.carve;
     if (base <= 0.003) {
         return vec3<f32>(0.0, 0.0, 0.0);
@@ -1339,7 +1373,8 @@ fn cloud_density_hi(
     // it streaks. Erode HARDER where the body is thin (the 1-base weight):
     // frayed filaments at the edges, solid cores -- erode-edges-keep-cores.
     let fr = textureSampleLevel(
-        cloud_detail_tex, cloud_tile_sampler, cs.ps * g_fray_freq, 0.0);
+        cloud_detail_tex, cloud_tile_sampler, cs.ps * g_fray_freq,
+        cloud_lod(lodb, CLOUD_LODC_FRAY));
     let frfbm = fr.r * 0.625 + fr.g * 0.25 + fr.b * 0.125;
     let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base));
     base = clamp(cloud_remap(base, erode_c, 1.0, 0.0, 1.0), 0.0, 1.0);
@@ -1366,7 +1401,8 @@ fn cloud_density_hi(
     // distance so orbit stays smooth -- the standard Nubis distance trick.
     if (detail_amt > 0.01) {
         let d = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * g_detail_freq, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * g_detail_freq,
+            cloud_lod(lodb, CLOUD_LODC_DETAIL));
         let dfbm = d.r * 0.625 + d.g * 0.25 + d.b * 0.125;
         // Crown-weighted (v0.1014): erosion bites up to ~1.5x deeper near
         // the column's own domed top, so crowns break into individual
@@ -1394,7 +1430,8 @@ fn cloud_density_hi(
         // Unstretched domain (v0.1012.x fix; pu0 hoisted above since the
         // fine band now shares it).
         let pu = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, pu0 * g_puff_freq, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * g_puff_freq,
+            cloud_lod(lodb, CLOUD_LODC_PUFF));
         let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
         let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));
         let pmod = phased
@@ -1430,8 +1467,9 @@ fn cloud_density_light(
     seed: f32,
     weather_a: f32,
     reg: CloudRegime,
+    lodb: f32,
 ) -> f32 {
-    let cs = cloud_carve(p, t, seed, weather_a, reg, 0.0);
+    let cs = cloud_carve(p, t, seed, weather_a, reg, 0.0, lodb);
     return smoothstep(0.0, 0.12, cs.carve);
 }
 
@@ -1458,6 +1496,7 @@ fn cloud_sun_tau(
     detail_amt: f32,
     puff_amt: f32,
     cell_amt: f32,
+    lodb: f32,
 ) -> f32 {
     // Physical extinction (phase 3): per-family sigma in drawn units.
     // The old view/shadow sigma split (CLOUD_LIGHT_SIGMA_MULT) existed
@@ -1475,12 +1514,18 @@ fn cloud_sun_tau(
         let seg = step_d;
         step_d = step_d * CLOUD_LIGHT_RATIO;
         let lp = p + sun_local * dist;
+        // Band-limit each tap by ITS OWN step length too (phase 5): the
+        // far taps stride tens of km and should integrate the mean field
+        // at that scale, not point-sample full-frequency noise. Never
+        // finer than the view sample's footprint.
+        let lod_t = max(lodb, log2(max(seg / g_cloud_upkm, 1.0e-4)));
         var dens = 0.0;
         if (i < 2 && (detail_amt > 0.01 || puff_amt > 0.01)) {
             dens = cloud_density_hi(
-                lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt).x;
+                lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
+                lod_t).x;
         } else {
-            dens = cloud_density_light(lp, t, seed, weather_a, reg);
+            dens = cloud_density_light(lp, t, seed, weather_a, reg, lod_t);
         }
         tau = tau + sigma * dens * seg;
         // v0.911 (perf audit #3): once the sun path is this optically deep
@@ -1586,11 +1631,19 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     cloud_set_slab_bounds();
 
     let rd_w = normalize(world_position - camera.view_pos.xyz);
-    // Limb fade, as in the other paths: ease the deck off where the view
-    // grazes the sphere so it never stacks into a hard white ring.
+    // Limb fade: ease the deck off where the view grazes the sphere so
+    // ORBIT never stacks the shell into a hard white ring. Gated to the
+    // outside camera (fidelity audit finding 10): from UNDER the deck a
+    // grazing ray IS the horizon deck, and the real thing THICKENS
+    // toward the horizon (path length grows as 1/sin(elevation)) - the
+    // march supplies that for free; the fade was thinning exactly the
+    // band it should have left alone.
     let n_frag = normalize(world_position - center);
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
-    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+    var limb = 1.0;
+    if (!cam_inside) {
+        limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+    }
 
     // TEMPORAL COMPOSITE (phase 4, pin flag +4 in params2.w): the octa
     // pass has already marched and accumulated this direction - sample
@@ -1600,7 +1653,11 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     if (material.params2.w >= 3.5) {
         let s = textureSampleLevel(
             albedo_texture, albedo_sampler, cloud_map_encode(rd_w, center), 0.0);
-        return vec4<f32>(s.rgb, s.a * limb);
+        // The map stores PREMULTIPLIED colour (see fs_cloud_octa): divide
+        // by alpha for this pipeline's straight-alpha blend. Premultiplied
+        // rgb never exceeds C*a, so the division is bounded.
+        let c = s.rgb / max(s.a, 1.0e-3);
+        return vec4<f32>(c, s.a * limb);
     }
 
     let inv_model = transpose(obj_normal_matrix());
@@ -1612,7 +1669,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let jitter = fract(
         hash21(dirf.xy * 49152.0 + vec2<f32>(dirf.z * 12288.0, 17.0)),
     );
-    let s = cloud_march_core(rd_w, center, shell_r, jitter);
+    let s = cloud_march_core(rd_w, center, shell_r, jitter, CLOUD_PIX_ANG_SCREEN);
     return vec4<f32>(s.rgb, s.a * limb);
 }
 
@@ -1625,6 +1682,7 @@ fn cloud_march_core(
     center: vec3<f32>,
     shell_r: f32,
     jitter: f32,
+    pix_ang: f32,
 ) -> vec4<f32> {
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
@@ -1659,6 +1717,21 @@ fn cloud_march_core(
     }
     if (m1 <= m0) {
         return vec4<f32>(0.0);
+    }
+    // Ground occlusion (phase 5, perf finding): a camera UNDER the slab
+    // looking down used to march the ANTIPODAL slab through the planet -
+    // the inner-void branch above sets m0 to the inner sphere's EXIT,
+    // which for a downward ray is beyond the far side of the Earth. ~61%
+    // of the octa map's rays paid a full march for cloud that ground
+    // always hides. If the ray strikes the planet surface (radius 1.0 in
+    // planet units = inv_drawn in shell units) before the slab segment
+    // starts, nothing marched past it can be seen.
+    let r_surf = material.params.w;
+    if (r_surf > 0.001 && d2 < r_surf * r_surf) {
+        let t_surf = tca - sqrt(r_surf * r_surf - d2);
+        if (t_surf > 0.0 && t_surf < m0) {
+            return vec4<f32>(0.0);
+        }
     }
 
     // Cloud regime for this ray (sampled mid-segment; type cells are ~2000 km,
@@ -1757,8 +1830,15 @@ fn cloud_march_core(
         // Cumulus-cell fade (phase 3, finding 4): the discrete-cell split
         // exists near the camera and is gone by ~60 km, like the puff band.
         let cell_amt = 1.0 - smoothstep(g_cell_fade_near, g_cell_fade_far, tm);
+        // Band-limited sampling footprint (phase 5): the larger of the
+        // ray-cone width at this distance and the march step itself, in
+        // km. Every volume tap under this sample picks the mip whose
+        // voxels match it (cloud_lod), so far samples read pre-averaged
+        // noise - near samples clamp to mip 0 and lose nothing.
+        let foot = max(tm * pix_ang, dt * 0.25);
+        let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
         let dc = cloud_density_hi(
-            p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt);
+            p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
         let dens = dc.x;
         if (dens <= 0.001) {
             continue;
@@ -1773,7 +1853,8 @@ fn cloud_march_core(
         // first two taps see the same eroded density this view sample does
         // (clouds depth increment), so lobes self-shadow.
         let tau = cloud_sun_tau(
-            p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt);
+            p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
+            lodb);
         let powder = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
         let pw = mix(powder, 1.0, powder_gate);
         let direct = cloud_scatter_energy(tau, phase) * pw;

@@ -5,12 +5,12 @@
 //! Horizon Zero Dawn, Haggstrom's "TileableVolumeNoise") needs two small
 //! precomputed 3D textures that TILE seamlessly on every axis:
 //!
-//! * **SHAPE** (128x128x128 RGBA8): R = "Perlin-Worley" (tiling Perlin FBM
+//! * **SHAPE** (192^3 RGBA8): R = "Perlin-Worley" (tiling Perlin FBM
 //!   remapped by an inverted-Worley FBM so the soft Perlin blobs grow
 //!   cauliflower borders), G/B/A = single octaves of inverted Worley at
 //!   rising frequency (assembled into an FBM in the shader). This texture
 //!   carves the LOW-frequency cloud body (features tens of km).
-//! * **DETAIL** (64x64x64 RGBA8): R/G/B = higher-frequency inverted Worley
+//! * **DETAIL** (128^3 RGBA8): R/G/B = higher-frequency inverted Worley
 //!   octaves that ERODE the shape's edges into wispy bases and billowy
 //!   tops (features a few km). A = a RIDGED-Perlin "filament" octave (sharp
 //!   ridges at the noise zero-crossings) used by the shader to fray cloud
@@ -18,9 +18,11 @@
 //!
 //! Both are generated procedurally at startup, multithreaded over z-slabs
 //! (`generate_shape` / `generate_detail`) -- no repo assets, no downloads,
-//! byte-identical on every machine (pure integer-hash noise). The upload
-//! and bind-group wiring live in `renderer::mod` (group 3, bindings 2..4);
-//! the consuming WGSL lives in `pbr_simple.wgsl` (`cloud_layer_volumetric`).
+//! byte-identical on every machine (pure integer-hash noise) -- then each
+//! grows a variance-renormalized box-filter mip chain (`mip_chain`, phase
+//! 5 band-limited sampling). The upload and bind-group wiring live in
+//! `renderer::mod` (group 3, bindings 2..4); the consuming WGSL lives in
+//! `40-clouds.wgsl` (`cloud_layer_volumetric` / `cloud_march_core`).
 //!
 //! Tiling strategy: every noise function takes a point in TILE space
 //! (one tile = the unit cube = one wrap of the texture) and wraps its
@@ -29,9 +31,9 @@
 //! interpolates seamlessly across the texture edge. Unit tests lock
 //! tiling, range, and determinism below.
 
-/// Shape texture edge length (texels per axis). 128^3 RGBA8 = 8 MiB.
+/// Shape texture edge length (texels per axis). 192^3 RGBA8 = 27 MiB.
 pub const SHAPE_SIZE: u32 = 192;
-/// Detail texture edge length. 64^3 RGBA8 = 1 MiB.
+/// Detail texture edge length. 128^3 RGBA8 = 8 MiB.
 pub const DETAIL_SIZE: u32 = 128;
 
 // Channel seeds: arbitrary fixed constants so the volume is deterministic
@@ -287,14 +289,141 @@ fn generate_volume(size: u32, threads: usize, voxel: fn([f32; 3]) -> [u8; 4]) ->
     buf
 }
 
-/// Generate the 128^3 SHAPE volume (RGBA8, tightly packed, x fastest).
+/// Generate the 192^3 SHAPE volume (RGBA8, tightly packed, x fastest).
 pub fn generate_shape(threads: usize) -> Vec<u8> {
     generate_volume(SHAPE_SIZE, threads, shape_voxel)
 }
 
-/// Generate the 64^3 DETAIL volume (RGBA8, tightly packed, x fastest).
+/// Generate the 128^3 DETAIL volume (RGBA8, tightly packed, x fastest).
 pub fn generate_detail(threads: usize) -> Vec<u8> {
     generate_volume(DETAIL_SIZE, threads, detail_voxel)
+}
+
+/// One box-filter downsample step: each destination voxel averages the
+/// (up to) 2x2x2 source voxels under it, per RGBA channel. Handles odd
+/// source edges (192 -> 96 -> ... -> 3 -> 1 uses wgpu's floor-halving
+/// mip sizes) by clamping the source coordinate, which weights the edge
+/// voxel double exactly the way the GPU's own mip convention does.
+///
+/// A box filter is the correct band-limiter for DENSITY-LIKE data: the
+/// mip's value is the mean density over the footprint, which is what a
+/// raymarch step covering that footprint physically integrates.
+fn downsample_volume(src: &[u8], src_size: u32) -> Vec<u8> {
+    let s = src_size as usize;
+    let d = ((src_size / 2).max(1)) as usize;
+    let mut dst = vec![0u8; d * d * d * 4];
+    for z in 0..d {
+        for y in 0..d {
+            for x in 0..d {
+                let mut sum = [0u32; 4];
+                for dz in 0..2 {
+                    for dy in 0..2 {
+                        for dx in 0..2 {
+                            let sx = (x * 2 + dx).min(s - 1);
+                            let sy = (y * 2 + dy).min(s - 1);
+                            let sz = (z * 2 + dz).min(s - 1);
+                            let si = ((sz * s + sy) * s + sx) * 4;
+                            for c in 0..4 {
+                                sum[c] += src[si + c] as u32;
+                            }
+                        }
+                    }
+                }
+                let di = ((z * d + y) * d + x) * 4;
+                for c in 0..4 {
+                    dst[di + c] = ((sum[c] + 4) / 8) as u8;
+                }
+            }
+        }
+    }
+    dst
+}
+
+/// Per-channel mean and standard deviation of an RGBA8 volume, in byte
+/// units. Drives the variance renormalization below.
+fn channel_stats(v: &[u8]) -> ([f64; 4], [f64; 4]) {
+    let n = (v.len() / 4) as f64;
+    let mut mean = [0.0f64; 4];
+    for px in v.chunks_exact(4) {
+        for c in 0..4 {
+            mean[c] += px[c] as f64;
+        }
+    }
+    for m in mean.iter_mut() {
+        *m /= n;
+    }
+    let mut var = [0.0f64; 4];
+    for px in v.chunks_exact(4) {
+        for c in 0..4 {
+            let d = px[c] as f64 - mean[c];
+            var[c] += d * d;
+        }
+    }
+    let sigma = [
+        (var[0] / n).sqrt(),
+        (var[1] / n).sqrt(),
+        (var[2] / n).sqrt(),
+        (var[3] / n).sqrt(),
+    ];
+    (mean, sigma)
+}
+
+/// Variance-matched renormalization of a mip level against the BASE
+/// level's per-channel statistics: v' = mean0 + (v - mean_l) * gain with
+/// gain = min(sigma0 / sigma_l, 2.0). Box filtering preserves the mean
+/// but collapses the variance level by level, and the shader's carve
+/// thresholds (0.52-0.92 of the noise range) turn that variance loss
+/// into COVERAGE loss - distant clouds would thin out and vanish as
+/// they crossed into higher mips. Re-widening each level's histogram to
+/// the base histogram keeps threshold-crossing statistics stable across
+/// the chain while the surviving content stays genuinely band-limited
+/// (the restored contrast lives at the level's own low frequencies).
+/// The 2.0 gain cap keeps the deep, nearly-flat levels from amplifying
+/// quantization noise.
+fn renormalize_level(v: &[u8], stats0: &([f64; 4], [f64; 4])) -> Vec<u8> {
+    let (mean_l, sigma_l) = channel_stats(v);
+    let (mean0, sigma0) = stats0;
+    let mut gain = [0.0f64; 4];
+    for c in 0..4 {
+        gain[c] = if sigma_l[c] > 1.0e-6 {
+            (sigma0[c] / sigma_l[c]).min(2.0)
+        } else {
+            0.0
+        };
+    }
+    let mut out = Vec::with_capacity(v.len());
+    for px in v.chunks_exact(4) {
+        for c in 0..4 {
+            let x = mean0[c] + (px[c] as f64 - mean_l[c]) * gain[c];
+            out.push(x.round().clamp(0.0, 255.0) as u8);
+        }
+    }
+    out
+}
+
+/// Full mip chain for a cubic RGBA8 volume, INCLUDING the base level:
+/// element 0 is `base` unchanged; each following element halves the edge
+/// (floor, min 1) down to 1^3, box-filtered from the RAW previous level
+/// and then variance-renormalized against the base level's statistics
+/// (see `renormalize_level` - filtering happens on the raw ladder so
+/// renormalization gains never compound). Matches wgpu's floor-halving
+/// mip sizing so the chain uploads 1:1 into a texture created with
+/// `mip_level_count = chain.len()`.
+pub fn mip_chain(base: Vec<u8>, base_size: u32) -> Vec<Vec<u8>> {
+    let stats0 = channel_stats(&base);
+    // Pass 1: the raw box-filtered ladder (each level from the RAW parent).
+    let mut chain: Vec<Vec<u8>> = vec![base];
+    let mut size = base_size;
+    while size > 1 {
+        let next = downsample_volume(chain.last().expect("non-empty"), size);
+        size = (size / 2).max(1);
+        chain.push(next);
+    }
+    // Pass 2: renormalize every level except the untouched base.
+    for lvl in chain.iter_mut().skip(1) {
+        *lvl = renormalize_level(lvl, &stats0);
+    }
+    chain
 }
 
 #[cfg(test)]
@@ -432,6 +561,58 @@ mod tests {
         // It must land in the DETAIL voxel's alpha slot (not the old 255).
         let v = detail_voxel([0.3, 0.6, 0.1]);
         assert_eq!(v[3], (filament_fbm3([0.3, 0.6, 0.1], SEED_FIL) * 255.0).round() as u8);
+    }
+
+    #[test]
+    fn mip_chain_sizes_match_wgpu_and_preserve_the_mean() {
+        // 16^3 through the real machinery: the chain must produce the
+        // wgpu floor-halving ladder (16,8,4,2,1 = 5 levels), keep level 0
+        // byte-identical to the base, and hold the volume MEAN roughly
+        // constant across levels (a box filter is mean-preserving up to
+        // rounding; a broken indexing stride would shear the mean).
+        let base = generate_volume(16, 3, detail_voxel);
+        let mean = |v: &[u8]| {
+            v.iter().map(|&b| b as u64).sum::<u64>() as f64 / v.len() as f64
+        };
+        let m0 = mean(&base);
+        let chain = mip_chain(base.clone(), 16);
+        assert_eq!(chain.len(), 5, "16^3 must give 5 mip levels");
+        assert_eq!(chain[0], base, "level 0 must be untouched");
+        let sizes = [16usize, 8, 4, 2, 1];
+        for (lvl, data) in chain.iter().enumerate() {
+            let s = sizes[lvl];
+            assert_eq!(data.len(), s * s * s * 4, "level {lvl} byte size");
+            let m = mean(data);
+            assert!(
+                (m - m0).abs() < 2.5,
+                "level {lvl} mean drifted: {m:.2} vs base {m0:.2}"
+            );
+        }
+        // Variance renormalization: without it a box mip's histogram
+        // narrows level by level and the shader's carve thresholds read
+        // that as coverage loss. Levels 1-2 must recover most of the base
+        // sigma (deep tiny levels are excused - the gain cap and single-
+        // digit voxel counts dominate there).
+        let sigma = |v: &[u8]| {
+            let m = mean(v);
+            let var = v.iter().map(|&b| (b as f64 - m) * (b as f64 - m)).sum::<f64>()
+                / v.len() as f64;
+            var.sqrt()
+        };
+        let s0 = sigma(&base);
+        for lvl in 1..=2 {
+            let sl = sigma(&chain[lvl]);
+            assert!(
+                sl > 0.5 * s0,
+                "level {lvl} sigma collapsed: {sl:.2} vs base {s0:.2}"
+            );
+        }
+        // Odd-edge halving (the 192 ladder ends 3 -> 1): must not panic
+        // and must land at 1^3.
+        let odd = generate_volume(3, 1, detail_voxel);
+        let odd_chain = mip_chain(odd, 3);
+        assert_eq!(odd_chain.len(), 2);
+        assert_eq!(odd_chain[1].len(), 4);
     }
 
     #[test]

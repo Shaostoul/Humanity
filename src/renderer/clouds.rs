@@ -937,6 +937,47 @@ mod tests {
     }
 
     #[test]
+    fn wgsl_lod_offsets_match_the_tile_ladder() {
+        // Phase 5 band-limited sampling: each CLOUD_LODC_* offset in the
+        // shader must equal log2(tile_km / texture_resolution) for its
+        // sample site, or the mip the march picks stops matching the
+        // physical footprint the moment someone retunes a tile size. Both
+        // sides are parsed from the assembled shader source so this holds
+        // even for the shader-only tile constants (puff/cell) that have no
+        // Rust mirror.
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let parse = |name: &str| -> f32 {
+            let needle = format!("const {name}: f32 = ");
+            let start = wgsl
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{name} missing from the megashader"));
+            let rest = &wgsl[start + needle.len()..];
+            let end = rest.find(';').expect("unterminated const");
+            rest[..end]
+                .trim()
+                .parse()
+                .unwrap_or_else(|e| panic!("{name} literal unparseable: {e}"))
+        };
+        let shape_res = crate::renderer::cloud_noise::SHAPE_SIZE as f32;
+        let detail_res = crate::renderer::cloud_noise::DETAIL_SIZE as f32;
+        let cases = [
+            ("CLOUD_LODC_SHAPE", "CLOUD_SHAPE_TILE_KM", shape_res),
+            ("CLOUD_LODC_CELL", "CLOUD_CELL_TILE_KM", shape_res),
+            ("CLOUD_LODC_DETAIL", "CLOUD_DETAIL_TILE_KM", detail_res),
+            ("CLOUD_LODC_PUFF", "CLOUD_PUFF_TILE_KM", detail_res),
+            ("CLOUD_LODC_FRAY", "CLOUD_FRAY_TILE_KM", detail_res),
+        ];
+        for (lodc_name, tile_name, res) in cases {
+            let lodc = parse(lodc_name);
+            let want = (parse(tile_name) / res).log2();
+            assert!(
+                (lodc - want).abs() < 0.01,
+                "{lodc_name} = {lodc} but log2({tile_name}/{res}) = {want:.4}"
+            );
+        }
+    }
+
+    #[test]
     fn march_sample_count_is_zero_or_in_the_designed_band() {
         // 0 = the increment-1 flat-deck quality fallback; otherwise the march
         // must stay in the 8..=12 band the increment-2 design (and the FPS

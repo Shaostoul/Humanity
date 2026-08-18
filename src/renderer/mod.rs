@@ -1034,7 +1034,14 @@ impl Renderer {
             s = cloud_noise::SHAPE_SIZE,
             d = cloud_noise::DETAIL_SIZE,
         );
-        let make_volume = |label: &str, size: u32, bytes: &[u8]| -> wgpu::TextureView {
+        // Each volume carries a FULL CPU-built mip chain (box-filtered by
+        // cloud_noise::mip_chain): the raymarch samples with a distance +
+        // step-length LOD so far clouds read band-limited (pre-averaged)
+        // noise instead of aliasing full-frequency texels - the structural
+        // fix for distant shimmer that no amount of temporal averaging can
+        // supply (v0.1161, clouds phase 5).
+        let make_volume = |label: &str, size: u32, bytes: Vec<u8>| -> wgpu::TextureView {
+            let chain = cloud_noise::mip_chain(bytes, size);
             let tex = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
@@ -1042,7 +1049,7 @@ impl Renderer {
                     height: size,
                     depth_or_array_layers: size,
                 },
-                mip_level_count: 1,
+                mip_level_count: chain.len() as u32,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D3,
                 // Linear (NOT sRGB): this is noise data, not color.
@@ -1050,31 +1057,35 @@ impl Renderer {
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &tex,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                bytes,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * size),
-                    rows_per_image: Some(size),
-                },
-                wgpu::Extent3d {
-                    width: size,
-                    height: size,
-                    depth_or_array_layers: size,
-                },
-            );
+            let mut mip_size = size;
+            for (level, data) in chain.iter().enumerate() {
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &tex,
+                        mip_level: level as u32,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    data,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * mip_size),
+                        rows_per_image: Some(mip_size),
+                    },
+                    wgpu::Extent3d {
+                        width: mip_size,
+                        height: mip_size,
+                        depth_or_array_layers: mip_size,
+                    },
+                );
+                mip_size = (mip_size / 2).max(1);
+            }
             tex.create_view(&wgpu::TextureViewDescriptor::default())
         };
         let cloud_shape_view =
-            make_volume("Cloud Shape Noise (128^3)", cloud_noise::SHAPE_SIZE, &shape_bytes);
+            make_volume("Cloud Shape Noise (192^3)", cloud_noise::SHAPE_SIZE, shape_bytes);
         let cloud_detail_view =
-            make_volume("Cloud Detail Noise (64^3)", cloud_noise::DETAIL_SIZE, &detail_bytes);
+            make_volume("Cloud Detail Noise (128^3)", cloud_noise::DETAIL_SIZE, detail_bytes);
         let cloud_tile_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Cloud Noise Tile Sampler"),
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -1082,7 +1093,9 @@ impl Renderer {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest, // single mip
+            // Trilinear across the mip chain: the raymarch passes an
+            // explicit LOD per sample (textureSampleLevel).
+            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
@@ -2783,7 +2796,16 @@ impl Renderer {
             let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32 * self.celestial_sun_day];
             // w carries the cloud clock (written above at 636); this full
             // vec4 write would stomp it back to a constant otherwise.
-            let sc = [1.0_f32, 0.97, 0.92, time_s];
+            // RGB is the TRANSMITTANCE-TINTED sun (cur_sun.1, fed by
+            // lib.rs's atmosphere::sun_transmittance since v0.915): a
+            // hardcoded [1.0, 0.97, 0.92] sat here from the v0.639 poke
+            // onward, so sunset DIMMED the celestial pass (clouds,
+            // terrain, water) but never reddened it - the same
+            // stale-literal bug shape as the fake sun direction (v0.451)
+            // and the fill light (v0.1052). Golden hour now reaches
+            // everything this pass draws.
+            let scol = self.cur_sun.1;
+            let sc = [scol[0], scol[1], scol[2], time_s];
             self.queue.write_buffer(&self.camera_buffer, 608, bytemuck::cast_slice(&sd));
             self.queue.write_buffer(&self.camera_buffer, 624, bytemuck::cast_slice(&sc));
         }

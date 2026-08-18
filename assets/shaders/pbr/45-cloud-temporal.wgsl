@@ -50,6 +50,13 @@ fn vs_cloud_octa(@builtin(vertex_index) vi: u32) -> CloudOctaVsOut {
 
 @fragment
 fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
+    // The Lambert projection lives in the inscribed DISC of the square
+    // map; the composite's encode always lands inside it, so the 21.5%
+    // of texels in the corners are never read - skip their march.
+    let pd = in.uv * 2.0 - vec2<f32>(1.0);
+    if (dot(pd, pd) > 1.001) {
+        return vec4<f32>(0.0);
+    }
     cloud_set_slab_bounds();
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
@@ -64,7 +71,20 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         hash21(in.uv * 4096.0 + vec2<f32>(17.0, 39.0))
             + fract(camera.sun_color.w * 11.0) * 0.618034,
     );
-    let cur = cloud_march_core(rd_w, center, shell_r, jitter);
+    // Footprint for band-limited volume sampling: this pass's pixel is a
+    // Lambert map texel, whose angular size is the map constant.
+    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, CLOUD_PIX_ANG_MAP);
+    // PREMULTIPLY before accumulating (the fidelity audit's top finding):
+    // the march returns straight alpha, and vec4(0) for clear/early-out
+    // rays. EMA-ing straight alpha makes a direction whose jittered
+    // marches sometimes miss converge to rgb = f*C with a = f*A (f = hit
+    // fraction); the straight-alpha composite then contributes f^2*C*A -
+    // every cloud darkened by its own hit fraction TWICE - and bilinear
+    // filtering between a cloud texel and a clear texel dragged rgb
+    // toward BLACK (the dark fringe/pepper on every edge). Premultiplied
+    // storage makes both the EMA and the bilinear filter linear in the
+    // right space; the composite divides by alpha to return to straight.
+    let cur = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
     // EMA, DEEP and nearly flat (the v0.1159 lesson, from the operator's
     // "tiny dots became big dots"): the first cut raised the blend
     // aggressively wherever the new sample disagreed with history - but

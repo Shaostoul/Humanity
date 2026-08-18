@@ -19,6 +19,32 @@
 > also sets params2.w = 1 so cloud_weather ignores live MODIS placement).
 > The ORBITAL look is verified good with live MODIS.
 >
+> **PHASE 5 SHIPPED (v0.1161): band-limited + premultiplied + sunset-lit.**
+> From the 5-agent realism audit (2026-08-18, wf_f49e94e5-d69, 12
+> pixel-measured findings - full details in the orchestrator journal):
+> (a) both noise volumes carry variance-renormalized box-filter mip
+> chains (cloud_noise.rs mip_chain) and every march tap picks the mip
+> matching its footprint (phase 5 block in 40-clouds.wgsl; lockstep test
+> wgsl_lod_offsets_match_the_tile_ladder); (b) the temporal map now
+> accumulates PREMULTIPLIED colour - straight-alpha EMA was darkening
+> every cloud by its own hit fraction twice and bilinear-dragging edges
+> toward black (the "grey gauze", measured alpha 0.32 on what should be
+> an opaque core); (c) the celestial pass sun colour is the
+> transmittance-tinted cur_sun instead of a hardcoded white (sunset now
+> reddens clouds/terrain/water); (d) limb fade gated to the outside
+> camera (the horizon deck physically thickens, the fade was thinning
+> it); (e) octa rays that hit the planet before the slab are culled
+> (61% of the map marched the ANTIPODAL slab through the planet - pass
+> cost measured down to 1.9 ms) and the 21.5% of texels outside the
+> Lambert disc skip. REMAINING (ranked, tasks #74-78): lighting energy
+> (scatter floor so thick decks go white, HG 0.8 silver lining,
+> sky-colored two-tone ambient, first-hit aerial), per-family winds +
+> temporal motion compensation, stacked genera + curl-warped lobes +
+> size distribution, strided map update then 2048^2, Medium tier map,
+> sun-clock phase mismatch (the "sunset" vantage sun sits at 25 deg).
+> The orbital granulation predates phase 5 (A/B identical) - likely the
+> binary MODIS mask, on the ladder.**
+>
 > **PHASE 4 SHIPPED (v0.1159): temporal accumulation - the direction-
 > indexed Lambert cloud map (docs in 45-cloud-temporal.wgsl +
 > renderer/cloud_temporal.rs). The static/boil is gone; remaining
