@@ -21,6 +21,10 @@ pub const PBR_PARTS: &[(&str, &str)] = &[
     ("20-surface-detail.wgsl", include_str!("../../assets/shaders/pbr/20-surface-detail.wgsl")),
     ("30-atmosphere.wgsl", include_str!("../../assets/shaders/pbr/30-atmosphere.wgsl")),
     ("40-clouds.wgsl", include_str!("../../assets/shaders/pbr/40-clouds.wgsl")),
+    (
+        "41-cloud-bodies.wgsl",
+        include_str!("../../assets/shaders/pbr/41-cloud-bodies.wgsl"),
+    ),
     ("45-cloud-temporal.wgsl", include_str!("../../assets/shaders/pbr/45-cloud-temporal.wgsl")),
     ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
     ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),

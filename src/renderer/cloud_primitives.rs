@@ -136,16 +136,6 @@ fn pareto(u: f32, lo: f32, hi: f32, exponent: f32) -> f32 {
     (lo_a / denom).powf(1.0 / (a - 1.0)).clamp(lo, hi)
 }
 
-/// How far outside the raw sphere union the smoothed surface can bulge,
-/// as a multiple of the blend radius. See `CloudInstance::trace_step`.
-///
-/// One polynomial `smin` pulls the field down by at most k/4, and the
-/// lobes blend pairwise as the fold accumulates, so the smoothed surface
-/// sits outside the sphere union by a bounded amount. This constant is
-/// that bound with margin, verified across every archetype by
-/// `sphere_tracing_never_overshoots`.
-pub const CLOUD_BLEND_BULGE: f32 = 1.25;
-
 /// Smooth minimum (polynomial, Inigo Quilez): melts two distance fields
 /// together over `k` metres instead of creasing them.
 fn smin(a: f32, b: f32, k: f32) -> f32 {
@@ -181,57 +171,70 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
     // Lobe radius range: the biggest lobe is about a third of the cloud
     // width, the smallest about a twentieth. The Pareto draw then decides
     // where in that range each lobe lands.
-    let r_hi = width * 0.34;
+    // A lobe can never be taller than the cloud it builds. Without this
+    // cap a flat genus (stratocumulus, aspect 0.12) draws lobes of
+    // 0.34 * width against a deck only 0.12 * width tall, which both
+    // looks wrong and inverts the placement clamp below.
+    let r_hi = (width * 0.34).min(height * 0.9).max(width * 0.07);
     let r_lo = width * 0.05;
 
-    let mut lobes = Vec::with_capacity(n);
-    let crown_n = ((n as f32) * arch.crown_bias).round() as usize;
-    let body_n = n.saturating_sub(crown_n).max(1);
-
-    // MAIN MASS: large lobes hugging the base plane. Each lobe's
-    // UNDERSIDE is parked on y = 0 so the base reads LEVEL rather than
-    // scalloped - the flatter the archetype, the more precisely.
-    for i in 0..body_n {
+    // ── GRAPE-CLUSTER CONSTRUCTION ──
+    // The first cut spread body lobes flat across the base plane, and it
+    // built DISCS - flying saucers, not clouds. Real cumulus grow by
+    // BUDDING: each puff swells off the shoulder of an existing one,
+    // which is exactly what makes cauliflower. So every lobe after the
+    // core attaches to a previously placed lobe, offset along a
+    // direction whose upward bias is the archetype's crown_bias (flat
+    // stratocumulus buds sideways, congestus buds straight up), at a
+    // separation close enough that the smooth union merges the pair into
+    // one body instead of a string of beads. Kept in step with
+    // `cv2_cloud_sdf` in assets/shaders/pbr/41-cloud-bodies.wgsl.
+    let mut lobes: Vec<CloudLobe> = Vec::with_capacity(n);
+    let r0 = r_hi * lerp(0.7, 1.0, hash01(seed, 31));
+    lobes.push(CloudLobe {
+        center: Vec3::new(0.0, r0, 0.0),
+        radius: r0,
+    });
+    for i in 1..n {
         let s = seed ^ ((i as u64 + 1) * 0x51A9_E381);
-        let r = pareto(hash01(s, 11), r_lo, r_hi, arch.lobe_size_exponent);
-        let ang = hash01(s, 12) * std::f32::consts::TAU;
-        let rad = (hash01(s, 13)).sqrt() * (width * 0.5 - r).max(0.0);
-        let rise = r * (1.0 - arch.base_flatness) * hash01(s, 14);
+        // Later lobes prefer recent (higher, smaller) parents, which
+        // grows a turret rather than a ring.
+        let pu = hash01(s, 41);
+        let pj = ((pu * pu) * i as f32) as usize;
+        let parent = lobes[pj.min(i - 1)];
+        // Never larger than its parent, so the cluster tapers upward the
+        // way a real turret does.
+        let r = pareto(hash01(s, 43), r_lo, r_hi, arch.lobe_size_exponent)
+            .min(parent.radius * 0.92);
+        let ang = hash01(s, 45) * std::f32::consts::TAU;
+        let up_lo = lerp(-0.35, 0.15, arch.crown_bias);
+        let up = lerp(up_lo, 1.0, hash01(s, 47));
+        let horiz = (1.0 - up * up).max(0.0).sqrt();
+        let dir = Vec3::new(ang.cos() * horiz, up, ang.sin() * horiz);
+        let sep = (parent.radius + r) * lerp(0.55, 0.78, hash01(s, 49));
+        let mut c = parent.center + dir * sep;
+        let y_lo = (r * arch.base_flatness).min(height);
+        c.y = c.y.clamp(y_lo, height.max(y_lo));
+        let horiz_len = Vec3::new(c.x, 0.0, c.z).length();
+        if horiz_len > width * 0.5 {
+            let k = width * 0.5 / horiz_len;
+            c.x *= k;
+            c.z *= k;
+        }
         lobes.push(CloudLobe {
-            center: Vec3::new(ang.cos() * rad, r + rise, ang.sin() * rad),
-            radius: r,
-        });
-    }
-
-    // CROWN: cauliflower stacked upward. Each successive lobe is
-    // smaller, sits higher and leans off-axis, which is what turns a
-    // ball into a billowing turret.
-    let base_top = lobes
-        .iter()
-        .map(|l| l.center.y + l.radius)
-        .fold(0.0_f32, f32::max);
-    for i in 0..crown_n {
-        let s = seed ^ ((i as u64 + 97) * 0x9D2C_5701);
-        let t = (i as f32 + 1.0) / (crown_n as f32 + 1.0);
-        let r = pareto(hash01(s, 21), r_lo, r_hi, arch.lobe_size_exponent)
-            * lerp(1.0, 0.45, t);
-        let y = lerp(base_top * 0.6, height, t);
-        let ang = hash01(s, 22) * std::f32::consts::TAU;
-        let lean = hash01(s, 23) * width * 0.22 * t;
-        lobes.push(CloudLobe {
-            center: Vec3::new(ang.cos() * lean, y, ang.sin() * lean),
+            center: c,
             radius: r,
         });
     }
 
     let mean_r = lobes.iter().map(|l| l.radius).sum::<f32>() / lobes.len().max(1) as f32;
-    CloudInstance {
+    return CloudInstance {
         lobes,
         width_m: width,
         height_m: height,
         blend_m: mean_r * arch.blend,
         base_flatness: arch.base_flatness,
-    }
+    };
 }
 
 impl CloudInstance {
@@ -264,33 +267,6 @@ impl CloudInstance {
         // cumulus base is LEVEL - the single most recognisable cue the
         // old noise body could not produce.
         d.max(-p.y)
-    }
-
-    /// The distance a sphere-tracing march may safely advance from `p`.
-    ///
-    /// NOT `sdf(p)`. A smooth union is not a Lipschitz-1 distance field:
-    /// in the blend valley between lobes its value falls off slower than
-    /// real distance, so a full-length step can punch through the
-    /// surface and the march misses the cloud entirely. Measurement
-    /// caught this immediately on cumulonimbus (most lobes, heaviest
-    /// blending), which tolerated only ~0.32 of its reported distance -
-    /// a fraction that small would make the march crawl and hand back
-    /// the entire reason for having a distance field.
-    ///
-    /// So the bound is geometric rather than a fudge factor. Distance to
-    /// the raw sphere UNION is exact and Lipschitz-1 (a plain min of
-    /// exact sphere distances), and the smoothed surface can only sit a
-    /// BOUNDED amount outside it, so subtracting that bound gives a
-    /// provably conservative step that stays nearly full length far from
-    /// the cloud - which is where the speed comes from. The flat base is
-    /// ignored here on purpose: it only ever REMOVES material, so
-    /// omitting it cannot make the step unsafe.
-    pub fn trace_step(&self, p: Vec3) -> f32 {
-        let mut d = f32::MAX;
-        for l in &self.lobes {
-            d = d.min((p - l.center).length() - l.radius);
-        }
-        d - self.blend_m * CLOUD_BLEND_BULGE
     }
 
     /// Density in [0,1] at a cloud-local point: 1 deep inside, falling to
@@ -440,86 +416,6 @@ mod tests {
             hi = hi.max(w);
         }
         assert!(hi / lo > 3.0, "population too uniform: {lo:.0}..{hi:.0} m");
-    }
-
-    #[test]
-    fn sphere_tracing_never_overshoots() {
-        // The correctness gate for the whole design: a march that steps
-        // by trace_step() must never land INSIDE a cloud, or it jumps
-        // straight through and the cloud vanishes. Walks every archetype
-        // and asserts it, and also asserts the steps stay LONG far from
-        // the cloud - a conservative-but-useless bound would give back
-        // the speedup this distance field exists to buy.
-        let t = table();
-        let mut worst_efficiency = 1.0_f32;
-        for arch in &t.archetypes {
-            for seed in 0..16u64 {
-                let c = build_cloud(arch, seed * 31 + 7);
-                for i in 0..24 {
-                    let ang = i as f32 * 0.261;
-                    let dir = Vec3::new(ang.cos(), 0.35, ang.sin()).normalize();
-                    let start = Vec3::new(0.0, c.height_m * 0.5, 0.0)
-                        - dir * c.width_m * 2.0;
-                    let mut p = start;
-                    // Far-field efficiency: the first step from well
-                    // outside should be most of the true clearance.
-                    let far = c.trace_step(p) / c.sdf(p).max(1.0);
-                    worst_efficiency = worst_efficiency.min(far);
-                    for _ in 0..256 {
-                        let step = c.trace_step(p);
-                        if step < 1.0 {
-                            break; // arrived at the surface
-                        }
-                        p += dir * step;
-                        assert!(
-                            c.sdf(p) > -1.0,
-                            "{}/{seed}: trace_step overshot INTO the cloud",
-                            arch.name
-                        );
-                    }
-                }
-            }
-        }
-        assert!(
-            worst_efficiency > 0.5,
-            "steps are too timid far from cloud ({worst_efficiency}) - the \
-             distance field would not buy back its cost"
-        );
-    }
-
-    #[test]
-    fn raw_sdf_alone_is_unsafe_which_is_why_trace_step_exists() {
-        // A guard on the REASON for trace_step: prove the naive thing
-        // (stepping by the smooth-union sdf itself) really does overshoot,
-        // so nobody later "simplifies" trace_step back into sdf. If this
-        // ever stops failing, the smooth union became Lipschitz-1 and
-        // trace_step could be revisited.
-        let t = table();
-        let a = t.by_name("cumulonimbus").unwrap();
-        let mut overshot = false;
-        'outer: for seed in 0..16u64 {
-            let c = build_cloud(a, seed * 31 + 7);
-            for i in 0..24 {
-                let ang = i as f32 * 0.261;
-                let dir = Vec3::new(ang.cos(), 0.35, ang.sin()).normalize();
-                let mut p = Vec3::new(0.0, c.height_m * 0.5, 0.0) - dir * c.width_m * 2.0;
-                for _ in 0..96 {
-                    let d = c.sdf(p);
-                    if d < 1.0 {
-                        break;
-                    }
-                    p += dir * d;
-                    if c.sdf(p) < -1.0 {
-                        overshot = true;
-                        break 'outer;
-                    }
-                }
-            }
-        }
-        assert!(
-            overshot,
-            "raw sdf no longer overshoots - trace_step's premise changed"
-        );
     }
 
 }

@@ -1347,7 +1347,21 @@ fn cloud_carve(
         cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
         cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
-    let body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+    var body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+    // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
+    // CONSTRUCTED primitives instead of the noise field. This is the
+    // Nubis wiring the survey found universal: noise ERODES a body, it
+    // never IS the body. The erosion bands below are unchanged and now
+    // bite into this constructed rind, which is the job they are good
+    // at. See 41-cloud-bodies.wgsl for why round Worley cells could
+    // never make a cumulus.
+    if (material.params.y >= 2.5) {
+        let built = cloud_v2_body(p, wa, cloud_type_coord(normalize(p), t, seed));
+        if (built <= 0.001) {
+            return CloudSample(0.0, ps, h, 0.0);
+        }
+        body = built;
+    }
     // Towering (v0.880), re-keyed in phase 3: v0.880 drove the tower from
     // COVERAGE, so pinning/raising coverage extended EVERY column to the
     // slab top - the cumulus band became 0.7-12 km and its 30%-of-band

@@ -861,6 +861,35 @@
     "cloud_cover": "0.95",
     "cloud_type": "0.34"
    }
+  },
+  {
+   "id": "silverdale-2km-ultra",
+   "desc": "Clouds v2 (Ultra tier): bodies built from primitives, noise demoted to erosion. A/B partner of silverdale-flight-2km.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 0.3,
+    "look_offset_deg": 115,
+    "time": 12.02
+   },
+   "hold_altitude": true,
+   "settle_s": 14,
+   "expect": "Cumulus with FLAT BASES and cauliflower crowns, in a range of sizes - not uniform speckled spheres.",
+   "regressions": [
+    "clouds are not uniform round blobs",
+    "cloud bases are level, not scalloped",
+    "panics=0"
+   ],
+   "perf_floor_fps": 10,
+   "showcase": {
+    "sea": "0.3",
+    "weather": "cloudy",
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34",
+    "cloud_quality": "ultra"
+   }
   }
  ]
 }

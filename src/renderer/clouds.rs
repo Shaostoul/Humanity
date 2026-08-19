@@ -226,13 +226,16 @@ pub fn cloud_seed(terrain_seed: u64) -> f32 {
 
 /// Settings string -> the material params.y quality selector the shader
 /// dispatches on (clouds increment 3): 0 = Low (increment-1 painted deck),
-/// 1 = Medium (increment-2 field march), 2 = High (the volumetric system).
+/// 1 = Medium (increment-2 field march), 2 = High (the volumetric system),
+/// 3 = ULTRA (clouds v2: bodies built from primitives, noise demoted to
+/// erosion - see 41-cloud-bodies.wgsl).
 /// Unknown strings fall to High -- the default posture, and a typo in a
 /// hand-edited config should never silently degrade the sky.
 pub fn quality_param(quality: &str) -> f32 {
     match quality {
         "low" => 0.0,
         "medium" => 1.0,
+        "ultra" => 3.0,
         _ => 2.0,
     }
 }
@@ -1033,9 +1036,14 @@ mod tests {
         assert_eq!(quality_param("low"), 0.0);
         assert_eq!(quality_param("medium"), 1.0);
         assert_eq!(quality_param("high"), 2.0);
-        // Unknown/corrupt strings fall to the High default, never Low.
+        // ULTRA is a real tier since clouds v2: bodies built from
+        // primitives instead of carved from noise (41-cloud-bodies.wgsl).
+        // It used to be just another unknown string falling back to High.
+        assert_eq!(quality_param("ultra"), 3.0);
+        // Unknown/corrupt strings still fall to the High default, never
+        // Low - a typo in a hand-edited config must not degrade the sky.
         assert_eq!(quality_param(""), 2.0);
-        assert_eq!(quality_param("ultra"), 2.0);
+        assert_eq!(quality_param("hgih"), 2.0);
     }
 
     #[test]
