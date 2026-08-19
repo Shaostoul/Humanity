@@ -33,6 +33,7 @@ pub mod capture;
 #[cfg(feature = "native")]
 pub mod stream_capture;
 pub mod cloud_noise;
+pub mod cloud_primitives;
 pub mod cloud_temporal;
 pub mod clouds;
 /// Live per-pass / per-stage / per-allocation cost measurement (resource

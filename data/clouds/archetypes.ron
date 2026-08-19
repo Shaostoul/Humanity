@@ -1,0 +1,75 @@
+// Cloud ARCHETYPES (clouds v2, the primitive-body rewrite).
+//
+// Why this file exists: every shipped AAA cloud system uses noise only to
+// ERODE a body that came from somewhere else (Nubis3 applies its 128^3
+// noise as ValueErosion(dimensional_profile, noise)). HumanityOS had that
+// wiring inverted - inverted-Worley noise WAS the body - and inverted
+// Worley is by definition a field of round balls whose cells are all
+// near the same size. That is structurally incapable of the power-law
+// size spectrum a real cumulus field has, which is exactly why the
+// operator saw "uniform spheres" (2026-08-18).
+//
+// So a cloud is now CONSTRUCTED: a small sculpture of smoothly-unioned
+// ellipsoid lobes with a hard flat bottom at the lifting condensation
+// level and cauliflower lobes stacked upward. Noise is demoted to
+// roughening the surface, which is the job it is actually good at.
+//
+// Infinite-of-X: every family below is DATA. Adding a cloud genus means
+// adding an entry here, never touching code.
+(
+    archetypes: [
+        (
+            name: "cumulus_humilis",
+            // Fair-weather puffs: wider than tall, flat base, shallow.
+            width_m: (300.0, 1200.0),
+            aspect_h_over_w: (0.45, 0.75),
+            lobe_count: (6, 14),
+            // Pareto exponent of the lobe RADIUS distribution. Real
+            // cumulus fields follow a power law (many small, few large);
+            // 1.7-2.2 is the observed range for shallow convection.
+            lobe_size_exponent: 2.0,
+            // How hard the condensation base cuts. 1 = razor flat.
+            base_flatness: 0.92,
+            // Fraction of lobes that stack ABOVE the widest lobe
+            // (cauliflower crown) rather than spreading sideways.
+            crown_bias: 0.35,
+            // Smooth-union radius as a fraction of mean lobe radius:
+            // how much neighbouring lobes melt together.
+            blend: 0.45,
+        ),
+        (
+            name: "cumulus_congestus",
+            // Towering: taller than wide, strong vertical stacking.
+            width_m: (800.0, 3000.0),
+            aspect_h_over_w: (1.2, 2.6),
+            lobe_count: (14, 30),
+            lobe_size_exponent: 1.8,
+            base_flatness: 0.95,
+            crown_bias: 0.70,
+            blend: 0.38,
+        ),
+        (
+            name: "stratocumulus",
+            // Broken sheet: very wide, very shallow, lobes spread flat.
+            width_m: (1500.0, 6000.0),
+            aspect_h_over_w: (0.12, 0.28),
+            lobe_count: (18, 40),
+            lobe_size_exponent: 2.3,
+            base_flatness: 0.80,
+            crown_bias: 0.10,
+            blend: 0.70,
+        ),
+        (
+            name: "cumulonimbus",
+            // Storm tower with an anvil: extreme vertical, crown spreads
+            // at the top (anvil handled by the crown lobes widening).
+            width_m: (3000.0, 12000.0),
+            aspect_h_over_w: (1.6, 3.2),
+            lobe_count: (24, 48),
+            lobe_size_exponent: 1.7,
+            base_flatness: 0.97,
+            crown_bias: 0.80,
+            blend: 0.32,
+        ),
+    ],
+)
