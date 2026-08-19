@@ -2469,6 +2469,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     ("low", "Low"),
                     ("medium", "Medium"),
                     ("high", "High"),
+                    ("ultra", "Ultra"),
                 ] {
                     let sel = state.settings.cloud_quality == val;
                     if ui.selectable_label(sel, RichText::new(label).size(theme.font_size_small)).clicked() && !sel {
@@ -2477,7 +2478,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                     }
                 }
             });
-            widgets::setting_hint(ui, theme, hint, "High raymarches real 3D cloud shapes with sunlight scattering (puffy towers, dark bases). Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.");
+            widgets::setting_hint(ui, theme, hint, "Ultra builds cloud bodies from primitives (flat bases, cauliflower crowns, real size variety) instead of carving them from noise - in development. High raymarches 3D cloud shapes with sunlight scattering. Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.");
         }
         // Close-range surface detail (v0.816): animated ocean waves + land
         // micro-texture on planets with real imagery. Applies live: the sky

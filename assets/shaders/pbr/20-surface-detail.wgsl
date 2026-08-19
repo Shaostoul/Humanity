@@ -1141,9 +1141,51 @@ fn water_shade(
     let mss = 0.003 + 0.00512 * u10;
     // Blinn power equivalent to GGX alpha = sqrt(mss): p = 2/alpha^2 - 2.
     let spec_p = max(2.0 / max(mss, 1.0e-4) - 2.0, 8.0);
-    let sparkle = pow(max(dot(n_pert, h), 0.0), spec_p) * WATER_SPEC_GAIN;
-    let anchor = pow(max(dot(n_geo, h), 0.0), 220.0) * 0.15;
-    let spec = camera.sun_color.rgb * sun_i * (sparkle + anchor) * day * sun_shadow_f;
+    // ── THE GLITTER BLOWOUT FIX (operator: "the ocean is getting blown
+    // out white and behaving very weird visually") ──
+    //
+    // The old term was `pow(dot,p) * GAIN` added RAW, and it had two
+    // independent errors that stacked:
+    //
+    // 1. NO FRESNEL. `f` weights the body and the sky mirror, but the
+    //    specular was added unweighted. Physically the glitter carries
+    //    the same Fresnel reflectance, which near the glint point is
+    //    only ~0.02 - so the term ran roughly FORTY TIMES too bright
+    //    exactly where the blowout appears.
+    // 2. NO ENERGY NORMALIZATION. A Blinn lobe must scale its peak by
+    //    (p + 2) / 2pi so that WIDENING the lobe redistributes energy
+    //    rather than adding it. With a fixed peak, total glitter energy
+    //    scaled as 1/mss - i.e. with the WIND. That is why this never
+    //    appeared on the probe rig and always appears in play: every rig
+    //    capture runs "Clear 20C 2 m/s" (p = 149, a 1.6 degree cap, the
+    //    8 px white dot visible in old orbital captures), while live
+    //    weather at 10-15 m/s drops p to 35-23, growing the saturated
+    //    cap 2-2.4x in radius and 4-6x in energy until a quarter of the
+    //    visible disc is clipped pure white.
+    //
+    // Now a proper normalized microfacet lobe: widening with the wind
+    // spreads the glitter path without brightening it, which is what a
+    // real sea does. WATER_SPEC_GAIN stays the single artistic scalar.
+    let d_norm = (spec_p + 2.0) / (2.0 * PI);
+    let f_h = WATER_F0 + (1.0 - WATER_F0)
+        * pow(1.0 - max(dot(view_dir, h), 0.0), 5.0);
+    // The 1/(4 n_l n_v) microfacet denominator must be BOUNDED. A real
+    // Cook-Torrance carries a geometry/shadowing term that suppresses
+    // grazing angles; without one, n_v -> 0 at the horizon amplifies the
+    // lobe without limit - which is where the operator saw banding
+    // across the water near the horizon. Clamping the product caps the
+    // amplification at 5x and stands in for the missing G term.
+    let n_l = max(dot(n_geo, sun_l), 0.0);
+    let n_v = max(dot(n_geo, view_dir), 0.0);
+    let denom = 4.0 * max(n_l * n_v, 0.05);
+    let sparkle = d_norm * pow(max(dot(n_pert, h), 0.0), spec_p) / denom;
+    // The anchor keeps a tight glint on the geometric normal; it rides
+    // the same normalization so it cannot clip on its own either.
+    let anchor_p = 220.0;
+    let anchor = ((anchor_p + 2.0) / (2.0 * PI))
+        * pow(max(dot(n_geo, h), 0.0), anchor_p) / denom * 0.06;
+    let spec = camera.sun_color.rgb * sun_i * WATER_SPEC_GAIN * f_h
+        * (sparkle + anchor) * day * sun_shadow_f;
     return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;
 }
 

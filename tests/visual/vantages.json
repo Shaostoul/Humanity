@@ -890,6 +890,30 @@
     "cloud_type": "0.34",
     "cloud_quality": "ultra"
    }
+  },
+  {
+   "id": "ocean-storm-glitter",
+   "desc": "Sun glitter at STORM sea state. The rig has only ever captured Clear 2 m/s, which is the NARROWEST glitter lobe - that blind spot hid a blowout that only appears in live weather (v0.1168).",
+   "showcase": {
+    "time": "10.7",
+    "sea": "1.0",
+    "weather": "clear"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.008,
+    "look_offset_deg": 88
+   },
+   "settle_s": 10,
+   "expect": "A wide, diffuse sun-glitter path spread across the swell. Bright but NOT a clipped pure-white disc: widening the lobe with wind must redistribute energy, never add it.",
+   "regressions": [
+    "no pure-white clipped blowout at the glint point",
+    "no triangular or hexagonal banding around the glint",
+    "panics=0"
+   ],
+   "perf_floor_fps": 20
   }
  ]
 }
