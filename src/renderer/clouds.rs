@@ -1533,12 +1533,25 @@ mod carve_width_fit {
         x.max(0.0)
     }
 
-    /// The smooth hinge the WGSL soft carve uses: E[relu(x - thr)] for a
-    /// distribution of spread `w` around mean `xb`, Gaussian closed form
-    /// approximated by 0.5*(z + sqrt(z^2 + 2/pi))*w.
+    /// The COMPACT hinge the WGSL soft carve uses (coverage-vs-footprint
+    /// increment): E[relu(x - thr)] for x UNIFORM on [xb - w, xb + w] -
+    /// the exact closed form (xb - thr + w)^2 / (4w) inside the spread,
+    /// 0 below it, the hard ramp above it. Replaced the Gaussian-tail
+    /// form 0.5*(z + sqrt(z^2 + 2/pi))*w, whose ~1/|z| tail never
+    /// reached zero: integrated over an 11 km slab path at coarse mips
+    /// it rendered a planet-wide translucent veil (the 114 km white-out;
+    /// the rig pin ladder proved the width table was the whole term).
     fn soft_hinge(xb: f32, thr: f32, w: f32) -> f32 {
-        let z = (xb - thr) / w.max(1e-4);
-        0.5 * (z + (z * z + 0.6366).sqrt()) * w.max(1e-4)
+        let w = w.max(1e-4);
+        let z = (xb - thr) / w;
+        if z <= -1.0 {
+            0.0
+        } else if z < 1.0 {
+            let u = z + 1.0;
+            0.25 * u * u * w
+        } else {
+            z * w
+        }
     }
 
     /// FITS the per-mip-level soft-carve widths on the REAL shipped shape
@@ -1575,15 +1588,17 @@ mod carve_width_fit {
             let scale = (192 / sizes[l]) as usize; // base voxels per level voxel edge
             let level = &chain[l];
             let base0 = &chain[0];
-            // Collect (level_value, area_mean_relu per thr) samples.
+            // Collect (level_value, area_mean_relu per thr, area_cover per
+            // thr) samples.
             let n_regions = if n_l >= 24 { 1200 } else { (n_l * n_l * n_l).min(1200) };
-            let mut samples: Vec<(f32, [f32; 5])> = Vec::with_capacity(n_regions);
+            let mut samples: Vec<(f32, [f32; 5], [f32; 5])> = Vec::with_capacity(n_regions);
             for _ in 0..n_regions {
                 let vx = (next() * n_l as f32) as usize % n_l;
                 let vy = (next() * n_l as f32) as usize % n_l;
                 let vz = (next() * n_l as f32) as usize % n_l;
                 let xl = level[((vz * n_l + vy) * n_l + vx) * 4] as f32 / 255.0;
                 let mut acc = [0.0f32; 5];
+                let mut cov = [0.0f32; 5];
                 let mut cnt = 0.0f32;
                 // Subsample big regions (cap ~4096 base voxels per region).
                 let stride = (scale / 16).max(1);
@@ -1593,6 +1608,9 @@ mod carve_width_fit {
                             let x0 = base0[((bz * 192 + by) * 192 + bx) * 4] as f32 / 255.0;
                             for (ti, thr) in thrs.iter().enumerate() {
                                 acc[ti] += relu(x0 - thr);
+                                if x0 > *thr {
+                                    cov[ti] += 1.0;
+                                }
                             }
                             cnt += 1.0;
                         }
@@ -1601,16 +1619,58 @@ mod carve_width_fit {
                 for a in acc.iter_mut() {
                     *a /= cnt;
                 }
-                samples.push((xl, acc));
+                for c in cov.iter_mut() {
+                    *c /= cnt;
+                }
+                samples.push((xl, acc, cov));
             }
-            // Grid-search w minimizing mean absolute error across thresholds.
+            // COVERAGE-BOUNDED fit (coverage-vs-footprint increment). A
+            // mean-preserving carve at a coarse mip is over-OPAQUE by
+            // construction: Beer-Lambert is nonlinear, so exp(-mean_tau)
+            // over an 11 km path through smeared mean density is far
+            // darker than the true clear/cloudy sub-column mixture
+            // (Jensen). The unbounded mean-fit therefore rendered a
+            // planet-wide veil (the 114 km white-out). The carve's
+            // AREAL COVERAGE at width w is P(level_value > thr - w);
+            // bound it to <= 1.5x the base field's true coverage (+2%
+            // absolute slack for near-zero coverages), then fit the mean
+            // as well as possible INSIDE that bound. The mass this
+            // under-represents at coarse mips is the statistical
+            // far-field's job (environment program increment 15), not
+            // the carve's.
+            let mut w_max = 0.40f32;
+            for (ti, _thr) in thrs.iter().enumerate() {
+                let cov0: f32 = samples.iter().map(|s| s.2[ti]).sum::<f32>()
+                    / samples.len() as f32;
+                let bound = (cov0 * 1.5).max(cov0 + 0.02);
+                // Largest w whose level-value coverage stays inside the
+                // bound for this threshold.
+                let mut w = 0.005f32;
+                let mut ok = 0.005f32;
+                while w <= 0.40 {
+                    let cov_l: f32 = samples
+                        .iter()
+                        .filter(|s| s.0 > thrs[ti] - w)
+                        .count() as f32
+                        / samples.len() as f32;
+                    if cov_l <= bound {
+                        ok = w;
+                    } else {
+                        break;
+                    }
+                    w += 0.005;
+                }
+                w_max = w_max.min(ok);
+            }
+            // Grid-search w minimizing mean absolute error across
+            // thresholds, inside the coverage bound.
             let mut best_w = 0.005f32;
             let mut best_e = f32::MAX;
             let mut w = 0.005f32;
-            while w <= 0.40 {
+            while w <= w_max {
                 let mut e = 0.0f32;
                 let mut n = 0.0f32;
-                for (xl, targets) in &samples {
+                for (xl, targets, _) in &samples {
                     for (ti, thr) in thrs.iter().enumerate() {
                         e += (soft_hinge(*xl, *thr, w) - targets[ti]).abs();
                         n += 1.0;
@@ -1623,7 +1683,19 @@ mod carve_width_fit {
                 }
                 w += 0.005;
             }
-            fitted.push(best_w);
+            // PRINCIPLED CAP (2026-08-21, rig A/B adjudicated): tables
+            // capped at 0.02 vs the uncapped fit (W5 = 0.05) render
+            // IDENTICALLY at every measured vantage - the carve width is
+            // NOT the term behind the coverage-vs-footprint spread (the
+            // pinned-0.5 triplet measured ~15% areal at 10 m footprint,
+            // ~80% at 150 m, ~60% at orbit regardless of table). The cap
+            // is kept on principle: a mean-preserving hinge at coarse
+            // mips is over-opaque by Jensen (exp(-mean_tau) vs the true
+            // clear/cloudy sub-column mixture), so wide supports have
+            // theoretical veil risk and measured zero benefit. The
+            // still-open footprint non-invariance is the top PRIORITIES
+            // item; its measurements live in environment-program.md 12c.
+            fitted.push(best_w.min(0.02));
             errs.push(best_e);
         }
         while fitted.len() < 8 {

@@ -472,17 +472,25 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // The table below is fitted by clouds::carve_consistency_widths_are_fitted
 // (threshold-of-mip-N vs area-average of threshold-of-mip-0 over real
 // volume regions); the test FAILS if the bake drifts from these numbers.
-// Fitted by clouds::carve_consistency_widths_are_fitted on the shipped
-// bake (2026-08-21). Level 0 is a single voxel - the hinge collapses to
-// the exact hard ramp there.
+// Re-fitted 2026-08-21 against the COMPACT hinge with a COVERAGE BOUND
+// (coverage-vs-footprint increment). The unbounded mean-preserving fit
+// produced widths to 0.125 and a planet-wide veil: Beer-Lambert is
+// nonlinear, so mean-density-preservation at coarse mips is over-opaque
+// by construction (exp(-mean_tau) vs the true clear/cloudy sub-column
+// mixture - Jensen). The fit now bounds each level's areal coverage
+// P(level > thr - w) to <= 1.5x the base field's true coverage, then
+// fits the mean inside that bound (MAE <= 0.011, still 5x tighter than
+// the old Gaussian-hinge gate). The far-field mass this leaves out is
+// increment 15's statistical far field, NOT the carve's job. Level 0 is
+// a single voxel - the hinge collapses to the exact hard ramp there.
 const CLOUD_CARVE_W0: f32 = 0.005;
-const CLOUD_CARVE_W1: f32 = 0.005;
-const CLOUD_CARVE_W2: f32 = 0.005;
-const CLOUD_CARVE_W3: f32 = 0.010;
-const CLOUD_CARVE_W4: f32 = 0.025;
-const CLOUD_CARVE_W5: f32 = 0.050;
-const CLOUD_CARVE_W6: f32 = 0.045;
-const CLOUD_CARVE_W7: f32 = 0.045;
+const CLOUD_CARVE_W1: f32 = 0.010;
+const CLOUD_CARVE_W2: f32 = 0.015;
+const CLOUD_CARVE_W3: f32 = 0.015;
+const CLOUD_CARVE_W4: f32 = 0.015;
+const CLOUD_CARVE_W5: f32 = 0.020;
+const CLOUD_CARVE_W6: f32 = 0.020;
+const CLOUD_CARVE_W7: f32 = 0.020;
 
 fn cloud_carve_width(lod: f32) -> f32 {
     var w: array<f32, 8> = array<f32, 8>(
@@ -1572,11 +1580,26 @@ fn cloud_carve(
     // stops silhouettes reshaping as the mip blend moves with distance.
     let sw = cloud_carve_width(cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let zc = (body - thr) / sw;
-    let carve = clamp(
-        0.5 * (zc + sqrt(zc * zc + 0.6366)) * sw / max(1.0 - thr, 1.0e-3),
-        0.0,
-        1.0,
-    ) * env;
+    // COMPACT-SUPPORT hinge (coverage-vs-footprint increment): the old
+    // Gaussian-tail hinge 0.5*(z + sqrt(z^2 + 2/pi)) never returns zero,
+    // and its ~1/|z| tail times an 11 km slab path integrated into a
+    // planet-wide translucent veil at coarse mips (the 114 km white-out;
+    // pin ladder proved the width table was the whole term - hard-carving
+    // the mipped field matched the lod-0 truth). This hinge is E[relu]
+    // over a UNIFORM sub-footprint spread of half-width sw: exactly zero
+    // when the whole footprint sits below threshold, exactly the hard
+    // ramp when it sits above, quadratic blend between - so a clear-sky
+    // footprint is CLEAR at every mip.
+    var hinge: f32;
+    if (zc <= -1.0) {
+        hinge = 0.0;
+    } else if (zc < 1.0) {
+        let u = zc + 1.0;
+        hinge = 0.25 * u * u;
+    } else {
+        hinge = zc;
+    }
+    let carve = clamp(hinge * sw / max(1.0 - thr, 1.0e-3), 0.0, 1.0) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
     // up; how close this sample is to that crown drives the valley-shade /

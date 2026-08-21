@@ -516,6 +516,44 @@ planet from interplanetary range must not run a 2048^2 octa march), and
 the tautological second assert in the pix-ang mirror test was dropped
 (finding 6).
 
+**COVERAGE-VS-FOOTPRINT INSTRUMENT + COMPACT HINGE (v0.1185.0, same
+day). What is PROVEN, what was REFUTED, and the recorded red state:**
+- COMPACT HINGE SHIPPED: the soft carve's Gaussian-tail hinge
+  0.5*(z + sqrt(z^2 + 2/pi)) is replaced by the EXACT closed form of
+  E[relu] under a uniform sub-footprint spread - zero below the spread,
+  hard ramp above, quadratic between. It models the shipped bake 5-10x
+  tighter (per-level MAE <= 0.011 vs the old 0.05 gate) and cannot
+  contribute density where a footprint is wholly below threshold. The
+  width fit (clouds.rs carve_width_fit) gained a coverage bound + a
+  0.02 cap; table re-locked at [.005 .01 .015 .015 .015 .02 .02 .02].
+- REFUTED BY A/B: the carve WIDTH TABLE is NOT the term behind the
+  coverage-vs-footprint spread - three tables (old Gaussian .005-.05,
+  bounded-fit to .05, capped .02) render IDENTICALLY at every measured
+  vantage. An earlier live-prototype "proof" that narrow widths cleared
+  the 114 km view was a checks-that-cannot-fail failure (unverified
+  hot-reload + a camera park that was NOT the sweep vantage); the
+  hot-reload ladder protocol now requires the [HotReload] reassembled
+  log line per rung.
+- REGION CONFOUND NAMED: the raw under-deck-empty vs nadir-white
+  contrast compares different sky regions under live MODIS and is NOT
+  by itself evidence of non-invariance.
+- THE CONTROLLED INSTRUMENT (permanent vantages cov50-underdeck /
+  cov50-nadir-114km / cov50-orbit): pinned procedural field at
+  cloud_cover 0.5, same lat/lon, three march footprints. RECORDED RED
+  STATE (v0.1185, sweeps 20260821-222817/-223157/-223637): areal
+  coverage ~15% at the ~10 m footprint rung, ~80% at ~150 m, ~60% at
+  ~5 km, against the 50% pin. The under-deck deficit and the coarse
+  excess are BOTH real and survive every carve-width table. Candidate
+  terms for the hunt: erosion amplitude vs mip, the weather-law
+  (meso quasi-binary) application vs footprint, the step law's
+  band-limit interaction with the temporal EMA. THIS IS THE TOP
+  PRIORITIES ITEM.
+- Rig debt: the vantage time pin renders ~8 h early on some vantages
+  (deterministic per vantage, hit cov50-nadir-114km twice and
+  nearslab-ab-400km once; single-run nadir-pinch-114km always honors
+  it). Chip task filed; until fixed, re-run a dark capture solo or
+  paired behind a working vantage.
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

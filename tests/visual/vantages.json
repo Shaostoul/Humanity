@@ -1072,6 +1072,70 @@
    }
   },
   {
+   "id": "cov50-nadir-114km",
+   "desc": "PINNED-COVERAGE footprint-invariance triplet, coarse rung: procedural field at cloud_cover 0.5, straight down from 114 km. Compare areal coverage against the under-deck and orbit rungs - all three see the same statistical field, so coverage must match.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 114
+   },
+   "settle_s": 12,
+   "expect": "About half the ground visible through discrete cloud masses - the same areal fraction the other two rungs show.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5"
+   }
+  },
+  {
+   "id": "cov50-underdeck",
+   "desc": "PINNED-COVERAGE footprint-invariance triplet, fine rung: same pinned field from 463 m looking steeply up.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 0.463,
+    "look_offset_deg": 150
+   },
+   "settle_s": 12,
+   "expect": "A sky about half-filled with cloud - the same areal fraction the coarse rungs show.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5"
+   }
+  },
+  {
+   "id": "cov50-orbit",
+   "desc": "PINNED-COVERAGE footprint-invariance triplet, orbit rung: same pinned field from 12000 km.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 12000
+   },
+   "settle_s": 12,
+   "expect": "A marble about half-covered - the same areal fraction the lower rungs show.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5"
+   }
+  },
+  {
    "id": "orbit-static",
    "desc": "PAIRED capture at orbit (3 s apart). Owns the TV-static complaint: the two frames must differ only by real motion, not churn.",
    "camera": {
