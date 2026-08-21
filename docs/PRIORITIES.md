@@ -1,5 +1,17 @@
 # HumanityOS: Priorities
 
+> **ACTIVE (2026-08-21): the ENVIRONMENT PROGRAM** - the council plan of
+> record at docs/design/environment-program.md, executed serially by rank.
+> Done: instruments (descent ladder calibration-red, program vantages,
+> water-crop goldens, probe hold), W1 water LUT gate (v0.1171), one cloud
+> shell + continuous limb (v0.1172). Discovered + owned: the vanishing
+> deck (fullscreen depth-aware composite = wave D mandate), the inverted
+> Perlin-Worley polarity (pinned test, lands with increment 10). Next by
+> rank: 6 (clouds-v2 containment, Ultra), 7 (ocean specular AA), 8
+> (converged bright reference), then wave D. The descent ladder gates
+> every increment: node scripts/probe-sweep.js --ladder then
+> scripts/ladder-score.mjs.
+
 > **This is the TACTICAL backlog (what is next, right now).** Its strategic, themed,
 > public-facing companion is **[ROADMAP.md](ROADMAP.md)** (the same to-do list, grouped
 > by theme with status badges, rendered on the website). Use ROADMAP.md for "where are
