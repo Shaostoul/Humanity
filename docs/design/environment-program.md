@@ -263,6 +263,34 @@ The coupling-lesson increment, on the SHARED cloud_march_core so the DEFAULT sky
   if 10b cannot reach 1.6 either, the floor itself gets re-derived from
   an operator-approved reference capture, not inherited numbers.
 
+**10b EXECUTION ADJUDICATIONS (v0.1178, the polarity flip):**
+- THE DOUBLE CONSTRUCTION: flipping the bake remap alone shredded the
+  field to dust (carve-map probe) because the SHADER re-applied the old
+  gap-boost remap on the already-built body - a historic double dilation
+  the old look had absorbed. Now a SINGLE construction: the bake's R
+  channel IS the Perlin-Worley body (feature-boosted, polarity correct);
+  the shader consumes it directly.
+- Coverage window re-derived from the single-construction distribution at
+  the OLD window's percentile anchors: COV_LO 0.92 -> 0.854 (above p99),
+  COV_HI 0.52 -> 0.347 (p01 - 0.167). Carve normalized against the real
+  body top (CLOUD_BODY_TOP 0.79, a bake statistic) instead of 1.0, so
+  cores still reach carve 1 and all four erosion bands keep their
+  calibration without retuning.
+- CLOUD_CELL_SPLIT 0.5 -> 0.15: at full strength it pulverized the
+  feature-topology near field into sub-km dust (37.8% salt-and-pepper);
+  at 0.15 the near map is solid masses with organic lanes (76% at the
+  0.95 pin - honest for a 95% sky).
+- VERDICTS: polarity guard test un-pinned and GREEN (mass at features);
+  integrator twin -0.0% across the flip (integrator error is
+  field-independent, as designed); deck-ray GPU-vs-reference signed
+  +1.2%; deck-band contrast 3.40 (10a: 3.27); all perf floors green,
+  panics 0. The pinned flight vantage now sits under a LANE (overhead
+  visibly clear at 0.95 cover) - an honest field sample; the ROI-based
+  joint gate reads bare sky in this framing and is uninformative until
+  increment 11 re-aims vantage/ROI with the coverage law. The marble's
+  overall coverage curve (still sheet-heavy at natural weather) is
+  increment 11's mandate, not re-litigated here.
+
 NOT a pure deletion - four coupled pieces in ONE increment or it reads as the next regression: (1) delete the detail/puff/cell distance fades (the concentric rings at 30-60 / 51-289 / 193-4495 km). (2) Re-center coverage for the now-always-on cell-split threshold raise (40-clouds.wgsl:1400-1408, currently distance-gated off at orbit - deleting the gate shifts global mean coverage). (3) Mip the 1440x720 weather map (mip_level_count:1 today, point-sampled through a steep smoothstep) and sample at footprint lod. (4) G2 de-binarization: the envelope smoothstep(0.35,0.9) turns a 27.8 km texel saying '40% cloudy' into keep/kill stipple - replace it so the rendered areal fraction inside a texel EQUALS the texel's fractional coverage at wide footprints (the soft-carve statistics-preserving principle applied at placement level; mipping alone is necessary but NOT sufficient). Plus: 8-px disc cutoff -> the existing per-object fade. Coverage/threshold shares machinery with R9's carve - land coherently, never double-correct.
 
 **Files:** assets/shaders/pbr/40-clouds.wgsl:329-353, :1072-1086, :1400-1408, :1936-1946; src/renderer/mod.rs:1103-1117, :210-211; src/lib.rs:11207; src/renderer/cloud_noise.rs (renormalize accounting)

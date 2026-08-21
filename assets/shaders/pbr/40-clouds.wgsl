@@ -399,7 +399,7 @@ const CLOUD_PUFF_FADE_FAR_KM: f32 = 289.0;
 // erosion) because erosion can only nibble a blob's edges, never divide
 // it. Distance-faded so orbit never changes.
 const CLOUD_CELL_TILE_KM: f32 = 8.0;
-const CLOUD_CELL_SPLIT: f32 = 0.5;
+const CLOUD_CELL_SPLIT: f32 = 0.15;
 const CLOUD_CELL_FADE_NEAR_KM: f32 = 30.0;
 const CLOUD_CELL_FADE_FAR_KM: f32 = 60.0;
 // Crevice occlusion from the SAME puff noise (already sampled for the
@@ -474,9 +474,9 @@ const CLOUD_CARVE_W1: f32 = 0.005;
 const CLOUD_CARVE_W2: f32 = 0.005;
 const CLOUD_CARVE_W3: f32 = 0.010;
 const CLOUD_CARVE_W4: f32 = 0.025;
-const CLOUD_CARVE_W5: f32 = 0.055;
-const CLOUD_CARVE_W6: f32 = 0.050;
-const CLOUD_CARVE_W7: f32 = 0.050;
+const CLOUD_CARVE_W5: f32 = 0.050;
+const CLOUD_CARVE_W6: f32 = 0.045;
+const CLOUD_CARVE_W7: f32 = 0.045;
 
 fn cloud_carve_width(lod: f32) -> f32 {
     var w: array<f32, 8> = array<f32, 8>(
@@ -498,8 +498,14 @@ fn cloud_carve_width(lod: f32) -> f32 {
 // as SCATTERED cumulus with real gaps, not a solid overcast blanket -- the
 // first orbital field test (2026-07-11) rendered a near-total white sheet
 // because the old `1 - weather_a` carve kept the shape almost everywhere.
-const CLOUD_COV_LO: f32 = 0.92;
-const CLOUD_COV_HI: f32 = 0.52;
+const CLOUD_COV_LO: f32 = 0.854;
+// The single-construction body tops out at ~p99 = 0.79 (bake statistic,
+// increment 10b) - the old doubled construction saturated toward 1.0 and
+// every erosion amplitude is calibrated against carve values that REACH 1
+// in cores. Normalizing the carve against the real body top keeps that
+// contract without retuning four erosion bands.
+const CLOUD_BODY_TOP: f32 = 0.79;
+const CLOUD_COV_HI: f32 = 0.347;
 // Domed tops (v0.1013.x, operator field report: "the big bulky clouds still
 // look like their edges are mostly cliffs" / "from above they mostly just
 // look like a solid flat sheet"): the carve threshold RISES with height
@@ -1447,7 +1453,15 @@ fn cloud_carve(
         cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
         cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
-    var body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+    // SINGLE construction (increment 10b): the bake's R channel IS the
+    // finished Perlin-Worley body (cloud_noise::shape_voxel, polarity
+    // corrected there). The remap that used to sit here was a SECOND
+    // application of the construction on the already-built body - a
+    // historic double-boost the old look had absorbed; after the bake's
+    // polarity fix the two dilations fought each other and shredded the
+    // field into dust (carve-map probe, 2026-08-21). The coverage window
+    // below is re-derived against the single-construction distribution.
+    var body = s.r;
     // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
     // CONSTRUCTED primitives instead of the noise field. This is the
     // Nubis wiring the survey found universal: noise ERODES a body, it

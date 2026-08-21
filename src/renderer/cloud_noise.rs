@@ -247,7 +247,18 @@ pub fn shape_voxel(p: [f32; 3]) -> [u8; 4] {
     // (per+1)/2 at a cell centre, plain per in a gap), which is the
     // dilation the original comment always claimed.
     let lofi = w0 * 0.625 + w1 * 0.25 + w2 * 0.125;
-    let pw = remap(per, lofi - 1.0, 1.0, 0.0, 1.0).clamp(0.0, 1.0);
+    // POLARITY FLIPPED (increment 10b, the scheduled fix): the corrected
+    // remap boosts the FEATURES - (per + lofi)/(1 + lofi) evaluates to
+    // (per + 1)/2 at a cell centre and plain per in a gap - so the cloud
+    // MASS finally sits at the Worley cells (discrete billowy puffs) and
+    // the gaps eat clear lanes between them. The old `lofi - 1.0` form
+    // did the opposite (boosted gaps): a connected foam web with holes,
+    // which is why every cloud read as translucent round blobs and no
+    // downstream tuning could make cumulus. Landed WITH the coverage
+    // window re-center (CLOUD_COV_LO/HI re-derived at the same body
+    // percentiles the old thresholds cut) per the increment-3 bisect:
+    // flipping alone empties the sky.
+    let pw = remap(per, -lofi, 1.0, 0.0, 1.0).clamp(0.0, 1.0);
     [
         (pw * 255.0).round() as u8,
         (w0 * 255.0).round() as u8,
@@ -626,12 +637,13 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "KNOWN DEFECT, scheduled: the polarity fix lands with the \
-environment program's integrator/field-re-tune increment, never alone - \
-flipping it in isolation empties the near-path sky because every \
-downstream consumer (cell split, tower, dome rise, erosion weights) is \
-co-tuned to the foam topology. Bisect data: 2026-08-21 journal. Run \
-manually with --ignored to check the field's state."]
+    // UN-PINNED at increment 10b (2026-08-21): the polarity is FIXED and
+    // this probe now guards it forever. It was #[ignore]d as KNOWN DEFECT
+    // between increment 3 (discovery + failed isolated flip on the old
+    // mask-tau integrator, whose look leaned on the foam topology) and 10b
+    // (flip landed on the corrected integrator; the flipped body's
+    // QUANTILES matched the old within ~0.03 so the coverage window stood,
+    // and the integrator twin measured -0.0% across the flip).
     fn perlin_worley_body_peaks_at_worley_features_not_gaps() {
         // THE POLARITY PROBE (environment program increment 3). The
         // council flagged the Perlin-Worley remap as possibly inverted:

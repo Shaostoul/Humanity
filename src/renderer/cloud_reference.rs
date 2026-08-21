@@ -46,11 +46,11 @@ use super::clouds::{
 
 // ── Constants transcribed from assets/shaders/pbr/40-clouds.wgsl ──
 // (locked by the sync test at the bottom of this file)
-const CLOUD_COV_LO: f32 = 0.92;
-const CLOUD_COV_HI: f32 = 0.52;
+const CLOUD_COV_LO: f32 = 0.854;
+const CLOUD_COV_HI: f32 = 0.347;
 const CLOUD_TOP_RISE: f32 = 0.45;
 const CLOUD_BASE_DROP: f32 = 0.35;
-const CLOUD_CELL_SPLIT: f32 = 0.5;
+const CLOUD_CELL_SPLIT: f32 = 0.15;
 const CLOUD_FRAY_ERODE: f32 = 0.5;
 const CLOUD_FIL_LO: f32 = 0.30;
 const CLOUD_FIL_HI: f32 = 0.74;
@@ -254,7 +254,7 @@ impl<'a> CloudRefCtx<'a> {
             .shape
             .sample([ps[0] * shape_freq, ps[1] * shape_freq, ps[2] * shape_freq]);
         let lofi = s[1] * 0.625 + s[2] * 0.25 + s[3] * 0.125;
-        let body = clampf(remap(s[0], lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+        let body = s[0]; // single construction (10b): bake owns Perlin-Worley
         let tower = smoothstep(0.62, 0.92, lofi);
         let h_hi_eff = (reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo)).min(1.0);
         let env = height_band(h, reg.h_lo, h_hi_eff);
@@ -274,7 +274,7 @@ impl<'a> CloudRefCtx<'a> {
                 .sample([ps[0] * cell_freq, ps[1] * cell_freq, ps[2] * cell_freq]);
             thr += CLOUD_CELL_SPLIT * cell_amt * reg.fine * (1.0 - c[1]);
         }
-        let carve = clampf((body - thr) / (1.0 - thr).max(1.0e-3), 0.0, 1.0) * env;
+        let carve = clampf((body - thr) / (0.79 - thr).max(1.0e-3), 0.0, 1.0) * env; // CLOUD_BODY_TOP
         let u_crown = ((body - thr_base).max(0.0) / CLOUD_TOP_RISE).sqrt();
         let crown = clampf(u_band / clampf(u_crown, 1.0e-3, 1.0), 0.0, 1.0);
         CarveOut { carve, ps, h, crown }
@@ -855,7 +855,7 @@ mod debug_probe2 {
             let p = [dir[0] * r, dir[1] * r, dir[2] * r];
             let s = vol.sample([p[0] * shape_freq, p[1] * shape_freq, p[2] * shape_freq]);
             let lofi = s[1] * 0.625 + s[2] * 0.25 + s[3] * 0.125;
-            let body = clampf(remap(s[0], lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
+            let body = s[0]; // single construction (10b): bake owns Perlin-Worley
             bodies.push((s[0], lofi, body));
         }
         let mut bs: Vec<f32> = bodies.iter().map(|b| b.2).collect();
@@ -1613,6 +1613,183 @@ mod tau_probe {
             }
             let tl = ctx.twin_sun_tau(p, &wa_at, &reg, 1.0, 1.0, 1.0);
             println!("tm {:.5} dens {:.2} tau_fine {:.2} tau_ladder {:.2}", tm, dens, tf, tl);
+        }
+    }
+}
+
+#[cfg(test)]
+mod cov_recenter {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    /// 10b COVERAGE RE-CENTER: measure the flipped body distribution at
+    /// slab heights and print the quantiles matching the OLD thresholds'
+    /// percentile cuts, so CLOUD_COV_LO/HI can be re-derived instead of
+    /// guessed. (The old window 0.92/0.52 cut the OLD distribution at
+    /// specific percentiles; the flipped distribution shifts.)
+    #[test]
+    #[ignore = "diagnostic, run by hand"]
+    fn body_quantiles_after_flip() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let r_km = 6371.0f32;
+        let upkm = 1.0 / r_km;
+        let shape_freq = 1.0 / (CLOUD_SHAPE_TILE_KM * upkm);
+        let vol = RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE };
+        let mut bodies = vec![];
+        for i in 0..4000 {
+            let a = i as f32 * 0.618034 * std::f32::consts::TAU;
+            let z = -1.0 + 2.0 * ((i as f32 + 0.5) / 4000.0);
+            let xy = (1.0f32 - z * z).max(0.0).sqrt();
+            let dir = [xy * a.cos(), z, xy * a.sin()];
+            let r = 1.0 + 3.0 / r_km;
+            let p = [dir[0] * r, dir[1] * r, dir[2] * r];
+            let s = vol.sample([p[0] * shape_freq, p[1] * shape_freq, p[2] * shape_freq]);
+            let lofi = s[1] * 0.625 + s[2] * 0.25 + s[3] * 0.125;
+            let body = s[0]; // single construction (10b): bake owns Perlin-Worley
+            bodies.push(body);
+        }
+        bodies.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let q = |p: f32| bodies[((bodies.len() - 1) as f32 * p) as usize];
+        println!(
+            "flipped body quantiles: p01 {:.3} p05 {:.3} p10 {:.3} p25 {:.3} p50 {:.3} p75 {:.3} p90 {:.3} p95 {:.3} p99 {:.3}",
+            q(0.01), q(0.05), q(0.10), q(0.25), q(0.50), q(0.75), q(0.90), q(0.95), q(0.99)
+        );
+        // The OLD distribution's percentile cuts (measured pre-flip,
+        // 2026-08-21 probe2): body p05 0.687 p50 0.784 p95 0.854.
+        // OLD COV_LO 0.92 sat ABOVE p99 (nearly nothing at wa=0);
+        // OLD COV_HI 0.52 sat below p01 (everything at wa=1, minus the
+        // rise/cell terms). Print where those percentile anchors land now.
+        println!(
+            "suggested COV_LO (above p99): {:.3}   COV_HI (near p01 - margin): {:.3}",
+            q(0.99) + 0.066, q(0.01) - 0.167
+        );
+    }
+}
+
+#[cfg(test)]
+mod field_map {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    /// Renders the carve field at slab height 0.22 over a lat-lon grid to a
+    /// PGM (scratch diagnostics for the 10b polarity work): the fastest way
+    /// to SEE broken-vs-sheet structure without a GPU boot.
+    #[test]
+    #[ignore = "diagnostic, run by hand"]
+    fn write_carve_map() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+        let r_km = 6371.0f32;
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: 3600.0, seed: 42.0, coverage: 0.95, type_pin: 0.34,
+            rb: 1.0 + 0.4 / r_km, rt: 1.0 + 12.0 / r_km, upkm: 1.0 / r_km,
+            sun_local: [0.24, 0.94, 0.24],
+            sun_energy: [2.29, 2.0, 1.47],
+            sky_aer: [0.58, 0.61, 0.55],
+            tint: [1.0, 1.0, 1.0],
+            step_km: 0.004, sun_step_km: 0.008,
+        };
+        let reg = cloud_regime(ctx.type_pin);
+        let wind_ang = ctx.t * ctx.wind_omega(reg.wind_lo);
+        let (w, h) = (768usize, 384usize);
+        let mut img = vec![0u8; w * h];
+        // A ~1500 km patch around lat 47.6 lon -122.7 (2 km/px).
+        for iy in 0..h {
+            for ix in 0..w {
+                let lat = (47.645 + (iy as f32 - h as f32 / 2.0) * (2.0 / 111.0)).to_radians();
+                let lon = (-122.6925 + (ix as f32 - w as f32 / 2.0) * (2.0 / 78.0)).to_radians();
+                let dir = [lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()];
+                let r = ctx.rb + (ctx.rt - ctx.rb) * 0.22;
+                let p = [dir[0] * r, dir[1] * r, dir[2] * r];
+                let wa = clampf(
+                    cloud_alpha_from_field(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
+                        + reg.cover_bias, 0.0, 1.0);
+                let d = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0);
+                img[iy * w + ix] = (clampf(d[0] * 2.0, 0.0, 1.0) * 255.0) as u8;
+            }
+        }
+        let mut out = format!("P5\n{w} {h}\n255\n").into_bytes();
+        out.extend_from_slice(&img);
+        std::fs::write("carve_map.pgm", out).unwrap();
+        let cov = img.iter().filter(|v| **v > 32).count() as f32 / img.len() as f32;
+        println!("carve map written; fraction carve>0.06: {:.3}", cov);
+    }
+}
+
+#[cfg(test)]
+mod overhead_profile {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    #[test]
+    #[ignore = "diagnostic"]
+    fn density_along_overhead_ray() {
+        let dump: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(".probe-rig/debug/cloud_ref_dump.json").unwrap(),
+        )
+        .unwrap();
+        let shell = &dump["shell"];
+        let f = |v: &serde_json::Value| v.as_f64().unwrap() as f32;
+        let arr3 = |v: &serde_json::Value| [f(&v[0]), f(&v[1]), f(&v[2])];
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+        let center = arr3(&shell["center"]);
+        let rq = &shell["rot"];
+        let rot = glam::Quat::from_xyzw(f(&rq[0]), f(&rq[1]), f(&rq[2]), f(&rq[3]));
+        let inv_rot = rot.conjugate();
+        let vs = f(&shell["visual_scale"]);
+        let to_p = |w: [f32; 3]| {
+            let v = glam::Vec3::new(w[0] - center[0], w[1] - center[1], w[2] - center[2]);
+            let p = inv_rot * v / vs;
+            [p.x, p.y, p.z]
+        };
+        let dir_p = |w: [f32; 3]| {
+            let p = (inv_rot * glam::Vec3::new(w[0], w[1], w[2])).normalize();
+            [p.x, p.y, p.z]
+        };
+        let sun_col = arr3(&dump["sun_color"]);
+        let si = f(&dump["sun_intensity"]);
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: f(&dump["clock"]),
+            seed: f(&shell["seed"]),
+            coverage: f(&shell["coverage"]),
+            type_pin: { let mut p=f(&shell["pin"]); if shell["temporal"].as_bool().unwrap_or(false){p-=4.0;} (p-2.0).clamp(0.0,1.0) },
+            rb: f(&shell["slab_rb"]),
+            rt: f(&shell["slab_rt"]),
+            upkm: 1.0 / f(&shell["radius_km"]),
+            sun_local: dir_p(arr3(&dump["sun_dir"])),
+            sun_energy: [sun_col[0]*si, sun_col[1]*si, sun_col[2]*si],
+            sky_aer: arr3(&dump["aerial_sky"]),
+            tint: arr3(&shell["tint"]),
+            step_km: 0.004,
+            sun_step_km: 0.008,
+        };
+        let ro = to_p(arr3(&dump["cam_pos"]));
+        // Straight-up ray in planet frame from the camera.
+        let up = v3_norm(ro);
+        let reg = cloud_regime(ctx.type_pin);
+        let wind_ang = ctx.t * ctx.wind_omega(reg.wind_lo);
+        println!("cam r {:.7} rb {:.7} rt {:.7} type_pin {:.2} cov {:.2} clock {:.1}",
+            v3_len(ro), ctx.rb, ctx.rt, ctx.type_pin, ctx.coverage, ctx.t);
+        println!("reg: h {:.3}..{:.3} fine {:.2} fray {:.2}", reg.h_lo, reg.h_hi, reg.fine, reg.fray);
+        for i in 0..24 {
+            let alt_km = 0.6 + i as f32 * 0.45;
+            let r = 1.0 + alt_km / 6371.0;
+            let p = [up[0]*r, up[1]*r, up[2]*r];
+            let wa = clampf(
+                cloud_alpha_from_field(ctx.weather_pinned(v3_norm(p), wind_ang), ctx.coverage)
+                    + reg.cover_bias, 0.0, 1.0);
+            let cs = ctx.carve(p, wa, &reg, 1.0);
+            let d = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0);
+            let h = clampf((r - ctx.rb)/(ctx.rt - ctx.rb), 0.0, 1.0);
+            println!("alt {:5.2} km h {:.3} wa {:.3} carve {:.3} dens {:.3}", alt_km, h, wa, cs.carve, d[0]);
         }
     }
 }
