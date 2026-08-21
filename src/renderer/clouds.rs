@@ -107,22 +107,24 @@ pub const CLOUD_HI_SAMPLES: i32 = 48;
 /// Mirrors the Wave B step law (increment 9): near steps resolve the slab
 /// band (fraction of slab thickness), far steps grow with the ray cone
 /// (pixel-widths per step), the iteration cap guards degenerate rays.
-pub const CLOUD_STEP_BAND_FRAC: f32 = 0.0625;
+pub const CLOUD_STEP_BAND_FRAC: f32 = 0.045;
 pub const CLOUD_STEP_CONE_K: f32 = 24.0;
-pub const CLOUD_STEP_ITER_CAP: i32 = 96;
+pub const CLOUD_STEP_ITER_CAP: i32 = 224;
 pub const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
 pub const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
+pub const CLOUD_STEP_TAU_MAX: f32 = 0.75;
+pub const CLOUD_STEP_INTERIOR_GATE: f32 = 0.02;
 /// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
 /// lit view sample.
-pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
+pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 12;
 /// Mirrors `CLOUD_LIGHT_NEAR_KM` / `CLOUD_LIGHT_RATIO`: the light march is
 /// a GEOMETRIC ladder (v0.1014) - first tap ~0.9 km so dome-crown relief
 /// self-shadows (the old ~3.9 km first tap lit the whole deck top dead
 /// flat), multiplying per tap out to ~125 km for big-mass shadows. Metric
 /// since the clouds depth increment: the shader converts km to drawn-shell
 /// units per invocation (g_cloud_upkm).
-pub const CLOUD_LIGHT_NEAR_KM: f32 = 0.9;
-pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
+pub const CLOUD_LIGHT_NEAR_KM: f32 = 0.03;
+pub const CLOUD_LIGHT_RATIO: f32 = 1.9;
 /// (CLOUD_LIGHT_SIGMA_MULT and the global CLOUD_HI_SIGMA_KM retired in
 /// phase 3: the High path's extinction is per-family - see
 /// `CloudRegime::ext_km` - and with a physical medium the view and light
@@ -171,7 +173,7 @@ pub const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
 /// Mirrors `CLOUD_MS_DIFFUSE`: weight of the two-stream diffusion floor
 /// in cloud_scatter_energy - the algebraic (1/(1+0.75(1-g)tau)) term
 /// that keeps a thick deck luminous grey instead of exponentially black.
-pub const CLOUD_MS_DIFFUSE: f32 = 0.22;
+pub const CLOUD_MS_DIFFUSE: f32 = 0.14;
 /// Mirrors `CLOUD_POWDER_STRENGTH`: Beer-powder edge darkening strength.
 pub const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 /// Mirrors `CLOUD_AMB_BASE` / `CLOUD_AMB_TOP`: ambient skylight at the
@@ -922,6 +924,8 @@ mod tests {
             ("CLOUD_STEP_CONE_K", CLOUD_STEP_CONE_K),
             ("CLOUD_STEP_VERT_FRAC", CLOUD_STEP_VERT_FRAC),
             ("CLOUD_STEP_SEG_FRAC", CLOUD_STEP_SEG_FRAC),
+            ("CLOUD_STEP_TAU_MAX", CLOUD_STEP_TAU_MAX),
+            ("CLOUD_STEP_INTERIOR_GATE", CLOUD_STEP_INTERIOR_GATE),
             ("CLOUD_LIGHT_NEAR_KM", CLOUD_LIGHT_NEAR_KM),
             ("CLOUD_LIGHT_RATIO", CLOUD_LIGHT_RATIO),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
@@ -1043,8 +1047,8 @@ mod tests {
             "CLOUD_HI_SAMPLES {CLOUD_HI_SAMPLES} outside 16..=64"
         );
         assert!(
-            (4..=8).contains(&CLOUD_HI_LIGHT_SAMPLES),
-            "CLOUD_HI_LIGHT_SAMPLES {CLOUD_HI_LIGHT_SAMPLES} outside 4..=8"
+            (4..=12).contains(&CLOUD_HI_LIGHT_SAMPLES),
+            "CLOUD_HI_LIGHT_SAMPLES {CLOUD_HI_LIGHT_SAMPLES} outside 4..=12"
         );
     }
 
@@ -1270,7 +1274,22 @@ mod tests {
         let start = wgsl.find(needle).expect("CLOUD_PIX_ANG_MAP missing");
         let rest = &wgsl[start + needle.len()..];
         let end = rest.find(';').expect("unterminated const");
-        let ang: f32 = rest[..end].trim().parse().expect("unparseable");
+        // Since increment 9 the constant is the exact expression
+        // `4.0 / <size>.0` (derived from the map's own extent, per the
+        // Wave B mandate) - evaluate it, and lock the denominator to the
+        // Rust size constant directly, which is a stronger tie than the
+        // old 2% numeric tolerance.
+        let expr = rest[..end].trim();
+        let ang: f32 = if let Some((num, den)) = expr.split_once('/') {
+            let d: f32 = den.trim().parse().expect("unparseable denominator");
+            assert!(
+                (d - crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32).abs() < 0.5,
+                "CLOUD_PIX_ANG_MAP denominator {d} != CLOUD_OCTA_SIZE"
+            );
+            num.trim().parse::<f32>().expect("unparseable numerator") / d
+        } else {
+            expr.parse().expect("unparseable")
+        };
         let want = 4.0 / crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32;
         assert!(
             (ang - want).abs() / want < 0.02,

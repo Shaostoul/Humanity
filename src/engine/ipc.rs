@@ -601,6 +601,47 @@ pub(crate) fn execute_screenshot_capture(
     }
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(DONE_PATH, done.to_string());
+    // Reference-march scene dump (environment program increment 10): write
+    // everything renderer::cloud_reference needs to re-march the EXACT
+    // captured scene on the CPU - the cloud shell state stashed at the
+    // material fill site, plus camera pose/fov, the world sun, the aerial
+    // sky hue the two-tone ambient reads, and the cloud clock. One file per
+    // capture beside the done file; consumers pair it with the PNG.
+    if let Some(shell) = state.cloud_ref_frame.as_ref() {
+        let (sun_dir, sun_col, sun_int) = state.renderer.cloud_ref_sun();
+        let cam = &state.camera;
+        let cam_p = cam.effective_position();
+        let dump = format!(
+            concat!(
+                "{{\"shell\":{},\"clock\":{},",
+                "\"sun_dir\":[{},{},{}],\"sun_color\":[{},{},{}],",
+                "\"sun_intensity\":{},\"aerial_sky\":[{},{},{}],",
+                "\"cam_pos\":[{},{},{}],",
+                "\"cam_fwd\":[{},{},{}],\"cam_right\":[{},{},{}],",
+                "\"fov_deg\":{},\"aspect\":{},",
+                "\"viewport\":[{},{}],\"capture\":\"{}\"}}"
+            ),
+            shell,
+            state.start_time.elapsed().as_secs_f32(),
+            sun_dir[0], sun_dir[1], sun_dir[2],
+            sun_col[0], sun_col[1], sun_col[2],
+            sun_int,
+            state.renderer.aerial_sky[0],
+            state.renderer.aerial_sky[1],
+            state.renderer.aerial_sky[2],
+            cam_p.x, cam_p.y, cam_p.z,
+            // BASIS VECTORS, not yaw/pitch: the camera has two bases
+            // (world + surface tangent) and the dump must be
+            // reconstruction-ambiguity-free. True up = right x fwd.
+            cam.forward().x, cam.forward().y, cam.forward().z,
+            cam.right().x, cam.right().y, cam.right().z,
+            cam.fov_degrees, cam.aspect,
+            state.renderer.viewport_size().0,
+            state.renderer.viewport_size().1,
+            out_path,
+        );
+        let _ = std::fs::write("debug/cloud_ref_dump.json", dump);
+    }
     state.gui_state.screenshot_last_result = Some(match &result {
         Ok(None) => format!("Saved {out_path} (window size)"),
         Ok(Some((w, h))) => format!("Saved {out_path} ({w}x{h})"),

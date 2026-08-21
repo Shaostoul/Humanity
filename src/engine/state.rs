@@ -794,6 +794,14 @@ pub(crate) struct EngineState {
     /// the position freezes; gravity drift during the grace is
     /// centimetres, the drift the pin stops is metres per settle.
     pub(crate) probe_hold: Option<(glam::Vec3, std::time::Instant)>,
+    /// The cloud shell's uniform state this frame, pre-serialized as JSON
+    /// (environment program increment 10): everything the CPU reference
+    /// march (renderer::cloud_reference) needs to re-march the EXACT scene
+    /// a screenshot captured - seed, coverage, pins, slab bounds, shell
+    /// transform. Refreshed at the cloud material fill site each frame; the
+    /// screenshot rig appends camera + sun + clock and writes
+    /// debug/cloud_ref_dump.json beside every capture.
+    pub(crate) cloud_ref_frame: Option<String>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

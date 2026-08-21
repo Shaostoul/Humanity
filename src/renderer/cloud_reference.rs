@@ -498,7 +498,7 @@ impl<'a> CloudRefCtx<'a> {
                 (self.sky_aer[1] / sky_peak) * amb_h + 0.93 * (CLOUD_AMB_BOUNCE * (1.0 - h)),
                 (self.sky_aer[2] / sky_peak) * amb_h + 0.82 * (CLOUD_AMB_BOUNCE * (1.0 - h)),
             ];
-            let crown_floor = mixf(0.88, 0.70, reg.opacity);
+            let crown_floor = mixf(0.88, 0.62, reg.opacity);
             let crown_shade = mixf(crown_floor, 1.12, dc[2]);
             let ao = (1.0 - CLOUD_PUFF_AO * dc[1]) * crown_shade;
             let direct_lit = direct * mixf(1.0, clampf(ao, 0.0, 1.0), 0.5);
@@ -1062,6 +1062,557 @@ mod debug_probe6 {
                 line.push_str(&format!("({:.1},a{:.2},L{:.2}) ", el.to_degrees(), a, lum));
             }
             println!("az{iaz}: {line}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod gpu_vs_reference {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    fn srgb_encode(x: f32) -> f32 {
+        if x <= 0.0031308 {
+            12.92 * x
+        } else {
+            1.055 * x.powf(1.0 / 2.4) - 0.055
+        }
+    }
+
+    /// THE INCREMENT-10 JUDGE: re-march the EXACT captured scene on the CPU
+    /// and compare per-ray radiances against the capture's pixels.
+    ///
+    ///   CLOUD_REF_DUMP=path/to/cloud_ref_dump.json \
+    ///   cargo test --release --features native --lib gpu_vs_reference_from_dump -- --ignored --nocapture
+    ///
+    /// The dump is written beside every screenshot (execute_screenshot_capture);
+    /// its "capture" field names the PNG. Gate: mean per-ray luminance error
+    /// < 5% on rays where the reference is near-opaque (alpha >= 0.93 - the
+    /// sky bleed through the remaining transmittance is ~2-3% and is
+    /// reported separately, composited from the capture's own local sky).
+    #[test]
+    #[ignore = "needs a capture + dump pair; run by hand with CLOUD_REF_DUMP set"]
+    fn gpu_vs_reference_from_dump() {
+        let dump_path = std::env::var("CLOUD_REF_DUMP")
+            .unwrap_or_else(|_| ".probe-rig/debug/cloud_ref_dump.json".to_string());
+        let dump: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&dump_path).expect("read dump"))
+                .expect("parse dump");
+        let shell = &dump["shell"];
+        let f = |v: &serde_json::Value| v.as_f64().unwrap() as f32;
+        let arr3 = |v: &serde_json::Value| {
+            [f(&v[0]), f(&v[1]), f(&v[2])]
+        };
+        // Pins: the reference only handles the pinned weather path.
+        let mut pin = f(&shell["pin"]);
+        if shell["temporal"].as_bool().unwrap_or(false) {
+            pin -= 4.0;
+        }
+        assert!(
+            pin >= 1.5,
+            "capture was not type-pinned (pin {pin}) - the reference needs cloud_cover+cloud_type pins"
+        );
+        let type_pin = (pin - 2.0).clamp(0.0, 1.0);
+
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+
+        // World -> planet-frame transform.
+        let center = arr3(&shell["center"]);
+        let rq = &shell["rot"];
+        let rot = glam::Quat::from_xyzw(f(&rq[0]), f(&rq[1]), f(&rq[2]), f(&rq[3]));
+        let inv_rot = rot.conjugate();
+        let visual_scale = f(&shell["visual_scale"]);
+        let to_planet = |w: [f32; 3]| -> [f32; 3] {
+            let v = glam::Vec3::new(w[0] - center[0], w[1] - center[1], w[2] - center[2]);
+            let p = inv_rot * v / visual_scale;
+            [p.x, p.y, p.z]
+        };
+        let dir_to_planet = |w: [f32; 3]| -> [f32; 3] {
+            let p = (inv_rot * glam::Vec3::new(w[0], w[1], w[2])).normalize();
+            [p.x, p.y, p.z]
+        };
+
+        let sun_col = arr3(&dump["sun_color"]);
+        let sun_int = f(&dump["sun_intensity"]);
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: f(&dump["clock"]),
+            seed: f(&shell["seed"]),
+            coverage: f(&shell["coverage"]),
+            type_pin,
+            rb: f(&shell["slab_rb"]),
+            rt: f(&shell["slab_rt"]),
+            upkm: 1.0 / f(&shell["radius_km"]),
+            sun_local: dir_to_planet(arr3(&dump["sun_dir"])),
+            sun_energy: [
+                sun_col[0] * sun_int,
+                sun_col[1] * sun_int,
+                sun_col[2] * sun_int,
+            ],
+            sky_aer: arr3(&dump["aerial_sky"]),
+            tint: arr3(&shell["tint"]),
+            step_km: 0.004,
+            sun_step_km: 0.008,
+        };
+
+        // Camera rays.
+        let cam_pos = to_planet(arr3(&dump["cam_pos"]));
+        let fwd_w = arr3(&dump["cam_fwd"]);
+        let right_w = arr3(&dump["cam_right"]);
+        let up_w = {
+            let r = glam::Vec3::from(right_w);
+            let fw = glam::Vec3::from(fwd_w);
+            let u = r.cross(fw).normalize();
+            [u.x, u.y, u.z]
+        };
+        let fov_y = f(&dump["fov_deg"]).to_radians();
+        let aspect = f(&dump["aspect"]);
+        let (vw, vh) = (f(&dump["viewport"][0]), f(&dump["viewport"][1]));
+        let cap_path = dump["capture"].as_str().unwrap().to_string();
+        // The capture path is relative to the APP's working dir (the rig
+        // sandbox) - resolve against the dump file's parent-of-parent
+        // FIRST. Checking the raw path first once read a STALE capture
+        // from the repo's own debug/ dir (same relative name, different
+        // session) and reported 2600% error against the wrong image.
+        let dump_dir = std::path::Path::new(&dump_path).parent().unwrap();
+        let rig_local = dump_dir.parent().unwrap().join(&cap_path);
+        let cap_file = if rig_local.exists() {
+            rig_local
+        } else {
+            std::path::PathBuf::from(&cap_path)
+        };
+        let img = image::open(&cap_file).expect("open capture").to_rgb8();
+        assert_eq!(img.width() as f32, vw, "capture width != dump viewport");
+
+        let ray_for = |px: f32, py: f32| -> [f32; 3] {
+            let xn = (2.0 * px / vw - 1.0) * (fov_y * 0.5).tan() * aspect;
+            let yn = (1.0 - 2.0 * py / vh) * (fov_y * 0.5).tan();
+            let fw = glam::Vec3::from(fwd_w);
+            let r = glam::Vec3::from(right_w);
+            let u = glam::Vec3::from(up_w);
+            let d = (fw + r * xn + u * yn).normalize();
+            let dp = dir_to_planet([d.x, d.y, d.z]);
+            dp
+        };
+
+        // Sample a grid across the cloud band (the joint-gate ROI region and
+        // above): x in [200, vw-200], y in [420, 900] - sky rows.
+        let mut rows: Vec<(f32, f32, [f32; 3], f32, [u8; 3])> = Vec::new();
+        for iy in 0..6 {
+            for ix in 0..8 {
+                let px = 250.0 + ix as f32 * (vw - 500.0) / 7.0;
+                let py = 430.0 + iy as f32 * 470.0 / 5.0;
+                let rd = ray_for(px, py);
+                let (rgb, a) = ctx.reference_radiance(cam_pos, rd);
+                let p = img.get_pixel(px as u32, py as u32);
+                rows.push((px, py, rgb, a, [p[0], p[1], p[2]]));
+            }
+        }
+        let opaque: Vec<_> = rows.iter().filter(|r| r.3 >= 0.93).collect();
+        println!("{} of {} rays near-opaque (alpha >= 0.93)", opaque.len(), rows.len());
+        assert!(
+            opaque.len() >= 6,
+            "only {} near-opaque rays - re-aim the grid or the scene is too clear",
+            opaque.len()
+        );
+        let mut errs: Vec<f32> = Vec::new();
+        for (px, py, rgb, a, cap) in &opaque {
+            let ref_lum_lin = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+            let ref_srgb = srgb_encode(ref_lum_lin) * 255.0;
+            let cap_lum =
+                0.2126 * cap[0] as f32 + 0.7152 * cap[1] as f32 + 0.0722 * cap[2] as f32;
+            let rel = (ref_srgb - cap_lum) / cap_lum.max(1.0);
+            errs.push(rel);
+            println!(
+                "px ({px:.0},{py:.0}) alpha {a:.2}: ref {ref_srgb:.0} vs cap {cap_lum:.0} ({:+.1}%)",
+                rel * 100.0
+            );
+        }
+        let mean_abs = errs.iter().map(|e| e.abs()).sum::<f32>() / errs.len() as f32;
+        let mean_signed = errs.iter().sum::<f32>() / errs.len() as f32;
+        println!(
+            "mean |err| {:.1}%  signed {:+.1}%  (gate < 5%)",
+            mean_abs * 100.0,
+            mean_signed * 100.0
+        );
+        assert!(
+            mean_abs < 0.05,
+            "GPU-vs-reference mean |err| {:.1}% >= 5%",
+            mean_abs * 100.0
+        );
+    }
+}
+
+// ── The GPU-INTEGRATOR TWIN (increment 10 tuning harness) ──
+// A CPU emulation of cloud_march_core's INTEGRATOR - the Wave B step law,
+// the coarse-entry backtrack, the MFP interior refinement, and the 8-tap
+// geometric sun ladder with its first-2-taps-eroded/rest-body-only split -
+// over the same field mirrors the converged reference uses. Twin-vs-
+// reference isolates integrator bias in SECONDS on the CPU instead of a
+// 6-minute build+sweep per hypothesis. The twin's knobs mirror the WGSL
+// constants; keep them in lockstep when the shader changes.
+impl<'a> CloudRefCtx<'a> {
+    pub fn twin_radiance(&self, ro: [f32; 3], rd: [f32; 3], jitter: f32) -> ([f32; 3], f32) {
+        let rd = v3_norm(rd);
+        let tca = -v3_dot(ro, rd);
+        let perp = v3_add_scaled(ro, rd, tca);
+        let d2 = v3_dot(perp, perp);
+        if d2 >= self.rt * self.rt {
+            return ([0.0; 3], 0.0);
+        }
+        let thc_t = (self.rt * self.rt - d2).sqrt();
+        let mut m0 = (tca - thc_t).max(0.0);
+        let mut m1 = tca + thc_t;
+        if m1 <= 0.0 {
+            return ([0.0; 3], 0.0);
+        }
+        if d2 < self.rb * self.rb {
+            let thc_b = (self.rb * self.rb - d2).sqrt();
+            let b0 = tca - thc_b;
+            let b1 = tca + thc_b;
+            if b0 > m0 {
+                m1 = m1.min(b0);
+            } else if b1 > m0 {
+                m0 = b1;
+            }
+        }
+        if m1 <= m0 {
+            return ([0.0; 3], 0.0);
+        }
+        if d2 < 1.0 {
+            let t_surf = tca - (1.0 - d2).sqrt();
+            if t_surf > 0.0 && t_surf < m0 {
+                return ([0.0; 3], 0.0);
+            }
+        }
+        let seg = m1 - m0;
+        let reg = cloud_regime(self.type_pin);
+        let wind_ang = self.t * self.wind_omega(reg.wind_lo);
+        let wa_at = |me: &Self, p: [f32; 3]| -> f32 {
+            clampf(
+                cloud_alpha_from_field(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
+                    + reg.cover_bias,
+                0.0,
+                1.0,
+            )
+        };
+        let cos_vs = v3_dot(rd, self.sun_local);
+        let powder_gate = smoothstep(0.3, 0.9, cos_vs);
+        let sigma_v = reg.ext_km / self.upkm;
+        let sun_lum = self.sun_energy[0] * 0.2126
+            + self.sun_energy[1] * 0.7152
+            + self.sun_energy[2] * 0.0722;
+        let sky_peak = self.sky_aer[0]
+            .max(self.sky_aer[1])
+            .max(self.sky_aer[2])
+            .max(1.0e-4);
+        // WGSL twin constants (keep in lockstep with 40-clouds.wgsl).
+        let slab_h = self.rt - self.rb;
+        let step_near = slab_h * 0.045; // CLOUD_STEP_BAND_FRAC
+        let pix_ang = 0.00144f32; // direct path, 90 deg over 1387 rows
+        let cone_k = 24.0; // CLOUD_STEP_CONE_K
+        let vert_frac = 0.08;
+        let seg_frac = 0.020833;
+        let tau_max = 0.75;
+        let gate = 0.02;
+        let iter_cap = 224;
+
+        let mut t_cur = m0;
+        let mut dens_prev = 0.0f32;
+        let mut trans: f64 = 1.0;
+        let mut acc = [0.0f64; 3];
+        let mut acc_w: f64 = 0.0;
+        for _ in 0..iter_cap {
+            if t_cur >= m1 {
+                break;
+            }
+            let p_cur = v3_add_scaled(ro, rd, t_cur);
+            let r_rate = v3_dot(v3_norm(p_cur), rd).abs();
+            let dt_vert = (slab_h * vert_frac / r_rate.max(0.05)).max(step_near);
+            let dt_seg = (seg * seg_frac).max(step_near);
+            let mut dt = (t_cur * pix_ang * cone_k)
+                .max(step_near)
+                .min(dt_vert.min(dt_seg))
+                .min(m1 - t_cur);
+            if dens_prev > gate {
+                let dt_mfp = tau_max / (sigma_v * dens_prev);
+                dt = dt.min(dt_mfp.max(slab_h * 0.002));
+            }
+            let tm = t_cur + dt * jitter;
+            t_cur += dt;
+            let p = v3_add_scaled(ro, rd, tm);
+            let dirp = v3_norm(p);
+            let weather_a = wa_at(self, p);
+            let detail_amt = 1.0
+                - smoothstep(
+                    CLOUD_DETAIL_FADE_NEAR_KM * self.upkm,
+                    CLOUD_DETAIL_FADE_FAR_KM * self.upkm,
+                    tm,
+                );
+            let puff_amt = 1.0
+                - smoothstep(
+                    CLOUD_PUFF_FADE_NEAR_KM * self.upkm,
+                    CLOUD_PUFF_FADE_FAR_KM * self.upkm,
+                    tm,
+                );
+            let cell_amt = 1.0
+                - smoothstep(
+                    CLOUD_CELL_FADE_NEAR_KM * self.upkm,
+                    CLOUD_CELL_FADE_FAR_KM * self.upkm,
+                    tm,
+                );
+            let dc = self.density_hi(p, weather_a, &reg, detail_amt, puff_amt, cell_amt);
+            let dens = dc[0];
+            // Coarse-entry backtrack (mirrors the WGSL).
+            if dens > gate && dens_prev <= gate && sigma_v * dens * dt > tau_max {
+                t_cur -= dt;
+                dens_prev = dens;
+                continue;
+            }
+            dens_prev = dens;
+            if dens <= 0.001 {
+                continue;
+            }
+            let a_i = 1.0 - (-sigma_v * dens * dt).exp();
+            let ndl = v3_dot(dirp, self.sun_local);
+            let day = smoothstep(-0.05, 0.3, ndl);
+            let tau = self.twin_sun_tau(p, &wa_at, &reg, detail_amt, puff_amt, cell_amt);
+            let powder = 1.0 - CLOUD_POWDER_STRENGTH * (-2.0 * tau).exp();
+            let pw = mixf(powder, 1.0, powder_gate);
+            let direct = cloud_scatter_energy(tau, cos_vs) * pw;
+            let h = clampf((v3_len(p) - self.rb) / (self.rt - self.rb), 0.0, 1.0);
+            let amb_h =
+                mixf(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h) * (0.35 + 0.65 * (-tau * 0.12).exp());
+            let amb_col = [
+                (self.sky_aer[0] / sky_peak) * amb_h + 1.0 * (CLOUD_AMB_BOUNCE * (1.0 - h)),
+                (self.sky_aer[1] / sky_peak) * amb_h + 0.93 * (CLOUD_AMB_BOUNCE * (1.0 - h)),
+                (self.sky_aer[2] / sky_peak) * amb_h + 0.82 * (CLOUD_AMB_BOUNCE * (1.0 - h)),
+            ];
+            let crown_floor = mixf(0.88, 0.62, reg.opacity);
+            let crown_shade = mixf(crown_floor, 1.12, dc[2]);
+            let ao = (1.0 - CLOUD_PUFF_AO * dc[1]) * crown_shade;
+            let direct_lit = direct * mixf(1.0, clampf(ao, 0.0, 1.0), 0.5);
+            let w = trans * a_i as f64;
+            for ch in 0..3 {
+                let c_i = self.tint[ch]
+                    * (self.sun_energy[ch] * (direct_lit * day)
+                        + amb_col[ch] * (sun_lum * ao * day)
+                        + CLOUD_NIGHT_FLOOR);
+                acc[ch] += c_i as f64 * w;
+            }
+            acc_w += w;
+            trans *= 1.0 - a_i as f64;
+            if trans <= 0.005 {
+                break;
+            }
+        }
+        let body_total = (1.0 - trans) as f32;
+        if body_total <= 0.003 {
+            return ([0.0; 3], 0.0);
+        }
+        let mut radiance = [
+            (acc[0] / acc_w.max(1.0e-9)) as f32,
+            (acc[1] / acc_w.max(1.0e-9)) as f32,
+            (acc[2] / acc_w.max(1.0e-9)) as f32,
+        ];
+        for ch in 0..3 {
+            radiance[ch] *= reg.tint;
+            radiance[ch] *= 1.0 - 0.32 * smoothstep(0.72, 0.98, body_total);
+        }
+        let mut mapped = [0.0f32; 3];
+        for ch in 0..3 {
+            let x = radiance[ch];
+            mapped[ch] = clampf(
+                (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14),
+                0.0,
+                1.0,
+            );
+        }
+        (mapped, body_total * CLOUD_HI_MAX_ALPHA)
+    }
+
+    /// The GPU 8-tap geometric sun ladder (0.03 km / ratio 2.4), first two
+    /// taps eroded density, remaining taps body-only.
+    fn twin_sun_tau(
+        &self,
+        p: [f32; 3],
+        wa_at: impl Fn(&Self, [f32; 3]) -> f32,
+        reg: &CloudRegime,
+        detail_amt: f32,
+        puff_amt: f32,
+        cell_amt: f32,
+    ) -> f32 {
+        let sigma = reg.ext_km / self.upkm;
+        let mut tau = 0.0f32;
+        let mut dist = 0.0f32;
+        let mut step_d = 0.03 * self.upkm; // CLOUD_LIGHT_NEAR_KM
+        for _i in 0..12 {
+            dist += step_d;
+            let seg = step_d;
+            step_d *= 1.9; // CLOUD_LIGHT_RATIO
+            let lp = v3_add_scaled(p, self.sun_local, dist);
+            let r = v3_len(lp);
+            if r < 1.0 {
+                break;
+            }
+            let wa = wa_at(self, lp);
+            // ALL taps on the REAL eroded density (increment 10): the old
+            // body-only far taps returned ~1 across the whole carved
+            // envelope - a MASK, not a density - which at physical
+            // extinction (45/km) reported tau in the HUNDREDS where the
+            // converged fine march reads 1-10. That bimodal tau (0 in
+            // gaps, absurd in bodies) was the dots' 18.9x energy coin
+            // flip. Twin-measured: -90% -> see the gap test.
+            let dens = self.density_hi(lp, wa, reg, detail_amt, puff_amt, cell_amt)[0];
+            tau += sigma * dens * seg;
+            if tau > 40.0 {
+                break;
+            }
+        }
+        tau
+    }
+}
+
+#[cfg(test)]
+mod twin_vs_reference {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    /// CPU-only integrator-bias isolation (increment 10): march the SAME
+    /// rays with the GPU-twin integrator and the converged reference and
+    /// report the systematic gap. Run in release:
+    ///   cargo test --release --features native --lib twin_vs_reference_gap -- --ignored --nocapture
+    #[test]
+    #[ignore = "heavy diagnostic; run by hand in release"]
+    fn twin_vs_reference_gap() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+        let r_km = 6371.0f32;
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: 3600.0,
+            seed: 42.0,
+            coverage: 0.95,
+            type_pin: 0.34,
+            rb: 1.0 + 0.4 / r_km,
+            rt: 1.0 + 12.0 / r_km,
+            upkm: 1.0 / r_km,
+            sun_local: {
+                let v = [0.4f32, 0.819, 0.4];
+                let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+                [v[0] / l, v[1] / l, v[2] / l]
+            },
+            sun_energy: [2.29, 2.0, 1.47],
+            sky_aer: [0.58, 0.61, 0.55],
+            tint: [1.0, 1.0, 1.0],
+            step_km: 0.004,
+            sun_step_km: 0.008,
+        };
+        let ro = [0.0, 1.0 + 0.3 / r_km, 0.0];
+        let mut gaps: Vec<f32> = Vec::new();
+        let mut n_cloud = 0;
+        for iaz in 0..6 {
+            let az = iaz as f32 * 1.0471976;
+            for iel in 0..8 {
+                let el = 0.05 + iel as f32 * 0.05;
+                let rd = [el.cos() * az.cos(), el.sin(), el.cos() * az.sin()];
+                let (rref, aref) = ctx.reference_radiance(ro, rd);
+                if aref < 0.9 {
+                    continue;
+                }
+                n_cloud += 1;
+                // Average the twin over several jitters (the EMA map does).
+                let mut tl = 0.0f32;
+                for j in 0..5 {
+                    let (rt_, _at) = ctx.twin_radiance(ro, rd, 0.1 + 0.2 * j as f32);
+                    tl += rt_[0] * 0.2126 + rt_[1] * 0.7152 + rt_[2] * 0.0722;
+                }
+                tl /= 5.0;
+                let rl = rref[0] * 0.2126 + rref[1] * 0.7152 + rref[2] * 0.0722;
+                let gap = (tl - rl) / rl.max(1e-3);
+                gaps.push(gap);
+                println!(
+                    "el {:5.1} az {} ref {:.3} twin {:.3} gap {:+.1}%",
+                    el.to_degrees(),
+                    iaz,
+                    rl,
+                    tl,
+                    gap * 100.0
+                );
+            }
+        }
+        let mean = gaps.iter().sum::<f32>() / gaps.len().max(1) as f32;
+        println!("cloud rays {n_cloud}; mean signed gap {:+.1}%", mean * 100.0);
+    }
+}
+
+#[cfg(test)]
+mod tau_probe {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    #[test]
+    #[ignore = "diagnostic"]
+    fn ladder_vs_fine_tau() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+        let r_km = 6371.0f32;
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: 3600.0, seed: 42.0, coverage: 0.95, type_pin: 0.34,
+            rb: 1.0 + 0.4 / r_km, rt: 1.0 + 12.0 / r_km, upkm: 1.0 / r_km,
+            sun_local: { let v=[0.4f32,0.819,0.4]; let l=(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]).sqrt(); [v[0]/l,v[1]/l,v[2]/l] },
+            sun_energy: [2.29, 2.0, 1.47],
+            sky_aer: [0.58, 0.61, 0.55],
+            tint: [1.0, 1.0, 1.0],
+            step_km: 0.004, sun_step_km: 0.008,
+        };
+        let reg = cloud_regime(ctx.type_pin);
+        let wind_ang = ctx.t * ctx.wind_omega(reg.wind_lo);
+        let wa_at = |me: &CloudRefCtx, p: [f32; 3]| -> f32 {
+            clampf(
+                cloud_alpha_from_field(me.weather_pinned(v3_norm(p), wind_ang), me.coverage)
+                    + reg.cover_bias, 0.0, 1.0)
+        };
+        let ro = [0.0, 1.0 + 0.3 / r_km, 0.0];
+        let az = 1.0471976f32;
+        let el = 0.05f32;
+        let rd = [el.cos() * az.cos(), el.sin(), el.cos() * az.sin()];
+        // Walk the ray finely; at in-cloud points, compare taus.
+        let dt = 0.004 * ctx.upkm * 4.0;
+        let mut printed = 0;
+        let mut tm = 0.0f32;
+        while printed < 12 && tm < 0.02 {
+            tm += dt * 8.0;
+            let p = v3_add_scaled(ro, rd, tm);
+            let wa = wa_at(&ctx, p);
+            let dens = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0)[0];
+            if dens < 0.3 { continue; }
+            printed += 1;
+            let sigma = reg.ext_km / ctx.upkm;
+            // fine tau
+            let mut tf = 0.0f32;
+            let step = ctx.sun_step_km * ctx.upkm;
+            let mut lp = p;
+            for _ in 0..((400.0/ctx.sun_step_km) as usize) {
+                lp = v3_add_scaled(lp, ctx.sun_local, step);
+                let r = v3_len(lp);
+                if r > ctx.rt || r < 1.0 { break; }
+                if r >= ctx.rb {
+                    let w = wa_at(&ctx, lp);
+                    tf += sigma * ctx.density_hi(lp, w, &reg, 1.0, 1.0, 1.0)[0] * step;
+                    if tf > 40.0 { break; }
+                }
+            }
+            let tl = ctx.twin_sun_tau(p, &wa_at, &reg, 1.0, 1.0, 1.0);
+            println!("tm {:.5} dens {:.2} tau_fine {:.2} tau_ladder {:.2}", tm, dens, tf, tl);
         }
     }
 }

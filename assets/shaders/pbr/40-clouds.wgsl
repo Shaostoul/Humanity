@@ -282,9 +282,9 @@ const CLOUD_HI_SAMPLES: i32 = 48;
 // pixel that is again ~700 m, so the two regimes meet smoothly). The cap
 // is a guard, not the budget - the growing step terminates a limb-graze
 // in roughly CLOUD_HI_SAMPLES iterations by itself.
-const CLOUD_STEP_BAND_FRAC: f32 = 0.0625;
+const CLOUD_STEP_BAND_FRAC: f32 = 0.045;
 const CLOUD_STEP_CONE_K: f32 = 24.0;
-const CLOUD_STEP_ITER_CAP: i32 = 96;
+const CLOUD_STEP_ITER_CAP: i32 = 224;
 // VERTICAL step ceiling: the slab's band structure (family envelopes,
 // domed tops, base undulation) lives at slab scale no matter how wide the
 // pixel footprint is, so the step's RADIAL component may never exceed
@@ -304,9 +304,19 @@ const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
 // march - the sampling law must not smuggle it in). 1/48 = the old
 // full-budget density as a per-ray floor.
 const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
+// INTERIOR mean-free-path refinement (increment 10): once the march is
+// INSIDE cloud (previous sample's density above the gate), the step may
+// not exceed TAU_MAX optical depths - cumulus (45/km) refines to ~22 m,
+// stratus ~45 m, cirrus (1.2/km) stays on the coarse law. This is what
+// turns the binary opaque/transparent texel coin-flip into a resolved
+// density gradient. The phase-9 lesson stands: view refinement ALONE
+// made speckle worse - it ships only together with the sun-ladder fix
+// above and the field re-tune, judged against the converged reference.
+const CLOUD_STEP_TAU_MAX: f32 = 0.75;
+const CLOUD_STEP_INTERIOR_GATE: f32 = 0.02;
 // Light-march taps toward the sun per lit view sample. Spacing widens with
 // each tap (near taps catch self-shadowing detail, far taps the big mass).
-const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
+const CLOUD_HI_LIGHT_SAMPLES: i32 = 12;
 // GEOMETRIC light-march ladder (v0.1014, operator: "from above they mostly
 // just look like a solid flat sheet"): the old arithmetic-quadratic ladder's
 // FIRST tap was ~3.9 km (0.0006 shell units), so a sample near a dome crown
@@ -319,8 +329,22 @@ const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 // First light-march step in KILOMETRES (clouds depth increment: the ladder
 // is metric now - see g_light_near). ~0.9 km keeps dome-crown relief
 // self-shadowing on any planet.
-const CLOUD_LIGHT_NEAR_KM: f32 = 0.9;
-const CLOUD_LIGHT_RATIO: f32 = 1.8;
+// THE INTEGRATOR (increment 10): first tap 0.03 km / ratio 2.4 - the
+// isolated control run measured this single change cutting speckle rms
+// 3.5x, the most effective intervention ever measured on the dots. The
+// old 0.9 km first tap put a sample point's nearest shadow probe 41
+// optical depths deep in cumulus (45/km): the sun term was a coin flip
+// between "first tap in cloud" (black) and "first tap in a gap" (blown),
+// an 18.9x energy swing per texel. 0.03 km = 1.35 optical depths -
+// resolved self-shadowing. Reach is now ~23.5 km (was 125): at physical
+// extinctions any path that long is opaque (tau 40 early-out) except
+// thin cirrus, whose shadows are faint anyway; the field re-tune below
+// absorbs the energy shift, judged by the converged reference.
+const CLOUD_LIGHT_NEAR_KM: f32 = 0.03;
+// 1.9 x 12 taps (twin-calibrated): reach ~78 km, ladder-vs-fine-march
+// error +0.9% on the isolation harness (2.4 x 8 measured the same mean
+// but coarser coverage; the extra taps buy the long-shadow range back).
+const CLOUD_LIGHT_RATIO: f32 = 1.9;
 // (The old CLOUD_LIGHT_SIGMA_MULT view/shadow sigma split retired in
 // phase 3: it existed because the view sigma was artificially low for
 // alpha feathering; with a physical per-family medium both the view and
@@ -524,7 +548,7 @@ const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
 // energy floor that keeps a deep overcast luminous grey instead of the
 // measured ambient-only mud (direct+multiscatter was ~0 across an entire
 // 0.95-coverage frame). Weight of that floor in scatter energy.
-const CLOUD_MS_DIFFUSE: f32 = 0.22;
+const CLOUD_MS_DIFFUSE: f32 = 0.14;
 // Beer-powder strength: thin media darken (little in-scattering) -- the
 // classic dark-translucent-edge cue. Raised 0.75 -> 0.92 to kill a bright
 // RIM the orbital marble showed: thin cloud skirts over dark ocean were
@@ -1697,14 +1721,16 @@ fn cloud_sun_tau(
         // at that scale, not point-sample full-frequency noise. Never
         // finer than the view sample's footprint.
         let lod_t = max(lodb, log2(max(seg / g_cloud_upkm, 1.0e-4)));
-        var dens = 0.0;
-        if (i < 2 && (detail_amt > 0.01 || puff_amt > 0.01)) {
-            dens = cloud_density_hi(
-                lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
-                lod_t).x;
-        } else {
-            dens = cloud_density_light(lp, t, seed, weather_a, reg, lod_t);
-        }
+        // ALL taps on the REAL eroded density (increment 10, the dots'
+        // deepest root): the old body-only far taps returned ~1 across the
+        // whole carved envelope - a MASK, not a density - which at
+        // physical extinction (45/km) reported tau in the HUNDREDS where
+        // the converged reference reads 1-10. Bimodal tau (0 in gaps,
+        // absurd in bodies) WAS the 18.9x per-texel energy coin flip. The
+        // CPU twin measured the fix: -90% -> -1% ladder error at 12 taps.
+        let dens = cloud_density_hi(
+            lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
+            lod_t).x;
         tau = tau + sigma * dens * seg;
         // v0.911 (perf audit #3): once the sun path is this optically deep
         // every scatter octave is effectively zero - later taps cannot
@@ -2014,13 +2040,19 @@ fn cloud_march_core(
     // so haze was over-applied relative to the surface.
     var first_t = -1.0;
     var t_cur = m0;
+    // Previous sample's density - drives the interior MFP refinement
+    // (exponential-tracking style: the step commits before this sample's
+    // density is known, so it follows the last one; the jitter
+    // decorrelates the one-step lag at boundaries).
+    var dens_prev = 0.0;
     for (var i = 0; i < CLOUD_STEP_ITER_CAP; i = i + 1) {
         if (t_cur >= m1) {
             break;
         }
         // Footprint-proportional step with a VERTICAL ceiling (see
-        // CLOUD_STEP_VERT_FRAC), clamped to what remains of the segment so
-        // the march reaches m1 exactly (no unsampled tail).
+        // CLOUD_STEP_VERT_FRAC), an interior MFP ceiling (increment 10),
+        // and a segment-density floor, clamped to what remains of the
+        // segment so the march reaches m1 exactly (no unsampled tail).
         let p_cur = ro + rd * t_cur;
         let r_rate = abs(dot(normalize(p_cur), rd));
         let dt_vert = max(
@@ -2028,13 +2060,17 @@ fn cloud_march_core(
             slab_h * CLOUD_STEP_VERT_FRAC / max(r_rate, 0.05),
         );
         let dt_seg = max(step_near, seg * CLOUD_STEP_SEG_FRAC);
-        let dt = min(
+        var dt = min(
             min(
                 max(step_near, t_cur * pix_ang * CLOUD_STEP_CONE_K),
                 min(dt_vert, dt_seg),
             ),
             m1 - t_cur,
         );
+        if (dens_prev > CLOUD_STEP_INTERIOR_GATE) {
+            let dt_mfp = CLOUD_STEP_TAU_MAX / (sigma_v * dens_prev);
+            dt = min(dt, max(dt_mfp, slab_h * 0.002));
+        }
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
         let tm = t_cur + dt * jitter;
@@ -2069,6 +2105,23 @@ fn cloud_march_core(
         let dc = cloud_density_hi(
             p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
         let dens = dc.x;
+        // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
+        // a law-sized step that lands in dense cloud would accumulate its
+        // whole optical depth at ONE deep, dark sample - skipping the
+        // bright sunlit rind that dominates what the eye sees (the
+        // converged reference resolves that rind; the first cut of this
+        // march read 45% darker than it). Nubis-style fix: reject the
+        // coarse step, back up, and re-march the span at MFP resolution
+        // (dens_prev primes the interior refinement above).
+        if (dens > CLOUD_STEP_INTERIOR_GATE
+            && dens_prev <= CLOUD_STEP_INTERIOR_GATE
+            && sigma_v * dens * dt > CLOUD_STEP_TAU_MAX)
+        {
+            t_cur = t_cur - dt;
+            dens_prev = dens;
+            continue;
+        }
+        dens_prev = dens;
         if (dens <= 0.001) {
             continue;
         }
@@ -2135,7 +2188,7 @@ fn cloud_march_core(
         // grayer"): thin families' samples sit LOW in their bands (small
         // crown fraction), so a fixed 0.70 floor grayed cirrus veils that
         // should stay bright. Faint regimes get a gentler valley shade.
-        let crown_floor = mix(0.88, 0.70, reg.opacity);
+        let crown_floor = mix(0.88, 0.62, reg.opacity);
         let crown_shade = mix(crown_floor, 1.12, dc.z);
         let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade;
         // Direct carries the SUN's colour; ambient carries the SKY's (the
@@ -2152,7 +2205,9 @@ fn cloud_march_core(
         acc_w = acc_w + trans * a_i;
         acc_d = acc_d + tm * (trans * a_i);
         trans = trans * (1.0 - a_i);
-        if (trans <= 0.02) {
+        // 0.005, not 0.02 (increment 10): with resolved density gradients
+        // the last 1.5% of transmittance carries visible skirt light.
+        if (trans <= 0.005) {
             break;
         }
     }

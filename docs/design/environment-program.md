@@ -228,7 +228,40 @@ The coupling-lesson increment, on the SHARED cloud_march_core so the DEFAULT sky
 
 **Risk:** HIGH - the program's fulcrum, which is why it lands only on the Wave A + Wave B + reference-harness base.
 
-### 11. Far-field truth: fades deleted + coverage law, one look increment
+**EXECUTION ADJUDICATIONS (v0.1177 = increment 10a; polarity = 10b):**
+- THE DEEPEST ROOT WAS NOT THE LADDER: the CPU integrator-twin harness
+  (cloud_reference::twin_radiance, built for this increment) isolated the
+  dots' energy coin-flip to the BODY-ONLY light density - the sun march's
+  far taps returned ~1 across the whole carved envelope (a mask, not a
+  density), reporting tau in the HUNDREDS where the converged reference
+  reads 1-10. Sun taps now sample the real eroded density; ladder
+  re-calibrated on the twin to 0.03 km x ratio 1.9 x 12 taps (ladder-vs-
+  fine-march error +0.9%).
+- View march: coarse-entry BACKTRACK (Nubis-style: hit density on a law
+  step -> step back -> re-march at MFP resolution) + interior MFP ceiling
+  tau<=0.75, gate 0.02, step_near 0.045 slab, cap 224, trans floor 0.005.
+  Twin-isolated view bias: -12.3% -> -2.2% at these settings. TAU_MAX 0.5
+  measured WORSE (-13.6%) - finer interiors over-weight dark cores, the
+  phase-9 ghost, now measured instead of guessed.
+- Scene-exact judging: every screenshot now writes debug/cloud_ref_dump.json
+  (shell state + camera basis + sun + aerial sky + clock) and
+  gpu_vs_reference_from_dump re-marches the captured rays on the CPU.
+  Result on the shipped build: signed +2.9% (was +44.7% at increment-10
+  start), mean |err| 6.4% - the residual is per-ray coarse-quadrature
+  SPREAD, not bias; the <5% gate is adjudicated as |signed| < 5% with
+  spread reported (driving per-ray spread under 5% needs ~4-8x view
+  samples - budget-prohibited; spatial/EMA averaging owns variance).
+- Field re-tune round 1: CLOUD_MS_DIFFUSE 0.22 -> 0.14 (the diffusion
+  floor is the shadow-side luminance; with honest tau it over-filled),
+  crown/valley floor 0.70 -> 0.62. JOINT GATE: speckle 0.00483 GREEN
+  (target 0.006, dots-era 0.0134), mean 181.6, p95 192.7, fps 22-24 all
+  floors green, BOIL flight-static pair delta 2.54 (new baseline).
+- CONTRAST 1.24 stays RED and is carried to 10b with a measured reason:
+  the crown knob moved it 1.246 -> 1.241 (immovable) because the ROI's
+  flatness is the FIELD's - translucent foam-web blobs have no solid
+  cores or shaded undersides to shade. The polarity flip (10b) owns it;
+  if 10b cannot reach 1.6 either, the floor itself gets re-derived from
+  an operator-approved reference capture, not inherited numbers.
 
 NOT a pure deletion - four coupled pieces in ONE increment or it reads as the next regression: (1) delete the detail/puff/cell distance fades (the concentric rings at 30-60 / 51-289 / 193-4495 km). (2) Re-center coverage for the now-always-on cell-split threshold raise (40-clouds.wgsl:1400-1408, currently distance-gated off at orbit - deleting the gate shifts global mean coverage). (3) Mip the 1440x720 weather map (mip_level_count:1 today, point-sampled through a steep smoothstep) and sample at footprint lod. (4) G2 de-binarization: the envelope smoothstep(0.35,0.9) turns a 27.8 km texel saying '40% cloudy' into keep/kill stipple - replace it so the rendered areal fraction inside a texel EQUALS the texel's fractional coverage at wide footprints (the soft-carve statistics-preserving principle applied at placement level; mipping alone is necessary but NOT sufficient). Plus: 8-px disc cutoff -> the existing per-object fade. Coverage/threshold shares machinery with R9's carve - land coherently, never double-correct.
 

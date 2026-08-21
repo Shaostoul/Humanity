@@ -519,6 +519,8 @@ pub struct Renderer {
     pub aerial_slant_cap: f32,
     /// Aerial in-scatter (sky) color, day/sunset tinted by lib.rs.
     pub aerial_sky: [f32; 3],
+    // (cloud_ref_sun() and viewport_size() below expose cur_sun and the
+    // surface config for the increment-10 reference-march scene dump.)
     /// WATER sky-mirror altitude gate (environment program W1): how much
     /// of the sky-view LUT the ocean may mirror this frame, 0..1. Set by
     /// lib.rs with the SAME law the atmosphere uses to retire its own
@@ -2629,6 +2631,18 @@ impl Renderer {
     /// Screen-space ambient occlusion (v0.901): call right after
     /// render_godrays_onto, same celestial slot (depth still holds terrain +
     /// vegetation). Multiplies contact shade into the color target.
+    /// The current sun (direction, color, intensity) for the increment-10
+    /// reference-march scene dump - cur_sun itself stays private.
+    pub fn cloud_ref_sun(&self) -> ([f32; 3], [f32; 3], f32) {
+        self.cur_sun
+    }
+
+    /// Swapchain size (w, h) for the same dump - the reference reconstructs
+    /// pixel rays from fov + viewport rows.
+    pub fn viewport_size(&self) -> (u32, u32) {
+        (self.config.width, self.config.height)
+    }
+
     pub fn render_ssao_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
         let _cost = frame_costs::stage("cpu.ssao");
         // Settings slider at 0 = pass off entirely (v0.907).

@@ -1865,6 +1865,7 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 probe_hold: None,
+                cloud_ref_frame: None,
                 sea_state_override: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
@@ -11494,6 +11495,33 @@ mod native_app {
                                             mesh: cloud_mesh,
                                             material: cmat,
                                         });
+                                        // Reference-march frame stash
+                                        // (increment 10): see
+                                        // EngineState::cloud_ref_frame.
+                                        state.cloud_ref_frame = Some(format!(
+                                            concat!(
+                                                "{{\"seed\":{},\"coverage\":{},",
+                                                "\"tint\":[{},{},{}],\"pin\":{},",
+                                                "\"temporal\":{},\"slab_rb\":{},",
+                                                "\"slab_rt\":{},\"radius_km\":{},",
+                                                "\"quality\":{},\"shell_ratio\":{},",
+                                                "\"visual_scale\":{},",
+                                                "\"center\":[{},{},{}],",
+                                                "\"rot\":[{},{},{},{}]}}"
+                                            ),
+                                            crate::renderer::clouds::cloud_seed(d.terrain_seed),
+                                            cov_eff,
+                                            ev_t[0], ev_t[1], ev_t[2],
+                                            pin,
+                                            temporal,
+                                            slab_rb, slab_rt,
+                                            (d.radius / 1000.0) as f32,
+                                            quality,
+                                            shell_ratio,
+                                            visual_scale,
+                                            position.x, position.y, position.z,
+                                            rotation.x, rotation.y, rotation.z, rotation.w,
+                                        ));
                                     }
                                     if let Some(ac) = d.atmosphere_color {
                                         if ac[3] > 0.0 && d.atmosphere_scale > 0.0 {
