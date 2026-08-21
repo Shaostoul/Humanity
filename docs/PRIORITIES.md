@@ -8,19 +8,21 @@
 > (v0.1183), and 12c SLICE A (extent-parametrized temporal map, resample
 > re-anchors, arm everywhere, atmo-order fix - A/B-proven vs a v0.1183.1
 > control; adversarial review's 5 findings fixed pre-ship).
-> **NEXT (TOP): the COVERAGE-VS-FOOTPRINT TERM HUNT.** The controlled
-> instrument shipped in v0.1185.0 (permanent vantages cov50-underdeck /
-> cov50-nadir-114km / cov50-orbit: the SAME pinned procedural field at
-> cloud_cover 0.5, three march footprints). RECORDED RED STATE: ~15%
-> areal coverage at the 10 m rung, ~80% at 150 m, ~60% at orbit, vs the
-> 50% pin. PROVEN NOT THE TERM: the carve width table (three tables
-> render identically - do NOT re-tune it). Candidates, in order:
-> erosion amplitude vs mip, the weather-law (meso quasi-binary)
-> application vs footprint, step-law/temporal-EMA interaction. Full
-> adjudication + methodology traps (hot-reload verification, camera
-> park discipline, region confounds) in environment-program.md 12c -
-> READ IT FIRST. Rig debt: the vantage time pin renders ~8 h early on
-> some vantages (chip task filed); re-run dark captures solo.
+> **NEXT (TOP): SAME-REGION coverage-invariance measurement.** The
+> night's final re-adjudication (environment-program.md 12c, READ IT
+> FIRST - it names four instrument confounds that each looked like a
+> rendering defect): the 15%/80%/60% triplet spread is dominated by
+> WINDOW-SIZE SAMPLING VARIANCE of the ~2000 km-cell pinned field, and
+> nothing yet cleanly demonstrates a rendering non-invariance. The
+> clean protocol: one boot, orbit + nadir captures within a minute,
+> CROP the orbit frame to the nadir frame's exact ground region,
+> compare areal coverage in the crop (same field, same moment, same
+> region, two footprints); several offsets for the under-deck rung.
+> Only a spread surviving THAT is worth hunting. PROVEN NOT A TERM:
+> the carve width table (three tables render identically). Rig debt
+> blocking pinned captures: a showcase_request carrying cloud_cover
+> resets the game clock ~8 h (chip task filed with the repro; send
+> the camera request AFTER any showcase pin as the workaround).
 > After that: 12c slice B (RG16F first_t + parallax-corrected history),
 > descent-ladder re-run on the fixed map, then increments 13+ by rank.
 > The ladder gates increments: node scripts/probe-sweep.js --ladder then

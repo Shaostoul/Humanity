@@ -548,11 +548,32 @@ day). What is PROVEN, what was REFUTED, and the recorded red state:**
   (meso quasi-binary) application vs footprint, the step law's
   band-limit interaction with the temporal EMA. THIS IS THE TOP
   PRIORITIES ITEM.
-- Rig debt: the vantage time pin renders ~8 h early on some vantages
-  (deterministic per vantage, hit cov50-nadir-114km twice and
-  nearslab-ab-400km once; single-run nadir-pinch-114km always honors
-  it). Chip task filed; until fixed, re-run a dark capture solo or
-  paired behind a working vantage.
+- Rig debt, ROOT CAUSE CAUGHT LIVE (22:56 session): writing a
+  showcase_request containing cloud_cover (NO time key) resets the
+  game clock ~8 h back - that is why every cloud_cover-pinned vantage
+  captured in darkness, and a camera park issued on the wrong clock
+  can land at the wrong ground point (the scenic park rotates by
+  current_spin). A camera_request with "time" recovers. Chip task
+  filed with the one-line repro; until fixed, send the camera request
+  AFTER any showcase pin.
+
+**FINAL RE-ADJUDICATION OF THE TRIPLET NUMBERS (same night, from the
+scene-exact dump + a recovered same-park capture): the 15%/80%/60%
+spread is CONFOUNDED BY WINDOW-SIZE SAMPLING VARIANCE.** The pinned
+procedural field has ~2000 km weather cells (CLOUD_TYPE_FREQ), so the
+114 km rung's ~300 km window legitimately swings 15% <-> 80% as wind
+advects cells through it (two same-vantage same-pin captures 2 game-
+hours apart measured 80% then 17%, pin state verified active in
+cloud_ref_dump.json both times), while the orbit rung's whole-disc
+window reads the true mean (~60% vs the 50% pin - close). The
+under-deck rung's ~5 km window is even more variance-dominated. What
+SURVIVES as evidence: nothing yet cleanly demonstrates a rendering
+non-invariance. NEXT PROTOCOL (the clean one): one boot, capture
+orbit + nadir within a minute of field-time, CROP the orbit capture
+to the nadir frame's exact ground region, compare areal coverage in
+the crop - same field, same moment, same region, two footprints. Run
+several offsets for the fine rung. Only a spread that survives THAT
+is a rendering defect worth hunting.
 
 ### 13. Cloud streets (cheap rung of G1)
 
