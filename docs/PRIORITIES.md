@@ -8,14 +8,19 @@
 > (v0.1183), and 12c SLICE A (extent-parametrized temporal map, resample
 > re-anchors, arm everywhere, atmo-order fix - A/B-proven vs a v0.1183.1
 > control; adversarial review's 5 findings fixed pre-ship).
-> **NEXT (TOP, evidence already in hand - read the 2026-08-21 journal
-> entry, do NOT re-derive): COVERAGE-VS-FOOTPRINT INVARIANCE.** Areal
-> cloud coverage is ~5% at 10 m march footprint (empty under-deck sky),
-> ~90% at 150 m (the 114 km white-out), ~50% at 5 km (calibrated orbit) -
-> one broken invariance behind two operator complaints, PRE-EXISTING
-> (reproduces on the v0.1183.1 control). Instrument first (CPU-twin
-> areal-coverage-vs-footprint probe at pinned weather), then fix the
-> term, then gate (invariance test + three-altitude triplet).
+> **NEXT (TOP): the COVERAGE-VS-FOOTPRINT TERM HUNT.** The controlled
+> instrument shipped in v0.1185.0 (permanent vantages cov50-underdeck /
+> cov50-nadir-114km / cov50-orbit: the SAME pinned procedural field at
+> cloud_cover 0.5, three march footprints). RECORDED RED STATE: ~15%
+> areal coverage at the 10 m rung, ~80% at 150 m, ~60% at orbit, vs the
+> 50% pin. PROVEN NOT THE TERM: the carve width table (three tables
+> render identically - do NOT re-tune it). Candidates, in order:
+> erosion amplitude vs mip, the weather-law (meso quasi-binary)
+> application vs footprint, step-law/temporal-EMA interaction. Full
+> adjudication + methodology traps (hot-reload verification, camera
+> park discipline, region confounds) in environment-program.md 12c -
+> READ IT FIRST. Rig debt: the vantage time pin renders ~8 h early on
+> some vantages (chip task filed); re-run dark captures solo.
 > After that: 12c slice B (RG16F first_t + parallax-corrected history),
 > descent-ladder re-run on the fixed map, then increments 13+ by rank.
 > The ladder gates increments: node scripts/probe-sweep.js --ladder then
