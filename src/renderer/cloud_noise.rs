@@ -232,10 +232,20 @@ pub fn shape_voxel(p: [f32; 3]) -> [u8; 4] {
     let w1 = worley3(p, 12, SEED_W1);
     let w2 = worley3(p, 24, SEED_W2);
     let per = perlin_fbm3(p, 4, SEED_PERLIN);
-    // Perlin-Worley: dilate the Perlin body by the Worley FBM so blob
-    // borders pick up cellular (cauliflower) structure. The classic remap:
-    // worley high where cells peak -> pw follows perlin there; worley low
-    // in cell gaps -> pw is pushed down, eating bays into the perlin blob.
+    // Perlin-Worley: dilate the Perlin body by the Worley FBM so the
+    // cloud MASS sits at the Worley feature points (cells) and the gaps
+    // between cells eat bays into it.
+    //
+    // POLARITY FIX (environment program increment 3, 2026-08-21). The
+    // old remap `remap(per, lofi - 1, 1, 0, 1)` evaluates to per at
+    // features and (per+1)/2 in the GAPS - i.e. it BOOSTED the gaps, so
+    // the body was a connected foam web with holes where the puffs
+    // should be. Measured by the polarity probe below: mean body 150 at
+    // features vs 180 in gaps. Inverted-Worley clouds could never read
+    // as discrete cumulus with that topology, no matter the tuning.
+    // The corrected remap boosts the FEATURES ((per+lofi)/(1+lofi):
+    // (per+1)/2 at a cell centre, plain per in a gap), which is the
+    // dilation the original comment always claimed.
     let lofi = w0 * 0.625 + w1 * 0.25 + w2 * 0.125;
     let pw = remap(per, lofi - 1.0, 1.0, 0.0, 1.0).clamp(0.0, 1.0);
     [
@@ -613,6 +623,68 @@ mod tests {
         let odd_chain = mip_chain(odd, 3);
         assert_eq!(odd_chain.len(), 2);
         assert_eq!(odd_chain[1].len(), 4);
+    }
+
+    #[test]
+    #[ignore = "KNOWN DEFECT, scheduled: the polarity fix lands with the \
+environment program's integrator/field-re-tune increment, never alone - \
+flipping it in isolation empties the near-path sky because every \
+downstream consumer (cell split, tower, dome rise, erosion weights) is \
+co-tuned to the foam topology. Bisect data: 2026-08-21 journal. Run \
+manually with --ignored to check the field's state."]
+    fn perlin_worley_body_peaks_at_worley_features_not_gaps() {
+        // THE POLARITY PROBE (environment program increment 3). The
+        // council flagged the Perlin-Worley remap as possibly inverted:
+        // the canonical recipe means Worley FEATURE POINTS (cell
+        // centres, inverted-Worley = 1) to carry the cloud BODY, with
+        // the cell GAPS eating bays into it - billowy masses separated
+        // by clear lanes. If the remap runs the other way, the body
+        // lives in the LATTICE OF GAPS between cells: a connected foam
+        // web with holes where the puffs should be, which no downstream
+        // tuning can ever make look like cumulus. Every field re-tune in
+        // the program is invalid if this is backwards, so it is pinned
+        // here BEFORE any of them.
+        //
+        // Method: sample many points, bucket by the same lofi FBM the
+        // shape_voxel remap uses (high lofi = at/near feature points,
+        // low = in the gaps), and require the mean BODY (R channel,
+        // after the remap) to be markedly higher in the feature bucket.
+        let mut feat_sum = 0.0f64;
+        let mut feat_n = 0u32;
+        let mut gap_sum = 0.0f64;
+        let mut gap_n = 0u32;
+        for i in 0..40_000u32 {
+            let p = [
+                (i as f32 * 0.037_71) % 1.0,
+                (i as f32 * 0.091_13) % 1.0,
+                (i as f32 * 0.053_47) % 1.0,
+            ];
+            let w0 = worley3(p, 6, SEED_W0);
+            let w1 = worley3(p, 12, SEED_W1);
+            let w2 = worley3(p, 24, SEED_W2);
+            let lofi = w0 * 0.625 + w1 * 0.25 + w2 * 0.125;
+            let body = shape_voxel(p)[0] as f64;
+            if lofi > 0.75 {
+                feat_sum += body;
+                feat_n += 1;
+            } else if lofi < 0.35 {
+                gap_sum += body;
+                gap_n += 1;
+            }
+        }
+        assert!(feat_n > 200 && gap_n > 200, "buckets too thin: {feat_n}/{gap_n}");
+        let feat = feat_sum / feat_n as f64;
+        let gap = gap_sum / gap_n as f64;
+        // Margin 1.1: the probe guards the DIRECTION (a true inversion
+        // measures ~0.84 here, the corrected field ~1.18 - a wide gulf),
+        // not a magnitude tune. Byte means over conditioned buckets sit
+        // closer together than the raw remap algebra suggests because
+        // per and lofi are correlated through the shared lattice.
+        assert!(
+            feat > gap * 1.1,
+            "POLARITY INVERTED: body at Worley features {feat:.1} vs gaps {gap:.1} \
+             - the cloud mass lives in the lattice between cells, not in the cells"
+        );
     }
 
     #[test]

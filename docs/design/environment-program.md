@@ -235,6 +235,23 @@ Backlog #77: checkerboard-stride the 2048^2 octa pass 1/8-1/16 per frame - switc
 
 **Risk:** Low; optional.
 
+## Execution adjudications
+
+**Increment 3, polarity (2026-08-21):** the probe CONFIRMED the inversion
+(body at Worley features 150 vs 180 in gaps - the mass lives in the
+lattice between cells). But the one-line fix + quantile re-centering the
+council specified is NOT sufficient: flipping polarity EMPTIES the
+near-path sky even with COV re-centered to measured quantiles
+(0.864/0.506) and the cell split halved. Bisect proof: old remap + new
+COV restores the deck (contrast 1.77), so the flip alone is the breaker.
+Every downstream consumer (cell-split tap, tower keyed on lofi, dome
+rise, base drop, three erosion bands) is co-tuned to the foam topology.
+ADJUDICATION: the polarity fix is RESCHEDULED into increment 10 (THE
+INTEGRATOR), which owns the coupled field re-tune anyway. The probe test
+ships #[ignore]-pinned as executable knowledge. The default sky is
+unchanged (verified: post-revert flight stats match the shipped
+baseline).
+
 ## Objection dispositions
 
 1. CHALLENGER ruling 1 (refuse unify-now / v2-as-default): ADOPTED as gating - promotion is rank 16, reachable only through the rank-15 operator acceptance sitting at pinned high-coverage/storm/under-deck weather; no increment before it changes the default body model, and Ultra is never shown to the operator before the rank-6 containment/thin-genus fixes. But the challenger's stronger claim - that 'one path' is a category error and the dual-path is permanent - is REFUTED in that form: the end state deletes the noise BODY (the cloud architect's shape-science proof that inverted Worley is literally a union of equal balls, plus the no-backcompat directive), while the noise FIELD survives in exactly two roles (rind erosion + far-field statistical expectation) behind a calibration-locked footprint crossfade. That IS the hybrid the challenger demanded, without maintaining two body models forever.
