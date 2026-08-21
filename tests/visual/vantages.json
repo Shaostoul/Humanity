@@ -52,16 +52,17 @@
    "golden": {
     "build": "v0.1168.0",
     "sweep": "20260819-202957",
+    "crop": "200,1000,2100,340",
     "stats": {
-     "mean_l": 173.55,
-     "p05": 129.4,
-     "p50": 170.3,
-     "p95": 224.2,
-     "contrast": 1.733,
-     "speckle_rms": 5.779,
-     "r_over_b": 0.6823
+     "mean_l": 44.01,
+     "p05": 35.3,
+     "p50": 41.1,
+     "p95": 63.3,
+     "contrast": 1.791,
+     "speckle_rms": 0.727,
+     "r_over_b": 0.2517
     },
-    "rule": "measure-sky.mjs stats within +/-15% of these (mean_l, contrast) and speckle_rms within +/-30%; a bigger drift is a look change needing re-approval"
+    "rule": "same water-crop rule as ocean-storm-glitter"
    }
   },
   {
@@ -931,16 +932,17 @@
    "golden": {
     "build": "v0.1168.0",
     "sweep": "20260819-202957",
+    "crop": "200,1000,2100,340",
     "stats": {
-     "mean_l": 168.17,
-     "p05": 102.3,
-     "p50": 165.5,
-     "p95": 224.1,
-     "contrast": 2.19,
-     "speckle_rms": 11.869,
-     "r_over_b": 0.6795
+     "mean_l": 55.26,
+     "p05": 30.3,
+     "p50": 44,
+     "p95": 123,
+     "contrast": 4.066,
+     "speckle_rms": 1.343,
+     "r_over_b": 0.5048
     },
-    "rule": "measure-sky.mjs stats within +/-15% of these (mean_l, contrast) and speckle_rms within +/-30%; a bigger drift is a look change needing re-approval"
+    "rule": "measure-sky.mjs --crop 200,1000,2100,340 stats within +/-15% (mean_l, contrast), speckle +/-30%. The crop is the WATER band - the default sky-band crop reads pure sky here and cannot see the ocean at all."
    }
   },
   {

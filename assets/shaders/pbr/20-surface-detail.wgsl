@@ -1122,8 +1122,18 @@ fn water_shade(
     // factor and no 0.20 gain: the LUT already carries true radiance, so the
     // mirror is as bright as the sky it reflects, which is the whole point -
     // and it darkens at night on its own because the sky does.
-    if (shadow_u.params2.y > 0.5) {
-        sky_term = water_sky_lut(refl, n_geo);
+    //
+    // W1 ALTITUDE GATE (environment program): the mirror follows the SAME
+    // retirement the atmosphere applies to this LUT toward orbit
+    // (camera.light1_cone_inner.w = (1 - max(w_alt, w_far)) computed by
+    // lib.rs per frame with the shared NEAR_R/FAR_R constants). The water
+    // used to mirror the table unconditionally at exposure 15 while the
+    // drawn sky gated it to ZERO from orbit - which painted the operator's
+    // cyan banding on the horizon and around the orbital glint. Fading to
+    // the procedural ramp keeps a plausible mirror at every altitude.
+    let w_lut_alt = clamp(camera.light1_cone_inner.w, 0.0, 1.0);
+    if (shadow_u.params2.y > 0.5 && w_lut_alt > 0.001) {
+        sky_term = mix(sky_term, water_sky_lut(refl, n_geo), w_lut_alt);
     }
     let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI) * sun_shadow_f;
     let h = normalize(view_dir + sun_l);

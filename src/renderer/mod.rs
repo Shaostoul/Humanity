@@ -518,6 +518,15 @@ pub struct Renderer {
     pub aerial_slant_cap: f32,
     /// Aerial in-scatter (sky) color, day/sunset tinted by lib.rs.
     pub aerial_sky: [f32; 3],
+    /// WATER sky-mirror altitude gate (environment program W1): how much
+    /// of the sky-view LUT the ocean may mirror this frame, 0..1. Set by
+    /// lib.rs with the SAME law the atmosphere uses to retire its own
+    /// LUT toward orbit ((1 - max(w_alt, w_far)), constants
+    /// atmosphere::NEAR_R/FAR_R). Before this gate the water mirrored
+    /// the LUT unconditionally at exposure 15 while the drawn sky gated
+    /// the SAME table to zero from orbit - the cyan banding the operator
+    /// reported at the horizon and around the orbital glint.
+    pub water_lut_gate: f32,
     /// Camera's radial up (world), for the slant path bound.
     pub aerial_up: [f32; 3],
     /// GPU pass timing (resource budgets increment 1). `None` when the adapter
@@ -1534,6 +1543,7 @@ impl Renderer {
             aerial_sigma: 0.0,
             aerial_slant_cap: 25_000.0,
             aerial_sky: [0.0, 0.0, 0.0],
+            water_lut_gate: 0.0,
             aerial_up: [0.0, 1.0, 0.0],
             gpu_timers,
             inventory_sampled: std::sync::Mutex::new(None),
@@ -2777,6 +2787,11 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 484, bytemuck::bytes_of(&self.aerial_sigma));
         self.queue
             .write_buffer(&self.camera_buffer, 488, bytemuck::bytes_of(&self.aerial_slant_cap));
+        // W1: the water's sky-mirror altitude gate rides the last free pad
+        // of light1_cone_inner (.w, offset 492 - beside its aerial
+        // siblings; verified unread before this).
+        self.queue
+            .write_buffer(&self.camera_buffer, 492, bytemuck::bytes_of(&self.water_lut_gate));
         self.queue
             .write_buffer(&self.camera_buffer, 500, bytemuck::cast_slice(&self.aerial_sky));
         self.queue

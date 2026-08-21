@@ -784,7 +784,16 @@ pub(crate) struct EngineState {
     /// this drift). The frame-lock ride still moves the FRAME - the pin
     /// is the local offset inside it, so the ground does not slide.
     /// Cleared by any real movement input or the next camera_request.
-    pub(crate) probe_hold: Option<(glam::Vec3, f32, f32)>,
+    /// (pinned position, park instant). POSITION ONLY, with a grace
+    /// period: for the first PROBE_HOLD_GRACE seconds after a park the
+    /// pin TRACKS the camera instead of restoring it, because the park
+    /// triggers surface-mode/basis transitions that legitimately rebase
+    /// camera.position and yaw/pitch a few frames later - restoring
+    /// pre-rebase values into the post-rebase frame aimed ocean probes
+    /// at the sky (2026-08-21). Aim is never pinned. After the grace
+    /// the position freezes; gravity drift during the grace is
+    /// centimetres, the drift the pin stops is metres per settle.
+    pub(crate) probe_hold: Option<(glam::Vec3, std::time::Instant)>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

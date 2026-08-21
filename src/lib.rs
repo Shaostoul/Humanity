@@ -3400,10 +3400,16 @@ mod native_app {
                     // ride still moves the frame itself, so the ground
                     // does not slide underneath. Any movement input
                     // clears the hold (see the keyboard handler).
-                    if let Some((pos, yaw, pitch)) = state.probe_hold {
-                        state.camera.position = pos;
-                        state.camera.yaw = yaw;
-                        state.camera.pitch = pitch;
+                    if let Some((pos, at)) = state.probe_hold.as_mut() {
+                        if at.elapsed().as_secs_f32() < 1.5 {
+                            // Grace: track through the park's basis and
+                            // surface-mode transitions (see the field doc
+                            // in engine::state - restoring pre-transition
+                            // coordinates mis-frames the probe).
+                            *pos = state.camera.position;
+                        } else {
+                            state.camera.position = *pos;
+                        }
                     }
 
                     // ── Ambient particles (v0.966): leaves among trees, dust
@@ -11811,8 +11817,30 @@ mod native_app {
                                     tint_density: ac,
                                     geom: [cam_r, mu_s, rp, h],
                                 });
+                            // W1 (environment program): the water's
+                            // sky-mirror gate, the SAME retirement law the
+                            // atmosphere applies to this LUT toward orbit -
+                            // (1 - max(w_alt, w_far)). Uses the UNCLAMPED
+                            // camera ratio for the far band (FAR_R = 2.5
+                            // sits beyond the clamp above).
+                            let cam_ratio = (state.frame_lock_anchor.length()
+                                / shell_r_m.max(1.0))
+                                as f32;
+                            let ss = |e0: f32, e1: f32, x: f32| {
+                                let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+                                t * t * (3.0 - 2.0 * t)
+                            };
+                            let w_far = ss(
+                                crate::renderer::atmosphere::NEAR_R,
+                                crate::renderer::atmosphere::FAR_R,
+                                cam_ratio,
+                            );
+                            let w_alt = ss(rp, 1.0, cam_r);
+                            state.renderer.water_lut_gate =
+                                (1.0 - w_far.max(w_alt)).clamp(0.0, 1.0);
                         } else {
                             state.renderer.sky_view_uniform = None;
+                            state.renderer.water_lut_gate = 0.0;
                         }
 
                         // Sun transmittance tint (v0.915, research roadmap

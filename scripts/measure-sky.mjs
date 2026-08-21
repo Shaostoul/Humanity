@@ -24,7 +24,10 @@ const require = createRequire(import.meta.url);
 const sharp = require('sharp');
 
 const args = process.argv.slice(2);
-const files = args.filter((a) => !a.startsWith('--'));
+// Option VALUES (the token after --crop) must not be mistaken for files.
+const files = args.filter(
+  (a, i) => !a.startsWith('--') && args[i - 1] !== '--crop',
+);
 const asJson = args.includes('--json');
 const cropArg = (() => {
   const i = args.indexOf('--crop');
