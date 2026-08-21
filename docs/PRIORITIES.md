@@ -2,14 +2,23 @@
 
 > **ACTIVE (2026-08-21): the ENVIRONMENT PROGRAM** - the council plan of
 > record at docs/design/environment-program.md, executed serially by rank.
-> Done: instruments (descent ladder calibration-red, program vantages,
-> water-crop goldens, probe hold), W1 water LUT gate (v0.1171), one cloud
-> shell + continuous limb (v0.1172). Discovered + owned: the vanishing
-> deck (fullscreen depth-aware composite = wave D mandate), the inverted
-> Perlin-Worley polarity (pinned test, lands with increment 10). Next by
-> rank: 6 (clouds-v2 containment, Ultra), 7 (ocean specular AA), 8
-> (converged bright reference), then wave D. The descent ladder gates
-> every increment: node scripts/probe-sweep.js --ladder then
+> Done through v0.1184.0: increments 7 (ocean specular AA), 8 (reference
+> arbiter + joint gate), 9 (sampling law), 10a/10b (integrator + field
+> polarity), 11a/11b (fades deleted + weather fractions), THE MIRROR BUG
+> (v0.1183), and 12c SLICE A (extent-parametrized temporal map, resample
+> re-anchors, arm everywhere, atmo-order fix - A/B-proven vs a v0.1183.1
+> control; adversarial review's 5 findings fixed pre-ship).
+> **NEXT (TOP, evidence already in hand - read the 2026-08-21 journal
+> entry, do NOT re-derive): COVERAGE-VS-FOOTPRINT INVARIANCE.** Areal
+> cloud coverage is ~5% at 10 m march footprint (empty under-deck sky),
+> ~90% at 150 m (the 114 km white-out), ~50% at 5 km (calibrated orbit) -
+> one broken invariance behind two operator complaints, PRE-EXISTING
+> (reproduces on the v0.1183.1 control). Instrument first (CPU-twin
+> areal-coverage-vs-footprint probe at pinned weather), then fix the
+> term, then gate (invariance test + three-altitude triplet).
+> After that: 12c slice B (RG16F first_t + parallax-corrected history),
+> descent-ladder re-run on the fixed map, then increments 13+ by rank.
+> The ladder gates increments: node scripts/probe-sweep.js --ladder then
 > scripts/ladder-score.mjs.
 >
 > Logged debt: cumulonimbus width capped at 8 km because the v2 cell grid
