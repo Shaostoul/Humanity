@@ -132,6 +132,8 @@ Envelope clamp on centre PLUS radius (length(c.xz)+r <= width*0.5, c.y+r <= heig
   tile-seam dash class (identical across attempts, unrelated to these dials) is
   noted for increment 11 / wave D.
 
+### 8. G4: converged bright reference + joint gate armed
+
 The lighting arbiter, built BEFORE any integrator change: a CPU brute-force converged march (1 m steps, full sun ladder, no early-outs) over ~5 canonical rays per vantage, run offline, producing per-ray radiance targets - the same CPU-twin discipline the ocean 64 m-modulus lockstep already proved, extended from the existing 10-function mirror pattern in clouds.rs. Wire the four-metric JOINT verdict into cloud-metrics.mjs as the standing acceptance function for every integrator/lighting increment: (1) speckle high-pass rms <= 0.006 at ROI(1200,660,220,160) (baseline 0.0134), (2) mean L >= 121, (3) contrast >= 1.60 (1.47 = the operator-rejected washed-out state), (4) p95 >= 165; clear-sky control ROI <= 0.002. No increment may ever pass on (1) alone. Must land AFTER R3's polarity adjudication - a flipped body invalidates reference tuning.
 
 **Files:** src/renderer/clouds.rs (CPU reference march + lockstep test), scripts/cloud-metrics.mjs (joint verdict fn, ROIs and thresholds as data on the vantage entry)
@@ -290,6 +292,8 @@ The coupling-lesson increment, on the SHARED cloud_march_core so the DEFAULT sky
   increment 11 re-aims vantage/ROI with the coverage law. The marble's
   overall coverage curve (still sheet-heavy at natural weather) is
   increment 11's mandate, not re-litigated here.
+
+### 11. Far-field truth: fades deleted + coverage law, one look increment
 
 NOT a pure deletion - four coupled pieces in ONE increment or it reads as the next regression: (1) delete the detail/puff/cell distance fades (the concentric rings at 30-60 / 51-289 / 193-4495 km). (2) Re-center coverage for the now-always-on cell-split threshold raise (40-clouds.wgsl:1400-1408, currently distance-gated off at orbit - deleting the gate shifts global mean coverage). (3) Mip the 1440x720 weather map (mip_level_count:1 today, point-sampled through a steep smoothstep) and sample at footprint lod. (4) G2 de-binarization: the envelope smoothstep(0.35,0.9) turns a 27.8 km texel saying '40% cloudy' into keep/kill stipple - replace it so the rendered areal fraction inside a texel EQUALS the texel's fractional coverage at wide footprints (the soft-carve statistics-preserving principle applied at placement level; mipping alone is necessary but NOT sufficient). Plus: 8-px disc cutoff -> the existing per-object fade. Coverage/threshold shares machinery with R9's carve - land coherently, never double-correct.
 
