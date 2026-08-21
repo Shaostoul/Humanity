@@ -142,6 +142,35 @@ The lighting arbiter, built BEFORE any integrator change: a CPU brute-force conv
 
 **Risk:** None to the renderer; retires the documented phase-9 failure mode (piecemeal integrator/tune landings).
 
+**EXECUTION ADJUDICATIONS (v0.1175):**
+- The joint gate's thresholds were RE-CALIBRATED on real archives, because the
+  council's numbers did not reproduce at the ROI: the archived phase-9 sweeps
+  (20260818-192648..234918) measure speckle 0.0036-0.0059 (phase-9's win was
+  real - it PASSES the 0.006 target) with contrast 1.24-1.50 (the collapse);
+  the current dots-era builds measure speckle ~0.009 with contrast ~1.42. The
+  gate FAILS both, each for its true defect, and goes green only when an
+  integrator reaches phase-9 speckle without the collapse - increment 10's
+  definition of success. The gate calibration is recorded on the vantage
+  entry itself.
+- The reference march lives in src/renderer/cloud_reference.rs: same baked
+  volumes, faithful carve/erosion/weather mirrors (constant-locked to the
+  WGSL by a sync test), fine fixed-step view AND sun marches, fully-eroded
+  density on the sun path, mip-0 taps, PRE-aerial ACES output, pinned-weather
+  path only. Sanity gate measured: 19 deck-band cloud rays, lit/shaded lum
+  p10 0.567 / p90 0.850 (ratio 1.50), deterministic. Per-ray TARGETS for the
+  integrator judgment are generated at increment 10 with the vantage's real
+  seed/clock - a target archive generated now would pin the wrong scene.
+- Field structure confirmed during bring-up: at cover 0.95 / type 0.34 the
+  sky is horizon-dense with discrete cells overhead (the cell-split zone
+  reaches to ~60 km; steep rays exit the ~7 km cumulus band inside it) -
+  the GPU capture shows the same structure, so the joint-gate ROI sits in
+  the horizon-dense band deliberately.
+- Found in passing: clouds::cloud_weather (the Rust mirror) is the
+  pre-v0.874 THREE-octave field, stale vs the shipped five-octave
+  cloud_weather_adv. Only module-local tests consume it; marked STALE in a
+  doc comment, and the reference carries the current five-octave pinned
+  mirror (locked by needle asserts against the WGSL source).
+
 ### 9. Wave B: one sampling-rate law (pix_ang, footprint steps, soft carve)
 
 (1) Real pixel angle: publish 2*tan(fov/2)/viewport_h in a camera pad; the map path derives its texel angle from its own extent - deletes the hardcoded 0.00195/0.001 pair and the 0.96-mip silhouette jump at composite-arm. (2) Footprint-driven fixed-length steps with an iteration cap replacing n_samp_f - kills the 0.34 clamp knee, the integer rung, and the 2.5%-short march. (3) The load-bearing piece: mip-width-aware SOFT carve - export per-level sigma ratios from the mip chain (or drop renormalization) and replace clamp((body-thr)/(1-thr)) with smoothstep(thr-w, thr+w, body), w growing with mip. Band-limiting must happen AT the threshold: the dots forensics proved dens_n returns exactly 1.0 in every uneroded interior, so prefiltering alone cannot band-limit the output, and mips existing does NOT license early fade deletion.

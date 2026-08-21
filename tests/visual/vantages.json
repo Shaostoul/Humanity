@@ -817,6 +817,15 @@
     "clouds": "1",
     "cloud_cover": "0.95",
     "cloud_type": "0.34"
+   },
+   "joint_gate": {
+    "roi": "1200,660,220,160",
+    "speckle_max": 0.006,
+    "mean_l_min": 121,
+    "contrast_min": 1.6,
+    "p95_min": 165,
+    "control_speckle_max": 0.002,
+    "rule": "THE JOINT VERDICT (environment program increment 8): scripts/cloud-metrics.mjs <cap> --vantage silverdale-flight-2km. Every integrator/lighting increment must pass ALL FOUR metrics. CALIBRATED 2026-08-21 on archived captures: the phase-9 sweeps (20260818-192648 .. 234918) measure speckle 0.0036-0.0059 (its real win - PASSES the 0.006 target) but contrast 1.24-1.50 (the operator-rejected washed-out collapse - FAILS the 1.60 floor); the current dots-era builds (20260819-024007, 20260821-080309) measure contrast ~1.42 AND speckle ~0.009 - both fail, each for its true defect. The gate goes green only when an integrator reaches phase-9 speckle WITHOUT the collapse, which is the definition of increment 10 success. mean_l/p95 are loose floors against going dark (everything archived measures 141-203 / 172-222). control_speckle applies to a clear-sky capture of the same ROI (--control) and proves the ROI measures clouds, not the rig."
    }
   },
   {

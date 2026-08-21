@@ -474,6 +474,12 @@ pub fn cloud_phase(cos_t: f32) -> f32 {
 /// Mirrors `cloud_weather`: increment 1's cloud_field minus its two finest
 /// octaves (the 3D volumes own sub-50 km detail at High), renormalized
 /// (0.5 + 0.25 + 0.35 = 1.10) through the same contrast window.
+/// STALE MIRROR (noted at increment 8, 2026-08-21): this is the pre-v0.874
+/// THREE-octave weather field. The shipped WGSL cloud_weather_adv is a
+/// FIVE-octave macro/meso split with MODIS blending and pin bypass - see
+/// cloud_reference::CloudRefCtx::weather_pinned for the current pinned-path
+/// mirror. Only module-local smoke tests consume this fn; do not use
+/// it for anything that must match the rendered sky.
 pub fn cloud_weather(dir: [f32; 3], t: f32, seed: f32) -> f32 {
     let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
     let stretched = [da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]];
