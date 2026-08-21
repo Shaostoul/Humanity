@@ -1759,7 +1759,10 @@ mod overhead_profile {
             let cs = ctx.carve(p, wa, &reg, 1.0);
             let d = ctx.density_hi(p, wa, &reg, 1.0, 1.0, 1.0);
             let h = clampf((r - ctx.rb)/(ctx.rt - ctx.rb), 0.0, 1.0);
-            println!("alt {:5.2} km h {:.3} wa {:.3} carve {:.3} dens {:.3}", alt_km, h, wa, cs.carve, d[0]);
+            let fray_freq = 1.0 / (CLOUD_FRAY_TILE_KM * ctx.upkm);
+            let fr = ctx.detail.sample([cs.ps[0]*fray_freq, cs.ps[1]*fray_freq, cs.ps[2]*fray_freq]);
+            let frfbm = fr[0]*0.625 + fr[1]*0.25 + fr[2]*0.125;
+            println!("alt {:5.2} km h {:.3} wa {:.3} carve {:.3} dens {:.3} frfbm {:.3}", alt_km, h, wa, cs.carve, d[0], frfbm);
         }
     }
 }

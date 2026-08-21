@@ -44,7 +44,23 @@ fn vs_cloud_octa(@builtin(vertex_index) vi: u32) -> CloudOctaVsOut {
     let y = f32(i32(vi & 2u) * 2 - 1);
     var out: CloudOctaVsOut;
     out.pos = vec4<f32>(x, y, 0.0, 1.0);
-    out.uv = vec2<f32>(x, y) * 0.5 + vec2<f32>(0.5);
+    // THE MIRROR BUG (found 2026-08-21 from the operator's live report:
+    // "up/down flicking... a mirror like effect"). NDC +y is UP but
+    // texture row 0 is the TOP: a fragment at NDC y = +1 rasterizes into
+    // ROW 0, so its texture-space coordinate is v = 0, not v = 1. The old
+    // `uv = ndc * 0.5 + 0.5` handed the fragment a v that addressed the
+    // MIRRORED row - so every texel (a) marched the direction belonging
+    // to the opposite side of the map, and worse, (b) sampled its EMA
+    // HISTORY from the mirrored texel: each frame every sky direction
+    // blended 4% of its own mirror image. The converged map was a ghost
+    // double exposure of the sky with its reflection, endlessly
+    // re-excited into a period-2 mirror oscillation - the flicker, the
+    // "state 1 / state 2", and the 10b empty-overhead mystery (the GPU
+    // was showing the MIRRORED direction's lane while the CPU reference
+    // correctly saw the true direction's deck). Flipping v here makes
+    // decode(in.uv), the history sample, and the readers' encode all
+    // address the same texel.
+    out.uv = vec2<f32>(x, -y) * 0.5 + vec2<f32>(0.5);
     return out;
 }
 
