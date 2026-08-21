@@ -1521,7 +1521,13 @@ fn cloud_carve(
         let c = textureSampleLevel(
             cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
             cloud_lod(lodb, CLOUD_LODC_CELL));
-        thr = thr + CLOUD_CELL_SPLIT * cell_amt * reg.fine * (1.0 - c.g);
+        // CENTERED at the bake's g-channel mean (increment 11): the split
+        // is always on now (its distance fade is deleted), so it must
+        // modulate coverage locally WITHOUT shifting the global mean -
+        // (mean - c.g) raises the threshold in the gaps between cells and
+        // lowers it slightly at the cores, zero-mean by construction.
+        // 0.481 = the baked g-channel mean (bake_stats probe).
+        thr = thr + CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c.g);
     }
     // Nubis-form carve (phase 3, fidelity finding 1): the old fixed
     // 0.28-wide onset window meant body -> 1 mapped to carve 1 only in a
@@ -2096,19 +2102,22 @@ fn cloud_march_core(
             cloud_alpha_from_field(
                 cloud_weather_adv(dirp, t, seed, wind_ang), coverage)
                 + reg.cover_bias, 0.0, 1.0);
-        // Distance fade for the FINE cauliflower band only: tm is the sample's
-        // distance from the camera (drawn-shell units). Far/orbit samples get
-        // detail_amt ~0 (no sub-pixel stipple); close fly-by samples get full
-        // cauliflower. The COARSE fray band inside cloud_density_hi is always
-        // on, so orbit keeps its wispy frayed edges.
-        let detail_amt = 1.0 - smoothstep(g_detail_fade_near, g_detail_fade_far, tm);
-        // Puff-band fade (v0.1011): full cauliflower within ~50 km of the
-        // camera, gone by ~290 km - surface and fly-through views get the
-        // lobes, the orbital marble never pays for them.
-        let puff_amt = 1.0 - smoothstep(g_puff_fade_near, g_puff_fade_far, tm);
-        // Cumulus-cell fade (phase 3, finding 4): the discrete-cell split
-        // exists near the camera and is gone by ~60 km, like the puff band.
-        let cell_amt = 1.0 - smoothstep(g_cell_fade_near, g_cell_fade_far, tm);
+        // DISTANCE FADES DELETED (increment 11, far-field truth): the
+        // detail/puff/cell amounts used to fade out at 193/51/30 km, which
+        // made the FIELD ITSELF a function of camera distance - the
+        // measured consequences were the concentric texture rings sweeping
+        // beneath a descending camera (mid-alt-45km vantage) and the HOLE
+        // IN THE SKY (a clearing following the camera everywhere below
+        // ~60 km: at 5 km nadir the near deck simply vanished - the
+        // operator's "I get underneath and the entire cloud cover
+        // changes", silhouette-ladder baseline IoU 0.009). Band-limiting
+        // is the MIP LADDER's job now: every tap already picks the mip
+        // matching its footprint (Wave B), and the soft carve keeps
+        // threshold statistics honest across mips, so far samples read the
+        // band's mean erosion instead of nothing at all.
+        let detail_amt = 1.0;
+        let puff_amt = 1.0;
+        let cell_amt = 1.0;
         // Band-limited sampling footprint (phase 5): the larger of the
         // ray-cone width at this distance and the march step itself, in
         // km. Every volume tap under this sample picks the mip whose

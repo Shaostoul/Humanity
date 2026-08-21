@@ -305,6 +305,37 @@ NOT a pure deletion - four coupled pieces in ONE increment or it reads as the ne
 
 **Risk:** Medium-high: a deliberate, intended orbit look change with real coupling to R9.
 
+**11a EXECUTION ADJUDICATIONS (v0.1179 - fades + centered split; weather
+mips + G2 fractional coverage follow as 11b):**
+- The three distance fades (detail/puff/cell) are DELETED: the field is
+  camera-independent by construction; band-limiting is the mip ladder +
+  soft carve (Wave B), which is exactly what they were built for. The
+  operator-visible wins, both captured: the HOLE IN THE SKY is closed
+  (silhouette-35km shows a continuous deck around a modest honest lane)
+  and mid-alt-45km shows NO concentric rings - a granular deck with
+  organic lanes.
+- The always-on cell split is CENTERED at the bake g-channel mean (0.481,
+  measured): local modulation, zero global-mean shift by construction.
+- The ORBIT look transformed as the council predicted: the marble went
+  from percolation sheet to organized fronts/bands/lanes (this also
+  discharged most of the 10b sheet-coverage concern before 11b even
+  touches the weather map).
+- IoU LADDER HARNESS DEBT (gate still open): the cloud-phase scorer
+  gained a DEGENERACY GUARD after the inverted-phase 'fix' let the red
+  baseline pass at 0.939 (a 95% mask matches any 95% mask - the checks-
+  that-cannot-fail class, caught by re-scoring the baseline). The
+  silhouette column is re-aimed 12 km east onto mixed structure, but the
+  capture protocol itself is not yet advection-sound: same-boot rungs
+  drift ~2 km between captures (the deck edge crosses the whole compared
+  patch), and one-boot-per-rung broke framing consistency. The gate
+  needs paired/advection-subtracted captures - harness work, tracked, not
+  a field defect: camera-independence of the FIELD now holds by
+  construction (the only remaining distance terms are resolution-matched
+  mips and steps).
+- Twin note: with fades gone the twin fan hits cloud on 48/48 rays; gap
+  -9.7% (was -2.2% on 19 rays) - the always-on erosion changed the
+  error distribution; retune at 11b/12 if it drifts past 10%.
+
 ### 12. Wave D: temporal rework (extent, basis, depth reprojection, arm everywhere)
 
 SPEC FIRST the extent-resample remapping math + its blur bound: the altitude-following extent makes texel->direction a function of camera altitude, so during descent every texel's direction changes every frame - the accumulate pass must resample history through the OLD extent (itself a low-pass) or the EMA smears on any altitude change, the exact failure it exists to fix. Then implement: r2 = (1-cos theta)/(1-cos theta_max) extent (identical under the deck, all 2048^2 texels on the visible disc at orbit - sharper than screen vs 5x coarser today); planet-fixed Lambert basis (the vegetation/v2 convention); RG16F first_t companion map with parallax-corrected history lookup. This SUBSUMES and formally retires the screen-space accumulation route (measured strictly worse: 0.5 mrad boiling vs 2.05 mrad averaged, regression recorded in cloud_temporal.rs:6-8). Then arm at ALL altitudes, delete the last near_slab use and the per-frame disarm, EMA stays deep in fast descent. Bind-group discipline: grep the changed layout for EVERY create_bind_group site and count entries (the v0.1029-v0.1038 incident class).

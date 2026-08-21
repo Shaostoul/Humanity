@@ -1124,7 +1124,7 @@
   },
   {
    "id": "silhouette-5km",
-   "desc": "Wave B silhouette ladder rung (5 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "desc": "Wave B silhouette ladder rung (5 km, nadir, column shifted 12 km east of Silverdale onto mixed deck/lane structure so the IoU crops are never single-phase): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
    "showcase": {
     "sea": "0.3",
     "weather": "cloudy",
@@ -1135,7 +1135,7 @@
    "camera": {
     "body": "earth",
     "lat": 47.645,
-    "lon": -122.6925,
+    "lon": -122.52,
     "altitude_km": 5,
     "time": 12.02
    },
@@ -1148,7 +1148,7 @@
   },
   {
    "id": "silhouette-11km",
-   "desc": "Wave B silhouette ladder rung (11 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "desc": "Wave B silhouette ladder rung (11 km, nadir, column shifted 12 km east of Silverdale onto mixed deck/lane structure so the IoU crops are never single-phase): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
    "showcase": {
     "sea": "0.3",
     "weather": "cloudy",
@@ -1159,7 +1159,7 @@
    "camera": {
     "body": "earth",
     "lat": 47.645,
-    "lon": -122.6925,
+    "lon": -122.52,
     "altitude_km": 11,
     "time": 12.02
    },
@@ -1172,7 +1172,7 @@
   },
   {
    "id": "silhouette-35km",
-   "desc": "Wave B silhouette ladder rung (35 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "desc": "Wave B silhouette ladder rung (35 km, nadir, column shifted 12 km east of Silverdale onto mixed deck/lane structure so the IoU crops are never single-phase): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
    "showcase": {
     "sea": "0.3",
     "weather": "cloudy",
@@ -1183,7 +1183,7 @@
    "camera": {
     "body": "earth",
     "lat": 47.645,
-    "lon": -122.6925,
+    "lon": -122.52,
     "altitude_km": 35,
     "time": 12.02
    },

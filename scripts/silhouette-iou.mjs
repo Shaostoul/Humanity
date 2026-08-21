@@ -86,13 +86,29 @@ function iou(a, b) {
 
 const masks = [];
 for (let i = 0; i < 3; i++) masks.push(await mask(files[i], alts[i]));
-const cover = masks.map(
+let cover = masks.map(
   (m) => +(m.reduce((s, v) => s + v, 0) / m.length).toFixed(3),
 );
+// DEGENERACY GUARD (increment 11): IoU only discriminates when the shared
+// ground patch holds MIXED structure. At extreme covers the dominant
+// phase matches itself trivially (a 95% mask scores ~0.9 against any
+// other 95% mask - measured: inverting phases let the known-red baseline
+// PASS at 0.939, the checks-that-cannot-fail class). Refuse instead:
+// re-aim the vantage column at a deck edge so every rung sees cloud AND
+// clear in the compared patch.
+const phase = 'cloud';
+if (cover[0] < 0.15 || cover[0] > 0.85) {
+  console.error(
+    `DEGENERATE: near-rung cloud cover ${cover[0]} - the compared patch is (nearly) all one phase; ` +
+      `re-aim the silhouette vantage column at mixed deck/lane structure. No verdict.`,
+  );
+  process.exit(3);
+}
 const out = {
   files,
   alts,
   deck,
+  phase,
   cover,
   iou_near_mid: +iou(masks[0], masks[1]).toFixed(3),
   iou_mid_far: +iou(masks[1], masks[2]).toFixed(3),
@@ -101,7 +117,7 @@ const out = {
 out.gate_085 = out.iou_near_far >= 0.85 ? 'PASS' : 'FAIL';
 if (asJson) console.log(JSON.stringify(out, null, 1));
 else {
-  console.log(`cover per rung: ${cover.join(' / ')}`);
+  console.log(`phase ${phase}; cover per rung: ${cover.join(' / ')}`);
   console.log(
     `IoU near-mid ${out.iou_near_mid}  mid-far ${out.iou_mid_far}  near-far ${out.iou_near_far}  [gate >= 0.85: ${out.gate_085}]`,
   );

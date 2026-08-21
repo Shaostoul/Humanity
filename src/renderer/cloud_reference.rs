@@ -272,7 +272,7 @@ impl<'a> CloudRefCtx<'a> {
             let c = self
                 .shape
                 .sample([ps[0] * cell_freq, ps[1] * cell_freq, ps[2] * cell_freq]);
-            thr += CLOUD_CELL_SPLIT * cell_amt * reg.fine * (1.0 - c[1]);
+            thr += CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c[1]); // centered (increment 11)
         }
         let carve = clampf((body - thr) / (0.79 - thr).max(1.0e-3), 0.0, 1.0) * env; // CLOUD_BODY_TOP
         let u_crown = ((body - thr_base).max(0.0) / CLOUD_TOP_RISE).sqrt();
@@ -458,24 +458,9 @@ impl<'a> CloudRefCtx<'a> {
             let p = v3_add_scaled(ro, rd, tm);
             let dirp = v3_norm(p);
             let weather_a = wa_at(self, p);
-            let detail_amt = 1.0
-                - smoothstep(
-                    CLOUD_DETAIL_FADE_NEAR_KM * self.upkm,
-                    CLOUD_DETAIL_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
-            let puff_amt = 1.0
-                - smoothstep(
-                    CLOUD_PUFF_FADE_NEAR_KM * self.upkm,
-                    CLOUD_PUFF_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
-            let cell_amt = 1.0
-                - smoothstep(
-                    CLOUD_CELL_FADE_NEAR_KM * self.upkm,
-                    CLOUD_CELL_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
+            let detail_amt = 1.0; // fades deleted (increment 11)
+            let puff_amt = 1.0;
+            let cell_amt = 1.0;
             let dc = self.density_hi(p, weather_a, &reg, detail_amt, puff_amt, cell_amt);
             let dens = dc[0];
             if dens <= 0.001 {
@@ -1346,24 +1331,9 @@ impl<'a> CloudRefCtx<'a> {
             let p = v3_add_scaled(ro, rd, tm);
             let dirp = v3_norm(p);
             let weather_a = wa_at(self, p);
-            let detail_amt = 1.0
-                - smoothstep(
-                    CLOUD_DETAIL_FADE_NEAR_KM * self.upkm,
-                    CLOUD_DETAIL_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
-            let puff_amt = 1.0
-                - smoothstep(
-                    CLOUD_PUFF_FADE_NEAR_KM * self.upkm,
-                    CLOUD_PUFF_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
-            let cell_amt = 1.0
-                - smoothstep(
-                    CLOUD_CELL_FADE_NEAR_KM * self.upkm,
-                    CLOUD_CELL_FADE_FAR_KM * self.upkm,
-                    tm,
-                );
+            let detail_amt = 1.0; // fades deleted (increment 11)
+            let puff_amt = 1.0;
+            let cell_amt = 1.0;
             let dc = self.density_hi(p, weather_a, &reg, detail_amt, puff_amt, cell_amt);
             let dens = dc[0];
             // Coarse-entry backtrack (mirrors the WGSL).
@@ -1791,5 +1761,31 @@ mod overhead_profile {
             let h = clampf((r - ctx.rb)/(ctx.rt - ctx.rb), 0.0, 1.0);
             println!("alt {:5.2} km h {:.3} wa {:.3} carve {:.3} dens {:.3}", alt_km, h, wa, cs.carve, d[0]);
         }
+    }
+}
+
+#[cfg(test)]
+mod bake_stats {
+    use crate::renderer::cloud_noise;
+
+    #[test]
+    #[ignore = "diagnostic"]
+    fn shape_channel_means() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let mut m = [0f64; 4];
+        for px in shape.chunks_exact(4) {
+            for c in 0..4 {
+                m[c] += px[c] as f64;
+            }
+        }
+        let n = (shape.len() / 4) as f64;
+        println!(
+            "shape channel means: r {:.4} g {:.4} b {:.4} a {:.4}",
+            m[0] / n / 255.0,
+            m[1] / n / 255.0,
+            m[2] / n / 255.0,
+            m[3] / n / 255.0
+        );
     }
 }
