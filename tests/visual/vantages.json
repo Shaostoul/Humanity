@@ -1121,6 +1121,78 @@
     "weather": "clear",
     "clouds": "1"
    }
+  },
+  {
+   "id": "silhouette-5km",
+   "desc": "Wave B silhouette ladder rung (5 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "showcase": {
+    "sea": "0.3",
+    "weather": "cloudy",
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 5,
+    "time": 12.02
+   },
+   "settle_s": 9,
+   "expect": "Cumulus deck tops from above; the same masses recognizable at every rung.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 14
+  },
+  {
+   "id": "silhouette-11km",
+   "desc": "Wave B silhouette ladder rung (11 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "showcase": {
+    "sea": "0.3",
+    "weather": "cloudy",
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 11,
+    "time": 12.02
+   },
+   "settle_s": 9,
+   "expect": "Cumulus deck tops from above; the same masses recognizable at every rung.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 14
+  },
+  {
+   "id": "silhouette-35km",
+   "desc": "Wave B silhouette ladder rung (35 km, nadir): the SAME deck patch captured at three distances - the soft carve + one step law must keep its silhouette stable across mip transitions (IoU gate, scripts/silhouette-iou.mjs).",
+   "showcase": {
+    "sea": "0.3",
+    "weather": "cloudy",
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "cloud_type": "0.34"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 35,
+    "time": 12.02
+   },
+   "settle_s": 9,
+   "expect": "Cumulus deck tops from above; the same masses recognizable at every rung.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 14
   }
  ],
  "ladder": {

@@ -183,6 +183,39 @@ The lighting arbiter, built BEFORE any integrator change: a CPU brute-force conv
 
 **Risk:** Medium. Lands BEFORE any fade deletion so regressions are attributable to one change.
 
+**EXECUTION ADJUDICATIONS (v0.1176):**
+- The IoU >= 0.85 gate TRANSFERS to increment 11, with its red baseline banked
+  (near-far IoU 0.009 pre-change, 0.015 after - both deeply red) and a major
+  discovery from the rung captures: the cell/puff/detail distance fades cut a
+  MOVING CLEARING around the camera - at 5 km nadir the near deck is simply
+  gone, at 35 km a clear hole surrounds the nadir out to the 30-60 km cell
+  fade band. This is the operator's "I get underneath and the entire cloud
+  cover changes", measured. A sampling law cannot fix a field whose COVERAGE
+  is a function of camera distance; increment 11 owns it.
+- The step law needed TWO ceilings the council sketch lacked, both caught by
+  the nearslab A/B pair: a VERTICAL ceiling (band structure lives at slab
+  scale - the first cut strode 11.6 km, the whole slab, on far nadir rays)
+  and a SEGMENT-density floor (~the old 48-sample budget per ray - the first
+  cut cut limb sampling 5x and darkened the 250 km capture 30%; whether that
+  darkening is TRUTH is increment 10's question for the reference march, and
+  the sampling law must not smuggle it in). Final: 250 km mean -1.8% vs
+  baseline with SPECKLE IMPROVED 2.10 -> 1.44.
+- Composite-arm A/B delta (400 vs 250 km) improved 13.6 -> 10.8: the real
+  pixel angle moves the direct path's footprint law toward the map's, which
+  is the direction that closes the arm jump.
+- Fitted carve widths came out SMALL ([.005 .005 .005 .010 .025 .055 .050
+  .050], consistency MAE <= 0.007): the variance renormalization already
+  tracks area-average statistics well, so the soft carve is a refinement at
+  deep mips, not a look change - and it reduces to the hard ramp at mip 0 by
+  construction (the hinge form E[relu]/(1-thr)).
+- Joint-gate numbers have RUN-TO-RUN variance from cloud advection (speckle
+  0.0058-0.0094 across same-build captures of this ROI) - single-capture
+  comparisons near threshold are noise; only large effects (phase-9's 2x)
+  are single-capture decidable.
+- HARNESS RULE (two sweeps wasted): the exe embeds shaders at BUILD time
+  and reads disk only on mid-run hot-reload - a shader edit needs a rebuild
+  before a probe sweep, always.
+
 ### 10. THE INTEGRATOR: sun ladder + fine march + field re-tune, ONE increment (shared path)
 
 The coupling-lesson increment, on the SHARED cloud_march_core so the DEFAULT sky gets the dots fix now, not after v2 promotion. Sun march: ladder CLOUD_LIGHT_NEAR_KM 0.9 -> 0.03 / ratio 2.4 (the isolated control measured a 3.5x speckle cut - the single most effective intervention ever measured on this defect). View march: interior fine steps tied to mean free path (tau <= 1: ~22 m cumulus, ~45 m stratus; cirrus at 833 m MFP stays coarse); Hillaire energy-conserving in-scatter Sint = (S - S*exp(-sigma*d))/sigma (removes step-length-dependent brightness, which is what makes the re-tune stable); transmittance early-out < 0.005; iteration cap ~160. AND IN THE SAME DIFF the compensating field re-tune: CLOUD_MS_DIFFUSE (0.22), CLOUD_AMB_BASE/TOP, CLOUD_POWDER_STRENGTH, coverage constants - all tuned against the biased integral - recalibrated against the R8 converged reference. The ~15% darkening is tuned-around-bias debt coming due, NOT a regression: when reference and old capture conflict, the reference wins and the field constants move, never the step sizes. Preserve %TEMP%/phase9_integrator.patch learnings: view refinement alone made speckle WORSE; the sun ladder is the effective half.

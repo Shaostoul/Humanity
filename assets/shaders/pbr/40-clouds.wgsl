@@ -275,8 +275,35 @@ fn cloud_set_slab_bounds() {
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
 // the detail budget and the far limb blurs gracefully.
 const CLOUD_HI_SAMPLES: i32 = 48;
-// Exponent of the sample-position curve: t = m0 + seg * u^EXP. 1 = uniform.
-const CLOUD_HI_STEP_EXP: f32 = 1.6;
+// ── Wave B step law (increment 9) ── near steps resolve the slab band
+// (fraction of slab thickness; 1/16 of Earth's 11.6 km slab = ~725 m,
+// matching the old exp-spacing's fine end), far steps grow with the ray
+// cone (CONE_K pixel-widths per step: at 20 km distance with a 1.44 mrad
+// pixel that is again ~700 m, so the two regimes meet smoothly). The cap
+// is a guard, not the budget - the growing step terminates a limb-graze
+// in roughly CLOUD_HI_SAMPLES iterations by itself.
+const CLOUD_STEP_BAND_FRAC: f32 = 0.0625;
+const CLOUD_STEP_CONE_K: f32 = 24.0;
+const CLOUD_STEP_ITER_CAP: i32 = 96;
+// VERTICAL step ceiling: the slab's band structure (family envelopes,
+// domed tops, base undulation) lives at slab scale no matter how wide the
+// pixel footprint is, so the step's RADIAL component may never exceed
+// this fraction of the slab. Without it the first cut of the step law
+// strode 11.6 km - the whole slab in one step - on the temporal map's
+// far nadir rays (250 km capture darkened 30%, speckle doubled, measured
+// on the nearslab A/B pair). Grazing rays (radial speed ~ 0) stay
+// footprint-ruled, which is correct - they cross bands slowly.
+const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
+// SEGMENT-fraction ceiling: no ray may receive fewer samples across its
+// marched extent than the old exp-law's budget gave it (~CLOUD_HI_SAMPLES).
+// The footprint law's job in THIS increment is to kill the knee, the
+// integer rung and the unsampled tail - NOT to cut limb sampling 5x: the
+// first cut let map-path grazes stride 10+ km and the 250 km nearslab
+// capture darkened 30% with doubled speckle (whether that darkening is
+// actually TRUTH is increment 10's question, judged by the reference
+// march - the sampling law must not smuggle it in). 1/48 = the old
+// full-budget density as a per-ray floor.
+const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
 // Light-march taps toward the sun per lit view sample. Spacing widens with
 // each tap (near taps catch self-shadowing detail, far taps the big mass).
 const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
@@ -375,19 +402,68 @@ const CLOUD_LODC_CELL: f32 = -4.585;
 const CLOUD_LODC_DETAIL: f32 = -0.259;
 const CLOUD_LODC_PUFF: f32 = -1.479;
 const CLOUD_LODC_FRAY: f32 = 2.479;
-// Angular pixel size feeding the ray-cone width: the temporal map's
-// Lambert texel (4 / CLOUD_OCTA_SIZE radians - 2048 since phase 8, so
-// ~1.95 mrad; locked to the Rust size constant by
-// wgsl_map_pixel_angle_matches_the_octa_size) and a screen-pixel
-// estimate for the direct path (~60 deg fov over ~1080 rows ~ 1 mrad;
-// +-30% here moves the lod by under half a level).
-const CLOUD_PIX_ANG_MAP: f32 = 0.00195;
-const CLOUD_PIX_ANG_SCREEN: f32 = 0.001;
+// Angular pixel size feeding the ray-cone width (Wave B, increment 9):
+// the temporal map's Lambert texel is DERIVED from its own extent
+// (4 / CLOUD_OCTA_SIZE radians; locked to the Rust size constant by
+// wgsl_map_pixel_angle_matches_the_octa_size). The direct path reads the
+// TRUE per-frame value 2*tan(fov/2)/viewport_rows from
+// camera.light5_cone_inner.z (written by render_celestial_onto) - the old
+// hardcoded 1 mrad guess under-read a 90-deg/1387-row frame by ~40%, and
+// every footprint and mip pick with it. The fallback below only covers an
+// older writer that never fills the pad.
+const CLOUD_PIX_ANG_MAP: f32 = 4.0 / 2048.0;
+fn cloud_pix_ang_screen() -> f32 {
+    let pa = camera.light5_cone_inner.z;
+    return select(0.00144, pa, pa > 1.0e-5);
+}
 
 // Mip level for one sample site: log2 footprint minus the site's log2
 // voxel size, clamped to the 8-level chain (0..7).
 fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
     return clamp(lodb - site_c, 0.0, 7.0);
+}
+
+// ── Mip-width-aware SOFT carve (Wave B, increment 9) ──
+// The dots forensics proved the carve is where band-limiting must happen:
+// dens_n returns exactly 1.0 in every uneroded interior, so prefiltering
+// the noise can never band-limit the OUTPUT - a mip-N sample pushed
+// through the hard threshold still answers all-or-nothing for a footprint
+// that really covers a MIX of cloud and gap. The fix follows the
+// statistics: for a sample that stands for a whole footprint, the carve
+// should return the footprint's EXPECTED carve - E[relu(x - thr)]/(1-thr)
+// over the sub-footprint distribution, which for width sw is the smooth
+// hinge 0.5*(z + sqrt(z^2 + 2/pi))*sw with z = (body-thr)/sw. As sw -> 0
+// this reduces EXACTLY to the shipped hard ramp, so the near field is
+// unchanged by construction.
+//
+// Per-level widths are FITTED, not derived: the shipped mip chain is
+// variance-renormalized (cloud_noise::renormalize_level), so the residual
+// sub-footprint spread at each level is an empirical property of the bake.
+// The table below is fitted by clouds::carve_consistency_widths_are_fitted
+// (threshold-of-mip-N vs area-average of threshold-of-mip-0 over real
+// volume regions); the test FAILS if the bake drifts from these numbers.
+// Fitted by clouds::carve_consistency_widths_are_fitted on the shipped
+// bake (2026-08-21). Level 0 is a single voxel - the hinge collapses to
+// the exact hard ramp there.
+const CLOUD_CARVE_W0: f32 = 0.005;
+const CLOUD_CARVE_W1: f32 = 0.005;
+const CLOUD_CARVE_W2: f32 = 0.005;
+const CLOUD_CARVE_W3: f32 = 0.010;
+const CLOUD_CARVE_W4: f32 = 0.025;
+const CLOUD_CARVE_W5: f32 = 0.055;
+const CLOUD_CARVE_W6: f32 = 0.050;
+const CLOUD_CARVE_W7: f32 = 0.050;
+
+fn cloud_carve_width(lod: f32) -> f32 {
+    var w: array<f32, 8> = array<f32, 8>(
+        CLOUD_CARVE_W0, CLOUD_CARVE_W1, CLOUD_CARVE_W2, CLOUD_CARVE_W3,
+        CLOUD_CARVE_W4, CLOUD_CARVE_W5, CLOUD_CARVE_W6, CLOUD_CARVE_W7,
+    );
+    let l = clamp(lod, 0.0, 7.0);
+    let i = i32(floor(l));
+    let f = l - floor(l);
+    let i1 = min(i + 1, 7);
+    return mix(w[i], w[i1], f);
 }
 // Coverage carve thresholds (shader-only tuning; not mirrored -- the density
 // function they live in samples textures and cannot be mirrored). The shape
@@ -1416,7 +1492,19 @@ fn cloud_carve(
     // extinction ~1000x below physical. Remapping against (1 - thr) puts
     // the top of the noise range at carve 1.0 ALWAYS, like Nubis's
     // remap(shape, 1-coverage, 1, 0, 1).
-    let carve = clamp((body - thr) / max(1.0 - thr, 1.0e-3), 0.0, 1.0) * env;
+    // SOFT hinge instead of the hard ramp (Wave B, increment 9): the same
+    // (body - thr)/(1 - thr) law, but the relu is the expected relu over
+    // the sample's footprint (width from the mip actually sampled). At
+    // mip 0 the width is ~0 and this IS the old hard ramp; deep mips
+    // return partial coverage instead of all-or-nothing, which is what
+    // stops silhouettes reshaping as the mip blend moves with distance.
+    let sw = cloud_carve_width(cloud_lod(lodb, CLOUD_LODC_SHAPE));
+    let zc = (body - thr) / sw;
+    let carve = clamp(
+        0.5 * (zc + sqrt(zc * zc + 0.6366)) * sw / max(1.0 - thr, 1.0e-3),
+        0.0,
+        1.0,
+    ) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
     // up; how close this sample is to that crown drives the valley-shade /
@@ -1783,7 +1871,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let jitter = fract(
         hash21(dirf.xy * 49152.0 + vec2<f32>(dirf.z * 12288.0, 17.0)),
     );
-    let s = cloud_march_core(rd_w, center, shell_r, jitter, CLOUD_PIX_ANG_SCREEN);
+    let s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_screen());
     return vec4<f32>(s.rgb, s.a * limb);
 }
 
@@ -1895,27 +1983,24 @@ fn cloud_march_core(
     // (Jitter is the caller's: frozen hash on the direct fragment path,
     // the animated accumulation sequence on the temporal octa pass.)
 
-    // Exponentially spaced front-to-back march: t = m0 + seg * u^EXP puts
-    // over half the samples in the nearest third of the segment -- the
-    // foreground puffs get the budget, the far limb averages out.
-    // v0.911 (perf audit #5): the sample COUNT scales with how much slab
-    // the ray actually crosses - a straight-up path through the thin deck
-    // (seg ~ one slab thickness) needs ~a third of the budget a grazing
-    // limb path does. Same step distribution, fewer steps on short rays;
-    // the under-deck flight worst case gets its samples back.
+    // ONE SAMPLING-RATE LAW (Wave B, increment 9): fixed-length steps whose
+    // length follows the FOOTPRINT - near the camera the step resolves the
+    // slab's vertical band (slab_h * CLOUD_STEP_BAND_FRAC), far out it
+    // grows with the ray cone (tm * pix_ang * CLOUD_STEP_CONE_K), so every
+    // sample integrates the field at the scale a pixel can actually see.
+    // Replaces the exp-spaced n_samp_f heuristic, which carried three
+    // defects the council catalogued: the 0.34 clamp KNEE (sample density
+    // jumped discontinuously with segment length), the integer RUNG
+    // (i32(n_samp_f) quantized budgets frame to frame as the segment
+    // drifted), and the 2.5%-SHORT march (u^1.6 spacing never quite
+    // reached u = 1, leaving the segment tail unsampled). The iteration
+    // cap only guards degenerate rays; the step law itself terminates
+    // grazing paths in ~CLOUD_HI_SAMPLES steps.
     let slab_h = g_cloud_rt - g_cloud_rb;
-    // Divisor 6 -> 3 (clouds depth increment): the heuristic was tuned on
-    // the 51 km slab, where even a slant ray's band-relative sample
-    // spacing was fine. The physical slab is ~4.4x thinner, so its
-    // 1-2 km family bands need the budget back on slanted under-deck
-    // rays (a 25-degree ray crosses ~27 km of slab and was getting 18
-    // samples - band-sized gaps between them). Verticals keep the floor.
-    let n_samp_f = clamp(seg / (slab_h * 3.0), 0.34, 1.0) * f32(CLOUD_HI_SAMPLES);
-    let n_samp = max(i32(n_samp_f), 8);
+    let step_near = slab_h * CLOUD_STEP_BAND_FRAC;
     // Per-ray physical extinction (phase 3): per-family sigma converted to
     // drawn units. Replaces the global CLOUD_HI_SIGMA_KM.
     let sigma_v = reg.ext_km / g_cloud_upkm;
-    var s_prev = 0.0;
     var trans = 1.0;
     var acc = vec3<f32>(0.0);
     var acc_w = 0.0;
@@ -1928,13 +2013,32 @@ fn cloud_march_core(
     // marched distance sits inside the mass, behind what the eye sees,
     // so haze was over-applied relative to the surface.
     var first_t = -1.0;
-    for (var i = 0; i < n_samp; i = i + 1) {
-        let fi = f32(i);
-        let s_next = pow((fi + 1.0) / n_samp_f, CLOUD_HI_STEP_EXP);
-        let dt = (s_next - s_prev) * seg;
-        let sm = pow((fi + jitter) / n_samp_f, CLOUD_HI_STEP_EXP);
-        let tm = m0 + sm * seg;
-        s_prev = s_next;
+    var t_cur = m0;
+    for (var i = 0; i < CLOUD_STEP_ITER_CAP; i = i + 1) {
+        if (t_cur >= m1) {
+            break;
+        }
+        // Footprint-proportional step with a VERTICAL ceiling (see
+        // CLOUD_STEP_VERT_FRAC), clamped to what remains of the segment so
+        // the march reaches m1 exactly (no unsampled tail).
+        let p_cur = ro + rd * t_cur;
+        let r_rate = abs(dot(normalize(p_cur), rd));
+        let dt_vert = max(
+            step_near,
+            slab_h * CLOUD_STEP_VERT_FRAC / max(r_rate, 0.05),
+        );
+        let dt_seg = max(step_near, seg * CLOUD_STEP_SEG_FRAC);
+        let dt = min(
+            min(
+                max(step_near, t_cur * pix_ang * CLOUD_STEP_CONE_K),
+                min(dt_vert, dt_seg),
+            ),
+            m1 - t_cur,
+        );
+        // The jitter places the sample inside its own step - same
+        // decorrelation role it had in the exp-spaced form.
+        let tm = t_cur + dt * jitter;
+        t_cur = t_cur + dt;
 
         let p = ro + rd * tm;
         let dirp = normalize(p);

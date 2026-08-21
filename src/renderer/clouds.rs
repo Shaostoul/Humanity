@@ -100,11 +100,18 @@ pub const CLOUD_BASE_DARKEN: f32 = 0.75;
 // The High-quality path: precomputed tiling 3D noise (renderer::cloud_noise,
 // group 3 bindings 2..4) + weather map + per-sample light march.
 
-/// Mirrors `CLOUD_HI_SAMPLES`: view-march samples, exponentially spaced.
+/// Mirrors `CLOUD_HI_SAMPLES`: the nominal view-march budget the Wave B
+/// step law terminates in (increment 9 - footprint-driven fixed steps
+/// replaced the exp spacing; this constant now only names the budget).
 pub const CLOUD_HI_SAMPLES: i32 = 48;
-/// Mirrors `CLOUD_HI_STEP_EXP`: sample-position curve t = m0 + seg * u^EXP
-/// (1 = uniform; higher = denser near the slab entry).
-pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
+/// Mirrors the Wave B step law (increment 9): near steps resolve the slab
+/// band (fraction of slab thickness), far steps grow with the ray cone
+/// (pixel-widths per step), the iteration cap guards degenerate rays.
+pub const CLOUD_STEP_BAND_FRAC: f32 = 0.0625;
+pub const CLOUD_STEP_CONE_K: f32 = 24.0;
+pub const CLOUD_STEP_ITER_CAP: i32 = 96;
+pub const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
+pub const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
 /// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
 /// lit view sample.
 pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
@@ -911,7 +918,10 @@ mod tests {
             ("CLOUD_MARCH_SHADOW_SHARP", CLOUD_MARCH_SHADOW_SHARP),
             ("CLOUD_BASE_DARKEN", CLOUD_BASE_DARKEN),
             // Increment-3 volumetric constants.
-            ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
+            ("CLOUD_STEP_BAND_FRAC", CLOUD_STEP_BAND_FRAC),
+            ("CLOUD_STEP_CONE_K", CLOUD_STEP_CONE_K),
+            ("CLOUD_STEP_VERT_FRAC", CLOUD_STEP_VERT_FRAC),
+            ("CLOUD_STEP_SEG_FRAC", CLOUD_STEP_SEG_FRAC),
             ("CLOUD_LIGHT_NEAR_KM", CLOUD_LIGHT_NEAR_KM),
             ("CLOUD_LIGHT_RATIO", CLOUD_LIGHT_RATIO),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
@@ -955,6 +965,7 @@ mod tests {
         let expect_i32: &[(&str, i32)] = &[
             ("CLOUD_MARCH_SAMPLES", CLOUD_MARCH_SAMPLES),
             ("CLOUD_HI_SAMPLES", CLOUD_HI_SAMPLES),
+            ("CLOUD_STEP_ITER_CAP", CLOUD_STEP_ITER_CAP),
             ("CLOUD_HI_LIGHT_SAMPLES", CLOUD_HI_LIGHT_SAMPLES),
         ];
         for (name, rust_val) in expect_i32 {
@@ -1502,5 +1513,145 @@ mod tests {
         assert_eq!(cloud_seed(1024), 0.0);
         assert_eq!(cloud_seed(u64::MAX), (u64::MAX % 1024) as f32);
         assert!(cloud_seed(u64::MAX) < 1024.0);
+    }
+}
+
+#[cfg(test)]
+mod carve_width_fit {
+    use crate::renderer::cloud_noise;
+
+    fn relu(x: f32) -> f32 {
+        x.max(0.0)
+    }
+
+    /// The smooth hinge the WGSL soft carve uses: E[relu(x - thr)] for a
+    /// distribution of spread `w` around mean `xb`, Gaussian closed form
+    /// approximated by 0.5*(z + sqrt(z^2 + 2/pi))*w.
+    fn soft_hinge(xb: f32, thr: f32, w: f32) -> f32 {
+        let z = (xb - thr) / w.max(1e-4);
+        0.5 * (z + (z * z + 0.6366).sqrt()) * w.max(1e-4)
+    }
+
+    /// FITS the per-mip-level soft-carve widths on the REAL shipped shape
+    /// chain and LOCKS the WGSL table to them (Wave B, increment 9 gate:
+    /// "threshold-of-mip-N approximates the area-average of
+    /// threshold-of-mip-0 within tolerance"). Run in release:
+    ///   cargo test --release --features native --lib carve_consistency -- --ignored --nocapture
+    #[test]
+    #[ignore = "heavy (generates the 192^3 volume + mip chain); run in release when the bake or table changes"]
+    fn carve_consistency_widths_are_fitted() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let base = cloud_noise::generate_shape(threads);
+        let chain = cloud_noise::mip_chain(base, 192);
+        let sizes: Vec<u32> = {
+            let mut v = vec![192u32];
+            let mut s = 192u32;
+            while s > 1 {
+                s = (s / 2).max(1);
+                v.push(s);
+            }
+            v
+        };
+        let thrs = [0.55f32, 0.62, 0.70, 0.78, 0.86];
+        let mut fitted = vec![0.005f32]; // level 0: single voxel, exact
+        let mut errs = vec![0.0f32];
+        // Deterministic LCG so the fit is reproducible.
+        let mut rng: u64 = 0x9E3779B97F4A7C15;
+        let mut next = move || {
+            rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((rng >> 33) as u32) as f32 / u32::MAX as f32
+        };
+        for l in 1..sizes.len().min(7) {
+            let n_l = sizes[l] as usize;
+            let scale = (192 / sizes[l]) as usize; // base voxels per level voxel edge
+            let level = &chain[l];
+            let base0 = &chain[0];
+            // Collect (level_value, area_mean_relu per thr) samples.
+            let n_regions = if n_l >= 24 { 1200 } else { (n_l * n_l * n_l).min(1200) };
+            let mut samples: Vec<(f32, [f32; 5])> = Vec::with_capacity(n_regions);
+            for _ in 0..n_regions {
+                let vx = (next() * n_l as f32) as usize % n_l;
+                let vy = (next() * n_l as f32) as usize % n_l;
+                let vz = (next() * n_l as f32) as usize % n_l;
+                let xl = level[((vz * n_l + vy) * n_l + vx) * 4] as f32 / 255.0;
+                let mut acc = [0.0f32; 5];
+                let mut cnt = 0.0f32;
+                // Subsample big regions (cap ~4096 base voxels per region).
+                let stride = (scale / 16).max(1);
+                for bz in (vz * scale..(vz + 1) * scale).step_by(stride) {
+                    for by in (vy * scale..(vy + 1) * scale).step_by(stride) {
+                        for bx in (vx * scale..(vx + 1) * scale).step_by(stride) {
+                            let x0 = base0[((bz * 192 + by) * 192 + bx) * 4] as f32 / 255.0;
+                            for (ti, thr) in thrs.iter().enumerate() {
+                                acc[ti] += relu(x0 - thr);
+                            }
+                            cnt += 1.0;
+                        }
+                    }
+                }
+                for a in acc.iter_mut() {
+                    *a /= cnt;
+                }
+                samples.push((xl, acc));
+            }
+            // Grid-search w minimizing mean absolute error across thresholds.
+            let mut best_w = 0.005f32;
+            let mut best_e = f32::MAX;
+            let mut w = 0.005f32;
+            while w <= 0.40 {
+                let mut e = 0.0f32;
+                let mut n = 0.0f32;
+                for (xl, targets) in &samples {
+                    for (ti, thr) in thrs.iter().enumerate() {
+                        e += (soft_hinge(*xl, *thr, w) - targets[ti]).abs();
+                        n += 1.0;
+                    }
+                }
+                let mae = e / n;
+                if mae < best_e {
+                    best_e = mae;
+                    best_w = w;
+                }
+                w += 0.005;
+            }
+            fitted.push(best_w);
+            errs.push(best_e);
+        }
+        while fitted.len() < 8 {
+            let last = *fitted.last().unwrap();
+            fitted.push(last); // deepest levels: carry the last fitted width
+            errs.push(*errs.last().unwrap());
+        }
+        println!("fitted carve widths: {fitted:?}");
+        println!("per-level MAE: {errs:?}");
+        // The consistency gate: the soft carve must track the area-averaged
+        // hard carve. (The hard carve at the same level measures worse by
+        // construction - that gap is the whole point of the fit.)
+        for (l, e) in errs.iter().enumerate() {
+            assert!(*e < 0.05, "level {l} soft-carve MAE {e} >= 0.05 - the hinge no longer models the bake");
+        }
+        // LOCK the WGSL table to the fit.
+        let root = env!("CARGO_MANIFEST_DIR");
+        let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl"))
+            .expect("read 40-clouds.wgsl");
+        for (l, fw) in fitted.iter().enumerate() {
+            let name = format!("CLOUD_CARVE_W{l}");
+            let line = src
+                .lines()
+                .find(|ln| ln.trim_start().starts_with(&format!("const {name}: f32 = ")))
+                .unwrap_or_else(|| panic!("{name} not in 40-clouds.wgsl"));
+            let v: f32 = line
+                .trim()
+                .trim_start_matches(&format!("const {name}: f32 = "))
+                .trim_end_matches(';')
+                .trim()
+                .parse()
+                .expect("parse const");
+            let tol = (0.25 * fw).max(0.012);
+            assert!(
+                (v - fw).abs() <= tol,
+                "{name}: WGSL {v} vs fitted {fw} (tol {tol}) - re-fit after a bake change"
+            );
+        }
     }
 }

@@ -2752,6 +2752,16 @@ impl Renderer {
         // light4). The shader's shoal fade reads it, v0.1051.
         self.queue
             .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
+        // TRUE screen pixel angle in light5_cone_inner.z (offset 552) -
+        // Wave B, environment program increment 9. The cloud march's
+        // ray-cone footprint used a hardcoded ~1 mrad guess
+        // (CLOUD_PIX_ANG_SCREEN); the real value is 2*tan(fov/2)/rows,
+        // which at 90 deg fov over 1387 rows is ~1.44 mrad - the guess
+        // under-read the footprint by ~40% and every mip pick with it.
+        let pix_ang = 2.0 * (camera.fov_degrees.to_radians() * 0.5).tan()
+            / (self.config.height.max(1) as f32);
+        self.queue
+            .write_buffer(&self.camera_buffer, 552, bytemuck::bytes_of(&pix_ang));
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));
