@@ -29,7 +29,18 @@
 // is untouched.
 
 // One cloud per cell; cell size sets the spacing of the field.
+// PER-GENUS since increment 6: with one 3.2 km grid, a 700 m humilis
+// could never exceed ~4% areal coverage however cloudy the weather -
+// the occupancy law's clamp binds at foot/cell^2. Small genera get
+// small cells so their achievable coverage matches their real skies
+// (humilis fields reach ~30-40% broken cover); the wide genera keep
+// the coarse grid their footprints need.
 const CLOUD_V2_CELL_KM: f32 = 3.2;
+
+fn cv2_cell_km(idx: i32) -> f32 {
+    var t = array<f32, 4>(1.1, 2.2, 3.2, 3.2);
+    return t[clamp(idx, 0, 3)];
+}
 // Lobes evaluated per cloud. The CPU model draws 6-48; the shader caps
 // the loop for cost. 14 is enough for a readable cauliflower.
 const CLOUD_V2_LOBES: i32 = 14;
@@ -84,7 +95,12 @@ struct Cv2Arch {
 
 fn cv2_arch(idx: i32, u: f32) -> Cv2Arch {
     var w_lo = array<f32, 4>(300.0, 800.0, 1500.0, 3000.0);
-    var w_hi = array<f32, 4>(1200.0, 3000.0, 6000.0, 12000.0);
+    // Cb capped at 8 km (increment 6): the 3.2 km cell grid's 3x3
+    // neighbourhood with jitter only guarantees an envelope radius of
+    // ~4.19 km. A coarse cloud-grid tier for storm-scale systems is the
+    // permanent fix (logged in PRIORITIES) - this cap must not silently
+    // become the design ceiling. Mirrors data/clouds/archetypes.ron.
+    var w_hi = array<f32, 4>(1200.0, 3000.0, 6000.0, 8000.0);
     var a_lo = array<f32, 4>(0.45, 1.20, 0.12, 1.60);
     var a_hi = array<f32, 4>(0.75, 2.60, 0.28, 3.20);
     var t_expo = array<f32, 4>(2.0, 1.8, 2.3, 1.7);
@@ -106,17 +122,23 @@ fn cv2_arch(idx: i32, u: f32) -> Cv2Arch {
 // tc 0 = cirrus .. 1 = stratocumulus; the constructed bodies only model
 // the CONVECTIVE families, so thin high cloud keeps the old noise body
 // (see the caller's blend).
+// Rebalanced (increment 6): thin high genera (cirrus/altocumulus, low
+// tc) return -1 = KEEP THE NOISE BODY (the caller blends - grape
+// clusters cannot be wisps); cumulonimbus holds only its own narrow
+// band instead of the whole middle (the old mapping made ~11x too much
+// Cb, which read as a wall of giants); the stratus side builds flat
+// stratocumulus sheets.
 fn cv2_arch_index(tc: f32) -> i32 {
-    if (tc < 0.42) {
-        return 1; // congestus - the towering middle of the range
+    if (tc < 0.25) {
+        return -1; // cirrus/altocu: thin - noise body, not built
     }
-    if (tc < 0.58) {
-        return 3; // cumulonimbus
+    if (tc < 0.44) {
+        return 0; // humilis (the cumulus band)
     }
-    if (tc < 0.80) {
-        return 0; // humilis
+    if (tc < 0.56) {
+        return 3; // cumulonimbus - its own band only
     }
-    return 2; // stratocumulus
+    return 2; // stratus..stratocumulus: flat broken sheets
 }
 
 // Signed distance (METRES) to one cloud, in that cloud's local frame:
@@ -140,7 +162,9 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // straight up), at a separation that keeps the pair merged.
     var lc: array<vec4<f32>, 14>; // xyz = centre (m), w = radius (m)
     let r0 = r_hi * mix(0.7, 1.0, cv2_hash(vec2<f32>(seed, 0.0), 31.0));
-    lc[0] = vec4<f32>(0.0, r0, 0.0, r0);
+    // Core lobe: its surface respects the height cap too - flat genera
+    // draw r0 comparable to their whole deck depth.
+    lc[0] = vec4<f32>(0.0, min(r0, max(height - r0, r0 * arch.base_flat)), 0.0, r0);
     var mean_r = r0;
     for (var i = 1; i < CLOUD_V2_LOBES; i = i + 1) {
         let fi = f32(i);
@@ -166,13 +190,17 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
         // into one body rather than leaving a string of beads.
         let sep = (parent.w + r) * mix(0.55, 0.78, cv2_hash(vec2<f32>(seed, fi), 49.0));
         var c = parent.xyz + dir * sep;
-        // Keep the cluster inside its own envelope so a cloud cannot
-        // wander out of the cell it belongs to.
-        let y_lo = min(r * arch.base_flat, height);
-        c.y = clamp(c.y, y_lo, max(height, y_lo));
+        // ENVELOPE CLAMP on centre PLUS radius (increment 6): the whole
+        // lobe SURFACE stays inside the width/2 cylinder and under the
+        // height cap. Clamping only the centre let lobes reach 0.84 x
+        // width past the bounding reject - overhanging their cells on
+        // one side and truncating at cell seams on the other.
+        let y_lo = min(r * arch.base_flat, height - r);
+        c.y = clamp(c.y, y_lo, max(height - r, y_lo));
         let horiz_len = length(c.xz);
-        if (horiz_len > width * 0.5) {
-            let k = width * 0.5 / horiz_len;
+        let horiz_max = max(width * 0.5 - r, 0.0);
+        if (horiz_len > horiz_max) {
+            let k = horiz_max / max(horiz_len, 1.0e-4);
             c = vec3<f32>(c.x * k, c.y, c.z * k);
         }
         lc[i] = vec4<f32>(c, r);
@@ -180,8 +208,12 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     }
     mean_r = mean_r / f32(CLOUD_V2_LOBES);
 
-    // Evaluate the smooth union of the cluster.
-    let k = mean_r * arch.blend;
+    // Evaluate the smooth union of the cluster. The blend radius never
+    // drops below the rind (increment 6): a 90 m rind thresholded by a
+    // crease-sharp union produced as little as 7 m of density
+    // transition - a guaranteed salt-and-pepper generator under any
+    // sampling.
+    let k = max(mean_r * arch.blend, CLOUD_V2_RIND_M);
     var d = length(local_m - lc[0].xyz) - lc[0].w;
     for (var i = 1; i < CLOUD_V2_LOBES; i = i + 1) {
         let ds = length(local_m - lc[i].xyz) - lc[i].w;
@@ -199,8 +231,13 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
 // `p` is in drawn-shell units (the march's own space); `wa` is the
 // weather/coverage alpha at this point, which decides whether a cell
 // holds a cloud at all, so live MODIS placement still rules.
-fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
+fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     if (wa <= 0.02) {
+        return 0.0;
+    }
+    let arch_i = cv2_arch_index(tc);
+    if (arch_i < 0) {
+        // Thin high genera keep the noise body - the caller blends.
         return 0.0;
     }
     let r = length(p);
@@ -208,7 +245,8 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
     // Cell grid in RADIANS of arc, planet-fixed (the vegetation-scatter
     // pattern): a cloud stays where it is as the camera moves.
     let planet_km = max(material.params2.z, 1.0);
-    let cell_rad = CLOUD_V2_CELL_KM / planet_km;
+    let cell_km = cv2_cell_km(arch_i);
+    let cell_rad = cell_km / planet_km;
     let lat = asin(clamp(dir.y, -1.0, 1.0));
     let lon = atan2(-dir.z, dir.x);
     // Longitude cells shrink with latitude so cloud spacing stays
@@ -225,7 +263,6 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
         return 0.0;
     }
 
-    let arch_i = cv2_arch_index(tc);
     var best = 1.0e9;
     // Check the 3x3 neighbourhood so a wide cloud reaches across cells.
     for (var dj = -1; dj <= 1; dj = dj + 1) {
@@ -233,12 +270,21 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
             let ci = base_i + f32(di);
             let cj = base_j + f32(dj);
             let cell = vec2<f32>(ci, cj);
-            // Does this cell hold a cloud? Weather decides.
-            if (cv2_hash(cell, 3.0) > wa) {
-                continue;
-            }
             let seed = cv2_hash(cell, 7.0) * 4096.0;
             let arch = cv2_arch(arch_i, cv2_hash(cell, 9.0));
+            // OCCUPANCY LAW (increment 6): the probability a cell holds
+            // a cloud makes the MODIS fraction equal the actual AREAL
+            // coverage - p = wa * cell_area / cloud_footprint_area. The
+            // old bare hash>wa filled cells regardless of cloud size, so
+            // an 8 km cumulonimbus in every second 3.2 km cell tiled the
+            // sky ~11x denser than the weather said - the wall of
+            // giants.
+            let m_per_cell_o = cell_km * 1000.0;
+            let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25;
+            let p_cell = clamp(wa * (m_per_cell_o * m_per_cell_o) / max(foot, 1.0), 0.0, 1.0);
+            if (cv2_hash(cell, 3.0) > p_cell) {
+                continue;
+            }
             // Cell centre + jitter, as an offset in metres from the
             // sample, measured in the local tangent plane.
             let jx = (cv2_hash(cell, 17.0) - 0.5) * CLOUD_V2_JITTER;
@@ -246,12 +292,15 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
             let dx_cells = (ci + 0.5 + jx) - cx;
             let dy_cells = (cj + 0.5 + jy) - cy;
             // Cell-space offset -> metres on the ground.
-            let m_per_cell = CLOUD_V2_CELL_KM * 1000.0;
+            let m_per_cell = cell_km * 1000.0;
             let ox = -dx_cells * m_per_cell;
             let oy = -dy_cells * m_per_cell;
-            // Cheap bounding reject before the lobe loop.
+            // Cheap bounding reject before the lobe loop: the envelope
+            // is now a true bound (centre+radius clamped), so width/2
+            // plus the rind suffices - the old 0.62 factor let clamped
+            // lobes truncate at the reject edge.
             let height_m = arch.width_m * arch.aspect;
-            let br = arch.width_m * 0.62;
+            let br = arch.width_m * 0.5 + CLOUD_V2_RIND_M;
             if (ox * ox + oy * oy > br * br) {
                 continue;
             }
@@ -266,6 +315,11 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32) -> f32 {
         return 0.0;
     }
     // Soft rind so silhouettes are not stencils; the erosion bands then
-    // bite into exactly this falloff.
-    return clamp(-best / CLOUD_V2_RIND_M, 0.0, 1.0);
+    // bite into exactly this falloff. Widened to the sampling FOOTPRINT
+    // (increment 6): a rind narrower than the march's own step aliases
+    // into salt-and-pepper no matter how the field is shaped - the same
+    // prefilter law the noise mips obey.
+    let foot_m = exp2(lodb) * 1000.0;
+    let rind = max(CLOUD_V2_RIND_M, foot_m);
+    return clamp(-best / rind, 0.0, 1.0);
 }

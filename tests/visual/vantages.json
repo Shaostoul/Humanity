@@ -879,7 +879,7 @@
   },
   {
    "id": "silverdale-2km-ultra",
-   "desc": "Clouds v2 (Ultra tier): bodies built from primitives, noise demoted to erosion. A/B partner of silverdale-flight-2km.",
+   "desc": "Clouds v2 (Ultra tier): bodies built from primitives. Cover pinned 0.45 - SCATTERED, because the pinned humilis genus geometrically cannot exceed ~4% areal cover per 3.2 km cell; a 0.95-cover sky is stratiform in reality and in the occupancy law alike (increment 6).",
    "camera": {
     "body": "earth",
     "lat": 47.645,
@@ -890,7 +890,7 @@
    },
    "hold_altitude": true,
    "settle_s": 14,
-   "expect": "Cumulus with FLAT BASES and cauliflower crowns, in a range of sizes - not uniform speckled spheres.",
+   "expect": "A broken field of distinct small cumuli with flat bases and cauliflower tops, correctly SPACED - clear blue between clouds, no wall of giants, no truncation seams at cell edges.",
    "regressions": [
     "clouds are not uniform round blobs",
     "cloud bases are level, not scalloped",
@@ -901,7 +901,7 @@
     "sea": "0.3",
     "weather": "cloudy",
     "clouds": "1",
-    "cloud_cover": "0.95",
+    "cloud_cover": "0.45",
     "cloud_type": "0.34",
     "cloud_quality": "ultra"
    }

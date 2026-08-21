@@ -63,7 +63,7 @@
             name: "cumulonimbus",
             // Storm tower with an anvil: extreme vertical, crown spreads
             // at the top (anvil handled by the crown lobes widening).
-            width_m: (3000.0, 12000.0),
+            width_m: (3000.0, 8000.0),
             aspect_h_over_w: (1.6, 3.2),
             lobe_count: (24, 48),
             lobe_size_exponent: 1.7,

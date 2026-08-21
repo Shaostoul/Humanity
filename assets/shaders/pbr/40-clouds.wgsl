@@ -1356,11 +1356,18 @@ fn cloud_carve(
     // at. See 41-cloud-bodies.wgsl for why round Worley cells could
     // never make a cumulus.
     if (material.params.y >= 2.5) {
-        let built = cloud_v2_body(p, wa, cloud_type_coord(normalize(p), t, seed));
-        if (built <= 0.001) {
+        let tc_v2 = cloud_type_coord(normalize(p), t, seed);
+        // THIN-GENUS BLEND (increment 6, the promised-but-missing half):
+        // grape clusters cannot be wisps, so cirrus/altocumulus keep the
+        // noise body and the built body fades in across the boundary of
+        // the convective range. Replaces the unconditional swap that
+        // rendered thin high cloud as low grape clusters.
+        let w_built = smoothstep(0.20, 0.30, tc_v2);
+        let built = cloud_v2_body(p, wa, tc_v2, lodb);
+        body = mix(body, built, w_built);
+        if (body <= 0.001) {
             return CloudSample(0.0, ps, h, 0.0);
         }
-        body = built;
     }
     // Towering (v0.880), re-keyed in phase 3: v0.880 drove the tower from
     // COVERAGE, so pinning/raising coverage extended EVERY column to the

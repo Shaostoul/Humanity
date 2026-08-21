@@ -191,8 +191,10 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
     // `cv2_cloud_sdf` in assets/shaders/pbr/41-cloud-bodies.wgsl.
     let mut lobes: Vec<CloudLobe> = Vec::with_capacity(n);
     let r0 = r_hi * lerp(0.7, 1.0, hash01(seed, 31));
+    // Core lobe: surface respects the height cap (flat genera draw r0
+    // comparable to their whole deck depth). Kept in step with the WGSL.
     lobes.push(CloudLobe {
-        center: Vec3::new(0.0, r0, 0.0),
+        center: Vec3::new(0.0, r0.min((height - r0).max(r0 * arch.base_flatness)), 0.0),
         radius: r0,
     });
     for i in 1..n {
@@ -213,11 +215,18 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
         let dir = Vec3::new(ang.cos() * horiz, up, ang.sin() * horiz);
         let sep = (parent.radius + r) * lerp(0.55, 0.78, hash01(s, 49));
         let mut c = parent.center + dir * sep;
-        let y_lo = (r * arch.base_flatness).min(height);
-        c.y = c.y.clamp(y_lo, height.max(y_lo));
+        // ENVELOPE CLAMP on centre PLUS radius (increment 6): the whole
+        // lobe surface stays inside the width/2 cylinder and below the
+        // height cap - clamping only the centre let lobes overhang their
+        // cells and truncate at cell seams. Locked by
+        // lobe_surfaces_stay_inside_the_envelope. Kept in step with the
+        // WGSL cv2_cloud_sdf.
+        let y_lo = (r * arch.base_flatness).min(height - r);
+        c.y = c.y.clamp(y_lo, (height - r).max(y_lo));
         let horiz_len = Vec3::new(c.x, 0.0, c.z).length();
-        if horiz_len > width * 0.5 {
-            let k = width * 0.5 / horiz_len;
+        let horiz_max = (width * 0.5 - r).max(0.0);
+        if horiz_len > horiz_max {
+            let k = horiz_max / horiz_len.max(1.0e-4);
             c.x *= k;
             c.z *= k;
         }
@@ -400,6 +409,47 @@ mod tests {
             small > large * 2,
             "not power-law: {small} small vs {large} large lobes"
         );
+    }
+
+    #[test]
+    fn lobe_surfaces_stay_inside_the_envelope() {
+        // Increment 6 containment gate: every lobe SURFACE (centre plus
+        // radius) stays inside the width/2 cylinder and below the height
+        // cap, for every archetype over many seeds. Without this, lobes
+        // overhang their placement cells (clouds bleeding through their
+        // neighbours) and truncate at the bounding reject (flat seams in
+        // the sky). Tolerance is float noise only.
+        let t = table();
+        for arch in &t.archetypes {
+            for seed in 0..64u64 {
+                let c = build_cloud(arch, seed * 13 + 1);
+                let half_w = c.width_m * 0.5 + 0.001;
+                for l in &c.lobes {
+                    let horiz = Vec3::new(l.center.x, 0.0, l.center.z).length();
+                    assert!(
+                        horiz + l.radius <= half_w + c.width_m * 1.0e-4,
+                        "{}: lobe surface reaches {:.1} past the {:.1} envelope",
+                        arch.name,
+                        horiz + l.radius,
+                        half_w
+                    );
+                    // Height cap: lobe tops stay within the deck height.
+                    // Sole sanctioned exception: a flat genus whose CORE
+                    // lobe is deeper than the whole deck (its floor
+                    // placement wins over the cap) - bounded by the
+                    // lobe's own diameter.
+                    let cap = c.height_m.max(l.radius * 2.0) + 0.5;
+                    assert!(
+                        l.center.y + l.radius <= cap,
+                        "{}: lobe top {:.1} above cap {:.1} (deck {:.1})",
+                        arch.name,
+                        l.center.y + l.radius,
+                        cap,
+                        c.height_m
+                    );
+                }
+            }
+        }
     }
 
     #[test]

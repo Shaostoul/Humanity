@@ -11,6 +11,11 @@
 > (converged bright reference), then wave D. The descent ladder gates
 > every increment: node scripts/probe-sweep.js --ladder then
 > scripts/ladder-score.mjs.
+>
+> Logged debt: cumulonimbus width capped at 8 km because the v2 cell grid
+> (3.2 km, 3x3 neighbourhood) cannot host wider clouds; the permanent fix
+> is a coarse cloud-grid tier for storm-scale systems - the cap must not
+> silently become the design ceiling.
 
 > **This is the TACTICAL backlog (what is next, right now).** Its strategic, themed,
 > public-facing companion is **[ROADMAP.md](ROADMAP.md)** (the same to-do list, grouped
