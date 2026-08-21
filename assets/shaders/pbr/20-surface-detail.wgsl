@@ -26,6 +26,39 @@ const DETAIL_FADE_LO: f32 = 4.0;
 const DETAIL_FADE_HI: f32 = 12.0;
 // Water Fresnel reflectance at normal incidence (n = 1.33 -> ~0.02).
 const WATER_F0: f32 = 0.02;
+// W2 (environment program increment 7): fraction of the Cox-Munk slope
+// variance the RESOLVED wave normal already carries when the wave texture
+// is fully readable. Cox-Munk measured the TOTAL sea-surface slope
+// distribution - every scale from swell to capillary - so a lobe that uses
+// the full mss on top of n_pert (which already tilts by the resolved
+// swell + texture chop) counts the large scales twice, washing the
+// near-field glitter wide. Subtracting what the normal resolves leaves the
+// lobe carrying only the sub-texel capillary tail near the camera, and the
+// FULL distribution at orbit where nothing is resolved (resolved = 0), so
+// the glint is a wide smooth ellipse there instead of a lattice of dots.
+// 0.5, not the council's ~0.85 first guess: Cox-Munk's own slick-vs-clean
+// data (oil slicks damp the capillaries) attributes roughly HALF the total
+// slope variance to capillary scales no wave texture can ever resolve, and
+// 0.85 measured a 47% contrast loss at the storm-glitter golden (the lobe
+// concentrated into too few pixels). At 0.5 the resolved-out share matches
+// the physically unresolvable share.
+const WATER_MSS_RESOLVED_FRAC: f32 = 0.5;
+
+// Sea state 0..1 from the fill_color.w pad, DECODING the pin convention:
+// values >= 1.5 mean "pinned at (value - 2)" (the showcase {"sea":x} dev
+// override, renderer/mod.rs writes pin + 2.0). The sea_state block in
+// 90-fragment-main.wgsl always decoded this; the wind-driven glitter width
+// here never did, so EVERY pinned vantage - including sea 0.3 calm pins,
+// which encode as 2.3 - clamped to full storm wind (u10 = 15) and rendered
+// a storm-wide specular lobe on a calm sea. Every rig golden before
+// increment 7 was measured that way.
+fn water_sea_state01() -> f32 {
+    let w = camera.fill_color.w;
+    if (w >= 1.5) {
+        return clamp(w - 2.0, 0.0, 1.0);
+    }
+    return clamp(w, 0.0, 1.0);
+}
 // Sun sparkle: Blinn-Phong exponent on the WAVE-PERTURBED normal (tight --
 // the moving glitter field) and its gain. Sun-only, same reasoning as the
 // v0.810 glint: the fixed fill light would paint a bogus second hotspot.
@@ -1045,7 +1078,12 @@ fn water_sky_lut(dir: vec3<f32>, up_c: vec3<f32>) -> vec3<f32> {
     // moment the real mirror went in (measured in the rig). A ray that would
     // reflect into the sea instead takes the horizon radiance, which is what it
     // would actually pick up after one more bounce off the water in front of it.
-    let v_lut = clamp(0.5 + 0.5 * sqrt(max(l_elev, 0.0) / (PI * 0.5)), 0.5, 1.0);
+    // The 0.004 floor conditions the sqrt (increment 7c): d(v)/d(elev) is
+    // INFINITE at zero elevation, so a milliradian of normal wiggle right at
+    // the horizon jumped whole texels of the LUT - which printed the wave
+    // mesh's triangle edges as hard grazing bands. At 0.004 rad the
+    // derivative is finite (~3.2) and the band collapses below one texel.
+    let v_lut = clamp(0.5 + 0.5 * sqrt(max(l_elev, 0.004) / (PI * 0.5)), 0.5, 1.0);
     let sun_h = sun_lut - up_c * dot(sun_lut, up_c);
     let view_h = dir - up_c * dot(dir, up_c);
     let sh_len = length(sun_h);
@@ -1055,8 +1093,33 @@ fn water_sky_lut(dir: vec3<f32>, up_c: vec3<f32>) -> vec3<f32> {
         let cphi = clamp(dot(sun_h / sh_len, view_h / vh_len), -1.0, 1.0);
         u_lut = acos(cphi) / (2.0 * PI);
     }
+    // BELOW-HORIZON reflections pick up the SEA in front of the wave (one
+    // more bounce, Fresnel-dim), not bright horizon sky. The pre-increment-7
+    // code got a crude version of this by accident: dipped rays sampled the
+    // LUT's v = 0.5 seam, where bilinear filtering averages the horizon row
+    // with the near-black below-horizon half - roughly halving their
+    // radiance. The conditioning floor above removed that accident, and at
+    // storm sea (where MOST mid-field grazing reflections dip) the whole sea
+    // washed out into a bright gray sheet (measured +70% band mean). This
+    // term restores the physics deliberately: dipped rays fade to ~52% of
+    // horizon radiance, smoothly, with no derivative cliff at zero.
+    //
+    // The transition width ADAPTS to the sea state, because the two failure
+    // modes it must dodge live at opposite ends (all three measured):
+    // - CALM, narrow band (0.055 rad): the mesh-interpolated normal wiggle
+    //   (~0.01-0.02 rad) sweeps the band pixel-to-pixel and the dip factor
+    //   itself prints the triangle lattice - 33.8% autocorr, WORSE than the
+    //   27.9% pre-fix banding. Calm needs a WIDE, gentle curve (and calm
+    //   has few deeply-dipped rays, so the width costs nothing).
+    // - STORM, wide band (0.15 rad): facet slopes (~0.28 rad rms) spread
+    //   across the whole curve, so the factor VARIES facet-to-facet where
+    //   the old seam-average was one constant - band speckle measured 2.4x
+    //   its golden and the mean ran +39%. Storm needs a NARROW step to a
+    //   uniform plateau, and any lattice hides under real facet chaos.
+    let dip_w = mix(0.16, 0.04, water_sea_state01());
+    let dip = 1.0 - smoothstep(-dip_w, 0.0, l_elev);
     return textureSampleLevel(sky_view_tex, albedo_sampler, vec2<f32>(u_lut, v_lut), 0.0).rgb
-        * WATER_SKY_LUT_EXPOSURE;
+        * WATER_SKY_LUT_EXPOSURE * mix(1.0, 0.52, dip);
 }
 
 fn water_shade(
@@ -1064,6 +1127,14 @@ fn water_shade(
     n_geo: vec3<f32>,
     n_pert: vec3<f32>,
     view_dir: vec3<f32>,
+    // How much of the sea-slope spectrum n_pert actually RESOLVES, 0..1
+    // (increment 7): the wave shell passes presence * tex_reach, the calm
+    // backstop and anything at orbit pass 0. Drives the specular-lobe
+    // width (subtraction form, see WATER_MSS_RESOLVED_FRAC), the mirror
+    // direction (unresolved normals must not print their triangle lattice
+    // into the sky LUT) and the tight anchor glint (near-field only - at a
+    // 25 km orbit footprint a 220-power lobe is pure alias energy).
+    resolved: f32,
     // Sun shadow attenuation, 1 = unshadowed (v0.1057). Water was the only lit
     // surface in the engine that never sampled the shadow map at all: the
     // megashader has exactly ONE sun_shadow call site, in the shared PBR tail
@@ -1101,7 +1172,18 @@ fn water_shade(
     let t1 = 1.0 - cos_v;
     let t2 = t1 * t1;
     let f = WATER_F0 + (1.0 - WATER_F0) * t2 * t2 * t1;
-    let refl = reflect(-view_dir, n_pert);
+    // MEAN-NORMAL MIRROR (increment 7b): the sky reflection follows the
+    // wave normal only to the degree the wave field is actually resolved.
+    // Where it is not (mid-field grazing, cross-LOD seams), n_pert's
+    // piecewise-linear triangle interpolation printed the mesh lattice
+    // straight into the LUT mirror; retiring the mirror to the geometric
+    // normal is exactly what the eye does with sub-resolution slopes - they
+    // belong in the specular LOBE (widened below), not the mean direction.
+    let refl = normalize(mix(
+        reflect(-view_dir, n_geo),
+        reflect(-view_dir, n_pert),
+        resolved,
+    ));
     let elev = clamp(dot(refl, n_geo), 0.0, 1.0);
     // Reflected-sky ramp, SATURATED toward ocean blue (v0.819): the old
     // near-white horizon (0.62,0.7,0.8) made every grazing wave crest flash
@@ -1147,10 +1229,18 @@ fn water_shade(
     // any real wind. Widening it to the physical value removes the slivers AND
     // makes the glitter path spread with the wind the way it does on a real sea.
     // Wind comes from the sea state already in the uniform - no new plumbing.
-    let u10 = 2.0 + 13.0 * clamp(camera.fill_color.w, 0.0, 1.0);
+    let u10 = 2.0 + 13.0 * water_sea_state01();
     let mss = 0.003 + 0.00512 * u10;
+    // SUBTRACTION FORM (increment 7a): Cox-Munk is the TOTAL slope
+    // variance, and n_pert already resolves the swell + texture part of it
+    // near the camera - so the lobe carries only what the normal does NOT
+    // resolve. resolved = 0 (orbit, backstop) keeps the full distribution;
+    // resolved = 1 leaves the ~15% capillary tail, tightening near-field
+    // glitter that the double-count used to wash wide. d_norm below makes
+    // the width change pure redistribution - no energy is added or lost.
+    let mss_lobe = mss * (1.0 - WATER_MSS_RESOLVED_FRAC * resolved);
     // Blinn power equivalent to GGX alpha = sqrt(mss): p = 2/alpha^2 - 2.
-    let spec_p = max(2.0 / max(mss, 1.0e-4) - 2.0, 8.0);
+    let spec_p = max(2.0 / max(mss_lobe, 1.0e-4) - 2.0, 8.0);
     // ── THE GLITTER BLOWOUT FIX (operator: "the ocean is getting blown
     // out white and behaving very weird visually") ──
     //
@@ -1190,10 +1280,14 @@ fn water_shade(
     let denom = 4.0 * max(n_l * n_v, 0.05);
     let sparkle = d_norm * pow(max(dot(n_pert, h), 0.0), spec_p) / denom;
     // The anchor keeps a tight glint on the geometric normal; it rides
-    // the same normalization so it cannot clip on its own either.
+    // the same normalization so it cannot clip on its own either. Gated by
+    // `resolved` (increment 7a): it exists to give the NEAR field a hot
+    // core inside the wide glitter path - at orbit a 220-power lobe is far
+    // narrower than the pixel footprint warrants, and evaluated on
+    // interpolated mesh normals it can only print the vertex lattice.
     let anchor_p = 220.0;
     let anchor = ((anchor_p + 2.0) / (2.0 * PI))
-        * pow(max(dot(n_geo, h), 0.0), anchor_p) / denom * 0.06;
+        * pow(max(dot(n_geo, h), 0.0), anchor_p) / denom * (0.06 * resolved);
     let spec = camera.sun_color.rgb * sun_i * WATER_SPEC_GAIN * f_h
         * (sparkle + anchor) * day * sun_shadow_f;
     return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;

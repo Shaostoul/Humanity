@@ -50,19 +50,19 @@
    ],
    "perf_floor_fps": 20,
    "golden": {
-    "build": "v0.1168.0",
-    "sweep": "20260819-202957",
+    "build": "v0.1174.0",
+    "sweep": "20260821-092150",
     "crop": "200,1000,2100,340",
     "stats": {
-     "mean_l": 44.01,
-     "p05": 35.3,
-     "p50": 41.1,
-     "p95": 63.3,
-     "contrast": 1.791,
-     "speckle_rms": 0.727,
-     "r_over_b": 0.2517
+     "mean_l": 43.08,
+     "p05": 35.1,
+     "p50": 39.1,
+     "p95": 65.1,
+     "contrast": 1.853,
+     "speckle_rms": 0.73,
+     "r_over_b": 0.2438
     },
-    "rule": "same water-crop rule as ocean-storm-glitter"
+    "rule": "measure-sky.mjs --crop 200,1000,2100,340 stats within +/-15% (mean_l, contrast), speckle +/-30%. Re-frozen at increment 7: the sea-state pin decode fix means sea 0.3 now truly renders u10 5.9 (every earlier golden measured a storm-width lobe on this calm sea by the encode bug). Horizon-band lattice periodicity must stay under 20% off-origin autocorr (scripts/glint-autocorr.mjs --crop 200,1000,2100,120 --lag 40; pre-fix 27.9%)."
    }
   },
   {
@@ -930,19 +930,19 @@
    ],
    "perf_floor_fps": 20,
    "golden": {
-    "build": "v0.1168.0",
-    "sweep": "20260819-202957",
+    "build": "v0.1174.0",
+    "sweep": "20260821-092150",
     "crop": "200,1000,2100,340",
     "stats": {
-     "mean_l": 55.26,
-     "p05": 30.3,
-     "p50": 44,
-     "p95": 123,
-     "contrast": 4.066,
-     "speckle_rms": 1.343,
-     "r_over_b": 0.5048
+     "mean_l": 51.64,
+     "p05": 30.4,
+     "p50": 39.3,
+     "p95": 120.4,
+     "contrast": 3.961,
+     "speckle_rms": 2.259,
+     "r_over_b": 0.424
     },
-    "rule": "measure-sky.mjs --crop 200,1000,2100,340 stats within +/-15% (mean_l, contrast), speckle +/-30%. The crop is the WATER band - the default sky-band crop reads pure sky here and cannot see the ocean at all."
+    "rule": "measure-sky.mjs --crop 200,1000,2100,340 stats within +/-15% (mean_l, contrast), speckle +/-30%. Re-frozen at increment 7 (ocean specular AA): the subtraction-form lobe tightens near-field glitter by design (speckle is the sparkle, up from the v0.1168 1.343), the below-horizon dip term replaces the accidental LUT-seam halving, and the sea-state pin decode means sea 1.0 truly renders u10 15."
    }
   },
   {

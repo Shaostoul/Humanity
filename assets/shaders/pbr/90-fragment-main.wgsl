@@ -391,6 +391,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             n_geo,
             n_geo,
             view_dir,
+            // A perfectly calm backstop resolves NO slopes - it must carry
+            // the same full-width lobe as the far-field wave shell, or a
+            // cross-LOD aperture shows a glitter-width seam.
+            0.0,
             sun_shadow(in.world_position, bsun_ndl),
         );
         let bcos = clamp(dot(n_geo, view_dir), 0.0, 1.0);
@@ -432,9 +436,34 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         dir.y,
         -dir.x * 0.9848 + dir.z * 0.1736,
     ));
-    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.40
-        + surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) * 0.30
-        + surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) * 0.30;
+    // W3 (increment 7d): each octave fades with the pixel footprint exactly
+    // as the land octaves do. Value noise cannot average itself - sampled at
+    // a 25 km/pixel orbit footprint the 24/9.2/3.1 km octaves return one
+    // effectively-random value per pixel, which painted the orbital sea with
+    // static mottle in both hue and brightness. Each octave retires to its
+    // own MEAN (0.5), not to zero: fading to zero would slide the sum to 0
+    // and darken `deep` ~12% at orbit (the 0.9 + 0.25 * sea_var factor
+    // below), so the re-centering is the brightness-preservation half of
+    // the fix. Near field (fades = 1) is bit-identical to the old sum.
+    var sea_var = 0.5;
+    let sv_f1 = detail_octave_fade(24000.0, footprint);
+    if (sv_f1 > 0.001) {
+        sea_var = sea_var
+            + (surface_detail_noise(dir, r_render / 24000.0, 611.0) - 0.5)
+            * 0.40 * sv_f1;
+    }
+    let sv_f2 = detail_octave_fade(9200.0, footprint);
+    if (sv_f2 > 0.001) {
+        sea_var = sea_var
+            + (surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) - 0.5)
+            * 0.30 * sv_f2;
+    }
+    let sv_f3 = detail_octave_fade(3100.0, footprint);
+    if (sv_f3 > 0.001) {
+        sea_var = sea_var
+            + (surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) - 0.5)
+            * 0.30 * sv_f3;
+    }
     let greener = vec3<f32>(0.016, 0.085, 0.105);
     // Wider blend band (0.35..0.85) so hue patches feather instead of
     // stepping.
@@ -478,6 +507,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // harsh zebra sheets from any altitude. 1.5x still reads stormy.
     let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 1.5, sea_state) * shoal;
     let presence = wave_presence(footprint);
+    // Hoisted from the texture branch below (increment 7): water_shade now
+    // takes the resolved slope fraction, and the texture's reach is half of
+    // that answer, so it must outlive the branch.
+    let tex_reach = 1.0 - smoothstep(4.0, 14.0, footprint);
     var n_pert = n_geo;
     var foam = 0.0;
     if (presence > 0.001) {
@@ -493,7 +526,6 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // band because mips make distance safe; amplitude still calms far
         // out so the far field stays the approved satellite look.
         var crest = 0.0;
-        let tex_reach = 1.0 - smoothstep(4.0, 14.0, footprint);
         // Anchored-domain position, shared by the wave texture and the foam
         // lacework below (small magnitudes near the camera - the same
         // pinned domain the micro ripples use).
@@ -602,6 +634,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         n_geo,
         n_pert,
         view_dir,
+        // Resolved slope fraction: the analytic swell survives to
+        // `presence`, the fine chop only as far as the wave texture reads
+        // (tex_reach). Their product is how much of the slope spectrum the
+        // normal actually carries at this footprint.
+        presence * tex_reach,
         sun_shadow(in.world_position, wsun_ndl),
     );
     // Foam is scattered froth - and froth is DIFFUSE, so it is SUNLIT like
@@ -1497,14 +1534,35 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // appears on the night side (emissive would otherwise ignore
             // the sun's geometry entirely).
             let day = clamp(dot(normal, sun_l), 0.0, 1.0);
-            // Exponent 220 = a ~5 degree half-vector lobe: a glint spot
-            // roughly a tenth of the disc across, matching the soft bright
-            // patch (sun + surrounding wave glitter) in orbital photos.
-            let spec = pow(max(dot(normal, half_v), 0.0), 220.0);
-            // 0.7 * sun intensity 2.5 peaks ~1.75 pre-tonemap: bright, not
-            // a blown white hole.
-            let old_glint =
-                camera.sun_color.rgb * camera.sun_direction.w * spec * day * 0.7;
+            // Cox-Munk lobe (increment 7): the old fixed exponent 220 (a
+            // ~5 degree half-vector lobe) rendered as a HARD ~10 px white
+            // dot from 12000 km - the "hexagonal dotted orbit glint". The
+            // real orbital glitter pattern IS the sea-slope distribution,
+            // so this lobe now uses the same wind-driven mss law as
+            // water_shade's sparkle, with the same energy normalization,
+            // Fresnel and bounded denominator: a broad, dim, wind-widened
+            // ellipse (spec_p ~149 calm -> ~23 storm), physically right
+            // for a pixel that spans kilometres of sea.
+            let u10_g = 2.0 + 13.0 * water_sea_state01();
+            let mss_g = 0.003 + 0.00512 * u10_g;
+            let p_g = max(2.0 / max(mss_g, 1.0e-4) - 2.0, 8.0);
+            let f_h_g = WATER_F0 + (1.0 - WATER_F0)
+                * pow(1.0 - max(dot(view_dir, half_v), 0.0), 5.0);
+            let denom_g = 4.0 * max(
+                max(dot(normal, sun_l), 0.0) * max(dot(normal, view_dir), 0.0),
+                0.05,
+            );
+            let spec = ((p_g + 2.0) / (2.0 * PI))
+                * pow(max(dot(normal, half_v), 0.0), p_g) / denom_g;
+            // 5.0: artistic gain restoring the old lobe's approved calm-sea
+            // peak scale (~1.65 vs the old 1.75 pre-tonemap) - the
+            // normalized physical lobe alone peaks ~0.33 because our sun
+            // "intensity" is an illuminance-scale constant, not the sun's
+            // true radiance (real glint radiance is sun radiance x Fresnel,
+            // ~1000x sky). Wind still redistributes: storm peaks ~0.28,
+            // wide and dim, which is what storm glitter does from orbit.
+            let old_glint = camera.sun_color.rgb * camera.sun_direction.w
+                * WATER_SPEC_GAIN * 5.0 * f_h_g * spec * day;
             var presence = 0.0;
             if (has_tex && detail_on) {
                 presence = wave_presence(footprint);
@@ -1526,7 +1584,11 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 );
                 // Orbital sea (type 12): no shadow term - from orbit the
                 // near-field shadow map does not cover the visible ocean.
-                let water_rgb = water_shade(albedo, normal, n_pert, view_dir, 1.0);
+                // Resolved fraction = presence: this path's n_pert is the
+                // analytic gradient alone, which fades with the same
+                // presence curve (no wave texture on the orbital sphere).
+                let water_rgb =
+                    water_shade(albedo, normal, n_pert, view_dir, presence, 1.0);
                 proc_emissive = mix(old_glint, water_rgb, presence);
                 // Hand the diffuse + ambient energy over to the water term
                 // and flatten the residual GGX response as presence rises.

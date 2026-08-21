@@ -103,7 +103,34 @@ Envelope clamp on centre PLUS radius (length(c.xz)+r <= width*0.5, c.y+r <= heig
 
 **Risk:** Medium - the orbit glint look changes deliberately (realistic-first says wider/softer is the 2030-correct direction); needs the operator's eye on the storm+calm pair.
 
-### 8. G4: converged bright reference + joint gate armed
+**EXECUTION ADJUDICATIONS (v0.1174, shipped after 4 measured attempts):**
+- FRAC is 0.5, not the specced ~0.85: Cox-Munk's slick-vs-clean data puts the
+  never-resolvable capillary share at roughly HALF of total slope variance, and
+  0.85 measured a 47% contrast loss at the storm golden (over-concentrated lobe).
+- The (c) horizon conditioning exposed an ACCIDENT the old code depended on:
+  below-horizon reflections used to sample the LUT's v=0.5 seam, where bilinear
+  averaging with the near-black lower half roughly halved their radiance - the
+  physically-right half, since a dipped ray picks up dark sea (Fresnel-dim second
+  bounce), not sky. Removing it washed storm seas into a gray sheet (+70% band
+  mean). Replaced by an explicit dip term with SEA-STATE-ADAPTIVE width: calm
+  wide/gentle (a 0.055 rad band let the mesh-normal wiggle print the triangle
+  lattice at 33.8%, worse than the 27.9% pre-fix), storm narrow/uniform (a 0.15
+  rad band spread the factor across facets: band speckle 2.4x golden, mean +39%).
+- NEW BUG FOUND AND FIXED: the wind-driven glitter width (u10 from fill_color.w)
+  never decoded the showcase pin convention (pin encodes as value+2), so every
+  pinned vantage - including sea 0.3 calm - rendered a full-storm-width lobe
+  since v0.1055. Every pre-increment-7 ocean golden measured that way.
+- The "hexagonal dotted orbit glint" is NOT the water shader: the persistent hard
+  ~10 px dot at the marble's centre is a Moon-distance celestial sprite rendered
+  THROUGH the Earth disc (proved by parallax: a 4-degree camera shift removes it;
+  it sits on land as the planet rotates under it). Separate occlusion bug, filed.
+  The actual water glint at orbit is Cox-Munk-correct by construction now (the
+  old fixed-220 lobe converted, same normalization/Fresnel as the sparkle).
+- ocean-150m/700m "bit-identical" was unsatisfiable as written - (a) deliberately
+  changes near-field glitter. Verified instead: clean visuals, no artifact class,
+  goldens re-frozen with documented drift notes. A pre-existing horizon
+  tile-seam dash class (identical across attempts, unrelated to these dials) is
+  noted for increment 11 / wave D.
 
 The lighting arbiter, built BEFORE any integrator change: a CPU brute-force converged march (1 m steps, full sun ladder, no early-outs) over ~5 canonical rays per vantage, run offline, producing per-ray radiance targets - the same CPU-twin discipline the ocean 64 m-modulus lockstep already proved, extended from the existing 10-function mirror pattern in clouds.rs. Wire the four-metric JOINT verdict into cloud-metrics.mjs as the standing acceptance function for every integrator/lighting increment: (1) speckle high-pass rms <= 0.006 at ROI(1200,660,220,160) (baseline 0.0134), (2) mean L >= 121, (3) contrast >= 1.60 (1.47 = the operator-rejected washed-out state), (4) p95 >= 165; clear-sky control ROI <= 0.002. No increment may ever pass on (1) alone. Must land AFTER R3's polarity adjudication - a flipped body invalidates reference tuning.
 
