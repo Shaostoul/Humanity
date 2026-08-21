@@ -90,6 +90,14 @@ const DEFAULT_RIG = SHIPPED_ASSETS
 const RIG = path.resolve(opt("--rig", DEFAULT_RIG));
 const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
+// The DESCENT LADDER (environment program increment 1): instead of the
+// vantage list, fly one fixed surface column down a rung list from orbit
+// to ground, capturing a PAIR at every rung. Score with
+// scripts/ladder-score.mjs: adjacent rungs bracketing a known altitude
+// boundary must not differ more than the same-rung pair noise allows.
+// The rungs/boundaries/column live in tests/visual/vantages.json under
+// "ladder" (data, not code).
+const LADDER = flag("--ladder");
 const KEEP_OPEN = flag("--keep-open");
 // Expected capture width. See the header block: a resolution-dependent gate
 // judged at the wrong width is worse than no reading at all, because it looks
@@ -468,8 +476,16 @@ function prepareGraphics() {
 async function main() {
   const spec = JSON.parse(fs.readFileSync(path.join(REPO, "tests", "visual", "vantages.json"), "utf8"));
   let vantages = spec.vantages;
-  if (ONLY.length) vantages = vantages.filter((v) => ONLY.includes(v.id));
-  if (!vantages.length) {
+  if (LADDER) {
+    if (!spec.ladder) {
+      console.error("--ladder set but vantages.json has no ladder spec");
+      process.exit(1);
+    }
+    vantages = []; // the ladder replaces the vantage loop entirely
+  } else if (ONLY.length) {
+    vantages = vantages.filter((v) => ONLY.includes(v.id));
+  }
+  if (!LADDER && !vantages.length) {
     console.error("no vantages selected");
     process.exit(1);
   }
@@ -557,6 +573,52 @@ async function main() {
     req("camera_request.json", { body: "earth", lat: 23.0, lon: 13.0, altitude_km: 0.05, look_offset_deg: 80 });
     await waitFile("camera_done.json", 60000);
     await sleep(18000);
+
+    // ── THE DESCENT LADDER (environment program increment 1) ──
+    // One boot, one fixed surface column, rungs orbit-to-ground. TWO
+    // captures per rung: the same-rung pair is the CONTROL (how much two
+    // frames differ from temporal noise alone); adjacent rungs that
+    // bracket a known altitude boundary are the TEST pair. Scoring is
+    // scripts/ladder-score.mjs; the pass rule and the calibration-red
+    // requirement live with the ladder spec in vantages.json.
+    if (LADDER) {
+      const lad = spec.ladder;
+      log(`descent ladder: ${lad.rungs_km.length} rungs, pair per rung`);
+      req("showcase_request.json", lad.showcase);
+      await sleep(3500);
+      for (const rung of lad.rungs_km) {
+        const id = `ladder-${String(rung).replace(".", "_")}km`;
+        log(`rung ${rung} km`);
+        const rec = { id, altitude_km: rung, ok: false };
+        try {
+          clearDone("camera_done.json");
+          req("camera_request.json", Object.assign({}, lad.column, { altitude_km: rung }));
+          const done = await waitFile("camera_done.json", 60000);
+          if (!done || done.ok !== true) throw new Error(`camera: ${JSON.stringify(done)}`);
+          await sleep((lad.settle_s ?? 8) * 1000);
+          for (const half of ["a", "b"]) {
+            if (half === "b") await sleep((lad.pair_gap_s ?? 3) * 1000);
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shot = await waitFile("screenshot_done.json", 60000);
+            if (!shot || shot.ok !== true) throw new Error(`screenshot ${half}: ${JSON.stringify(shot)}`);
+            fs.copyFileSync(path.join(RIG, shot.path), path.join(OUT, `${id}${half}.png`));
+            if (half === "a" && typeof shot.frame_ms_avg === "number") {
+              rec.frame_ms = Math.round(shot.frame_ms_avg * 10) / 10;
+            }
+          }
+          // Per-rung GPU pass costs for the budget gates (present when the
+          // sweep env carries HUMANITY_FRAME_COSTS=1).
+          const fc = path.join(RIG, "debug", "frame_costs.json");
+          if (fs.existsSync(fc)) fs.copyFileSync(fc, path.join(OUT, `${id}-costs.json`));
+          rec.ok = true;
+        } catch (e) {
+          log(`  rung FAILED: ${e.message}`);
+          rec.error = String(e.message);
+        }
+        results.push(rec);
+      }
+    }
 
     for (const v of vantages) {
       log(`vantage ${v.id}`);
@@ -714,6 +776,10 @@ async function main() {
     total: results.length,
     ...gfx,
     graphics_changed_during_run: graphicsChanged,
+    // The ladder spec rides along so ladder-score.mjs can score a sweep
+    // dir with no other inputs (and so an archived sweep stays scoreable
+    // after the spec evolves).
+    ladder: LADDER ? spec.ladder : undefined,
     vantages: results,
   };
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));

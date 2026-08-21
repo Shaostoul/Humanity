@@ -915,5 +915,68 @@
    ],
    "perf_floor_fps": 20
   }
- ]
+ ],
+ "ladder": {
+  "desc": "The DESCENT LADDER (environment program increment 1): one boot, one fixed Silverdale column, rungs from orbit to ground. Two captures per rung (the control pair, temporal noise baseline); adjacent rungs bracketing a known altitude boundary form the test pair. PASS = boundary MAD <= 1.5x control MAD and no connected pop region over 0.5% of the frame. CALIBRATION: this ladder must FAIL on v0.1168 at the 331 km (near_slab), 191 km (composite order), 15.8 km (limb fade) boundaries and the 900-1200 km aerial band - a ladder that passes v0.1168 is a broken ladder.",
+  "column": {
+   "body": "earth",
+   "lat": 47.645,
+   "lon": -122.6925,
+   "look_offset_deg": 25,
+   "time": 12.02
+  },
+  "showcase": {
+   "clouds": "1",
+   "cloud_cover": "0.95",
+   "weather": "cloudy",
+   "sea": "0.3"
+  },
+  "rungs_km": [
+   12000,
+   1500,
+   1200,
+   900,
+   400,
+   340,
+   322,
+   250,
+   196,
+   186,
+   50,
+   45,
+   16.8,
+   14.8,
+   2,
+   0.3
+  ],
+  "boundaries": [
+   {
+    "name": "aerial-hysteresis",
+    "lo_km": 900,
+    "hi_km": 1200
+   },
+   {
+    "name": "near_slab-331km",
+    "lo_km": 322,
+    "hi_km": 340
+   },
+   {
+    "name": "composite-191km",
+    "lo_km": 186,
+    "hi_km": 196
+   },
+   {
+    "name": "fade-rings-45-50km",
+    "lo_km": 45,
+    "hi_km": 50
+   },
+   {
+    "name": "limb-fade-15.8km",
+    "lo_km": 14.8,
+    "hi_km": 16.8
+   }
+  ],
+  "settle_s": 8,
+  "pair_gap_s": 3
+ }
 }
