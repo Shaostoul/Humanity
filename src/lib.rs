@@ -1866,6 +1866,7 @@ mod native_app {
                 frame_lock_body: None,
                 probe_hold: None,
                 cloud_ref_frame: None,
+                cloud_map_anchor: None,
                 sea_state_override: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
@@ -11499,6 +11500,29 @@ mod native_app {
                                             mesh: cloud_mesh,
                                             material: cmat,
                                         });
+                                        // Map basis anchor with HYSTERESIS
+                                        // (Wave D fix 2): the camera's
+                                        // planet-local direction, re-anchored
+                                        // only past 0.02 rad of drift so a
+                                        // camera near a boundary can never
+                                        // flip-flop the basis.
+                                        {
+                                            let cam_p = state.camera.effective_position();
+                                            let up_w = (cam_p - position).normalize_or_zero();
+                                            let up_l = (rotation.conjugate() * up_w)
+                                                .normalize_or_zero();
+                                            let re = match state.cloud_map_anchor {
+                                                Some(a) => a.dot(up_l) < (0.02f32).cos(),
+                                                None => true,
+                                            };
+                                            if re {
+                                                state.cloud_map_anchor = Some(up_l);
+                                            }
+                                            if let Some(a) = state.cloud_map_anchor {
+                                                state.renderer.cloud_map_anchor_local =
+                                                    [a.x, a.y, a.z];
+                                            }
+                                        }
                                         // Fullscreen composite frame (Wave D
                                         // slice 1b): armed with the temporal
                                         // map, cleared otherwise.
@@ -11516,6 +11540,10 @@ mod native_app {
                                                 ],
                                                 rb: slab_rb,
                                                 rt: slab_rt,
+                                                anchor_local: state
+                                                    .cloud_map_anchor
+                                                    .map(|a| [a.x, a.y, a.z])
+                                                    .unwrap_or([0.0, 1.0, 0.0]),
                                             })
                                         } else {
                                             None

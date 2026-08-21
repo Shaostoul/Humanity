@@ -33,9 +33,9 @@ struct CloudCompositeUniforms {
     center: vec4<f32>,      // xyz = planet centre (render frame), w = planet radius (world units)
     basis_x: vec4<f32>,     // planet local axes in world space; w: rb ratio
     basis_y: vec4<f32>,     // w: rt ratio
-    basis_z: vec4<f32>,     // w: unused
+    basis_z: vec4<f32>,     // w: anchor_local.x (map basis anchor)
     // x = m22, y = m32 of the reverse-Z projection (depth linearization,
-    // same convention as the SSAO pass), z = limb enable, w = unused.
+    // same convention as the SSAO pass), z/w = anchor_local.y/.z.
     proj: vec4<f32>,
 }
 
@@ -75,10 +75,10 @@ fn to_world(v: vec3<f32>) -> vec3<f32> {
 // LOCKSTEP mirror of 40-clouds.wgsl cloud_map_up/cloud_map_tangents/
 // cloud_map_encode (the planet-fixed snapped basis).
 fn map_basis() -> mat3x3<f32> {
-    let up_w = normalize(u.cam_pos.xyz - u.center.xyz);
-    let up_l = normalize(to_local(up_w));
-    let snapped = normalize(round(up_l / 0.03) * 0.03);
-    let up = normalize(to_world(snapped));
+    // CPU-hysteresis anchor (Wave D fix 2) - LOCKSTEP with cloud_map_up in
+    // 40-clouds.wgsl, which decodes the same anchor from camera pads.
+    let a_l = normalize(vec3<f32>(u.basis_z.w, u.proj.z, u.proj.w));
+    let up = normalize(to_world(a_l));
     let axis = normalize(u.basis_y.xyz);
     var t1 = cross(up, axis);
     if (dot(t1, t1) < 1.0e-6) {

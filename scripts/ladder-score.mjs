@@ -74,6 +74,33 @@ function mad(a, b) {
   return s / n;
 }
 
+// MAD after registering a small global translation (Wave D instrument
+// fix): seconds of wind advection between captures moves the deck a few
+// downsampled pixels as a near-uniform image shift; scoring the best
+// alignment inside +/-6 px separates "the clouds drifted" from "the
+// rendering changed". Returns the minimum MAD over the search.
+function madRegistered(a, b, search = 6) {
+  const { W, H } = a;
+  let best = Infinity;
+  for (let dy = -search; dy <= search; dy++) {
+    for (let dx = -search; dx <= search; dx++) {
+      let s = 0;
+      let n = 0;
+      for (let y = Math.max(0, -dy); y < H - Math.max(0, dy); y++) {
+        const ya = y * W;
+        const yb = (y + dy) * W + dx;
+        for (let x = Math.max(0, -dx); x < W - Math.max(0, dx); x++) {
+          s += Math.abs(a.data[ya + x] - b.data[yb + x]);
+          n++;
+        }
+      }
+      const m = s / Math.max(n, 1);
+      if (m < best) best = m;
+    }
+  }
+  return best;
+}
+
 // Largest connected component of |a-b| > thresh, as a fraction of the
 // frame. 4-connected BFS on the downsampled luminance delta.
 function largestPop(a, b, thresh) {
@@ -134,14 +161,76 @@ let failures = 0;
 for (const bd of lad.boundaries) {
   try {
     const lo = await pair(bd.lo_km);
-    const hi = await pair(bd.hi_km);
-    const test = mad(lo.a, hi.a);
-    const control = Math.max(lo.control, hi.control);
-    const pop = largestPop(lo.a, hi.a, 12);
-    const pass = test <= control * 1.5 && pop <= 0.005;
+    // CROSS-AND-RETURN scoring (preferred, Wave D instrument fix): the
+    // sweep captures "c" at the LOW altitude after crossing to the HIGH
+    // side and coming back - same projection, same scene, seconds of
+    // advection that the shift registration removes. MAD(b, c) is then
+    // literally "did crossing the boundary change the image more than
+    // waiting does". Falls back to the legacy across-rung comparison for
+    // sweeps that predate the c capture (whose numbers conflate scale +
+    // parallax + minutes of drift - treat those as advisory only).
+    const cPath = path.join(dir, `${rungId(bd.lo_km)}c.png`);
+    let test;
+    let mode;
+    let popA;
+    let popB;
+    if (fs.existsSync(cPath)) {
+      // PARK VERIFICATION (Wave D instrument fix): the manifest records
+      // each capture's ACHIEVED altitude (from the reference dump - the
+      // camera_done file only echoes the request, and return-parks were
+      // measured landing ~15% high). A b/c pair at different altitudes is
+      // a broken measurement, not a boundary verdict - fail it as
+      // invalid-park so nobody reads a scale mismatch as a cloud pop.
+      const rec = (manifest.vantages || []).find(
+        (v) => v.id === rungId(bd.lo_km),
+      );
+      if (rec && rec.alt_b != null && rec.alt_c != null) {
+        const rel = Math.abs(rec.alt_b - rec.alt_c) / Math.max(rec.alt_b, 1e-6);
+        if (rel > 0.01) {
+          throw new Error(
+            `invalid-park: b at ${rec.alt_b.toFixed(2)} km vs c at ${rec.alt_c.toFixed(2)} km (${(rel * 100).toFixed(1)}% apart)`,
+          );
+        }
+      }
+      const c = await lum(cPath);
+      test = madRegistered(lo.b, c);
+      popA = lo.b;
+      popB = c;
+      mode = 'cross-return';
+      // DT-MATCHED CONTROL (shear-honest null): d/e are a same-altitude
+      // pair separated by the same interval as b->c but WITHOUT crossing.
+      // Wind shear slides cloud layers over each other in real time, so
+      // the 3-second a/b control under-states the null difference by an
+      // order of magnitude at 20 s separations. When the d/e pair exists
+      // it replaces the control entirely.
+      const dPath = path.join(dir, `${rungId(bd.lo_km)}d.png`);
+      const ePath = path.join(dir, `${rungId(bd.lo_km)}e.png`);
+      if (fs.existsSync(dPath) && fs.existsSync(ePath)) {
+        const d = await lum(dPath);
+        const e = await lum(ePath);
+        lo.control = madRegistered(d, e);
+        lo.control_pop = largestPop(d, e, 12);
+        mode = 'cross-return-dt-matched';
+      }
+    } else {
+      const hi = await pair(bd.hi_km);
+      test = mad(lo.a, hi.a);
+      popA = lo.a;
+      popB = hi.a;
+      mode = 'legacy-across-rung';
+    }
+    const hiCtl = fs.existsSync(cPath) ? lo : await pair(bd.hi_km);
+    const control = Math.max(lo.control, hiCtl.control);
+    const pop = largestPop(popA, popB, 12);
+    // Pop limit: absolute 0.5% of frame, OR 1.5x whatever coherent region
+    // the dt-matched control itself shows (a drifting cloud edge is a
+    // connected region too - the null must be allowed its own share).
+    const popLimit = Math.max(0.005, (lo.control_pop ?? 0) * 1.5);
+    const pass = test <= control * 1.5 && pop <= popLimit;
     if (!pass) failures++;
     out.boundaries.push({
       name: bd.name,
+      mode,
       lo_km: bd.lo_km,
       hi_km: bd.hi_km,
       control_mad: +control.toFixed(3),
@@ -151,7 +240,7 @@ for (const bd of lad.boundaries) {
       pass,
     });
     out.controls[bd.lo_km] = +lo.control.toFixed(3);
-    out.controls[bd.hi_km] = +hi.control.toFixed(3);
+    out.controls[bd.hi_km] = +hiCtl.control.toFixed(3);
   } catch (e) {
     failures++;
     out.boundaries.push({ name: bd.name, error: String(e.message), pass: false });

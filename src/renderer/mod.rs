@@ -396,6 +396,15 @@ pub struct Renderer {
     /// celestial slot. Strength 0 disables the pass entirely.
     ssao: ssao::SsaoPass,
     cloud_composite: cloud_composite::CloudCompositePass,
+    /// The temporal cloud map's basis anchor: the camera direction in the
+    /// PLANET's local frame, re-anchored by lib.rs only when the camera
+    /// drifts past a hysteresis threshold (Wave D fix 2: the first cut
+    /// snapped STATELESSLY to a 0.03 rad grid in-shader, and a camera
+    /// hovering near a cell boundary flip-flopped the whole map's basis
+    /// frame to frame - the operator's "weird left/right flicking that
+    /// gets worse the longer we stay"). Unit vector; pushed to the shader
+    /// octahedrally through pads 496 + 556.
+    pub cloud_map_anchor_local: [f32; 3],
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1532,6 +1541,7 @@ impl Renderer {
             ssao: ssao_pass,
             cloud_composite: cloud_composite_pass,
             cloud_composite_frame: None,
+            cloud_map_anchor_local: [0.0, 1.0, 0.0],
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -2821,6 +2831,23 @@ impl Renderer {
             / (self.config.height.max(1) as f32);
         self.queue
             .write_buffer(&self.camera_buffer, 552, bytemuck::bytes_of(&pix_ang));
+        // Cloud-map basis anchor, octahedrally encoded into two spare pads
+        // (496 = light2_cone_inner.x, 556 = light5_cone_inner.w). The
+        // shell/octa shaders decode it in cloud_map_up; the composite pass
+        // receives the raw vector through its own uniform. LOCKSTEP: the
+        // decode in 40-clouds.wgsl must mirror this encode exactly.
+        let a = self.cloud_map_anchor_local;
+        let denom = a[0].abs() + a[1].abs() + a[2].abs();
+        let (mut ox, mut oz) = (a[0] / denom.max(1e-9), a[2] / denom.max(1e-9));
+        if a[1] < 0.0 {
+            let (fx, fz) = (ox, oz);
+            ox = (1.0 - fz.abs()) * if fx >= 0.0 { 1.0 } else { -1.0 };
+            oz = (1.0 - fx.abs()) * if fz >= 0.0 { 1.0 } else { -1.0 };
+        }
+        self.queue
+            .write_buffer(&self.camera_buffer, 496, bytemuck::bytes_of(&ox));
+        self.queue
+            .write_buffer(&self.camera_buffer, 556, bytemuck::bytes_of(&oz));
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));

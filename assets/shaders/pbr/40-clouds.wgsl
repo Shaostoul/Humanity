@@ -1207,7 +1207,9 @@ fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f3
     // zones; partial texels respond LINEARLY below that (the fractional
     // honesty G2 wants), and the F1 = 0.922 divisor compensates what the
     // erosion + lanes eat after the carve.
-    let cl = clamp(w.r * 0.55 / 0.922, 0.0, 1.0);
+    // 0.45 (was 0.55): first live-play verdict was 'super heavy' - one
+    // notch lighter in saturated MODIS zones; partial texels stay linear.
+    let cl = clamp(w.r * 0.45 / 0.922, 0.0, 1.0);
     let q_thr = 0.28542 + cl * (-0.30834 + cl * (0.39518 + cl * (-0.26396)));
     let live = smoothstep(q_thr - 0.015, q_thr + 0.015, meso_f);
     // Placement blend (params2.w): [0,1] = fraction of the live MODIS
@@ -1845,12 +1847,28 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
 // basis is rigidly planet-locked - it turns with the planet's spin and
 // ignores the camera entirely; crossing a cell boundary is a single
 // discrete re-anchor the EMA absorbs once, instead of a continuous swim.
+// The anchor arrives from the CPU with HYSTERESIS (Wave D fix 2): the
+// first cut snapped the camera direction to a 0.03 rad grid STATELESSLY
+// in-shader, and a camera hovering near a cell boundary flip-flopped the
+// whole basis frame to frame - the operator's "weird left/right flicking
+// that gets worse the longer we stay in the view". lib.rs now owns the
+// anchor and re-anchors only past a drift threshold; it rides pads
+// 496 (light2_cone_inner.x) + 556 (light5_cone_inner.w) as an octahedral
+// pair. LOCKSTEP with the encode in renderer/mod.rs.
 fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
-    let inv_model = transpose(obj_normal_matrix());
-    let up_w = normalize(camera.view_pos.xyz - center);
-    let up_l = normalize((inv_model * vec4<f32>(up_w, 0.0)).xyz);
-    let snapped = normalize(round(up_l / 0.03) * 0.03);
-    return normalize((obj_normal_matrix() * vec4<f32>(snapped, 0.0)).xyz);
+    let ox = camera.light2_cone_inner.x;
+    let oz = camera.light5_cone_inner.w;
+    let ay = 1.0 - abs(ox) - abs(oz);
+    var a = vec3<f32>(ox, ay, oz);
+    if (ay < 0.0) {
+        a = vec3<f32>(
+            (1.0 - abs(oz)) * sign(ox),
+            ay,
+            (1.0 - abs(ox)) * sign(oz),
+        );
+    }
+    let a_l = normalize(a);
+    return normalize((obj_normal_matrix() * vec4<f32>(a_l, 0.0)).xyz);
 }
 
 fn cloud_map_tangents(up: vec3<f32>) -> mat3x3<f32> {

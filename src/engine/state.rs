@@ -802,6 +802,12 @@ pub(crate) struct EngineState {
     /// screenshot rig appends camera + sun + clock and writes
     /// debug/cloud_ref_dump.json beside every capture.
     pub(crate) cloud_ref_frame: Option<String>,
+    /// The temporal cloud map's basis anchor with HYSTERESIS (Wave D
+    /// fix 2): the camera direction in the planet's local frame,
+    /// re-anchored only when the live direction drifts more than
+    /// ~0.02 rad from it - never oscillating at a boundary the way the
+    /// first cut's stateless in-shader snap did.
+    pub(crate) cloud_map_anchor: Option<glam::Vec3>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

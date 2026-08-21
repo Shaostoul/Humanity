@@ -31,6 +31,9 @@ pub struct CloudCompositeFrame {
     /// Slab bounds as planet-radius ratios.
     pub rb: f32,
     pub rt: f32,
+    /// The map basis anchor (planet-local unit dir, CPU hysteresis - Wave D
+    /// fix 2). LOCKSTEP with the pad-encoded anchor the shell shaders read.
+    pub anchor_local: [f32; 3],
 }
 
 #[repr(C)]
@@ -209,8 +212,8 @@ impl CloudCompositePass {
             center: [frame.center[0], frame.center[1], frame.center[2], frame.planet_r],
             basis_x: [frame.basis[0][0], frame.basis[0][1], frame.basis[0][2], frame.rb],
             basis_y: [frame.basis[1][0], frame.basis[1][1], frame.basis[1][2], frame.rt],
-            basis_z: [frame.basis[2][0], frame.basis[2][1], frame.basis[2][2], 0.0],
-            proj: [m22, m32, 1.0, 0.0],
+            basis_z: [frame.basis[2][0], frame.basis[2][1], frame.basis[2][2], frame.anchor_local[0]],
+            proj: [m22, m32, frame.anchor_local[1], frame.anchor_local[2]],
         };
         queue.write_buffer(&self.param_buffer, 0, bytemuck::bytes_of(&u));
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

@@ -98,6 +98,20 @@ const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
 // The rungs/boundaries/column live in tests/visual/vantages.json under
 // "ladder" (data, not code).
 const LADDER = flag("--ladder");
+// Achieved camera altitude (km) from the per-capture reference dump - the
+// park DONE file only echoes the request; this is the truth (Wave D
+// instrument fix: return-parks were measured landing ~15% high).
+function achievedAltKm(rig) {
+  try {
+    const d = JSON.parse(fs.readFileSync(path.join(rig, "debug", "cloud_ref_dump.json"), "utf8"));
+    const c = d.shell.center;
+    const p = d.cam_pos;
+    const dist = Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]);
+    return (dist - d.shell.visual_scale) / 1000;
+  } catch (e) {
+    return null;
+  }
+}
 const KEEP_OPEN = flag("--keep-open");
 // Expected capture width. See the header block: a resolution-dependent gate
 // judged at the wrong width is worse than no reading at all, because it looks
@@ -603,9 +617,67 @@ async function main() {
             const shot = await waitFile("screenshot_done.json", 60000);
             if (!shot || shot.ok !== true) throw new Error(`screenshot ${half}: ${JSON.stringify(shot)}`);
             fs.copyFileSync(path.join(RIG, shot.path), path.join(OUT, `${id}${half}.png`));
+            rec[`alt_${half}`] = achievedAltKm(RIG);
             if (half === "a" && typeof shot.frame_ms_avg === "number") {
               rec.frame_ms = Math.round(shot.frame_ms_avg * 10) / 10;
             }
+          }
+          // CROSS-AND-RETURN capture (Wave D instrument fix, 2026-08-21):
+          // when this rung is the LOW side of a declared boundary, cross to
+          // the boundary's HIGH altitude and come back, then capture "c" at
+          // the SAME altitude as a/b. MAD(b, c) then measures exactly what
+          // the acceptance criterion asks - "crossing the boundary may not
+          // change the image more than waiting does" - with no projection-
+          // scale mismatch and only seconds of advection (which the scorer
+          // shift-registers away). The old across-rung comparison conflated
+          // scale + parallax + minutes of cloud drift, and once the big
+          // pops died those confounds DOMINATED its numbers.
+          const bd = (lad.boundaries || []).find((b) => b.lo_km === rung);
+          if (bd) {
+            const tCrossStart = Date.now();
+            // NO "time" on the crossing parks: a camera_request that
+            // carries the local hour RESETS the game clock, snapping the
+            // sun and the planet spin back - a state jump the d/e null
+            // pair never experiences, which contaminated every b-vs-c
+            // comparison. The rung's initial park set the hour; the
+            // crossing must ride the same running clock.
+            const crossCol = Object.assign({}, lad.column);
+            delete crossCol.time;
+            clearDone("camera_done.json");
+            req("camera_request.json", Object.assign({}, crossCol, { altitude_km: bd.hi_km }));
+            const up = await waitFile("camera_done.json", 60000);
+            if (!up || up.ok !== true) throw new Error(`cross-up: ${JSON.stringify(up)}`);
+            await sleep(3000);
+            clearDone("camera_done.json");
+            req("camera_request.json", Object.assign({}, crossCol, { altitude_km: rung }));
+            const back = await waitFile("camera_done.json", 60000);
+            if (!back || back.ok !== true) throw new Error(`cross-back: ${JSON.stringify(back)}`);
+            await sleep((lad.settle_s ?? 8) * 1000);
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shot = await waitFile("screenshot_done.json", 60000);
+            if (!shot || shot.ok !== true) throw new Error(`screenshot c: ${JSON.stringify(shot)}`);
+            fs.copyFileSync(path.join(RIG, shot.path), path.join(OUT, `${id}c.png`));
+            rec.alt_c = achievedAltKm(RIG);
+            rec.cross_return_s = Math.round((Date.now() - tCrossStart) / 100) / 10;
+            // DT-MATCHED CONTROL (the shear-honest null model): the field
+            // is ALIVE - wind shear slides cloud tops over bases, so any
+            // two frames separated by the cross-return duration differ by
+            // real evolution no registration can remove. The only fair
+            // null for "did crossing change the image" is a second pair
+            // at the SAME time separation with no crossing. Capture d now
+            // and e after the same interval.
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shotD = await waitFile("screenshot_done.json", 60000);
+            if (!shotD || shotD.ok !== true) throw new Error(`screenshot d: ${JSON.stringify(shotD)}`);
+            fs.copyFileSync(path.join(RIG, shotD.path), path.join(OUT, `${id}d.png`));
+            await sleep(Math.max(3000, Date.now() - tCrossStart));
+            clearDone("screenshot_done.json");
+            req("screenshot_request.json", {});
+            const shotE = await waitFile("screenshot_done.json", 60000);
+            if (!shotE || shotE.ok !== true) throw new Error(`screenshot e: ${JSON.stringify(shotE)}`);
+            fs.copyFileSync(path.join(RIG, shotE.path), path.join(OUT, `${id}e.png`));
           }
           // Per-rung GPU pass costs for the budget gates (present when the
           // sweep env carries HUMANITY_FRAME_COSTS=1).
