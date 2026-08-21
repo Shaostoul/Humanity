@@ -34,6 +34,7 @@ pub mod capture;
 pub mod stream_capture;
 pub mod cloud_noise;
 pub mod cloud_primitives;
+pub mod cloud_composite;
 pub mod cloud_reference;
 pub mod cloud_temporal;
 pub mod clouds;
@@ -394,6 +395,11 @@ pub struct Renderer {
     /// Screen-space ambient occlusion (v0.901): contact shading in the
     /// celestial slot. Strength 0 disables the pass entirely.
     ssao: ssao::SsaoPass,
+    cloud_composite: cloud_composite::CloudCompositePass,
+    /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
+    /// slice 1b) - set by lib.rs at the cloud material fill site whenever
+    /// the temporal map is armed; None disables the pass.
+    pub cloud_composite_frame: Option<cloud_composite::CloudCompositeFrame>,
     pub ssao_strength: f32,
     /// Detail-draw-distance factor (v0.905): scales every shader detail
     /// octave's anti-alias fade so fine structure survives further out.
@@ -801,6 +807,7 @@ impl Renderer {
         log::info!("[BootPhase]   godray_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
         let t_unit = std::time::Instant::now();
         let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
+        let cloud_composite_pass = cloud_composite::CloudCompositePass::new(&device, surface_format);
         log::info!("[BootPhase]   ssao_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
 
         // Shader + pipeline. The megashader compiles from the EMBEDDED
@@ -1523,6 +1530,8 @@ impl Renderer {
             godrays: godray_pass,
             godray_intensity: 0.55,
             ssao: ssao_pass,
+            cloud_composite: cloud_composite_pass,
+            cloud_composite_frame: None,
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -3561,6 +3570,50 @@ impl Renderer {
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
                 }
             }
+        }
+
+        // ── Fullscreen depth-aware cloud composite (Wave D slice 1b) ──
+        // Runs after the celestial pass so the depth buffer holds the full
+        // terrain, and only while the temporal map is armed (the shell's
+        // own temporal branch discards - one compositor at a time). This is
+        // what lets a deck below the camera survive: the shell's fragments
+        // for downward rays lie beyond the planet and the hardware depth
+        // test killed them; here occlusion is per-pixel against the REAL
+        // scene depth, mountains included.
+        if let (Some(ct), Some(frame), true) = (
+            self.cloud_temporal.as_ref(),
+            self.cloud_composite_frame.as_ref(),
+            self.cloud_temporal_mat.is_some(),
+        ) {
+            let proj = Mat4::perspective_rh(
+                camera.fov_degrees.to_radians(),
+                camera.aspect,
+                1.0e13,
+                1.0,
+            );
+            let m = proj.to_cols_array_2d();
+            let fwd = camera.forward();
+            let right = camera.right();
+            let up = right.cross(fwd).normalize();
+            let eye = camera.effective_position();
+            self.cloud_composite.render(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                &self.depth_view,
+                &ct.views[ct.cur.get()],
+                view,
+                frame,
+                [eye.x, eye.y, eye.z],
+                [fwd.x, fwd.y, fwd.z],
+                [right.x, right.y, right.z],
+                [up.x, up.y, up.z],
+                (camera.fov_degrees.to_radians() * 0.5).tan(),
+                camera.aspect,
+                m[2][2],
+                m[3][2],
+                self.pass_timer("gpu.cloud_composite"),
+            );
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

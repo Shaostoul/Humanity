@@ -1832,14 +1832,35 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
 // sampling never crosses a fold. The basis derives from the planet
 // centre, identically in the accumulate and composite paths; it turns
 // slowly as the camera travels and the EMA absorbs that too.
+// PLANET-FIXED map basis (Wave D slice 1, increment 12): the basis centre
+// used to be the LIVE camera direction, so camera travel rotated the whole
+// map's texel->direction mapping every frame - the history was looked up
+// at UVs that meant different directions each frame, and the sky visibly
+// SWAM between the map's converged state and the fresh marches (the
+// operator's "clouds shift left and right between state 1 and state 2",
+// the out-of-bounds-repeat feel). Now: the camera's direction is expressed
+// in the PLANET's local frame (the shell's model basis - the vegetation/v2
+// anchoring convention), SNAPPED to a ~0.03 rad grid, and only then taken
+// back to world space. Within a snap cell (~190 km of ground travel) the
+// basis is rigidly planet-locked - it turns with the planet's spin and
+// ignores the camera entirely; crossing a cell boundary is a single
+// discrete re-anchor the EMA absorbs once, instead of a continuous swim.
 fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
-    return normalize(camera.view_pos.xyz - center);
+    let inv_model = transpose(obj_normal_matrix());
+    let up_w = normalize(camera.view_pos.xyz - center);
+    let up_l = normalize((inv_model * vec4<f32>(up_w, 0.0)).xyz);
+    let snapped = normalize(round(up_l / 0.03) * 0.03);
+    return normalize((obj_normal_matrix() * vec4<f32>(snapped, 0.0)).xyz);
 }
 
 fn cloud_map_tangents(up: vec3<f32>) -> mat3x3<f32> {
-    var t1 = cross(up, vec3<f32>(0.0, 1.0, 0.0));
+    // Reference axis from the PLANET frame (its spin axis in world space),
+    // not world Y: the tangent pair must turn with the planet exactly as
+    // the up vector does, or the basis twists as the planet rotates.
+    let axis = normalize(obj_normal_matrix()[1].xyz);
+    var t1 = cross(up, axis);
     if (dot(t1, t1) < 1.0e-6) {
-        t1 = cross(up, vec3<f32>(1.0, 0.0, 0.0));
+        t1 = cross(up, normalize(obj_normal_matrix()[0].xyz));
     }
     t1 = normalize(t1);
     let t2 = cross(up, t1);
@@ -1919,13 +1940,15 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // static dies: the map is an exponential average of many jittered
     // marches, i.e. the supersampling the single-frame march never had.
     if (material.params2.w >= 3.5) {
-        let s = textureSampleLevel(
-            albedo_texture, albedo_sampler, cloud_map_encode(rd_w, center), 0.0);
-        // The map stores PREMULTIPLIED colour (see fs_cloud_octa): divide
-        // by alpha for this pipeline's straight-alpha blend. Premultiplied
-        // rgb never exceeds C*a, so the division is bounded.
-        let c = s.rgb / max(s.a, 1.0e-3);
-        return vec4<f32>(c, s.a * limb);
+        // Wave D slice 1b: while the temporal map is armed, the FULLSCREEN
+        // depth-aware composite pass (cloud_composite.wgsl) is the ONLY
+        // compositor - it occludes per pixel against the real scene depth,
+        // which is what lets a deck BELOW the camera survive (this shell
+        // fragment path could not: downward rays' fragments lie beyond the
+        // planet and the hardware depth test killed them - the vanishing
+        // deck). This fragment's only remaining job when armed is to get
+        // out of the way.
+        discard;
     }
 
     let inv_model = transpose(obj_normal_matrix());

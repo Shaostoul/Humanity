@@ -368,6 +368,28 @@ SPEC FIRST the extent-resample remapping math + its blur bound: the altitude-fol
 
 **Risk:** HIGH - new render target + new projection = bind-group-hazard territory; deliberately after the field increments so it lands on a stable base.
 
+**WAVE D SLICES 1a+1b SHIPPED (v0.1181); extent + arm-everywhere + first_t
+remain as 12c:**
+- 1a PLANET-FIXED SNAPPED BASIS: the map centre is the camera direction in
+  the PLANET frame snapped to 0.03 rad cells, tangents from the planet
+  spin axis - within a cell the basis is rigidly planet-locked, so camera
+  travel no longer swims the whole sky between map state and fresh march
+  (the operator two-state report). BOIL pair 2.563 vs 2.54 baseline.
+- 1b FULLSCREEN DEPTH-AWARE COMPOSITE (renderer/cloud_composite.rs, own
+  BGL godrays-pattern, premultiplied-over, after the celestial pass; the
+  shell temporal branch discards - one compositor): THE VANISHING DECK IS
+  DEAD - ladder rungs 16.8 vs 14.8 km show the identical full deck below
+  the camera where 14.8 used to be empty sky, with real per-pixel terrain
+  occlusion (mountains included, which analytic depth-off could never
+  do). First-cut y-mirror bug (fullscreen uv is NDC-y-up; depth texel is
+  y-down) caught by the giant-arc capture and fixed in one cycle.
+- LADDER METHODOLOGY DEBT, now the loudest instrument problem: across-
+  rung MADs are dominated by ADVECTION (minutes between rung captures;
+  the never-landed wind-subtraction from increment 2). With the pops now
+  small, the ladder cannot separate boundary artifacts from cloud motion
+  - the subtraction math must land before ladder numbers gate anything
+  again. The rung IMAGE PAIRS are the accepted evidence this increment.
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

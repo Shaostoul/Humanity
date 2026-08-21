@@ -8766,8 +8766,12 @@ mod native_app {
 
                         // Temporal clouds (phase 4): cleared each frame; the
                         // near-slab cloud branch below re-arms it for the
-                        // (single) body whose deck the camera is under.
+                        // (single) body whose deck the camera is under. The
+                        // fullscreen composite frame (Wave D 1b) follows the
+                        // same lifecycle - a stale frame would composite a
+                        // stale map over a planetless scene.
                         state.renderer.set_cloud_temporal(None);
+                        state.renderer.cloud_composite_frame = None;
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11495,6 +11499,27 @@ mod native_app {
                                             mesh: cloud_mesh,
                                             material: cmat,
                                         });
+                                        // Fullscreen composite frame (Wave D
+                                        // slice 1b): armed with the temporal
+                                        // map, cleared otherwise.
+                                        state.renderer.cloud_composite_frame = if temporal {
+                                            let bx = rotation * Vec3::X;
+                                            let by = rotation * Vec3::Y;
+                                            let bz = rotation * Vec3::Z;
+                                            Some(crate::renderer::cloud_composite::CloudCompositeFrame {
+                                                center: [position.x, position.y, position.z],
+                                                planet_r: visual_scale,
+                                                basis: [
+                                                    [bx.x, bx.y, bx.z],
+                                                    [by.x, by.y, by.z],
+                                                    [bz.x, bz.y, bz.z],
+                                                ],
+                                                rb: slab_rb,
+                                                rt: slab_rt,
+                                            })
+                                        } else {
+                                            None
+                                        };
                                         // Reference-march frame stash
                                         // (increment 10): see
                                         // EngineState::cloud_ref_frame.
