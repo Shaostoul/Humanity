@@ -252,6 +252,21 @@ ships #[ignore]-pinned as executable knowledge. The default sky is
 unchanged (verified: post-revert flight stats match the shipped
 baseline).
 
+**Increment 5, Wave A sub-1 (2026-08-21):** one shell radius + continuous
+limb fade SHIPPED (look-neutral: flight golden holds, marble A/B delta
+1.7). But the ladder stayed RED at both target boundaries, and the rung
+captures identified the true owners: (a) 331 km is dominated by the
+TEMPORAL-MAP ARMING flip, not the shell geometry - it cannot go green
+before wave D; (b) 15.8 km is THE DECK VANISHING for downward views
+inside the shell - a downward ray's only cloud geometry is the far side
+of the sphere, beyond the planet, and the depth test kills it behind the
+terrain. This is the operator's "they kinda start to look better, then
+they just vanish", measured and explained. No shell-geometry fix exists;
+the cure is the FULLSCREEN DEPTH-AWARE cloud composite, which is hereby
+added to wave D's mandate (the march already carries the ground
+occlusion early-out it needs). Per-sample regime (Wave A item c) stays
+queued behind that.
+
 ## Objection dispositions
 
 1. CHALLENGER ruling 1 (refuse unify-now / v2-as-default): ADOPTED as gating - promotion is rank 16, reachable only through the rank-15 operator acceptance sitting at pinned high-coverage/storm/under-deck weather; no increment before it changes the default body model, and Ultra is never shown to the operator before the rank-6 containment/thin-genus fixes. But the challenger's stronger claim - that 'one path' is a category error and the dual-path is permanent - is REFUTED in that form: the end state deletes the noise BODY (the cloud architect's shape-science proof that inverted Worley is literally a union of equal balls, plus the no-backcompat directive), while the noise FIELD survives in exactly two roles (rind erosion + far-field statistical expectation) behind a calibration-locked footprint crossfade. That IS the hybrid the challenger demanded, without maintaining two body models forever.

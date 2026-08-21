@@ -1743,10 +1743,14 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // band it should have left alone.
     let n_frag = normalize(world_position - center);
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
-    var limb = 1.0;
-    if (!cam_inside) {
-        limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    }
+    // Wave A (increment 5): the fade eases in CONTINUOUSLY with camera
+    // altitude instead of flipping on the cam_inside boolean - that flip
+    // was a whole-sky change at the shell radius (~16 km), ladder-red.
+    // At the shell the fade is off (the horizon deck thickens, as
+    // physical); by 1.35 shell radii (~2200 km altitude) it is the full
+    // orbital ring guard. Between them it blends.
+    let limb_w = smoothstep(1.0, 1.35, length(ro_w));
+    let limb = mix(1.0, mix(0.55, 1.0, smoothstep(0.0, 0.35, mu)), limb_w);
 
     // TEMPORAL COMPOSITE (phase 4, pin flag +4 in params2.w): the octa
     // pass has already marched and accumulated this direction - sample

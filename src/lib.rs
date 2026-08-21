@@ -11369,20 +11369,27 @@ mod native_app {
                                         // 25.5-76.5 km constants). Forwarded
                                         // to the shader in params2 below.
                                         let (slab_rb, slab_rt) = d.cloud_slab_scales();
+                                        // Wave A (environment program increment
+                                        // 5): ONE shell radius at every
+                                        // altitude - just above the slab top,
+                                        // clear of the tallest terrain (peaks
+                                        // ~1.0014 R). The old near/far flip at
+                                        // 331 km swapped the drawn geometry
+                                        // mid-descent and was the largest
+                                        // single pop the descent ladder
+                                        // measured (test/control ratio 2.4).
+                                        // The march's slab interval never
+                                        // depended on the drawn radius, so the
+                                        // only visual change is the cloud limb
+                                        // sitting at its TRUE altitude from
+                                        // orbit instead of 1.6% high.
+                                        let shell_ratio = slab_rt + 0.0006;
+                                        // near_slab survives ONLY as the
+                                        // temporal-map arming gate until the
+                                        // program's wave D re-parameterizes
+                                        // the map and deletes it entirely.
                                         let near_slab =
                                             (cam_r_ratio as f64) < slab_rt as f64 * 1.05;
-                                        let shell_ratio = if near_slab
-                                        {
-                                            // Near/inside the slab: draw the
-                                            // shell just above the top so its
-                                            // fragments cover the whole sky.
-                                            // ~4 km of margin keeps it well
-                                            // clear of the tallest terrain
-                                            // (peaks reach ~1.0014 R).
-                                            slab_rt + 0.0006
-                                        } else {
-                                            crate::renderer::clouds::CLOUD_SHELL_SCALE
-                                        };
                                         // Weather-event override (v0.1037): the
                                         // active event's eased coverage boost +
                                         // tint ride the material slots the
