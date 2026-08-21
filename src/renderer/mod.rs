@@ -210,6 +210,9 @@ pub struct InstanceBatch {
 /// while the fetcher is native-only; the fetcher aliases these.
 pub const WEATHER_MAP_W: u32 = 1440;
 pub const WEATHER_MAP_H: u32 = 720;
+/// Weather-map mip levels (increment 11b): 720 halves to 1 in 9 steps + the
+/// base = 10; wgpu floor-halves the non-square 1440x720 the same way.
+pub const WEATHER_MAP_MIPS: u32 = 10;
 
 pub struct Renderer {
     pub device: wgpu::Device,
@@ -1119,7 +1122,13 @@ impl Renderer {
                 height: WEATHER_MAP_H,
                 depth_or_array_layers: 1,
             },
-            mip_level_count: 1,
+            // Full mip chain (increment 11b): a 27.8 km texel point-sampled
+            // through a steep smoothstep was per-texel keep/kill stipple
+            // from orbit. Mips are box-filtered CPU-side on every weather
+            // refresh (update_weather_map) so a wide-footprint sample reads
+            // the area's MEAN cloud fraction, which the fractional-coverage
+            // law (G2) then renders AS areal coverage.
+            mip_level_count: WEATHER_MAP_MIPS,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rg8Unorm,
@@ -1907,25 +1916,52 @@ impl Renderer {
             log::warn!("[Weather] bad grid size {} - ignored", rg.len());
             return;
         }
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &self.weather_map_tex,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            rg,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(w * 2),
-                rows_per_image: Some(h),
-            },
-            wgpu::Extent3d {
-                width: w,
-                height: h,
-                depth_or_array_layers: 1,
-            },
-        );
+        // Upload the base + a CPU box-filtered mip chain (increment 11b).
+        // ~1.4 MB of filtering per refresh (every few minutes) - noise.
+        let mut level: Vec<u8> = rg.to_vec();
+        let (mut lw, mut lh) = (w, h);
+        for mip in 0..WEATHER_MAP_MIPS {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.weather_map_tex,
+                    mip_level: mip,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &level,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(lw * 2),
+                    rows_per_image: Some(lh),
+                },
+                wgpu::Extent3d {
+                    width: lw,
+                    height: lh,
+                    depth_or_array_layers: 1,
+                },
+            );
+            if mip + 1 == WEATHER_MAP_MIPS {
+                break;
+            }
+            let (nw, nh) = ((lw / 2).max(1), (lh / 2).max(1));
+            let mut next = vec![0u8; (nw * nh * 2) as usize];
+            for y in 0..nh {
+                for x in 0..nw {
+                    let (x0, y0) = ((x * 2).min(lw - 1), (y * 2).min(lh - 1));
+                    let (x1, y1) = ((x * 2 + 1).min(lw - 1), (y * 2 + 1).min(lh - 1));
+                    for c in 0..2u32 {
+                        let s = level[((y0 * lw + x0) * 2 + c) as usize] as u32
+                            + level[((y0 * lw + x1) * 2 + c) as usize] as u32
+                            + level[((y1 * lw + x0) * 2 + c) as usize] as u32
+                            + level[((y1 * lw + x1) * 2 + c) as usize] as u32;
+                        next[((y * nw + x) * 2 + c) as usize] = ((s + 2) / 4) as u8;
+                    }
+                }
+            }
+            level = next;
+            lw = nw;
+            lh = nh;
+        }
     }
 
     /// Replace the mesh at `idx` in place: drops the old mesh (wgpu frees its vertex/index buffers)

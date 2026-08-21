@@ -1147,10 +1147,10 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // Legacy drift for the Medium/Low paths, which have no regime in
     // scope; the High path passes the family's own base wind through
     // cloud_weather_adv (phase 7 motion).
-    return cloud_weather_adv(dir, t, seed, t * CLOUD_DRIFT_ZONAL);
+    return cloud_weather_adv(dir, t, seed, t * CLOUD_DRIFT_ZONAL, 0.0);
 }
 
-fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32) -> f32 {
+fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32, wlod: f32) -> f32 {
     let da0 = cloud_rot_y(dir, drift_ang);
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
@@ -1181,15 +1181,35 @@ fn cloud_weather_adv(dir: vec3<f32>, t: f32, seed: f32, drift_ang: f32) -> f32 {
     let w_lon = atan2(-wdir.z, wdir.x);
     let w_lat = asin(clamp(wdir.y, -1.0, 1.0));
     let w_uv = vec2<f32>(w_lon * 0.15915494 + 0.5, 0.5 - w_lat * 0.31830987);
-    let w = textureSampleLevel(weather_map, albedo_sampler, w_uv, 0.0).rg;
+    let w = textureSampleLevel(weather_map, albedo_sampler, w_uv, wlod).rg;
     let proc = smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, (macro_f + meso_f) / 1.04);
     // The MODIS DAILY fraction is nearly binary ("was cloudy at any point
     // today" saturates most of the globe to 100% -- rendering it 1:1 gave a
     // full whiteout). So the map is a placement MASK, not an opacity: inside
     // real cloudy zones the procedural meso/fine octaves carve the actual
     // broken deck (~instantaneous look); real clear zones (deserts) go clear.
-    let envelope = smoothstep(0.35, 0.9, w.r);
-    let live = envelope * smoothstep(0.15, 0.7, meso_f * 2.5);
+    // G2 FRACTIONAL COVERAGE (increment 11b): the texel's value is a cloud
+    // FRACTION and must RENDER as that areal fraction. The old
+    // smoothstep(0.35, 0.9) envelope turned a texel saying "40% cloudy"
+    // into keep/kill stipple. Now: the mip chain makes w.r the footprint's
+    // true MEAN fraction; the meso octaves are the sub-texel placement
+    // pattern, thresholded at the QUANTILE where P(meso > q) equals the
+    // wanted fraction (cubic fitted on the real meso distribution, max err
+    // 0.002 - g2_calibration in cloud_reference.rs); and the fraction is
+    // pre-divided by F1 = 0.922, the measured end-to-end areal fraction at
+    // full weather (erosion + lanes eat ~8%), so what SURVIVES the carve
+    // matches the texel. A uniform-0.40 map renders ~0.40 areal cover.
+    // MODIS DAILY-MASK CALIBRATION: the live layer is quasi-binary ("was
+    // cloudy at any point today" saturates most of the globe), NOT a true
+    // instantaneous fraction - rendering w.r 1:1 walks straight back into
+    // the documented whiteout. A saturated texel maps to the ~55% areal
+    // coverage the old envelope+meso law effectively rendered in cloudy
+    // zones; partial texels respond LINEARLY below that (the fractional
+    // honesty G2 wants), and the F1 = 0.922 divisor compensates what the
+    // erosion + lanes eat after the carve.
+    let cl = clamp(w.r * 0.55 / 0.922, 0.0, 1.0);
+    let q_thr = 0.28542 + cl * (-0.30834 + cl * (0.39518 + cl * (-0.26396)));
+    let live = smoothstep(q_thr - 0.015, q_thr + 0.015, meso_f);
     // Placement blend (params2.w): [0,1] = fraction of the live MODIS
     // placement to bypass toward the procedural field - the in-game
     // weather raises it so a Cloudy/Rain sky shows clouds even where the
@@ -1999,14 +2019,14 @@ fn cloud_march_core(
     let probe = max(
         max(
             clamp(cloud_alpha_from_field(
-                cloud_weather_adv(normalize(ro + rd * m0), t, seed, wind_ang),
+                cloud_weather_adv(normalize(ro + rd * m0), t, seed, wind_ang, 0.0),
                 coverage) + reg.cover_bias, 0.0, 1.0),
             clamp(cloud_alpha_from_field(
-                cloud_weather_adv(mid_dir, t, seed, wind_ang), coverage)
+                cloud_weather_adv(mid_dir, t, seed, wind_ang, 0.0), coverage)
                 + reg.cover_bias, 0.0, 1.0),
         ),
         clamp(cloud_alpha_from_field(
-            cloud_weather_adv(normalize(ro + rd * m1), t, seed, wind_ang),
+            cloud_weather_adv(normalize(ro + rd * m1), t, seed, wind_ang, 0.0),
             coverage) + reg.cover_bias, 0.0, 1.0),
     );
     if (probe <= 0.002) {
@@ -2098,9 +2118,15 @@ fn cloud_march_core(
 
         let p = ro + rd * tm;
         let dirp = normalize(p);
+        // Footprint FIRST (hoisted, increment 11b) - the weather tap now
+        // band-limits itself with the same footprint the volume taps use.
+        // Weather-map texel = 27.8 km at mip 0.
+        let foot = max(tm * pix_ang, dt * 0.25);
+        let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
+        let wlod = max(log2(max(foot / g_cloud_upkm / 27.8, 1.0)), 0.0);
         let weather_a = clamp(
             cloud_alpha_from_field(
-                cloud_weather_adv(dirp, t, seed, wind_ang), coverage)
+                cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
                 + reg.cover_bias, 0.0, 1.0);
         // DISTANCE FADES DELETED (increment 11, far-field truth): the
         // detail/puff/cell amounts used to fade out at 193/51/30 km, which
@@ -2118,13 +2144,7 @@ fn cloud_march_core(
         let detail_amt = 1.0;
         let puff_amt = 1.0;
         let cell_amt = 1.0;
-        // Band-limited sampling footprint (phase 5): the larger of the
-        // ray-cone width at this distance and the march step itself, in
-        // km. Every volume tap under this sample picks the mip whose
-        // voxels match it (cloud_lod), so far samples read pre-averaged
-        // noise - near samples clamp to mip 0 and lose nothing.
-        let foot = max(tm * pix_ang, dt * 0.25);
-        let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
+        // (foot/lodb hoisted above the weather tap - increment 11b.)
         let dc = cloud_density_hi(
             p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
         let dens = dc.x;

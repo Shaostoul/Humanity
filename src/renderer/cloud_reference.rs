@@ -1789,3 +1789,116 @@ mod bake_stats {
         );
     }
 }
+
+#[cfg(test)]
+mod g2_calibration {
+    use super::*;
+    use crate::renderer::cloud_noise;
+
+    /// G2 calibration (increment 11b): (a) the meso pattern's quantile
+    /// function q(cl) - the threshold at which P(meso > q) = cl - fitted
+    /// as a cubic for the WGSL; (b) F1 = the end-to-end rendered areal
+    /// fraction at wa ~= 1 (erosion + lanes eat some), which the live path
+    /// divides out so a MODIS texel saying 40% RENDERS 40%.
+    #[test]
+    #[ignore = "calibration, run by hand in release"]
+    fn meso_quantiles_and_f1() {
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let shape = cloud_noise::generate_shape(threads);
+        let detail = cloud_noise::generate_detail(threads);
+        let r_km = 6371.0f32;
+        let ctx = CloudRefCtx {
+            shape: RefVolume { data: &shape, size: cloud_noise::SHAPE_SIZE },
+            detail: RefVolume { data: &detail, size: cloud_noise::DETAIL_SIZE },
+            t: 3600.0, seed: 42.0, coverage: 0.95, type_pin: 0.34,
+            rb: 1.0 + 0.4 / r_km, rt: 1.0 + 12.0 / r_km, upkm: 1.0 / r_km,
+            sun_local: [0.24, 0.94, 0.24],
+            sun_energy: [2.29, 2.0, 1.47],
+            sky_aer: [0.58, 0.61, 0.55],
+            tint: [1.0, 1.0, 1.0],
+            step_km: 0.004, sun_step_km: 0.008,
+        };
+        // (a) meso distribution: the WGSL live-pattern octaves.
+        let mut meso: Vec<f32> = Vec::with_capacity(20000);
+        for i in 0..20000u32 {
+            let a = i as f32 * 0.618034 * std::f32::consts::TAU;
+            let z = -1.0 + 2.0 * ((i as f32 + 0.5) / 20000.0);
+            let xy = (1.0f32 - z * z).max(0.0).sqrt();
+            let dir = [xy * a.cos(), z, xy * a.sin()];
+            let da0 = cloud_rot_y(dir, 0.0);
+            let da = v3_norm([da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]]);
+            let db = dir;
+            let m = 0.20 * cloud_noise(db, 7.0, ctx.seed + 101.0)
+                + 0.12 * cloud_noise(da, 31.0, ctx.seed + 233.0)
+                + 0.08 * cloud_noise(db, 67.0, ctx.seed + 409.0);
+            meso.push(m);
+        }
+        meso.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let q = |cl: f32| meso[(((1.0 - cl) * (meso.len() - 1) as f32) as usize).min(meso.len() - 1)];
+        print!("meso quantile knots: ");
+        for k in [0.05f32, 0.2, 0.4, 0.6, 0.8, 0.95] {
+            print!("q({k:.2})={:.4} ", q(k));
+        }
+        println!();
+        // Fit cubic q(cl) = a + b*cl + c*cl^2 + d*cl^3 on 21 knots by
+        // normal equations (tiny system - direct solve via naive Gauss).
+        let n = 21usize;
+        let mut xtx = [[0f64; 4]; 4];
+        let mut xty = [0f64; 4];
+        for i in 0..n {
+            let cl = i as f32 / (n - 1) as f32 * 0.9 + 0.05;
+            let y = q(cl) as f64;
+            let x = [1.0, cl as f64, (cl * cl) as f64, (cl * cl * cl) as f64];
+            for r in 0..4 {
+                for c in 0..4 {
+                    xtx[r][c] += x[r] * x[c];
+                }
+                xty[r] += x[r] * y;
+            }
+        }
+        // Gauss elimination.
+        let mut m4 = xtx;
+        let mut v4 = xty;
+        for col in 0..4 {
+            let piv = (col..4).max_by(|&a, &b| m4[a][col].abs().partial_cmp(&m4[b][col].abs()).unwrap()).unwrap();
+            m4.swap(col, piv);
+            v4.swap(col, piv);
+            for row in 0..4 {
+                if row == col { continue; }
+                let f = m4[row][col] / m4[col][col];
+                for c2 in 0..4 {
+                    m4[row][c2] -= f * m4[col][c2];
+                }
+                v4[row] -= f * v4[col];
+            }
+        }
+        let coef: Vec<f64> = (0..4).map(|i| v4[i] / m4[i][i]).collect();
+        println!("q(cl) cubic coeffs: {:.5} {:.5} {:.5} {:.5}", coef[0], coef[1], coef[2], coef[3]);
+        let mut maxe = 0f64;
+        for i in 0..n {
+            let cl = i as f32 / (n - 1) as f32 * 0.9 + 0.05;
+            let fit = coef[0] + coef[1]*cl as f64 + coef[2]*(cl*cl) as f64 + coef[3]*(cl*cl*cl) as f64;
+            maxe = maxe.max((fit - q(cl) as f64).abs());
+        }
+        println!("fit max err: {maxe:.4}");
+        // (b) F1: end-to-end areal density fraction at wa ~= 1 over a wide
+        // patch at slab height 0.22, full erosion.
+        let reg = cloud_regime(ctx.type_pin);
+        let mut hit = 0u32;
+        let mut tot = 0u32;
+        for i in 0..8000u32 {
+            let a = i as f32 * 0.618034 * std::f32::consts::TAU;
+            let z = -1.0 + 2.0 * ((i as f32 + 0.5) / 8000.0);
+            let xy = (1.0f32 - z * z).max(0.0).sqrt();
+            let dir = [xy * a.cos(), z, xy * a.sin()];
+            let r = ctx.rb + (ctx.rt - ctx.rb) * 0.22;
+            let p = [dir[0] * r, dir[1] * r, dir[2] * r];
+            let d = ctx.density_hi(p, 1.0, &reg, 1.0, 1.0, 1.0);
+            tot += 1;
+            if d[0] > 0.06 {
+                hit += 1;
+            }
+        }
+        println!("F1 (areal density fraction at wa=1): {:.3}", hit as f32 / tot as f32);
+    }
+}

@@ -336,6 +336,26 @@ mips + G2 fractional coverage follow as 11b):**
   -9.7% (was -2.2% on 19 rays) - the always-on erosion changed the
   error distribution; retune at 11b/12 if it drifts past 10%.
 
+**11b EXECUTION ADJUDICATIONS (v0.1180 - weather mips + G2 fractional
+coverage):**
+- The weather map carries a full CPU box mip chain (10 levels, rebuilt on
+  every refresh) and the march weather tap band-limits at its own
+  footprint (27.8 km texel base) - the point-sample-through-steep-
+  smoothstep stipple source is gone.
+- G2 as specced, with one reality correction: the MODIS layer is QUASI-
+  BINARY (daily any-cloud mask), not an instantaneous fraction - a first
+  1:1 fractional render walked straight back into the documented
+  whiteout. Calibration: a saturated texel renders the ~55% areal
+  coverage the old envelope+meso law effectively produced in cloudy
+  zones; PARTIAL texels respond linearly below it (the fractional
+  honesty G2 wanted); F1 = 0.922 (measured end-to-end carve survival)
+  divides out what erosion + lanes eat. The sub-texel placement pattern
+  is thresholded at the meso distribution QUANTILE for the wanted
+  fraction (cubic fit, max err 0.002, g2_calibration probe).
+- Marble verdict at natural weather: organized broken systems at ~55-60%
+  cover with clean edges and ocean lanes - credible against the Blue
+  Marble reference class; no stipple, no sheet. Floors green, panics 0.
+
 ### 12. Wave D: temporal rework (extent, basis, depth reprojection, arm everywhere)
 
 SPEC FIRST the extent-resample remapping math + its blur bound: the altitude-following extent makes texel->direction a function of camera altitude, so during descent every texel's direction changes every frame - the accumulate pass must resample history through the OLD extent (itself a low-pass) or the EMA smears on any altitude change, the exact failure it exists to fix. Then implement: r2 = (1-cos theta)/(1-cos theta_max) extent (identical under the deck, all 2048^2 texels on the visible disc at orbit - sharper than screen vs 5x coarser today); planet-fixed Lambert basis (the vegetation/v2 convention); RG16F first_t companion map with parallax-corrected history lookup. This SUBSUMES and formally retires the screen-space accumulation route (measured strictly worse: 0.5 mrad boiling vs 2.05 mrad averaged, regression recorded in cloud_temporal.rs:6-8). Then arm at ALL altitudes, delete the last near_slab use and the per-frame disarm, EMA stays deep in fast descent. Bind-group discipline: grep the changed layout for EVERY create_bind_group site and count entries (the v0.1029-v0.1038 incident class).
