@@ -48,7 +48,21 @@
     "no white-out sheet at the grazing angle",
     "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
    ],
-   "perf_floor_fps": 20
+   "perf_floor_fps": 20,
+   "golden": {
+    "build": "v0.1168.0",
+    "sweep": "20260819-202957",
+    "stats": {
+     "mean_l": 173.55,
+     "p05": 129.4,
+     "p50": 170.3,
+     "p95": 224.2,
+     "contrast": 1.733,
+     "speckle_rms": 5.779,
+     "r_over_b": 0.6823
+    },
+    "rule": "measure-sky.mjs stats within +/-15% of these (mean_l, contrast) and speckle_rms within +/-30%; a bigger drift is a look change needing re-approval"
+   }
   },
   {
    "id": "ocean-storm-low",
@@ -913,7 +927,189 @@
     "no triangular or hexagonal banding around the glint",
     "panics=0"
    ],
-   "perf_floor_fps": 20
+   "perf_floor_fps": 20,
+   "golden": {
+    "build": "v0.1168.0",
+    "sweep": "20260819-202957",
+    "stats": {
+     "mean_l": 168.17,
+     "p05": 102.3,
+     "p50": 165.5,
+     "p95": 224.1,
+     "contrast": 2.19,
+     "speckle_rms": 11.869,
+     "r_over_b": 0.6795
+    },
+    "rule": "measure-sky.mjs stats within +/-15% of these (mean_l, contrast) and speckle_rms within +/-30%; a bigger drift is a look change needing re-approval"
+   }
+  },
+  {
+   "id": "nearslab-ab-400km",
+   "desc": "Coarse sentinel ABOVE the (former) 331 km near_slab boundary. Its partner at 250 km must render the same sky.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 400,
+    "look_offset_deg": 25
+   },
+   "settle_s": 12,
+   "expect": "The cloud deck from 400 km: continuous with the 250 km partner - no shell flip, no path change.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "weather": "cloudy",
+    "sea": "0.3"
+   }
+  },
+  {
+   "id": "nearslab-ab-250km",
+   "desc": "Coarse sentinel BELOW the (former) 331 km near_slab boundary; partner of nearslab-ab-400km.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 250,
+    "look_offset_deg": 25
+   },
+   "settle_s": 12,
+   "expect": "Same sky as the 400 km partner within pair noise.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "weather": "cloudy",
+    "sea": "0.3"
+   }
+  },
+  {
+   "id": "under-deck-lookup",
+   "desc": "Under the cloud base looking steeply UP (offset 150 = 60 deg above horizontal). Owns the under-deck species-flip complaint: the deck overhead must be the SAME clouds the flight vantage shows.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 0.5,
+    "look_offset_deg": 150
+   },
+   "settle_s": 12,
+   "expect": "Grey cloud bases overhead with gaps of blue; the same deck the 2 km vantage shows from beside it.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "weather": "cloudy",
+    "sea": "0.3"
+   },
+   "hold_altitude": true
+  },
+  {
+   "id": "mid-alt-45km",
+   "desc": "Mid-altitude station inside the fade-ring band (cell fade dies 30-60 km). Owns the concentric-ring complaint.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 45,
+    "look_offset_deg": 25
+   },
+   "settle_s": 12,
+   "expect": "A cloud field with structure continuous to the horizon - no ring of texture change centred on the camera.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "weather": "cloudy",
+    "sea": "0.3"
+   }
+  },
+  {
+   "id": "orbit-static",
+   "desc": "PAIRED capture at orbit (3 s apart). Owns the TV-static complaint: the two frames must differ only by real motion, not churn.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "altitude_km": 12000,
+    "time": 12.02
+   },
+   "settle_s": 12,
+   "expect": "Two orbit frames 3 s apart: identical but for sub-texel wind drift.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1"
+   },
+   "captures": 2,
+   "pair_gap_s": 3
+  },
+  {
+   "id": "flight-static",
+   "desc": "PAIRED capture at the flight vantage (10 s apart). The boil/churn bound at close range.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 2,
+    "look_offset_deg": 115
+   },
+   "settle_s": 12,
+   "expect": "Two flight frames 10 s apart: clouds drift with the wind as bodies; no per-texel churn.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.95",
+    "weather": "cloudy",
+    "sea": "0.3"
+   },
+   "captures": 2,
+   "pair_gap_s": 10
+  },
+  {
+   "id": "blue-marble-storm-sea",
+   "desc": "The orbital marble with sea state pinned to storm - the vantage where the original glitter blowout lived (no orbit-storm pin existed).",
+   "camera": {
+    "body": "earth",
+    "lat": 20,
+    "lon": -40,
+    "altitude_km": 12000,
+    "time": 12.02
+   },
+   "settle_s": 12,
+   "expect": "A soft bright glitter ellipse near the subsolar point, wider than calm but NOT clipped white.",
+   "regressions": [
+    "no pure-white clipped blowout",
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "sea": "1.0",
+    "weather": "clear",
+    "clouds": "1"
+   }
   }
  ],
  "ladder": {

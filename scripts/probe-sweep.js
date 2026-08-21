@@ -663,6 +663,22 @@ async function main() {
         const destName = `${v.id}.png`;
         fs.copyFileSync(srcPng, path.join(OUT, destName));
         rec.screenshot = destName;
+        // PAIRED capture (environment program increment 2): a vantage
+        // with `captures: 2` shoots again after `pair_gap_s`, producing
+        // <id>-b.png. Stills cannot prove a temporal property, but a
+        // PAIR bounds it: the static/boil gates compare the two frames
+        // (same camera, seconds apart) and fail on churn the eye would
+        // see as static. Named -b so every existing consumer of
+        // <id>.png is untouched.
+        if (v.captures === 2) {
+          await sleep((v.pair_gap_s ?? 3) * 1000);
+          clearDone("screenshot_done.json");
+          req("screenshot_request.json", {});
+          const shot2 = await waitFile("screenshot_done.json", 60000);
+          if (!shot2 || shot2.ok !== true) throw new Error(`screenshot b: ${JSON.stringify(shot2)}`);
+          fs.copyFileSync(path.join(RIG, shot2.path), path.join(OUT, `${v.id}-b.png`));
+          rec.screenshot_b = `${v.id}-b.png`;
+        }
         rec.fps = typeof shot.fps === "number" ? Math.round(shot.fps * 10) / 10 : null;
         rec.frame_ms = typeof shot.frame_ms_avg === "number" ? Math.round(shot.frame_ms_avg * 10) / 10 : null;
         // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). Several

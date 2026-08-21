@@ -257,3 +257,29 @@ Backlog #77: checkerboard-stride the 2048^2 octa pass 1/8-1/16 per frame - switc
 18. FIDELITY REFEREE ruling ('the 15% darkening is not a regression') vs the cloud architect's 'luminance within +/-8% of the approved bright capture': RESOLVED in the referee's favor - rank 10 accepts against the rank-8 CPU-converged reference; the joint gate's brightness/contrast floors operationalize 'not washed out', and when reference and old capture conflict, the reference wins and field constants move, never step sizes (the cloud architect's own objection 3 concedes exactly this).
 19. CLOUD ARCHITECT rider (cumulonimbus 12->8 km cap is a temporary narrowing): ADOPTED - rank 6 logs the coarse-grid-tier permanent fix in PRIORITIES.md the day it ships, so the cap cannot silently become the ceiling.
 20. CROSS-CUTTING: the cyan horizon banding is confirmed a WATER-lane increment (rank 4), not a cloud increment, per the cloud architect's own objection - it ships early because it is low-risk, operator-named, and gate-calibrated by rank 2.
+
+## Appendix: operator protocols (the only accepted evidence for temporal properties)
+
+A still capture presented as proof of a temporal property (boil, pop,
+static, drift) is an automatic reject. Paired captures bound these
+properties numerically; final acceptance of each is one of these named
+protocols, run by the operator in the live client and reported in chat.
+
+**DESCENT-1** - the altitude continuity ride. Start at 12,000 km over
+Silverdale at local noon, weather Cloudy, and descend at x10k gear to
+the ground in one unbroken run, eyes on the cloud deck and horizon.
+PASS: no moment where the sky, deck, haze or ocean visibly snaps,
+flips, or swaps character. Any snap: note the HUD altitude and say it -
+the ladder rungs bracket the report.
+
+**PAN-1** - the static/churn look. Park at 2 km under a cloudy sky.
+Hold still 10 s watching one cloud, then pan 90 degrees and back over
+~5 s. PASS: clouds read as solid bodies drifting with the wind; no
+per-pixel shimmer while still, no smearing or re-forming during the
+pan, and the same clouds are there when you return.
+
+**BOIL-1** - the close-approach look. Fly slowly toward one cumulus
+from ~10 km until inside it. PASS: the cloud grows smoothly, its
+silhouette does not churn or morph except by real approach parallax,
+entering it is a fog transition rather than a dissolve, and the deck
+behind is unchanged when you emerge.

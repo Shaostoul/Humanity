@@ -1864,6 +1864,7 @@ mod native_app {
                 dev_travel_home: None,
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
+                probe_hold: None,
                 sea_state_override: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
@@ -2692,6 +2693,13 @@ mod native_app {
                         let key_action = state.gui_state.keybinds.action_for(&key_name);
                         if let Some(act) = key_action {
                             state.controller.apply_action(act, pressed);
+                            // Any real movement input releases the probe
+                            // hold - the pin exists only for scripted
+                            // captures, and a human at the keys always
+                            // wins instantly.
+                            if pressed && state.probe_hold.is_some() {
+                                state.probe_hold = None;
+                            }
                         }
 
                         // Update InputState in DataStore for game systems
@@ -3380,6 +3388,23 @@ mod native_app {
                     // controller used to freeze all below-FTL-cap movement.
                     state.controller.surface_translation_owned = state.surface_owns_translation;
                     state.controller.update_camera(&mut state.camera, dt);
+
+                    // PROBE HOLD (environment program increment 2): a
+                    // scripted camera park re-asserts its pose every frame
+                    // so gravity/buoyancy cannot drag the probe off its
+                    // altitude during a long capture settle - every "high
+                    // eye fell to the sea" incident and the 2026-08-18
+                    // terrain-wedge artifact were this drift. Enforced
+                    // AFTER update_camera so whatever the integrator did
+                    // this frame is simply overwritten; the frame-lock
+                    // ride still moves the frame itself, so the ground
+                    // does not slide underneath. Any movement input
+                    // clears the hold (see the keyboard handler).
+                    if let Some((pos, yaw, pitch)) = state.probe_hold {
+                        state.camera.position = pos;
+                        state.camera.yaw = yaw;
+                        state.camera.pitch = pitch;
+                    }
 
                     // ── Ambient particles (v0.966): leaves among trees, dust
                     // in the void ── tick + emitter management. Particles
@@ -18301,6 +18326,11 @@ mod native_app {
                     && state.gui_state.player_death_cause.is_none()
                 {
                     state.controller.process_mouse_motion(delta.0, delta.1);
+                    // Real mouse-look releases the probe hold's yaw/pitch
+                    // pin (same rule as the keyboard: the human wins).
+                    if (delta.0.abs() + delta.1.abs()) > 0.5 && state.probe_hold.is_some() {
+                        state.probe_hold = None;
+                    }
                 }
             }
         }

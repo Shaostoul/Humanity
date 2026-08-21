@@ -774,6 +774,17 @@ pub(crate) struct EngineState {
     /// local frame; `frame_lock_last_spin` tracks the spin for the view
     /// co-rotation. See `dev_travel::frame_lock_*`.
     pub(crate) frame_lock_body: Option<String>,
+    /// PROBE HOLD (environment program increment 2, operator suggestion:
+    /// "set yourself up to be at a static altitude over a static point").
+    /// A scripted camera_request park pins (camera.position, yaw, pitch)
+    /// here; the main loop re-asserts them every frame and halts the
+    /// controller, so gravity/buoyancy cannot drag a parked probe off
+    /// its altitude during a long capture settle (the wedge artifact of
+    /// 2026-08-18 and every "high eye fell to the sea" incident were
+    /// this drift). The frame-lock ride still moves the FRAME - the pin
+    /// is the local offset inside it, so the ground does not slide.
+    /// Cleared by any real movement input or the next camera_request.
+    pub(crate) probe_hold: Option<(glam::Vec3, f32, f32)>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

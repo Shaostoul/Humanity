@@ -1006,6 +1006,11 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             state.frame_lock_last_spin = spin;
             state.frame_lock_body = Some(body_id.clone());
         }
+        // Probe hold (increment 2): pin the parked pose so gravity or
+        // buoyancy cannot drag the probe off its altitude during the
+        // capture settle. Cleared by real movement input.
+        state.probe_hold =
+            Some((state.camera.position, state.camera.yaw, state.camera.pitch));
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(
             DONE_PATH,
@@ -1054,6 +1059,10 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.frame_lock_last_spin = spin;
         state.frame_lock_body = Some(body_id.clone());
     }
+    // Probe hold (increment 2): pin the parked pose - see the field doc
+    // in engine::state. The frame-lock ride still carries the FRAME; this
+    // pins the local offset inside it, which is where gravity integrates.
+    state.probe_hold = Some((state.camera.position, state.camera.yaw, state.camera.pitch));
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(
         DONE_PATH,
