@@ -19,10 +19,12 @@
 //!   it by direction instead of marching. No bind-group-layout changes
 //!   anywhere - the v0.1029 every-create-site hazard never applies.
 //!
-//! Activation is per frame from lib.rs (`set_cloud_temporal`): the near-
-//! slab camera branch (inside/under the deck, where grain is visible)
-//! turns it on and flags the shader through params2.w (+4.0); orbit keeps
-//! the direct march, whose grain is sub-pixel at that distance.
+//! Activation is per frame from lib.rs (`set_cloud_temporal`): armed at
+//! EVERY altitude since 12c (the extent-parametrized map concentrates
+//! its texels on whatever the camera can see, so orbit gets a sharper-
+//! than-screen map instead of per-pixel march static). The params2.w
+//! (+4.0) flag tells the shell fragment to get out of the way; Low
+//! quality keeps the direct march.
 
 use super::{AlbedoBindGroup, Renderer};
 

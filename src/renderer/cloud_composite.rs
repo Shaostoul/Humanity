@@ -34,6 +34,14 @@ pub struct CloudCompositeFrame {
     /// The map basis anchor (planet-local unit dir, CPU hysteresis - Wave D
     /// fix 2). LOCKSTEP with the pad-encoded anchor the shell shaders read.
     pub anchor_local: [f32; 3],
+    /// cos(theta_max) of the map extent (12c). -1 = full sphere. LOCKSTEP
+    /// with the light3_cone_inner.x pad the octa pass reads.
+    pub cmax: f32,
+    /// True when the atmosphere dome must draw OVER the composited deck
+    /// (camera outside the atmosphere - the v0.997 shell ordering rule).
+    /// Positions the composite pass before vs after the transparent
+    /// celestial pass (12c order fix, adversarial review finding 3).
+    pub atmo_over: bool,
 }
 
 #[repr(C)]
@@ -208,7 +216,7 @@ impl CloudCompositePass {
             cam_pos: [cam_pos[0], cam_pos[1], cam_pos[2], tan_half_fov],
             cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], aspect],
             cam_right: [cam_right[0], cam_right[1], cam_right[2], 0.0],
-            cam_up: [cam_up[0], cam_up[1], cam_up[2], 0.0],
+            cam_up: [cam_up[0], cam_up[1], cam_up[2], frame.cmax],
             center: [frame.center[0], frame.center[1], frame.center[2], frame.planet_r],
             basis_x: [frame.basis[0][0], frame.basis[0][1], frame.basis[0][2], frame.rb],
             basis_y: [frame.basis[1][0], frame.basis[1][1], frame.basis[1][2], frame.rt],

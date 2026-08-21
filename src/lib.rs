@@ -1867,6 +1867,7 @@ mod native_app {
                 probe_hold: None,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
+                cloud_map_regime: 0,
                 sea_state_override: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
@@ -8766,13 +8767,15 @@ mod native_app {
                         let mut patch_builds_this_frame = 0usize;
 
                         // Temporal clouds (phase 4): cleared each frame; the
-                        // near-slab cloud branch below re-arms it for the
-                        // (single) body whose deck the camera is under. The
-                        // fullscreen composite frame (Wave D 1b) follows the
-                        // same lifecycle - a stale frame would composite a
-                        // stale map over a planetless scene.
+                        // cloud branch below re-arms it for the (single)
+                        // cloud-bearing body in view - at EVERY altitude
+                        // since 12c. The fullscreen composite frame (Wave D
+                        // 1b) follows the same lifecycle - a stale frame
+                        // would composite a stale map over a planetless
+                        // scene - and so does the one-frame resample order.
                         state.renderer.set_cloud_temporal(None);
                         state.renderer.cloud_composite_frame = None;
+                        state.renderer.cloud_map_resample.set(None);
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11390,12 +11393,6 @@ mod native_app {
                                         // sitting at its TRUE altitude from
                                         // orbit instead of 1.6% high.
                                         let shell_ratio = slab_rt + 0.0006;
-                                        // near_slab survives ONLY as the
-                                        // temporal-map arming gate until the
-                                        // program's wave D re-parameterizes
-                                        // the map and deletes it entirely.
-                                        let near_slab =
-                                            (cam_r_ratio as f64) < slab_rt as f64 * 1.05;
                                         // Weather-event override (v0.1037): the
                                         // active event's eased coverage boost +
                                         // tint ride the material slots the
@@ -11434,6 +11431,24 @@ mod native_app {
                                                 }
                                             })
                                             .unwrap_or((0.0, 0.0));
+                                        // ...but the sim's weather is a POINT
+                                        // sample at the player, so its floor
+                                        // fades out with altitude: from high
+                                        // orbit the operator watched a local
+                                        // Storm paint the ENTIRE planet 95%
+                                        // white (v0.1183 report). Full local
+                                        // authority below ~30 km (the sky
+                                        // you are actually under), gone by
+                                        // ~120 km, where the view spans
+                                        // weather systems the sim knows
+                                        // nothing about - the MODIS field
+                                        // owns the marble.
+                                        let h_km = (cam_r_ratio as f32 - 1.0).max(0.0)
+                                            * (d.radius / 1000.0) as f32;
+                                        let wx_fade =
+                                            (1.0 - (h_km - 30.0) / 90.0).clamp(0.0, 1.0);
+                                        let (wx_floor, wx_bypass) =
+                                            (wx_floor * wx_fade, wx_bypass * wx_fade);
                                         // Dev/showcase coverage pin wins over
                                         // the live weather + event boost (see
                                         // EngineState::cloud_cover_override).
@@ -11462,21 +11477,26 @@ mod native_app {
                                             (true, None) => 1.0,
                                             _ => wx_bypass,
                                         };
-                                        // Temporal accumulation (phase 4):
-                                        // ON when the camera is under/near
-                                        // the deck at High quality - the
-                                        // exact regime where march grain is
-                                        // visible. The +4 flag tells the
-                                        // type-15 fragment to composite
-                                        // from the octa map instead of
-                                        // marching (see cloud_pin_base).
-                                        // Medium included since phase 8:
-                                        // it used to march per-pixel at
-                                        // full res and measured SLOWER
-                                        // than High at the same vantage
-                                        // (the quality-ladder inversion,
-                                        // perf audit finding 5).
-                                        let temporal = near_slab && quality > 0.5;
+                                        // Temporal accumulation, armed at
+                                        // ALL altitudes (12c): the extent-
+                                        // parametrized map concentrates its
+                                        // texels on whatever the camera can
+                                        // see, so orbit gets a sharper-than-
+                                        // screen map instead of per-pixel
+                                        // march static, and the old 331 km
+                                        // arming pop no longer exists. The
+                                        // +4 flag tells the type-15 fragment
+                                        // to get out of the way (the
+                                        // fullscreen composite draws the
+                                        // map). Low quality keeps the
+                                        // direct march. The px gate keeps
+                                        // a distant dot-sized planet off
+                                        // the 2048^2 octa march
+                                        // (adversarial review finding 7):
+                                        // below ~160 px the shell march is
+                                        // at most ~26k rays and the map
+                                        // would be invisible detail anyway.
+                                        let temporal = quality > 0.5 && px >= 160.0;
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
                                         }
@@ -11507,20 +11527,109 @@ mod native_app {
                                         // camera near a boundary can never
                                         // flip-flop the basis.
                                         {
+                                            // 12c map-param controller: pick
+                                            // the ideal (anchor, extent) for
+                                            // the camera's regime, freeze it
+                                            // with hysteresis, and order a
+                                            // one-frame history resample on
+                                            // every re-anchor so the change
+                                            // is invisible (the math and the
+                                            // regime table live in
+                                            // docs/design/environment-program.md
+                                            // increment 12c).
                                             let cam_p = state.camera.effective_position();
                                             let up_w = (cam_p - position).normalize_or_zero();
                                             let up_l = (rotation.conjugate() * up_w)
                                                 .normalize_or_zero();
+                                            let c = cam_r_ratio as f32;
+                                            // Hysteresis bands so a hovering
+                                            // camera cannot chatter regimes.
+                                            // Each band is scaled to the
+                                            // boundary it guards, NOT the
+                                            // planet radius (adversarial
+                                            // review finding 1: a flat
+                                            // 0.0004 R = 2.5 km band at a
+                                            // 400 m slab-base boundary put
+                                            // the under-deck regime 2.1 km
+                                            // BELOW sea level - unreachable).
+                                            // rt boundary: 2.5 km against a
+                                            // ~12 km deck top. rb boundary:
+                                            // half the base altitude (200 m
+                                            // on Earth).
+                                            const BAND_RT: f32 = 0.0004;
+                                            let band_rb =
+                                                ((slab_rb - 1.0) * 0.5).max(1.0e-6);
+                                            let r0 = state.cloud_map_regime;
+                                            let regime = if r0 == 1 && c >= slab_rt {
+                                                1
+                                            } else if r0 == 2
+                                                && c <= slab_rt + BAND_RT
+                                                && c >= slab_rb - band_rb
+                                            {
+                                                2
+                                            } else if r0 == 3 && c <= slab_rb {
+                                                3
+                                            } else if c >= slab_rt + BAND_RT {
+                                                1
+                                            } else if c > slab_rb - band_rb {
+                                                2
+                                            } else {
+                                                3
+                                            };
+                                            state.cloud_map_regime = regime;
+                                            let (ideal_a, ideal_th) = match regime {
+                                                // Above the deck: anchor at
+                                                // NADIR, extent = the shell
+                                                // disc + 4 deg margin. Every
+                                                // texel lands on visible
+                                                // cloud; the old antipode
+                                                // singularity (the pinch at
+                                                // the operator's feet) is
+                                                // now the best-resolved
+                                                // point of the map.
+                                                1 => {
+                                                    let sin_t =
+                                                        (slab_rt / c.max(slab_rt)).min(1.0);
+                                                    (
+                                                        -up_l,
+                                                        sin_t.asin()
+                                                            + 4.0f32.to_radians(),
+                                                    )
+                                                }
+                                                // Inside the slab: cloud in
+                                                // every direction - the one
+                                                // regime that needs the full
+                                                // sphere.
+                                                2 => (up_l, std::f32::consts::PI),
+                                                // Under the deck: sky +
+                                                // horizon, stopping 25 deg
+                                                // below horizontal (terrain
+                                                // relief margin).
+                                                _ => (up_l, 115.0f32.to_radians()),
+                                            };
                                             let re = match state.cloud_map_anchor {
-                                                Some(a) => a.dot(up_l) < (0.02f32).cos(),
+                                                Some((a, th)) => {
+                                                    a.dot(ideal_a) < (0.02f32).cos()
+                                                        || (th - ideal_th).abs()
+                                                            > 2.0f32.to_radians()
+                                                }
                                                 None => true,
                                             };
                                             if re {
-                                                state.cloud_map_anchor = Some(up_l);
+                                                state.renderer.cloud_map_resample.set(
+                                                    state.cloud_map_anchor.map(|(a, th)| {
+                                                        ([a.x, a.y, a.z], th.cos())
+                                                    }),
+                                                );
+                                                state.cloud_map_anchor =
+                                                    Some((ideal_a, ideal_th));
+                                            } else {
+                                                state.renderer.cloud_map_resample.set(None);
                                             }
-                                            if let Some(a) = state.cloud_map_anchor {
+                                            if let Some((a, th)) = state.cloud_map_anchor {
                                                 state.renderer.cloud_map_anchor_local =
                                                     [a.x, a.y, a.z];
+                                                state.renderer.cloud_map_cmax = th.cos();
                                             }
                                         }
                                         // Fullscreen composite frame (Wave D
@@ -11542,8 +11651,17 @@ mod native_app {
                                                 rt: slab_rt,
                                                 anchor_local: state
                                                     .cloud_map_anchor
-                                                    .map(|a| [a.x, a.y, a.z])
+                                                    .map(|(a, _)| [a.x, a.y, a.z])
                                                     .unwrap_or([0.0, 1.0, 0.0]),
+                                                cmax: state
+                                                    .cloud_map_anchor
+                                                    .map(|(_, th)| th.cos())
+                                                    .unwrap_or(-1.0),
+                                                // Patched to the real value
+                                                // beside the shell-ordering
+                                                // match below, where
+                                                // inside_atmo is known.
+                                                atmo_over: false,
                                             })
                                         } else {
                                             None
@@ -11680,6 +11798,18 @@ mod native_app {
                                                 < a.scale.x
                                         })
                                         .unwrap_or(false);
+                                    // 12c order fix: the fullscreen cloud
+                                    // composite must respect the same rule
+                                    // this match expresses for the shells -
+                                    // outside the atmosphere the dome draws
+                                    // OVER the deck. The renderer positions
+                                    // the composite pass by this flag.
+                                    let has_atmo = atmo_shell_obj.is_some();
+                                    if let Some(f) =
+                                        state.renderer.cloud_composite_frame.as_mut()
+                                    {
+                                        f.atmo_over = has_atmo && !inside_atmo;
+                                    }
                                     match (cloud_shell_obj, atmo_shell_obj) {
                                         (Some(c), Some(a)) if inside_atmo => {
                                             celestial_transparent.push(a);

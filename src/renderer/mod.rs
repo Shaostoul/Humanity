@@ -405,6 +405,21 @@ pub struct Renderer {
     /// gets worse the longer we stay"). Unit vector; pushed to the shader
     /// octahedrally through pads 496 + 556.
     pub cloud_map_anchor_local: [f32; 3],
+    /// cos(theta_max) of the cloud map's extent (12c): -1 = full sphere
+    /// (the pre-12c mapping), larger = the map concentrates its texels
+    /// within theta_max of the anchor (orbit: just the planet disc).
+    /// Frozen between re-anchors, LOCKSTEP with the anchor above; pushed
+    /// through the light3_cone_inner.x pad (offset 512).
+    pub cloud_map_cmax: f32,
+    /// One-frame resample order (12c): Some((old_anchor_local, old_cmax))
+    /// on the frame lib.rs re-anchored the map. The octa pass then looks
+    /// history up through the OLD mapping so the re-anchor is invisible.
+    /// Rides the legacy camera.light3 position vec4 (offset 128). A Cell
+    /// consumed (take) at the pad write, because render_celestial_onto
+    /// can run TWICE in one frame (hi-res capture re-render) and a second
+    /// octa pass with the flag still up would warp the already-resampled
+    /// history a second time (adversarial review finding 4).
+    pub cloud_map_resample: std::cell::Cell<Option<([f32; 3], f32)>>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1542,6 +1557,8 @@ impl Renderer {
             cloud_composite: cloud_composite_pass,
             cloud_composite_frame: None,
             cloud_map_anchor_local: [0.0, 1.0, 0.0],
+            cloud_map_cmax: -1.0,
+            cloud_map_resample: std::cell::Cell::new(None),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -2833,21 +2850,45 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 552, bytemuck::bytes_of(&pix_ang));
         // Cloud-map basis anchor, octahedrally encoded into two spare pads
         // (496 = light2_cone_inner.x, 556 = light5_cone_inner.w). The
-        // shell/octa shaders decode it in cloud_map_up; the composite pass
-        // receives the raw vector through its own uniform. LOCKSTEP: the
-        // decode in 40-clouds.wgsl must mirror this encode exactly.
-        let a = self.cloud_map_anchor_local;
-        let denom = a[0].abs() + a[1].abs() + a[2].abs();
-        let (mut ox, mut oz) = (a[0] / denom.max(1e-9), a[2] / denom.max(1e-9));
-        if a[1] < 0.0 {
-            let (fx, fz) = (ox, oz);
-            ox = (1.0 - fz.abs()) * if fx >= 0.0 { 1.0 } else { -1.0 };
-            oz = (1.0 - fx.abs()) * if fz >= 0.0 { 1.0 } else { -1.0 };
+        // shell/octa shaders decode it in cloud_map_axis_world; the
+        // composite pass receives the raw vector through its own uniform.
+        // LOCKSTEP: the decode in 40-clouds.wgsl must mirror this encode.
+        fn octa_encode(a: [f32; 3]) -> (f32, f32) {
+            let denom = a[0].abs() + a[1].abs() + a[2].abs();
+            let (mut ox, mut oz) = (a[0] / denom.max(1e-9), a[2] / denom.max(1e-9));
+            if a[1] < 0.0 {
+                let (fx, fz) = (ox, oz);
+                ox = (1.0 - fz.abs()) * if fx >= 0.0 { 1.0 } else { -1.0 };
+                oz = (1.0 - fx.abs()) * if fz >= 0.0 { 1.0 } else { -1.0 };
+            }
+            (ox, oz)
         }
+        let (ox, oz) = octa_encode(self.cloud_map_anchor_local);
         self.queue
             .write_buffer(&self.camera_buffer, 496, bytemuck::bytes_of(&ox));
         self.queue
             .write_buffer(&self.camera_buffer, 556, bytemuck::bytes_of(&oz));
+        // 12c extent: the frozen cos(theta_max) in light3_cone_inner.x
+        // (offset 512), and the OLD params + resample flag in the legacy
+        // (unused since the storage-buffer light list) camera.light3
+        // position vec4 at offset 128: x/y = old anchor octa pair, z = old
+        // cos(theta_max), w = 1 on the single frame after a re-anchor. The
+        // octa pass reprojects its history through the old mapping on that
+        // frame, which is what makes a re-anchor invisible.
+        self.queue
+            .write_buffer(&self.camera_buffer, 512, bytemuck::bytes_of(&self.cloud_map_cmax));
+        // take() consumes the order: a second render_celestial_onto call in
+        // the same frame (hi-res capture) must run its octa pass with the
+        // flag DOWN - the history is already in the new mapping by then.
+        let old_pads: [f32; 4] = match self.cloud_map_resample.take() {
+            Some((a, cm)) => {
+                let (oox, ooz) = octa_encode(a);
+                [oox, ooz, cm, 1.0]
+            }
+            None => [0.0, 0.0, -1.0, 0.0],
+        };
+        self.queue
+            .write_buffer(&self.camera_buffer, 128, bytemuck::cast_slice(&old_pads));
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));
@@ -3512,6 +3553,50 @@ impl Renderer {
                 }
             }
 
+        }
+
+        // 12c ORDER FIX (adversarial review finding 3): when the camera is
+        // OUTSIDE the atmosphere the deck must sit UNDER the limb haze -
+        // the v0.997 rule the shell path expressed by transparent-list
+        // order (clouds first, dome after). The fullscreen composite
+        // therefore runs HERE - after the opaque pass wrote terrain
+        // depth, before the transparent pass blends the atmosphere dome
+        // over it. Inside the atmosphere the dome is the sky BEHIND the
+        // deck, so the composite stays after the transparent pass below.
+        if self
+            .cloud_composite_frame
+            .as_ref()
+            .map(|f| f.atmo_over)
+            .unwrap_or(false)
+        {
+            self.run_cloud_composite(&mut encoder, view, camera);
+        }
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Celestial Transparent Pass"),
+                timestamp_writes: self.pass_timer("gpu.celestial_t"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            let uniform_align = 256_u64;
+
             // Atmosphere shells etc.: alpha-blended over the bodies, depth-TESTED
             // against them (no depth write), so the back hemisphere of a shell is
             // hidden by its own planet while the limb halo survives. Few and far
@@ -3600,13 +3685,37 @@ impl Renderer {
         }
 
         // ── Fullscreen depth-aware cloud composite (Wave D slice 1b) ──
-        // Runs after the celestial pass so the depth buffer holds the full
-        // terrain, and only while the temporal map is armed (the shell's
-        // own temporal branch discards - one compositor at a time). This is
-        // what lets a deck below the camera survive: the shell's fragments
-        // for downward rays lie beyond the planet and the hardware depth
-        // test killed them; here occlusion is per-pixel against the REAL
-        // scene depth, mountains included.
+        // The INSIDE-the-atmosphere position: after the transparent pass,
+        // so the deck draws over the sky dome behind it. The outside
+        // position ran earlier (before the transparent pass) - see the
+        // 12c order-fix comment there. One compositor either way: the
+        // shell's own temporal branch discards while the map is armed.
+        if self
+            .cloud_composite_frame
+            .as_ref()
+            .map(|f| !f.atmo_over)
+            .unwrap_or(false)
+        {
+            self.run_cloud_composite(&mut encoder, view, camera);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// The fullscreen depth-aware cloud composite draw (Wave D slice 1b).
+    /// Requires the scene depth for this frame's opaques to be complete;
+    /// call position relative to the transparent celestial pass is chosen
+    /// by CloudCompositeFrame::atmo_over (12c order fix). This is what
+    /// lets a deck below the camera survive: the shell's fragments for
+    /// downward rays lie beyond the planet and the hardware depth test
+    /// killed them; here occlusion is per-pixel against the REAL scene
+    /// depth, mountains included.
+    fn run_cloud_composite(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        camera: &Camera,
+    ) {
         if let (Some(ct), Some(frame), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_composite_frame.as_ref(),
@@ -3626,7 +3735,7 @@ impl Renderer {
             self.cloud_composite.render(
                 &self.device,
                 &self.queue,
-                &mut encoder,
+                encoder,
                 &self.depth_view,
                 &ct.views[ct.cur.get()],
                 view,
@@ -3642,8 +3751,6 @@ impl Renderer {
                 self.pass_timer("gpu.cloud_composite"),
             );
         }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     /// Draw world-space thin lines (orbit paths) onto an already-rendered

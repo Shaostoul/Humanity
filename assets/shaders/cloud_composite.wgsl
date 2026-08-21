@@ -28,7 +28,7 @@ struct CloudCompositeUniforms {
     cam_pos: vec4<f32>,     // xyz = eye, w = tan(fov_y / 2)
     cam_fwd: vec4<f32>,     // xyz = forward, w = aspect
     cam_right: vec4<f32>,   // xyz
-    cam_up: vec4<f32>,      // xyz
+    cam_up: vec4<f32>,      // xyz; w = cos(theta_max) of the map extent (12c)
     // Planet/shell frame.
     center: vec4<f32>,      // xyz = planet centre (render frame), w = planet radius (world units)
     basis_x: vec4<f32>,     // planet local axes in world space; w: rb ratio
@@ -89,13 +89,18 @@ fn map_basis() -> mat3x3<f32> {
     return mat3x3<f32>(t1, up, t2);
 }
 
-fn map_encode(d: vec3<f32>) -> vec2<f32> {
+// 12c extent encode - LOCKSTEP with cloud_map_encode_at in 40-clouds.wgsl.
+// Returns xy = uv, z = RAW r^2: z > 1 means the direction lies outside
+// the map's extent (no data - the caller discards; the CPU controller's
+// 4 deg margin means a slab-hitting ray should never land there).
+fn map_encode(d: vec3<f32>) -> vec3<f32> {
     let b = map_basis();
     let l = vec3<f32>(dot(d, b[0]), dot(d, b[1]), dot(d, b[2]));
-    let r2 = clamp((1.0 - l.y) * 0.5, 0.0, 1.0);
+    let k = clamp(1.0 - u.cam_up.w, 1.0e-3, 2.0);
+    let r2 = (1.0 - l.y) / k;
     let xz_len = max(length(l.xz), 1.0e-6);
-    let p = (l.xz / xz_len) * sqrt(r2);
-    return p * 0.5 + vec2<f32>(0.5);
+    let p = (l.xz / xz_len) * sqrt(clamp(r2, 0.0, 1.0));
+    return vec3<f32>(p * 0.5 + vec2<f32>(0.5), r2);
 }
 
 @fragment
@@ -170,8 +175,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // pop).
     let seg_frac = clamp((scene_t - m0) / max(m1 - m0, 1.0e-6), 0.0, 1.0);
 
-    // The temporal map (premultiplied), by direction.
-    let s = textureSampleLevel(cloud_map, map_sampler, map_encode(rd), 0.0);
+    // The temporal map (premultiplied), by direction. The 1.02 threshold
+    // (~1 deg past the extent) is deliberate: at k = 2 the antipode's
+    // r^2 lands at 1.0 exactly and f32 dot jitter can push it a hair
+    // over - an exact > 1.0 test would flicker a hole at the sub-camera
+    // point. Genuinely outside-extent rays overshoot far past 1.02.
+    let e = map_encode(rd);
+    if (e.z > 1.02) {
+        discard; // outside the map's extent - no data
+    }
+    let s = textureSampleLevel(cloud_map, map_sampler, e.xy, 0.0);
     if (s.a <= 0.003) {
         discard;
     }

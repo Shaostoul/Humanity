@@ -435,7 +435,13 @@ const CLOUD_LODC_FRAY: f32 = 2.479;
 // hardcoded 1 mrad guess under-read a 90-deg/1387-row frame by ~40%, and
 // every footprint and mip pick with it. The fallback below only covers an
 // older writer that never fills the pad.
-const CLOUD_PIX_ANG_MAP: f32 = 4.0 / 2048.0;
+// 12c: the map texel angle now depends on the extent - the disc-center
+// radial texel angle is sqrt(2 k) / (CLOUD_OCTA_SIZE / 2). k = 2 (full
+// sphere) reproduces the pre-12c constant 4/2048; the orbit regime's
+// small k shrinks the footprint to match its concentrated texels.
+fn cloud_pix_ang_map() -> f32 {
+    return sqrt(2.0 * cloud_map_k()) * (2.0 / 2048.0);
+}
 fn cloud_pix_ang_screen() -> f32 {
     let pa = camera.light5_cone_inner.z;
     return select(0.00144, pa, pa > 1.0e-5);
@@ -1855,9 +1861,11 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
 // anchor and re-anchors only past a drift threshold; it rides pads
 // 496 (light2_cone_inner.x) + 556 (light5_cone_inner.w) as an octahedral
 // pair. LOCKSTEP with the encode in renderer/mod.rs.
-fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
-    let ox = camera.light2_cone_inner.x;
-    let oz = camera.light5_cone_inner.w;
+// Decode one octahedrally-encoded planet-local axis (the CPU encode in
+// renderer/mod.rs) and take it to world space. Used for the CURRENT
+// anchor (pads 496/556) and, on a resample frame, the OLD anchor
+// (camera.light3.xy - the legacy point-light slot repurposed as 12c pads).
+fn cloud_map_axis_world(ox: f32, oz: f32) -> vec3<f32> {
     let ay = 1.0 - abs(ox) - abs(oz);
     var a = vec3<f32>(ox, ay, oz);
     if (ay < 0.0) {
@@ -1869,6 +1877,28 @@ fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
     }
     let a_l = normalize(a);
     return normalize((obj_normal_matrix() * vec4<f32>(a_l, 0.0)).xyz);
+}
+
+fn cloud_map_up(center: vec3<f32>) -> vec3<f32> {
+    return cloud_map_axis_world(camera.light2_cone_inner.x, camera.light5_cone_inner.w);
+}
+
+// 12c extent: k = 1 - cos(theta_max) of the frozen map params, from the
+// light3_cone_inner.x pad (offset 512). k = 2 (cmax = -1) is the full
+// sphere - the pre-12c map exactly. Smaller k concentrates every texel
+// inside theta_max of the anchor: from orbit the whole map covers just
+// the planet disc (~23x the old areal resolution at 12000 km), and above
+// the deck the anchor is NADIR, so the old k = 2 antipode singularity
+// (the operator's "sharp warped point at my feet") is gone everywhere
+// ABOVE the deck top. KNOWN LIMIT: inside the slab (regime 2, ~0.4-12 km
+// on Earth) the map is still the full k = 2 sphere with the antipode at
+// nadir - a camera inside the deck looking straight down still crosses
+// the rim's distortion. Owned by slice B / a dual-disc mapping if it
+// proves visible in play. The pad is written every celestial frame
+// by the same block that writes the anchor pads; the clamp is only a
+// safety net against a garbage read.
+fn cloud_map_k() -> f32 {
+    return clamp(1.0 - camera.light3_cone_inner.x, 1.0e-3, 2.0);
 }
 
 fn cloud_map_tangents(up: vec3<f32>) -> mat3x3<f32> {
@@ -1885,22 +1915,31 @@ fn cloud_map_tangents(up: vec3<f32>) -> mat3x3<f32> {
     return mat3x3<f32>(t1, up, t2);
 }
 
-fn cloud_map_encode(d: vec3<f32>, center: vec3<f32>) -> vec2<f32> {
-    let b = cloud_map_tangents(cloud_map_up(center));
-    // Local frame: y = altitude toward up, xz = the azimuth plane.
+// Extent-Lambert encode against EXPLICIT params (12c): xy = uv, z = the
+// RAW r^2 before clamping - z > 1 means the direction lies outside this
+// mapping's extent (no map data there). The resample path in the octa
+// pass calls this with the OLD params; the composite pass carries its
+// own LOCKSTEP copy (cloud_composite.wgsl map_encode).
+fn cloud_map_encode_at(d: vec3<f32>, up: vec3<f32>, k: f32) -> vec3<f32> {
+    let b = cloud_map_tangents(up);
+    // Local frame: y = altitude toward the anchor, xz = the azimuth plane.
     let l = vec3<f32>(dot(d, b[0]), dot(d, b[1]), dot(d, b[2]));
-    let r2 = clamp((1.0 - l.y) * 0.5, 0.0, 1.0);
+    let r2 = (1.0 - l.y) / max(k, 1.0e-6);
     let xz_len = max(length(l.xz), 1.0e-6);
-    let p = (l.xz / xz_len) * sqrt(r2);
-    return p * 0.5 + vec2<f32>(0.5);
+    let p = (l.xz / xz_len) * sqrt(clamp(r2, 0.0, 1.0));
+    return vec3<f32>(p * 0.5 + vec2<f32>(0.5), r2);
 }
 
 fn cloud_map_decode(uv: vec2<f32>, center: vec3<f32>) -> vec3<f32> {
     let b = cloud_map_tangents(cloud_map_up(center));
     let p = uv * 2.0 - vec2<f32>(1.0);
     let r2 = clamp(dot(p, p), 0.0, 1.0);
-    let y = 1.0 - 2.0 * r2;
-    let s = 2.0 * sqrt(max(1.0 - r2, 0.0));
+    let k = cloud_map_k();
+    // Inverse of the extent encode: l.y = 1 - k r^2; |l.xz| follows from
+    // unit length, and p already has magnitude r, so the xz factor is
+    // sqrt(k (2 - k r^2)). k = 2 reduces to the classic Lambert decode.
+    let y = 1.0 - k * r2;
+    let s = sqrt(max(k * (2.0 - k * r2), 0.0));
     let l = vec3<f32>(p.x * s, y, p.y * s);
     return normalize(b[0] * l.x + b[1] * l.y + b[2] * l.z);
 }

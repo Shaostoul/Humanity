@@ -78,7 +78,25 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     let shell_r = length(obj_model()[0].xyz);
     let rd_w = cloud_map_decode(in.uv, center);
     // History: the ping-pong partner, bound in this pass's albedo slot.
-    let hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+    // 12c RESAMPLE: on the one frame where the CPU controller re-anchored
+    // the map (anchor drift, extent drift, or a regime flip), the history
+    // texture still holds the OLD mapping - so look this texel's direction
+    // up through the OLD params (camera.light3: xy = old anchor octa pair,
+    // z = old cos(theta_max), w = flag). The re-anchor is then invisible:
+    // no content jump, no ghost EMA-fading out - the operator's "big jump
+    // and the old one phases out slowly" dies here. A direction outside
+    // the OLD extent has no history; take the fresh march outright.
+    var hist: vec4<f32>;
+    var have_hist = true;
+    if (camera.light3.w > 0.5) {
+        let up_old = cloud_map_axis_world(camera.light3.x, camera.light3.y);
+        let k_old = clamp(1.0 - camera.light3.z, 1.0e-3, 2.0);
+        let e = cloud_map_encode_at(rd_w, up_old, k_old);
+        hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
+        have_hist = e.z <= 1.0;
+    } else {
+        hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+    }
     // The accumulation sequence: per-texel stratum + the golden-ratio
     // step per cloud-clock tick. Across frames each texel's march visits
     // a low-discrepancy sequence of sample offsets, which is exactly the
@@ -89,7 +107,7 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     );
     // Footprint for band-limited volume sampling: this pass's pixel is a
     // Lambert map texel, whose angular size is the map constant.
-    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, CLOUD_PIX_ANG_MAP);
+    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
     // PREMULTIPLY before accumulating (the fidelity audit's top finding):
     // the march returns straight alpha, and vec4(0) for clear/early-out
     // rays. EMA-ing straight alpha makes a direction whose jittered
@@ -115,6 +133,11 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // ghosting on a cloud.
     let diff = abs(cur.a - hist.a)
         + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
-    let alpha = clamp(0.04 + diff * 0.05, 0.04, 0.12);
+    var alpha = clamp(0.04 + diff * 0.05, 0.04, 0.12);
+    // No history for this direction (outside the old extent on a resample
+    // frame): start from the fresh march instead of EMA-ing toward zero.
+    if (!have_hist) {
+        alpha = 1.0;
+    }
     return mix(hist, cur, alpha);
 }

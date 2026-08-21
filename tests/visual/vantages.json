@@ -1052,6 +1052,26 @@
    }
   },
   {
+   "id": "nadir-pinch-114km",
+   "desc": "Straight-down view from 114 km (the operator's v0.1183 pinch report). Owns the map-antipode defect class: radial spokes converging under the camera, azimuthal smear inflating coverage into a white-out.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 114
+   },
+   "settle_s": 12,
+   "expect": "Clouds straight down look like the same field seen obliquely: discrete masses with gaps, no radial convergence point, no coverage inflation toward the sub-camera point.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1"
+   }
+  },
+  {
    "id": "orbit-static",
    "desc": "PAIRED capture at orbit (3 s apart). Owns the TV-static complaint: the two frames must differ only by real motion, not churn.",
    "camera": {

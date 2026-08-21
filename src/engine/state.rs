@@ -802,12 +802,19 @@ pub(crate) struct EngineState {
     /// screenshot rig appends camera + sun + clock and writes
     /// debug/cloud_ref_dump.json beside every capture.
     pub(crate) cloud_ref_frame: Option<String>,
-    /// The temporal cloud map's basis anchor with HYSTERESIS (Wave D
-    /// fix 2): the camera direction in the planet's local frame,
-    /// re-anchored only when the live direction drifts more than
-    /// ~0.02 rad from it - never oscillating at a boundary the way the
-    /// first cut's stateless in-shader snap did.
-    pub(crate) cloud_map_anchor: Option<glam::Vec3>,
+    /// The temporal cloud map's frozen params with HYSTERESIS (Wave D
+    /// fix 2 + 12c): the anchor direction in the planet's local frame
+    /// plus theta_max (the map extent's angular radius, radians).
+    /// Re-anchored only when the ideal anchor drifts > ~0.02 rad or the
+    /// ideal extent drifts > 2 deg - never oscillating at a boundary the
+    /// way the first cut's stateless in-shader snap did. Every re-anchor
+    /// orders a one-frame history resample through the old mapping.
+    pub(crate) cloud_map_anchor: Option<(glam::Vec3, f32)>,
+    /// Which extent regime the frozen params came from (12c): 0 = unset,
+    /// 1 = above the deck (nadir anchor, shell-disc extent), 2 = inside
+    /// the slab (zenith, full sphere), 3 = under the deck (zenith,
+    /// 115 deg). Carries the slab-boundary hysteresis band.
+    pub(crate) cloud_map_regime: u8,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

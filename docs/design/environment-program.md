@@ -390,6 +390,132 @@ remain as 12c:**
   - the subtraction math must land before ladder numbers gate anything
   again. The rung IMAGE PAIRS are the accepted evidence this increment.
 
+**12c SLICE A SPEC (adopted 2026-08-21, from the operator's v0.1183 live
+report: nadir pinch "like the top of a UV sphere at my feet", coverage
+white-out looking down, re-anchor ghost jumps, no orbit-to-surface
+continuity). The extent-resample math the council required before code:**
+
+1. MAPPING. Map params = (anchor a, planet-local unit; theta_max). Let
+   k = 1 - cos(theta_max), k in (0, 2]. Basis B from a (existing planet-
+   axis tangents rule). For l = B^T d: ENCODE r^2 = (1 - l.y)/k (valid
+   iff r^2 <= 1, i.e. angle(d, a) <= theta_max), p = normalize(l.xz) * r.
+   DECODE l.y = 1 - k r^2, l.xz = p * sqrt(k (2 - k r^2)). k = 2 is
+   byte-for-math the shipped full-sphere Lambert disc. The v0.1183 pinch
+   is the k = 2 antipode: the whole disc RIM is one direction (straight
+   down), so a nadir view reads only the rim annulus - radial spokes,
+   azimuthal smear, inflated coverage.
+2. REGIME POLICY (c = camera planet-radius ratio; rb/rt = slab):
+   - ABOVE (c >= rt): a = NADIR (-up_local), theta_max =
+     asin(min(rt/c, 1)) + 4 deg. Every texel lands on the visible shell
+     disc; nadir is the map CENTER (best-resolved), the rim is the limb.
+     At 12000 km k ~ 0.08: map texel 0.02 deg, sharper than screen.
+   - INSIDE the slab (rb < c < rt): a = zenith, theta_max = 180 (k = 2,
+     the shipped map). The only regime that needs the full sphere; the
+     antipode sits in ground fog where distortion is invisible.
+   - UNDER the deck (c <= rb): a = zenith, theta_max = 115 deg.
+   - Hysteresis: each regime boundary's band is scaled to the boundary
+     it guards (AMENDED per adversarial review finding 1 - the first cut
+     used a flat 0.0004 R everywhere, which at the 400 m slab-base
+     boundary put "under the deck" 2.1 km below sea level): rt boundary
+     0.0004 R (~2.5 km vs the ~12 km top); rb boundary = half the base
+     altitude (~200 m on Earth). Within a regime, re-anchor when anchor
+     drift > 0.02 rad OR |theta_max drift| > 2 deg.
+3. RESAMPLE. Params are FROZEN between re-anchor events. On the one
+   re-anchor frame the octa pass looks HISTORY up through the OLD
+   mapping: uv_old = encode_old(decode_new(texel)); texels outside the
+   old extent take the fresh march at alpha = 1. Old params + flag ride
+   the legacy camera.light3 position vec4 (offset 128: x/y = old anchor
+   octa pair, z = old cos(theta_max), w = resample flag); the CURRENT
+   cos(theta_max) rides light3_cone_inner.x (offset 512), beside the
+   anchor pads 496/556. A re-anchor is therefore INVISIBLE - no jump,
+   no EMA fade-out of a ghost - which is what retires the operator's
+   "big jump then the old one phases out slowly".
+4. BLUR BOUND. Each resample applies one bilinear low-pass (<= half a
+   texel). The hysteresis bounds the event rate (2 deg of extent drift
+   or 0.02 rad of anchor drift per event), and the EMA (alpha >= 0.04,
+   ~25-march window) re-sharpens between events, so blur does not
+   accumulate; equilibrium extra blur is well under one texel at any
+   sane flight speed. Chatter (resample every frame) is impossible by
+   construction; the controller state lives in ONE place (lib.rs).
+5. MAP TEXEL ANGLE. pix_ang_map = sqrt(2 k) / (CLOUD_OCTA_SIZE / 2)
+   (the disc-center value; k = 2 reproduces the shipped 4/2048). The
+   octa march footprint uses it, so extent changes carry their correct
+   sampling footprint automatically.
+6. ARM EVERYWHERE. temporal = quality > 0.5; near_slab DELETED. The
+   fullscreen composite is the only compositor whenever armed (Low
+   keeps the direct march). The 331 km arming pop dies with the gate.
+7. PERF NOTE. At deep orbit the octa pass now concentrates all texels
+   on the planet disc with a finer pix_ang. If gpu.cloud_octa regresses
+   past budget, the fallback is checkerboard cadence (march half the
+   texels per frame) - never re-arming near_slab.
+8. Slice B (unchanged, still owed): RG16F first_t companion map +
+   translation-parallax-corrected history for the fast-descent gate.
+
+**12c SLICE A EXECUTION (v0.1184.0, 2026-08-21):** shipped as spec'd -
+extent mapping + cloud_map_k/cloud_map_encode_at/decode in
+40-clouds.wgsl, resample branch in the octa pass, LOCKSTEP composite
+encode with cmax in cam_up.w, lib.rs regime controller (BAND 0.0004,
+2 deg extent + 0.02 rad anchor hysteresis), near_slab deleted, plus the
+weather-floor altitude fade (a local Storm no longer paints the whole
+marble from orbit; full authority < 30 km, gone by 120 km).
+Adjudication, 6-vantage sweep + a CONTROL sweep of the same vantages on
+the archived v0.1183.1 exe (sweeps 20260821-202727 / -203321):
+- NADIR PINCH DEAD, A/B-proven: the control shows the exact reported
+  radial-spoke convergence under the camera at 114 km; the new build at
+  the identical vantage shows uniform cloud texture, no convergence
+  point. New permanent vantage nadir-pinch-114km owns the defect class.
+- ORBIT: best marble to date - discrete masses, ~50% cover, structure
+  at all scales, and 30 fps vs 26 (the map replaced the per-pixel orbit
+  march; gpu budget IMPROVED with arm-everywhere).
+- World entry panics=0 with the new pads + resample branch.
+- UNDER-DECK EMPTY SKY (463 m, Cloudy, looking up 60 deg): present and
+  BYTE-SIMILAR on the v0.1183.1 control - pre-existing, NOT a 12c
+  regression. Same open question as the parked-flight comparator
+  (reference opaque overhead vs GPU blue).
+- COVERAGE VS FOOTPRINT is the remaining defect and is PRE-EXISTING
+  (control shows it too): areal coverage is non-monotonic in march
+  footprint - ~10 m footprint (under-deck) reads ~5%, ~150 m (114 km
+  nadir) reads ~90%, ~5 km (orbit) reads the calibrated ~50%. The
+  operator's "thicker until the surface is covered" and the empty
+  under-deck sky are the two ends of the same broken invariance.
+  NEXT INCREMENT: measure coverage-vs-footprint with the CPU twin at
+  pinned weather, find the term that breaks invariance (carve widths /
+  detail erosion / step law), fix, and gate with a footprint-invariance
+  test + a three-altitude capture triplet.
+- Rig flake, not cloud: the nearslab-ab-400km capture rendered at 04:37
+  game time despite time 12.02 in the vantage (its 250 km partner and
+  every other capture honored the pin). One-off time-request race in
+  the runner; re-observe before chasing.
+
+**ADVERSARIAL REVIEW OF SLICE A (same day) - 5 real findings, all fixed
+in the shipping build; the mapping math, pad offsets (128 = legacy
+light3 vec4, 512 = light3_cone_inner.x, both verified free), lockstep
+copies, resample lifecycle, and chatter analysis all survived attack:**
+1. The flat 0.0004 R hysteresis band made regime 3 unreachable (band >
+   the 400 m boundary altitude). FIXED: per-boundary bands (above).
+2. The regime-2 (inside-slab) k = 2 antipode still smears a straight-
+   down view from 0.4-12 km - the 40-clouds comment claiming the pinch
+   was gone "in any regime that can see it" was FALSE and is corrected.
+   The nadir-pinch-114km A/B only proves regime 1. KNOWN LIMIT, owned
+   by slice B / a dual-disc mapping if visible in play (verify with
+   silhouette-5km, which looks straight down from inside the slab).
+3. Arm-everywhere made the composite paint clouds OVER the atmosphere
+   dome from orbit (the v0.997 ordering rule inverted; pre-change the
+   inversion existed only in the 96-331 km window). FIXED: the
+   celestial pass is split (opaque | transparent) and the composite
+   runs between them when the camera is outside the atmosphere
+   (CloudCompositeFrame::atmo_over), after them when inside.
+4. The one-frame resample flag was consumed twice on hi-res-capture
+   frames (render_celestial_onto runs twice), double-warping the
+   history. FIXED: the order is a Cell taken at the pad write.
+5. The composite's exact e.z > 1.0 extent test could discard a
+   flickering hole at the k = 2 antipode (f32 jitter lands r^2 at
+   1.0000001). FIXED: threshold 1.02 (~1 deg of slack).
+Plus: the temporal arm gained a px >= 160 gate (finding 7 - a dot-sized
+planet from interplanetary range must not run a 2048^2 octa march), and
+the tautological second assert in the pix-ang mirror test was dropped
+(finding 6).
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

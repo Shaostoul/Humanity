@@ -1264,36 +1264,26 @@ mod tests {
 
     #[test]
     fn wgsl_map_pixel_angle_matches_the_octa_size() {
-        // The temporal map's LOD footprint constant must track the map
-        // resolution: a Lambert equal-area texel subtends 4/SIZE radians
-        // (hemisphere in the inscribed disc of radius SIZE/2 -> angular
-        // texel = 2/(SIZE/2)). Resizing the map without retuning the
-        // constant silently over- or under-blurs every map march.
+        // The temporal map's LOD footprint must track the map resolution.
+        // Since 12c it is a FUNCTION of the extent: pix_ang =
+        // sqrt(2 k) * (2 / SIZE), whose k = 2 (full sphere) value is the
+        // classic 4/SIZE Lambert texel. Lock the shader's denominator to
+        // the Rust size constant so resizing the map without retuning the
+        // footprint fails here instead of silently blurring every march.
         let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
-        let needle = "const CLOUD_PIX_ANG_MAP: f32 = ";
-        let start = wgsl.find(needle).expect("CLOUD_PIX_ANG_MAP missing");
+        let needle = "sqrt(2.0 * cloud_map_k()) * (2.0 / ";
+        let start = wgsl
+            .find(needle)
+            .expect("cloud_pix_ang_map extent expression missing");
         let rest = &wgsl[start + needle.len()..];
-        let end = rest.find(';').expect("unterminated const");
-        // Since increment 9 the constant is the exact expression
-        // `4.0 / <size>.0` (derived from the map's own extent, per the
-        // Wave B mandate) - evaluate it, and lock the denominator to the
-        // Rust size constant directly, which is a stronger tie than the
-        // old 2% numeric tolerance.
-        let expr = rest[..end].trim();
-        let ang: f32 = if let Some((num, den)) = expr.split_once('/') {
-            let d: f32 = den.trim().parse().expect("unparseable denominator");
-            assert!(
-                (d - crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32).abs() < 0.5,
-                "CLOUD_PIX_ANG_MAP denominator {d} != CLOUD_OCTA_SIZE"
-            );
-            num.trim().parse::<f32>().expect("unparseable numerator") / d
-        } else {
-            expr.parse().expect("unparseable")
-        };
-        let want = 4.0 / crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32;
+        let end = rest.find(')').expect("unterminated expression");
+        let d: f32 = rest[..end].trim().parse().expect("unparseable denominator");
+        // The needle string pins the sqrt(2k)*(2/SIZE) form; this pins the
+        // SIZE. (A derived "k=2 equals 4/SIZE" assert was dropped as
+        // tautological - it followed algebraically from this one.)
         assert!(
-            (ang - want).abs() / want < 0.02,
-            "CLOUD_PIX_ANG_MAP {ang} vs 4/CLOUD_OCTA_SIZE {want}"
+            (d - crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32).abs() < 0.5,
+            "cloud_pix_ang_map denominator {d} != CLOUD_OCTA_SIZE"
         );
     }
 
