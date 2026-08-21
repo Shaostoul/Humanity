@@ -535,6 +535,11 @@
       "date": "2026-08-21",
       "decision": "WAVE D SLICES 1a+1b BUILT (pre-ship checkpoint, ladder running): D1a = planet-fixed SNAPPED map basis (camera direction in planet frame, 0.03 rad snap cells, tangents from the planet spin axis) - kills the operator state-1/state-2 sky swim by construction; BOIL pair 2.563 vs 2.54 baseline. D1b = fullscreen depth-aware cloud composite (new pass: renderer/cloud_composite.rs + assets/shaders/cloud_composite.wgsl, godrays-pattern own-BGL depth+map+uniforms, premultiplied-over, after the celestial pass; shell temporal branch now DISCARDS - one compositor at a time; per-frame lifecycle beside set_cloud_temporal(None)). Cures the vanishing deck WITH mountain occlusion (per-pixel scene depth), which analytic depth-off could never do. FIRST-CUT BUG measured and fixed: the fullscreen uv is NDC-y-up; double-flipping y mirrored rays AND depth (the giant white arc) - one build cycle. Nadir-5km now shows below-camera cloud veil; flight deck-on-horizon correct. Ladder A/B on 16.8/14.8 km pending.",
       "why": "Wave D increment 12 in flight; commit-early discipline while the ladder gate runs."
+    },
+    {
+      "date": "2026-08-21",
+      "decision": "WAVE D 1a+1b SHIPPED (v0.1181): the two operator temporal defects dead. 1a planet-fixed snapped basis (0.03 rad cells, spin-axis tangents) = no more state-1/state-2 sky swim. 1b fullscreen depth-aware composite (new pass renderer/cloud_composite.rs; shell temporal branch discards) = THE VANISHING DECK DEAD - rungs 16.8/14.8 show the identical full deck below camera (14.8 used to be empty), per-pixel terrain occlusion incl. mountains. One-cycle bug: fullscreen uv is NDC-y-up vs depth texel y-down (the giant-arc capture). INSTRUMENT DEBT NOW LOUDEST: ladder across-rung MADs dominated by advection (the increment-2 wind-subtraction never landed) - rung image pairs are the accepted evidence until it does. REMAINING for 12c: r2 extent + arm-at-all-altitudes + RG16F first_t parallax (owns the 331 km arming pop). Then 13 streets, 14-16 v2 track, 17 endgame, 18 rider.",
+      "why": "Wave D first half shipped; the marquee operator complaints from the morning report are all closed."
     }
   ],
   "active_scopes_to_avoid": [
