@@ -420,6 +420,15 @@ pub struct Renderer {
     /// octa pass with the flag still up would warp the already-resampled
     /// history a second time (adversarial review finding 4).
     pub cloud_map_resample: std::cell::Cell<Option<([f32; 3], f32)>>,
+    /// Per-frame camera translation baseline for the octa pass's history
+    /// reprojection (slice B): the camera's PLANET-LOCAL displacement
+    /// since last frame, rotated to current world axes, set by lib.rs at
+    /// the cloud fill site. Planet-local is the frame the cloud content
+    /// lives in - a world-frame baseline slides at orbital speed even
+    /// parked (measured 1.3-2.1 km/frame) and smears the map at rest.
+    /// Cell + take(): consumed once per celestial render, so the hi-res
+    /// double render reprojects by zero on its second pass.
+    pub cloud_reproj_delta: std::cell::Cell<Option<[f32; 3]>>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1559,6 +1568,7 @@ impl Renderer {
             cloud_map_anchor_local: [0.0, 1.0, 0.0],
             cloud_map_cmax: -1.0,
             cloud_map_resample: std::cell::Cell::new(None),
+            cloud_reproj_delta: std::cell::Cell::new(None),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -2889,6 +2899,35 @@ impl Renderer {
         };
         self.queue
             .write_buffer(&self.camera_buffer, 128, bytemuck::cast_slice(&old_pads));
+        // Slice B translation reprojection: this frame's PLANET-LOCAL
+        // camera displacement (from lib.rs, rotated to world axes) + flag
+        // in the legacy camera.light4 position vec4 (offset 144). take():
+        // one octa reprojection per delivered delta - the hi-res double
+        // render reprojects by zero on its second pass. Parked cameras
+        // deliver ~0 by construction (planet-local frame), so statics
+        // stay converged; only real content-relative motion reprojects.
+        let delta_pads: [f32; 4] = match self.cloud_reproj_delta.take() {
+            Some(d) if self.cloud_temporal_mat.is_some() => [d[0], d[1], d[2], 1.0],
+            _ => [0.0, 0.0, 0.0, 0.0],
+        };
+        // Reprojection diagnostics (slice B bring-up): a parked camera must
+        // read ~0 here. Throttled ~2 s; drop after the operator confirms
+        // the smear is dead.
+        {
+            let d2 = delta_pads[0] * delta_pads[0]
+                + delta_pads[1] * delta_pads[1]
+                + delta_pads[2] * delta_pads[2];
+            static LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now_s = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
+                log::info!("[CloudReproj] frame delta {:.3} m", d2.sqrt());
+            }
+        }
+        self.queue
+            .write_buffer(&self.camera_buffer, 144, bytemuck::cast_slice(&delta_pads));
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));

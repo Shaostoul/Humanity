@@ -815,6 +815,13 @@ pub(crate) struct EngineState {
     /// the slab (zenith, full sphere), 3 = under the deck (zenith,
     /// 115 deg). Carries the slab-boundary hysteresis band.
     pub(crate) cloud_map_regime: u8,
+    /// Previous frame's camera position in the cloud planet's LOCAL frame
+    /// (slice B translation reprojection). The cloud field lives in the
+    /// planet-local frame (position AND spin), so this is the only
+    /// baseline whose delta equals the content-relative camera motion -
+    /// the world-frame relative position slides at orbital speed even for
+    /// a parked camera (measured 1.3-2.1 km/frame) and smears the map.
+    pub(crate) cloud_prev_cam_local: Option<glam::Vec3>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

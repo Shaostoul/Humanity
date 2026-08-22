@@ -1868,6 +1868,7 @@ mod native_app {
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
                 cloud_map_regime: 0,
+                cloud_prev_cam_local: None,
                 sea_state_override: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
@@ -11631,6 +11632,25 @@ mod native_app {
                                                     [a.x, a.y, a.z];
                                                 state.renderer.cloud_map_cmax = th.cos();
                                             }
+                                            // Slice B translation baseline:
+                                            // the camera in the PLANET-LOCAL
+                                            // frame - the frame the cloud
+                                            // field actually lives in (spin
+                                            // included). Its delta, rotated
+                                            // back to current world axes, is
+                                            // the content-relative motion
+                                            // the octa pass reprojects by.
+                                            let p_l = rotation.conjugate()
+                                                * (cam_p - position);
+                                            let prev_l = state
+                                                .cloud_prev_cam_local
+                                                .replace(p_l);
+                                            state.renderer.cloud_reproj_delta.set(
+                                                prev_l.map(|p| {
+                                                    let d_w = rotation * (p - p_l);
+                                                    [d_w.x, d_w.y, d_w.z]
+                                                }),
+                                            );
                                         }
                                         // Fullscreen composite frame (Wave D
                                         // slice 1b): armed with the temporal

@@ -86,14 +86,63 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // no content jump, no ghost EMA-fading out - the operator's "big jump
     // and the old one phases out slowly" dies here. A direction outside
     // the OLD extent has no history; take the fresh march outright.
+    // TRANSLATION REPROJECTION (slice B, from the operator's "solitaire
+    // artifact" report - radial streaks converging on the sub-camera
+    // point whenever the camera MOVES, clean when still). Rotation is
+    // free in a direction-indexed map, but translation was never
+    // corrected: the fresh march puts a cloud at its NEW direction while
+    // ~25 frames of history still hold it at the OLD one, and the EMA
+    // smears the difference along the motion. Fix: ask where this
+    // texel's CONTENT was from the PREVIOUS camera. Clouds live in a
+    // 12 km shell on a 6371 km planet, so the ray's shell-sphere hit is
+    // an excellent analytic parallax distance - no stored first_t
+    // needed. PRECISION: the pads carry the camera DELTA (prev - now,
+    // camera.light4.xyz, w = flag), never absolute positions - all
+    // math stays small (p - prev = rd*t - delta), immune to the
+    // f32-at-planet-scale cancellation class.
+    var d_hist = rd_w;
+    var shift_tx = 0.0;
+    var teleported = false;
+    if (camera.light4.w > 0.5) {
+        let ro_c = camera.view_pos.xyz - center;
+        let b = dot(ro_c, rd_w);
+        let cc = dot(ro_c, ro_c) - shell_r * shell_r;
+        let disc = b * b - cc;
+        if (disc > 0.0) {
+            let sq = sqrt(disc);
+            var t_rep = -b - sq;
+            if (t_rep <= 0.0) {
+                t_rep = -b + sq;
+            }
+            if (t_rep > 0.0) {
+                d_hist = normalize(rd_w * t_rep - camera.light4.xyz);
+                // TELEPORT GUARD: the small-parallax model only holds for
+                // per-frame baselines well under the cloud distance. A
+                // teleport-scale delta bends every texel's lookup toward
+                // one direction and smears the whole map with one texel's
+                // content (seen live on a rig re-park jump). Beyond ~15
+                // degrees of reprojection, history is disoccluded - take
+                // the fresh march and let the EMA converge clean.
+                if (dot(d_hist, rd_w) < 0.966) {
+                    teleported = true;
+                }
+            }
+        }
+    }
     var hist: vec4<f32>;
     var have_hist = true;
     if (camera.light3.w > 0.5) {
         let up_old = cloud_map_axis_world(camera.light3.x, camera.light3.y);
         let k_old = clamp(1.0 - camera.light3.z, 1.0e-3, 2.0);
-        let e = cloud_map_encode_at(rd_w, up_old, k_old);
+        let e = cloud_map_encode_at(d_hist, up_old, k_old);
         hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
         have_hist = e.z <= 1.0;
+        shift_tx = length(e.xy - in.uv) * 2048.0;
+    } else if (camera.light4.w > 0.5) {
+        let e = cloud_map_encode_at(d_hist, cloud_map_up(center), cloud_map_k());
+        hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
+        have_hist = e.z <= 1.0;
+        shift_tx = length(e.xy - in.uv) * 2048.0;
     } else {
         hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
     }
@@ -134,9 +183,16 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     let diff = abs(cur.a - hist.a)
         + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
     var alpha = clamp(0.04 + diff * 0.05, 0.04, 0.12);
+    // Motion catch-up: the analytic parallax proxy (shell-sphere hit)
+    // carries a residual error that scales with the per-frame shift, so
+    // large shifts blend history down faster - motion masks the extra
+    // march noise, and the trail cannot persist. Sub-texel shifts keep
+    // the deep converged blend.
+    alpha = max(alpha, min(0.35, max(shift_tx - 1.0, 0.0) * 0.02));
     // No history for this direction (outside the old extent on a resample
-    // frame): start from the fresh march instead of EMA-ing toward zero.
-    if (!have_hist) {
+    // frame, or a teleport-scale reprojection): start from the fresh
+    // march instead of EMA-ing toward zero or smearing stale content.
+    if (!have_hist || teleported) {
         alpha = 1.0;
     }
     return mix(hist, cur, alpha);

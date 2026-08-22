@@ -712,20 +712,26 @@ async function main() {
         const cam = await waitFile("camera_done.json", 60000);
         if (!cam || cam.ok !== true) throw new Error(`camera: ${JSON.stringify(cam)}`);
         await sleep((v.settle_s ?? 8) * 1000);
-        // HOLD ALTITUDE (v0.1049). A camera_request parks the player and
-        // leaves fly mode on, but gravity/buoyancy still act, so during a
-        // 12 s settle a 150 m park FALLS to the sea and every "high eye"
-        // ocean capture came back reading Alt 3-6 m - which is exactly why
-        // the rig could not reproduce the operator's altitude-triggered
-        // water artifacts. Re-park at the identical pose once the patches
-        // are built, then shoot within a second: warm caches AND the
-        // altitude that was asked for.
-        if (v.hold_altitude) {
+        // RE-PARK, now UNCONDITIONAL (2026-08-21; was hold_altitude-only,
+        // v0.1049 - that original reason still applies: gravity sinks a
+        // low park during the settle). The new reason it runs for EVERY
+        // vantage: the FIRST camera_request of a boot that pins "time"
+        // lands with the clock/park inconsistent (~8 h early, dark
+        // captures - the deterministic per-vantage darkness that burned
+        // three sweeps on 2026-08-21), while a REPEATED identical request
+        // lands lit at the pinned hour every time. hold_altitude vantages
+        // never showed the bug precisely because they always re-parked.
+        // Until the engine-side ordering is fixed (see the chip task on
+        // the clock/park race), the double-send is the reliable protocol.
+        {
           clearDone("camera_done.json");
           req("camera_request.json", v.camera);
           const rehold = await waitFile("camera_done.json", 60000);
           if (!rehold || rehold.ok !== true) throw new Error(`re-park: ${JSON.stringify(rehold)}`);
-          await sleep(900);
+          // 6 s for plain vantages: if the FIRST park was displaced (the
+          // clock/park race), the re-park is a big jump and the temporal
+          // cloud map needs a few seconds to re-converge before the shot.
+          await sleep(v.hold_altitude ? 900 : 6000);
         }
         clearDone("screenshot_done.json");
         req("screenshot_request.json", {});
