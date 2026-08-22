@@ -73,23 +73,43 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     if (dot(pd, pd) > 1.001) {
         return vec4<f32>(0.0);
     }
-    // QUARTER-CADENCE MARCH (4096-map brute force): only the 32x32-texel
-    // BLOCK matching this frame's phase (camera.light4.w - 1) marches;
-    // the other three quarters reproject their history and carry it
-    // forward unblended. Per-frame march count therefore equals the old
-    // full-rate 2048 map while the stored map holds 4x the texels.
-    // BLOCKS, not a per-pixel checkerboard, deliberately: a 2x2
-    // interleave put marching lanes in EVERY hardware wave, so no wave
-    // could skip and the whole pass paid full-march occupancy (measured:
-    // fps halved). 32x32 blocks let entire waves take the cheap path.
-    // Phase riding the reprojection flag means cadence only engages
-    // while reprojection is armed - first frames march everything.
+    // QUARTER-CADENCE MARCH (4096-map brute force): only a quarter of
+    // the 32x32-texel BLOCKS march each frame; the rest reproject their
+    // history and carry it forward unblended. Per-frame march count
+    // therefore equals the old full-rate 2048 map while the stored map
+    // holds 4x the texels. BLOCKS, not a per-pixel checkerboard,
+    // deliberately: a 2x2 interleave put marching lanes in EVERY
+    // hardware wave, so no wave could skip and the whole pass paid
+    // full-march occupancy (measured: fps halved). 32x32 blocks let
+    // entire waves take the cheap path.
+    //
+    // TWO LESSONS from the operator's "dome of triangularish clouds"
+    // (v0.1189 live report - the cadence lattice itself became visible
+    // as a tiled dome at close range):
+    // - The block phase is HASHED per block, not a regular 2x2 spatial
+    //   pattern: aligned neighbours updating in lockstep read as a
+    //   coherent grid sweeping the sky; hashed phases turn the update
+    //   order into unstructured noise the EMA hides.
+    // - INSIDE/UNDER the deck (camera inside the drawn shell) the map
+    //   marches FULL RATE: map texels are enormous on screen there, the
+    //   content moves fastest, and a 4-frame-stale block is a visible
+    //   tile. The full-rate cost at 4096 is acceptable precisely
+    //   because the under-deck slab segment is short and the ground
+    //   cull kills most rays.
     var do_march = true;
-    if (camera.light4.w > 0.5) {
-        let px = vec2<u32>(in.pos.xy);
-        let cell = ((px.x >> 5u) & 1u) + ((px.y >> 5u) & 1u) * 2u;
-        let phase = u32(camera.light4.w - 0.5);
-        do_march = cell == phase;
+    {
+        let cad_ctr = obj_model()[3].xyz;
+        let cad_shr = length(obj_model()[0].xyz);
+        let ro_in = (camera.view_pos.xyz - cad_ctr) / cad_shr;
+        let cam_inside = dot(ro_in, ro_in) < 1.0;
+        if (camera.light4.w > 0.5 && !cam_inside) {
+            let px = vec2<u32>(in.pos.xy);
+            let bid = (px.x >> 5u) + (px.y >> 5u) * 128u;
+            let h = (bid * 747796405u + 2891336453u) >> 9u;
+            let cell = (h ^ (h >> 11u)) & 3u;
+            let phase = u32(camera.light4.w - 0.5);
+            do_march = cell == phase;
+        }
     }
     // RESTING FAST PATH: a cadence-skipped texel under a sub-texel camera
     // delta (< 4 m - above the ~2 m f32 quantization noise of the

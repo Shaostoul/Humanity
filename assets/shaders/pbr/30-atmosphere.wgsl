@@ -220,6 +220,11 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
 
     // Clip the segment at the planet surface: air BEHIND the planet
     // contributes nothing to this pixel (the opaque surface occludes it).
+    // (The pure-black horizon hairline was A/B-tested against a
+    // near-tangent cancellation guard here on 2026-08-22: the census did
+    // NOT move - this clip is exonerated. The hairline's current best
+    // theory is a raster coverage gap between the sea's silhouette edge
+    // and the sky; see the journal.)
     if (d2 < rp * rp && tca > 0.0) {
         let t_planet = tca - sqrt(rp * rp - d2);
         if (t_planet > t0) {

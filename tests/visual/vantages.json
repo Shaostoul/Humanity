@@ -519,6 +519,30 @@
    "hold_altitude": true
   },
   {
+   "id": "blackline-clouds-off",
+   "desc": "DIAGNOSTIC A/B for the pure-black horizon hairline (water agent finding, 2026-08-22): the ocean-storm-horizon camera with the cloud layer OFF. If the black row survives without clouds, the seam belongs to the atmosphere/sky side; if it vanishes, the cloud shell/composite owns it.",
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.006,
+    "look_offset_deg": 90
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "1.0",
+    "weather": "clear",
+    "clouds": "0"
+   },
+   "settle_s": 20,
+   "hold_altitude": true,
+   "expect": "Clear sky over a storm sea, no cloud layer. The judgement target is the horizon line: any 1-2 px pure-black run.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12
+  },
+  {
    "id": "land-fog",
    "desc": "Sahara ground under fog - does the AIR change?",
    "expect": "Visibility collapses to tens of metres with a condition-appropriate tint. Before v0.1059 weather.visibility reached no shader at all and the air was identical in every condition.",
