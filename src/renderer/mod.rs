@@ -2964,7 +2964,22 @@ impl Renderer {
             (p % 4) as f32
         };
         let delta_pads: [f32; 4] = match self.cloud_reproj_delta.take() {
-            Some(d) if self.cloud_temporal_mat.is_some() => [d[0], d[1], d[2], 1.0 + phase],
+            Some(d) if self.cloud_temporal_mat.is_some() => {
+                let d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                // Teleport-scale frame delta (> 2 km): NO history is valid
+                // anywhere - a cadence-skipped block would show content
+                // from hundreds of km ago (the operator's persistent
+                // checkerboard at x1M gear was exactly that: fresh blocks
+                // beside 1-3-frame-stale blocks with hundreds of km of
+                // parallax between them). Sentinel w = 9 tells the octa
+                // pass to march EVERYTHING this frame; cadence resumes
+                // the moment the camera slows.
+                if d2 > 4.0e6 {
+                    [d[0], d[1], d[2], 9.0]
+                } else {
+                    [d[0], d[1], d[2], 1.0 + phase]
+                }
+            }
             _ => [0.0, 0.0, 0.0, 0.0],
         };
         // Reprojection diagnostics (slice B bring-up): a parked camera must

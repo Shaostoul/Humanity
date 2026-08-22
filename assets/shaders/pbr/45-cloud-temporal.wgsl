@@ -101,13 +101,21 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         let cad_ctr = obj_model()[3].xyz;
         let cad_shr = length(obj_model()[0].xyz);
         let ro_in = (camera.view_pos.xyz - cad_ctr) / cad_shr;
-        let cam_inside = dot(ro_in, ro_in) < 1.0;
-        if (camera.light4.w > 0.5 && !cam_inside) {
+        // Full rate INSIDE the shell AND in the band just above it
+        // (< ~1.0075 planet radii = ~64 km on Earth, shell units 1.015):
+        // the operator's "worst layer is at cloud layer to just above" -
+        // map texels are screen-huge there, so any cadence staleness is
+        // a visible tile. w > 8.5 is the CPU teleport sentinel: the
+        // frame delta is so large that no history is valid, so cadence
+        // is suspended and everything marches fresh.
+        let cam_near = dot(ro_in, ro_in) < 1.015;
+        let w = camera.light4.w;
+        if (w > 0.5 && w < 8.5 && !cam_near) {
             let px = vec2<u32>(in.pos.xy);
             let bid = (px.x >> 5u) + (px.y >> 5u) * 128u;
             let h = (bid * 747796405u + 2891336453u) >> 9u;
             let cell = (h ^ (h >> 11u)) & 3u;
-            let phase = u32(camera.light4.w - 0.5);
+            let phase = u32(w - 0.5);
             do_march = cell == phase;
         }
     }
