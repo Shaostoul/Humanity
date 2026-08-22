@@ -2,7 +2,7 @@
 //!
 //! THE INVERSION THIS FIXES. Every shipped AAA cloud system uses noise
 //! only to ERODE a body that came from somewhere else - Nubis3 applies
-//! its 128^3 noise as `ValueErosion(dimensional_profile, noise)` on top
+//! its detail noise as `ValueErosion(dimensional_profile, noise)` on top
 //! of a stored voxel shape. HumanityOS had that backwards: inverted
 //! Worley noise WAS the body. Inverted Worley is by definition a field
 //! of round balls, and its cells are all near the same size, so the

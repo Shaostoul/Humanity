@@ -247,8 +247,10 @@ impl Pipeline {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
-                    // Cloud SHAPE volume: 128^3 RGBA8 tiling Perlin-Worley +
-                    // Worley octaves (renderer::cloud_noise::generate_shape).
+                    // Cloud SHAPE volume: RGBA8 tiling Perlin-Worley +
+                    // Worley octaves (renderer::cloud_noise::generate_shape;
+                    // SHAPE_SIZE^3, 384 as of v0.1188). The layout is
+                    // resolution-agnostic - only the D3 dimension matters here.
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
                         visibility: wgpu::ShaderStages::FRAGMENT,
@@ -259,8 +261,9 @@ impl Pipeline {
                         },
                         count: None,
                     },
-                    // Cloud DETAIL volume: 64^3 RGBA8 tiling Worley octaves
-                    // (renderer::cloud_noise::generate_detail).
+                    // Cloud DETAIL volume: RGBA8 tiling Worley octaves +
+                    // ridged filament (renderer::cloud_noise::generate_detail;
+                    // DETAIL_SIZE^3, 256 as of v0.1188).
                     wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,

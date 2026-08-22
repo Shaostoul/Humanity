@@ -649,7 +649,7 @@ mod tests {
         }
     }
 
-    /// THE SANITY GATE (heavy: generates the real 192^3 + 128^3 volumes and
+    /// THE SANITY GATE (heavy: generates the real 384^3 + 256^3 volumes and
     /// marches 40 rays at 4 m view / 8 m sun steps - converged enough for a
     /// bimodality verdict; increment 10's per-ray TARGETS use 1-2 m in
     /// release on chosen rays). Run explicitly, IN RELEASE (debug is ~10x):

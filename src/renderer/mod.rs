@@ -325,7 +325,7 @@ pub struct Renderer {
     /// material type 12 with the params.w flag set).
     default_texture_bind_group: wgpu::BindGroup,
     /// Shared tiling 3D cloud-noise volumes (clouds increment 3): the SHAPE
-    /// (128^3 Perlin-Worley + Worley octaves) and DETAIL (64^3 Worley
+    /// (384^3 Perlin-Worley + Worley octaves) and DETAIL (256^3 Worley
     /// octaves) textures every group-3 bind group references at bindings
     /// 2/3, plus the repeat-all-axes sampler at binding 4. Engine-global:
     /// generated once at startup by renderer::cloud_noise, identical for
@@ -592,8 +592,15 @@ impl Renderer {
         let height = size.height.max(1);
 
         // Cloud-noise generation starts NOW on a background thread so the
-        // 192^3 + 128^3 volume bake overlaps adapter/device/shader-compile
+        // 384^3 + 256^3 volume bake overlaps adapter/device/shader-compile
         // time; init() recv()s only the unfinished remainder (v0.872).
+        //
+        // The MIP CHAINS are built here too as of v0.1188. They used to run
+        // inline in init(), which was fine at 192^3 (~180 ms) but is ~1.5 s
+        // of pure boot-path stall at 384^3 - and it is the same pure-CPU
+        // work as the bake, so it belongs in the same overlapped thread.
+        // The channel therefore carries finished chains, and the upload
+        // side does nothing but write_texture.
         let cloud_rx = {
             let (tx, rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
@@ -602,10 +609,21 @@ impl Renderer {
                 let t0 = std::time::Instant::now();
                 let shape = cloud_noise::generate_shape(threads);
                 let detail = cloud_noise::generate_detail(threads);
+                let t_gen = t0.elapsed().as_secs_f32() * 1000.0;
+                let shape = cloud_noise::mip_chain(shape, cloud_noise::SHAPE_SIZE);
+                let detail = cloud_noise::mip_chain(detail, cloud_noise::DETAIL_SIZE);
                 log::info!(
-                    "Cloud noise volumes generated in background: {:.0} ms ({} threads)",
-                    t0.elapsed().as_secs_f32() * 1000.0,
-                    threads
+                    "Cloud noise volumes generated in background: {:.0} ms bake + {:.0} ms mips \
+                     ({} threads, {}^3 + {}^3, {:.0} MiB)",
+                    t_gen,
+                    t0.elapsed().as_secs_f32() * 1000.0 - t_gen,
+                    threads,
+                    cloud_noise::SHAPE_SIZE,
+                    cloud_noise::DETAIL_SIZE,
+                    (shape.iter().map(|l| l.len()).sum::<usize>()
+                        + detail.iter().map(|l| l.len()).sum::<usize>())
+                        as f32
+                        / (1024.0 * 1024.0),
                 );
                 let _ = tx.send((shape, detail));
             });
@@ -714,7 +732,7 @@ impl Renderer {
         surface: wgpu::Surface<'static>,
         width: u32,
         height: u32,
-        cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<u8>, Vec<u8>)>>,
+        cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<Vec<u8>>, Vec<Vec<u8>>)>>,
         ground_rx: Option<std::sync::mpsc::Receiver<ground_textures::BakedGround>>,
     ) -> Self {
         // [BootPhase] sub-spans: renderer_init is the single largest boot
@@ -1068,27 +1086,40 @@ impl Renderer {
         let white_view = white_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Tiling 3D cloud-noise volumes (clouds increment 3; res raised
-        // 128/64 -> 192/128 in v0.872): generated procedurally, deterministic,
-        // no repo assets, shared by every group-3 bind group at bindings 2..4.
-        // Generation runs on a BACKGROUND thread spawned at the very top of
+        // 128/64 -> 192/128 in v0.872, 192/128 -> 384/256 in v0.1188):
+        // generated procedurally, deterministic, no repo assets, shared by
+        // every group-3 bind group at bindings 2..4. Generation AND the mip
+        // chains run on a BACKGROUND thread spawned at the very top of
         // renderer creation, overlapping the DXC shader compiles, so the
         // bigger volumes cost boot nothing: this recv() only blocks for
         // whatever remainder has not finished by the time uploads start.
         let gen_start = std::time::Instant::now();
-        let (shape_bytes, detail_bytes) = match cloud_rx {
+        let (shape_chain, detail_chain) = match cloud_rx {
             Some(rx) => rx.recv().expect("cloud noise generator thread died"),
             None => {
                 // Fallback (wasm / callers without the pre-spawn): inline.
                 let threads =
                     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-                (cloud_noise::generate_shape(threads), cloud_noise::generate_detail(threads))
+                (
+                    cloud_noise::mip_chain(
+                        cloud_noise::generate_shape(threads),
+                        cloud_noise::SHAPE_SIZE,
+                    ),
+                    cloud_noise::mip_chain(
+                        cloud_noise::generate_detail(threads),
+                        cloud_noise::DETAIL_SIZE,
+                    ),
+                )
             }
         };
         log::info!(
-            "Cloud noise volumes ready: {s}^3 shape + {d}^3 detail (waited {:.0} ms at upload)",
+            "Cloud noise volumes ready: {s}^3 shape ({sl} mips) + {d}^3 detail ({dl} mips) \
+             (waited {:.0} ms at upload)",
             gen_start.elapsed().as_secs_f32() * 1000.0,
             s = cloud_noise::SHAPE_SIZE,
             d = cloud_noise::DETAIL_SIZE,
+            sl = shape_chain.len(),
+            dl = detail_chain.len(),
         );
         // Each volume carries a FULL CPU-built mip chain (box-filtered by
         // cloud_noise::mip_chain): the raymarch samples with a distance +
@@ -1096,8 +1127,11 @@ impl Renderer {
         // noise instead of aliasing full-frequency texels - the structural
         // fix for distant shimmer that no amount of temporal averaging can
         // supply (v0.1161, clouds phase 5).
-        let make_volume = |label: &str, size: u32, bytes: Vec<u8>| -> wgpu::TextureView {
-            let chain = cloud_noise::mip_chain(bytes, size);
+        //
+        // MIP COUNT IS DERIVED, never hardcoded: `chain.len()` is 9 at the
+        // v0.1188 sizes (384 -> ... -> 3 -> 1) where it was 8, and the
+        // WGSL's cloud_lod clamp + carve-width table must match it.
+        let make_volume = |label: &str, size: u32, chain: Vec<Vec<u8>>| -> wgpu::TextureView {
             let tex = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
@@ -1115,33 +1149,43 @@ impl Renderer {
             });
             let mut mip_size = size;
             for (level, data) in chain.iter().enumerate() {
-                queue.write_texture(
-                    wgpu::TexelCopyTextureInfo {
-                        texture: &tex,
-                        mip_level: level as u32,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    data,
-                    wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(4 * mip_size),
-                        rows_per_image: Some(mip_size),
-                    },
-                    wgpu::Extent3d {
-                        width: mip_size,
-                        height: mip_size,
-                        depth_or_array_layers: mip_size,
-                    },
-                );
+                // Uploaded in z-slabs (v0.1188): the 384^3 base level is
+                // 216 MiB, which would be one staging allocation sitting
+                // 40 MiB under wgpu's default max_buffer_size. The slab
+                // list is pure arithmetic from cloud_noise::upload_slabs
+                // and is unit-tested there (a mis-sliced copy would only
+                // show up as a scrambled volume in a rendered frame).
+                for (z0, depth, b0, b1) in
+                    cloud_noise::upload_slabs(mip_size, cloud_noise::UPLOAD_SLAB_BYTES)
+                {
+                    queue.write_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &tex,
+                            mip_level: level as u32,
+                            origin: wgpu::Origin3d { x: 0, y: 0, z: z0 },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        &data[b0..b1],
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(4 * mip_size),
+                            rows_per_image: Some(mip_size),
+                        },
+                        wgpu::Extent3d {
+                            width: mip_size,
+                            height: mip_size,
+                            depth_or_array_layers: depth,
+                        },
+                    );
+                }
                 mip_size = (mip_size / 2).max(1);
             }
             tex.create_view(&wgpu::TextureViewDescriptor::default())
         };
         let cloud_shape_view =
-            make_volume("Cloud Shape Noise (192^3)", cloud_noise::SHAPE_SIZE, shape_bytes);
+            make_volume("Cloud Shape Noise", cloud_noise::SHAPE_SIZE, shape_chain);
         let cloud_detail_view =
-            make_volume("Cloud Detail Noise (128^3)", cloud_noise::DETAIL_SIZE, detail_bytes);
+            make_volume("Cloud Detail Noise", cloud_noise::DETAIL_SIZE, detail_chain);
         let cloud_tile_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Cloud Noise Tile Sampler"),
             address_mode_u: wgpu::AddressMode::Repeat,
