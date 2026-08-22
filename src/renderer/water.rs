@@ -253,6 +253,13 @@ pub fn land_detail_factor(dir: [f32; 3], r_m: f32, footprint_m: f32) -> f32 {
     (1.0 + f).clamp(0.7, 1.3)
 }
 
+/// Mirrors `WATER_REFRACTED_PATH_MAX` in `90-fragment-main.wgsl`: the longest
+/// submerged path a ray ENTERING the water can travel per metre of depth it
+/// descends. Refraction bends the transmitted ray toward the normal, so its
+/// underwater direction can never be more oblique than the critical angle:
+/// `1 / sqrt(1 - 1/n^2)` with n = 1.333 gives 1.512.
+pub const WATER_REFRACTED_PATH_MAX: f32 = 1.512;
+
 /// Mirrors the submerged-path decision inside `underwater_apply`
 /// (`90-fragment-main.wgsl`): how many metres of SEAWATER the eye-to-fragment
 /// segment actually crosses, which is what drives the per-channel Beer-Lambert
@@ -263,11 +270,16 @@ pub fn land_detail_factor(dir: [f32; 3], r_m: f32, footprint_m: f32) -> f32 {
 /// `on_surface` says this fragment IS the air-water interface (the ocean
 /// shell's own fragments) rather than something seen THROUGH the water.
 ///
-/// The guard that lives here removes a measured defect class (rig sweep
-/// ocean-storm-horizon, 2026-08-22): a surface fragment has zero depth by
-/// construction. The wave shell is vertex-displaced, so every trough - and
-/// every coarse far patch pulled in by the chord-sag weld - sits BELOW mean sea
-/// level and used to be classified as submerged geometry.
+/// Two guards live here, and each one alone removes a measured defect class
+/// (rig sweep ocean-storm-horizon, 2026-08-22):
+///
+/// 1. A surface fragment has zero depth by construction. The wave shell is
+///    vertex-displaced, so every trough - and every coarse far patch pulled in
+///    by the chord-sag weld - sits BELOW mean sea level and used to be
+///    classified as submerged geometry.
+/// 2. A ray ENTERING the water has its wet leg bounded by Snell's critical
+///    angle. The straight-line crossing estimate diverges at grazing
+///    incidence, which is exactly the sea-level horizon view.
 pub fn submerged_path_m(h_cam: f32, h_frag_in: f32, seg_m: f32, on_surface: bool) -> f32 {
     let h_frag = if on_surface { h_frag_in.max(0.0) } else { h_frag_in };
     let frac_wet = if h_cam <= 0.0 && h_frag <= 0.0 {
@@ -279,7 +291,12 @@ pub fn submerged_path_m(h_cam: f32, h_frag_in: f32, seg_m: f32, on_surface: bool
         let hi = h_cam.max(h_frag);
         (lo / (lo - hi)).clamp(0.0, 1.0)
     };
-    let d = seg_m * frac_wet;
+    let mut d = seg_m * frac_wet;
+    // Entry case only: eye in air, fragment under water. A submerged camera is
+    // already inside the medium, so its ray keeps the full geometric path.
+    if h_cam > 0.0 && h_frag < 0.0 {
+        d = d.min(-h_frag * WATER_REFRACTED_PATH_MAX);
+    }
     if d <= 0.01 {
         0.0
     } else {
@@ -602,15 +619,36 @@ mod tests {
         // the flat in-scatter navy the rig measured as sRGB (9,38,64).
         let pre_fix = seg * (-h_trough / (h_cam - h_trough));
         assert!(pre_fix > 1_000.0, "geometry sanity: {pre_fix} m");
-        // The classification the pre-fix shader used, still reachable through
-        // the twin, so this gate keeps failing on the real defect.
-        let as_submerged = submerged_path_m(h_cam, h_trough, seg, false);
+        // The refraction ceiling alone already knocks that down 200x, but
+        // 7.6 m of seawater still eats 58% of the red channel - a visible teal
+        // cast. Guard 1 is what makes a surface fragment exactly dry.
+        let ceiling_only = submerged_path_m(h_cam, h_trough, seg, false);
         assert!(
-            as_submerged > 1_000.0,
-            "misclassifying the surface must still show the defect: {as_submerged} m"
+            ceiling_only < pre_fix / 100.0,
+            "the refraction ceiling should cut this by orders of magnitude, got {ceiling_only} m"
         );
         let fixed = submerged_path_m(h_cam, h_trough, seg, true);
         assert_eq!(fixed, 0.0, "a sea-surface fragment must charge no water at all");
+    }
+
+    /// The second, independent guard: even when the fragment really IS
+    /// submerged geometry (a seabed, a wet rock, the type-12 sea sitting at
+    /// sea level with f32 cancellation noise on its height), the wet leg is
+    /// capped by refraction instead of running away with the view angle.
+    #[test]
+    fn refraction_caps_the_wet_leg_of_a_grazing_entry() {
+        let (h_cam, h_floor, seg) = (20.0_f32, -5.0_f32, 8_000.0_f32);
+        let straight = seg * (5.0 / 25.0); // the unbounded similar-triangles path
+        assert!(straight > 1_000.0, "geometry sanity: {straight}");
+        let d = submerged_path_m(h_cam, h_floor, seg, false);
+        assert!(
+            (d - 5.0 * WATER_REFRACTED_PATH_MAX).abs() < 1e-3,
+            "wet leg must sit on the Snell ceiling, got {d} m"
+        );
+        // The planet-scale f32 noise case: a fragment nominally AT sea level
+        // reads +-0.4 m, which used to be enough to extinguish it completely.
+        let noisy = submerged_path_m(h_cam, -0.4, 12_000.0, false);
+        assert!(noisy < 0.7, "sea-level quantization noise must stay negligible: {noisy} m");
     }
 
     /// The over-under waterline (v0.1061) must survive both guards: a
@@ -678,6 +716,7 @@ mod tests {
             ("WAVE_WARP_AMP2", WAVE_WARP_AMP2),
             ("WAVE_WARP_MULT2", WAVE_WARP_MULT2),
             ("WAVE_WARP_SEED", WAVE_WARP_SEED),
+            ("WATER_REFRACTED_PATH_MAX", WATER_REFRACTED_PATH_MAX),
         ];
         for (name, rust_val) in scalars {
             let parsed = parse_f32(name);

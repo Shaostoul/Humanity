@@ -231,6 +231,21 @@ const WATER_EXT_R: f32 = 0.115;
 const WATER_EXT_G: f32 = 0.042;
 const WATER_EXT_B: f32 = 0.021;
 
+// ── SNELL'S CEILING ON THE SUBMERGED PATH ──
+// The longest wet leg physically possible per metre of depth, for a ray that
+// ENTERS the water from the air. Refraction bends the transmitted ray TOWARD
+// the normal, so however grazing the view is, the underwater direction can
+// never be more oblique than the critical angle: sin(theta_t) <= 1/n, so
+//   path / depth  =  1 / cos(theta_t_max)  =  1 / sqrt(1 - 1/n^2).
+// At n = 1.333 (seawater, visible band) that is 1.512. A fragment 5 m under the
+// surface therefore cannot be seen through more than 7.6 m of water even from a
+// horizon-grazing eye - which is the bound the straight-line crossing estimate
+// below is missing, and why a near-tangent view of anything at or just under
+// sea level could accumulate KILOMETRES of extinction and print flat in-scatter
+// navy. Only the entry case is bounded; a submerged CAMERA is already inside
+// the medium with no interface to refract at, so its rays keep the full path.
+const WATER_REFRACTED_PATH_MAX: f32 = 1.512;
+
 // `on_surface` = this fragment IS the air-water interface (the ocean shell's
 // own two call sites), as opposed to something seen THROUGH the water. See the
 // h_frag clamp below for why that distinction is load-bearing.
@@ -305,7 +320,24 @@ fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>, on_surface: bool)
         // Crossing: the wet share is whichever endpoint is submerged.
         frac_wet = clamp(min(h_cam, h_frag) / (min(h_cam, h_frag) - max(h_cam, h_frag)), 0.0, 1.0);
     }
-    let d = seg * frac_wet;
+    var d = seg * frac_wet;
+    // ── REFRACTION CEILING (see WATER_REFRACTED_PATH_MAX) ──
+    // The straight-line estimate above is the path an UNREFRACTED ray would
+    // take, and at grazing incidence that diverges without limit: at a 20 m eye,
+    // a point 5 m under the surface 10 km away books 2 km of seawater by
+    // similar triangles. Real light cannot do that - it refracts at entry and
+    // can be no more oblique than the critical angle underwater, so the wet leg
+    // is at most 1.512x the depth it descends. Bound it.
+    //
+    // ONLY when the eye is in the AIR and the fragment is under water: that is
+    // the only case with an entry interface. A SUBMERGED camera is already
+    // inside the medium - its ray to a crest above it refracts on the way OUT,
+    // which changes where the light came from in the sky, not how far it
+    // travelled through the water - so the over-under meniscus strip (v0.1061)
+    // keeps its full geometric path and is untouched by this bound.
+    if (h_cam > 0.0 && h_frag < 0.0) {
+        d = min(d, -h_frag * WATER_REFRACTED_PATH_MAX);
+    }
     if (d <= 0.01) {
         return color_in;
     }
