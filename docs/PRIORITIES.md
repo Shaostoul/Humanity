@@ -8,6 +8,16 @@
 > (v0.1183), and 12c SLICE A (extent-parametrized temporal map, resample
 > re-anchors, arm everywhere, atmo-order fix - A/B-proven vs a v0.1183.1
 > control; adversarial review's 5 findings fixed pre-ship).
+> **SHIPPED v0.1186.0 (slice B): translation reprojection** - the
+> operator's motion smear ("solitaire artifact") killed via per-texel
+> history reprojection with an analytic shell-sphere parallax distance,
+> a PLANET-LOCAL motion baseline (the world-frame one slides 1.3-2.1 km
+> per frame at a PARKED camera - measured), a >15 deg teleport guard,
+> and motion-adaptive blend. Parked captures crisp, delta ~0 at rest;
+> the MOTION verdict is the operator's. Rig unblocked: unconditional
+> re-park + 6 s settle in probe-sweep.js (first with-time request of a
+> boot lands ~8 h early; engine ordering fix owed, chip task).
+>
 > **NEXT (TOP): SAME-REGION coverage-invariance measurement.** The
 > night's final re-adjudication (environment-program.md 12c, READ IT
 > FIRST - it names four instrument confounds that each looked like a
