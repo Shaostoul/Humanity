@@ -1217,6 +1217,47 @@ fn water_shade(
     if (shadow_u.params2.y > 0.5 && w_lut_alt > 0.001) {
         sky_term = mix(sky_term, water_sky_lut(refl, n_geo), w_lut_alt);
     }
+    // ── THE MIRROR MUST SEE THE WEATHER TOO ──
+    // Everything above answers "what is the sky radiance in the reflected
+    // direction" from the Hillaire sky-view LUT, which is a CLEAR-AIR table: it
+    // knows the sun, the altitude and the air, and nothing at all about fog,
+    // dust, rain or snow. Those live in the separate weather-haze pair the CPU
+    // publishes each frame (sigma in light1_cone_inner.y, the tinted airlight in
+    // light2_cone_inner.yzw). So in a whiteout the sea kept mirroring a bright
+    // blue sky that no longer existed - and at grazing angles, where Fresnel
+    // goes to 1, that mirror IS the sea's colour. The eye-path haze then washed
+    // the far sea toward the fog while the near sea kept the unfogged mirror,
+    // so the two disagreed across the frame and the disagreement SWEPT with the
+    // view: the operator's "washes out to near-white and pulsates between dark
+    // blue and white".
+    //
+    // The reflected ray travels through the same weather the eye does, so it
+    // gets the same integral: extinction over one slant path of the haze layer,
+    // taken along the REFLECTED direction (elev = its elevation cosine against
+    // the local up). This is deliberately the SAME law, the same uniforms and
+    // the same 1e-4 weather gate that 30-atmosphere.wgsl applies to the drawn
+    // sky (v0.1108, "one fog, one integral, or they cannot agree") - now
+    // extended to the third leg, the sky the sea reflects. LOCKSTEP: if the
+    // atmosphere's fog mix changes, change this with it.
+    //
+    // Clear air is BIT-IDENTICAL: clear-air sigma is 2.2e-5, an order of
+    // magnitude under the gate, so every clear-weather capture and every frozen
+    // ocean golden goes through this untouched.
+    let fog_sigma_w = camera.light1_cone_inner.y;
+    if (fog_sigma_w > 1.0e-4) {
+        let fog_rgb_w = vec3<f32>(
+            camera.light2_cone_inner.y,
+            camera.light2_cone_inner.z,
+            camera.light2_cone_inner.w,
+        );
+        let layer_w = max(camera.light1_cone_inner.z, 1.0);
+        let w_fog_w = clamp(
+            1.0 - exp(-fog_sigma_w * (layer_w / max(elev, 0.035))),
+            0.0,
+            1.0,
+        );
+        sky_term = mix(sky_term, fog_rgb_w, w_fog_w);
+    }
     let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI) * sun_shadow_f;
     let h = normalize(view_dir + sun_l);
     // GLITTER WIDTH FROM THE WIND (v0.1055, operator: "the sun reflects but
