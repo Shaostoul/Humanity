@@ -427,13 +427,15 @@ const CLOUD_PUFF_AO: f32 = 0.60;
 // aliases; band-limiting prevents the alias at the source.
 //
 // lodb is log2(footprint in km); each sample site subtracts its own
-// log2 voxel size (tile_km / texture resolution): shape 267.6/192,
-// cell tap 8/192, detail 107/128, puff 45.9/128, fray 713.6/128 km.
-const CLOUD_LODC_SHAPE: f32 = 0.479;
-const CLOUD_LODC_CELL: f32 = -4.585;
-const CLOUD_LODC_DETAIL: f32 = -0.259;
-const CLOUD_LODC_PUFF: f32 = -1.479;
-const CLOUD_LODC_FRAY: f32 = 2.479;
+// log2 voxel size (tile_km / texture resolution): shape 267.6/384,
+// cell tap 8/384, detail 107/256, puff 45.9/256, fray 713.6/256 km.
+// (Volumes doubled to 384^3 / 256^3 in the brute-force wave - every
+// offset dropped by exactly 1.0.)
+const CLOUD_LODC_SHAPE: f32 = -0.521;
+const CLOUD_LODC_CELL: f32 = -5.585;
+const CLOUD_LODC_DETAIL: f32 = -1.259;
+const CLOUD_LODC_PUFF: f32 = -2.480;
+const CLOUD_LODC_FRAY: f32 = 1.479;
 // Angular pixel size feeding the ray-cone width (Wave B, increment 9):
 // the temporal map's Lambert texel is DERIVED from its own extent
 // (4 / CLOUD_OCTA_SIZE radians; locked to the Rust size constant by
@@ -463,7 +465,10 @@ fn cloud_pix_ang_screen() -> f32 {
 // Mip level for one sample site: log2 footprint minus the site's log2
 // voxel size, clamped to the 8-level chain (0..7).
 fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
-    return clamp(lodb - site_c, 0.0, 7.0);
+    // 0..8: the 384-chain has nine levels; clamping at the old 7 would
+    // saturate the deepest footprints one rung early and leave far-field
+    // samples under-band-limited.
+    return clamp(lodb - site_c, 0.0, 8.0);
 }
 
 // ── Mip-width-aware SOFT carve (Wave B, increment 9) ──
@@ -496,24 +501,30 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // the old Gaussian-hinge gate). The far-field mass this leaves out is
 // increment 15's statistical far field, NOT the carve's job. Level 0 is
 // a single voxel - the hinge collapses to the exact hard ramp there.
+// Re-fitted for the 384^3 bake (brute-force wave): nine levels; the
+// fitted values are the previous chain's table shifted one rung deeper,
+// exactly what a chain with one extra level ahead of it should produce.
+// The 0.02 cap from the coverage adjudication still applies at the fit.
 const CLOUD_CARVE_W0: f32 = 0.005;
-const CLOUD_CARVE_W1: f32 = 0.010;
-const CLOUD_CARVE_W2: f32 = 0.015;
-const CLOUD_CARVE_W3: f32 = 0.015;
+const CLOUD_CARVE_W1: f32 = 0.005;
+const CLOUD_CARVE_W2: f32 = 0.010;
+const CLOUD_CARVE_W3: f32 = 0.010;
 const CLOUD_CARVE_W4: f32 = 0.015;
-const CLOUD_CARVE_W5: f32 = 0.020;
+const CLOUD_CARVE_W5: f32 = 0.015;
 const CLOUD_CARVE_W6: f32 = 0.020;
 const CLOUD_CARVE_W7: f32 = 0.020;
+const CLOUD_CARVE_W8: f32 = 0.020;
 
 fn cloud_carve_width(lod: f32) -> f32 {
-    var w: array<f32, 8> = array<f32, 8>(
+    var w: array<f32, 9> = array<f32, 9>(
         CLOUD_CARVE_W0, CLOUD_CARVE_W1, CLOUD_CARVE_W2, CLOUD_CARVE_W3,
         CLOUD_CARVE_W4, CLOUD_CARVE_W5, CLOUD_CARVE_W6, CLOUD_CARVE_W7,
+        CLOUD_CARVE_W8,
     );
-    let l = clamp(lod, 0.0, 7.0);
+    let l = clamp(lod, 0.0, 8.0);
     let i = i32(floor(l));
     let f = l - floor(l);
-    let i1 = min(i + 1, 7);
+    let i1 = min(i + 1, 8);
     return mix(w[i], w[i1], f);
 }
 // Coverage carve thresholds (shader-only tuning; not mirrored -- the density
