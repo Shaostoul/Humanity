@@ -208,6 +208,14 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 // low-flight view did not.
 var<private> g_cloud_rb: f32 = CLOUD_RB;
 var<private> g_cloud_rt: f32 = CLOUD_RT;
+// First-hit distance of the most recent cloud_march_core call, WORLD
+// units (0 = the march saw no cloud). The octa pass reads it for
+// per-texel history reprojection (slice B): the march's own first hit is
+// the exact parallax distance for the content this texel shows, where
+// the analytic shell-sphere hit is only right for cloud AT the shell -
+// worst inside the slab, which is exactly where the operator still saw
+// ghosting after the analytic cut.
+var<private> g_march_first_t: f32 = 0.0;
 // Drawn-shell units per kilometre (clouds depth increment): converts the
 // metre-expressed noise ladder + fade constants below into the march's
 // coordinate space, so feature sizes are anchored to physical lengths
@@ -2055,6 +2063,7 @@ fn cloud_march_core(
     jitter: f32,
     pix_ang: f32,
 ) -> vec4<f32> {
+    g_march_first_t = 0.0;
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);
@@ -2391,6 +2400,9 @@ fn cloud_march_core(
     if (first_t > 0.0) {
         srf_t = first_t;
     }
+    // Export for the octa pass's history reprojection (see the private
+    // declaration): the visible cloud surface distance, world units.
+    g_march_first_t = srf_t * shell_r;
     let srf_world = camera.view_pos.xyz + rd_w * (srf_t * shell_r);
     radiance = aerial_apply(radiance, srf_world);
     let t_aer = aerial_transmittance(srf_world);

@@ -103,6 +103,41 @@ fn map_encode(d: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(p * 0.5 + vec2<f32>(0.5), r2);
 }
 
+// Catmull-Rom bicubic over the 2048^2 map (operator: "in what ways can we
+// increase the resolution of the cloud layer?" - first answer: stop
+// throwing away the resolution we have). Bilinear over a premultiplied
+// RGBA16F map is a tent filter; at the composite's magnification it reads
+// as soft blocky mush. Catmull-Rom reconstructs the same texels visibly
+// sharper. 9 bilinear taps on a fullscreen pass is cheap; the max() guard
+// clips the filter's small negative undershoot (premultiplied data must
+// stay non-negative).
+fn map_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
+    let res = vec2<f32>(2048.0, 2048.0);
+    let sample_pos = uv * res;
+    let tex_pos1 = floor(sample_pos - 0.5) + 0.5;
+    let f = sample_pos - tex_pos1;
+    let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    let w3 = f * f * (-0.5 + 0.5 * f);
+    let w12 = w1 + w2;
+    let offset12 = w2 / w12;
+    let tp0 = (tex_pos1 - 1.0) / res;
+    let tp3 = (tex_pos1 + 2.0) / res;
+    let tp12 = (tex_pos1 + offset12) / res;
+    var result = vec4<f32>(0.0);
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp0.y), 0.0) * w0.x * w0.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp0.y), 0.0) * w12.x * w0.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp0.y), 0.0) * w3.x * w0.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp12.y), 0.0) * w0.x * w12.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp12.y), 0.0) * w12.x * w12.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp12.y), 0.0) * w3.x * w12.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp3.y), 0.0) * w0.x * w3.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp3.y), 0.0) * w12.x * w3.y;
+    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp3.y), 0.0) * w3.x * w3.y;
+    return max(result, vec4<f32>(0.0));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Pixel ray. This pass's uv comes straight from NDC (y UP - unlike a
@@ -184,7 +219,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (e.z > 1.02) {
         discard; // outside the map's extent - no data
     }
-    let s = textureSampleLevel(cloud_map, map_sampler, e.xy, 0.0);
+    let s = map_catmull_rom(e.xy);
     if (s.a <= 0.003) {
         discard;
     }

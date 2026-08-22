@@ -1924,10 +1924,22 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         * sun_shadow_offset(in.world_position, sun_ndl, normal)
         * sun_gate;
 
-    // Evaluate fill light (from camera uniforms)
+    // Evaluate fill light (from camera uniforms). NIGHT GATE for planet
+    // surfaces (operator, v0.1186: "the oceans are glowing" on the dark
+    // side from orbit): the fill is a fixed cool light with no relation
+    // to the sun, so on a planet's night side it fabricated illumination
+    // - invisible on dark land albedo, glowing cyan on the bright
+    // bathymetry ocean. Type 12 (textured planet) scales the fill by the
+    // sun's local elevation with a small twilight tail; every other
+    // material keeps the unconditional fill (it exists for near-field
+    // readability, not planetary lighting).
+    var fill_gate = 1.0;
+    if (material_type >= 11.5 && material_type < 12.5) {
+        fill_gate = smoothstep(-0.08, 0.12, sun_ndl);
+    }
     lo = lo + evaluate_light(
         camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
-        normal, view_dir, albedo, metallic, roughness, f0);
+        normal, view_dir, albedo, metallic, roughness, f0) * fill_gate;
 
     // Point + spot lights — UNCAPPED (v0.782): the storage buffer holds every
     // scene light; light_count bounds the loop. The early range/attenuation

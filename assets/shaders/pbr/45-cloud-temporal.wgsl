@@ -86,6 +86,20 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // no content jump, no ghost EMA-fading out - the operator's "big jump
     // and the old one phases out slowly" dies here. A direction outside
     // the OLD extent has no history; take the fresh march outright.
+    // The accumulation sequence: per-texel stratum + the golden-ratio
+    // step per cloud-clock tick. Across frames each texel's march visits
+    // a low-discrepancy sequence of sample offsets, which is exactly the
+    // supersampling the EMA converges. The march runs FIRST (slice B):
+    // its first-hit distance (g_march_first_t) is the exact parallax
+    // distance for the content this texel shows, which the history
+    // reprojection below needs.
+    let jitter = fract(
+        hash21(in.uv * 8192.0 + vec2<f32>(17.0, 39.0))
+            + fract(camera.sun_color.w * 11.0) * 0.618034,
+    );
+    // Footprint for band-limited volume sampling: this pass's pixel is a
+    // Lambert map texel, whose angular size is the map constant.
+    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
     // TRANSLATION REPROJECTION (slice B, from the operator's "solitaire
     // artifact" report - radial streaks converging on the sub-camera
     // point whenever the camera MOVES, clean when still). Rotation is
@@ -93,39 +107,46 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // corrected: the fresh march puts a cloud at its NEW direction while
     // ~25 frames of history still hold it at the OLD one, and the EMA
     // smears the difference along the motion. Fix: ask where this
-    // texel's CONTENT was from the PREVIOUS camera. Clouds live in a
-    // 12 km shell on a 6371 km planet, so the ray's shell-sphere hit is
-    // an excellent analytic parallax distance - no stored first_t
-    // needed. PRECISION: the pads carry the camera DELTA (prev - now,
-    // camera.light4.xyz, w = flag), never absolute positions - all
-    // math stays small (p - prev = rd*t - delta), immune to the
-    // f32-at-planet-scale cancellation class.
+    // texel's CONTENT was from the PREVIOUS camera - at the distance the
+    // march ACTUALLY HIT cloud this frame (exact per-texel parallax; the
+    // analytic shell-sphere hit is the fallback for clear rays, and was
+    // the whole story before this - right at the shell, wrong inside the
+    // slab, which is exactly where the operator still saw ghosting).
+    // PRECISION: the pads carry the camera DELTA in the PLANET-LOCAL
+    // frame rotated to world axes (camera.light4.xyz, w = flag), never
+    // absolute positions - all math stays small (p - prev = rd*t -
+    // delta), immune to the f32-at-planet-scale cancellation class.
     var d_hist = rd_w;
     var shift_tx = 0.0;
     var teleported = false;
     if (camera.light4.w > 0.5) {
-        let ro_c = camera.view_pos.xyz - center;
-        let b = dot(ro_c, rd_w);
-        let cc = dot(ro_c, ro_c) - shell_r * shell_r;
-        let disc = b * b - cc;
-        if (disc > 0.0) {
-            let sq = sqrt(disc);
-            var t_rep = -b - sq;
-            if (t_rep <= 0.0) {
-                t_rep = -b + sq;
-            }
-            if (t_rep > 0.0) {
-                d_hist = normalize(rd_w * t_rep - camera.light4.xyz);
-                // TELEPORT GUARD: the small-parallax model only holds for
-                // per-frame baselines well under the cloud distance. A
-                // teleport-scale delta bends every texel's lookup toward
-                // one direction and smears the whole map with one texel's
-                // content (seen live on a rig re-park jump). Beyond ~15
-                // degrees of reprojection, history is disoccluded - take
-                // the fresh march and let the EMA converge clean.
-                if (dot(d_hist, rd_w) < 0.966) {
-                    teleported = true;
+        var t_rep = g_march_first_t;
+        if (t_rep <= 0.0) {
+            // Clear ray: no marched surface - the shell-sphere hit stands
+            // in so clear sky still counter-scrolls correctly.
+            let ro_c = camera.view_pos.xyz - center;
+            let b = dot(ro_c, rd_w);
+            let cc = dot(ro_c, ro_c) - shell_r * shell_r;
+            let disc = b * b - cc;
+            if (disc > 0.0) {
+                let sq = sqrt(disc);
+                t_rep = -b - sq;
+                if (t_rep <= 0.0) {
+                    t_rep = -b + sq;
                 }
+            }
+        }
+        if (t_rep > 0.0) {
+            d_hist = normalize(rd_w * t_rep - camera.light4.xyz);
+            // TELEPORT GUARD: the small-parallax model only holds for
+            // per-frame baselines well under the cloud distance. A
+            // teleport-scale delta bends every texel's lookup toward
+            // one direction and smears the whole map with one texel's
+            // content (seen live on a rig re-park jump). Beyond ~15
+            // degrees of reprojection, history is disoccluded - take
+            // the fresh march and let the EMA converge clean.
+            if (dot(d_hist, rd_w) < 0.966) {
+                teleported = true;
             }
         }
     }
@@ -146,17 +167,6 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     } else {
         hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
     }
-    // The accumulation sequence: per-texel stratum + the golden-ratio
-    // step per cloud-clock tick. Across frames each texel's march visits
-    // a low-discrepancy sequence of sample offsets, which is exactly the
-    // supersampling the EMA converges.
-    let jitter = fract(
-        hash21(in.uv * 8192.0 + vec2<f32>(17.0, 39.0))
-            + fract(camera.sun_color.w * 11.0) * 0.618034,
-    );
-    // Footprint for band-limited volume sampling: this pass's pixel is a
-    // Lambert map texel, whose angular size is the map constant.
-    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
     // PREMULTIPLY before accumulating (the fidelity audit's top finding):
     // the march returns straight alpha, and vec4(0) for clear/early-out
     // rays. EMA-ing straight alpha makes a direction whose jittered
