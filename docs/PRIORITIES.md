@@ -18,7 +18,22 @@
 > re-park + 6 s settle in probe-sweep.js (first with-time request of a
 > boot lands ~8 h early; engine ordering fix owed, chip task).
 >
-> **NEXT (TOP): SAME-REGION coverage-invariance measurement.** The
+> **NEXT (TOP): THE VANISH HUNT, haze-corrected.** The operator's
+> clouds-vanish-between-80-and-212-km (live path) survived round one of
+> measurement: the PINNED same-region pair is near-invariant (1.26x -
+> rendering exonerated), and the live-path metrics hit two named
+> confounds (atmosphere haze counted as cloud above the atmo top;
+> single-crop regional sampling). Run the DESIGNED protocol: per
+> altitude, capture clouds ON and OFF in the same boot (showcase
+> toggle), coverage = luminance delta over the haze baseline,
+> region-matched crops at 3+ offsets (vantages cov50-/live-cloudy-
+> 80km/212km + scripts/coverage-crop.mjs exist). Prime suspect BY
+> CONSTRUCTION: the wx-floor altitude fade (30-120 km) hands the sim
+> deck off toward the live field - if live is thin or invalid, the deck
+> fades to NOTHING mid-ascent. Journal 2026-08-22 has the full design.
+>
+> (Superseded round below, kept for the confound catalog:)
+> **SAME-REGION coverage-invariance measurement.** The
 > night's final re-adjudication (environment-program.md 12c, READ IT
 > FIRST - it names four instrument confounds that each looked like a
 > rendering defect): the 15%/80%/60% triplet spread is dominated by
