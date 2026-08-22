@@ -1567,20 +1567,27 @@ mod carve_width_fit {
     /// threshold-of-mip-0 within tolerance"). Run in release:
     ///   cargo test --release --features native --lib carve_consistency -- --ignored --nocapture
     #[test]
-    #[ignore = "heavy (generates the 192^3 volume + mip chain); run in release when the bake or table changes"]
+    #[ignore = "heavy (generates the 384^3 volume + mip chain); run in release when the bake or table changes"]
     fn carve_consistency_widths_are_fitted() {
+        // Size-agnostic (v0.1188, the 2x-resolution bake): everything below
+        // reads SHAPE_SIZE and the chain's own length, so doubling the
+        // volume re-fits a 9-entry table instead of silently fitting the
+        // first 8 levels of a longer chain.
+        let base_size = cloud_noise::SHAPE_SIZE;
+        let bs = base_size as usize;
         let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
         let base = cloud_noise::generate_shape(threads);
-        let chain = cloud_noise::mip_chain(base, 192);
+        let chain = cloud_noise::mip_chain(base, base_size);
         let sizes: Vec<u32> = {
-            let mut v = vec![192u32];
-            let mut s = 192u32;
+            let mut v = vec![base_size];
+            let mut s = base_size;
             while s > 1 {
                 s = (s / 2).max(1);
                 v.push(s);
             }
             v
         };
+        assert_eq!(chain.len(), sizes.len(), "chain length vs size ladder");
         let thrs = [0.55f32, 0.62, 0.70, 0.78, 0.86];
         let mut fitted = vec![0.005f32]; // level 0: single voxel, exact
         let mut errs = vec![0.0f32];
@@ -1590,9 +1597,11 @@ mod carve_width_fit {
             rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             ((rng >> 33) as u32) as f32 / u32::MAX as f32
         };
-        for l in 1..sizes.len().min(7) {
+        // Every level except the final 1^3 (which is a single voxel - there
+        // is nothing to fit and its width just carries the last one down).
+        for l in 1..sizes.len() - 1 {
             let n_l = sizes[l] as usize;
-            let scale = (192 / sizes[l]) as usize; // base voxels per level voxel edge
+            let scale = (base_size / sizes[l]) as usize; // base voxels per level voxel edge
             let level = &chain[l];
             let base0 = &chain[0];
             // Collect (level_value, area_mean_relu per thr, area_cover per
@@ -1612,7 +1621,7 @@ mod carve_width_fit {
                 for bz in (vz * scale..(vz + 1) * scale).step_by(stride) {
                     for by in (vy * scale..(vy + 1) * scale).step_by(stride) {
                         for bx in (vx * scale..(vx + 1) * scale).step_by(stride) {
-                            let x0 = base0[((bz * 192 + by) * 192 + bx) * 4] as f32 / 255.0;
+                            let x0 = base0[((bz * bs + by) * bs + bx) * 4] as f32 / 255.0;
                             for (ti, thr) in thrs.iter().enumerate() {
                                 acc[ti] += relu(x0 - thr);
                                 if x0 > *thr {
@@ -1705,11 +1714,12 @@ mod carve_width_fit {
             fitted.push(best_w.min(0.02));
             errs.push(best_e);
         }
-        while fitted.len() < 8 {
+        while fitted.len() < sizes.len() {
             let last = *fitted.last().unwrap();
             fitted.push(last); // deepest levels: carry the last fitted width
             errs.push(*errs.last().unwrap());
         }
+        println!("mip levels: {} (sizes {sizes:?})", chain.len());
         println!("fitted carve widths: {fitted:?}");
         println!("per-level MAE: {errs:?}");
         // The consistency gate: the soft carve must track the area-averaged
@@ -1727,7 +1737,15 @@ mod carve_width_fit {
             let line = src
                 .lines()
                 .find(|ln| ln.trim_start().starts_with(&format!("const {name}: f32 = ")))
-                .unwrap_or_else(|| panic!("{name} not in 40-clouds.wgsl"));
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{name} not in 40-clouds.wgsl - the shape mip chain has {} levels, so the \
+                         WGSL needs CLOUD_CARVE_W0..W{} (and cloud_lod must clamp to 0..{})",
+                        fitted.len(),
+                        fitted.len() - 1,
+                        fitted.len() - 1
+                    )
+                });
             let v: f32 = line
                 .trim()
                 .trim_start_matches(&format!("const {name}: f32 = "))
