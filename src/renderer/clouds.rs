@@ -1264,12 +1264,17 @@ mod tests {
 
     #[test]
     fn wgsl_map_pixel_angle_matches_the_octa_size() {
-        // The temporal map's LOD footprint must track the map resolution.
-        // Since 12c it is a FUNCTION of the extent: pix_ang =
-        // sqrt(2 k) * (2 / SIZE), whose k = 2 (full sphere) value is the
-        // classic 4/SIZE Lambert texel. Lock the shader's denominator to
-        // the Rust size constant so resizing the map without retuning the
-        // footprint fails here instead of silently blurring every march.
+        // The temporal map's LOD footprint is a FUNCTION of the extent:
+        // pix_ang = sqrt(2 k) * (2 / N), whose k = 2 (full sphere) value
+        // is the classic 4/N Lambert texel. Since the 4096-map brute
+        // force, N is a deliberate FOOTPRINT constant (the 2048-map
+        // angular size), decoupled from CLOUD_OCTA_SIZE: the stored map
+        // spatially supersamples the band-limited field at quarter-march
+        // cadence, and the march footprint must NOT shrink with storage
+        // (it would multiply per-ray step counts). The lock here: the
+        // denominator stays 2048 AND the stored map is at least that -
+        // shrinking the map below the footprint grid would silently
+        // undersample.
         let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
         let needle = "sqrt(2.0 * cloud_map_k()) * (2.0 / ";
         let start = wgsl
@@ -1278,12 +1283,14 @@ mod tests {
         let rest = &wgsl[start + needle.len()..];
         let end = rest.find(')').expect("unterminated expression");
         let d: f32 = rest[..end].trim().parse().expect("unparseable denominator");
-        // The needle string pins the sqrt(2k)*(2/SIZE) form; this pins the
-        // SIZE. (A derived "k=2 equals 4/SIZE" assert was dropped as
-        // tautological - it followed algebraically from this one.)
         assert!(
-            (d - crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32).abs() < 0.5,
-            "cloud_pix_ang_map denominator {d} != CLOUD_OCTA_SIZE"
+            (d - 2048.0).abs() < 0.5,
+            "cloud_pix_ang_map footprint denominator {d} != 2048"
+        );
+        assert!(
+            crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE as f32 >= d,
+            "octa map ({}) smaller than the footprint grid ({d})",
+            crate::renderer::cloud_temporal::CLOUD_OCTA_SIZE
         );
     }
 

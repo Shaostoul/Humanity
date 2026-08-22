@@ -443,10 +443,15 @@ const CLOUD_LODC_FRAY: f32 = 2.479;
 // hardcoded 1 mrad guess under-read a 90-deg/1387-row frame by ~40%, and
 // every footprint and mip pick with it. The fallback below only covers an
 // older writer that never fills the pad.
-// 12c: the map texel angle now depends on the extent - the disc-center
-// radial texel angle is sqrt(2 k) / (CLOUD_OCTA_SIZE / 2). k = 2 (full
-// sphere) reproduces the pre-12c constant 4/2048; the orbit regime's
-// small k shrinks the footprint to match its concentrated texels.
+// 12c: the map texel angle depends on the extent - the disc-center
+// radial texel angle is sqrt(2 k) / (SIZE / 2). k = 2 (full sphere)
+// reproduces the pre-12c constant 4/2048. Since the 4096-map brute
+// force this is a FOOTPRINT constant deliberately pinned to the
+// 2048-map angular size, NOT the stored map size: the 4096 texels
+// spatially supersample the same band-limited field (quarter-cadence
+// marching keeps per-frame cost flat), and marching finer footprints
+// would instead multiply per-ray step counts for detail the field's
+// mips cannot carry at range.
 fn cloud_pix_ang_map() -> f32 {
     return sqrt(2.0 * cloud_map_k()) * (2.0 / 2048.0);
 }

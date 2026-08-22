@@ -73,6 +73,36 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     if (dot(pd, pd) > 1.001) {
         return vec4<f32>(0.0);
     }
+    // QUARTER-CADENCE MARCH (4096-map brute force): only the 32x32-texel
+    // BLOCK matching this frame's phase (camera.light4.w - 1) marches;
+    // the other three quarters reproject their history and carry it
+    // forward unblended. Per-frame march count therefore equals the old
+    // full-rate 2048 map while the stored map holds 4x the texels.
+    // BLOCKS, not a per-pixel checkerboard, deliberately: a 2x2
+    // interleave put marching lanes in EVERY hardware wave, so no wave
+    // could skip and the whole pass paid full-march occupancy (measured:
+    // fps halved). 32x32 blocks let entire waves take the cheap path.
+    // Phase riding the reprojection flag means cadence only engages
+    // while reprojection is armed - first frames march everything.
+    var do_march = true;
+    if (camera.light4.w > 0.5) {
+        let px = vec2<u32>(in.pos.xy);
+        let cell = ((px.x >> 5u) & 1u) + ((px.y >> 5u) & 1u) * 2u;
+        let phase = u32(camera.light4.w - 0.5);
+        do_march = cell == phase;
+    }
+    // RESTING FAST PATH: a cadence-skipped texel under a sub-texel camera
+    // delta (< 4 m - above the ~2 m f32 quantization noise of the
+    // baseline, still < 0.2 texel of parallax at any cloud distance) has
+    // nothing to reproject - copy the texel forward and skip the whole
+    // decode/reproject/encode chain. Three quarters of the map take this
+    // branch whenever the camera is still, which is what pays for the
+    // 4096 storage at rest. Resample frames (light3.w) keep the full
+    // path - their history lives under the OLD mapping.
+    if (!do_march && camera.light3.w < 0.5
+        && dot(camera.light4.xyz, camera.light4.xyz) < 16.0) {
+        return textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+    }
     cloud_set_slab_bounds();
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
@@ -98,8 +128,14 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
             + fract(camera.sun_color.w * 11.0) * 0.618034,
     );
     // Footprint for band-limited volume sampling: this pass's pixel is a
-    // Lambert map texel, whose angular size is the map constant.
-    let cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
+    // Lambert map texel; the footprint deliberately stays at the
+    // 2048-map angular size (see cloud_pix_ang_map) so the 4096 texels
+    // spatially supersample the same band-limited field instead of
+    // paying finer march steps.
+    var cur_s = vec4<f32>(0.0);
+    if (do_march) {
+        cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
+    }
     // TRANSLATION REPROJECTION (slice B, from the operator's "solitaire
     // artifact" report - radial streaks converging on the sub-camera
     // point whenever the camera MOVES, clean when still). Rotation is
@@ -158,14 +194,22 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         let e = cloud_map_encode_at(d_hist, up_old, k_old);
         hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
         have_hist = e.z <= 1.0;
-        shift_tx = length(e.xy - in.uv) * 2048.0;
+        shift_tx = length(e.xy - in.uv) * 4096.0;
     } else if (camera.light4.w > 0.5) {
         let e = cloud_map_encode_at(d_hist, cloud_map_up(center), cloud_map_k());
         hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
         have_hist = e.z <= 1.0;
-        shift_tx = length(e.xy - in.uv) * 2048.0;
+        shift_tx = length(e.xy - in.uv) * 4096.0;
     } else {
         hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+    }
+    // Cadence-skipped texel: carry the (reprojected) history forward
+    // untouched; its own march comes within the next three frames.
+    if (!do_march) {
+        if (!have_hist || teleported) {
+            return vec4<f32>(0.0);
+        }
+        return hist;
     }
     // PREMULTIPLY before accumulating (the fidelity audit's top finding):
     // the march returns straight alpha, and vec4(0) for clear/early-out
@@ -192,12 +236,23 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // ghosting on a cloud.
     let diff = abs(cur.a - hist.a)
         + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
-    var alpha = clamp(0.04 + diff * 0.05, 0.04, 0.12);
-    // Motion catch-up: the analytic parallax proxy (shell-sphere hit)
-    // carries a residual error that scales with the per-frame shift, so
-    // large shifts blend history down faster - motion masks the extra
-    // march noise, and the trail cannot persist. Sub-texel shifts keep
-    // the deep converged blend.
+    // DISOCCLUSION CATCH-UP (operator "solitaire" round 3, the ghost
+    // copies trailing every mass during descent): reprojection recovers
+    // content that MOVED, but sky newly revealed behind a mass edge has
+    // no valid history anywhere - those texels were EMA-ing off stale
+    // cloud at the resting cap, and the trail was the visible result.
+    // During real motion (shift >= ~1 texel) the deep-blend rationale
+    // inverts - content change is signal, not noise - so both the diff
+    // response and its cap scale with the measured shift. At rest the
+    // v0.1159 anti-boil discipline stands untouched.
+    let motion = clamp(shift_tx - 0.75, 0.0, 1.0);
+    var alpha = clamp(
+        0.04 + diff * mix(0.05, 0.6, motion),
+        0.04,
+        mix(0.12, 0.5, motion),
+    );
+    // Residual parallax error also scales with shift - a floor keeps the
+    // trail from persisting even where diff happens to be small.
     alpha = max(alpha, min(0.35, max(shift_tx - 1.0, 0.0) * 0.02));
     // No history for this direction (outside the old extent on a resample
     // frame, or a teleport-scale reprojection): start from the fresh

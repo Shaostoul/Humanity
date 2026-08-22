@@ -429,6 +429,9 @@ pub struct Renderer {
     /// Cell + take(): consumed once per celestial render, so the hi-res
     /// double render reprojects by zero on its second pass.
     pub cloud_reproj_delta: std::cell::Cell<Option<[f32; 3]>>,
+    /// Octa-pass march cadence counter (quarter-rate marching over the
+    /// 4096 map): increments per celestial render, phase = counter % 4.
+    pub cloud_octa_phase: std::cell::Cell<u32>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1569,6 +1572,7 @@ impl Renderer {
             cloud_map_cmax: -1.0,
             cloud_map_resample: std::cell::Cell::new(None),
             cloud_reproj_delta: std::cell::Cell::new(None),
+            cloud_octa_phase: std::cell::Cell::new(0),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -2906,8 +2910,17 @@ impl Renderer {
         // render reprojects by zero on its second pass. Parked cameras
         // deliver ~0 by construction (planet-local frame), so statics
         // stay converged; only real content-relative motion reprojects.
+        // w encodes flag + march cadence phase: 0 = reprojection off (no
+        // baseline), 1..4.9 = on with quarter-cadence phase (w - 1) - the
+        // octa pass marches only the 2x2 cell matching the phase each
+        // frame (4096-map brute force at the old 2048 per-frame cost).
+        let phase = {
+            let p = self.cloud_octa_phase.get();
+            self.cloud_octa_phase.set(p.wrapping_add(1));
+            (p % 4) as f32
+        };
         let delta_pads: [f32; 4] = match self.cloud_reproj_delta.take() {
-            Some(d) if self.cloud_temporal_mat.is_some() => [d[0], d[1], d[2], 1.0],
+            Some(d) if self.cloud_temporal_mat.is_some() => [d[0], d[1], d[2], 1.0 + phase],
             _ => [0.0, 0.0, 0.0, 0.0],
         };
         // Reprojection diagnostics (slice B bring-up): a parked camera must

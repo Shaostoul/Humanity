@@ -37,7 +37,17 @@ use super::{AlbedoBindGroup, Renderer};
 // a hard cap no tuning could lift, and the visible "grain" autocorrelated
 // at exactly 1-2 map texels. The ground-occlusion cull (v0.1161) cut the
 // pass to 1.9 ms, buying the 4x texel budget for ~0.11 deg/texel.
-pub const CLOUD_OCTA_SIZE: u32 = 2048;
+// 4096 in the brute-force wave (operator, v0.1187: "prep for brute force
+// improvements... can you do everything in tandem?"): another 4x texels
+// (~0.055 deg/texel, sub-screen-pixel at every altitude) WITHOUT 4x
+// march cost - the octa pass marches a quarter of the texels per frame
+// (2x2 cadence, see 45-cloud-temporal.wgsl), so per-frame march count
+// equals the old full-rate 2048 map. RGBA16F ping-pong = 2 x 134 MB,
+// budgeted for the 12 GB tier. The march FOOTPRINT deliberately stays at
+// the 2048-map angular size (see cloud_pix_ang_map in 40-clouds.wgsl):
+// the extra texels spatially supersample the same band-limited field,
+// so per-ray march cost does not rise with the resolution.
+pub const CLOUD_OCTA_SIZE: u32 = 4096;
 
 pub struct CloudTemporal {
     _textures: [wgpu::Texture; 2],

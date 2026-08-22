@@ -112,7 +112,7 @@ fn map_encode(d: vec3<f32>) -> vec3<f32> {
 // clips the filter's small negative undershoot (premultiplied data must
 // stay non-negative).
 fn map_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
-    let res = vec2<f32>(2048.0, 2048.0);
+    let res = vec2<f32>(4096.0, 4096.0);
     let sample_pos = uv * res;
     let tex_pos1 = floor(sample_pos - 0.5) + 0.5;
     let f = sample_pos - tex_pos1;
