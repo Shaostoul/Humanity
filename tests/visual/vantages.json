@@ -1140,6 +1140,90 @@
    }
   },
   {
+   "id": "cov50-80km",
+   "desc": "SAME-REGION invariance pair, low rung (operator v0.1192 report: lush deck at 80 km, bare at 212 km minutes apart). Pinned procedural field; compare in-crop coverage against cov50-212km.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 80
+   },
+   "settle_s": 12,
+   "expect": "Coverage in the sub-camera region matches the 212 km capture's crop of the same region.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 8,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5"
+   }
+  },
+  {
+   "id": "cov50-212km",
+   "desc": "SAME-REGION invariance pair, high rung. Same pinned field and lat/lon as cov50-80km, captured in the same boot.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 212
+   },
+   "settle_s": 12,
+   "expect": "Coverage in the crop covering the 80 km frame's ground region matches that frame.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 8,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5"
+   }
+  },
+  {
+   "id": "live-cloudy-80km",
+   "desc": "LIVE-path vanish A/B (80 km): sim pinned Cloudy, NO cover pin - the operator lush-at-80/bare-at-212 reproduction.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 80
+   },
+   "settle_s": 12,
+   "expect": "Deck presence continuous between the pair.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 8,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy"
+   }
+  },
+  {
+   "id": "live-cloudy-212km",
+   "desc": "LIVE-path vanish A/B (212 km): sim pinned Cloudy, NO cover pin - the operator lush-at-80/bare-at-212 reproduction.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 212
+   },
+   "settle_s": 12,
+   "expect": "Deck presence continuous between the pair.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 8,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy"
+   }
+  },
+  {
    "id": "cov50-orbit",
    "desc": "PINNED-COVERAGE footprint-invariance triplet, orbit rung: same pinned field from 12000 km.",
    "camera": {
