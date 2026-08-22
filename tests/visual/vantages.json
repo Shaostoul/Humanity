@@ -512,7 +512,8 @@
    },
    "showcase": {
     "time": "10.7",
-    "sea": "1.0"
+    "sea": "1.0",
+    "weather": "clear"
    },
    "settle_s": 26,
    "hold_altitude": true
