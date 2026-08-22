@@ -225,9 +225,18 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     }
     // Cadence-skipped texel: carry the (reprojected) history forward
     // untouched; its own march comes within the next three frames.
+    // THE CHECKERBOARD LESSON (operator round 4 - "hall of mirrors or
+    // tiles", literal cloud/empty checker across the deck in fast
+    // flight): at teleport-scale deltas the guard fires EVERY frame, and
+    // this branch used to return transparent black for skipped blocks -
+    // zeroing three quarters of the map each frame while the marching
+    // quarter refilled, which painted the cadence grid as alternating
+    // cloud/empty tiles. A skipped block with an invalid reprojection
+    // now keeps its OWN texel: stale for at most three frames, coherent,
+    // and invisible next to a fresh march - never a hole.
     if (!do_march) {
-        if (!have_hist || teleported) {
-            return vec4<f32>(0.0);
+        if (teleported || !have_hist) {
+            return textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
         }
         return hist;
     }
