@@ -231,7 +231,10 @@ const WATER_EXT_R: f32 = 0.115;
 const WATER_EXT_G: f32 = 0.042;
 const WATER_EXT_B: f32 = 0.021;
 
-fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+// `on_surface` = this fragment IS the air-water interface (the ocean shell's
+// own two call sites), as opposed to something seen THROUGH the water. See the
+// h_frag clamp below for why that distinction is load-bearing.
+fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>, on_surface: bool) -> vec3<f32> {
     let ext = camera.light5_cone_inner.y;
     if (ext <= 1.0e-4) {
         return color_in;
@@ -259,7 +262,36 @@ fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
         return color_in;
     }
     let h_cam = length(camera.view_pos.xyz - sea_c) - sea_r;
-    let h_frag = length(world_pos - sea_c) - sea_r;
+    // ── A SURFACE FRAGMENT HAS ZERO DEPTH BY CONSTRUCTION ──
+    // The height test above measures against the MEAN sea sphere, but the drawn
+    // water surface is not that sphere: vs_main displaces every shell vertex by
+    // `radial * disp` (00-bindings-vertex.wgsl), and `disp` is negative in every
+    // wave TROUGH (a 10 m storm sea swings several metres either side of mean
+    // level) and negative again by the chord-sag weld on coarse far patches. So
+    // a fragment that is the air-water interface itself - the thing whose depth
+    // is zero by definition - reported h_frag < 0 and was classified as SEEN
+    // THROUGH water. The crossing branch below then charged it
+    // frac_wet * distance metres of seawater, and distance at a grazing sea-level
+    // view is hundreds of metres to kilometres.
+    //
+    // That is the whole "vivid blue pools + black dashes" defect, measured in
+    // the rig (ocean-storm-horizon, 2026-08-22): the artifact pixels follow
+    // exp(-sigma*d) applied to the surrounding sea colour EXACTLY, red dying
+    // first (sigma_r 0.115) and blue last (sigma_b 0.021) - d ~ 10-40 m draws
+    // the saturated cyan patches, and d > 200 m converges on the flat in-scatter
+    // navy (0.008, 0.030, 0.055), which is pixel-exact sRGB (9,38,64) in both
+    // the fogged and the clear captures. Nothing else in the pipeline can emit
+    // that colour.
+    //
+    // Clamping at zero also absorbs the f32 cancellation in this very
+    // subtraction: both lengths are ~6.4e6 m, so h carries about +-0.4 m of
+    // quantization noise even for a fragment exactly at sea level (the
+    // documented planet-scale f32 class), which alone was enough to tip a
+    // sea-level fragment into "submerged" at random.
+    var h_frag = length(world_pos - sea_c) - sea_r;
+    if (on_surface) {
+        h_frag = max(h_frag, 0.0);
+    }
     let seg = length(world_pos - camera.view_pos.xyz);
     // Fraction of the segment that lies below the surface. Over these ranges
     // the surface is locally flat compared with the planet, so the linear
@@ -412,7 +444,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // The BACKSTOP needs the haze too (v0.1054): v0.1053 gave it to the wave
         // shell only, so wherever the coarse deep layer showed through it stayed
         // at full contrast against a hazed sea around it.
-        let brgb_aer = underwater_apply(aerial_apply(brgb, in.world_position), in.world_position);
+        // `true`: this fragment IS the sea surface, so nothing of the eye path
+        // to it lies under water unless the CAMERA is submerged.
+        let brgb_aer =
+            underwater_apply(aerial_apply(brgb, in.world_position), in.world_position, true);
         let bmapped = clamp(
             (brgb_aer * (ba * brgb_aer + vec3<f32>(bb)))
                 / (brgb_aer * (bc * brgb_aer + vec3<f32>(bd)) + vec3<f32>(be)),
@@ -699,7 +734,9 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, feather_top, depth_m);
     // Aerial perspective BEFORE the tone map, exactly as the main tail does it
     // (v0.1053) - this is the branch that was missing it entirely.
-    let rgb_aer = underwater_apply(aerial_apply(rgb, in.world_position), in.world_position);
+    // `true`: same rule as the backstop above - the wave shell IS the interface.
+    let rgb_aer =
+        underwater_apply(aerial_apply(rgb, in.world_position), in.world_position, true);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;
@@ -2062,7 +2099,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // Underwater extinction AFTER aerial haze: above water the aerial term is
     // the atmosphere, below it the water column is what attenuates, and the two
     // are mutually exclusive in practice (aerial sigma is a surface-air value).
-    color = underwater_apply(color, in.world_position);
+    // `false`: everything that reaches the shared tail - terrain, seabed,
+    // props, vegetation - is geometry seen THROUGH the water column when it
+    // sits below sea level, not the interface itself.
+    color = underwater_apply(color, in.world_position, false);
 
     // ACES-like tone mapping (more filmic than Reinhard)
     let a = 2.51;
