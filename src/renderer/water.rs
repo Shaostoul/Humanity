@@ -253,6 +253,57 @@ pub fn land_detail_factor(dir: [f32; 3], r_m: f32, footprint_m: f32) -> f32 {
     (1.0 + f).clamp(0.7, 1.3)
 }
 
+/// Mirrors `WATER_REFRACTED_PATH_MAX` in `90-fragment-main.wgsl`: the longest
+/// submerged path a ray ENTERING the water can travel per metre of depth it
+/// descends. Refraction bends the transmitted ray toward the normal, so its
+/// underwater direction can never be more oblique than the critical angle:
+/// `1 / sqrt(1 - 1/n^2)` with n = 1.333 gives 1.512.
+pub const WATER_REFRACTED_PATH_MAX: f32 = 1.512;
+
+/// Mirrors the submerged-path decision inside `underwater_apply`
+/// (`90-fragment-main.wgsl`): how many metres of SEAWATER the eye-to-fragment
+/// segment actually crosses, which is what drives the per-channel Beer-Lambert
+/// extinction toward the water's in-scatter colour.
+///
+/// `h_cam` / `h_frag` are heights above MEAN sea level in metres (positive =
+/// in air), `seg_m` is the straight eye-to-fragment distance, and
+/// `on_surface` says this fragment IS the air-water interface (the ocean
+/// shell's own fragments) rather than something seen THROUGH the water.
+///
+/// Two guards live here, and each one alone removes a measured defect class
+/// (rig sweep ocean-storm-horizon, 2026-08-22):
+///
+/// 1. A surface fragment has zero depth by construction. The wave shell is
+///    vertex-displaced, so every trough - and every coarse far patch pulled in
+///    by the chord-sag weld - sits BELOW mean sea level and used to be
+///    classified as submerged geometry.
+/// 2. A ray ENTERING the water has its wet leg bounded by Snell's critical
+///    angle. The straight-line crossing estimate diverges at grazing
+///    incidence, which is exactly the sea-level horizon view.
+pub fn submerged_path_m(h_cam: f32, h_frag_in: f32, seg_m: f32, on_surface: bool) -> f32 {
+    let h_frag = if on_surface { h_frag_in.max(0.0) } else { h_frag_in };
+    let frac_wet = if h_cam <= 0.0 && h_frag <= 0.0 {
+        1.0
+    } else if h_cam > 0.0 && h_frag > 0.0 {
+        0.0
+    } else {
+        let lo = h_cam.min(h_frag);
+        let hi = h_cam.max(h_frag);
+        (lo / (lo - hi)).clamp(0.0, 1.0)
+    };
+    let mut d = seg_m * frac_wet;
+    // Entry case only: eye in air, fragment under water. A submerged camera is
+    // already inside the medium, so its ray keeps the full geometric path.
+    if h_cam > 0.0 && h_frag < 0.0 {
+        d = d.min(-h_frag * WATER_REFRACTED_PATH_MAX);
+    }
+    if d <= 0.01 {
+        0.0
+    } else {
+        d
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -552,6 +603,71 @@ mod tests {
         assert!(differs > 75, "seeds correlate: {differs}/100 differ");
     }
 
+    /// THE DEFECT, REPRODUCED. Storm sea, 20 m eye, a wave trough 5 m below
+    /// mean level 8 km out - the ocean-storm-horizon geometry. Under the old
+    /// rule (the shell's own fragments treated as submerged geometry) that
+    /// surface pixel was charged over a kilometre of seawater, which
+    /// extinguishes red at sigma 0.115 within a metre and blue within fifty:
+    /// the measured cyan pools and the flat in-scatter-navy dashes. The gate
+    /// asserts BOTH sides so it cannot silently stop failing.
+    #[test]
+    fn a_wave_trough_is_surface_not_submerged_geometry() {
+        let (h_cam, h_trough, seg) = (20.0_f32, -5.0_f32, 8_000.0_f32);
+        // What the pre-fix shader computed, spelled out: the linear crossing
+        // fraction times the segment. 1.6 km of seawater charged to a pixel of
+        // the sea SURFACE - past that, every channel is gone and the pixel is
+        // the flat in-scatter navy the rig measured as sRGB (9,38,64).
+        let pre_fix = seg * (-h_trough / (h_cam - h_trough));
+        assert!(pre_fix > 1_000.0, "geometry sanity: {pre_fix} m");
+        // The refraction ceiling alone already knocks that down 200x, but
+        // 7.6 m of seawater still eats 58% of the red channel - a visible teal
+        // cast. Guard 1 is what makes a surface fragment exactly dry.
+        let ceiling_only = submerged_path_m(h_cam, h_trough, seg, false);
+        assert!(
+            ceiling_only < pre_fix / 100.0,
+            "the refraction ceiling should cut this by orders of magnitude, got {ceiling_only} m"
+        );
+        let fixed = submerged_path_m(h_cam, h_trough, seg, true);
+        assert_eq!(fixed, 0.0, "a sea-surface fragment must charge no water at all");
+    }
+
+    /// The second, independent guard: even when the fragment really IS
+    /// submerged geometry (a seabed, a wet rock, the type-12 sea sitting at
+    /// sea level with f32 cancellation noise on its height), the wet leg is
+    /// capped by refraction instead of running away with the view angle.
+    #[test]
+    fn refraction_caps_the_wet_leg_of_a_grazing_entry() {
+        let (h_cam, h_floor, seg) = (20.0_f32, -5.0_f32, 8_000.0_f32);
+        let straight = seg * (5.0 / 25.0); // the unbounded similar-triangles path
+        assert!(straight > 1_000.0, "geometry sanity: {straight}");
+        let d = submerged_path_m(h_cam, h_floor, seg, false);
+        assert!(
+            (d - 5.0 * WATER_REFRACTED_PATH_MAX).abs() < 1e-3,
+            "wet leg must sit on the Snell ceiling, got {d} m"
+        );
+        // The planet-scale f32 noise case: a fragment nominally AT sea level
+        // reads +-0.4 m, which used to be enough to extinguish it completely.
+        let noisy = submerged_path_m(h_cam, -0.4, 12_000.0, false);
+        assert!(noisy < 0.7, "sea-level quantization noise must stay negligible: {noisy} m");
+    }
+
+    /// The over-under waterline (v0.1061) must survive both guards: a
+    /// SUBMERGED camera still sees its full water path, and a camera at the
+    /// meniscus still splits the frame.
+    #[test]
+    fn a_submerged_camera_keeps_its_full_water_path() {
+        // Both endpoints under water: no interface on the segment, no cap.
+        assert_eq!(submerged_path_m(-2.0, -40.0, 300.0, false), 300.0);
+        // Looking UP at the shell from below: the whole leg is wet.
+        assert_eq!(submerged_path_m(-10.0, 0.0, 12.0, true), 12.0);
+        // Looking up at a CREST that stands above mean level from 10 m down:
+        // still the submerged share of the segment, unchanged by the clamp.
+        let d = submerged_path_m(-10.0, 3.0, 26.0, true);
+        assert!((d - 20.0).abs() < 1e-3, "meniscus split drifted: {d} m");
+        // Both endpoints in air: nothing at all.
+        assert_eq!(submerged_path_m(20.0, 4.0, 500.0, false), 0.0);
+    }
+
     #[test]
     fn wgsl_water_constants_stay_in_sync() {
         // Parse every constant straight out of the shipped shader source so
@@ -600,6 +716,7 @@ mod tests {
             ("WAVE_WARP_AMP2", WAVE_WARP_AMP2),
             ("WAVE_WARP_MULT2", WAVE_WARP_MULT2),
             ("WAVE_WARP_SEED", WAVE_WARP_SEED),
+            ("WATER_REFRACTED_PATH_MAX", WATER_REFRACTED_PATH_MAX),
         ];
         for (name, rust_val) in scalars {
             let parsed = parse_f32(name);
@@ -626,5 +743,26 @@ mod tests {
             assert_eq!(parse_f32(&format!("LAND{n}_AMP")), *amp, "LAND{n}_AMP drifted");
             assert_eq!(parse_f32(&format!("LAND{n}_SEED")), *seed, "LAND{n}_SEED drifted");
         }
+
+        // The `on_surface` flag is a per-CALL-SITE claim, so a constant check
+        // cannot protect it: the whole defect was the ocean shell passing its
+        // own surface fragments down the submerged path. Pin the three sites -
+        // the two ocean_shell ones say TRUE (this fragment is the interface),
+        // the shared fs_main tail says FALSE (terrain, seabed, props are seen
+        // THROUGH the water). A new call site fails this until it is classified.
+        let defs = wgsl.matches("fn underwater_apply(").count();
+        let calls = wgsl.matches("underwater_apply(").count() - defs;
+        assert_eq!(defs, 1, "underwater_apply should be defined exactly once");
+        assert_eq!(calls, 3, "underwater_apply call-site count changed: {calls}");
+        assert_eq!(
+            wgsl.matches("in.world_position, true)").count(),
+            2,
+            "the two ocean_shell call sites must pass on_surface = true"
+        );
+        assert_eq!(
+            wgsl.matches("in.world_position, false)").count(),
+            1,
+            "the shared fs_main tail must pass on_surface = false"
+        );
     }
 }
