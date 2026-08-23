@@ -396,7 +396,15 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let view_dir = normalize(camera.view_pos.xyz - in.world_position);
     let t = camera.sun_color.w;
     let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);
-    let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);
+    // GRAZING FOOTPRINT (water_footprint, 20-surface-detail.wgsl): the sea is
+    // the one surface always viewed at extreme incidence, so the isotropic
+    // across-sightline estimate under-gated every AA fade and the wave-texture
+    // mip by 1/cos(incidence) - the ocean zebra-stripe root cause.
+    let footprint = water_footprint(
+        dist_frag,
+        dir,
+        normalize((inv_model * vec4<f32>(view_dir, 0.0)).xyz),
+    );
     // Per-vertex WATER DEPTH (v0.917, shoreline increment): the shell
     // builder bakes seafloor depth (decimetres) into the packed UV, and
     // linear interpolation of that scalar IS linear depth - a smooth
