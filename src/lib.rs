@@ -14922,6 +14922,7 @@ mod native_app {
                         state.gui_state.connected_server_url = state.gui_state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.gui_state.ws_identified = false;
+                        state.gui_state.dm_fetch_sent = false;
                         state.gui_state.ws_status = "Connecting...".to_string();
                     }
 
@@ -15282,6 +15283,32 @@ mod native_app {
                                                 );
                                             }
                                         }
+                                        // Sealed-sender DMs: channel_list only arrives on a
+                                        // BOUND socket (post identify-challenge), so this is
+                                        // the reliable moment to fetch our mailbox. Once per
+                                        // connection; the high-water mark lives in the local
+                                        // encrypted store.
+                                        if !state.gui_state.dm_fetch_sent {
+                                            crate::engine::dm::ensure_dm_store(&mut state.gui_state);
+                                            let after_id = state
+                                                .gui_state
+                                                .dm_store
+                                                .as_ref()
+                                                .map(|s| s.high_water())
+                                                .unwrap_or(0);
+                                            if let Some(ref client) = state.gui_state.ws_client {
+                                                if client.is_connected() {
+                                                    client.send(&serde_json::json!({
+                                                        "type": "dm_fetch",
+                                                        "after_id": after_id,
+                                                    }).to_string());
+                                                    state.gui_state.dm_fetch_sent = true;
+                                                }
+                                            }
+                                            // Show whatever local history we already have
+                                            // while the fetch round-trips.
+                                            crate::engine::dm::rebuild_dm_sidebar(&mut state.gui_state);
+                                        }
                                     }
                                     Some("server_settings_state") => {
                                         // v0.200.0: relay broadcasts current server-wide
@@ -15633,41 +15660,15 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    Some("dm_list") => {
-                                        if let Some(conversations) = val.get("conversations").and_then(|v| v.as_array()) {
-                                            state.gui_state.chat_dms.clear();
-                                            for conv in conversations {
-                                                let partner_name = conv.get("partner_name")
-                                                    .or_else(|| conv.get("name"))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("Unknown")
-                                                    .to_string();
-                                                let partner_key = conv.get("partner_key")
-                                                    .or_else(|| conv.get("key"))
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
-                                                let last_message = conv.get("last_message")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
-                                                let timestamp = conv.get("timestamp")
-                                                    .and_then(|v| v.as_u64())
-                                                    .map(crate::gui::pages::chat::format_timestamp)
-                                                    .unwrap_or_default();
-                                                let unread = conv.get("unread")
-                                                    .and_then(|v| v.as_bool())
-                                                    .unwrap_or(false);
-                                                state.gui_state.chat_dms.push(crate::gui::ChatDm {
-                                                    user_name: partner_name,
-                                                    user_key: partner_key,
-                                                    last_message,
-                                                    timestamp,
-                                                    unread,
-                                                });
-                                            }
-                                            log::info!("DM list received: {} conversations", state.gui_state.chat_dms.len());
-                                        }
+                                    Some("dm_purged") => {
+                                        // Confirmation of our own mailbox scrub
+                                        // ("Delete my server mailbox" in DM Settings).
+                                        let count = val.get("count").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        state.gui_state.ws_status = format!(
+                                            "Server mailbox cleared ({count} envelope{} deleted).",
+                                            if count == 1 { "" } else { "s" }
+                                        );
+                                        log::info!("DM mailbox purged: {count} envelopes deleted server-side");
                                     }
                                     Some("group_list") => {
                                         if let Some(groups) = val.get("groups").and_then(|v| v.as_array()) {
@@ -15738,133 +15739,104 @@ mod native_app {
                                         state.gui_state.notif_dnd_end = prefs.dnd_end;
                                         state.gui_state.notif_prefs_loaded = true;
                                     }
-                                    Some("dm") => {
-                                        // Incoming DM message
-                                        let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                        let raw_content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                        let encrypted = val.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
-                                        let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        // Determine partner key: "from us" means the from_name matches our display name
-                                        // (we may have multiple keys all registered to the same name).
-                                        let is_from_me = from_key == state.gui_state.profile_public_key
-                                            || (!state.gui_state.user_name.is_empty() && from_name == state.gui_state.user_name);
-                                        let partner = if is_from_me {
-                                            val.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string()
-                                        } else {
-                                            from_key.clone()
-                                        };
-                                        let content = decrypt_dm_if_encrypted(
-                                            &raw_content, encrypted, &nonce, &partner, &state.gui_state,
-                                        );
-                                        let dm_channel = format!("dm:{}", partner);
-                                        // Sidebar conversation entry: keep the DM list's
-                                        // preview + unread mark current (v0.715). Done
-                                        // before the push below moves content/from_name.
-                                        let dm_is_open = state.gui_state.chat_active_channel == dm_channel;
-                                        // DM notify ding (v0.985): someone ELSE's
-                                        // message, conversation not on screen, DM
-                                        // notifications enabled. Quiet hours stay a
-                                        // server-push concern - an in-app ding only
-                                        // fires while actively playing.
-                                        if !is_from_me
-                                            && !dm_is_open
-                                            && state.gui_state.notif_dm_enabled
-                                        {
-                                            state.pending_sfx.push((
-                                                "sfx.chat_message",
-                                                "audio/ui/chat_message.ogg",
-                                            ));
-                                        }
-                                        let preview = if is_from_me {
-                                            format!("You: {}", content)
-                                        } else {
-                                            content.clone()
-                                        };
-                                        let ts_str = crate::gui::pages::chat::format_timestamp(ts);
-                                        if let Some(d) = state.gui_state.chat_dms.iter_mut().find(|d| d.user_key == partner) {
-                                            d.last_message = preview;
-                                            d.timestamp = ts_str;
-                                            if !is_from_me && !dm_is_open {
-                                                d.unread = true;
-                                            }
-                                        } else if !partner.is_empty() {
-                                            // First message from a new partner: create the
-                                            // sidebar entry. When the DM is our own echo
-                                            // (another device), we only know the partner's
-                                            // key — use a short prefix until dm_list or a
-                                            // reply supplies the real name.
-                                            let display = if is_from_me {
-                                                partner.chars().take(8).collect::<String>()
-                                            } else {
-                                                from_name.clone()
-                                            };
-                                            state.gui_state.chat_dms.push(crate::gui::ChatDm {
-                                                user_name: display,
-                                                user_key: partner.clone(),
-                                                last_message: preview,
-                                                timestamp: ts_str,
-                                                unread: !is_from_me && !dm_is_open,
-                                            });
-                                        }
-                                        state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                            sender_name: from_name,
-                                            sender_key: from_key,
-                                            content,
-                                            timestamp: crate::gui::pages::chat::format_timestamp(ts),
-                                            timestamp_ms: ts,
-                                            channel: dm_channel,
-                                            server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                            ..Default::default()
-                                        });
-                                        while state.gui_state.chat_messages.len() > 200 {
-                                            state.gui_state.chat_messages.remove(0);
-                                        }
-                                    }
-                                    Some("dm_history") => {
-                                        // DM conversation history
-                                        let partner = val.get("partner").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let dm_channel = format!("dm:{}", partner);
-                                        // Clear existing DM messages for this partner
-                                        state.gui_state.chat_messages.retain(|m| m.channel != dm_channel);
-                                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
-                                            let mut decrypted_count = 0;
-                                            let mut total = 0;
-                                            for m in msgs {
-                                                total += 1;
-                                                let from_key = m.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let from_name = m.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                                let raw_content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                let encrypted = m.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
-                                                let nonce = m.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                // "From us" matches on name too (account may have multiple keys all registered under same name)
-                                                let is_from_me = from_key == state.gui_state.profile_public_key
-                                                    || (!state.gui_state.user_name.is_empty() && from_name == state.gui_state.user_name);
-                                                let peer_key = if is_from_me {
-                                                    partner.clone()
-                                                } else {
-                                                    from_key.clone()
-                                                };
-                                                let content = decrypt_dm_if_encrypted(
-                                                    &raw_content, encrypted, &nonce, &peer_key, &state.gui_state,
-                                                );
-                                                if encrypted && content != raw_content {
-                                                    decrypted_count += 1;
+                                    Some("dm_new") => {
+                                        // Sealed-sender envelope, live-delivered. The wire
+                                        // carries NO sender — decrypt with our own key and
+                                        // trust only the Dilithium-verified inner payload.
+                                        let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                                        let raw_content = val.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                                        if !raw_content.is_empty() { match crate::engine::dm::open_verify_dm(raw_content, &state.gui_state) {
+                                            Ok(inner) => {
+                                                let is_from_me = inner.from == state.gui_state.profile_public_key;
+                                                let peer = if is_from_me { inner.to.clone() } else { inner.from.clone() };
+                                                let dm_is_open = state.gui_state.chat_active_channel == format!("dm:{peer}");
+                                                let was_new = crate::engine::dm::ingest_dm(&mut state.gui_state, &inner);
+                                                if let Some(store) = state.gui_state.dm_store.as_mut() {
+                                                    store.set_high_water(mail_id);
+                                                    store.save();
                                                 }
-                                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                                    sender_name: from_name,
-                                                    sender_key: from_key,
-                                                    content,
-                                                    timestamp: crate::gui::pages::chat::format_timestamp(ts),
-                                                    timestamp_ms: ts,
-                                                    channel: dm_channel.clone(),
-                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                                    ..Default::default()
-                                                });
+                                                // DM notify ding (v0.985): someone ELSE's
+                                                // message, conversation not on screen, DM
+                                                // notifications enabled.
+                                                if was_new && !is_from_me && !dm_is_open
+                                                    && state.gui_state.notif_dm_enabled
+                                                {
+                                                    state.pending_sfx.push((
+                                                        "sfx.chat_message",
+                                                        "audio/ui/chat_message.ogg",
+                                                    ));
+                                                }
                                             }
-                                            log::info!("DM history for {}: {} messages ({} decrypted)", partner, total, decrypted_count);
+                                            Err(e) => {
+                                                // Not ours / tampered / spoofed sender —
+                                                // never rendered, but still advance the
+                                                // high-water so a poison envelope can't
+                                                // wedge every future fetch at its id.
+                                                log::warn!("DM envelope {mail_id} dropped: {e}");
+                                                if let Some(store) = state.gui_state.dm_store.as_mut() {
+                                                    store.set_high_water(mail_id);
+                                                    store.save();
+                                                }
+                                            }
+                                        } }
+                                    }
+                                    Some("dm_batch") => {
+                                        // A page of our sealed mailbox (reply to dm_fetch).
+                                        // Decrypt + verify each envelope into the local
+                                        // store; page again until the server says done.
+                                        let mut last_id: i64 = 0;
+                                        let mut ingested = 0usize;
+                                        let mut dropped = 0usize;
+                                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
+                                            for m in msgs {
+                                                let id = m.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                                                if id > last_id {
+                                                    last_id = id;
+                                                }
+                                                let raw = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                                                if raw.is_empty() {
+                                                    continue;
+                                                }
+                                                match crate::engine::dm::open_verify_dm(raw, &state.gui_state) {
+                                                    Ok(inner) => {
+                                                        if crate::engine::dm::ingest_dm(&mut state.gui_state, &inner) {
+                                                            ingested += 1;
+                                                        }
+                                                    }
+                                                    Err(_) => {
+                                                        // Not ours / tampered — skip, but the
+                                                        // high-water still advances past it.
+                                                        dropped += 1;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        let done = val.get("done").and_then(|v| v.as_bool()).unwrap_or(true);
+                                        crate::engine::dm::ensure_dm_store(&mut state.gui_state);
+                                        if let Some(store) = state.gui_state.dm_store.as_mut() {
+                                            store.set_high_water(last_id);
+                                            store.save();
+                                        }
+                                        crate::engine::dm::rebuild_dm_sidebar(&mut state.gui_state);
+                                        // If a DM conversation is on screen, refresh it from
+                                        // the store so fetched history appears in place.
+                                        let active = state.gui_state.chat_active_channel.clone();
+                                        if let Some(peer) = active.strip_prefix("dm:") {
+                                            crate::engine::dm::reload_dm_channel(&mut state.gui_state, peer);
+                                        }
+                                        if ingested > 0 || dropped > 0 {
+                                            log::info!("DM batch: {ingested} new message(s), {dropped} undecryptable envelope(s) skipped");
+                                        }
+                                        if !done {
+                                            let after_id = state.gui_state.dm_store.as_ref().map(|s| s.high_water()).unwrap_or(last_id);
+                                            if let Some(ref client) = state.gui_state.ws_client {
+                                                if client.is_connected() {
+                                                    client.send(&serde_json::json!({
+                                                        "type": "dm_fetch",
+                                                        "after_id": after_id,
+                                                    }).to_string());
+                                                }
+                                            }
                                         }
                                     }
                                     Some("group_msg") => {
@@ -16456,6 +16428,7 @@ mod native_app {
                                         state.gui_state.connected_server_url = url.clone();
                                         // Fresh socket: identify handshake not yet complete (v0.794).
                                         state.gui_state.ws_identified = false;
+                                        state.gui_state.dm_fetch_sent = false;
                                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
                                         log::info!("Reconnecting as: {}", fallback);
                                     }
@@ -16794,6 +16767,7 @@ mod native_app {
                             state.gui_state.connected_server_url = state.gui_state.server_url.clone();
                             // Fresh socket: identify handshake not yet complete (v0.794).
                             state.gui_state.ws_identified = false;
+                            state.gui_state.dm_fetch_sent = false;
                             state.gui_state.ws_reconnect_attempts += 1;
                             // Clear the rate-limit guard now that we are actually retrying: if this
                             // attempt is throttled again, the system handler re-arms it. (v0.544)

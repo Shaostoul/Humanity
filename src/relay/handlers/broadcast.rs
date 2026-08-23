@@ -6,7 +6,7 @@ use std::sync::Arc;
 use ed25519_dalek::{Signature, VerifyingKey};
 
 use crate::relay::relay::{
-    CategoryInfo, ChannelInfo, DmConversationData, PeerInfo, RelayMessage, RelayState,
+    CategoryInfo, ChannelInfo, PeerInfo, RelayMessage, RelayState,
     TaskData, UserInfo, VoiceChannelData, VoiceRoomParticipant,
 };
 
@@ -426,24 +426,7 @@ pub async fn leave_voice_room(state: &Arc<RelayState>, key: &str) {
     broadcast_voice_channel_list(state).await;
 }
 
-/// Send an updated DM conversation list to a specific user via broadcast (filtered by send loop).
-pub fn send_dm_list_update(state: &Arc<RelayState>, user_key: &str) {
-    match state.db.get_dm_conversations(user_key) {
-        Ok(convos) => {
-            let conversations: Vec<DmConversationData> = convos.into_iter().map(|c| DmConversationData {
-                partner_key: c.partner_key,
-                partner_name: c.partner_name,
-                last_message: c.last_message,
-                last_timestamp: c.last_timestamp,
-                unread_count: c.unread_count,
-            }).collect();
-            let _ = state.broadcast_tx.send(RelayMessage::DmList {
-                target: Some(user_key.to_string()),
-                conversations,
-            });
-        }
-        Err(e) => {
-            tracing::error!("Failed to get DM conversations for {}: {e}", user_key);
-        }
-    }
-}
+// NOTE: send_dm_list_update was deleted in the sealed-sender DM cutover
+// (2026-08-23) — the relay no longer holds any DM conversation data to
+// list. Clients build their own conversation lists from their decrypted
+// local history stores.

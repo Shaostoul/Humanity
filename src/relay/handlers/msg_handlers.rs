@@ -565,103 +565,119 @@ pub async fn handle_profile_request(
     }
 }
 
-// ── DM handlers ──
+// ── DM handlers (sealed-sender mailbox, 2026-08-23) ──
+//
+// The relay's entire DM role is now: accept sealed envelopes addressed
+// to a mailbox key, deliver them, expire them. It never learns or stores
+// who a message is FROM — the sender's identity is Dilithium-signed
+// INSIDE the ciphertext (net::dm_pq v2) and only the recipient can read
+// it. One user-visible DM arrives here as TWO dm_put calls: the
+// recipient's copy and the sender's self-copy (addressed to their own
+// key, so their other devices can fetch sent history).
+//
+// What the relay still knows, honestly stated: the authenticated socket
+// key of whoever is depositing (needed for abuse gates + rate limiting,
+// held in memory for the connection, never written to the mailbox), and
+// each mailbox's row count / day-granularity arrival dates. A subpoena
+// of the database yields sender-less ciphertext blobs, nothing more.
 
-pub async fn handle_dm(
+/// Ceiling for one sealed envelope. ML-KEM-768 ek_ct alone is ~1.45 KB
+/// of base64; a max-length plaintext with its Dilithium signature still
+/// lands far below this.
+const DM_ENVELOPE_MAX: usize = 131_072;
+
+/// Rows per dm_batch page.
+const DM_FETCH_PAGE: usize = 200;
+
+/// Wire-shape gate: the relay can't see inside a sealed envelope, but it
+/// CAN refuse to store anything that isn't one. There is no plaintext DM
+/// path in the v2 protocol at all — this replaces the old HIGH-1
+/// `encrypted:false` rejection with something structurally stronger.
+fn is_v2_envelope(content: &str) -> bool {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(content) else {
+        return false;
+    };
+    v.get("v").and_then(|x| x.as_u64()) == Some(2)
+        && ["ek_ct_b64", "nonce_b64", "ct_b64"].iter().all(|f| {
+            v.get(f).and_then(|x| x.as_str()).map_or(false, |s| !s.is_empty())
+        })
+}
+
+pub async fn handle_dm_put(
     state: &Arc<RelayState>,
     my_key: &str,
     to: String,
     content: String,
-    encrypted: bool,
-    nonce: Option<String>,
 ) {
-    let peer = state.peers.read().await.get(my_key).cloned();
-    let sender_name = peer.as_ref()
-        .and_then(|p| p.display_name.clone())
-        .unwrap_or_else(|| "Anonymous".to_string());
-
-    if content.is_empty() {
+    if content.is_empty() || to.is_empty() {
         return;
     }
-    // Fail-closed zero-knowledge guard (security review HIGH-1): the relay
-    // refuses to store/forward a cleartext DM between human accounts. A
-    // buggy or hostile client cannot downgrade a DM to plaintext — full-PQ
-    // DMs are ALWAYS the sealed {v:1,r,s} envelope (`encrypted:true`).
-    // `bot_` senders (AI agents) are exempt — they have no seal keypair
-    // and their relay-mediated messages are not claimed to be E2EE. The
-    // server-side `/dm` command builds RelayMessage::Dm directly and does
-    // not pass through this handler, so it is unaffected.
-    if !encrypted && !my_key.starts_with("bot_") {
+    if content.len() > DM_ENVELOPE_MAX {
         let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
-            message: "DM rejected: messages must be end-to-end encrypted. Hard-refresh (Ctrl+Shift+R) to update your client.".to_string(),
+            message: format!("DM rejected: envelope exceeds {} bytes.", DM_ENVELOPE_MAX),
         });
         return;
     }
-    let dm_role = state.db.get_role(my_key).unwrap_or_default();
-    // Plaintext DMs are limited by visible characters. Encrypted DMs carry
-    // an OPAQUE post-quantum ciphertext blob: ML-KEM-768 ek_ct alone is
-    // ~1.45 KB of base64, and the client dual-seals (recipient + self, so
-    // BOTH parties can read history on any device) — a 2 KB plaintext
-    // becomes a ~9 KB envelope. Char-limiting ciphertext is meaningless;
-    // the user-visible plaintext length is enforced client-side before
-    // sealing. Allow a generous ceiling so PQ DMs aren't false-rejected.
-    let dm_char_limit: usize = if encrypted {
-        131_072 // 128 KB — far above a dual-sealed max-length plaintext DM
-    } else if dm_role == "admin" {
-        10_000
-    } else {
-        2_000
-    };
-    if content.len() > dm_char_limit {
-        let private = RelayMessage::Private {
+    // Fail closed: only sealed v2 envelopes are storable. A buggy or
+    // hostile client cannot downgrade a DM to plaintext because the
+    // protocol has no field to carry one.
+    if !is_v2_envelope(&content) {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
-            message: format!("DM too long (max {} chars).", dm_char_limit),
-        };
-        let _ = state.broadcast_tx.send(private);
+            message: "DM rejected: not a sealed v2 envelope. Update your client — messages must be end-to-end encrypted.".to_string(),
+        });
         return;
     }
-    if to == my_key {
-        let private = RelayMessage::Private {
+    // Bots authenticate via bot_secret and have no seed to seal/sign
+    // with; the old plaintext bot-DM lane died with the plaintext path.
+    // Bots still have channels and Private system messages.
+    if my_key.starts_with("bot_") {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
-            message: "You can't DM yourself.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
+            message: "Bots cannot send DMs (no seal keypair). Use a channel.".to_string(),
+        });
         return;
     }
+
+    let is_self_copy = to == my_key;
     let user_role = state.db.get_role(my_key).unwrap_or_default();
-    if user_role != "admin" && user_role != "mod" && !my_key.starts_with("bot_") {
+
+    if user_role == "muted" {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "You are muted and cannot send DMs.".to_string(),
+        });
+        return;
+    }
+
+    // Abuse gates apply to mail addressed to OTHER people. The self-copy
+    // (sender depositing sent history into their own mailbox) skips the
+    // friendship/verification gates — you can always write to yourself.
+    if !is_self_copy && user_role != "admin" && user_role != "mod" {
         if user_role != "verified" && user_role != "donor" {
-            let private = RelayMessage::Private {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
                 to: my_key.to_string(),
                 message: "🔒 Verify your account to send DMs.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
+            });
             return;
         }
         let are_friends = state.db.are_friends(my_key, &to).unwrap_or(false);
         if !are_friends {
             let target_name = state.db.name_for_key(&to).ok().flatten().unwrap_or_else(|| "this user".to_string());
-            let private = RelayMessage::Private {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
                 to: my_key.to_string(),
                 message: format!("🔒 You must be friends to DM {target_name}. Use /follow <name> — if they follow you back, you'll be friends."),
-            };
-            let _ = state.broadcast_tx.send(private);
+            });
             return;
         }
     }
 
-    if user_role == "muted" {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You are muted and cannot send DMs.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-
-    // Fibonacci rate limiting for DMs (skip for bots and admins).
-    if !my_key.starts_with("bot_") && user_role != "admin" {
+    // Fibonacci rate limiting — ticked ONLY on the recipient-addressed
+    // copy so the paired self-copy of the same message doesn't double-
+    // count. (A client spamming self-copies only fills its own mailbox,
+    // which the TTL bounds.)
+    if !is_self_copy && user_role != "admin" {
         let now = Instant::now();
         let mut rate_limits = state.rate_limits.write().await;
         let rl = rate_limits.entry(my_key.to_string()).or_insert_with(|| {
@@ -704,11 +720,10 @@ pub async fn handle_dm(
 
         if elapsed < required_delay {
             let wait = required_delay - elapsed;
-            let private = RelayMessage::Private {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
                 to: my_key.to_string(),
                 message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
-            };
-            let _ = state.broadcast_tx.send(private);
+            });
             return;
         }
 
@@ -721,106 +736,82 @@ pub async fn handle_dm(
         rl.last_message_time = now;
     }
 
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-
-    if let Err(e) = state.db.store_dm_e2ee(my_key, &sender_name, &to, &content, ts, encrypted, nonce.as_deref()) {
-        tracing::error!("Failed to store DM: {e}");
-    }
-
-    let dm_msg = RelayMessage::Dm {
-        from: my_key.to_string(),
-        from_name: Some(sender_name.clone()),
-        to: to.clone(),
-        content: content.clone(),
-        timestamp: ts,
-        encrypted,
-        nonce: nonce.clone(),
-    };
-    let _ = state.broadcast_tx.send(dm_msg);
-
-    let target_online = state.peers.read().await.contains_key(&to);
-    if !target_online {
-        let push_body = if encrypted {
-            "New encrypted message".to_string()
-        } else {
-            let max = 100.min(content.len());
-            content[..max].to_string()
-        };
-        let tag = format!("dm-{}", &my_key[..8.min(my_key.len())]);
-        state.send_push_notification(
-            &to,
-            &format!("DM from {}", sender_name),
-            &push_body,
-            &tag,
-            "/chat",
-        );
-    }
-
-    send_dm_list_update(state, my_key);
-    send_dm_list_update(state, &to);
-}
-
-pub async fn handle_dm_open(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    partner: String,
-) {
-    let my_name = state.db.name_for_key(my_key).ok().flatten();
-    let partner_name = state.db.name_for_key(&partner).ok().flatten();
-
-    if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
-        let _ = state.db.mark_dms_read_by_name(pn, mn);
-    } else {
-        let _ = state.db.mark_dms_read(&partner, my_key);
-    }
-
-    let records = if let (Some(mn), Some(pn)) = (&my_name, &partner_name) {
-        state.db.load_dm_conversation_by_name(mn, pn, 100)
-    } else {
-        state.db.load_dm_conversation(my_key, &partner, 100)
-    };
-
-    match records {
-        Ok(records) => {
-            let messages: Vec<DmData> = records.into_iter().map(|r| DmData {
-                from: r.from_key,
-                from_name: r.from_name,
-                to: r.to_key,
-                content: r.content,
-                timestamp: r.timestamp,
-                encrypted: r.encrypted,
-                nonce: r.nonce,
-            }).collect();
-            let history = RelayMessage::DmHistory {
-                target: Some(my_key.to_string()),
-                partner,
-                messages,
-            };
-            let _ = state.broadcast_tx.send(history);
-        }
+    let id = match state.db.mailbox_put(&to, &content) {
+        Ok(id) => id,
         Err(e) => {
-            tracing::error!("Failed to load DM history: {e}");
+            tracing::error!("Failed to store DM envelope: {e}");
+            return;
+        }
+    };
+
+    // Live delivery to every online socket bound to the mailbox key. For
+    // the self-copy that's the sender's own other devices (the sending
+    // device dedupes by the envelope's inner signature).
+    let _ = state.broadcast_tx.send(RelayMessage::DmNew {
+        target: Some(to.clone()),
+        id,
+        content,
+    });
+
+    // Push notification for an offline recipient. Deliberately generic:
+    // the push payload transits Google/Mozilla/Apple push infrastructure,
+    // so it must not carry the sender's name or any message preview.
+    if !is_self_copy {
+        let target_online = state.peers.read().await.contains_key(&to);
+        if !target_online {
+            state.send_push_notification(
+                &to,
+                "New message",
+                "You have a new encrypted message.",
+                "dm",
+                "/chat",
+            );
         }
     }
-    send_dm_list_update(state, my_key);
 }
 
-pub async fn handle_dm_read(
+pub async fn handle_dm_fetch(
     state: &Arc<RelayState>,
     my_key: &str,
-    partner: String,
+    after_id: i64,
 ) {
-    let my_name = state.db.name_for_key(my_key).ok().flatten();
-    let partner_name = state.db.name_for_key(&partner).ok().flatten();
-    if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
-        let _ = state.db.mark_dms_read_by_name(pn, mn);
-    } else {
-        let _ = state.db.mark_dms_read(&partner, my_key);
-    }
-    send_dm_list_update(state, my_key);
+    // Fetch one extra row to learn whether more pages remain.
+    let mut rows = match state.db.mailbox_fetch(my_key, after_id, DM_FETCH_PAGE + 1) {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::error!("Failed to fetch DM mailbox: {e}");
+            return;
+        }
+    };
+    let done = rows.len() <= DM_FETCH_PAGE;
+    rows.truncate(DM_FETCH_PAGE);
+    let messages: Vec<DmMailItem> = rows
+        .into_iter()
+        .map(|r| DmMailItem { id: r.id, content: r.content })
+        .collect();
+    let _ = state.broadcast_tx.send(RelayMessage::DmBatch {
+        target: Some(my_key.to_string()),
+        messages,
+        done,
+    });
+}
+
+pub async fn handle_dm_purge(
+    state: &Arc<RelayState>,
+    my_key: &str,
+) {
+    // Authenticated socket key = the only mailbox it may purge.
+    let count = match state.db.mailbox_purge(my_key) {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!("Failed to purge DM mailbox: {e}");
+            return;
+        }
+    };
+    let _ = state.broadcast_tx.send(RelayMessage::DmPurged {
+        target: Some(my_key.to_string()),
+        count,
+    });
 }
 
 // ── Voice handlers ──
@@ -4702,5 +4693,162 @@ mod stream_tests {
         }
         assert!(saw_refusal, "expected a server-wide-disabled refusal message");
         assert_eq!(st.db.get_recent_streams(10).unwrap().len(), 0, "no stream row should be created");
+    }
+}
+
+// Sealed-sender DM lifecycle tests (2026-08-23). Same in-module pattern as
+// mod_action_tests: RelayState::new(db) needs only a Storage, so the whole
+// put → gate → store → deliver → fetch → purge path runs against a real
+// database with zero network.
+#[cfg(test)]
+mod dm_mailbox_tests {
+    use super::*;
+    use crate::relay::relay::RelayState;
+
+    fn fresh_state() -> Arc<RelayState> {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_dmput_{pid}_{nanos}.db"));
+        let db = Storage::open(&path).expect("open test db");
+        Arc::new(RelayState::new(db))
+    }
+
+    fn block<F: std::future::Future>(f: F) -> F::Output {
+        tokio::runtime::Runtime::new().expect("tokio rt").block_on(f)
+    }
+
+    /// A verified friend pair, the normal DM configuration.
+    fn friends(st: &Arc<RelayState>) -> (&'static str, &'static str) {
+        st.db.register_name("Alice", "alice_key").unwrap();
+        st.db.register_name("Bob", "bob_key").unwrap();
+        st.db.set_role("alice_key", "verified").unwrap();
+        st.db.set_role("bob_key", "verified").unwrap();
+        st.db.add_follow("alice_key", "bob_key").unwrap();
+        st.db.add_follow("bob_key", "alice_key").unwrap();
+        ("alice_key", "bob_key")
+    }
+
+    /// A syntactically valid v2 envelope (the relay can't check more).
+    fn envelope() -> String {
+        serde_json::json!({
+            "v": 2, "ek_ct_b64": "QUJD", "nonce_b64": "REVG", "ct_b64": "R0hJ"
+        })
+        .to_string()
+    }
+
+    /// The load-bearing property: a stored DM row carries NO sender.
+    /// The recipient gets a live DmNew; the database knows only (to, blob).
+    #[test]
+    fn put_stores_senderless_row_and_delivers_targeted() {
+        let st = fresh_state();
+        let (alice, bob) = friends(&st);
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_put(&st, alice, bob.to_string(), envelope()));
+        // Delivered live, targeted at Bob's mailbox key only.
+        let mut saw_dm_new = false;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::DmNew { target, content, .. } = msg {
+                assert_eq!(target.as_deref(), Some(bob));
+                assert_eq!(content, envelope());
+                saw_dm_new = true;
+            }
+        }
+        assert!(saw_dm_new, "recipient must get a live dm_new");
+        // Stored, addressed-only, and the row physically has no sender —
+        // this is what a subpoena of the mailbox table yields.
+        let rows = st.db.mailbox_fetch(bob, 0, 10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(!rows[0].content.contains(alice), "envelope must not leak the sender key");
+        assert!(st.db.mailbox_fetch(alice, 0, 10).unwrap().is_empty());
+    }
+
+    /// No plaintext path exists: anything that isn't a v2 envelope is
+    /// refused outright (structurally stronger than the old HIGH-1 gate).
+    #[test]
+    fn put_rejects_non_envelope_content() {
+        let st = fresh_state();
+        let (alice, bob) = friends(&st);
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_put(&st, alice, bob.to_string(), "hi bob, plaintext".to_string()));
+        block(handle_dm_put(&st, alice, bob.to_string(), r#"{"v":1,"r":{},"s":{}}"#.to_string()));
+        assert!(st.db.mailbox_fetch(bob, 0, 10).unwrap().is_empty(), "nothing may be stored");
+        let mut refusals = 0;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::Private { message, .. } = msg {
+                if message.contains("sealed v2 envelope") {
+                    refusals += 1;
+                }
+            }
+        }
+        assert_eq!(refusals, 2, "both non-envelope puts must be refused with a reason");
+    }
+
+    /// The self-copy (sender depositing sent history into their OWN
+    /// mailbox) skips the friendship gate — but mail to others needs it.
+    #[test]
+    fn self_copy_allowed_friend_gate_enforced_for_others() {
+        let st = fresh_state();
+        st.db.register_name("Loner", "loner_key").unwrap();
+        st.db.set_role("loner_key", "verified").unwrap();
+        st.db.register_name("Stranger", "stranger_key").unwrap();
+        // Self-copy: fine without any friendship.
+        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope()));
+        assert_eq!(st.db.mailbox_fetch("loner_key", 0, 10).unwrap().len(), 1);
+        // Mail to a non-friend: refused.
+        block(handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope()));
+        assert!(st.db.mailbox_fetch("stranger_key", 0, 10).unwrap().is_empty());
+    }
+
+    /// Unverified senders can't deposit into other mailboxes, and bots
+    /// (no seal keypair) can't DM at all.
+    #[test]
+    fn unverified_and_bot_senders_rejected() {
+        let st = fresh_state();
+        st.db.register_name("Newbie", "newbie_key").unwrap();
+        st.db.register_name("Target", "target_key").unwrap();
+        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope()));
+        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope()));
+        assert!(st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty());
+    }
+
+    /// Fetch pages the caller's own mailbox with a correct done flag, and
+    /// purge scrubs exactly the caller's queue.
+    #[test]
+    fn fetch_pages_and_purge_scrubs_own_mailbox() {
+        let st = fresh_state();
+        st.db.register_name("Bob", "bob_key").unwrap();
+        for i in 0..(DM_FETCH_PAGE + 3) {
+            st.db.mailbox_put("bob_key", &format!("env-{i}")).unwrap();
+        }
+        st.db.mailbox_put("carol_key", "not-bobs").unwrap();
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_fetch(&st, "bob_key", 0));
+        let mut first_page = None;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::DmBatch { target, messages, done } = msg {
+                assert_eq!(target.as_deref(), Some("bob_key"));
+                first_page = Some((messages, done));
+            }
+        }
+        let (messages, done) = first_page.expect("a dm_batch must arrive");
+        assert_eq!(messages.len(), DM_FETCH_PAGE);
+        assert!(!done, "a full page + remainder means more to fetch");
+        // Second page from the last id → the remaining 3, done.
+        let after = messages.last().unwrap().id;
+        block(handle_dm_fetch(&st, "bob_key", after));
+        let mut second = None;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::DmBatch { messages, done, .. } = msg {
+                second = Some((messages.len(), done));
+            }
+        }
+        assert_eq!(second, Some((3, true)));
+        // Purge: Bob's queue only; Carol's mail survives.
+        block(handle_dm_purge(&st, "bob_key"));
+        assert!(st.db.mailbox_fetch("bob_key", 0, 10).unwrap().is_empty());
+        assert_eq!(st.db.mailbox_fetch("carol_key", 0, 10).unwrap().len(), 1);
     }
 }

@@ -74,5 +74,39 @@ The honest residual (NOT removed by code):
 
 This is by design in a replicated system (consistent with the rest of this document):
 operators who need a tighter window can lower the Litestream retention and the
-backup-keep counts. This is operator-readable-by-design, the same posture as the
-documented `/dm` server-command caveat in the cryptography notes.
+backup-keep counts. This is operator-readable-by-design; note the old plaintext
+`/dm` server command was removed in v0.279, so no server-mediated plaintext DM
+path exists anymore.
+
+## DM metadata and retention (sealed-sender cutover, 2026-08-23)
+
+DMs moved from a conversation table to a sealed-sender mailbox (`dm_mailbox`).
+What the server holds per DM is now exactly: `(rowid, to_key, sealed envelope,
+arrival day)`. There is no sender column, no sender name, and no fine-grained
+timestamp; the sender's identity travels Dilithium-signed INSIDE the ciphertext
+and only the recipient can decrypt it. The legacy `direct_messages` table (which
+stored from/to/timestamp in the clear and therefore constituted a subpoenable
+social graph) is DROPPED by migration on first boot, with `secure_delete=ON`
+zeroing the freed pages and a WAL truncate folding them out of the log.
+
+Retention:
+- Mailbox envelopes expire after `dm_mailbox_ttl_days` (server setting, default
+  30, editable in Server Settings). The mailbox is a delivery window, not an
+  archive.
+- A user can scrub their own queue immediately ("Delete my server mailbox" in
+  both clients sends `dm_purge`).
+- Long-term DM history lives ONLY on the users' own devices (native: encrypted
+  file under the seed-derived key; web: encrypted IndexedDB records), plus
+  whatever the users themselves export.
+
+The honest residuals:
+- Rotating backups taken BEFORE the cutover still contain the old
+  `direct_messages` graph until they age out; an operator wanting it gone
+  sooner deletes old backups by hand.
+- The relay necessarily knows, in the moment, which authenticated socket
+  deposits mail (needed for abuse gates); it does not write that to the
+  mailbox. A hostile operator could log it going forward; that and transport
+  IP visibility are wiretap-class exposures, not database-subpoena exposures.
+- Live traffic analysis (who is online when mail for X arrives) remains
+  possible for an active observer; mitigating that is mixnet territory and
+  out of scope for now.

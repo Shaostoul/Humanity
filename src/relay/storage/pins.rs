@@ -116,10 +116,11 @@ impl Storage {
 
     /// Search messages with full filtering: query, channel, from (sender name), limit.
     /// Supports native FTS5 syntax (boolean AND/OR/NOT, "phrases", prefix*).
-    /// Also searches DMs if channel is None.
-    pub fn search_messages_full(&self, query: &str, channel: Option<&str>, from_name: Option<&str>, limit: usize, requester_key: &str) -> Result<Vec<(i64, String, crate::relay::relay::RelayMessage)>, rusqlite::Error> {
-        // Read-only: FTS5 MATCH (with LIKE fallback) + a DM SELECT, then an
-        // in-memory merge/sort. No writes anywhere in the closure. Read pool.
+    /// Public channels only — DMs live in the sealed dm_mailbox (opaque
+    /// ciphertext, no sender) and are searched client-side.
+    pub fn search_messages_full(&self, query: &str, channel: Option<&str>, from_name: Option<&str>, limit: usize, _requester_key: &str) -> Result<Vec<(i64, String, crate::relay::relay::RelayMessage)>, rusqlite::Error> {
+        // Read-only: FTS5 MATCH (with LIKE fallback). No writes anywhere in
+        // the closure. Read pool.
         self.with_read_conn(|conn| {
             let limit = limit.min(100);
 
@@ -144,7 +145,7 @@ impl Storage {
             };
 
             // Try FTS5 first (fast full-text index). Falls back to LIKE if unavailable.
-            let mut results: Vec<(i64, String, crate::relay::relay::RelayMessage)> = {
+            let results: Vec<(i64, String, crate::relay::relay::RelayMessage)> = {
                 let fts_sql =
                     "SELECT m.id, m.channel_id, m.raw_json \
                      FROM messages_fts \
@@ -201,80 +202,13 @@ impl Storage {
                 }
             };
 
-            // Also search DMs if no specific channel filter
-            if channel.is_none() {
-                let mut dm_sql = String::from(
-                    "SELECT id, from_key, from_name, content, timestamp FROM direct_messages WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\' AND (from_key = ?2 OR to_key = ?2)"
-                );
-                let dm_escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-                let mut dm_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(dm_escaped.clone()), Box::new(requester_key.to_string())];
-                let mut dm_idx = 3u32;
-
-                if let Some(fname) = from_name {
-                    let escaped_from = fname
-                        .replace('\\', "\\\\")
-                        .replace('%', "\\%")
-                        .replace('_', "\\_");
-                    dm_sql.push_str(&format!(" AND from_name LIKE '%' || ?{dm_idx} || '%' ESCAPE '\\'"));
-                    dm_params.push(Box::new(escaped_from));
-                    dm_idx += 1;
-                }
-                dm_sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT ?{dm_idx}"));
-                dm_params.push(Box::new(limit as i64));
-
-                let dm_refs: Vec<&dyn rusqlite::types::ToSql> = dm_params.iter().map(|p| p.as_ref()).collect();
-
-                if let Ok(mut dm_stmt) = conn.prepare(&dm_sql) {
-                    let dm_results: Vec<(i64, String, crate::relay::relay::RelayMessage)> = dm_stmt.query_map(dm_refs.as_slice(), |row| {
-                        Ok((
-                            row.get::<_, i64>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, String>(2)?,
-                            row.get::<_, String>(3)?,
-                            row.get::<_, i64>(4)?,
-                        ))
-                    }).ok()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|r| r.ok())
-                    .map(|(id, from_key, fname, content, ts)| {
-                        let msg = crate::relay::relay::RelayMessage::Chat {
-                            from: from_key,
-                            from_name: Some(fname),
-                            content,
-                            timestamp: ts as u64,
-                            signature: None,
-                            channel: "DM".to_string(),
-                            reply_to: None,
-                            thread_count: None,
-                            message_id: None,
-                        };
-                        (id, "DM".to_string(), msg)
-                    })
-                    .collect();
-                    results.extend(dm_results);
-                }
-
-                // Sort combined results by timestamp DESC and truncate
-                results.sort_by(|a, b| {
-                    let ts_a = Storage::extract_timestamp(&a.2);
-                    let ts_b = Storage::extract_timestamp(&b.2);
-                    ts_b.cmp(&ts_a)
-                });
-                results.truncate(limit);
-            }
+            // DMs are NOT searchable server-side (sealed-sender cutover,
+            // 2026-08-23): the dm_mailbox holds only opaque ciphertext with
+            // no sender, so a content LIKE would match nothing meaningful.
+            // DM search is a client-side concern over the local history store.
 
             Ok(results)
         })
-    }
-
-    /// Extract timestamp from a RelayMessage (helper for sorting).
-    fn extract_timestamp(msg: &crate::relay::relay::RelayMessage) -> u64 {
-        match msg {
-            crate::relay::relay::RelayMessage::Chat { timestamp, .. } => *timestamp,
-            crate::relay::relay::RelayMessage::Dm { timestamp, .. } => *timestamp,
-            _ => 0,
-        }
     }
 
     /// Delete a message by its database row ID. Returns the from_key if found.

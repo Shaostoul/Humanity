@@ -229,12 +229,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         draw_user_modal(ctx, theme, state);
     }
 
-    // ── UNENCRYPTED-DM CONFIRMATION MODAL (v0.199.0, B3 fix) ──
-    // Pops up when the user clicked Send on a DM that we couldn't
-    // encrypt (recipient ECDH key missing, etc.). User must explicitly
-    // confirm "Send unencrypted" or cancel — no silent plaintext fallback.
-    draw_unencrypted_dm_modal(ctx, theme, state);
-
     // 1:1 voice call surfaces (v0.703): the incoming-call Accept/Decline
     // modal + the in-call bar with Hang up.
     draw_incoming_call_modal(ctx, theme, state);
@@ -634,6 +628,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         state.connected_server_url = state.server_url.clone();
                         // Fresh socket: identify handshake not yet complete (v0.794).
                         state.ws_identified = false;
+                        state.dm_fetch_sent = false;
                         state.ws_status = "Connecting...".to_string();
                         state.ws_manually_disconnected = false;
                         state.ws_reconnect_timer = 0.0;
@@ -796,6 +791,22 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.chat_dms.clear();
                                 state.dm_settings_popup_open = false;
                             }
+                            // Sealed-sender privacy control: delete every
+                            // envelope currently queued for us server-side.
+                            // (They auto-expire after the server's TTL
+                            // anyway; this is the immediate scrub. Local
+                            // history on this device is untouched.)
+                            if ui.button("Delete my server mailbox")
+                                .on_hover_text("Deletes all encrypted DM envelopes currently stored for you on the server. Messages already saved on your devices stay. Another device that hasn't synced yet won't receive what you delete.")
+                                .clicked()
+                            {
+                                if let Some(ref client) = state.ws_client {
+                                    if client.is_connected() {
+                                        client.send(&serde_json::json!({ "type": "dm_purge" }).to_string());
+                                    }
+                                }
+                                state.dm_settings_popup_open = false;
+                            }
                             let dm_notif_label = if state.notif_dm_enabled {
                                 "DM Notifications: On"
                             } else {
@@ -950,23 +961,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
 
                     if response.clicked() && state.chat_active_channel != dm_channel {
-                        state.chat_active_channel = dm_channel.clone();
-                        state.chat_messages.clear();
-                        state.history_fetched = false;
-                        // Opening the conversation clears its unread mark.
-                        if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == dm.user_key) {
-                            d.unread = false;
-                        }
-                        // Request DM history from server
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-                                let msg = serde_json::json!({
-                                    "type": "dm_open",
-                                    "partner": dm.user_key,
-                                });
-                                client.send(&msg.to_string());
-                            }
-                        }
+                        // History loads from the LOCAL encrypted store —
+                        // the relay keeps no DM history (sealed-sender).
+                        open_dm_conversation(state, &dm.user_key);
                     }
                     if response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -980,6 +977,13 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                         if ui.button(RichText::new("Close Conversation").color(theme.danger())).clicked() {
                             state.chat_dms.retain(|d| d.user_key != dm.user_key);
+                            // Also delete from the local store — the sidebar
+                            // is rebuilt from it, so a retain() alone would
+                            // resurrect the row on the next DM event.
+                            if let Some(store) = state.dm_store.as_mut() {
+                                store.delete_conversation(&dm.user_key);
+                                store.save();
+                            }
                             if state.chat_active_channel == format!("dm:{}", dm.user_key) {
                                 state.chat_active_channel = "general".to_string();
                             }
@@ -1855,6 +1859,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 );
                                 state.connected_server_url = server.url.clone();
                                 state.ws_identified = false;
+                        state.dm_fetch_sent = false;
                                 state.ws_status = format!("Switching to {}...", server.name);
                                 state.ws_manually_disconnected = false;
                                 state.ws_reconnect_timer = 0.0;
@@ -1903,6 +1908,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 );
                                 state.connected_server_url = server.url.clone();
                                 state.ws_identified = false;
+                        state.dm_fetch_sent = false;
                                 state.ws_status = format!("Switching to {}...", server.name);
                                 state.ws_manually_disconnected = false;
                                 state.ws_reconnect_timer = 0.0;
@@ -1995,6 +2001,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                             );
                                             state.connected_server_url = server.url.clone();
                                             state.ws_identified = false;
+                        state.dm_fetch_sent = false;
                                             state.ws_status =
                                                 format!("Switching to {}...", server.name);
                                             state.ws_manually_disconnected = false;
@@ -5328,14 +5335,13 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     // panel shouldn't linger over the world (it blocks the view in combat). A
     // click whose position falls OUTSIDE the panel rect returns to gameplay;
     // chat_input is left intact so reopening (Enter) resumes the message.
-    // Suppressed while an overlay modal owns the screen (the unencrypted-DM
-    // confirm or the passphrase prompt): those windows sit OUTSIDE the panel
-    // rect, and clicking their buttons must not also close the panel.
+    // Suppressed while an overlay modal owns the screen (the passphrase
+    // prompt): that window sits OUTSIDE the panel rect, and clicking its
+    // buttons must not also close the panel.
     let clicked_outside = ctx.input(|i| i.pointer.any_click())
         && ctx
             .input(|i| i.pointer.interact_pos())
             .map_or(false, |p| !area.response.rect.contains(p))
-        && state.dm_unencrypted_confirm.is_none()
         && !state.passphrase_needed;
 
     if let Some(id) = switch_to {
@@ -5352,23 +5358,9 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     }
     if let Some(key) = open_dm {
         // SAME open path as the Chat page's DM row click (draw_dm_section):
-        // switch the channel, clear the shared message vec for the history
-        // re-fetch, clear the unread mark, and ask the relay for the DM log.
-        state.chat_active_channel = format!("dm:{key}");
-        state.chat_messages.clear();
-        state.history_fetched = false;
-        if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == key) {
-            d.unread = false;
-        }
-        if let Some(ref client) = state.ws_client {
-            if client.is_connected() {
-                let msg = serde_json::json!({
-                    "type": "dm_open",
-                    "partner": key,
-                });
-                client.send(&msg.to_string());
-            }
-        }
+        // switch the channel and load the conversation from the LOCAL
+        // encrypted store (sealed-sender: the relay keeps no DM history).
+        open_dm_conversation(state, &key);
     }
     if let Some(gid) = open_legacy_group {
         // SAME open path as the Chat page's group channel-row click: the
@@ -5420,11 +5412,6 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
         state.chat_input_focus_pending = false;
     }
 
-    // The E2EE fail-closed confirm (an unencryptable DM was stashed instead of
-    // sent) must be able to render HERE too, now that DMs can be sent from the
-    // world: the Chat page's draw() isn't running while active_page is None.
-    // Same function, so the two surfaces can't drift. (increment 1c)
-    draw_unencrypted_dm_modal(ctx, theme, state);
 }
 
 /// THE single content-routing authority for native chat (v0.708), mirroring
@@ -5492,6 +5479,53 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         }
     }
 
+    // Sealed-sender DM prep (v2, 2026-08-23): build the two puts and
+    // persist our copy to the LOCAL store BEFORE the ws_client borrow
+    // below (the store insert mutates state). FAIL CLOSED: a DM that
+    // can't be sealed is never sent in any form — the v2 protocol has no
+    // plaintext field to downgrade to.
+    let mut dm_prepared: Option<(String, String)> = None;
+    if !is_p2p_group && !is_scratchpad && carrier_idx.is_none() && channel.starts_with("dm:") {
+        if !state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
+            state.ws_status = "Not connected; DM not sent.".to_string();
+            return false; // keep the draft
+        }
+        let partner_key = channel[3..].to_string();
+        match build_dm_puts(state, &partner_key, content, ts) {
+            Ok((recipient_put, self_put, inner)) => {
+                crate::engine::dm::ensure_dm_store(state);
+                if let Some(store) = state.dm_store.as_mut() {
+                    store.insert(&inner);
+                    store.mark_read(&partner_key, inner.ts);
+                    store.save();
+                }
+                dm_prepared = Some((recipient_put, self_put));
+            }
+            Err(reason) => {
+                let human = match reason {
+                    "no_own_key" => "Can't send: your identity isn't unlocked on this device. Recover from your seed phrase first.",
+                    "missing_peer_key" => "Can't send yet: we don't have this person's encryption key. It arrives when they next come online; try again then.",
+                    "bad_own_key" => "Can't send: your encryption key could not be derived. Try Identity → Recover.",
+                    _ => "Can't send: encrypting the message failed.",
+                };
+                // Surface the reason INSIDE the conversation so it can't
+                // be missed, and keep the draft in the composer.
+                state.chat_messages.push(ChatMessage {
+                    sender_name: "System".to_string(),
+                    sender_key: String::new(),
+                    content: human.to_string(),
+                    timestamp: chrono_now_str(),
+                    timestamp_ms: ts,
+                    channel: channel.clone(),
+                    server: norm_server_url(&state.server_url),
+                    ..Default::default()
+                });
+                log::warn!("DM not sent ({reason}); fail closed, no plaintext path exists.");
+                return false;
+            }
+        }
+    }
+
     if !is_p2p_group && !is_scratchpad && carrier_idx.is_none() {
         if let Some(ref client) = state.ws_client {
             if client.is_connected() {
@@ -5503,48 +5537,18 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                     "Anonymous".to_string()
                 };
 
-                // DM: E2EE, FAIL CLOSED (B3, v0.199.0). Unencryptable DMs are
-                // stashed for the explicit confirm modal, never silently sent
-                // as plaintext.
+                // DM: sealed-sender v2, FAIL CLOSED. The envelopes were
+                // built and locally persisted in the prep block above;
+                // here we just put them on the wire. Self-copy inline,
+                // recipient copy through the standard send below.
                 let json_str_opt: Option<String> = if channel.starts_with("dm:") {
-                    let partner_key = &channel[3..];
-                    let encrypt_outcome: Result<(String, String), &'static str> =
-                        try_encrypt_dm(state, partner_key, content);
-                    match encrypt_outcome {
-                        Ok((content_b64, nonce_b64)) => {
-                            let dm_obj = serde_json::json!({
-                                "type": "dm",
-                                "from": state.profile_public_key,
-                                "from_name": display_name,
-                                "to": partner_key,
-                                "content": content_b64,
-                                "nonce": nonce_b64,
-                                "encrypted": true,
-                                "timestamp": ts,
-                            });
-                            Some(dm_obj.to_string())
+                    match dm_prepared.take() {
+                        Some((recipient_put, self_put)) => {
+                            crate::debug::push_debug(format!("WS >>> {}", self_put));
+                            client.send(&self_put);
+                            Some(recipient_put)
                         }
-                        Err(reason) => {
-                            let partner_name = state.chat_dms.iter()
-                                .find(|d| d.user_key == partner_key)
-                                .map(|d| d.user_name.clone())
-                                .unwrap_or_else(|| {
-                                    let take = 8.min(partner_key.len());
-                                    partner_key[..take].to_string()
-                                });
-                            log::warn!(
-                                "DM to {} ({}) cannot be encrypted ({}). Asking user to confirm plaintext.",
-                                partner_name, partner_key, reason
-                            );
-                            state.dm_unencrypted_confirm = Some(crate::gui::PendingUnencryptedDm {
-                                partner_key: partner_key.to_string(),
-                                partner_name,
-                                content: content.to_string(),
-                                timestamp_ms: ts,
-                                reason: reason.to_string(),
-                            });
-                            None
-                        }
+                        None => None,
                     }
                 } else if channel.starts_with("group:") {
                     let group_id = &channel[6..];
@@ -5893,15 +5897,8 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                 });
             }
             if state.chat_active_channel != dm_channel {
-                state.chat_active_channel = dm_channel;
-                state.chat_messages.clear();
-                state.history_fetched = false;
-                if let Some(ref client) = state.ws_client {
-                    if client.is_connected() {
-                        let msg = serde_json::json!({ "type": "dm_open", "partner": key });
-                        client.send(&msg.to_string());
-                    }
-                }
+                // Local-store open (sealed-sender: no server history call).
+                open_dm_conversation(state, &key);
             }
             close_after = true;
         }
@@ -8563,41 +8560,71 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// B3 fix (v0.199.0): DM crypto silent downgrade prevention.
+// Sealed-sender DMs (v2, 2026-08-23). FAIL CLOSED, no plaintext path.
 // ──────────────────────────────────────────────────────────────────────────
 
-/// Attempt to encrypt a DM. Returns `Ok((content_b64, nonce_b64))` if
-/// encryption succeeds, `Err(reason)` if it can't be encrypted at all.
-/// The reason string flows into `PendingUnencryptedDm::reason` for the
-/// confirmation modal.
+/// Build the two sealed-sender puts for one DM: the SAME Dilithium-signed
+/// inner payload sealed once to the recipient (their mailbox) and once to
+/// ourselves (our mailbox, so our other devices can fetch sent history).
+/// The relay stores each without any sender column.
 ///
-/// Full-PQ: dual-seals (recipient + self) with Kyber768 and returns
-/// `(envelope_json, nonce_marker)`. The envelope is the web-compatible
-/// `{v:1,r,s}` JSON that rides in the relay's opaque `content` field;
-/// the top-level wire `nonce` is vestigial (the authoritative nonces are
-/// inside the envelope — kept non-empty only so any legacy
-/// `encrypted && nonce` predicate still trips).
+/// Returns `(recipient_put_json, self_put_json, verified_inner)`.
 ///
-/// Failure reasons:
+/// Failure reasons (surfaced in the DM view; there is deliberately NO
+/// "send unencrypted anyway" fallback — the v2 protocol has no plaintext
+/// field to fall back to):
 ///   - `"no_own_key"`        — the BIP39 seed isn't unlocked on this device
 ///   - `"missing_peer_key"`  — recipient's Kyber768 public key isn't known
-///   - `"bad_own_key"`       — Kyber keypair derivation failed
-///   - `"encryption_failed"` — seal_envelope() returned an error
-fn try_encrypt_dm(
+///   - `"bad_own_key"`       — keypair derivation failed
+///   - `"encryption_failed"` — signing or sealing errored
+fn build_dm_puts(
     state: &GuiState,
     partner_key: &str,
     content: &str,
-) -> Result<(String, String), &'static str> {
+    ts: u64,
+) -> Result<(String, String, crate::net::dm_pq::DmInner), &'static str> {
     let seed = state.private_key_bytes.as_ref().ok_or("no_own_key")?;
     let my_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed)
         .map_err(|_| "bad_own_key")?;
     let peer_kyber = state.peer_kyber_keys.get(partner_key)
         .ok_or("missing_peer_key")?;
-    let envelope = crate::net::dm_pq::seal_envelope(
-        peer_kyber, &my_kp.public_base64(), content,
+    let inner_json = crate::net::dm_pq::build_signed_inner(
+        seed, &state.profile_public_key, partner_key, ts, content,
     )
     .map_err(|_| "encryption_failed")?;
-    Ok((envelope, "pq".to_string()))
+    let inner = crate::net::dm_pq::parse_verify_inner(&inner_json)
+        .map_err(|_| "encryption_failed")?;
+    let env_recipient = crate::net::dm_pq::seal_v2(peer_kyber, &inner_json)
+        .map_err(|_| "encryption_failed")?;
+    let env_self = crate::net::dm_pq::seal_v2(&my_kp.public_base64(), &inner_json)
+        .map_err(|_| "encryption_failed")?;
+    let put = |env: &str, to: &str| {
+        serde_json::json!({ "type": "dm_put", "to": to, "content": env }).to_string()
+    };
+    Ok((
+        put(&env_recipient, partner_key),
+        put(&env_self, &state.profile_public_key),
+        inner,
+    ))
+}
+
+/// Open a DM conversation: switch the channel and load its history from
+/// the LOCAL encrypted store — the relay keeps no DM history any more
+/// (its mailbox is a sender-less delivery window that expires).
+pub(crate) fn open_dm_conversation(state: &mut GuiState, key: &str) {
+    state.chat_active_channel = format!("dm:{key}");
+    state.chat_messages.clear();
+    state.history_fetched = false;
+    crate::engine::dm::ensure_dm_store(state);
+    if let Some(store) = state.dm_store.as_mut() {
+        if let Some(last) = store.conversation(key).last().map(|m| m.ts) {
+            store.mark_read(key, last);
+        }
+    }
+    if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == key) {
+        d.unread = false;
+    }
+    crate::engine::dm::reload_dm_channel(state, key);
 }
 
 /// Render the unencrypted-DM confirmation modal if one is pending.
@@ -8773,174 +8800,6 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         if let Some(ref webrtc) = state.webrtc {
             webrtc.close_peer(peer_key);
         }
-    }
-}
-
-pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let pending = match state.dm_unencrypted_confirm.clone() {
-        Some(p) => p,
-        None => return,
-    };
-
-    let reason_human = match pending.reason.as_str() {
-        "no_own_key" => "Your identity isn't unlocked on this device, recover from your seed phrase to send encrypted DMs.",
-        "missing_peer_key" => "We don't have the recipient's post-quantum key yet, they may not have come online with a current client, or their key broadcast hasn't reached us.",
-        "bad_own_key" =>
-            "Your post-quantum key could not be derived on this device. Try Identity → Recover.",
-        "encryption_failed" => "Encryption failed unexpectedly.",
-        other => other,
-    };
-
-    let mut close_modal = false;
-    let mut send_anyway = false;
-    let mut cancel_clicked = false;
-
-    egui::Window::new("⚠ Unencrypted DM Confirmation")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(egui::Vec2::new(440.0, 0.0))
-        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
-        .show(ctx, |ui| {
-            ui.add_space(theme.spacing_sm);
-            ui.label(
-                RichText::new(format!("Sending to: {}", pending.partner_name))
-                    .size(theme.font_size_body)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-            ui.add_space(theme.spacing_xs);
-            ui.label(
-                RichText::new("This message CANNOT be end-to-end encrypted.")
-                    .size(theme.font_size_body)
-                    .color(theme.danger())
-                    .strong(),
-            );
-            ui.add_space(theme.spacing_xs);
-            ui.label(
-                RichText::new(reason_human)
-                    .size(theme.font_size_small)
-                    .color(theme.text_secondary()),
-            );
-            ui.add_space(theme.spacing_sm);
-            ui.label(
-                RichText::new("Sending unencrypted means anyone with access to the relay server can read it. The recipient is NOT protected from a hostile or compromised relay. Continue?")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            ui.add_space(theme.spacing_sm);
-            ui.separator();
-            ui.add_space(theme.spacing_sm);
-            ui.label(
-                RichText::new("Your message:")
-                    .size(theme.font_size_small)
-                    .color(theme.text_muted()),
-            );
-            // Show a preview of the message body, truncated to keep the
-            // modal compact even for long drafts.
-            let preview = if pending.content.chars().count() > 240 {
-                let truncated: String = pending.content.chars().take(240).collect();
-                format!("{}…", truncated)
-            } else {
-                pending.content.clone()
-            };
-            egui::Frame::none()
-                .fill(theme.bg_panel())
-                .rounding(egui::Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.card_padding)
-                .show(ui, |ui| {
-                    ui.label(
-                        RichText::new(&preview)
-                            .size(theme.font_size_small)
-                            .color(theme.text_primary())
-                            .monospace(),
-                    );
-                });
-            ui.add_space(theme.spacing_md);
-            ui.horizontal(|ui| {
-                if widgets::Button::secondary("Cancel, keep it private")
-                    .tooltip("Don't send. The message is restored to your input box so you can wait for the recipient's encryption key, edit, or copy it elsewhere.")
-                    .show(ui, theme)
-                {
-                    cancel_clicked = true;
-                    close_modal = true;
-                }
-                ui.add_space(theme.spacing_sm);
-                if widgets::Button::danger("Send unencrypted anyway")
-                    .tooltip("Send the plaintext message NOW. The relay (and anyone with access to it) will be able to read it.")
-                    .show(ui, theme)
-                {
-                    send_anyway = true;
-                    close_modal = true;
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-        });
-
-    if cancel_clicked {
-        // Restore draft into the input box so the user can decide what to do.
-        state.chat_input = pending.content.clone();
-    }
-
-    if send_anyway {
-        // Build and send the plaintext DM directly. We bypass the normal
-        // send path because that path would re-trigger the confirm modal.
-        if let Some(ref client) = state.ws_client {
-            if client.is_connected() {
-                let display_name = if !state.user_name.is_empty() {
-                    state.user_name.clone()
-                } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
-                    if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "Anonymous".to_string() }
-                } else {
-                    "Anonymous".to_string()
-                };
-                let dm_obj = serde_json::json!({
-                    "type": "dm",
-                    "from": state.profile_public_key,
-                    "from_name": display_name,
-                    "to": pending.partner_key,
-                    "content": pending.content,
-                    "timestamp": pending.timestamp_ms,
-                    // Explicit false so the relay + recipient can show
-                    // an "unencrypted" indicator if they want.
-                    "encrypted": false,
-                });
-                let json_str = dm_obj.to_string();
-                crate::debug::push_debug(format!("WS >>> [user-confirmed plaintext] {}", json_str));
-                client.send(&json_str);
-                state.chat_sent_timestamps.push(pending.timestamp_ms);
-                if state.chat_sent_timestamps.len() > 20 {
-                    state.chat_sent_timestamps.remove(0);
-                }
-                // Local echo so the user sees their own message immediately,
-                // matching the normal-send code path's behavior.
-                let local_name = if !state.user_name.is_empty() {
-                    state.user_name.clone()
-                } else {
-                    "You".to_string()
-                };
-                let now = chrono_now_str();
-                state.chat_messages.push(ChatMessage {
-                    sender_name: local_name,
-                    sender_key: state.profile_public_key.clone(),
-                    content: pending.content.clone(),
-                    timestamp: now,
-                    timestamp_ms: pending.timestamp_ms,
-                    channel: format!("dm:{}", pending.partner_key),
-                    reply_to: None,
-                    server: norm_server_url(&state.server_url),
-                    ..Default::default()
-                });
-                while state.chat_messages.len() > 200 {
-                    state.chat_messages.remove(0);
-                }
-                state.chat_input.clear();
-            }
-        }
-    }
-
-    if close_modal {
-        state.dm_unencrypted_confirm = None;
     }
 }
 

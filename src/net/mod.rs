@@ -22,6 +22,12 @@ pub mod bip39_wordlist;
 #[cfg(feature = "native")]
 pub mod dm_pq;
 
+/// Local encrypted DM history (sealed-sender cutover, 2026-08-23): the
+/// relay's mailbox is a delivery window that expires, so long-term DM
+/// history lives on-device, AES-GCM-encrypted under a seed-derived key.
+#[cfg(feature = "native")]
+pub mod dm_store;
+
 /// Native client → relay v2 signed-object submission + invite ticket helpers
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]

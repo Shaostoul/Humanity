@@ -119,6 +119,13 @@ pub struct ServerSettings {
     /// channel an admin can federate or delete.
     #[serde(default = "default_local_channel_enabled")]
     pub local_channel_enabled: bool,
+    /// Days a sealed DM envelope sits in the dm_mailbox before the relay
+    /// expires it (sealed-sender store-and-forward, 2026-08-23). Clients
+    /// keep long-term DM history locally; the server holds only this
+    /// delivery window, so a subpoena/breach yields at most this many
+    /// days of pseudonymous, sender-less ciphertext blobs. Minimum 1.
+    #[serde(default = "default_dm_mailbox_ttl_days")]
+    pub dm_mailbox_ttl_days: i64,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -140,6 +147,7 @@ fn default_uploads_kept_verified() -> i64 { 20 }
 fn default_uploads_kept_mod() -> i64 { 100 }
 fn default_uploads_kept_admin() -> i64 { 500 }
 fn default_local_channel_enabled() -> bool { true }
+fn default_dm_mailbox_ttl_days() -> i64 { 30 }
 
 impl Default for ServerSettings {
     fn default() -> Self {
@@ -169,6 +177,7 @@ impl Default for ServerSettings {
             server_description: String::new(),
             server_name: String::new(),
             local_channel_enabled: default_local_channel_enabled(),
+            dm_mailbox_ttl_days: default_dm_mailbox_ttl_days(),
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -228,7 +237,8 @@ impl Storage {
                         max_uploads_per_user_mod, max_uploads_per_user_admin,
                         require_pq_signatures, p2p_distribution_enabled,
                         COALESCE(server_description, ''), COALESCE(server_name, ''),
-                        COALESCE(local_channel_enabled, 1)
+                        COALESCE(local_channel_enabled, 1),
+                        COALESCE(dm_mailbox_ttl_days, 30)
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -267,6 +277,7 @@ impl Storage {
                         server_description: row.get(24)?,
                         server_name: row.get(25)?,
                         local_channel_enabled: local_ch != 0,
+                        dm_mailbox_ttl_days: row.get::<_, i64>(27)?.max(1),
                     })
                 },
             ) {
@@ -319,6 +330,7 @@ impl Storage {
                     server_description              = ?25,
                     server_name                     = ?26,
                     local_channel_enabled           = ?27,
+                    dm_mailbox_ttl_days             = ?28,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -352,6 +364,7 @@ impl Storage {
                     s.server_description,
                     s.server_name,
                     s.local_channel_enabled as i32,
+                    s.dm_mailbox_ttl_days.max(1),
                 ],
             )?;
             Ok(rows > 0)

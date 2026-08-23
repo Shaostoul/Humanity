@@ -276,6 +276,91 @@ fn redial_dropped(state: &mut EngineState) {
     }
 }
 
+/// Load the per-(identity, server) DM store for a parked connection.
+/// On-demand — no cached handle on the connection struct: DM events are
+/// rare, the file is small, and only the ACTIVE server keeps a cached
+/// store on GuiState.
+fn bg_dm_store(state: &EngineState, ci: usize) -> Option<crate::net::dm_store::DmStore> {
+    let seed = state.gui_state.private_key_bytes.as_ref()?;
+    if state.gui_state.profile_public_key.is_empty() {
+        return None;
+    }
+    let conn = state.gui_state.connections.get(ci)?;
+    Some(crate::net::dm_store::DmStore::load(
+        seed,
+        &state.gui_state.profile_public_key,
+        &conn.url,
+    ))
+}
+
+/// Fold one verified sealed-sender DM into a parked connection's sidebar
+/// entry + message buffer (so unpark restores a current picture).
+fn bg_apply_dm(
+    state: &mut EngineState,
+    ci: usize,
+    inner: &crate::net::dm_pq::DmInner,
+    is_from_me: bool,
+) {
+    let partner = if is_from_me { inner.to.clone() } else { inner.from.clone() };
+    if partner.is_empty() {
+        return;
+    }
+    // Resolve a display name from the parked server's roster.
+    let display = {
+        let conn = &state.gui_state.connections[ci];
+        conn.users
+            .iter()
+            .find(|u| u.public_key == partner)
+            .map(|u| u.name.clone())
+            .filter(|n| !n.is_empty() && n != "Anonymous")
+            .unwrap_or_else(|| partner.chars().take(8).collect())
+    };
+    let sender_display = if is_from_me {
+        if state.gui_state.user_name.is_empty() {
+            "You".to_string()
+        } else {
+            state.gui_state.user_name.clone()
+        }
+    } else {
+        display.clone()
+    };
+    let preview = if is_from_me {
+        format!("You: {}", inner.text)
+    } else {
+        inner.text.clone()
+    };
+    let ts_str = crate::gui::pages::chat::format_timestamp(inner.ts);
+    let conn = &mut state.gui_state.connections[ci];
+    if let Some(d) = conn.dms.iter_mut().find(|d| d.user_key == partner) {
+        d.last_message = preview;
+        d.timestamp = ts_str.clone();
+        if !is_from_me {
+            d.unread = true;
+        }
+    } else {
+        conn.dms.push(crate::gui::ChatDm {
+            user_name: display,
+            user_key: partner.clone(),
+            last_message: preview,
+            timestamp: ts_str.clone(),
+            unread: !is_from_me,
+        });
+    }
+    conn.messages.push(crate::gui::ChatMessage {
+        sender_name: sender_display,
+        sender_key: inner.from.clone(),
+        content: inner.text.clone(),
+        timestamp: ts_str,
+        timestamp_ms: inner.ts,
+        channel: format!("dm:{}", partner),
+        server: conn.url.clone(),
+        ..Default::default()
+    });
+    while conn.messages.len() > 200 {
+        conn.messages.remove(0);
+    }
+}
+
 /// The compact per-message router for background connections.
 fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
     let Ok(val) = serde_json::from_str::<serde_json::Value>(raw) else {
@@ -380,6 +465,19 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                     .filter(|c| c.federated)
                     .map(|c| c.id.clone())
                     .collect();
+                // Sealed-sender DMs: channel_list only arrives on a bound
+                // socket, so fetch this parked server's mailbox too. The
+                // high-water mark lives in the per-server local store.
+                let after_id = bg_dm_store(state, ci)
+                    .map(|s| s.high_water())
+                    .unwrap_or(0);
+                let conn = &state.gui_state.connections[ci];
+                if let Some(ws) = conn.ws.as_ref() {
+                    ws.send(
+                        &serde_json::json!({ "type": "dm_fetch", "after_id": after_id })
+                            .to_string(),
+                    );
+                }
             }
         }
         Some("chat") => {
@@ -475,117 +573,84 @@ fn handle_bg_message(state: &mut EngineState, ci: usize, raw: &str) {
                 conn.messages.remove(0);
             }
         }
-        Some("dm") => {
-            let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let from_name = val
-                .get("from_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Anonymous")
-                .to_string();
-            let raw_content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-            let encrypted = val.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
-            let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let is_from_me = from_key == state.gui_state.profile_public_key
-                || (!state.gui_state.user_name.is_empty()
-                    && from_name == state.gui_state.user_name);
-            let partner = if is_from_me {
-                val.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string()
-            } else {
-                from_key.clone()
-            };
-            if partner.is_empty() {
+        Some("dm_new") => {
+            // Sealed-sender envelope on a parked server: no sender on the
+            // wire — decrypt with our key, trust only the verified inner.
+            let mail_id = val.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+            let raw_env = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if raw_env.is_empty() {
                 return;
             }
-            // Decrypt BEFORE touching the connection: the helper borrows the
-            // whole GuiState immutably.
-            let content = crate::engine::dm::decrypt_dm_if_encrypted(
-                &raw_content,
-                encrypted,
-                &nonce,
-                &partner,
-                &state.gui_state,
-            );
-            // DM ding even for a parked server: a person is a person,
-            // whichever relay carried them.
-            if !is_from_me && state.gui_state.notif_dm_enabled {
-                state
-                    .pending_sfx
-                    .push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
-            }
-            let preview = if is_from_me {
-                format!("You: {}", content)
-            } else {
-                content.clone()
-            };
-            let ts_str = crate::gui::pages::chat::format_timestamp(ts);
-            let conn = &mut state.gui_state.connections[ci];
-            if let Some(d) = conn.dms.iter_mut().find(|d| d.user_key == partner) {
-                d.last_message = preview;
-                d.timestamp = ts_str.clone();
-                if !is_from_me {
-                    d.unread = true;
+            match crate::engine::dm::open_verify_dm(&raw_env, &state.gui_state) {
+                Ok(inner) => {
+                    let Some(mut store) = bg_dm_store(state, ci) else { return };
+                    let is_new = store.insert(&inner);
+                    store.set_high_water(mail_id);
+                    store.save();
+                    if !is_new {
+                        return; // duplicate (echo of our own send / refetch)
+                    }
+                    let is_from_me = inner.from == state.gui_state.profile_public_key;
+                    // DM ding even for a parked server: a person is a
+                    // person, whichever relay carried them.
+                    if !is_from_me && state.gui_state.notif_dm_enabled {
+                        state
+                            .pending_sfx
+                            .push(("sfx.chat_message", "audio/ui/chat_message.ogg"));
+                    }
+                    bg_apply_dm(state, ci, &inner, is_from_me);
                 }
-            } else {
-                let display = if is_from_me {
-                    partner.chars().take(8).collect::<String>()
-                } else {
-                    from_name.clone()
-                };
-                conn.dms.push(crate::gui::ChatDm {
-                    user_name: display,
-                    user_key: partner.clone(),
-                    last_message: preview,
-                    timestamp: ts_str.clone(),
-                    unread: !is_from_me,
-                });
-            }
-            conn.messages.push(crate::gui::ChatMessage {
-                sender_name: from_name,
-                sender_key: from_key,
-                content,
-                timestamp: ts_str,
-                timestamp_ms: ts,
-                channel: format!("dm:{}", partner),
-                server: conn.url.clone(),
-                ..Default::default()
-            });
-            while conn.messages.len() > 200 {
-                conn.messages.remove(0);
+                Err(e) => {
+                    // Not ours / spoofed — drop, but keep the high-water
+                    // moving so a poison envelope can't wedge fetches.
+                    log::warn!("Parked-server DM envelope {mail_id} dropped: {e}");
+                    if let Some(mut store) = bg_dm_store(state, ci) {
+                        store.set_high_water(mail_id);
+                        store.save();
+                    }
+                }
             }
         }
-        Some("dm_list") => {
-            let Some(conversations) = val.get("conversations").and_then(|v| v.as_array()) else {
-                return;
-            };
-            let conn = &mut state.gui_state.connections[ci];
-            conn.dms.clear();
-            for conv in conversations {
-                conn.dms.push(crate::gui::ChatDm {
-                    user_name: conv
-                        .get("partner_name")
-                        .or_else(|| conv.get("name"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Unknown")
-                        .to_string(),
-                    user_key: conv
-                        .get("partner_key")
-                        .or_else(|| conv.get("key"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    last_message: conv
-                        .get("last_message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    timestamp: conv
-                        .get("timestamp")
-                        .and_then(|v| v.as_u64())
-                        .map(crate::gui::pages::chat::format_timestamp)
-                        .unwrap_or_default(),
-                    unread: conv.get("unread").and_then(|v| v.as_bool()).unwrap_or(false),
-                });
+        Some("dm_batch") => {
+            // Mailbox page for a parked server: fill the local store, then
+            // rebuild the parked sidebar list from it.
+            let Some(mut store) = bg_dm_store(state, ci) else { return };
+            let mut last_id: i64 = 0;
+            let mut fresh: Vec<crate::net::dm_pq::DmInner> = Vec::new();
+            if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
+                for m in msgs {
+                    let id = m.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                    if id > last_id {
+                        last_id = id;
+                    }
+                    let raw = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                    if raw.is_empty() {
+                        continue;
+                    }
+                    if let Ok(inner) = crate::engine::dm::open_verify_dm(raw, &state.gui_state) {
+                        if store.insert(&inner) {
+                            fresh.push(inner);
+                        }
+                    }
+                }
+            }
+            store.set_high_water(last_id);
+            store.save();
+            let done = val.get("done").and_then(|v| v.as_bool()).unwrap_or(true);
+            let me = state.gui_state.profile_public_key.clone();
+            for inner in &fresh {
+                let is_from_me = inner.from == me;
+                bg_apply_dm(state, ci, inner, is_from_me);
+            }
+            if !done {
+                let after_id = store.high_water();
+                let conn = &state.gui_state.connections[ci];
+                if let Some(ws) = conn.ws.as_ref() {
+                    ws.send(
+                        &serde_json::json!({ "type": "dm_fetch", "after_id": after_id })
+                            .to_string(),
+                    );
+                }
             }
         }
         Some("name_taken") => {

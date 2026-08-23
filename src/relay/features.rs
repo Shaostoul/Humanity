@@ -370,7 +370,11 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
     }
     match msg_type {
         "chat" | "edit" | "delete" | "delete_by_id" | "reaction" | "typing" | "search"
-        | "pin_request" | "dm" | "dm_open" | "dm_history" | "dm_list" | "dm_read" => {
+        | "pin_request" | "dm_put" | "dm_fetch" | "dm_purge"
+        // Server→client DM frames (classified so the shared enum's rename
+        // strings don't fail open; a client echoing one at the relay is
+        // simply gated like any chat message).
+        | "dm_new" | "dm_batch" | "dm_purged" => {
             Some(Feature::Chat)
         }
         _ => None,
@@ -545,8 +549,9 @@ mod tests {
         assert_eq!(ws_message_feature("voice_call"), Some(Feature::Voice));
         assert_eq!(ws_message_feature("webrtc_signal"), Some(Feature::Voice));
         assert_eq!(ws_message_feature("chat"), Some(Feature::Chat));
-        assert_eq!(ws_message_feature("dm"), Some(Feature::Chat));
-        assert_eq!(ws_message_feature("dm_history"), Some(Feature::Chat));
+        assert_eq!(ws_message_feature("dm_put"), Some(Feature::Chat));
+        assert_eq!(ws_message_feature("dm_fetch"), Some(Feature::Chat));
+        assert_eq!(ws_message_feature("dm_purge"), Some(Feature::Chat));
         // The second door onto the owner's disk, closed by the same switch.
         assert_eq!(ws_message_feature("sync_save"), Some(Feature::VaultBackup));
         assert_eq!(ws_message_feature("sync_load"), Some(Feature::VaultBackup));

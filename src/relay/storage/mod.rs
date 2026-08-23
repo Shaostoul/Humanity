@@ -14,30 +14,6 @@ use tracing::info;
 
 use crate::relay::relay::RelayMessage;
 
-/// A persisted DM record.
-#[derive(Debug, Clone)]
-pub struct DmRecord {
-    pub from_key: String,
-    pub from_name: String,
-    pub to_key: String,
-    pub content: String,
-    pub timestamp: u64,
-    /// Whether this DM is end-to-end encrypted.
-    pub encrypted: bool,
-    /// Base64-encoded nonce/IV for encrypted DMs.
-    pub nonce: Option<String>,
-}
-
-/// A DM conversation summary.
-#[derive(Debug, Clone)]
-pub struct DmConversation {
-    pub partner_key: String,
-    pub partner_name: String,
-    pub last_message: String,
-    pub last_timestamp: u64,
-    pub unread_count: i64,
-}
-
 /// A persisted pinned message record.
 #[derive(Debug, Clone)]
 pub struct PinnedMessageRecord {
@@ -216,7 +192,7 @@ pub struct PushSubscriptionRecord {
 ///   unchanged so the 30 storage modules' ~300 call sites compile untouched.
 ///
 ///   IMPORTANT: `with_conn` is used pervasively for WRITES today (e.g.
-///   `dms::store_dm_e2ee` does `INSERT … ; last_insert_rowid()`), so it MUST
+///   `dms::mailbox_put` does `INSERT … ; last_insert_rowid()`), so it MUST
 ///   stay on the writer. Do not "optimize" it onto the read pool.
 ///
 /// * `read_pool` — a small pool of **read-only** connections (see
@@ -246,7 +222,7 @@ impl Storage {
     /// This is the write path AND the default catch-all read path. It is used
     /// pervasively for writes today (INSERT/UPDATE/DELETE, and crucially
     /// `last_insert_rowid()` immediately after an INSERT — e.g.
-    /// `dms::store_dm_e2ee`), so it MUST run on the single writer connection.
+    /// `dms::mailbox_put`), so it MUST run on the single writer connection.
     /// Do NOT reroute this onto the read pool: a write through a read-only
     /// connection would fail, and `last_insert_rowid()` must be read on the
     /// same connection that did the INSERT.
@@ -703,22 +679,23 @@ impl Storage {
             );"
         )?;
 
-        // DM table for direct messages.
+        // DM mailbox — sealed-sender store-and-forward (v2, 2026-08-23).
+        // Deliberately NO sender column and only day-granularity arrival:
+        // the sender's identity is Dilithium-signed INSIDE the sealed
+        // envelope (net::dm_pq v2), so this table cannot yield a social
+        // graph to a subpoena or a breach. See storage/dms.rs.
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS direct_messages (
+            "CREATE TABLE IF NOT EXISTS dm_mailbox (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                from_key TEXT NOT NULL,
-                from_name TEXT NOT NULL,
                 to_key TEXT NOT NULL,
                 content TEXT NOT NULL,
-                timestamp INTEGER NOT NULL,
-                read INTEGER NOT NULL DEFAULT 0
+                received_day INTEGER NOT NULL
             );
 
-            CREATE INDEX IF NOT EXISTS idx_dm_conversation
-                ON direct_messages(from_key, to_key);
-            CREATE INDEX IF NOT EXISTS idx_dm_to
-                ON direct_messages(to_key);"
+            CREATE INDEX IF NOT EXISTS idx_dm_mailbox_to
+                ON dm_mailbox(to_key, id);
+            CREATE INDEX IF NOT EXISTS idx_dm_mailbox_day
+                ON dm_mailbox(received_day);"
         )?;
 
         // Migration: add channel_id column to messages if missing.
@@ -919,16 +896,24 @@ impl Storage {
             info!("Migration: added kyber_public column to registered_names");
         }
 
-        // Migration: add encrypted and nonce columns to direct_messages for E2EE.
-        let has_dm_encrypted: bool = conn
-            .prepare("SELECT encrypted FROM direct_messages LIMIT 0")
+        // Migration (v2 sealed-sender DMs, 2026-08-23): DROP the legacy
+        // `direct_messages` table outright. It stored from_key/from_name/
+        // to_key/timestamp in the clear — a complete DM social graph a
+        // subpoena or breach could export. The data is not migrated
+        // ANYWHERE on purpose: the whole point is that it stops existing.
+        // secure_delete=ON (set at open) zeroes the freed pages, and the
+        // checkpoint folds them out of the WAL. Rotating file backups
+        // still hold pre-drop copies until they age out (documented in
+        // docs/reference/retention_and_deletion_semantics.md).
+        let has_legacy_dms: bool = conn
+            .prepare("SELECT 1 FROM direct_messages LIMIT 0")
             .is_ok();
-        if !has_dm_encrypted {
+        if has_legacy_dms {
             conn.execute_batch(
-                "ALTER TABLE direct_messages ADD COLUMN encrypted INTEGER DEFAULT 0;
-                 ALTER TABLE direct_messages ADD COLUMN nonce TEXT DEFAULT NULL;"
+                "DROP TABLE direct_messages;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
             )?;
-            info!("Migration: added encrypted/nonce columns to direct_messages");
+            info!("Migration: dropped legacy direct_messages table (sealed-sender DM cutover — the server-side DM graph is gone)");
         }
 
         // Migration: add reply_to columns to messages for threaded replies.
@@ -1007,6 +992,7 @@ impl Storage {
                 p2p_distribution_enabled        INTEGER NOT NULL DEFAULT 0,
                 server_description        TEXT    NOT NULL DEFAULT '',
                 server_name               TEXT    NOT NULL DEFAULT '',
+                dm_mailbox_ttl_days       INTEGER NOT NULL DEFAULT 30,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1075,6 +1061,15 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN server_name TEXT NOT NULL DEFAULT '';"
             )?;
             info!("Migration: added server_name (server_settings)");
+        }
+
+        // Guarded ALTER for pre-sealed-sender databases (2026-08-23): how
+        // many days sealed DM envelopes sit in dm_mailbox before expiry.
+        if conn.prepare("SELECT dm_mailbox_ttl_days FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN dm_mailbox_ttl_days INTEGER NOT NULL DEFAULT 30;"
+            )?;
+            info!("Migration: added dm_mailbox_ttl_days (server_settings)");
         }
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every

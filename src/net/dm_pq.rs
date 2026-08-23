@@ -141,60 +141,143 @@ pub fn open(
     String::from_utf8(plain).map_err(|e| format!("utf8: {e}"))
 }
 
-// ── Web-compatible dual-seal envelope ───────────────────────────────────────
-// The relay is zero-knowledge: the full PQ envelope is packed into the
-// opaque `content` string as JSON, byte-shape-identical to the web client
-// (crypto.js encryptDmContent / decryptDmContent):
+// ── v2 sealed-sender envelope (DM metadata minimization, 2026-08-23) ────────
+// The v1 dual-seal `{v:1,r,s}` envelope hid CONTENT from the relay but the
+// wire + DB row still carried `from_key`/`from_name` in the clear, so the
+// relay accumulated a complete who-talked-to-whom graph (the thing the
+// Take-Two/Discord subpoena actually harvested). v2 moves the sender's
+// identity INSIDE the ciphertext:
 //
-//   { "v":1,
-//     "r":{"ek_ct_b64","nonce_b64","ct_b64"},   // sealed to RECIPIENT
-//     "s":{"ek_ct_b64","nonce_b64","ct_b64"} }  // sealed to SELF
+//   inner  = { "v":2, "from", "to", "ts", "text", "sig" }   (JSON, signed)
+//   sig    = base64( Dilithium3.sign("hum/dm/v2\n{from}\n{to}\n{ts}\n{text}") )
+//   wire   = { "v":2, "ek_ct_b64", "nonce_b64", "ct_b64" }  (single seal)
 //
-// Dual-seal is mandatory: pure ML-KEM is recipient-only (the sender keeps
-// no shared secret), so without the `s` copy a sender could not read their
-// OWN sent messages from server history on any device. Web and native MUST
-// produce/consume this exact shape or cross-client DM breaks.
+// One message becomes TWO independent envelopes: the inner JSON sealed to
+// the recipient's Kyber key (deposited in THEIR server mailbox) and the
+// SAME inner JSON sealed to the sender's own Kyber key (deposited in the
+// sender's mailbox, so their other devices can read sent history). The
+// relay stores only (to_key, ciphertext) — no sender column exists.
+//
+// The Dilithium `sig` is what makes sealed sender safe: without it anyone
+// could deposit an envelope claiming `from: alice`. Receivers MUST verify
+// the signature against the `from` key before trusting authorship
+// (`parse_verify_inner`), which also upgrades DM authenticity from
+// relay-vouched to end-to-end cryptographic.
+//
+// Web (crypto.js pqBuildDmInner/pqDmSealV2/pqDmOpenV2) MUST produce and
+// consume these exact JSON shapes or cross-client DM breaks. The Kyber and
+// Dilithium primitives are unchanged and stay locked by `just pq-kat`.
 
-/// Dual-seal `plaintext` (to recipient + to self). Returns the JSON
-/// envelope string to put in the relay `content` field.
-pub fn seal_envelope(
-    recipient_pub_b64: &str,
-    my_pub_b64: &str,
-    plaintext: &str,
+/// Signature preimage domain. Web MUST use the identical string.
+const DM_SIG_DOMAIN: &str = "hum/dm/v2";
+
+/// A parsed, signature-verified inner DM payload.
+#[derive(Debug, Clone)]
+pub struct DmInner {
+    /// Sender's Dilithium3 identity (hex) — verified against `sig`.
+    pub from: String,
+    /// Recipient's Dilithium3 identity (hex).
+    pub to: String,
+    /// Sender-claimed timestamp (ms since epoch).
+    pub ts: u64,
+    /// The message text.
+    pub text: String,
+    /// Base64 Dilithium3 signature (kept for dedupe keying).
+    pub sig_b64: String,
+}
+
+impl DmInner {
+    /// Stable dedupe key for a message: the same inner payload arrives
+    /// twice on a sender's own device (live echo of the self-copy + the
+    /// local echo at send time) and can be replayed by a hostile relay.
+    /// The signature bytes are unique per (from,to,ts,text) signing, so
+    /// their hash identifies the message.
+    pub fn dedupe_key(&self) -> String {
+        blake3::hash(self.sig_b64.as_bytes()).to_hex().to_string()
+    }
+}
+
+fn sig_preimage(from_hex: &str, to_hex: &str, ts: u64, text: &str) -> String {
+    format!("{DM_SIG_DOMAIN}\n{from_hex}\n{to_hex}\n{ts}\n{text}")
+}
+
+/// Build the signed inner payload JSON. `seed` is the 64-byte BIP39 seed
+/// (the Dilithium identity is re-derived from it, same as chat signing).
+pub fn build_signed_inner(
+    seed: &[u8],
+    from_hex: &str,
+    to_hex: &str,
+    ts: u64,
+    text: &str,
 ) -> Result<String, String> {
-    let r = seal(recipient_pub_b64, plaintext)?;
-    let s = seal(my_pub_b64, plaintext)?;
+    let dil_seed = pq_crypto::derive_dilithium_seed(seed);
+    let kp = pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    let sig = kp.sign(sig_preimage(from_hex, to_hex, ts, text).as_bytes());
     Ok(serde_json::json!({
-        "v": 1,
-        "r": { "ek_ct_b64": r.ek_ct_b64, "nonce_b64": r.nonce_b64, "ct_b64": r.ct_b64 },
-        "s": { "ek_ct_b64": s.ek_ct_b64, "nonce_b64": s.nonce_b64, "ct_b64": s.ct_b64 },
+        "v": 2,
+        "from": from_hex,
+        "to": to_hex,
+        "ts": ts,
+        "text": text,
+        "sig": B64.encode(sig),
     })
     .to_string())
 }
 
-/// Open a `{v:1,r,s}` envelope. Tries the recipient copy then the self
-/// copy with OUR OWN deterministic Kyber secret — covers received
-/// messages and our own from history (matches web decryptDmContent).
-pub fn open_envelope(me: &DmPqKeypair, content: &str) -> Result<String, String> {
+/// Seal an inner payload (or any plaintext) into a v2 wire envelope for
+/// the holder of `recipient_pub_b64`.
+pub fn seal_v2(recipient_pub_b64: &str, inner_json: &str) -> Result<String, String> {
+    let sealed = seal(recipient_pub_b64, inner_json)?;
+    Ok(serde_json::json!({
+        "v": 2,
+        "ek_ct_b64": sealed.ek_ct_b64,
+        "nonce_b64": sealed.nonce_b64,
+        "ct_b64": sealed.ct_b64,
+    })
+    .to_string())
+}
+
+/// Open a v2 wire envelope with our own Kyber secret → inner JSON.
+pub fn open_v2(me: &DmPqKeypair, envelope_json: &str) -> Result<String, String> {
     let env: serde_json::Value =
-        serde_json::from_str(content).map_err(|e| format!("envelope json: {e}"))?;
-    if env.get("v").and_then(|v| v.as_u64()) != Some(1) {
+        serde_json::from_str(envelope_json).map_err(|e| format!("envelope json: {e}"))?;
+    if env.get("v").and_then(|v| v.as_u64()) != Some(2) {
         return Err("unsupported DM envelope version".into());
     }
-    for part_key in ["r", "s"] {
-        if let Some(p) = env.get(part_key) {
-            if let (Some(ek), Some(n), Some(ct)) = (
-                p.get("ek_ct_b64").and_then(|v| v.as_str()),
-                p.get("nonce_b64").and_then(|v| v.as_str()),
-                p.get("ct_b64").and_then(|v| v.as_str()),
-            ) {
-                if let Ok(plain) = open(me, ek, n, ct) {
-                    return Ok(plain);
-                }
-            }
-        }
+    let (Some(ek), Some(n), Some(ct)) = (
+        env.get("ek_ct_b64").and_then(|v| v.as_str()),
+        env.get("nonce_b64").and_then(|v| v.as_str()),
+        env.get("ct_b64").and_then(|v| v.as_str()),
+    ) else {
+        return Err("envelope missing fields".into());
+    };
+    open(me, ek, n, ct)
+}
+
+/// Parse an inner payload and VERIFY its Dilithium signature against the
+/// claimed `from` key. Err on any mismatch — an unverified `from` must
+/// never be shown as the sender.
+pub fn parse_verify_inner(inner_json: &str) -> Result<DmInner, String> {
+    let v: serde_json::Value =
+        serde_json::from_str(inner_json).map_err(|e| format!("inner json: {e}"))?;
+    if v.get("v").and_then(|x| x.as_u64()) != Some(2) {
+        return Err("unsupported inner version".into());
     }
-    Err("no envelope part decrypted with our key".into())
+    let from = v.get("from").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let to = v.get("to").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let ts = v.get("ts").and_then(|x| x.as_u64()).unwrap_or(0);
+    let text = v.get("text").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let sig_b64 = v.get("sig").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    if from.is_empty() || to.is_empty() || sig_b64.is_empty() {
+        return Err("inner missing from/to/sig".into());
+    }
+    let from_pk = hex::decode(from.trim()).map_err(|e| format!("from key hex: {e}"))?;
+    let sig = B64
+        .decode(sig_b64.trim())
+        .map_err(|e| format!("sig base64: {e}"))?;
+    pq_crypto::verify_dilithium(&from_pk, sig_preimage(&from, &to, ts, &text).as_bytes(), &sig)
+        .map_err(|_| "sender signature INVALID (spoofed or corrupted)".to_string())?;
+    Ok(DmInner { from, to, ts, text, sig_b64 })
 }
 
 #[cfg(test)]
@@ -232,30 +315,84 @@ mod tests {
         assert!(open(&eve, &sealed.ek_ct_b64, &sealed.nonce_b64, &sealed.ct_b64).is_err());
     }
 
+    /// Helper: a party's full identity from a test seed.
+    fn party(seed_byte: u8) -> (Vec<u8>, String, DmPqKeypair) {
+        let seed = vec![seed_byte; 32];
+        let dil_seed = pq_crypto::derive_dilithium_seed(&seed);
+        let dil_hex = hex::encode(pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key());
+        let kyber = DmPqKeypair::from_bip39_seed(&seed).unwrap();
+        (seed, dil_hex, kyber)
+    }
+
     #[test]
-    fn envelope_dual_seal_both_parties_any_device() {
-        // THE web-compat contract. Alice DMs Bob: seal to Bob (r) + self (s).
-        let alice = DmPqKeypair::from_bip39_seed(&vec![11u8; 64]).unwrap();
-        let bob = DmPqKeypair::from_bip39_seed(&vec![22u8; 64]).unwrap();
-        let env = seal_envelope(
-            &bob.public_base64(),
-            &alice.public_base64(),
-            "cross-client DM",
-        )
-        .unwrap();
-        // Envelope is valid JSON with the exact web shape.
-        let j: serde_json::Value = serde_json::from_str(&env).unwrap();
-        assert_eq!(j["v"], 1);
-        assert!(j["r"]["ek_ct_b64"].is_string() && j["s"]["ct_b64"].is_string());
-        // Bob (recipient) opens via the `r` copy.
-        assert_eq!(open_envelope(&bob, &env).unwrap(), "cross-client DM");
-        // Alice opens her OWN sent message from history via the `s` copy —
-        // re-deriving the keypair from her seed on "another device".
-        let alice2 = DmPqKeypair::from_bip39_seed(&vec![11u8; 64]).unwrap();
-        assert_eq!(open_envelope(&alice2, &env).unwrap(), "cross-client DM");
+    fn v2_sealed_sender_both_parties_any_device() {
+        // THE cross-client contract. Alice DMs Bob: the SAME signed inner
+        // payload is sealed once to Bob (his mailbox) and once to Alice
+        // herself (her mailbox, for her other devices).
+        let (alice_seed, alice_hex, alice_kp) = party(11);
+        let (_bob_seed, bob_hex, bob_kp) = party(22);
+        let inner =
+            build_signed_inner(&alice_seed, &alice_hex, &bob_hex, 1_700_000_000_000, "hi bob")
+                .unwrap();
+        let to_bob = seal_v2(&bob_kp.public_base64(), &inner).unwrap();
+        let to_self = seal_v2(&alice_kp.public_base64(), &inner).unwrap();
+        // Wire shape: v2, flat, three b64 fields, NO sender anywhere.
+        let j: serde_json::Value = serde_json::from_str(&to_bob).unwrap();
+        assert_eq!(j["v"], 2);
+        assert!(j["ek_ct_b64"].is_string() && j["nonce_b64"].is_string() && j["ct_b64"].is_string());
+        assert!(j.get("from").is_none() && j.get("r").is_none());
+        // Bob opens his copy, verifies authorship cryptographically.
+        let got = parse_verify_inner(&open_v2(&bob_kp, &to_bob).unwrap()).unwrap();
+        assert_eq!(got.from, alice_hex);
+        assert_eq!(got.to, bob_hex);
+        assert_eq!(got.text, "hi bob");
+        // Alice's OTHER device (re-derived keypair) opens the self copy.
+        let alice2 = DmPqKeypair::from_bip39_seed(&vec![11u8; 32]).unwrap();
+        let mine = parse_verify_inner(&open_v2(&alice2, &to_self).unwrap()).unwrap();
+        assert_eq!(mine.text, "hi bob");
+        // Both copies carry the SAME signature → same dedupe key.
+        assert_eq!(got.dedupe_key(), mine.dedupe_key());
         // A third party cannot open either copy.
-        let eve = DmPqKeypair::from_bip39_seed(&vec![99u8; 64]).unwrap();
-        assert!(open_envelope(&eve, &env).is_err());
+        let (_, _, eve_kp) = party(99);
+        assert!(open_v2(&eve_kp, &to_bob).is_err());
+        assert!(open_v2(&eve_kp, &to_self).is_err());
+    }
+
+    #[test]
+    fn v2_spoofed_sender_rejected() {
+        // Eve builds an inner payload CLAIMING to be Alice but signs with
+        // her own key — parse_verify_inner must refuse it. This is the
+        // property that makes sealed sender safe.
+        let (eve_seed, _eve_hex, _) = party(66);
+        let (_a_seed, alice_hex, _) = party(11);
+        let (_b_seed, bob_hex, bob_kp) = party(22);
+        let forged =
+            build_signed_inner(&eve_seed, &alice_hex, &bob_hex, 1, "pretending to be alice")
+                .unwrap();
+        let env = seal_v2(&bob_kp.public_base64(), &forged).unwrap();
+        let inner_json = open_v2(&bob_kp, &env).unwrap();
+        assert!(parse_verify_inner(&inner_json).is_err(), "forged sender must not verify");
+    }
+
+    #[test]
+    fn v2_tampered_inner_field_rejected() {
+        // Flipping any signed field after signing breaks verification.
+        let (alice_seed, alice_hex, _) = party(11);
+        let (_b, bob_hex, _) = party(22);
+        let inner = build_signed_inner(&alice_seed, &alice_hex, &bob_hex, 42, "true text").unwrap();
+        let mut v: serde_json::Value = serde_json::from_str(&inner).unwrap();
+        v["text"] = serde_json::Value::String("swapped text".into());
+        assert!(parse_verify_inner(&v.to_string()).is_err());
+        let mut v2: serde_json::Value = serde_json::from_str(&inner).unwrap();
+        v2["ts"] = serde_json::json!(43);
+        assert!(parse_verify_inner(&v2.to_string()).is_err());
+    }
+
+    #[test]
+    fn v2_rejects_v1_envelope() {
+        // No-compat rule: the old dual-seal shape is not accepted.
+        let (_s, _h, bob_kp) = party(22);
+        assert!(open_v2(&bob_kp, r#"{"v":1,"r":{},"s":{}}"#).is_err());
     }
 
     #[test]

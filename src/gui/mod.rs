@@ -276,6 +276,13 @@ impl GuiState {
         self.chat_reply_to = None;
         self.chat_edit_target = None;
         self.chat_search_results.clear();
+        // Sealed-sender DMs: the local history store and fetch high-water
+        // are per (identity, server) — drop them so the next server loads
+        // its own store from disk and re-fetches its own mailbox.
+        if let Some(store) = self.dm_store.take() {
+            store.save();
+        }
+        self.dm_fetch_sent = false;
     }
 }
 
@@ -1685,35 +1692,12 @@ pub struct ChatUser {
 }
 
 /// A channel in the channel list.
-/// A DM that the user clicked Send on, but which we COULDN'T encrypt
-/// (recipient's ECDH key not known, our key not set, or encryption
-/// errored). Stored on GuiState so a confirmation modal can pop up
-/// asking the user to either send it as plaintext anyway, or cancel.
-///
-/// Backstory: before v0.199 the code silently sent the DM as plaintext
-/// with only a log message. Operator security audit (B3, 2026-04-30)
-/// flagged this as a downgrade attack vector — an attacker who can
-/// suppress ECDH key announcements could strip encryption from a DM
-/// the user thinks is private. The confirmation modal forces explicit
-/// user opt-in for any plaintext send.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone)]
-pub struct PendingUnencryptedDm {
-    /// Recipient's public key (Ed25519 hex).
-    pub partner_key: String,
-    /// Recipient's display name (best-known label for the modal copy).
-    pub partner_name: String,
-    /// The plaintext message body the user typed.
-    pub content: String,
-    /// Original send timestamp (ms since epoch). Reused on confirm so
-    /// the eventual sent message has the same `ts` the user clicked Send at.
-    pub timestamp_ms: u64,
-    /// Why we can't encrypt — one of:
-    ///   "missing_peer_key"     — recipient hasn't broadcast their ECDH pub key yet
-    ///   "no_own_ecdh"          — this client doesn't have its own ECDH key set
-    ///   "encryption_failed: X" — encrypt_dm() errored with X
-    pub reason: String,
-}
+// NOTE: PendingUnencryptedDm (the v0.199 "send unencrypted anyway"
+// confirmation modal) was DELETED in the sealed-sender cutover
+// (2026-08-23). The v2 DM protocol has no plaintext field at all — a DM
+// that can't be sealed simply can't be sent, and the composer shows why.
+// This is strictly stronger than the modal: there is no user-consented
+// downgrade path left to attack.
 
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -4160,14 +4144,13 @@ pub struct GuiState {
     pub notif_dnd_end: Option<String>,
     pub notif_prefs_loaded: bool,
 
-    /// Pending unencrypted-DM confirmation (v0.199.0).
-    ///
-    /// When the user tries to send a DM but the recipient's ECDH key
-    /// is missing or encryption fails, we DO NOT silently send plaintext
-    /// (operator security audit B3 / 2026-04-30). Instead we stash the
-    /// would-be message here and pop a modal asking the user to either
-    /// confirm "Send unencrypted anyway" or cancel.
-    pub dm_unencrypted_confirm: Option<PendingUnencryptedDm>,
+    /// Local encrypted DM history for the ACTIVE server (sealed-sender
+    /// cutover, 2026-08-23). The relay's mailbox is a delivery window
+    /// that expires and carries no sender; this store is the archive.
+    /// One per (identity, server) — reset on server switch.
+    pub dm_store: Option<crate::net::dm_store::DmStore>,
+    /// Whether we've sent the initial `dm_fetch` on this connection.
+    pub dm_fetch_sent: bool,
 
     // ── Cosmos page state (v0.203.0, Phase 3) ──
     /// Which view the Cosmos page is currently rendering.
@@ -5477,7 +5460,8 @@ impl Default for GuiState {
             notif_dnd_start: None,
             notif_dnd_end: None,
             notif_prefs_loaded: false,
-            dm_unencrypted_confirm: None,
+            dm_store: None,
+            dm_fetch_sent: false,
             server_settings: None,
             chat_roles: Vec::new(),
             service_state: Vec::new(),

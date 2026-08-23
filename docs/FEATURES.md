@@ -229,9 +229,12 @@ get the same dot, preserved across group_list/channel_list rebuilds; the Chat na
 tab paints a theme.danger() dot whenever ANY dm/group/channel is unread, visible
 from every page (v0.719). P2P-group unread waits for native P2P push (closed P2P
 groups only poll their list — no message event exists to flag).
-NOTE: the WEB DM sidebar deliberately stays name-only (operator 2026-05-27; its
-stored DM bodies are opaque E2EE envelopes) — do not "fix" either side for parity.
-- Native: `src/lib.rs` (dm/group_msg/chat WS handlers), `src/gui/pages/chat.rs` (row painters), `src/gui/pages/escape_menu.rs` (nav dot)
+NOTE: the WEB DM sidebar stays name-only visually (original call: operator
+2026-05-27). Since the sealed-sender cutover (2026-08-23) BOTH clients build
+their DM lists from the local decrypted history store, so the old
+"web can't decrypt at list time" reason is gone; the web look is now just a
+layout choice.
+- Native: `src/lib.rs` (dm_new/dm_batch/group_msg/chat WS handlers), `src/engine/dm.rs` (store glue), `src/gui/pages/chat.rs` (row painters), `src/gui/pages/escape_menu.rs` (nav dot)
 
 ### Saved Servers: add / switch / forget (native, v0.712–v0.714)
 Add Server accepts a bare host (assumes https, v0.714); clicking a saved server's
@@ -626,8 +629,19 @@ All spacing/sizes halved for actual visual density. 35+ theme variables editable
 All 27 pages refactored to use theme system and universal widgets consistently.
 - Native: `src/gui/pages/*.rs`
 
-### Post-Quantum DM Encryption (native)
-Native DM encryption uses pure Kyber768 / ML-KEM-768 (FIPS 203) -> BLAKE3-KDF -> AES-256-GCM in a dual-seal `{v:1,r,s}` envelope, byte-identical to the web client. The Kyber recipient key derives deterministically from the BIP39 seed, so DMs round-trip cross-client. (The earlier ECDH P-256 path was deleted in v0.264.0, see the canonical crypto table in `CLAUDE.md`.)
+### Post-Quantum Sealed-Sender DMs (both clients, 2026-08-23)
+DMs use Kyber768 / ML-KEM-768 (FIPS 203) -> BLAKE3-KDF -> AES-256-GCM with the
+SENDER SEALED INSIDE the ciphertext: the inner payload `{v:2,from,to,ts,text,sig}`
+is Dilithium3-signed (preimage `hum/dm/v2\n...`) and clients verify authorship
+end-to-end. The relay stores only `(to_key, envelope, arrival_day)` in `dm_mailbox`;
+it never learns who a message is from, mail expires after `dm_mailbox_ttl_days`
+(Server Settings, default 30), and `dm_purge` scrubs a user's own queue on demand.
+Long-term history lives client-side under seed-derived encryption: native
+`src/net/dm_store.rs`, web `web/chat/chat-dm-store.js`. Byte-shape identical
+web<->native (`src/net/dm_pq.rs` <-> `web/chat/crypto.js`). The v1 dual-seal
+`{v:1,r,s}` envelope, the plaintext-capable `dm` message, and the legacy
+`direct_messages` graph table are all deleted. Canonical detail: the crypto
+table in `CLAUDE.md` + `docs/reference/retention_and_deletion_semantics.md`.
 - Native: `src/net/dm_pq.rs` (seal/open), `src/gui/pages/chat.rs` (send/receive UI)
 
 ### HUD

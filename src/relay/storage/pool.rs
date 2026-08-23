@@ -25,7 +25,7 @@
 //! is never read off the wrong connection.
 //!
 //! Because the existing `with_conn` closures across the 30 storage modules are
-//! KNOWN to perform writes (e.g. `dms::store_dm_e2ee` does `INSERT … ;
+//! KNOWN to perform writes (e.g. `dms::mailbox_put` does `INSERT … ;
 //! last_insert_rowid()`), `with_conn` and `with_conn_mut` MUST keep going to the
 //! writer. Only a closure you are CERTAIN is read-only may use
 //! `with_read_conn`. Erring toward the writer is always correct (just less
@@ -151,7 +151,7 @@ mod tests {
 
         // Write via the writer path (this is how all current call sites work).
         let id = db
-            .store_dm("alice", "Alice", "bob", "hello via writer", 1_700_000_000_000)
+            .mailbox_put("bob", "hello via writer")
             .expect("writer insert");
         assert!(id > 0, "writer INSERT returns a rowid via last_insert_rowid()");
 
@@ -160,7 +160,7 @@ mod tests {
         let content: String = db
             .with_read_conn(|conn| {
                 conn.query_row(
-                    "SELECT content FROM direct_messages WHERE id = ?1",
+                    "SELECT content FROM dm_mailbox WHERE id = ?1",
                     rusqlite::params![id],
                     |r| r.get::<_, String>(0),
                 )
@@ -172,7 +172,7 @@ mod tests {
         // distinct connection; both are valid readers under WAL).
         let count: i64 = db
             .with_read_conn(|conn| {
-                conn.query_row("SELECT COUNT(*) FROM direct_messages", [], |r| r.get(0))
+                conn.query_row("SELECT COUNT(*) FROM dm_mailbox", [], |r| r.get(0))
             })
             .expect("second pool read");
         assert_eq!(count, 1);
@@ -188,8 +188,8 @@ mod tests {
 
         let result: Result<usize, rusqlite::Error> = db.with_read_conn(|conn| {
             conn.execute(
-                "INSERT INTO direct_messages (from_key, from_name, to_key, content, timestamp)
-                 VALUES ('x','X','y','should not persist', 1)",
+                "INSERT INTO dm_mailbox (to_key, content, received_day)
+                 VALUES ('y','should not persist', 1)",
                 [],
             )
         });
@@ -201,7 +201,7 @@ mod tests {
         // And nothing was written — the writer-side view confirms the table is
         // still empty, so the rejected write had zero side effects.
         let count: i64 = db
-            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM direct_messages", [], |r| r.get(0)))
+            .with_conn(|c| c.query_row("SELECT COUNT(*) FROM dm_mailbox", [], |r| r.get(0)))
             .expect("count on writer");
         assert_eq!(count, 0, "rejected write must not have persisted any row");
     }

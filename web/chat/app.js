@@ -41,6 +41,7 @@ window.addEventListener('hashchange', () => {
 // ── State ──
 let ws = null;
 let myKey = '';
+let dmFetchSent = false; // one-time mailbox fetch per socket (sealed-sender DMs)
 let myName = '';
 let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
@@ -619,6 +620,9 @@ function openSocket() {
     return;
   }
 
+  // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender).
+  dmFetchSent = false;
+
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
 
@@ -747,6 +751,18 @@ async function handleMessage(msg) {
       updateChannelList(msg.channels || []);
       updateChannelHeader();
       updateInputForChannel();
+      // Sealed-sender DMs: channel_list only arrives on a BOUND socket,
+      // so this is the reliable moment to load the local history store
+      // and fetch our server mailbox (once per connection).
+      if (!dmFetchSent && myKey && window.hosDmStore) {
+        dmFetchSent = true;
+        hosDmStore.init(myKey, location.host).then((ok) => {
+          if (ok && typeof loadDmListFromStore === 'function') loadDmListFromStore();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
+          }
+        });
+      }
       break;
     case 'identify_challenge': {
       // Full-PQ Inc3b: relay issued a nonce after our Identify. Sign the
@@ -928,79 +944,62 @@ async function handleMessage(msg) {
       }
       break;
     }
-    case 'dm': {
-      // Incoming/outgoing DM event.
-      const dmFrom = msg.from;
-      const dmFromName = resolveSenderName(msg.from_name, dmFrom);
-      const dmPartnerKey = (dmFrom === myKey) ? msg.to : dmFrom;
-      const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
-      let dmContent = msg.content;
-      let dmIsEncrypted = !!msg.encrypted;
-      // Full-PQ: decapsulate with OUR OWN deterministic Kyber secret -
-      // no sender key needed (ML-KEM). The dual-seal envelope means this
-      // works for both incoming messages and our own from history.
-      if (msg.encrypted) {
-        const plain = await decryptDmContent(msg.content, msg.nonce, null);
-        dmContent = (plain !== null && plain !== undefined)
-          ? plain : '🔒 [Decryption failed]';
+    case 'dm_new': {
+      // Sealed-sender envelope, live-delivered. The wire carries NO
+      // sender — decrypt with our own key and trust only the
+      // Dilithium-verified inner payload (crypto.js pqOpenDmEnvelope).
+      const inner = await pqOpenDmEnvelope(msg.content);
+      if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
+      if (!inner) break; // not ours / tampered / spoofed — never rendered
+      const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
+      if (!isNew) break; // duplicate (echo of our own send, refetch, replay)
+      const isFromMe = inner.from === myKey;
+      const peer = isFromMe ? inner.to : inner.from;
+      const peerName = peerData[peer]?.display_name || shortKey(peer);
+      upsertDmConversation(peer, peerName, inner.text, inner.ts, !isFromMe);
+      if (activeDmPartner === peer) {
+        addDmMessage(isFromMe ? myName : peerName, inner.text, inner.ts, inner.from, inner.to, true);
+        if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
       }
-      upsertDmConversation(dmPartnerKey, dmPartnerName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, msg.timestamp, dmFrom !== myKey);
-      if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
-        addDmMessage(dmFromName, dmContent, msg.timestamp, dmFrom, msg.to, dmIsEncrypted);
-      }
-      // Notify.
-      if (dmFrom !== myKey) {
-        notifyNewMessage(dmFromName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, true);
+      if (!isFromMe) {
+        notifyNewMessage(peerName, inner.text, true);
       }
       break;
     }
-    case 'dm_list': {
-      // Merge server list with locally-seeded entries (e.g. brand-new conversations)
-      // so that an open DM view doesn't disappear from the sidebar while waiting for
-      // the first message to be stored server-side.
-      const serverList = msg.conversations || [];
-      const serverKeys = new Set(serverList.map(c => c.partner_key));
-      const localOnly = dmConversations.filter(c => !serverKeys.has(c.partner_key));
-      dmConversations = [...serverList, ...localOnly];
-      dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
-      renderDmList();
+    case 'dm_batch': {
+      // A page of our sealed mailbox (reply to dm_fetch). Decrypt +
+      // verify each envelope into the local store; page until done.
+      const items = msg.messages || [];
+      let lastId = 0;
+      let ingested = 0;
+      for (const item of items) {
+        if (item.id > lastId) lastId = item.id;
+        if (!item.content) continue;
+        const inner = await pqOpenDmEnvelope(item.content);
+        if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+        if (window.hosDmStore && hosDmStore.ready) {
+          if (await hosDmStore.insert(inner)) ingested++;
+        }
+      }
+      if (window.hosDmStore && hosDmStore.ready) {
+        hosDmStore.setHighWater(lastId);
+        if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
+        // Refresh the open conversation so fetched history appears in place.
+        if (activeDmPartner && typeof renderDmConversationFromStore === 'function') {
+          renderDmConversationFromStore(activeDmPartner);
+        }
+      }
+      if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
+      if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
+      }
       break;
     }
-    case 'dm_history': {
-      // Received conversation history for a DM.
-      if (activeDmPartner === msg.partner) {
-        document.getElementById('messages').innerHTML = '';
-        const msgs = msg.messages || [];
-        // E2EE status banner. Full-PQ: a conversation is end-to-end
-        // encrypted when the partner advertised a Kyber768 key and our
-        // own PQ secret is ready (dual-seal lets us read BOTH directions).
-        const partnerKyber = getPeerEcdhPublic(msg.partner);
-        const e2eeNotice = document.createElement('div');
-        e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
-        if (partnerKyber && myKyberSecret) {
-          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted (post-quantum)';
-        } else {
-          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted, the other party has no post-quantum key';
-        }
-        document.getElementById('messages').appendChild(e2eeNotice);
-        if (msgs.length > 0) {
-          const notice = document.createElement('div');
-          notice.id = 'history-notice';
-          notice.textContent = `── ${msgs.length} earlier messages ──`;
-          document.getElementById('messages').appendChild(notice);
-        }
-        for (const m of msgs) {
-          let histContent = m.content;
-          let histEncrypted = !!m.encrypted;
-          if (m.encrypted) {
-            // Full-PQ dual-seal: our own Kyber secret opens BOTH our sent
-            // copy and received messages, no peer key needed.
-            const plain = await decryptDmContent(m.content, m.nonce, null);
-            histContent = (plain !== null && plain !== undefined)
-              ? plain : '🔒 [Decryption failed]';
-          }
-          addDmMessage(resolveSenderName(m.from_name, m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
-        }
+    case 'dm_purged': {
+      // Confirmation of our own server-mailbox scrub.
+      const n = Number(msg.count) || 0;
+      if (typeof addSystemMessage === 'function') {
+        addSystemMessage(`Server mailbox cleared (${n} envelope${n === 1 ? '' : 's'} deleted).`);
       }
       break;
     }

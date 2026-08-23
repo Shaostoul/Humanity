@@ -1318,17 +1318,25 @@ async function sendComposedContent(content) {
       addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
       return false;
     }
-    const enc = await encryptDmContent(content, peerKyber);
-    if (!enc) {
+    // Sealed-sender v2: the sender's identity travels Dilithium-signed
+    // INSIDE the ciphertext. Two deposits — the recipient's copy and our
+    // self-copy (so our other devices can fetch sent history). The relay
+    // stores neither with a sender.
+    const sentTs = Date.now();
+    const built = await pqBuildDmPuts(content, activeDmPartner, sentTs);
+    if (!built) {
       addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
       return false;
     }
-    ws.send(JSON.stringify({
-      type: 'dm', from: myKey, from_name: myName, to: activeDmPartner,
-      content: enc.content, nonce: enc.nonce, encrypted: true, timestamp: Date.now(),
-    }));
-    const sentTs = Date.now();
-    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, false);
+    ws.send(JSON.stringify(built.recipientPut));
+    ws.send(JSON.stringify(built.selfPut));
+    // Persist our copy locally right away; the relay echo of the
+    // self-copy dedupes against this via the inner signature.
+    if (window.hosDmStore && hosDmStore.ready) {
+      await hosDmStore.insert(built.inner);
+      hosDmStore.markRead(activeDmPartner, sentTs);
+    }
+    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, true);
     upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
     return true;
   }

@@ -381,6 +381,18 @@ pub async fn run_relay() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // Boot-time DM mailbox expiry (sealed-sender store-and-forward): drop
+    // envelopes older than the configured TTL so a relay that was down for
+    // a while doesn't wait 6 hours for the periodic sweep.
+    {
+        let ttl = db.get_server_settings().map(|s| s.dm_mailbox_ttl_days).unwrap_or(30);
+        match db.mailbox_expire(ttl) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {ttl}-day TTL"),
+            Err(e) => tracing::error!("DM mailbox boot expiry failed: {e}"),
+        }
+    }
+
     // Owner-is-admin (v0.1134): a self-hosted node grants its OWNER the
     // admin role at startup. The in-app Host Node page sets this env var to
     // the app identity's key before starting the node; without it, the
@@ -757,6 +769,7 @@ pub async fn run_relay() {
     // Automated SQLite backup every 6 hours, keeping last 5 backups.
     {
         let backup_db_path = db_path.clone();
+        let sweep_state = state.clone();
         tokio::spawn(async move {
             use std::path::PathBuf;
 
@@ -768,6 +781,20 @@ pub async fn run_relay() {
             loop {
                 // Wait 6 hours between backups.
                 tokio::time::sleep(tokio::time::Duration::from_secs(6 * 60 * 60)).await;
+
+                // DM mailbox TTL sweep (sealed-sender store-and-forward):
+                // expire envelopes past the configured window BEFORE the
+                // backup runs, so expired mail doesn't ride into backups.
+                {
+                    let ttl = sweep_state.db.get_server_settings()
+                        .map(|s| s.dm_mailbox_ttl_days)
+                        .unwrap_or(30);
+                    match sweep_state.db.mailbox_expire(ttl) {
+                        Ok(0) => {}
+                        Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {ttl}-day TTL"),
+                        Err(e) => tracing::error!("DM mailbox TTL sweep failed: {e}"),
+                    }
+                }
 
                 // Ensure backup directory exists.
                 if let Err(e) = std::fs::create_dir_all(&backup_dir) {

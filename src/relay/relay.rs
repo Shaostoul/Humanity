@@ -955,6 +955,10 @@ pub enum RelayMessage {
         /// Guaranteed local-only room toggle (v0.1132).
         #[serde(default)]
         local_channel_enabled: Option<bool>,
+        /// Days sealed DM envelopes sit in dm_mailbox before expiry
+        /// (sealed-sender cutover, 2026-08-23).
+        #[serde(default)]
+        dm_mailbox_ttl_days: Option<i64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -1051,51 +1055,61 @@ pub enum RelayMessage {
         reactions: Vec<ReactionData>,
     },
 
-    /// Direct message between two users.
-    #[serde(rename = "dm")]
-    Dm {
-        from: String,
-        from_name: Option<String>,
+    /// Client deposits a sealed DM envelope into a mailbox (sealed-sender
+    /// v2, 2026-08-23). One DM = two puts: the recipient's copy and the
+    /// sender's self-copy (addressed to their own key so their other
+    /// devices can fetch sent history). `content` is the opaque
+    /// `{v:2, ek_ct_b64, nonce_b64, ct_b64}` envelope from net::dm_pq —
+    /// the sender's identity is Dilithium-signed INSIDE the ciphertext,
+    /// so the relay never stores who a message is from.
+    #[serde(rename = "dm_put")]
+    DmPut {
         to: String,
         content: String,
-        timestamp: u64,
-        /// Whether this DM is end-to-end encrypted.
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        encrypted: bool,
-        /// Base64-encoded nonce/IV for encrypted DMs.
+    },
+
+    /// Client asks for its mailbox contents after a rowid high-water mark.
+    #[serde(rename = "dm_fetch")]
+    DmFetch {
+        #[serde(default)]
+        after_id: i64,
+    },
+
+    /// Client deletes everything currently queued in its own mailbox
+    /// (user-initiated scrub; mail also auto-expires after
+    /// `dm_mailbox_ttl_days`).
+    #[serde(rename = "dm_purge")]
+    DmPurge {},
+
+    /// Server → client: a sealed envelope just arrived in your mailbox
+    /// (live delivery to every online socket bound to the mailbox key).
+    #[serde(rename = "dm_new")]
+    DmNew {
+        /// Target mailbox key (stripped before sending to client).
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        nonce: Option<String>,
+        target: Option<String>,
+        id: i64,
+        content: String,
     },
 
-    /// Client requests to open a DM conversation (load history).
-    #[serde(rename = "dm_open")]
-    DmOpen {
-        partner: String,
-    },
-
-    /// Server sends DM conversation history.
-    #[serde(rename = "dm_history")]
-    DmHistory {
+    /// Server → client: a page of mailbox rows in reply to `dm_fetch`.
+    /// `done: false` means more rows remain — page again from the last id.
+    #[serde(rename = "dm_batch")]
+    DmBatch {
         /// Target recipient (stripped before sending to client).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
-        partner: String,
-        messages: Vec<DmData>,
+        messages: Vec<DmMailItem>,
+        done: bool,
     },
 
-    /// Server sends list of DM conversations.
-    #[serde(rename = "dm_list")]
-    DmList {
+    /// Server → client: purge confirmation.
+    #[serde(rename = "dm_purged")]
+    DmPurged {
         /// Target recipient (stripped before sending to client).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
-        conversations: Vec<DmConversationData>,
-    },
-
-    /// Client marks DMs from a partner as read.
-    #[serde(rename = "dm_read")]
-    DmRead {
-        partner: String,
+        count: usize,
     },
 
     /// Voice call signaling (ring/accept/reject/hangup) — forwarded peer-to-peer.
@@ -2252,30 +2266,14 @@ pub struct ThreadMessageData {
     pub channel: String,
 }
 
-/// DM data sent to clients.
+/// One mailbox row sent to a client: rowid (fetch pagination cursor) +
+/// the opaque sealed envelope. Deliberately nothing else — no sender, no
+/// fine-grained server timestamp (ordering comes from the signed `ts`
+/// inside the envelope after the client decrypts it).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DmData {
-    pub from: String,
-    pub from_name: String,
-    pub to: String,
+pub struct DmMailItem {
+    pub id: i64,
     pub content: String,
-    pub timestamp: u64,
-    /// Whether this DM is end-to-end encrypted.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub encrypted: bool,
-    /// Base64-encoded nonce/IV for encrypted DMs.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub nonce: Option<String>,
-}
-
-/// DM conversation summary sent to clients.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DmConversationData {
-    pub partner_key: String,
-    pub partner_name: String,
-    pub last_message: String,
-    pub last_timestamp: u64,
-    pub unread_count: i64,
 }
 
 /// A single reaction record sent during sync.
@@ -3084,23 +3082,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     let _ = ws_tx.send(Message::Text(pins_msg.into())).await;
                 }
 
-                // Send DM conversation list to the new peer.
-                if let Ok(convos) = state.db.get_dm_conversations(&public_key) {
-                    let conversations: Vec<DmConversationData> = convos.into_iter().map(|c| DmConversationData {
-                        partner_key: c.partner_key,
-                        partner_name: c.partner_name,
-                        last_message: c.last_message,
-                        last_timestamp: c.last_timestamp,
-                        unread_count: c.unread_count,
-                    }).collect();
-                    if !conversations.is_empty() {
-                        let dm_list_msg = serde_json::to_string(&RelayMessage::DmList {
-                            target: None, // Direct send, not via broadcast
-                            conversations,
-                        }).unwrap();
-                        let _ = ws_tx.send(Message::Text(dm_list_msg.into())).await;
-                    }
-                }
+                // NOTE (sealed-sender DMs, 2026-08-23): the relay no longer
+                // pushes a DM conversation list at identify — it cannot
+                // build one. The client sends `dm_fetch` after connecting
+                // and reconstructs its conversations locally by decrypting
+                // its mailbox.
 
                 // Send follow list to the new peer.
                 {
@@ -3203,12 +3189,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 continue;
             }
 
-            // DM messages: only deliver to the targeted recipient (not sender — sender gets a confirmation copy via separate send).
-            if let RelayMessage::Dm { ref to, .. } = msg {
-                if to != &my_key_for_broadcast {
-                    continue; // Not for us
+            // DmNew: only deliver to sockets bound to the target mailbox key
+            // (covers the recipient AND, for self-copies, the sender's own
+            // other devices).
+            if let RelayMessage::DmNew { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue, // No target = never broadcast mail
+                    _ => {}
                 }
-                // Fall through to send it
             }
 
             // VoiceCall: only deliver to the target peer.
@@ -3234,8 +3223,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // DmHistory: only deliver to the target client.
-            if let RelayMessage::DmHistory { ref target, .. } = msg {
+            // DmBatch: only deliver to the target client.
+            if let RelayMessage::DmBatch { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue, // No target = skip
@@ -3243,8 +3232,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // DmList: only deliver to the target client.
-            if let RelayMessage::DmList { ref target, .. } = msg {
+            // DmPurged: only deliver to the target client.
+            if let RelayMessage::DmPurged { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -4602,8 +4591,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         "/dms" => {
-                                            // List DM conversations.
-                                            send_dm_list_update(&state_clone, &my_key_for_recv);
+                                            // Sealed-sender cutover: the relay cannot list
+                                            // conversations any more (it holds no DM graph).
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Your DM list lives on your device now — the server keeps no record of who you message. Open the DMs panel to see your conversations.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         "/friend-code" => {
                                             // Text form of FriendCodeRequest — both clients'
@@ -5782,6 +5776,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 server_description,
                                 server_name,
                                 local_channel_enabled,
+                                dm_mailbox_ttl_days,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5879,6 +5874,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             crate::relay::handlers::broadcast::broadcast_channel_list(&state_clone);
                                         }
                                     }
+                                    // Sealed-sender DM mailbox TTL: clamped to a sane
+                                    // window (1 day floor; a year ceiling — the point
+                                    // of the mailbox is that it is NOT an archive).
+                                    if let Some(v) = dm_mailbox_ttl_days {
+                                        current.dm_mailbox_ttl_days = v.clamp(1, 365);
+                                    }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.
@@ -5952,13 +5953,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::ProfileRequest { name } => {
                                 handle_profile_request(&state_clone, &my_key_for_recv, name).await;
                             }
-                            // DM — send a direct message.
-                            RelayMessage::Dm { to, content, encrypted, nonce, .. } => {
-                                handle_dm(&state_clone, &my_key_for_recv, to, content, encrypted, nonce).await;
+                            // DM — deposit a sealed envelope into a mailbox.
+                            RelayMessage::DmPut { to, content } => {
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content).await;
                             }
-                            // DM open — load conversation history.
-                            RelayMessage::DmOpen { partner } => {
-                                handle_dm_open(&state_clone, &my_key_for_recv, partner).await;
+                            // DM fetch — page the caller's own mailbox.
+                            RelayMessage::DmFetch { after_id } => {
+                                handle_dm_fetch(&state_clone, &my_key_for_recv, after_id).await;
                             }
                             // Voice call signaling — forward to target peer.
                             RelayMessage::VoiceCall { to, action, .. } => {
@@ -5968,9 +5969,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::WebrtcSignal { to, signal_type, data, .. } => {
                                 handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data).await;
                             }
-                            // DM read — mark messages from partner as read.
-                            RelayMessage::DmRead { partner } => {
-                                handle_dm_read(&state_clone, &my_key_for_recv, partner).await;
+                            // DM purge — the caller scrubs their own mailbox.
+                            RelayMessage::DmPurge {} => {
+                                handle_dm_purge(&state_clone, &my_key_for_recv).await;
                             }
                             // ── Search ──
                             RelayMessage::Search { query, channel, from, limit } => {

@@ -92,12 +92,69 @@ function openDmConversation(partnerKey, partnerName) {
   input.placeholder = `Message ${partnerName}…`;
   document.getElementById('send-btn').disabled = false;
 
-  // Request DM history from server.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'dm_open', partner: partnerKey }));
-  }
+  // History renders from the LOCAL encrypted store — the relay keeps no
+  // DM history any more (sealed-sender: its mailbox is a sender-less
+  // delivery window that expires).
+  renderDmConversationFromStore(partnerKey);
 
   if (isMobile()) closeSidebars();
+}
+
+/** Render a DM conversation from the LOCAL history store into #messages. */
+function renderDmConversationFromStore(partnerKey) {
+  const msgsEl = document.getElementById('messages');
+  msgsEl.innerHTML = '';
+  const banner = document.createElement('div');
+  banner.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
+  banner.innerHTML = hosIcon('lock', 14) + ' End-to-end encrypted, sender sealed inside (post-quantum). History lives on your devices; the server keeps no readable copy.';
+  msgsEl.appendChild(banner);
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  const msgs = hosDmStore.conversation(partnerKey);
+  if (msgs.length > 0) {
+    const notice = document.createElement('div');
+    notice.id = 'history-notice';
+    notice.textContent = `── ${msgs.length} earlier messages ──`;
+    msgsEl.appendChild(notice);
+  }
+  for (const m of msgs) {
+    const isMe = m.from === myKey;
+    const name = isMe
+      ? myName
+      : ((window.peerData && peerData[m.from]?.display_name) || activeDmPartnerName || shortKey(m.from));
+    addDmMessage(name, m.text, m.ts, m.from, m.to, true);
+  }
+  const last = msgs[msgs.length - 1];
+  if (last) hosDmStore.markRead(partnerKey, last.ts);
+}
+
+/** Rebuild the sidebar conversation list from the local store. */
+function loadDmListFromStore() {
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  const summaries = hosDmStore.summaries();
+  const known = new Set(summaries.map(s => s.peer));
+  // Preserve locally-seeded entries (brand-new, still-empty conversations).
+  const localOnly = dmConversations.filter(c => !known.has(c.partner_key));
+  dmConversations = summaries.map(s => ({
+    partner_key: s.peer,
+    partner_name: (window.peerData && peerData[s.peer]?.display_name)
+      || dmConversations.find(c => c.partner_key === s.peer)?.partner_name
+      || shortKey(s.peer),
+    last_message: s.lastFromMe ? ('You: ' + s.lastText) : s.lastText,
+    last_timestamp: s.lastTs,
+    unread_count: s.unread ? 1 : 0,
+  })).concat(localOnly);
+  dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
+  renderDmList();
+}
+
+/** Sealed-sender privacy control: delete every envelope currently queued
+ *  for us server-side (they auto-expire after the server TTL anyway; this
+ *  is the immediate scrub). Local history on this device is untouched. */
+function purgeServerMailbox() {
+  if (!confirm('Delete all encrypted DM envelopes currently stored for you on the server?\n\nMessages already saved on your devices stay. Another device that hasn\'t synced yet won\'t receive what you delete.')) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'dm_purge' }));
+  }
 }
 
 /** Close DM view and return to channel view. */
@@ -155,8 +212,11 @@ function dmSafePreview(raw) {
 /** Render the DM conversation list in the sidebar. */
 function renderDmList() {
   const list = document.getElementById('dm-list');
+  // Sealed-sender scrub control, always available at the foot of the list.
+  const purgeRow = '<div class="dm-item" style="opacity:0.7;" onclick="purgeServerMailbox()" title="Deletes the encrypted envelopes queued for you on the server. Local history stays.">'
+    + '<span class="dm-name">🗑 Delete my server mailbox</span></div>';
   if (dmConversations.length === 0) {
-    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>';
+    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
     return;
   }
 
@@ -177,7 +237,7 @@ function renderDmList() {
       <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
       <span class="dm-time">${timeStr}</span>
     </div>`;
-  }).join('');
+  }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }

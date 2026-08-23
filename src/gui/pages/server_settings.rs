@@ -2158,6 +2158,20 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             int_input(ui, &mut draft.max_total_upload_mb, 1, 1_000_000);
         });
 
+        ui.add_space(theme.spacing_md);
+        widgets::subsection_label(ui, theme, "DM mailbox retention (days)");
+        widgets::body_hint(
+            ui, theme,
+            "Sealed DM envelopes wait here only until devices fetch them, then \
+             expire after this many days. The server stores no sender and cannot \
+             read them; long-term history lives encrypted on each member's own \
+             devices. Shorter = less ciphertext a subpoena or breach could ever \
+             collect; longer = more catch-up window for devices that were offline.",
+        );
+        widgets::form_row(ui, theme, "Days before sealed DMs expire", |ui| {
+            int_input(ui, &mut draft.dm_mailbox_ttl_days, 1, 365);
+        });
+
         ui.add_space(theme.spacing_sm);
         widgets::subsection_label(ui, theme, "Security policy");
         // Full-PQ: the "Require post-quantum signatures" toggle was removed.
@@ -2727,6 +2741,8 @@ fn send_server_settings_update(
                 "server_description":              draft.server_description,
                 // Server display name (v0.480).
                 "server_name":                    draft.server_name,
+                // Sealed-sender DM mailbox TTL (2026-08-23).
+                "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
                 // Guaranteed local-only room toggle (v0.1132).
                 "local_channel_enabled":           draft.local_channel_enabled,
             });
