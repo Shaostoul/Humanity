@@ -276,6 +276,26 @@
    "settle_s": 10
   },
   {
+   "id": "space-50000km",
+   "desc": "Deep-space perf sentinel (operator: bad lag in space away from the planet). Earth ~250 px.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 50000
+   },
+   "settle_s": 8,
+   "expect": "Smooth deep-space frame; the cloud map must not be full-rate marching for a 250 px disc.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 5,
+   "showcase": {
+    "clouds": "1"
+   }
+  },
+  {
    "id": "blue-marble-12000km",
    "desc": "12,000 km from Earth, the approved full-disc blue marble",
    "camera": {

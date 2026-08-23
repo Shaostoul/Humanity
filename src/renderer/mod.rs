@@ -2978,10 +2978,25 @@ impl Renderer {
                 // exceeds ~2 texels of parallax at the cloud slab's
                 // distance; correctness costs frames only while moving
                 // that fast.
-                let thresh = self
+                // SCREEN-RELATIVE threshold + small-disc veto (the
+                // deep-space lag report): ghosting only matters at the
+                // scale a SCREEN pixel can show, so the shift budget is
+                // 2x the larger of the map texel and the screen pixel
+                // angle - at orbit that is ~9x more headroom than the
+                // map-texel form, which had the sentinel firing on every
+                // frame of ordinary space cruising and full-rate
+                // marching 16.7M texels for a few-hundred-px disc. And
+                // when the planet is small on screen (sentinel_ok false,
+                // px < 700), the sentinel never fires at all: cadence
+                // ghosting on a small disc is sub-pixel, while the
+                // march-all cost is the lag.
+                let sentinel = self
                     .cloud_composite_frame
                     .as_ref()
                     .map(|f| {
+                        if !f.sentinel_ok {
+                            return false;
+                        }
                         let eye = camera.effective_position();
                         let dc = ((eye.x - f.center[0]).powi(2)
                             + (eye.y - f.center[1]).powi(2)
@@ -2991,10 +3006,14 @@ impl Renderer {
                         let d_slab = dc.max(3.0e3);
                         let k = (1.0 - f.cmax).clamp(1.0e-3, 2.0);
                         let texel_ang = (2.0 * k).sqrt() / 4096.0;
-                        2.0 * texel_ang * d_slab
+                        let screen_ang = 2.0
+                            * (camera.fov_degrees.to_radians() * 0.5).tan()
+                            / (self.config.height.max(1) as f32);
+                        let thresh = 2.0 * texel_ang.max(screen_ang) * d_slab;
+                        d2 > thresh * thresh
                     })
-                    .unwrap_or(2.0e3);
-                if d2 > thresh * thresh {
+                    .unwrap_or(false);
+                if sentinel {
                     [d[0], d[1], d[2], 9.0]
                 } else {
                     [d[0], d[1], d[2], 1.0 + phase]

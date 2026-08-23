@@ -11682,6 +11682,7 @@ mod native_app {
                                                 // match below, where
                                                 // inside_atmo is known.
                                                 atmo_over: false,
+                                                sentinel_ok: px >= 700.0,
                                             })
                                         } else {
                                             None

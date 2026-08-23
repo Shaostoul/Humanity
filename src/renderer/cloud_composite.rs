@@ -42,6 +42,12 @@ pub struct CloudCompositeFrame {
     /// Positions the composite pass before vs after the transparent
     /// celestial pass (12c order fix, adversarial review finding 3).
     pub atmo_over: bool,
+    /// True when the planet is large enough on screen (>= ~700 px) that
+    /// the march-all cadence sentinel is worth its cost. On a small disc
+    /// the sub-pixel ghosting cadence might cause is invisible, while
+    /// full-rate marching 16.7M texels for a few hundred pixels of cloud
+    /// is the deep-space lag the operator reported (v0.1195 round).
+    pub sentinel_ok: bool,
 }
 
 #[repr(C)]
