@@ -1003,8 +1003,25 @@ fn wave_octave(
     // is invisible once a wavelength spans under ~24 px on screen. Skip
     // both noises there - the far field keeps its straight-crest look
     // (which the AA fade is already blurring out anyway).
+    //
+    // The warp gate takes the ACROSS-sightline footprint, NOT the
+    // grazing-stretched one `footprint_m` now carries on water. The two
+    // footprints answer different questions and this is the one place in the
+    // file where they must diverge: the AA fades ask "can the sampling rate
+    // carry this wavelength" (the long axis, where aliasing happens), while
+    // this gate asks "is the crest wiggle big enough on screen to be worth
+    // two noise taps" - a question about apparent size, which the angular
+    // footprint answers. Feeding it the long axis would switch the warp off
+    // across the whole grazing mid-field and hand back DEAD-STRAIGHT PARALLEL
+    // CRESTS there, which is the very look the warp exists to break up (and
+    // the look the operator reports). Zero means the water caller has not run
+    // - the terrain branch's own call - so fall back to what it passed.
+    var warp_fp = footprint_m;
+    if (g_water_fp_across > 0.0) {
+        warp_fp = g_water_fp_across;
+    }
     var warp = 0.0;
-    let warp_gate = 1.0 - smoothstep(lambda_m * 0.028, lambda_m * 0.042, footprint_m);
+    let warp_gate = 1.0 - smoothstep(lambda_m * 0.028, lambda_m * 0.042, warp_fp);
     if (warp_gate > 0.001) {
         let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
         let warp_c = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)

@@ -467,6 +467,47 @@ mod tests {
         assert_eq!(water_footprint(500.0, -0.3), water_footprint(500.0, 0.3));
     }
 
+    /// The grazing-footprint fix needs ONE caller line inside `ocean_shell`,
+    /// which lives in the shared `90-fragment-main.wgsl` tail. Rather than
+    /// edit that file from a side lane, the substitution is applied to the
+    /// assembled source HERE and validated through the same naga gate the
+    /// megashader uses - so the wiring is proven before anyone applies it,
+    /// and stays proven afterwards (once it lands the anchor is gone and
+    /// this validates the shipped source unchanged).
+    #[test]
+    fn the_grazing_footprint_wiring_validates() {
+        // The shader parts ship with CRLF endings; naga does not care, and
+        // normalising lets the anchor below be written once.
+        let src = crate::renderer::shader_loader::assembled_pbr_source().replace("\r\n", "\n");
+        let src = src.as_str();
+        // Two lines, because `let footprint = max(dist_frag * ...)` also
+        // appears in the type-12 terrain branch, which has no `inv_model`.
+        // Only ocean_shell clamps dist_frag to 1.0, so this pair is unique.
+        const ANCHOR: &str = "    let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);\n\
+             \x20   let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);";
+        const WIRED: &str = "    let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);\n\
+             \x20   let footprint = water_footprint(\n\
+             \x20       dist_frag,\n\
+             \x20       dir,\n\
+             \x20       normalize((inv_model * vec4<f32>(view_dir, 0.0)).xyz),\n\
+             \x20   );";
+        let patched = if src.contains(ANCHOR) {
+            let out = src.replace(ANCHOR, WIRED);
+            assert!(out.contains("water_footprint("), "substitution did not take");
+            out
+        } else {
+            assert!(
+                src.contains("let footprint = water_footprint("),
+                "neither the pre-wiring anchor nor the wired call is present in ocean_shell - \
+                 the shared tail drifted, re-derive the wiring request"
+            );
+            src.to_string()
+        };
+        if let Err(e) = crate::renderer::shader_loader::validate_wgsl(&patched) {
+            panic!("the wired megashader failed validation: {e}");
+        }
+    }
+
     /// The measured defect band, as numbers. `ocean-storm-horizon`
     /// (20 m eye, 40 px under the horizon): 308 m out, ndv 0.065. The
     /// isotropic estimate said 0.25 m, the truth is 3.8 m, and the wave
