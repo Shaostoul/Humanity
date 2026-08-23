@@ -24,6 +24,86 @@ const PLANET_PIXEL_ANGLE: f32 = 0.0008;
 // below LO, fully on at or above HI (both comfortably above Nyquist).
 const DETAIL_FADE_LO: f32 = 4.0;
 const DETAIL_FADE_HI: f32 = 12.0;
+
+// ── THE GRAZING FOOTPRINT (the ocean zebra-stripe root cause) ─────────────
+//
+// `dist * PLANET_PIXEL_ANGLE` is the pixel footprint ACROSS the sightline -
+// the angular one. The footprint ALONG the sightline is that divided by
+// cos(incidence) = dot(surface normal, view direction), and THAT is the
+// sample spacing the anti-alias gates actually have to respect: a band limit
+// must be set by the LOWEST sampling rate in any direction, or the content
+// aliases along that direction.
+//
+// Every other surface in the engine is mostly seen face-on, so the isotropic
+// estimate is close enough. The SEA is the one surface that is essentially
+// always viewed at extreme incidence, and the stretch is unbounded at the
+// horizon. Worked numbers for the two rig captures that show the defect:
+//
+//   ocean-storm-horizon, 20 m eye, 40 px under the horizon: distance 308 m,
+//   ndv 0.065. Across = 0.25 m, ALONG = 3.8 m. The wave texture was sampled
+//   at mip log2(0.25 * 128) = 5.0 when the along-axis needs 8.9 - sixteen
+//   times under-filtered. Measured: per-pixel horizontal RMS luminance
+//   gradient peaks at 33 in that band and DECAYS with distance from the
+//   horizon, the exact inverse of what a correctly filtered surface does.
+//
+//   ocean-150m, 150 m eye, mid-field row 850: distance 477 m, ndv 0.30,
+//   along 0.86 m vs the 0.31 m the gates assumed. RMS peaks at 9.2 there.
+//
+// The two visible faces of the same defect: at MODERATE stretch (3-6x) the
+// folded frequencies land mid-band and read as shimmer/speckle; at EXTREME
+// stretch (>10x, everything approaching the horizon) they fold to near-DC
+// and read as LARGE REGULAR PARALLEL BANDS riding the glitter - the
+// operator's zebra stripes. They run perpendicular to the view because the
+// sampling compression is along the sightline, so the alias fringes follow
+// iso-distance lines.
+//
+// The gates were never wrong about their thresholds; they were fed the wrong
+// footprint. `water_footprint` returns the along-sightline one and stashes
+// the anisotropy so `ocean_tex_gradient` can hand the hardware the TRUE
+// gradient pair instead of one isotropic mip (the same fix the ground path
+// took in v0.977; water was left behind on the old explicit-LOD form).
+//
+// Numeric guard only - at the true horizon the footprint really is infinite
+// (one pixel spans an unbounded strip of sea), and every gate retiring there
+// is the correct answer: `resolved` goes to 0, the mirror retires to the
+// geometric normal, and the Cox-Munk lobe widens to carry the whole slope
+// distribution. That machinery already exists in water_shade; it was simply
+// never reached, because the footprint never grew.
+const WATER_GRAZE_MIN_NDV: f32 = 0.01;
+// The sampler's anisotropy_clamp (renderer::ground_textures). Beyond this
+// ratio the hardware falls back to an isotropic long-axis mip anyway.
+const WATER_ANISO_MAX: f32 = 16.0;
+
+// Fragment-scope water footprint state, written by `water_footprint` and
+// read by `ocean_tex_gradient`. Same var<private> transport pattern as
+// g_inst_data: it keeps the anisotropy out of every intermediate signature.
+// Zero `g_water_fp_across` means "never set" - the texture path then falls
+// back to the isotropic footprint it is passed, so this file is inert until
+// the caller opts in.
+var<private> g_water_fp_across: f32 = 0.0;
+var<private> g_water_ndv: f32 = 1.0;
+// Unit view direction (fragment -> eye) projected into the local tangent
+// plane, in the PLANET-LOCAL frame - the long axis of the footprint ellipse.
+// Zero when the view is exactly along the normal (no anisotropy to orient).
+var<private> g_water_vt: vec3<f32> = vec3<f32>(0.0);
+
+// Pixel footprint on the WATER surface, in metres, along its longest axis.
+// `n_local` and `view_local` are the planet-local sphere normal and the unit
+// fragment-to-eye direction (water_shade's own frame).
+fn water_footprint(dist_m: f32, n_local: vec3<f32>, view_local: vec3<f32>) -> f32 {
+    let across = max(dist_m * PLANET_PIXEL_ANGLE, 0.001);
+    let ndv = max(abs(dot(n_local, view_local)), WATER_GRAZE_MIN_NDV);
+    g_water_fp_across = across;
+    g_water_ndv = ndv;
+    let vt = view_local - n_local * dot(view_local, n_local);
+    let l = length(vt);
+    if (l > 1.0e-5) {
+        g_water_vt = vt / l;
+    } else {
+        g_water_vt = vec3<f32>(0.0);
+    }
+    return across / ndv;
+}
 // Water Fresnel reflectance at normal incidence (n = 1.33 -> ~0.02).
 const WATER_F0: f32 = 0.02;
 // W2 (environment program increment 7): fraction of the Cox-Munk slope
@@ -958,8 +1038,10 @@ fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -
 
 // ── Ocean detail from the tiling wave texture (v0.922, ground_tex layer 8) ──
 // Two scrolled octaves of the procedurally generated random-phase wave tile,
-// sampled with explicit mip LOD so the GPU clamps screen-space frequency
-// automatically - the property the analytic octaves could never have. RG =
+// sampled with the TRUE gradient pair (textureSampleGrad) so the GPU clamps
+// screen-space frequency automatically on BOTH footprint axes - the property
+// the analytic octaves could never have, and which the pre-fix explicit-LOD
+// form only half-had (one isotropic mip for an ellipse up to 16:1). RG =
 // tangent slope, B = crest height (foam mask). `p_anch` is the camera-
 // anchored planet-local metre domain (the micro-ripple anchor), so UV math
 // stays in small floats. Octave tiles 16 m and 64 m both divide the 64 m
@@ -973,16 +1055,51 @@ fn ocean_tex_gradient(p_anch: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32)
     let t1 = normalize(cross(n, up_ref));
     let t2 = cross(n, t1);
     let uv_m = vec2<f32>(dot(p_anch, t1), dot(p_anch, t2));
+    // ── ANISOTROPIC FOOTPRINT (the zebra fix, second half) ────────────────
+    // The old form picked ONE isotropic mip from `footprint_m`. Fed the
+    // across-sightline footprint that under-filtered the long axis by up to
+    // 16x at grazing (the alias that reads as zebra bands); fed the
+    // along-sightline one it would over-blur the short axis by the same
+    // factor and smear the chop laterally. Neither is a filter for an
+    // ellipse. Hand the hardware the real gradient PAIR instead and let the
+    // x16 anisotropic sampler take taps down the long axis - byte-for-byte
+    // the reasoning that fixed the ground in v0.977.
+    //
+    // Metres per screen step along each footprint axis, in the tangent
+    // plane, then mapped through the same (t1, t2) basis as uv_m. The axes
+    // come from `water_footprint`; when the caller has not called it (the
+    // pre-wiring state, g_water_fp_across == 0) this degrades to an
+    // isotropic pair equal to `footprint_m`, which picks exactly the mip the
+    // explicit-LOD form used to - so that path is unchanged.
+    var f_across = g_water_fp_across;
+    var f_along = g_water_fp_across / g_water_ndv;
+    var e_along = t1;
+    var e_across = t2;
+    if (f_across <= 0.0) {
+        f_across = footprint_m;
+        f_along = footprint_m;
+    } else if (dot(g_water_vt, g_water_vt) > 0.25) {
+        // Re-project defensively: `n` here is the same sphere normal
+        // water_footprint was given, so this is a no-op in practice.
+        let a = g_water_vt - n * dot(g_water_vt, n);
+        let al = length(a);
+        if (al > 1.0e-4) {
+            e_along = a / al;
+            e_across = cross(n, e_along);
+        }
+    }
+    let d_long = vec2<f32>(dot(e_along, t1), dot(e_along, t2)) * f_along;
+    let d_short = vec2<f32>(dot(e_across, t1), dot(e_across, t2)) * f_across;
     // Octave A: 16 m tile, the main chop. Octave B: 64 m tile, slow rollers.
     // Different scroll directions decorrelate the shared content.
-    let lod_a = clamp(log2(max(footprint_m * 2048.0 / 16.0, 1.0)), 0.0, 11.0);
-    let s_a = textureSampleLevel(
+    let s_a = textureSampleGrad(
         ground_tex, ground_samp,
-        uv_m / 16.0 + vec2<f32>(t * 0.021, t * 0.009), GROUND_LAYER_OCEAN, lod_a);
-    let lod_b = clamp(log2(max(footprint_m * 2048.0 / 64.0, 1.0)), 0.0, 11.0);
-    let s_b = textureSampleLevel(
+        uv_m / 16.0 + vec2<f32>(t * 0.021, t * 0.009), GROUND_LAYER_OCEAN,
+        d_long / 16.0, d_short / 16.0);
+    let s_b = textureSampleGrad(
         ground_tex, ground_samp,
-        uv_m / 64.0 + vec2<f32>(-t * 0.0035, t * 0.0055), GROUND_LAYER_OCEAN, lod_b);
+        uv_m / 64.0 + vec2<f32>(-t * 0.0035, t * 0.0055), GROUND_LAYER_OCEAN,
+        d_long / 64.0, d_short / 64.0);
     let g_a = s_a.rg * 2.0 - 1.0;
     let g_b = s_b.rg * 2.0 - 1.0;
     let g2 = g_a * 0.80 + g_b * 0.55;
