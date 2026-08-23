@@ -230,16 +230,28 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
 
-    // The temporal map (premultiplied), by direction. The 1.02 threshold
-    // (~1 deg past the extent) is deliberate: at k = 2 the antipode's
-    // r^2 lands at 1.0 exactly and f32 dot jitter can push it a hair
-    // over - an exact > 1.0 test would flicker a hole at the sub-camera
-    // point. Genuinely outside-extent rays overshoot far past 1.02.
-    let e = map_encode(rd);
-    if (e.z > 1.02) {
-        discard; // outside the map's extent - no data
+    // The cloud image (premultiplied). Two regimes (12d):
+    //  - NEAR (cam_right.w > 0.5): the bound texture is the half-res
+    //    SCREEN buffer, marched per pixel this frame for exactly this
+    //    camera - sample it at this fragment's own screen coordinate
+    //    (texture rows run downward, so flip v like the depth lookup
+    //    above). No extent, no direction mapping.
+    //  - FAR: the direction-indexed octa map. The 1.02 threshold (~1 deg
+    //    past the extent) is deliberate: at k = 2 the antipode's r^2
+    //    lands at 1.0 exactly and f32 dot jitter can push it a hair over
+    //    - an exact > 1.0 test would flicker a hole at the sub-camera
+    //    point. Genuinely outside-extent rays overshoot far past 1.02.
+    var s = vec4<f32>(0.0);
+    if (u.cam_right.w > 0.5) {
+        s = textureSampleLevel(
+            cloud_map, map_sampler, vec2<f32>(in.uv.x, 1.0 - in.uv.y), 0.0);
+    } else {
+        let e = map_encode(rd);
+        if (e.z > 1.02) {
+            discard; // outside the map's extent - no data
+        }
+        s = map_catmull_rom(e.xy);
     }
-    let s = map_catmull_rom(e.xy);
     if (s.a <= 0.003) {
         discard;
     }

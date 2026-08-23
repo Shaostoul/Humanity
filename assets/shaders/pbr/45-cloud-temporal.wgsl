@@ -299,3 +299,149 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     }
     return mix(hist, cur, alpha);
 }
+
+// ── The NEAR-FIELD SCREEN pass (12d, the two-regime architecture) ──────
+//
+// The operator-mandated full fix after eight rounds of direction-cache
+// ghost variants: near the planet, clouds are marched PER SCREEN PIXEL
+// at half resolution with screen-space temporal reprojection - the
+// previous FRAME is reprojected through the actual camera motion via
+// each pixel's own first-hit distance, which is translation-exact by
+// construction. No direction cache exists in this regime, so the whole
+// solitaire family (echoes, tiles, lattices) is structurally impossible
+// here, and there is no arming or representation switch to make clouds
+// vanish on approach. The octa map above survives only in the FAR
+// regime (planet under ~1000 px), where its texels are sub-pixel and
+// its artifacts invisible.
+//
+// Drawn as the cloud SHELL MESH (the standard vs_main vertex path) into
+// a half-res RGBA16F ping-pong pair: shell fragments provide the pixel
+// rays for free, and the ping-pong history rides the group-3 albedo
+// slot exactly like the octa pass - zero bind-group-layout changes.
+//
+// Pads (all legacy point-light slots, unread since the storage-buffer
+// light list): light4.xyz = planet-relative camera delta (prev - now,
+// world axes - shared with the octa reprojection), light4.w = cadence
+// phase/flag; light5.xyz/light6.xyz/light7.xyz = the PREVIOUS frame's
+// camera forward/right/up basis; light5.w = tan(fov/2), light6.w =
+// aspect.
+
+struct CloudScreenVsOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) ndc: vec2<f32>,
+};
+
+@vertex
+fn vs_cloud_screen(@builtin(vertex_index) vi: u32) -> CloudScreenVsOut {
+    // The classic single fullscreen triangle. The fragment rebuilds its
+    // ray from NDC + the camera basis pads, so no shell geometry is
+    // involved anywhere in this pass.
+    let x = f32(i32(vi & 1u) * 4 - 1);
+    let y = f32(i32(vi & 2u) * 2 - 1);
+    var out: CloudScreenVsOut;
+    out.pos = vec4<f32>(x, y, 0.0, 1.0);
+    out.ndc = vec2<f32>(x, y);
+    return out;
+}
+
+@fragment
+fn fs_cloud_screen(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    let center = obj_model()[3].xyz;
+    let shell_r = length(obj_model()[0].xyz);
+    cloud_set_slab_bounds();
+    // ANALYTIC pixel ray from the CURRENT camera basis pads (light0/1/2)
+    // - NEVER from shell mesh fragments. The shell icosphere is coarse:
+    // near the zenith a triangle's chord sags far below the true sphere,
+    // so a ground-level camera sits ABOVE the local mesh surface and the
+    // interpolated fragment position yields a DOWNWARD ray for an upward
+    // pixel - proven 2026-08-23 by the magenta ground-occlusion sentinel
+    // filling the under-deck sky (the operator's vanish-on-approach).
+    // A fullscreen triangle with analytic rays has no geometry to sag,
+    // and the facing/one-layer discard problem disappears with the mesh.
+    let tanf = max(camera.light5.w, 1.0e-4);
+    let aspect = max(camera.light6.w, 1.0e-4);
+    let rd_w = normalize(
+        camera.light0.xyz
+            + camera.light1.xyz * (in.ndc.x * tanf * aspect)
+            + camera.light2.xyz * (in.ndc.y * tanf),
+    );
+
+    // 8x8-block interleaved cadence in the half-res target (wave-
+    // coherent skips). Screen reprojection is translation-exact, so a
+    // skipped block's reprojected copy carries no angular-cache lag -
+    // the octa tiles cannot recur here. hash21 mixes the block phase
+    // (the integer LCG showed visible column stripes).
+    var do_march = true;
+    let w4 = camera.light4.w;
+    if (w4 > 0.5 && w4 < 8.5) {
+        let b = floor(in.pos.xy / 8.0);
+        let cell = u32(hash21(b + vec2<f32>(0.13, 0.71)) * 4.0) & 3u;
+        do_march = cell == u32(w4 - 0.5);
+    }
+
+    // March (or skip): half-res pixel footprint = 2x the screen pixel.
+    var cur_s = vec4<f32>(0.0);
+    if (do_march) {
+        let jitter = fract(
+            hash21(in.pos.xy * 0.7182)
+                + fract(camera.sun_color.w * 11.0) * 0.618034,
+        );
+        cur_s = cloud_march_core(
+            rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 2.0);
+    }
+    let cur = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
+
+    // Screen-space history: reproject this pixel's CONTENT point into
+    // the previous frame. The content distance is this frame's first
+    // hit (marched pixels) or the analytic shell hit (skips / clear).
+    var t_rep = g_march_first_t;
+    if (t_rep <= 0.0) {
+        let ro_c = camera.view_pos.xyz - center;
+        let b = dot(ro_c, rd_w);
+        let disc = b * b - (dot(ro_c, ro_c) - shell_r * shell_r);
+        if (disc > 0.0) {
+            let sq = sqrt(disc);
+            t_rep = select(-b + sq, -b - sq, -b - sq > 0.0);
+        }
+    }
+    var hist = vec4<f32>(0.0);
+    var have_hist = false;
+    if (w4 > 0.5 && t_rep > 0.0) {
+        let p_w = camera.view_pos.xyz + rd_w * t_rep;
+        let prev_pos = camera.view_pos.xyz + camera.light4.xyz;
+        let d_prev = normalize(p_w - prev_pos);
+        let pf = camera.light5.xyz;
+        let pr = camera.light6.xyz;
+        let pu = camera.light7.xyz;
+        let z = dot(d_prev, pf);
+        if (z > 1.0e-4) {
+            let tanf = max(camera.light5.w, 1.0e-4);
+            let aspect = max(camera.light6.w, 1.0e-4);
+            let nx = dot(d_prev, pr) / (z * tanf * aspect);
+            let ny = dot(d_prev, pu) / (z * tanf);
+            let uv_p = vec2<f32>(nx, -ny) * 0.5 + vec2<f32>(0.5);
+            if (uv_p.x >= 0.0 && uv_p.x <= 1.0 && uv_p.y >= 0.0 && uv_p.y <= 1.0) {
+                hist = textureSampleLevel(albedo_texture, albedo_sampler, uv_p, 0.0);
+                have_hist = true;
+            }
+        }
+    }
+    if (!do_march) {
+        // Skipped pixel: carry the reprojected history; a fresh march
+        // lands within three frames.
+        if (have_hist) {
+            return hist;
+        }
+        return vec4<f32>(0.0);
+    }
+    if (!have_hist) {
+        return cur;
+    }
+    // Light accumulation: today's band-limited march is clean enough
+    // that ~4-frame convergence suffices, and short history means short
+    // artifact lifetimes. Content change accelerates the blend.
+    let diff = abs(cur.a - hist.a)
+        + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
+    let alpha = clamp(0.25 + diff * 0.5, 0.25, 0.6);
+    return mix(hist, cur, alpha);
+}

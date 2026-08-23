@@ -77,6 +77,9 @@ pub struct Pipeline {
     /// triangle into the direction-indexed RGBA16F cloud map, standard
     /// group layouts (history rides the albedo slot).
     pub cloud_octa_pipeline: wgpu::RenderPipeline,
+    /// Near-field screen cloud pass (12d): shell mesh at half res,
+    /// per-pixel march + screen-space reprojection.
+    pub cloud_screen_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     /// Group-1 layout for the terrain-batch pipelines: one shared batch
@@ -477,6 +480,8 @@ impl Pipeline {
         );
         let cloud_octa_pipeline =
             Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
+        let cloud_screen_pipeline =
+            Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
 
         Self {
             render_pipeline,
@@ -487,6 +492,7 @@ impl Pipeline {
             patch_render_pipeline,
             patch_shadow_pipeline,
             cloud_octa_pipeline,
+            cloud_screen_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
             patch_bind_group_layout,
@@ -502,6 +508,51 @@ impl Pipeline {
     /// bind group - zero layout changes, so the v0.1029 every-site hazard
     /// never applies. Renders to RGBA16F with no depth and no blending
     /// (the EMA happens in-shader against the ping-pong partner).
+    /// The near-field SCREEN cloud pass (12d two-regime architecture):
+    /// the cloud shell mesh drawn with the standard vertex path into a
+    /// half-res RGBA16F target, fragment = per-pixel march + screen-
+    /// space temporal reprojection. Cull NONE - the inside camera uses
+    /// the shell's back faces (the fragment keeps exactly one layer via
+    /// the standard front_facing rule).
+    fn build_cloud_screen_pipeline(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Cloud Screen Temporal Pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                // Fullscreen triangle: the fragment builds each pixel's ray
+                // analytically from the camera-basis pads. Never the shell
+                // mesh - its coarse icosphere chords sag below a ground
+                // camera and invert the rays (the under-deck vanish).
+                entry_point: Some("vs_cloud_screen"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_cloud_screen"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba16Float,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        })
+    }
+
     fn build_cloud_octa_pipeline(
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
@@ -586,6 +637,8 @@ impl Pipeline {
         self.patch_shadow_pipeline = patch_shadow;
         self.cloud_octa_pipeline =
             Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
+        self.cloud_screen_pipeline =
+            Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
     }
 
     /// The sun-shadow PSO a CLASSIC caster should draw with (v0.1106).

@@ -61,7 +61,73 @@ pub struct CloudTemporal {
     pub cur: std::cell::Cell<usize>,
 }
 
+/// The NEAR-regime screen buffers (12d two-regime architecture): a
+/// half-resolution RGBA16F ping-pong pair for the per-pixel marched +
+/// screen-reprojected cloud image. Recreated whenever the swapchain
+/// size changes; history rides the group-3 albedo slot exactly like
+/// the octa maps.
+pub struct CloudScreen {
+    _textures: [wgpu::Texture; 2],
+    pub views: [wgpu::TextureView; 2],
+    pub groups: [AlbedoBindGroup; 2],
+    pub cur: std::cell::Cell<usize>,
+    pub size: (u32, u32),
+}
+
 impl Renderer {
+    /// Ensure the near-regime screen buffers exist at the current half
+    /// resolution (12d). Called by lib.rs when the near cloud mode is
+    /// active.
+    pub fn ensure_cloud_screen(&mut self) {
+        let want = (
+            (self.config.width / 2).max(8),
+            (self.config.height / 2).max(8),
+        );
+        if self
+            .cloud_screen
+            .as_ref()
+            .map(|s| s.size == want)
+            .unwrap_or(false)
+        {
+            return;
+        }
+        let mk = |dev: &wgpu::Device, label: &str| {
+            let tex = dev.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: want.0,
+                    height: want.1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+            });
+            let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+            (tex, view)
+        };
+        let (t0, v0) = mk(&self.device, "Cloud Screen A");
+        let (t1, v1) = mk(&self.device, "Cloud Screen B");
+        let g0 = self.build_albedo_group_from_view(&v0, &self.albedo_sampler);
+        let g1 = self.build_albedo_group_from_view(&v1, &self.albedo_sampler);
+        self.cloud_screen = Some(CloudScreen {
+            _textures: [t0, t1],
+            views: [v0, v1],
+            groups: [g0, g1],
+            cur: std::cell::Cell::new(0),
+            size: want,
+        });
+        log::info!(
+            "Cloud screen pass ON: {}x{} half-res pair",
+            want.0,
+            want.1
+        );
+    }
+
     /// Turn the temporal cloud path on (Some(cloud material index)) or off
     /// for this frame, creating the maps on first use. Called by lib.rs
     /// right after the cloud material update each frame.

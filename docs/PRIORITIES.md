@@ -18,19 +18,38 @@
 > re-park + 6 s settle in probe-sweep.js (first with-time request of a
 > boot lands ~8 h early; engine ordering fix owed, chip task).
 >
-> **NEXT (TOP): THE VANISH HUNT, haze-corrected.** The operator's
-> clouds-vanish-between-80-and-212-km (live path) survived round one of
-> measurement: the PINNED same-region pair is near-invariant (1.26x -
-> rendering exonerated), and the live-path metrics hit two named
-> confounds (atmosphere haze counted as cloud above the atmo top;
-> single-crop regional sampling). Run the DESIGNED protocol: per
-> altitude, capture clouds ON and OFF in the same boot (showcase
-> toggle), coverage = luminance delta over the haze baseline,
-> region-matched crops at 3+ offsets (vantages cov50-/live-cloudy-
-> 80km/212km + scripts/coverage-crop.mjs exist). Prime suspect BY
-> CONSTRUCTION: the wx-floor altitude fade (30-120 km) hands the sim
-> deck off toward the live field - if live is thin or invalid, the deck
-> fades to NOTHING mid-ascent. Journal 2026-08-22 has the full design.
+> **SHIPPED v0.1198.0: THE VANISH ROOT CAUSE + the 12d two-regime
+> architecture.** The vanish was NOT the wx-floor handoff: cloud_carve
+> divided by (1 - thr) while the body tops at CLOUD_BODY_TOP = 0.79,
+> capping cores at carve ~0.68 (typical 0.2-0.4); the four erosion
+> bands - calibrated for carve-1 cores - ground the entire from-below
+> deck to ZERO (stage forensics at pinned coverage 1.0: pre-erosion
+> carve max 0.23, post-erosion 0.000 on every sky ray). Fix: divide by
+> (CLOUD_BODY_TOP - thr), the contract the constant's own comment
+> documents. Plus 12d: NEAR regime (>= 1000 px) = half-res fullscreen
+> per-pixel march with analytic pad-basis rays + screen reprojection
+> (no direction cache -> the whole solitaire/ghost family structurally
+> impossible near the planet); FAR keeps the octa map. Verified across
+> 7 vantages, panics=0; cov100-underdeck is the permanent regression
+> gate (coverage 1.0 = no legitimate gap, any blue zenith = defect).
+>
+> **NEXT (TOP): OPERATOR VERDICT SITTING on v0.1198.0** - the ghosting
+> + vanish + lag reports were live-play findings; the fix bar is the
+> operator's own flight. Watch for: deck present at ALL altitudes on
+> approach, no solitaire/tiling near the planet, frame rate at deck
+> level and in deep space, and the NEW near-regime look (half-res
+> softness acceptable?). Then, per their report: either polish 12d
+> (deck underside structure is now the visible frontier - the restored
+> ceiling is flat/uniform) or resume the ranked backlog (13 cloud
+> streets, water F3/F4/F5/F6, black horizon hairline - note the
+> chord-sag mechanism found 2026-08-23 makes the ATMOSPHERE shell's
+> coarse mesh the prime hairline suspect).
+>
+> (Superseded live-path protocol, kept for the confound catalog: the
+> haze-corrected clouds-on/off design in journal 2026-08-22 - the
+> wx-floor fade suspect is now largely moot post-carve-fix but the
+> protocol remains the right instrument for any future live-vs-pinned
+> coverage dispute.)
 >
 > (Superseded round below, kept for the confound catalog:)
 > **SAME-REGION coverage-invariance measurement.** The

@@ -432,6 +432,17 @@ pub struct Renderer {
     /// Octa-pass march cadence counter (quarter-rate marching over the
     /// 4096 map): increments per celestial render, phase = counter % 4.
     pub cloud_octa_phase: std::cell::Cell<u32>,
+    /// NEAR cloud regime flag (12d): true = the half-res screen pass
+    /// replaces the octa map entirely (per-pixel march + screen
+    /// reprojection; the whole direction-cache ghost family is
+    /// structurally impossible there). Set per frame by lib.rs from the
+    /// planet's on-screen size with hysteresis.
+    pub cloud_mode_near: bool,
+    /// The near-regime screen buffers (created by ensure_cloud_screen).
+    pub(crate) cloud_screen: Option<cloud_temporal::CloudScreen>,
+    /// Previous frame's camera basis (fwd/right/up) for the screen
+    /// pass's reprojection pads. Consumed-and-replaced at the pad write.
+    pub cloud_prev_basis: std::cell::Cell<Option<[[f32; 3]; 3]>>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1617,6 +1628,9 @@ impl Renderer {
             cloud_map_resample: std::cell::Cell::new(None),
             cloud_reproj_delta: std::cell::Cell::new(None),
             cloud_octa_phase: std::cell::Cell::new(0),
+            cloud_mode_near: false,
+            cloud_screen: None,
+            cloud_prev_basis: std::cell::Cell::new(None),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -3039,6 +3053,58 @@ impl Renderer {
         }
         self.queue
             .write_buffer(&self.camera_buffer, 144, bytemuck::cast_slice(&delta_pads));
+        // 12d near-regime screen reprojection: the PREVIOUS frame's camera
+        // basis in the legacy light5/6/7 position vec4s (offsets 160/176/
+        // 192, unused since the storage-buffer light list). light5.xyz =
+        // prev forward, light6.xyz = prev right, light7.xyz = prev up;
+        // light5.w = tan(fov/2), light6.w = aspect (both current - the
+        // projection does not change frame to frame). The basis is taken
+        // from the view MATRIX rows, so surface-mode and world-Y cameras
+        // both reproject through exactly what the GPU rendered with. On
+        // the first frame (no stored basis) the current basis is written,
+        // which makes reprojection the identity - correct for a fresh
+        // history.
+        {
+            // The SAME basis convention the fullscreen composite ray-casts
+            // with (proven by its slab-geometry discards landing exactly
+            // right): forward()/right() and up = right x fwd. The first
+            // cut extracted rows from the view matrix and produced rays
+            // pointing INTO the planet - every under-deck sky pixel died
+            // on the march's ground-occlusion gate (the magenta-sentinel
+            // forensics, 2026-08-23).
+            let fwd = camera.forward();
+            let right = camera.right();
+            let up = right.cross(fwd).normalize();
+            let cur: [[f32; 3]; 3] = [
+                [fwd.x, fwd.y, fwd.z],
+                [right.x, right.y, right.z],
+                [up.x, up.y, up.z],
+            ];
+            let prev = self.cloud_prev_basis.replace(Some(cur)).unwrap_or(cur);
+            let tanf = (camera.fov_degrees.to_radians() * 0.5).tan();
+            let aspect = self.config.width.max(1) as f32 / self.config.height.max(1) as f32;
+            // CURRENT basis in light0/1/2 (offsets 80/96/112, also unused):
+            // the screen pass builds its pixel rays analytically from
+            // these instead of shell mesh fragments (chord-sag hazard).
+            let p0: [f32; 4] = [cur[0][0], cur[0][1], cur[0][2], 0.0];
+            let p1: [f32; 4] = [cur[1][0], cur[1][1], cur[1][2], 0.0];
+            let p2: [f32; 4] = [cur[2][0], cur[2][1], cur[2][2], 0.0];
+            self.queue
+                .write_buffer(&self.camera_buffer, 80, bytemuck::cast_slice(&p0));
+            self.queue
+                .write_buffer(&self.camera_buffer, 96, bytemuck::cast_slice(&p1));
+            self.queue
+                .write_buffer(&self.camera_buffer, 112, bytemuck::cast_slice(&p2));
+            let p5: [f32; 4] = [prev[0][0], prev[0][1], prev[0][2], tanf];
+            let p6: [f32; 4] = [prev[1][0], prev[1][1], prev[1][2], aspect];
+            let p7: [f32; 4] = [prev[2][0], prev[2][1], prev[2][2], 0.0];
+            self.queue
+                .write_buffer(&self.camera_buffer, 160, bytemuck::cast_slice(&p5));
+            self.queue
+                .write_buffer(&self.camera_buffer, 176, bytemuck::cast_slice(&p6));
+            self.queue
+                .write_buffer(&self.camera_buffer, 192, bytemuck::cast_slice(&p7));
+        }
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));
@@ -3503,9 +3569,15 @@ impl Renderer {
         // opaque list); the pass binds the cloud SHELL's slot so obj_model()
         // gives the march its planet frame, and the group-3 with the
         // ping-pong PARTNER in the albedo slot supplies the history.
-        if let (Some(ct), Some(mat_idx)) =
-            (self.cloud_temporal.as_ref(), self.cloud_temporal_mat)
-        {
+        // FAR regime only (12d): near the planet the half-res screen pass
+        // below replaces the octa map entirely - marching 16.7M map texels
+        // for a full-screen planet was the deep-space... opposite, the
+        // near-planet lag, and the direction cache is the ghost family.
+        if let (Some(ct), Some(mat_idx), false) = (
+            self.cloud_temporal.as_ref(),
+            self.cloud_temporal_mat,
+            self.cloud_mode_near,
+        ) {
             if let (Some(i), Some(material)) = (
                 transparent.iter().position(|o| o.material == mat_idx),
                 self.materials.get(mat_idx),
@@ -3544,6 +3616,86 @@ impl Renderer {
                     pass.draw(0..3, 0..1);
                     drop(pass);
                     ct.cur.set(write);
+                }
+            }
+        }
+
+        // ── 12d NEAR screen pass ── the cloud shell mesh drawn into the
+        // half-res ping-pong: fs_cloud_screen marches each pixel's own ray
+        // (8x8-block cadence) and reprojects last frame's SCREEN buffer
+        // through the camera motion + per-pixel first-hit distance. No
+        // direction cache exists in this regime - the solitaire/ghost
+        // family is structurally impossible - and there is no arming
+        // altitude, so clouds never vanish on approach. The composite
+        // samples this buffer at the fragment's own screen uv.
+        // DIAG4 (12d bring-up): once-per-second trace of the near-regime
+        // chain - drop after the under-deck vanish is verified fixed.
+        {
+            static LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now_s = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
+                log::info!(
+                    "[CloudScreen] near={} cs={} mat={:?} shell_found={:?}",
+                    self.cloud_mode_near,
+                    self.cloud_screen.is_some(),
+                    self.cloud_temporal_mat,
+                    self.cloud_temporal_mat.and_then(|m| {
+                        transparent.iter().position(|o| o.material == m)
+                    }),
+                );
+            }
+        }
+        if self.cloud_mode_near {
+            if let (Some(cs), Some(mat_idx)) =
+                (self.cloud_screen.as_ref(), self.cloud_temporal_mat)
+            {
+                if let (Some(i), Some(material)) = (
+                    transparent.iter().position(|o| o.material == mat_idx),
+                    self.materials.get(mat_idx),
+                ) {
+                    let slot = objects.len() + i;
+                    if slot < MAX_OBJECTS {
+                        self.upload_object_uniforms(
+                            objects.iter().chain(transparent.iter()),
+                        );
+                        let read = cs.cur.get();
+                        let write = 1 - read;
+                        let mut pass =
+                            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                label: Some("Cloud Screen Pass"),
+                                timestamp_writes: self.pass_timer("gpu.cloud_screen"),
+                                color_attachments: &[Some(
+                                    wgpu::RenderPassColorAttachment {
+                                        view: &cs.views[write],
+                                        resolve_target: None,
+                                        ops: wgpu::Operations {
+                                            load: wgpu::LoadOp::Clear(
+                                                wgpu::Color::TRANSPARENT,
+                                            ),
+                                            store: wgpu::StoreOp::Store,
+                                        },
+                                    },
+                                )],
+                                depth_stencil_attachment: None,
+                                ..Default::default()
+                            });
+                        pass.set_pipeline(&self.pipeline.cloud_screen_pipeline);
+                        pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                        let uniform_align = 256_u64;
+                        pass.set_bind_group(
+                            1,
+                            &self.object_bind_group,
+                            &[(uniform_align as u32) * (slot as u32)],
+                        );
+                        pass.set_bind_group(2, &material.bind_group, &[]);
+                        pass.set_bind_group(3, &cs.groups[read].colour, &[]);
+                        pass.draw(0..3, 0..1);
+                        drop(pass);
+                        cs.cur.set(write);
+                    }
                 }
             }
         }
@@ -3882,14 +4034,24 @@ impl Renderer {
             let right = camera.right();
             let up = right.cross(fwd).normalize();
             let eye = camera.effective_position();
+            // 12d: near mode composites the half-res SCREEN buffer at the
+            // fragment's own uv; far mode keeps the direction-indexed octa
+            // map. Falls back to the map if the screen pair has not been
+            // created yet (first near frame races ensure_cloud_screen).
+            let (map_view, screen_mode) = match (self.cloud_mode_near, self.cloud_screen.as_ref())
+            {
+                (true, Some(cs)) => (&cs.views[cs.cur.get()], true),
+                _ => (&ct.views[ct.cur.get()], false),
+            };
             self.cloud_composite.render(
                 &self.device,
                 &self.queue,
                 encoder,
                 &self.depth_view,
-                &ct.views[ct.cur.get()],
+                map_view,
                 view,
                 frame,
+                screen_mode,
                 [eye.x, eye.y, eye.z],
                 [fwd.x, fwd.y, fwd.z],
                 [right.x, right.y, right.z],

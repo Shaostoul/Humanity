@@ -575,6 +575,81 @@ the crop - same field, same moment, same region, two footprints. Run
 several offsets for the fine rung. Only a spread that survives THAT
 is a rendering defect worth hunting.
 
+### 12d. THE TWO-REGIME CLOUD ARCHITECTURE (operator-mandated full fix,
+2026-08-23: "do the full proper fixes instead of all these baby steps -
+what can we do to permanently remove the ghosting while maintaining
+proper cloud placement? The clouds vanishing once I get close is very
+immersion breaking.")
+
+THE ADMISSION, after eight adjudicated rounds of the solitaire family
+(mirror, anchor jumps, extent echoes, translation smear, checkerboard,
+dome lattice, iterated-warp ghosts, teleport tiles, deep-space lag): a
+DIRECTION-INDEXED cloud cache cannot survive camera translation. Every
+round was a smarter invalidation heuristic, and each trades ghosting
+against full-rate cost somewhere else. The operator's flight regime
+(x100k-x10M gear, sustained translation at all altitudes) is the common
+case, not the exception. The octa map's honest domain is the FAR field,
+where viewing is rotation-dominant and its texels are finer than screen
+pixels.
+
+THE ARCHITECTURE:
+- FAR regime (planet disc under ~1000 px): the octa map, exactly as
+  built (extent, cadence, reprojection - all its machinery is CORRECT
+  at this scale and its artifacts are sub-pixel).
+- NEAR regime (else): HALF-RES SCREEN-SPACE marching - the cloud
+  SHELL MESH drawn at half resolution (fs_cloud_screen), marching
+  cloud_march_core per PIXEL RAY at 8x8-block HASHED quarter cadence
+  (wave-coherent skips, no regular block pattern), with screen-space
+  history reprojected via the per-pixel first-hit distance
+  (g_march_first_t) and the previous camera basis (translation-exact -
+  the previous frame is reprojected through the actual camera motion,
+  which is what a direction cache can never do). Light accumulation
+  (alpha 0.25-0.6, content-accelerated) because today's band-limited
+  march is already clean - the 25-frame deep EMA was a crutch for the
+  pre-sampling-law march.
+- The composite pass consumes the screen buffer in near regime (plain
+  bilinear upsample) and the octa map in far regime (Catmull-Rom);
+  the switch sits where map texel ~ screen pixel, so the two paths
+  CONVERGE in look at the boundary - hysteresis, no crossfade needed
+  until measured otherwise.
+- COST: near-field marches drop from up to 16.7M/frame (the map
+  full-rate - MORE rays than the screen has pixels, the operator's
+  single-digit fps) to ~220k/frame interleaved. The vanish-on-approach
+  class dies structurally: no arming, no extent, no representation
+  switch anywhere near the deck.
+- Previous camera basis rides the legacy light5/6/7 position vec4s
+  (offsets 160/176/192 - the storage-buffer light list left them
+  unread, same class as the light3/light4 pads). light5.w =
+  tan(fov/2), light6.w = aspect; basis taken from the view-matrix
+  rows so surface-mode cameras reproject through exactly what the
+  GPU rendered with.
+
+STATUS: SHIPPED v0.1198.0. Regime switch in lib.rs at the cloud
+material fill site (enter near at 1000 px, leave at 800 px,
+hysteresis); octa pass gated far-only; composite's cam_right.w = 1
+flags screen mode (sample at the fragment's own uv, v flipped);
+screen pair lives in cloud_temporal.rs::CloudScreen, recreated on
+resize, zero-initialized by wgpu so regime entry starts from clean
+transparent history. The screen pass is a FULLSCREEN TRIANGLE with
+per-pixel ANALYTIC rays from camera-basis pads (light0/1/2 current,
+light5/6/7 previous) - never shell-mesh fragments, whose coarse
+chords sag below a ground camera and invert the rays.
+
+THE VANISH ROOT CAUSE (found by the 12d bring-up forensics, same
+release): cloud_carve normalized against (1 - thr) while the
+single-construction body tops out at CLOUD_BODY_TOP = 0.79 - cores
+could never exceed carve ~0.68 and typical carves sat at 0.2-0.4, so
+the four erosion bands (all calibrated against carve-1 cores) ground
+the entire from-below deck to zero (measured: pre-erosion carve max
+0.23, post-erosion 0.000 on every sky ray at PINNED coverage 1.0).
+CLOUD_BODY_TOP's own comment documents the normalization contract;
+the code had lost it. Fixed: carve divides by (CLOUD_BODY_TOP - thr).
+Verified: cov100-underdeck = unbroken grey ceiling, under-deck-lookup
+= overcast base, mid-alt/nadir/marble/fly-through/space all intact,
+panics=0. The cov100-underdeck vantage is the permanent regression
+gate: at coverage 1.0 no legitimate gap exists, so any blue zenith
+is a defect, never field structure.
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

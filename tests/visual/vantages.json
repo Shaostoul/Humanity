@@ -1466,6 +1466,31 @@
     "panics=0"
    ],
    "perf_floor_fps": 14
+  },
+  {
+   "id": "cov100-underdeck",
+   "desc": "Vanish-hunt discriminator: coverage pinned 1.0 under the deck looking 60 deg up. At 100% coverage no legitimate field gap exists, so any blue zenith is a march defect for steep near rays, not field structure.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 0.5,
+    "look_offset_deg": 150
+   },
+   "settle_s": 12,
+   "expect": "Unbroken grey cloud base overhead, no blue.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "1.0",
+    "weather": "cloudy",
+    "sea": "0.3"
+   },
+   "hold_altitude": true
   }
  ],
  "ladder": {

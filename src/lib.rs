@@ -8777,6 +8777,7 @@ mod native_app {
                         state.renderer.set_cloud_temporal(None);
                         state.renderer.cloud_composite_frame = None;
                         state.renderer.cloud_map_resample.set(None);
+                        state.renderer.cloud_mode_near = false;
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11500,6 +11501,28 @@ mod native_app {
                                         let temporal = quality > 0.5 && px >= 160.0;
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
+                                        }
+                                        // 12d regime split: NEAR (planet
+                                        // filling the screen) switches to
+                                        // the half-res per-pixel screen
+                                        // pass - no direction cache, so no
+                                        // ghost family and no vanish-on-
+                                        // approach; FAR keeps the octa
+                                        // map, whose texels are sub-pixel
+                                        // on a small disc. Hysteresis
+                                        // (enter 1000 px, leave 800 px)
+                                        // keeps the boundary from
+                                        // flickering regimes on approach.
+                                        let near_prev = state.renderer.cloud_mode_near;
+                                        let near = temporal
+                                            && if near_prev {
+                                                px >= 800.0
+                                            } else {
+                                                px >= 1000.0
+                                            };
+                                        state.renderer.cloud_mode_near = near;
+                                        if near {
+                                            state.renderer.ensure_cloud_screen();
                                         }
                                         let pin = pin + if temporal { 4.0 } else { 0.0 };
                                         state.renderer.update_material_params2(

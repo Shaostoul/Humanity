@@ -208,6 +208,7 @@ impl CloudCompositePass {
         map_view: &wgpu::TextureView,
         view: &wgpu::TextureView,
         frame: &CloudCompositeFrame,
+        screen_mode: bool,
         cam_pos: [f32; 3],
         cam_fwd: [f32; 3],
         cam_right: [f32; 3],
@@ -221,7 +222,15 @@ impl CloudCompositePass {
         let u = CloudCompositeUniforms {
             cam_pos: [cam_pos[0], cam_pos[1], cam_pos[2], tan_half_fov],
             cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], aspect],
-            cam_right: [cam_right[0], cam_right[1], cam_right[2], 0.0],
+            // cam_right.w: the 12d regime flag - 1 = the bound cloud
+            // texture is the half-res SCREEN buffer (sample at the
+            // fragment's own uv), 0 = the direction-indexed octa map.
+            cam_right: [
+                cam_right[0],
+                cam_right[1],
+                cam_right[2],
+                if screen_mode { 1.0 } else { 0.0 },
+            ],
             cam_up: [cam_up[0], cam_up[1], cam_up[2], frame.cmax],
             center: [frame.center[0], frame.center[1], frame.center[2], frame.planet_r],
             basis_x: [frame.basis[0][0], frame.basis[0][1], frame.basis[0][2], frame.rb],

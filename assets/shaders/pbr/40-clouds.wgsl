@@ -1623,7 +1623,17 @@ fn cloud_carve(
     } else {
         hinge = zc;
     }
-    let carve = clamp(hinge * sw / max(1.0 - thr, 1.0e-3), 0.0, 1.0) * env;
+    // Normalized against the REAL body top (CLOUD_BODY_TOP, the bake's
+    // p99), not 1.0: the single-construction body never reaches 1, so a
+    // (1 - thr) denominator capped cores at ~0.68 and typical carves at
+    // 0.2-0.4 - and the four erosion bands, all calibrated against
+    // carve-1 cores, ground those to ZERO. That was the under-deck
+    // vanish (2026-08-23 stage forensics: pre-erosion carve max 0.23,
+    // post-erosion 0.000 on every sky ray at pinned coverage 1.0; the
+    // constant's own comment documents this contract but the code had
+    // lost it).
+    let carve = clamp(
+        hinge * sw / max(CLOUD_BODY_TOP - thr, 1.0e-3), 0.0, 1.0) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
     // up; how close this sample is to that crown drives the valley-shade /
