@@ -50,6 +50,19 @@ pub const PLANET_PIXEL_ANGLE: f32 = 0.0008;
 /// above HI; both sit comfortably above the 2 px Nyquist floor.
 pub const DETAIL_FADE_LO: f32 = 4.0;
 pub const DETAIL_FADE_HI: f32 = 12.0;
+/// Mirrors `WATER_GRAZE_MIN_NDV`: numeric floor on `cos(incidence)` in the
+/// water footprint, i.e. a 100:1 ceiling on the grazing stretch. Not a
+/// tuning knob - at the true horizon the footprint really is unbounded, and
+/// every gate retiring there is the correct answer (`resolved` -> 0, the
+/// mirror retires to the geometric normal, and the Cox-Munk lobe widens to
+/// carry the whole slope distribution; that machinery already existed but
+/// was never reached because the footprint never grew).
+pub const WATER_GRAZE_MIN_NDV: f32 = 0.01;
+/// Mirrors `WATER_ANISO_MAX`: the ground sampler's `anisotropy_clamp`
+/// (`renderer::ground_textures`). Past this ratio the hardware falls back to
+/// an isotropic long-axis mip, so it bounds how much across-sightline detail
+/// the anisotropic wave-texture sample can recover.
+pub const WATER_ANISO_MAX: f32 = 16.0;
 /// Mirrors `WATER_F0`: Fresnel reflectance of water at normal incidence.
 pub const WATER_F0: f32 = 0.02;
 /// Mirrors `WATER_SPEC_POWER` / `WATER_SPEC_GAIN`: the tight Blinn sparkle
@@ -141,6 +154,25 @@ fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
 
 fn len3(a: [f32; 3]) -> f32 {
     dot3(a, a).sqrt()
+}
+
+/// Mirrors `water_footprint` in `20-surface-detail.wgsl`: the pixel
+/// footprint on the WATER surface along its LONGEST axis, in metres.
+///
+/// `dist_m * PLANET_PIXEL_ANGLE` is the footprint ACROSS the sightline. The
+/// footprint ALONG it is that divided by `cos(incidence)`, and the along-axis
+/// one is what every anti-alias gate has to respect: a band limit is set by
+/// the LOWEST sampling rate in any direction. Every other surface is mostly
+/// seen face-on so the isotropic estimate is close enough; the sea is
+/// essentially always at extreme incidence, and the stretch is unbounded at
+/// the horizon. Under-filtering by that factor is the ocean zebra-stripe
+/// defect: moderate stretch folds to mid-band (shimmer), extreme stretch
+/// folds to near-DC (large regular parallel bands riding the glitter).
+///
+/// `ndv` = `dot(sphere normal, unit fragment-to-eye direction)`.
+pub fn water_footprint(dist_m: f32, ndv: f32) -> f32 {
+    let across = (dist_m * PLANET_PIXEL_ANGLE).max(0.001);
+    across / ndv.abs().max(WATER_GRAZE_MIN_NDV)
 }
 
 /// Mirrors `detail_octave_fade`: the per-octave anti-alias fade. Exactly
@@ -403,6 +435,118 @@ mod tests {
             let g = water_wave_gradient([dir[0] * EARTH_R, dir[1] * EARTH_R, dir[2] * EARTH_R], dir, 123.0, fp);
             assert_eq!(g, [0.0; 3], "wave gradient must vanish from orbit");
         }
+    }
+
+    /// The grazing footprint is the zebra-stripe fix. Three properties:
+    /// face-on is unchanged, grazing stretches by exactly 1/cos, and the
+    /// stretch is what makes the anti-alias gates retire near the horizon.
+    #[test]
+    fn grazing_footprint_stretches_along_the_sightline() {
+        // Face-on (looking straight down at the sea): identical to the old
+        // isotropic estimate, so nadir captures cannot move.
+        let nadir = water_footprint(1000.0, 1.0);
+        assert!(
+            (nadir - 1000.0 * PLANET_PIXEL_ANGLE).abs() < 1e-6,
+            "face-on footprint drifted: {nadir}"
+        );
+        // Grazing: exactly the 1/cos(incidence) stretch.
+        for ndv in [0.5_f32, 0.25, 0.1, 0.05] {
+            let want = 1000.0 * PLANET_PIXEL_ANGLE / ndv;
+            let got = water_footprint(1000.0, ndv);
+            assert!((got - want).abs() < 1e-4, "ndv {ndv}: {got} != {want}");
+        }
+        // The floor bounds the horizon singularity, and only there.
+        assert!(
+            (water_footprint(1000.0, 0.0) - 1000.0 * PLANET_PIXEL_ANGLE / WATER_GRAZE_MIN_NDV)
+                .abs()
+                < 1e-3,
+            "the grazing floor must bound the horizon"
+        );
+        // Sign-independent: a submerged eye looks UP at the shell and the
+        // dot goes negative, but the footprint is a magnitude.
+        assert_eq!(water_footprint(500.0, -0.3), water_footprint(500.0, 0.3));
+    }
+
+    /// The grazing-footprint fix needs ONE caller line inside `ocean_shell`,
+    /// which lives in the shared `90-fragment-main.wgsl` tail. Rather than
+    /// edit that file from a side lane, the substitution is applied to the
+    /// assembled source HERE and validated through the same naga gate the
+    /// megashader uses - so the wiring is proven before anyone applies it,
+    /// and stays proven afterwards (once it lands the anchor is gone and
+    /// this validates the shipped source unchanged).
+    #[test]
+    fn the_grazing_footprint_wiring_validates() {
+        // The shader parts ship with CRLF endings; naga does not care, and
+        // normalising lets the anchor below be written once.
+        let src = crate::renderer::shader_loader::assembled_pbr_source().replace("\r\n", "\n");
+        let src = src.as_str();
+        // Two lines, because `let footprint = max(dist_frag * ...)` also
+        // appears in the type-12 terrain branch, which has no `inv_model`.
+        // Only ocean_shell clamps dist_frag to 1.0, so this pair is unique.
+        const ANCHOR: &str = "    let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);\n\
+             \x20   let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);";
+        const WIRED: &str = "    let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);\n\
+             \x20   let footprint = water_footprint(\n\
+             \x20       dist_frag,\n\
+             \x20       dir,\n\
+             \x20       normalize((inv_model * vec4<f32>(view_dir, 0.0)).xyz),\n\
+             \x20   );";
+        let patched = if src.contains(ANCHOR) {
+            let out = src.replace(ANCHOR, WIRED);
+            assert!(out.contains("water_footprint("), "substitution did not take");
+            out
+        } else {
+            assert!(
+                src.contains("let footprint = water_footprint("),
+                "neither the pre-wiring anchor nor the wired call is present in ocean_shell - \
+                 the shared tail drifted, re-derive the wiring request"
+            );
+            src.to_string()
+        };
+        if let Err(e) = crate::renderer::shader_loader::validate_wgsl(&patched) {
+            panic!("the wired megashader failed validation: {e}");
+        }
+    }
+
+    /// The measured defect band, as numbers. `ocean-storm-horizon`
+    /// (20 m eye, 40 px under the horizon): 308 m out, ndv 0.065. The
+    /// isotropic estimate said 0.25 m, the truth is 3.8 m, and the wave
+    /// texture was therefore sampled ~4 mip levels too sharp - which is the
+    /// aliasing the capture's per-pixel RMS gradient peak of 33 recorded.
+    #[test]
+    fn the_storm_horizon_band_was_sixteen_times_under_filtered() {
+        let (dist, ndv) = (308.0_f32, 0.065_f32);
+        let isotropic = dist * PLANET_PIXEL_ANGLE;
+        let honest = water_footprint(dist, ndv);
+        assert!(
+            (honest / isotropic - 15.4).abs() < 0.5,
+            "stretch drifted: {}",
+            honest / isotropic
+        );
+        // Mip levels the wave-texture tile (16 m over a 2048 texel layer)
+        // needs, before vs after.
+        let mip = |fp: f32| (fp * 2048.0 / 16.0).max(1.0).log2();
+        assert!(
+            mip(honest) - mip(isotropic) > 3.5,
+            "the fix must raise the wave-texture mip by ~4 levels there"
+        );
+        // At THIS band the mip correction above is the whole mechanism -
+        // 3.8 m sits right at the shoulder of the chop gate, so the texture
+        // is still fully present, just correctly filtered.
+        let tex_reach = |fp: f32| 1.0 - smoothstep(4.0, 14.0, fp);
+        assert!(tex_reach(isotropic) > 0.99, "the old gate kept full chop");
+        assert!(tex_reach(honest) > 0.9, "the chop must survive at 300 m, only better filtered");
+        // Further out along the SAME sightline the stretch does retire it:
+        // 1 km from a 20 m eye is ndv 0.02, a 50:1 ellipse, where nothing
+        // the 16 m tile carries survives one pixel. The old gate had it at
+        // full strength out to 5 km.
+        let far = water_footprint(1000.0, 0.02);
+        assert!(far > 30.0, "1 km from a 20 m eye must read as a >30 m footprint: {far}");
+        assert!(tex_reach(far) < 0.01, "under-resolved chop must retire, not alias");
+        assert!(
+            tex_reach(1000.0 * PLANET_PIXEL_ANGLE) > 0.99,
+            "the pre-fix gate kept full chop there - this is the defect"
+        );
     }
 
     #[test]
@@ -705,6 +849,8 @@ mod tests {
             ("PLANET_PIXEL_ANGLE", PLANET_PIXEL_ANGLE),
             ("DETAIL_FADE_LO", DETAIL_FADE_LO),
             ("DETAIL_FADE_HI", DETAIL_FADE_HI),
+            ("WATER_GRAZE_MIN_NDV", WATER_GRAZE_MIN_NDV),
+            ("WATER_ANISO_MAX", WATER_ANISO_MAX),
             ("WATER_F0", WATER_F0),
             ("WATER_SPEC_POWER", WATER_SPEC_POWER),
             ("WATER_SPEC_GAIN", WATER_SPEC_GAIN),
