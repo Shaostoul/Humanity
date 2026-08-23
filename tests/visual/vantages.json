@@ -1140,6 +1140,66 @@
    }
   },
   {
+   "id": "ghost-step-130",
+   "desc": "Ghost-echo step ladder rung (130 km): captured ~3 s after the park teleport - inside the fading-echo window the operator reproduces on every cloud.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 130
+   },
+   "settle_s": 2,
+   "expect": "Any terraced fading duplicate below/beside each cloud mass is the echo.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 5,
+   "showcase": {
+    "clouds": "1"
+   }
+  },
+  {
+   "id": "ghost-step-145",
+   "desc": "Ghost-echo step ladder rung (145 km): captured ~3 s after the park teleport - inside the fading-echo window the operator reproduces on every cloud.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 145
+   },
+   "settle_s": 2,
+   "expect": "Any terraced fading duplicate below/beside each cloud mass is the echo.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 5,
+   "showcase": {
+    "clouds": "1"
+   }
+  },
+  {
+   "id": "ghost-step-160",
+   "desc": "Ghost-echo step ladder rung (160 km): captured ~3 s after the park teleport - inside the fading-echo window the operator reproduces on every cloud.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 160
+   },
+   "settle_s": 2,
+   "expect": "Any terraced fading duplicate below/beside each cloud mass is the echo.",
+   "regressions": [
+    "panics=0"
+   ],
+   "perf_floor_fps": 5,
+   "showcase": {
+    "clouds": "1"
+   }
+  },
+  {
    "id": "cov50-80km",
    "desc": "SAME-REGION invariance pair, low rung (operator v0.1192 report: lush deck at 80 km, bare at 212 km minutes apart). Pinned procedural field; compare in-crop coverage against cov50-212km.",
    "camera": {

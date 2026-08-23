@@ -2966,15 +2966,35 @@ impl Renderer {
         let delta_pads: [f32; 4] = match self.cloud_reproj_delta.take() {
             Some(d) if self.cloud_temporal_mat.is_some() => {
                 let d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-                // Teleport-scale frame delta (> 2 km): NO history is valid
-                // anywhere - a cadence-skipped block would show content
-                // from hundreds of km ago (the operator's persistent
-                // checkerboard at x1M gear was exactly that: fresh blocks
-                // beside 1-3-frame-stale blocks with hundreds of km of
-                // parallax between them). Sentinel w = 9 tells the octa
-                // pass to march EVERYTHING this frame; cadence resumes
-                // the moment the camera slows.
-                if d2 > 4.0e6 {
+                // Cadence-suspension threshold, ANGULAR not absolute
+                // (ghost-echo round 6): a cadence-skipped block re-warps
+                // its own already-warped content for up to 3 frames, and
+                // iterated bilinear warping at more than ~2 map texels of
+                // shift per frame smears block-wise ghost terraces (the
+                // operator's fading "old mirrors" during sustained
+                // sub-teleport flight - the old flat 2 km threshold let
+                // 10-60-texel shifts through). Suspend cadence (sentinel
+                // w = 9: march everything) whenever the frame delta
+                // exceeds ~2 texels of parallax at the cloud slab's
+                // distance; correctness costs frames only while moving
+                // that fast.
+                let thresh = self
+                    .cloud_composite_frame
+                    .as_ref()
+                    .map(|f| {
+                        let eye = camera.effective_position();
+                        let dc = ((eye.x - f.center[0]).powi(2)
+                            + (eye.y - f.center[1]).powi(2)
+                            + (eye.z - f.center[2]).powi(2))
+                        .sqrt()
+                            - f.rt * f.planet_r;
+                        let d_slab = dc.max(3.0e3);
+                        let k = (1.0 - f.cmax).clamp(1.0e-3, 2.0);
+                        let texel_ang = (2.0 * k).sqrt() / 4096.0;
+                        2.0 * texel_ang * d_slab
+                    })
+                    .unwrap_or(2.0e3);
+                if d2 > thresh * thresh {
                     [d[0], d[1], d[2], 9.0]
                 } else {
                     [d[0], d[1], d[2], 1.0 + phase]
