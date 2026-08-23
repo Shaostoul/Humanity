@@ -650,6 +650,43 @@ panics=0. The cov100-underdeck vantage is the permanent regression
 gate: at coverage 1.0 no legitimate gap exists, so any blue zenith
 is a defect, never field structure.
 
+### 12e. THE MARCH/RESOLVE SPLIT (first-flight verdict on 12d,
+2026-08-23: "much better but there's still ghosting... way faster to
+disappear but still present. Also the clouds look a lot like static,
+best seen on the cliff-like cloud edge.")
+
+12d's single-pass cadence+history hybrid had a structural ceiling: ONE
+blend constant (0.25-0.6) had to both converge the jittered march
+(needs DEEP accumulation) and kill stale history (needs SHALLOW). The
+static is the unconverged estimator; the fading ghost is the same
+constant read the other way. No value fixes both.
+
+THE ARCHITECTURE (the production-standard Decima/Frostbite shape):
+- MARCH pass: QUARTER-res, EVERY pixel EVERY frame (no cadence),
+  subpixel-jittered analytic rays (R2 sequence keyed on a frame
+  counter in light7.w + per-pixel hash phase; the ndc step comes from
+  dpdx/dpdy so the shader never needs the resolution). MRT out:
+  premultiplied march + first-hit distance in KM (R16F - f16 holds the
+  range at ~0.1% relative precision; meters would overflow).
+  Same ~220k marches/frame as 12d's half-res quarter cadence.
+- RESOLVE pass (standalone: src/renderer/cloud_resolve.rs +
+  assets/shaders/cloud_resolve.wgsl, own uniform - no megashader
+  coupling): reprojects the half-res accumulation through the actual
+  camera motion via the march's own per-pixel distance, VARIANCE-CLIPS
+  it to mean +- gamma*sigma of the march's 3x3 neighbourhood
+  (Karis), then blends at base alpha 0.12 (~8-frame depth) with mild
+  disagreement acceleration. The clip is the whole point: history the
+  current frame cannot corroborate snaps to the plausible range in ONE
+  frame (ghost death) while corroborated content accumulates deep
+  (static death). Depth and responsiveness stop competing.
+- Snap-to-current on regime entry (fresh buffers) and on the teleport
+  sentinel (light4.w = 9 handoff from the CPU motion check).
+- The composite consumes the accumulation exactly as before.
+
+Constants: RESOLVE_ALPHA_BASE 0.12, RESOLVE_CLIP_GAMMA 1.0 (raise
+toward 1.5 if converged detail visibly flickers, lower toward 0.75 if
+edge ghosts survive).
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

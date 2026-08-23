@@ -33,17 +33,39 @@
 > 7 vantages, panics=0; cov100-underdeck is the permanent regression
 > gate (coverage 1.0 = no legitimate gap, any blue zenith = defect).
 >
-> **NEXT (TOP): OPERATOR VERDICT SITTING on v0.1198.0** - the ghosting
-> + vanish + lag reports were live-play findings; the fix bar is the
-> operator's own flight. Watch for: deck present at ALL altitudes on
-> approach, no solitaire/tiling near the planet, frame rate at deck
-> level and in deep space, and the NEW near-regime look (half-res
-> softness acceptable?). Then, per their report: either polish 12d
-> (deck underside structure is now the visible frontier - the restored
-> ceiling is flat/uniform) or resume the ranked backlog (13 cloud
-> streets, water F3/F4/F5/F6, black horizon hairline - note the
-> chord-sag mechanism found 2026-08-23 makes the ATMOSPHERE shell's
-> coarse mesh the prime hairline suspect).
+> **SHIPPED v0.1199.0 (12e): the march/resolve split** - the operator's
+> first-flight verdict on 12d ("still ghosting... way faster to
+> disappear but still present" + "clouds look a lot like static, best
+> on the cliff-like edge") traced to 12d's single blend constant, which
+> cannot both converge the jittered march and kill stale history. 12e =
+> quarter-res full-rate subpixel-jittered march + a standalone resolve
+> with VARIANCE-CLIPPED reprojected history at base alpha 0.12: ghosts
+> snap in one frame, static converges ~8 frames deep. Measured hf-noise
+> -69% under-deck / -53% mid-alt at unchanged march cost. Adversarial
+> review caught + fixed pre-ship: the history-drop flag was coupled to
+> the octa cadence sentinel (~8-11 m/frame) and would have dropped
+> accumulation every frame of ordinary fast flight; it now fires only
+> on true teleports (delta > 0.25 x slab distance).
+>
+> **NEXT (TOP): OPERATOR VERDICT on v0.1199.0, then the WHOLE
+> environment backlog** (operator, 2026-08-23: "All of the
+> environmental backlog is worth doing, especially since they all feed
+> to the same look. One being off can throw others off."). Ranked:
+> 1. Deck underside structure (the restored ceiling reads flat/uniform
+>    from below - base relief, mamma undulation, light gradients).
+> 2. Black horizon hairline - the chord-sag mechanism (coarse shell
+>    mesh chords sagging below near cameras, found 2026-08-23) makes
+>    the ATMOSPHERE shell mesh the prime suspect; same analytic-ray
+>    cure as the cloud march may apply to types 13/14.
+> 3. Water F3 (cell-gate weld holes need the saturation uniform), F4
+>    (sky-LUT 200x100 quantisation), F5 (shadow box edge), F6
+>    (trains-mode anchor pop).
+> 4. Stars vanishing below cloud-top altitude while the sky is black.
+> 5. Cloud streets (increment 13) + the ranked 14/15 track.
+> If the operator still sees residual motion ghosting at the cloud
+> layer: tune RESOLVE_CLIP_GAMMA down toward 0.75 (tighter clip) and
+> check the FAR/NEAR hysteresis band (800-1000 px) where the octa map
+> still owns the image.
 >
 > (Superseded live-path protocol, kept for the confound catalog: the
 > haze-corrected clouds-on/off design in journal 2026-08-22 - the

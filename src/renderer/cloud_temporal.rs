@@ -61,23 +61,33 @@ pub struct CloudTemporal {
     pub cur: std::cell::Cell<usize>,
 }
 
-/// The NEAR-regime screen buffers (12d two-regime architecture): a
-/// half-resolution RGBA16F ping-pong pair for the per-pixel marched +
-/// screen-reprojected cloud image. Recreated whenever the swapchain
-/// size changes; history rides the group-3 albedo slot exactly like
-/// the octa maps.
+/// The NEAR-regime screen buffers (12e march/resolve split): a
+/// QUARTER-res march pair (per-frame premultiplied march + first-hit
+/// distance in km) plus a HALF-res RGBA16F accumulation ping-pong the
+/// resolve pass deep-blends into. Recreated whenever the swapchain size
+/// changes. The accumulation pair still carries group-3 albedo groups
+/// (unused by the resolve, but kept so any future megashader consumer
+/// can ride the standard slot).
 pub struct CloudScreen {
     _textures: [wgpu::Texture; 2],
     pub views: [wgpu::TextureView; 2],
     pub groups: [AlbedoBindGroup; 2],
     pub cur: std::cell::Cell<usize>,
     pub size: (u32, u32),
+    _march_tex: wgpu::Texture,
+    pub march_view: wgpu::TextureView,
+    _dist_tex: wgpu::Texture,
+    pub dist_view: wgpu::TextureView,
+    /// True on the frame the buffers were (re)created: the resolve must
+    /// drop the (zeroed) history outright instead of fading in from
+    /// black over ~1/alpha frames.
+    pub fresh: std::cell::Cell<bool>,
 }
 
 impl Renderer {
-    /// Ensure the near-regime screen buffers exist at the current half
-    /// resolution (12d). Called by lib.rs when the near cloud mode is
-    /// active.
+    /// Ensure the near-regime screen buffers exist at the current
+    /// resolution (12e: quarter-res march pair + half-res accumulation
+    /// pair). Called by lib.rs when the near cloud mode is active.
     pub fn ensure_cloud_screen(&mut self) {
         let want = (
             (self.config.width / 2).max(8),
@@ -91,27 +101,47 @@ impl Renderer {
         {
             return;
         }
-        let mk = |dev: &wgpu::Device, label: &str| {
+        let mk = |dev: &wgpu::Device,
+                  label: &str,
+                  w: u32,
+                  h: u32,
+                  format: wgpu::TextureFormat| {
             let tex = dev.create_texture(&wgpu::TextureDescriptor {
                 label: Some(label),
                 size: wgpu::Extent3d {
-                    width: want.0,
-                    height: want.1,
+                    width: w,
+                    height: h,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba16Float,
+                format,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                     | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
+                view_formats: &[],
             });
             let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
             (tex, view)
         };
-        let (t0, v0) = mk(&self.device, "Cloud Screen A");
-        let (t1, v1) = mk(&self.device, "Cloud Screen B");
+        let (t0, v0) = mk(
+            &self.device, "Cloud Screen A", want.0, want.1,
+            wgpu::TextureFormat::Rgba16Float,
+        );
+        let (t1, v1) = mk(
+            &self.device, "Cloud Screen B", want.0, want.1,
+            wgpu::TextureFormat::Rgba16Float,
+        );
+        // Quarter res = half of the half-res accumulation pair.
+        let (qw, qh) = ((want.0 / 2).max(8), (want.1 / 2).max(8));
+        let (mt, mv) = mk(
+            &self.device, "Cloud March Color", qw, qh,
+            wgpu::TextureFormat::Rgba16Float,
+        );
+        let (dt, dv) = mk(
+            &self.device, "Cloud March Dist", qw, qh,
+            wgpu::TextureFormat::R16Float,
+        );
         let g0 = self.build_albedo_group_from_view(&v0, &self.albedo_sampler);
         let g1 = self.build_albedo_group_from_view(&v1, &self.albedo_sampler);
         self.cloud_screen = Some(CloudScreen {
@@ -120,11 +150,15 @@ impl Renderer {
             groups: [g0, g1],
             cur: std::cell::Cell::new(0),
             size: want,
+            _march_tex: mt,
+            march_view: mv,
+            _dist_tex: dt,
+            dist_view: dv,
+            fresh: std::cell::Cell::new(true),
         });
         log::info!(
-            "Cloud screen pass ON: {}x{} half-res pair",
-            want.0,
-            want.1
+            "Cloud screen pass ON: {}x{} march -> {}x{} accumulation",
+            qw, qh, want.0, want.1
         );
     }
 

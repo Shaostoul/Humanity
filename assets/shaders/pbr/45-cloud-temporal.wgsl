@@ -300,31 +300,44 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     return mix(hist, cur, alpha);
 }
 
-// ── The NEAR-FIELD SCREEN pass (12d, the two-regime architecture) ──────
+// ── The NEAR-FIELD MARCH pass (12e, the march/resolve split) ──────────
 //
-// The operator-mandated full fix after eight rounds of direction-cache
-// ghost variants: near the planet, clouds are marched PER SCREEN PIXEL
-// at half resolution with screen-space temporal reprojection - the
-// previous FRAME is reprojected through the actual camera motion via
-// each pixel's own first-hit distance, which is translation-exact by
-// construction. No direction cache exists in this regime, so the whole
-// solitaire family (echoes, tiles, lattices) is structurally impossible
-// here, and there is no arming or representation switch to make clouds
-// vanish on approach. The octa map above survives only in the FAR
-// regime (planet under ~1000 px), where its texels are sub-pixel and
-// its artifacts invisible.
+// 12d's single-pass cadence+history hybrid had a structural ceiling the
+// operator hit on the first flight: its 0.25-0.6 blend was too shallow
+// to converge the jittered march (clouds "look a lot like static",
+// worst on cliff-edge silhouettes) yet still deep enough that stale
+// history FADED out over ~half a second instead of dying (the residual
+// ghosting). The two complaints pull the blend constant in opposite
+// directions - no single-pass constant satisfies both.
 //
-// Drawn as the cloud SHELL MESH (the standard vs_main vertex path) into
-// a half-res RGBA16F ping-pong pair: shell fragments provide the pixel
-// rays for free, and the ping-pong history rides the group-3 albedo
-// slot exactly like the octa pass - zero bind-group-layout changes.
+// 12e is the standard production answer (Decima/Frostbite-class):
+// - THIS entry marches EVERY pixel of a QUARTER-res target EVERY frame
+//   (no cadence, no history here - march only), with a per-frame
+//   SUBPIXEL ray jitter so successive frames sample different subpixel
+//   positions (temporal supersampling).
+// - A separate RESOLVE pass (assets/shaders/cloud_resolve.wgsl) blends
+//   this into the half-res accumulation pair with DEEP accumulation
+//   plus VARIANCE-CLIPPED history: the reprojected history is clamped
+//   to the mean +- gamma*sigma of the current march's 3x3
+//   neighbourhood, so stale content (ghosts) is snapped to plausible
+//   values in ONE frame while converged content accumulates 8+ frames
+//   deep (static gone). Deep accumulation and instant ghost death stop
+//   being a trade-off - that is the whole point of the clip.
 //
-// Pads (all legacy point-light slots, unread since the storage-buffer
-// light list): light4.xyz = planet-relative camera delta (prev - now,
-// world axes - shared with the octa reprojection), light4.w = cadence
-// phase/flag; light5.xyz/light6.xyz/light7.xyz = the PREVIOUS frame's
-// camera forward/right/up basis; light5.w = tan(fov/2), light6.w =
-// aspect.
+// Quarter res at full rate costs the same ~220k marches/frame the old
+// half-res quarter-cadence did, with none of the cadence artifacts.
+//
+// MRT: location 0 = the premultiplied march result; location 1 = the
+// first-hit distance in KM (R16F: f16 holds 0..65k km with ~0.1%
+// relative precision - meters would overflow) for the resolve's
+// translation-exact reprojection.
+//
+// Pads (legacy point-light slots, unread since the storage-buffer light
+// list): light0/1/2.xyz = CURRENT camera fwd/right/up; light5.w =
+// tan(fov/2), light6.w = aspect; light7.w = frame counter (subpixel
+// jitter sequence). light4.xyz + light5/6/7.xyz stay owned by the octa
+// pass's reprojection; the resolve pass gets its camera state through
+// its own uniform buffer instead.
 
 struct CloudScreenVsOut {
     @builtin(position) pos: vec4<f32>,
@@ -344,8 +357,13 @@ fn vs_cloud_screen(@builtin(vertex_index) vi: u32) -> CloudScreenVsOut {
     return out;
 }
 
+struct CloudMarchOut {
+    @location(0) color: vec4<f32>,
+    @location(1) dist_km: f32,
+};
+
 @fragment
-fn fs_cloud_screen(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
     cloud_set_slab_bounds();
@@ -358,42 +376,40 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     // filling the under-deck sky (the operator's vanish-on-approach).
     // A fullscreen triangle with analytic rays has no geometry to sag,
     // and the facing/one-layer discard problem disappears with the mesh.
+    //
+    // SUBPIXEL jitter (12e): the ray is offset inside its own quarter-res
+    // pixel by an R2 low-discrepancy sequence keyed on the frame counter
+    // (light7.w) + a per-pixel hash phase, so the resolve's accumulation
+    // reconstructs finer-than-quarter detail over ~8 frames. dpdx/dpdy of
+    // the interpolated NDC IS this target's per-pixel NDC step - no need
+    // to know the resolution here.
+    let fidx = camera.light7.w;
+    let px_hash = vec2<f32>(
+        hash21(in.pos.xy * 0.7071),
+        hash21(in.pos.yx * 1.3137),
+    );
+    let j2 = fract(px_hash + vec2<f32>(0.7548777, 0.5698403) * fidx);
+    let ndc_step = vec2<f32>(abs(dpdx(in.ndc.x)), abs(dpdy(in.ndc.y)));
+    let ndc_j = in.ndc + (j2 - vec2<f32>(0.5)) * ndc_step;
+
     let tanf = max(camera.light5.w, 1.0e-4);
     let aspect = max(camera.light6.w, 1.0e-4);
     let rd_w = normalize(
         camera.light0.xyz
-            + camera.light1.xyz * (in.ndc.x * tanf * aspect)
-            + camera.light2.xyz * (in.ndc.y * tanf),
+            + camera.light1.xyz * (ndc_j.x * tanf * aspect)
+            + camera.light2.xyz * (ndc_j.y * tanf),
     );
 
-    // 8x8-block interleaved cadence in the half-res target (wave-
-    // coherent skips). Screen reprojection is translation-exact, so a
-    // skipped block's reprojected copy carries no angular-cache lag -
-    // the octa tiles cannot recur here. hash21 mixes the block phase
-    // (the integer LCG showed visible column stripes).
-    var do_march = true;
-    let w4 = camera.light4.w;
-    if (w4 > 0.5 && w4 < 8.5) {
-        let b = floor(in.pos.xy / 8.0);
-        let cell = u32(hash21(b + vec2<f32>(0.13, 0.71)) * 4.0) & 3u;
-        do_march = cell == u32(w4 - 0.5);
-    }
+    // Depth jitter: decorrelated per pixel, advanced per frame - the
+    // resolve's deep accumulation is what integrates it now.
+    let jitter = fract(hash21(in.pos.xy * 0.7182) + fract(fidx * 0.618034));
+    // Footprint = one quarter-res pixel = 4x the screen pixel angle.
+    let cur_s = cloud_march_core(
+        rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 4.0);
 
-    // March (or skip): half-res pixel footprint = 2x the screen pixel.
-    var cur_s = vec4<f32>(0.0);
-    if (do_march) {
-        let jitter = fract(
-            hash21(in.pos.xy * 0.7182)
-                + fract(camera.sun_color.w * 11.0) * 0.618034,
-        );
-        cur_s = cloud_march_core(
-            rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 2.0);
-    }
-    let cur = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
-
-    // Screen-space history: reproject this pixel's CONTENT point into
-    // the previous frame. The content distance is this frame's first
-    // hit (marched pixels) or the analytic shell hit (skips / clear).
+    // First-hit distance for the resolve's reprojection; analytic
+    // shell-top hit when the march saw no cloud (clear-sky pixels still
+    // need SOME parallax distance so their history tracks).
     var t_rep = g_march_first_t;
     if (t_rep <= 0.0) {
         let ro_c = camera.view_pos.xyz - center;
@@ -404,44 +420,8 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
             t_rep = select(-b + sq, -b - sq, -b - sq > 0.0);
         }
     }
-    var hist = vec4<f32>(0.0);
-    var have_hist = false;
-    if (w4 > 0.5 && t_rep > 0.0) {
-        let p_w = camera.view_pos.xyz + rd_w * t_rep;
-        let prev_pos = camera.view_pos.xyz + camera.light4.xyz;
-        let d_prev = normalize(p_w - prev_pos);
-        let pf = camera.light5.xyz;
-        let pr = camera.light6.xyz;
-        let pu = camera.light7.xyz;
-        let z = dot(d_prev, pf);
-        if (z > 1.0e-4) {
-            let tanf = max(camera.light5.w, 1.0e-4);
-            let aspect = max(camera.light6.w, 1.0e-4);
-            let nx = dot(d_prev, pr) / (z * tanf * aspect);
-            let ny = dot(d_prev, pu) / (z * tanf);
-            let uv_p = vec2<f32>(nx, -ny) * 0.5 + vec2<f32>(0.5);
-            if (uv_p.x >= 0.0 && uv_p.x <= 1.0 && uv_p.y >= 0.0 && uv_p.y <= 1.0) {
-                hist = textureSampleLevel(albedo_texture, albedo_sampler, uv_p, 0.0);
-                have_hist = true;
-            }
-        }
-    }
-    if (!do_march) {
-        // Skipped pixel: carry the reprojected history; a fresh march
-        // lands within three frames.
-        if (have_hist) {
-            return hist;
-        }
-        return vec4<f32>(0.0);
-    }
-    if (!have_hist) {
-        return cur;
-    }
-    // Light accumulation: today's band-limited march is clean enough
-    // that ~4-frame convergence suffices, and short history means short
-    // artifact lifetimes. Content change accelerates the blend.
-    let diff = abs(cur.a - hist.a)
-        + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
-    let alpha = clamp(0.25 + diff * 0.5, 0.25, 0.6);
-    return mix(hist, cur, alpha);
+    var out: CloudMarchOut;
+    out.color = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
+    out.dist_km = max(t_rep, 0.0) * 0.001;
+    return out;
 }

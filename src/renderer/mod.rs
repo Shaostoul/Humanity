@@ -35,6 +35,7 @@ pub mod stream_capture;
 pub mod cloud_noise;
 pub mod cloud_primitives;
 pub mod cloud_composite;
+pub mod cloud_resolve;
 pub mod cloud_reference;
 pub mod cloud_temporal;
 pub mod clouds;
@@ -396,6 +397,7 @@ pub struct Renderer {
     /// celestial slot. Strength 0 disables the pass entirely.
     ssao: ssao::SsaoPass,
     cloud_composite: cloud_composite::CloudCompositePass,
+    cloud_resolve: cloud_resolve::CloudResolvePass,
     /// The temporal cloud map's basis anchor: the camera direction in the
     /// PLANET's local frame, re-anchored by lib.rs only when the camera
     /// drifts past a hysteresis threshold (Wave D fix 2: the first cut
@@ -443,6 +445,9 @@ pub struct Renderer {
     /// Previous frame's camera basis (fwd/right/up) for the screen
     /// pass's reprojection pads. Consumed-and-replaced at the pad write.
     pub cloud_prev_basis: std::cell::Cell<Option<[[f32; 3]; 3]>>,
+    /// Camera state for the 12e resolve pass, stashed at the pad-poke
+    /// site each frame so march + octa + resolve all see one motion.
+    cloud_resolve_frame: std::cell::Cell<cloud_resolve::CloudResolveFrame>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -873,6 +878,7 @@ impl Renderer {
         let t_unit = std::time::Instant::now();
         let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
         let cloud_composite_pass = cloud_composite::CloudCompositePass::new(&device, surface_format);
+        let cloud_resolve_pass = cloud_resolve::CloudResolvePass::new(&device);
         log::info!("[BootPhase]   ssao_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
 
         // Shader + pipeline. The megashader compiles from the EMBEDDED
@@ -1622,6 +1628,7 @@ impl Renderer {
             godray_intensity: 0.55,
             ssao: ssao_pass,
             cloud_composite: cloud_composite_pass,
+            cloud_resolve: cloud_resolve_pass,
             cloud_composite_frame: None,
             cloud_map_anchor_local: [0.0, 1.0, 0.0],
             cloud_map_cmax: -1.0,
@@ -1631,6 +1638,7 @@ impl Renderer {
             cloud_mode_near: false,
             cloud_screen: None,
             cloud_prev_basis: std::cell::Cell::new(None),
+            cloud_resolve_frame: std::cell::Cell::new(Default::default()),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -2977,9 +2985,32 @@ impl Renderer {
             self.cloud_octa_phase.set(p.wrapping_add(1));
             (p % 4) as f32
         };
+        // True-TELEPORT test for the 12e resolve (adversarial review of the
+        // march/resolve split, finding 1): the resolve's screen history is
+        // translation-exact via per-pixel first-hit distances, so sustained
+        // fast flight does NOT invalidate it - only a jump large enough
+        // that the reprojection itself is meaningless (~15 degrees of
+        // parallax at the slab distance, mirroring the octa pass's own
+        // per-texel teleport guard). Coupling snap to the CADENCE sentinel
+        // below (threshold ~2 screen pixels of parallax, ~8 m/frame near
+        // the deck) would drop the history on EVERY frame of an ordinary
+        // approach flight and hand the operator raw unconverged march
+        // static - the exact regression 12e exists to cure.
+        let mut resolve_teleport = false;
         let delta_pads: [f32; 4] = match self.cloud_reproj_delta.take() {
             Some(d) if self.cloud_temporal_mat.is_some() => {
                 let d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                if let Some(f) = self.cloud_composite_frame.as_ref() {
+                    let eye = camera.effective_position();
+                    let dc = ((eye.x - f.center[0]).powi(2)
+                        + (eye.y - f.center[1]).powi(2)
+                        + (eye.z - f.center[2]).powi(2))
+                    .sqrt()
+                        - f.rt * f.planet_r;
+                    let d_slab = dc.max(3.0e3);
+                    let tele = 0.25 * d_slab;
+                    resolve_teleport = d2 > tele * tele;
+                }
                 // Cadence-suspension threshold, ANGULAR not absolute
                 // (ghost-echo round 6): a cadence-skipped block re-warps
                 // its own already-warped content for up to 3 frames, and
@@ -3097,13 +3128,25 @@ impl Renderer {
                 .write_buffer(&self.camera_buffer, 112, bytemuck::cast_slice(&p2));
             let p5: [f32; 4] = [prev[0][0], prev[0][1], prev[0][2], tanf];
             let p6: [f32; 4] = [prev[1][0], prev[1][1], prev[1][2], aspect];
-            let p7: [f32; 4] = [prev[2][0], prev[2][1], prev[2][2], 0.0];
+            // light7.w = frame counter for the march's subpixel-jitter
+            // sequence (12e). Wrapped so the f32 stays exact.
+            let fidx = (self.cloud_octa_phase.get() % 2048) as f32;
+            let p7: [f32; 4] = [prev[2][0], prev[2][1], prev[2][2], fidx];
             self.queue
                 .write_buffer(&self.camera_buffer, 160, bytemuck::cast_slice(&p5));
             self.queue
                 .write_buffer(&self.camera_buffer, 176, bytemuck::cast_slice(&p6));
             self.queue
                 .write_buffer(&self.camera_buffer, 192, bytemuck::cast_slice(&p7));
+            // Stash the resolve pass's camera state (12e): the SAME motion
+            // delta the octa pads carry + the prev basis, consumed by
+            // run_cloud_screen_passes this frame. Snap on the teleport
+            // sentinel (w = 9: no history is valid).
+            self.cloud_resolve_frame.set(cloud_resolve::CloudResolveFrame {
+                prev_dpos: [delta_pads[0], delta_pads[1], delta_pads[2]],
+                prev_basis: prev,
+                snap: resolve_teleport,
+            });
         }
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
@@ -3620,14 +3663,20 @@ impl Renderer {
             }
         }
 
-        // ── 12d NEAR screen pass ── the cloud shell mesh drawn into the
-        // half-res ping-pong: fs_cloud_screen marches each pixel's own ray
-        // (8x8-block cadence) and reprojects last frame's SCREEN buffer
-        // through the camera motion + per-pixel first-hit distance. No
-        // direction cache exists in this regime - the solitaire/ghost
-        // family is structurally impossible - and there is no arming
-        // altitude, so clouds never vanish on approach. The composite
-        // samples this buffer at the fragment's own screen uv.
+        // ── 12e NEAR march + resolve ── two passes replace 12d's single
+        // cadence+history hybrid (whose one blend constant could not both
+        // converge the jittered march AND kill stale history - the
+        // operator's "static" + residual ghosting on the first flight):
+        //  1. MARCH: every pixel of the quarter-res pair, every frame,
+        //     subpixel-jittered analytic rays (no cadence, no history) -
+        //     MRT premultiplied result + first-hit distance in km.
+        //  2. RESOLVE: deep accumulation into the half-res ping-pong with
+        //     VARIANCE-CLIPPED reprojected history - ghosts snap to the
+        //     current neighbourhood in one frame while corroborated
+        //     content converges ~8 frames deep.
+        // The composite then samples the accumulation at each fragment's
+        // own screen uv, unchanged. No direction cache exists anywhere in
+        // this regime and there is no arming altitude.
         // DIAG4 (12d bring-up): once-per-second trace of the near-regime
         // chain - drop after the under-deck vanish is verified fixed.
         {
@@ -3661,15 +3710,13 @@ impl Renderer {
                         self.upload_object_uniforms(
                             objects.iter().chain(transparent.iter()),
                         );
-                        let read = cs.cur.get();
-                        let write = 1 - read;
                         let mut pass =
                             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                                label: Some("Cloud Screen Pass"),
+                                label: Some("Cloud March Pass"),
                                 timestamp_writes: self.pass_timer("gpu.cloud_screen"),
-                                color_attachments: &[Some(
-                                    wgpu::RenderPassColorAttachment {
-                                        view: &cs.views[write],
+                                color_attachments: &[
+                                    Some(wgpu::RenderPassColorAttachment {
+                                        view: &cs.march_view,
                                         resolve_target: None,
                                         ops: wgpu::Operations {
                                             load: wgpu::LoadOp::Clear(
@@ -3677,8 +3724,18 @@ impl Renderer {
                                             ),
                                             store: wgpu::StoreOp::Store,
                                         },
-                                    },
-                                )],
+                                    }),
+                                    Some(wgpu::RenderPassColorAttachment {
+                                        view: &cs.dist_view,
+                                        resolve_target: None,
+                                        ops: wgpu::Operations {
+                                            load: wgpu::LoadOp::Clear(
+                                                wgpu::Color::TRANSPARENT,
+                                            ),
+                                            store: wgpu::StoreOp::Store,
+                                        },
+                                    }),
+                                ],
                                 depth_stencil_attachment: None,
                                 ..Default::default()
                             });
@@ -3691,9 +3748,42 @@ impl Renderer {
                             &[(uniform_align as u32) * (slot as u32)],
                         );
                         pass.set_bind_group(2, &material.bind_group, &[]);
-                        pass.set_bind_group(3, &cs.groups[read].colour, &[]);
+                        // Group 3 unused by the march (no history read) -
+                        // the shared layout still requires a binding.
+                        pass.set_bind_group(3, &self.default_texture_bind_group, &[]);
                         pass.draw(0..3, 0..1);
                         drop(pass);
+
+                        let read = cs.cur.get();
+                        let write = 1 - read;
+                        let mut frame = self.cloud_resolve_frame.get();
+                        // Regime entry / buffer recreation: the history is
+                        // zeroed - drop it outright instead of fading the
+                        // deck in from black over ~1/alpha frames.
+                        if cs.fresh.replace(false) {
+                            frame.snap = true;
+                        }
+                        let fwd = camera.forward();
+                        let right = camera.right();
+                        let up = right.cross(fwd).normalize();
+                        let eye = camera.effective_position();
+                        self.cloud_resolve.render(
+                            &self.device,
+                            &self.queue,
+                            &mut encoder,
+                            &cs.march_view,
+                            &cs.dist_view,
+                            &cs.views[read],
+                            &cs.views[write],
+                            &frame,
+                            [eye.x, eye.y, eye.z],
+                            [fwd.x, fwd.y, fwd.z],
+                            [right.x, right.y, right.z],
+                            [up.x, up.y, up.z],
+                            (camera.fov_degrees.to_radians() * 0.5).tan(),
+                            camera.aspect,
+                            self.pass_timer("gpu.cloud_resolve"),
+                        );
                         cs.cur.set(write);
                     }
                 }
