@@ -208,7 +208,27 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // segment behind it (approximate - mass is not uniform along the
     // ray, but the error is a soft fade exactly where a hard cut would
     // pop).
-    let seg_frac = clamp((scene_t - m0) / max(m1 - m0, 1.0e-6), 0.0, 1.0);
+    // Partial-occlusion fraction, ANALYTIC (operator round 7: tiling
+    // "everywhere under the clouds in line of sight of Earth, never
+    // outside the planet area" - the depth buffer is the ONLY per-pixel
+    // input that exists over the planet and not over space, and terrain
+    // and water draw in LOD PATCHES whose structure printed through this
+    // fraction as tiles). The fraction's legitimate job is coarse - how
+    // much of a km-scale cloud sits in front of the ground - so it now
+    // derives from the analytically smooth planet sphere, which cannot
+    // carry patch texture. The per-pixel depth keeps exactly one job:
+    // the hard discard above, where terrain in front of the WHOLE
+    // segment fully occludes (mountains still work). A ridge partially
+    // overlapping the slab mis-attenuates slightly - the original
+    // depth form was itself documented approximate, and a soft error
+    // beats a tiled one.
+    var seg_frac = 1.0;
+    if (d2 < 1.0) {
+        let t_srf = tca - sqrt(1.0 - d2);
+        if (t_srf > 0.0) {
+            seg_frac = clamp((t_srf - m0) / max(m1 - m0, 1.0e-6), 0.0, 1.0);
+        }
+    }
 
     // The temporal map (premultiplied), by direction. The 1.02 threshold
     // (~1 deg past the extent) is deliberate: at k = 2 the antipode's

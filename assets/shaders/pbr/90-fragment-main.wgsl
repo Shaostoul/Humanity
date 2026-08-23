@@ -463,10 +463,18 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             n_geo,
             n_geo,
             view_dir,
-            // A perfectly calm backstop resolves NO slopes - it must carry
-            // the same full-width lobe as the far-field wave shell, or a
-            // cross-LOD aperture shows a glitter-width seam.
-            0.0,
+            // The backstop's resolved fraction follows its OWN footprint
+            // (water agent F7): the old literal 0.0 was right in the far
+            // field but wrong beside a near-field wave shell passing
+            // presence * tex_reach ~ 1 - every cross-LOD aperture showed
+            // a hard glitter-width step, a mirror-direction step, and an
+            // anchor-glint on/off seam at once. Matching the wave
+            // shell's law makes the seam converge to zero exactly where
+            // the two paths meet, while the far field (footprint past
+            // 14 m) still resolves nothing - the v0.1045 rationale
+            // preserved where it was true.
+            wave_presence(footprint)
+                * (1.0 - smoothstep(4.0, 14.0, footprint)),
             sun_shadow(in.world_position, bsun_ndl),
         );
         let bcos = clamp(dot(n_geo, view_dir), 0.0, 1.0);
