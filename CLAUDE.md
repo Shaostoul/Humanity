@@ -213,6 +213,18 @@ who is probably in a file right now. The mechanical protection is the staged-onl
 commit. `just mine` and `just ship` both print a warning when the staged set spans
 three or more lanes, because that is the signature of an accidental sweep.
 
+**When a SHARED file (lib.rs etc.) holds both your hunks and another session's:**
+stage it hunk-selectively, then prove the staged tree compiles before pushing.
+Recipe (used 2026-08-23, sealed-sender DM cutover, when lib.rs carried another
+session's in-flight renderer hunks referencing fields that existed only in their
+uncommitted files): (1) `git diff <file>` and identify your hunks by content;
+(2) write ONLY your hunks to a patch (script it; hunk headers self-locate by
+context) and `git apply --cached that.patch`; (3) `git checkout-index -a
+--prefix=<scratch>/` and run `cargo check` for BOTH feature sets in the scratch
+tree - that is EXACTLY what CI and the tag build will see, and it catches the
+half-a-refactor-committed failure the working-tree build cannot. Never commit a
+shared file wholesale while another session's hunks are in it.
+
 ## Cross-session persistence (perpetual)
 
 Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:
