@@ -43,6 +43,9 @@ struct CloudCompositeUniforms {
 @group(0) @binding(1) var<uniform> u: CloudCompositeUniforms;
 @group(0) @binding(2) var cloud_map: texture_2d<f32>;
 @group(0) @binding(3) var map_sampler: sampler;
+// 12g: the NEAR screen-pass accumulation, crossfaded with the octa map
+// by u.cam_right.w (0 = pure map, 1 = pure screen).
+@group(0) @binding(4) var cloud_screen: texture_2d<f32>;
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -230,28 +233,34 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
 
-    // The cloud image (premultiplied). Two regimes (12d):
-    //  - NEAR (cam_right.w > 0.5): the bound texture is the half-res
-    //    SCREEN buffer, marched per pixel this frame for exactly this
-    //    camera - sample it at this fragment's own screen coordinate
-    //    (texture rows run downward, so flip v like the depth lookup
-    //    above). No extent, no direction mapping.
-    //  - FAR: the direction-indexed octa map. The 1.02 threshold (~1 deg
-    //    past the extent) is deliberate: at k = 2 the antipode's r^2
-    //    lands at 1.0 exactly and f32 dot jitter can push it a hair over
-    //    - an exact > 1.0 test would flicker a hole at the sub-camera
-    //    point. Genuinely outside-extent rays overshoot far past 1.02.
-    var s = vec4<f32>(0.0);
-    if (u.cam_right.w > 0.5) {
-        s = textureSampleLevel(
-            cloud_map, map_sampler, vec2<f32>(in.uv.x, 1.0 - in.uv.y), 0.0);
-    } else {
+    // The cloud image (premultiplied), CROSSFADED between the two
+    // regimes (12g - the operator's one-frame "huge patch of clouds just
+    // vanishes" at the old binary switch):
+    //  - The octa map arm (weight 1 - w): direction-indexed Catmull-Rom.
+    //    The 1.02 extent threshold (~1 deg past the extent) is
+    //    deliberate: at k = 2 the antipode's r^2 lands at 1.0 exactly
+    //    and f32 dot jitter can push it a hair over - an exact > 1.0
+    //    test would flicker a hole at the sub-camera point. Outside the
+    //    extent this arm contributes ZERO (not a discard - the screen
+    //    arm may still have content).
+    //  - The screen arm (weight w): the half-res accumulation, marched
+    //    per pixel for exactly this camera, sampled at this fragment's
+    //    own screen coordinate (texture rows run downward, so flip v
+    //    like the depth lookup above).
+    let w_mix = clamp(u.cam_right.w, 0.0, 1.0);
+    var s_map = vec4<f32>(0.0);
+    if (w_mix < 0.999) {
         let e = map_encode(rd);
-        if (e.z > 1.02) {
-            discard; // outside the map's extent - no data
+        if (e.z <= 1.02) {
+            s_map = map_catmull_rom(e.xy);
         }
-        s = map_catmull_rom(e.xy);
     }
+    var s_scr = vec4<f32>(0.0);
+    if (w_mix > 0.001) {
+        s_scr = textureSampleLevel(
+            cloud_screen, map_sampler, vec2<f32>(in.uv.x, 1.0 - in.uv.y), 0.0);
+    }
+    let s = mix(s_map, s_scr, w_mix);
     if (s.a <= 0.003) {
         discard;
     }

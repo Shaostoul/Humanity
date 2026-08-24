@@ -470,9 +470,15 @@ fn cloud_pix_ang_screen() -> f32 {
 // variance DIP between integers) and the carve-width table print those
 // crossings as CONCENTRIC RINGS of alternating cloud texture. The cure
 // is to never blend mips at all: each sample rounds to ONE integer mip,
-// with the rounding threshold jittered per pixel/frame (set by
-// cloud_march_core; 0 elsewhere so the Medium direct path - which has no
-// temporal accumulation to integrate the noise - keeps plain trilinear).
+// with the rounding threshold jittered per BLOCK/frame (set by the
+// CALLING fragment entry, not the core; 0 elsewhere so the Medium
+// direct path - which has no temporal accumulation to integrate the
+// noise - keeps plain trilinear). BLOCK-coherent, not per-pixel,
+// deliberately: per-pixel mip choices made adjacent pixels fetch
+// different mip levels and the texture-cache thrash cost ~25% frame
+// time across every vantage (measured 2026-08-24); 8x8 blocks sharing
+// one choice keep the cache hot while boundaries dissolve spatially
+// and temporally.
 // Variance stays uniform (no blend dip), boundaries dissolve into noise
 // the temporal accumulation integrates, and a single-mip fetch is
 // cheaper than trilinear.
@@ -2179,10 +2185,9 @@ fn cloud_march_core(
     pix_ang: f32,
 ) -> vec4<f32> {
     g_march_first_t = 0.0;
-    // Stochastic mip threshold for this invocation (see cloud_lod): a
-    // second low-discrepancy channel derived from the caller's depth
-    // jitter, in (-0.5, 0.5), never exactly 0 (0 = trilinear opt-out).
-    g_lod_jitter = fract(jitter * 61.803399) - 0.4999;
+    // (g_lod_jitter is set by the CALLING fragment entry, block-coherent
+    // - see the note at its declaration. The Medium direct path never
+    // sets it and keeps plain trilinear.)
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);

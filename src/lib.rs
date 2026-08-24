@@ -8778,6 +8778,7 @@ mod native_app {
                         state.renderer.cloud_composite_frame = None;
                         state.renderer.cloud_map_resample.set(None);
                         state.renderer.cloud_mode_near = false;
+                        state.renderer.cloud_near_mix = 0.0;
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11502,27 +11503,75 @@ mod native_app {
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
                                         }
-                                        // 12d regime split: NEAR (planet
-                                        // filling the screen) switches to
-                                        // the half-res per-pixel screen
-                                        // pass - no direction cache, so no
-                                        // ghost family and no vanish-on-
-                                        // approach; FAR keeps the octa
-                                        // map, whose texels are sub-pixel
-                                        // on a small disc. Hysteresis
-                                        // (enter 1000 px, leave 800 px)
-                                        // keeps the boundary from
-                                        // flickering regimes on approach.
-                                        let near_prev = state.renderer.cloud_mode_near;
-                                        let near = temporal
-                                            && if near_prev {
-                                                px >= 800.0
-                                            } else {
-                                                px >= 1000.0
-                                            };
+                                        // 12d/12g regime split: NEAR (planet
+                                        // filling the screen) uses the
+                                        // half-res per-pixel screen pass -
+                                        // no direction cache, so no ghost
+                                        // family and no vanish-on-approach;
+                                        // FAR keeps the octa map, whose
+                                        // texels are sub-pixel on a small
+                                        // disc. 12g CROSSFADE (operator:
+                                        // "a huge patch of clouds just
+                                        // vanishes" at the switch): the two
+                                        // regimes render measurably
+                                        // different coverage (v0.1204
+                                        // journal - cause still open), so a
+                                        // binary switch pops in one frame
+                                        // no matter where it sits. Instead
+                                        // the composite MIXES the two
+                                        // sources across px 1000..1600:
+                                        // both passes run inside the band,
+                                        // and any residual look difference
+                                        // spreads over hundreds of frames
+                                        // of approach instead of one. The
+                                        // old enter/leave hysteresis is
+                                        // gone - the mix is continuous, and
+                                        // at the band edges the incoming
+                                        // source's weight is ~0 anyway.
+                                        // Band 600..800 px (measured with the
+                                        // [CloudRegime] instrument, 2026-08-24):
+                                        // the octa map renders the MODIS-
+                                        // saturated region correctly at px 625
+                                        // (12,000 km) but WHITES OUT by px 899
+                                        // (6,690 km) - mechanism still open -
+                                        // while the screen pass matches the
+                                        // proven far look at every altitude
+                                        // tested. The screen pass therefore owns
+                                        // everything above px 800; the octa
+                                        // keeps only the small-disc range where
+                                        // it has months of proof.
+                                        let near_mix = if temporal {
+                                            ((px - 600.0) / 200.0).clamp(0.0, 1.0)
+                                        } else {
+                                            0.0
+                                        };
+                                        let near = near_mix > 0.0;
                                         state.renderer.cloud_mode_near = near;
+                                        state.renderer.cloud_near_mix = near_mix;
                                         if near {
                                             state.renderer.ensure_cloud_screen();
+                                        }
+                                        // [CloudRegime] 1 Hz instrument
+                                        // (v0.1204 lesson: three sweeps
+                                        // were confounded by GUESSING which
+                                        // regime a park ran).
+                                        {
+                                            static LAST: std::sync::atomic::AtomicU64 =
+                                                std::sync::atomic::AtomicU64::new(0);
+                                            let now_s = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .map(|d| d.as_secs())
+                                                .unwrap_or(0);
+                                            if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
+                                                log::info!(
+                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={}",
+                                                    px,
+                                                    near_mix,
+                                                    (cam_r_ratio as f32 - 1.0).max(0.0)
+                                                        * (d.radius / 1000.0) as f32,
+                                                    temporal,
+                                                );
+                                            }
                                         }
                                         let pin = pin + if temporal { 4.0 } else { 0.0 };
                                         state.renderer.update_material_params2(

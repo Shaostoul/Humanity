@@ -440,6 +440,9 @@ pub struct Renderer {
     /// structurally impossible there). Set per frame by lib.rs from the
     /// planet's on-screen size with hysteresis.
     pub cloud_mode_near: bool,
+    /// 12g crossfade weight between the octa map (0) and the screen pass
+    /// (1) at the composite; both passes run while 0 < mix < 1.
+    pub cloud_near_mix: f32,
     /// The near-regime screen buffers (created by ensure_cloud_screen).
     pub(crate) cloud_screen: Option<cloud_temporal::CloudScreen>,
     /// Previous frame's camera basis (fwd/right/up) for the screen
@@ -1636,6 +1639,7 @@ impl Renderer {
             cloud_reproj_delta: std::cell::Cell::new(None),
             cloud_octa_phase: std::cell::Cell::new(0),
             cloud_mode_near: false,
+            cloud_near_mix: 0.0,
             cloud_screen: None,
             cloud_prev_basis: std::cell::Cell::new(None),
             cloud_resolve_frame: std::cell::Cell::new(Default::default()),
@@ -3612,14 +3616,15 @@ impl Renderer {
         // opaque list); the pass binds the cloud SHELL's slot so obj_model()
         // gives the march its planet frame, and the group-3 with the
         // ping-pong PARTNER in the albedo slot supplies the history.
-        // FAR regime only (12d): near the planet the half-res screen pass
-        // below replaces the octa map entirely - marching 16.7M map texels
-        // for a full-screen planet was the deep-space... opposite, the
-        // near-planet lag, and the direction cache is the ghost family.
-        if let (Some(ct), Some(mat_idx), false) = (
+        // FAR side (12d/12g): runs whenever the crossfade still gives the
+        // octa map any weight (mix < 1) - fully near, the half-res screen
+        // pass replaces it entirely (marching 16.7M map texels for a
+        // full-screen planet was the near-planet lag, and the direction
+        // cache is the ghost family).
+        if let (Some(ct), Some(mat_idx), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_temporal_mat,
-            self.cloud_mode_near,
+            self.cloud_near_mix < 1.0,
         ) {
             if let (Some(i), Some(material)) = (
                 transparent.iter().position(|o| o.material == mat_idx),
@@ -4124,24 +4129,25 @@ impl Renderer {
             let right = camera.right();
             let up = right.cross(fwd).normalize();
             let eye = camera.effective_position();
-            // 12d: near mode composites the half-res SCREEN buffer at the
-            // fragment's own uv; far mode keeps the direction-indexed octa
-            // map. Falls back to the map if the screen pair has not been
-            // created yet (first near frame races ensure_cloud_screen).
-            let (map_view, screen_mode) = match (self.cloud_mode_near, self.cloud_screen.as_ref())
+            // 12g: the composite crossfades the octa map with the half-res
+            // SCREEN accumulation by cloud_near_mix. When the screen pair
+            // does not exist yet (first near frame races
+            // ensure_cloud_screen) the octa map stands in at weight 0.
+            let (screen_view, near_mix) = match (self.cloud_mode_near, self.cloud_screen.as_ref())
             {
-                (true, Some(cs)) => (&cs.views[cs.cur.get()], true),
-                _ => (&ct.views[ct.cur.get()], false),
+                (true, Some(cs)) => (&cs.views[cs.cur.get()], self.cloud_near_mix),
+                _ => (&ct.views[ct.cur.get()], 0.0),
             };
             self.cloud_composite.render(
                 &self.device,
                 &self.queue,
                 encoder,
                 &self.depth_view,
-                map_view,
+                &ct.views[ct.cur.get()],
                 view,
                 frame,
-                screen_mode,
+                screen_view,
+                near_mix,
                 [eye.x, eye.y, eye.z],
                 [fwd.x, fwd.y, fwd.z],
                 [right.x, right.y, right.z],

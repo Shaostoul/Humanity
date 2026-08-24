@@ -120,6 +120,18 @@ impl CloudCompositePass {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    // 12g: the NEAR screen-pass accumulation, crossfaded
+                    // with the octa map by cam_right.w (0..1).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -208,7 +220,8 @@ impl CloudCompositePass {
         map_view: &wgpu::TextureView,
         view: &wgpu::TextureView,
         frame: &CloudCompositeFrame,
-        screen_mode: bool,
+        screen_view: &wgpu::TextureView,
+        near_mix: f32,
         cam_pos: [f32; 3],
         cam_fwd: [f32; 3],
         cam_right: [f32; 3],
@@ -222,15 +235,10 @@ impl CloudCompositePass {
         let u = CloudCompositeUniforms {
             cam_pos: [cam_pos[0], cam_pos[1], cam_pos[2], tan_half_fov],
             cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], aspect],
-            // cam_right.w: the 12d regime flag - 1 = the bound cloud
-            // texture is the half-res SCREEN buffer (sample at the
-            // fragment's own uv), 0 = the direction-indexed octa map.
-            cam_right: [
-                cam_right[0],
-                cam_right[1],
-                cam_right[2],
-                if screen_mode { 1.0 } else { 0.0 },
-            ],
+            // cam_right.w: the 12g crossfade - the composite mixes the
+            // direction-indexed octa map (0) with the half-res SCREEN
+            // accumulation sampled at the fragment's own uv (1).
+            cam_right: [cam_right[0], cam_right[1], cam_right[2], near_mix],
             cam_up: [cam_up[0], cam_up[1], cam_up[2], frame.cmax],
             center: [frame.center[0], frame.center[1], frame.center[2], frame.planet_r],
             basis_x: [frame.basis[0][0], frame.basis[0][1], frame.basis[0][2], frame.rb],
@@ -258,6 +266,10 @@ impl CloudCompositePass {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(screen_view),
                 },
             ],
         });

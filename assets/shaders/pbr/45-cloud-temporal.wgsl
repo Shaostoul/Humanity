@@ -403,15 +403,18 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // Depth jitter: decorrelated per pixel, advanced per frame - the
     // resolve's deep accumulation is what integrates it now.
     let jitter = fract(hash21(in.pos.xy * 0.7182) + fract(fidx * 0.618034));
-    // Footprint = one quarter-res pixel = 4x the screen pixel angle,
-    // CAPPED at the octa map's texel angle (regime-handoff parity,
-    // 2026-08-24: at the FAR/NEAR switch the screen-driven footprint was
-    // 9.4x the octa's - a one-frame drop of 3.2 MIPS with the carve-width
-    // compensator already saturated at its 0.02 cap, so whole marginal
-    // cloud patches carved to zero the moment the regime flipped - the
-    // operator's "a huge patch of clouds just vanishes". With the cap the
-    // two regimes march the SAME footprint at the boundary by
-    // construction; near the ground the screen term is finer and wins.
+    // Block-coherent stochastic-mip threshold (see g_lod_jitter's note in
+    // 40-clouds.wgsl): one mip choice per 8x8 block per frame keeps the
+    // texture cache hot; per-pixel choices cost ~25% frame time.
+    g_lod_jitter = fract(
+        hash21(floor(in.pos.xy / 8.0) + vec2<f32>(0.31, 0.17))
+            + fract(fidx * 0.618034),
+    ) - 0.4999;
+    // Footprint = one quarter-res pixel = 4x the screen pixel angle.
+    // (A cap at the octa's texel angle was tried for regime-handoff
+    // parity and REVERTED: at planetary range it rendered the
+    // MODIS-saturated region ~90% areal - the v0.1204 white continent.
+    // The handoff is now a composite-level CROSSFADE instead.)
     let cur_s = cloud_march_core(
         rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 4.0);
 

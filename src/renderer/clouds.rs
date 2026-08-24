@@ -1533,6 +1533,72 @@ mod tests {
 }
 
 #[cfg(test)]
+mod coverage_vs_mip {
+    use crate::renderer::cloud_noise;
+
+    /// THE HANDOFF-CONTRADICTION PROBE (2026-08-24, v0.1204 journal): the
+    /// FAR/NEAR cloud regimes render visibly different areal coverage,
+    /// and the footprint analysis could not decide whether the mip
+    /// ladder explains it. Since any carve > ~0.01 renders opaque over a
+    /// km-scale slab (sigma 20/km), areal coverage at mip L reduces to
+    /// P(body_L > thr - W_L) with the shipped carve width W_L, vs the
+    /// truth P(body_0 > thr). This prints that curve exactly, over the
+    /// FULL shipped volume, per threshold. Flat curve = the mip story is
+    /// dead and the octa-vs-near difference lives in the resolve or the
+    /// composite; a swinging curve = coverage is not mip-conserved and
+    /// the carve widths need refitting against COVERAGE, not mean.
+    /// Run: cargo test --release --features native --lib coverage_vs_mip -- --ignored --nocapture
+    #[test]
+    #[ignore = "heavy (generates the 384^3 volume + mip chain); diagnostic"]
+    fn coverage_across_the_mip_ladder() {
+        // The shipped WGSL width table (40-clouds.wgsl CLOUD_CARVE_W0..W8).
+        let widths = [
+            0.005f32, 0.005, 0.010, 0.010, 0.015, 0.015, 0.020, 0.020, 0.020,
+        ];
+        // thr = mix(COV_LO 0.854, COV_HI 0.347, wa): wa 1.0 -> 0.347 (the
+        // pinned-coverage case), wa 0.9 -> 0.398 (MODIS-saturated), wa
+        // 0.6 -> 0.550, wa 0.3 -> 0.702.
+        let thrs = [0.347f32, 0.398, 0.550, 0.702];
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let base = cloud_noise::generate_shape(threads);
+        let chain = cloud_noise::mip_chain(base, cloud_noise::SHAPE_SIZE);
+        println!("level  size      P(cover) per thr {:?}", thrs);
+        let mut truth = [0.0f32; 4];
+        for (l, level) in chain.iter().enumerate() {
+            let w = widths[l.min(widths.len() - 1)];
+            // Level 0 is the truth: no width compensation (hard carve).
+            let w_eff = if l == 0 { 0.0 } else { w };
+            let mut cover = [0u64; 4];
+            let mut n = 0u64;
+            for px in level.chunks_exact(4) {
+                let x = px[0] as f32 / 255.0;
+                for (ti, thr) in thrs.iter().enumerate() {
+                    if x > thr - w_eff {
+                        cover[ti] += 1;
+                    }
+                }
+                n += 1;
+            }
+            let fr: Vec<f32> =
+                cover.iter().map(|c| *c as f32 / n.max(1) as f32).collect();
+            if l == 0 {
+                for (i, f) in fr.iter().enumerate() {
+                    truth[i] = *f;
+                }
+            }
+            let ratios: Vec<String> = fr
+                .iter()
+                .zip(truth.iter())
+                .map(|(f, t)| format!("{:.3} ({:+.0}%)", f, 100.0 * (f - t) / t.max(1e-6)))
+                .collect();
+            println!("  {:2}  {:5}  {}", l, (cloud_noise::SHAPE_SIZE >> l).max(1), ratios.join("  "));
+        }
+    }
+}
+
+#[cfg(test)]
 mod carve_width_fit {
     use crate::renderer::cloud_noise;
 
