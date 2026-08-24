@@ -11472,12 +11472,33 @@ mod native_app {
                                         // dev coverage pin's full bypass),
                                         // 2 + tc = full bypass AND type pin
                                         // (cloud_type_coord returns tc).
+                                        // Placement source (2026-08-24, the
+                                        // operator's own diagnosis of the
+                                        // jarring mid-ascent deck swap):
+                                        // with Live weather OFF the pin is
+                                        // 1.0 = full MODIS bypass at EVERY
+                                        // altitude - one coherent
+                                        // procedural pattern from orbit to
+                                        // the ground, with only DENSITY
+                                        // drifting between the local
+                                        // weather floor and the planet's
+                                        // base coverage. This also makes
+                                        // the existing Settings toggle's
+                                        // "Off = purely procedural skies"
+                                        // promise true in the SHADER, not
+                                        // just in the fetcher gating. With
+                                        // Live weather ON the old
+                                        // far-placement handoff remains
+                                        // (MODIS owns the marble, the
+                                        // procedural floor owns the local
+                                        // sky below ~30 km).
                                         let pin = match (
                                             state.cloud_cover_override.is_some(),
                                             state.cloud_type_override,
                                         ) {
                                             (true, Some(tc)) => 2.0 + tc.clamp(0.0, 1.0),
                                             (true, None) => 1.0,
+                                            _ if !state.gui_state.settings.live_weather => 1.0,
                                             _ => wx_bypass,
                                         };
                                         // Temporal accumulation, armed at
@@ -11528,20 +11549,29 @@ mod native_app {
                                         // gone - the mix is continuous, and
                                         // at the band edges the incoming
                                         // source's weight is ~0 anyway.
-                                        // Band 600..800 px (measured with the
-                                        // [CloudRegime] instrument, 2026-08-24):
-                                        // the octa map renders the MODIS-
-                                        // saturated region correctly at px 625
-                                        // (12,000 km) but WHITES OUT by px 899
-                                        // (6,690 km) - mechanism still open -
-                                        // while the screen pass matches the
-                                        // proven far look at every altitude
-                                        // tested. The screen pass therefore owns
-                                        // everything above px 800; the octa
-                                        // keeps only the small-disc range where
-                                        // it has months of proof.
+                                        // Band 1600..2000 px (round 3 of the
+                                        // boundary hunt, 2026-08-24): at
+                                        // planetary-disc ranges the SCREEN
+                                        // pass's quarter-res ray grid spans
+                                        // ~60 km of cloud field per march
+                                        // pixel - the accumulated march
+                                        // integrates sub-grid gap/mass
+                                        // structure into a featureless
+                                        // semi-white VEIL (the "white
+                                        // continent" was this veil's contrast
+                                        // against land vs ocean, never
+                                        // geography). The octa map exists
+                                        // precisely to concentrate its rays
+                                        // on the disc (~6 km per texel) and
+                                        // renders every tested disc range
+                                        // correctly, so it now owns
+                                        // everything out to px 1600; the
+                                        // screen pass takes over only where
+                                        // the planet more than fills the
+                                        // screen (below roughly 1,000 km
+                                        // altitude) and its grid is dense.
                                         let near_mix = if temporal {
-                                            ((px - 600.0) / 200.0).clamp(0.0, 1.0)
+                                            ((px - 1600.0) / 400.0).clamp(0.0, 1.0)
                                         } else {
                                             0.0
                                         };
@@ -11564,12 +11594,15 @@ mod native_app {
                                                 .unwrap_or(0);
                                             if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
                                                 log::info!(
-                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={}",
+                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={} pin={:.2} live={} cov={:.2}",
                                                     px,
                                                     near_mix,
                                                     (cam_r_ratio as f32 - 1.0).max(0.0)
                                                         * (d.radius / 1000.0) as f32,
                                                     temporal,
+                                                    pin,
+                                                    state.gui_state.settings.live_weather,
+                                                    cov_eff,
                                                 );
                                             }
                                         }

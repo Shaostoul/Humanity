@@ -552,7 +552,11 @@ pub struct AppConfig {
     /// Live Earth weather (v0.874): fetch NASA's real global cloud-cover
     /// map in the background and place the in-game cloud masses where real
     /// clouds are right now. Off = purely procedural coverage, no network.
-    #[serde(default = "default_true")]
+    /// Default OFF since 2026-08-24 (operator): the MODIS map only owns FAR
+    /// placement and hands off to the procedural field below ~120 km, which
+    /// visibly REPLACED the deck mid-ascent; the procedural field is one
+    /// coherent pattern at every altitude. Turn on to match real Earth.
+    #[serde(default)]
     pub live_weather: bool,
     /// Track the orbital home station (in-world ring + label; Cosmos page
     /// toggle, v0.885/persisted v0.886).

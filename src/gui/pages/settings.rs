@@ -2519,7 +2519,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             if widgets::toggle(ui, theme, "Live weather (Earth)", &mut state.settings.live_weather) {
                 state.settings_dirty = true;
             }
-            widgets::setting_hint(ui, theme, hint, "Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off = purely procedural skies.");
+            widgets::setting_hint(ui, theme, hint, "Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off (default) = purely procedural skies - one coherent cloud pattern at every altitude. On, the real map owns the view from space and hands off to the procedural sky on the way down, which can visibly reshuffle the deck mid-descent.");
         }
         // Cloud quality ladder (clouds increment 3). Applies live: the cloud
         // material is cached per (body, quality), so flipping tiers rebuilds

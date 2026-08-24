@@ -44,10 +44,12 @@ struct CloudResolveUniforms {
     prev_up: [f32; 4],
 }
 
-/// Base accumulation alpha: ~8-frame effective depth. The variance clip
-/// is what makes this depth safe (unclipped, it would be a half-second
-/// ghost trail - exactly the 12d failure).
-const RESOLVE_ALPHA_BASE: f32 = 0.12;
+/// Base accumulation alpha: ~14-frame effective depth (0.12 -> 0.07,
+/// 2026-08-24 round 2: the operator still read the cloud-edge grain as
+/// "TV static" - at 8 frames the residual jitter sigma on high-contrast
+/// silhouettes stayed visible). The variance clip is what makes this
+/// depth safe (unclipped, it would be a ghost trail - the 12d failure).
+const RESOLVE_ALPHA_BASE: f32 = 0.07;
 /// Variance-clip gamma (box half-width in sigmas). 1.0 = tight Karis
 /// clipping; raise toward 1.5 if converged detail visibly flickers.
 const RESOLVE_CLIP_GAMMA: f32 = 1.0;

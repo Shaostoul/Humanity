@@ -7263,7 +7263,10 @@ impl Default for SettingsState {
             terrain_lod_fade: true,
             planet_atmo_scatter: true,
             planet_clouds: true,
-            live_weather: true,
+            // Default OFF (2026-08-24): the live map's far-placement handoff
+            // visibly replaced the deck mid-ascent; procedural is coherent
+            // at every altitude. The Settings toggle turns it back on.
+            live_weather: false,
             track_station: true,
             planet_surface_detail: true,
             water_fft: false,

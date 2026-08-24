@@ -490,11 +490,17 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
     // 0..8: the 384-chain has nine levels; clamping at the old 7 would
     // saturate the deepest footprints one rung early and leave far-field
     // samples under-band-limited.
-    let l = clamp(lodb - site_c, 0.0, 8.0);
-    if (g_lod_jitter != 0.0) {
-        return clamp(floor(l + g_lod_jitter + 0.5), 0.0, 8.0);
-    }
-    return l;
+    // CONTINUOUS lod dither (2026-08-24 round 2, operator: "big squares"
+    // of static while falling through the deck): integer stochastic
+    // rounding put whole blocks on visibly different mip levels - the
+    // 8x8 block-coherent variant traded the cache thrash of the
+    // per-pixel variant for BLOCK ARTIFACTS lit up by any low sun. The
+    // ring cure never needed integer mips: adding a continuous +-0.5
+    // dither to the TRILINEAR lod smears the between-mip variance dip
+    // across radius, so no fixed ring radius exists, while the sampled
+    // value stays continuous in lod (no jumps, no squares) and the two
+    // fetched mips stay the same pair as undithered (no cache cliff).
+    return clamp(lodb - site_c + g_lod_jitter, 0.0, 8.0);
 }
 
 // ── Mip-width-aware SOFT carve (Wave B, increment 9) ──

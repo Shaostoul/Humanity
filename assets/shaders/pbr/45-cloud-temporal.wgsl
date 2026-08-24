@@ -403,20 +403,25 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // Depth jitter: decorrelated per pixel, advanced per frame - the
     // resolve's deep accumulation is what integrates it now.
     let jitter = fract(hash21(in.pos.xy * 0.7182) + fract(fidx * 0.618034));
-    // Block-coherent stochastic-mip threshold (see g_lod_jitter's note in
-    // 40-clouds.wgsl): one mip choice per 8x8 block per frame keeps the
-    // texture cache hot; per-pixel choices cost ~25% frame time.
-    g_lod_jitter = fract(
-        hash21(floor(in.pos.xy / 8.0) + vec2<f32>(0.31, 0.17))
-            + fract(fidx * 0.618034),
-    ) - 0.4999;
-    // Footprint = one quarter-res pixel = 4x the screen pixel angle.
-    // (A cap at the octa's texel angle was tried for regime-handoff
-    // parity and REVERTED: at planetary range it rendered the
-    // MODIS-saturated region ~90% areal - the v0.1204 white continent.
-    // The handoff is now a composite-level CROSSFADE instead.)
+    // Continuous per-pixel lod dither (see g_lod_jitter's note in
+    // 40-clouds.wgsl): +-0.5 on the trilinear lod - smooth, square-free,
+    // cache-neutral.
+    g_lod_jitter = fract(hash21(in.pos.xy * 1.317) + fract(fidx * 0.618034)) - 0.5;
+    // Footprint = one quarter-res pixel = 4x the screen pixel angle,
+    // CAPPED at the octa map's texel angle (regime parity). At planetary
+    // range the screen-driven footprint reaches mips 5-6, where the
+    // erosion bands flatten into a uniform dim that carves NO areal gaps
+    // - the deck renders as a featureless ~white VEIL (the "white
+    // continent": a uniform veil whose contrast against land vs ocean
+    // faked geography, v0.1204-05 forensics). The cap keeps the erosion
+    // mips as fine as the proven octa path so real gaps survive at any
+    // distance; near the ground the screen term is finer and wins. (This
+    // cap was briefly reverted when a live-MODIS-saturated map made its
+    // A/B look like an over-render - the placement, not the footprint,
+    // was the white there.)
     let cur_s = cloud_march_core(
-        rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 4.0);
+        rd_w, center, shell_r, jitter,
+        min(cloud_pix_ang_screen() * 4.0, cloud_pix_ang_map()));
 
     // First-hit distance for the resolve's reprojection; analytic
     // shell-top hit when the march saw no cloud (clear-sky pixels still
