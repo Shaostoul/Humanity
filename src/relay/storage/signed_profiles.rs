@@ -25,6 +25,21 @@ pub struct SignedProfileRecord {
 impl Storage {
     /// Store a signed profile if it's newer than the existing one.
     /// Returns true if the profile was inserted/updated (i.e., it was newer).
+    /// Remove a user's replicated signed profile (privacy, 2026-08-24):
+    /// when a user goes unlisted, their profile stops propagating and any
+    /// previously-cached copy on THIS server is dropped. Returns rows
+    /// removed. (Peers that already replicated it age it out on their own
+    /// retention; latest-timestamp-wins means a future listed update
+    /// re-propagates.)
+    pub fn delete_signed_profile(&self, public_key: &str) -> Result<usize, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM signed_profiles WHERE public_key = ?1",
+                rusqlite::params![public_key],
+            )
+        })
+    }
+
     pub fn store_signed_profile(
         &self,
         public_key: &str,

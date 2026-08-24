@@ -68,8 +68,9 @@ impl Storage {
             grab("profile", "SELECT * FROM profiles WHERE name = ?1 COLLATE NOCASE", &[&name]);
             grab("signed_profiles", "SELECT * FROM signed_profiles WHERE public_key = ?1", &[&key]);
             grab("messages_authored", "SELECT id, channel_id, content, timestamp FROM messages WHERE from_key = ?1 ORDER BY timestamp ASC", &[&key]);
-            grab("following", "SELECT followed_key, created_at FROM follows WHERE follower_key = ?1", &[&key]);
-            grab("followers", "SELECT follower_key, created_at FROM follows WHERE followed_key = ?1", &[&key]);
+            // (follows removed 2026-08-24: the server stores no social
+            // graph to export — following lives in the user's own client
+            // store.)
             grab("uploads", "SELECT id, filename, url, size, mime_type, created_at FROM uploads WHERE uploader_key = ?1", &[&key]);
             grab("notification_prefs", "SELECT * FROM notification_prefs WHERE public_key = ?1", &[&key]);
             grab("tasks_created", "SELECT id, title, description, status, priority, created_at FROM tasks WHERE created_by = ?1", &[&key]);
@@ -128,7 +129,6 @@ impl Storage {
             del("messages", "DELETE FROM messages WHERE from_key = ?1", &[&key]);
             del("reactions", "DELETE FROM reactions WHERE reactor_key = ?1", &[&key]);
             del("uploads", "DELETE FROM uploads WHERE uploader_key = ?1", &[&key]);
-            del("follows", "DELETE FROM follows WHERE follower_key = ?1 OR followed_key = ?1", &[&key]);
             del("notification_prefs", "DELETE FROM notification_prefs WHERE public_key = ?1", &[&key]);
             del("vault", "DELETE FROM vault_blobs WHERE public_key = ?1", &[&key]);
             del("dm_mailbox", "DELETE FROM dm_mailbox WHERE to_key = ?1", &[&key]);
@@ -174,8 +174,6 @@ mod tests {
         db.register_name("Bob", "bob_key").unwrap();
         db.join_server("alice_key", "Alice").unwrap();
         db.join_server("bob_key", "Bob").unwrap();
-        db.add_follow("alice_key", "bob_key").unwrap();
-        db.add_follow("bob_key", "alice_key").unwrap();
         db.mailbox_put("alice_key", "sealed-env").unwrap();
         db.mailbox_put("bob_key", "bobs-env").unwrap();
 
@@ -183,7 +181,6 @@ mod tests {
         let export = db.export_account("alice_key", "Alice");
         assert_eq!(export["registered_names"].as_array().unwrap().len(), 1);
         assert_eq!(export["membership"].as_array().unwrap().len(), 1);
-        assert_eq!(export["following"].as_array().unwrap().len(), 1);
         assert_eq!(export["dm_mailbox_queued"][0]["envelopes"], 1);
 
         // Erase.
@@ -191,14 +188,12 @@ mod tests {
         let count = |label: &str| receipt.iter().find(|(l, _)| l == label).map(|(_, n)| *n).unwrap_or(0);
         assert_eq!(count("registered_name"), 1);
         assert_eq!(count("membership"), 1);
-        assert_eq!(count("follows"), 2, "both directions of the follow edge");
         assert_eq!(count("dm_mailbox"), 1);
 
         // Nothing left under the key or name.
         let export2 = db.export_account("alice_key", "Alice");
         assert!(export2["registered_names"].as_array().unwrap().is_empty());
         assert!(export2["membership"].as_array().unwrap().is_empty());
-        assert!(export2["following"].as_array().unwrap().is_empty());
         // Bob is untouched.
         assert!(db.is_member("bob_key"));
         assert_eq!(db.mailbox_fetch("bob_key", 0, 10).unwrap().len(), 1);

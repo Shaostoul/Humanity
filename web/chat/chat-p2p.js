@@ -298,9 +298,10 @@ async function importContactCard(json) {
 
   addSystemMessage(`✅ Added contact: ${card.name}`);
 
-  // Send a Follow to the relay so they appear in our following list.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'follow', target_key: card.pub }));
+  // Follows removal (2026-08-24): following is client-side; a sealed
+  // control message notifies them and starts the friendship exchange.
+  if (typeof setFollowLocal === 'function') {
+    setFollowLocal(card.pub, true);
   }
 
   return card.name;

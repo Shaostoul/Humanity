@@ -26,6 +26,13 @@ const hosDmStore = {
   conversations: new Map(), // peer -> [{from,to,ts,text,dedupe}] sorted by ts
   lastRead: {},        // peer -> ts
   _seen: new Set(),    // dedupe tags in memory
+  // ── Client-side social graph (follows removal, 2026-08-24): the server
+  // stores no edges; these sets ARE the user's social state, persisted in
+  // the encrypted meta box and built from sealed control messages.
+  following: new Set(),
+  followers: new Set(),
+  certsFrom: {},       // peer -> cert THEY issued authorizing ME to DM them
+  certsSent: new Set(),// peers I've issued MY cert to
 
   async _sha256hex(s) {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -92,13 +99,21 @@ const hosDmStore = {
       this.lastRead = {};
       this._seen = new Set();
       this.highWater = 0;
-      // Meta first (high-water + read marks).
+      this.following = new Set();
+      this.followers = new Set();
+      this.certsFrom = {};
+      this.certsSent = new Set();
+      // Meta first (high-water + read marks + social sets).
       const meta = await this._idb(this._tx('meta', 'readonly').get(this.scope)).catch(() => null);
       if (meta) {
         this.highWater = Number(meta.hw) || 0;
         if (meta.box) {
           const m = await this._decrypt(meta.box);
           if (m && m.lastRead) this.lastRead = m.lastRead;
+          if (m && Array.isArray(m.following)) this.following = new Set(m.following);
+          if (m && Array.isArray(m.followers)) this.followers = new Set(m.followers);
+          if (m && m.certsFrom) this.certsFrom = m.certsFrom;
+          if (m && Array.isArray(m.certsSent)) this.certsSent = new Set(m.certsSent);
         }
       }
       // All records in this scope.
@@ -124,9 +139,30 @@ const hosDmStore = {
 
   async _persistMeta() {
     if (!this.ready) return;
-    const box = await this._encrypt({ lastRead: this.lastRead });
+    const box = await this._encrypt({
+      lastRead: this.lastRead,
+      following: Array.from(this.following),
+      followers: Array.from(this.followers),
+      certsFrom: this.certsFrom,
+      certsSent: Array.from(this.certsSent),
+    });
     await this._idb(this._tx('meta', 'readwrite').put({ scope: this.scope, hw: this.highWater, box })).catch(() => {});
   },
+
+  // ── Social graph API (follows removal, 2026-08-24) ──
+  setFollowing(peer, on) {
+    if (on) this.following.add(peer); else this.following.delete(peer);
+    this._persistMeta();
+  },
+  setFollower(peer, on) {
+    if (on) this.followers.add(peer); else this.followers.delete(peer);
+    this._persistMeta();
+  },
+  isFriendPeer(peer) { return this.following.has(peer) && this.followers.has(peer); },
+  certFor(peer) { return this.certsFrom[peer] || null; },
+  storeCertFrom(peer, cert) { this.certsFrom[peer] = cert; this._persistMeta(); },
+  certSentTo(peer) { return this.certsSent.has(peer); },
+  markCertSent(peer) { this.certsSent.add(peer); this._persistMeta(); },
 
   setHighWater(id) {
     const n = Number(id) || 0;

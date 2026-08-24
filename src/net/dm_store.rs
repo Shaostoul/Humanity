@@ -50,6 +50,23 @@ struct StoreBody {
     conversations: HashMap<String, Vec<StoredDm>>,
     /// peer identity hex → last-read message ts (drives unread dots).
     last_read: HashMap<String, u64>,
+    // ── Client-side social graph (follows removal, 2026-08-24). The
+    // server stores no edges; these sets ARE the user's social state,
+    // built from sealed control messages. serde defaults keep stores
+    // from before this change loading cleanly.
+    /// Keys I follow.
+    #[serde(default)]
+    following: std::collections::HashSet<String>,
+    /// Keys that follow me (learned from [[hum:follow]] notices).
+    #[serde(default)]
+    followers: std::collections::HashSet<String>,
+    /// peer → certificate THEY issued authorizing ME to DM them
+    /// (presented on every dm_put to that peer).
+    #[serde(default)]
+    certs_from: HashMap<String, String>,
+    /// Peers I've already issued MY certificate to (dedupe).
+    #[serde(default)]
+    certs_sent: std::collections::HashSet<String>,
 }
 
 /// A conversation summary for the sidebar.
@@ -219,6 +236,53 @@ impl DmStore {
             .collect();
         out.sort_by(|a, b| b.last_ts.cmp(&a.last_ts));
         out
+    }
+
+    // ── Client-side social graph (follows removal, 2026-08-24) ──
+
+    pub fn set_following(&mut self, peer: &str, on: bool) {
+        if on {
+            self.body.following.insert(peer.to_string());
+        } else {
+            self.body.following.remove(peer);
+        }
+    }
+    pub fn is_following(&self, peer: &str) -> bool {
+        self.body.following.contains(peer)
+    }
+    pub fn following(&self) -> &std::collections::HashSet<String> {
+        &self.body.following
+    }
+    pub fn set_follower(&mut self, peer: &str, on: bool) {
+        if on {
+            self.body.followers.insert(peer.to_string());
+        } else {
+            self.body.followers.remove(peer);
+        }
+    }
+    pub fn is_follower(&self, peer: &str) -> bool {
+        self.body.followers.contains(peer)
+    }
+    pub fn followers(&self) -> &std::collections::HashSet<String> {
+        &self.body.followers
+    }
+    /// Friends = mutual follow (the UI notion; the transport credential
+    /// is the certificate, tracked separately).
+    pub fn is_friend(&self, peer: &str) -> bool {
+        self.is_following(peer) && self.is_follower(peer)
+    }
+    /// The certificate `peer` issued authorizing ME to DM them.
+    pub fn cert_for(&self, peer: &str) -> Option<&str> {
+        self.body.certs_from.get(peer).map(|s| s.as_str())
+    }
+    pub fn store_cert_from(&mut self, peer: &str, cert: &str) {
+        self.body.certs_from.insert(peer.to_string(), cert.to_string());
+    }
+    pub fn cert_sent_to(&self, peer: &str) -> bool {
+        self.body.certs_sent.contains(peer)
+    }
+    pub fn mark_cert_sent(&mut self, peer: &str) {
+        self.body.certs_sent.insert(peer.to_string());
     }
 
     /// Delete one whole conversation locally (the server holds nothing to

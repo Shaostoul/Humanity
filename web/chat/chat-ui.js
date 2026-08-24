@@ -598,9 +598,8 @@ function followFromCtx(doFollow) {
   if (!ctxMenuTarget) return;
   const pk = ctxMenuTarget.publicKey;
   hideContextMenu();
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: doFollow ? 'follow' : 'unfollow', target_key: pk }));
-  }
+  // Follows removal (2026-08-24): sealed control message, no server edge.
+  if (typeof setFollowLocal === 'function') setFollowLocal(pk, doFollow);
 }
 
 function dmFromCtx() {
@@ -1195,12 +1194,12 @@ sendMessage = async function() {
   }
   if (val.startsWith('/follow ') && !val.startsWith('/follow-')) {
     const name = val.substring(8).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
+    if (name) {
       input.value = '';
       // Resolve name to key from peer list
       const targetKey = resolveNameToKey(name);
       if (targetKey) {
-        ws.send(JSON.stringify({ type: 'follow', target_key: targetKey }));
+        setFollowLocal(targetKey, true);
       } else {
         addSystemMessage('User "' + name + '" not found in peer list.');
       }
@@ -1209,11 +1208,11 @@ sendMessage = async function() {
   }
   if (val.startsWith('/unfollow ')) {
     const name = val.substring(10).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
+    if (name) {
       input.value = '';
       const targetKey = resolveNameToKey(name);
       if (targetKey) {
-        ws.send(JSON.stringify({ type: 'unfollow', target_key: targetKey }));
+        setFollowLocal(targetKey, false);
       } else {
         addSystemMessage('User "' + name + '" not found in peer list.');
       }

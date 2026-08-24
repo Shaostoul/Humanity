@@ -351,6 +351,9 @@ Identity (federation objects): ML-DSA-65 (Dilithium3, FIPS 204), separate keypai
 | DM E2EE | **Sealed-sender v2 (2026-08-23): Kyber768 / ML-KEM-768 → BLAKE3-KDF → AES-256-GCM**, single-seal `{v:2,ek_ct_b64,nonce_b64,ct_b64}` wire envelope; the signed inner payload `{v:2,from,to,ts,text,sig}` (Dilithium3 over `hum/dm/v2\nfrom\nto\nts\ntext`) carries the sender INSIDE the ciphertext. One DM = two `dm_put` deposits (recipient copy + self copy to the sender's own mailbox for their other devices). Replaced the v1 dual-seal `{v:1,r,s}`. | web `crypto.js` `pqBuildDmPuts/pqOpenDmEnvelope` + `pq.js` primitives, native `src/net/dm_pq.rs` (`build_signed_inner/seal_v2/open_v2/parse_verify_inner`) | **Shipped.** Recipient key deterministic from the seed; sender authenticity is now END-TO-END (client verifies the inner Dilithium sig; the relay no longer vouches for or even knows the sender). |
 | DM metadata (server side) | Sealed-sender mailbox: `dm_mailbox (id, to_key, content, received_day)` with NO sender column and day-granularity arrival only; mail EXPIRES after `dm_mailbox_ttl_days` (server setting, default 30) + user-initiated `dm_purge`; legacy `direct_messages` graph table DROPPED by migration (secure_delete zeroes pages). Long-term history lives client-side: native `src/net/dm_store.rs` (AES-GCM file under seed-derived key), web `chat-dm-store.js` (encrypted IndexedDB). | `src/relay/storage/dms.rs`, `msg_handlers.rs::handle_dm_put/fetch/purge` | **Shipped 2026-08-23.** A subpoena/breach of the relay DB yields sender-less ciphertext blobs, not a social graph. Residuals documented in `docs/reference/retention_and_deletion_semantics.md` (pre-cutover backups until rotation; live wiretap-class observation). |
 | Backups at rest | AES-256-GCM (in-process 6h snapshots, `.db.enc`, nonce-prefix) + openssl AES-256-CBC/PBKDF2 (VPS 30-min script, `.db.aes`); key = `data/backup.key` (machine-local, OUTSIDE the backups dir, created at relay boot) | `src/relay/storage/backup_crypto.rs`, `scripts/humanity-backup-db.sh`, `scripts/decrypt-backup.sh` | **Shipped 2026-08-23.** Crash recovery decrypts `.db.enc` transparently (both backup dirs scanned); a backups directory that travels without its key is ciphertext. KEEP A COPY OF THE KEY SAFE - no key, no restore. |
+| Friendship certificates | Dilithium3 over `hum/friend/v1\n{issuer}\n{grantee}` (issuer authorizes grantee to DM them + see friends-only profile fields); verified STATELESSLY at dm_put — the relay stores NO friends/follows table | `src/relay/core/pq_crypto.rs` (`verify_friend_cert`, `friend_cert_preimage`), `src/net/dm_pq.rs` (`build_friend_cert`), web `crypto.js` (`pqBuildFriendCert`) | **Shipped 2026-08-24 (follows-graph removal).** Following = sealed control DMs (`[[hum:follow]]` etc.); friendship = client-held certs; both live in the local encrypted DM store, never on the server. Certless DMs to strangers are "knocks" (20/sender/day). Preimage KAT-pinned in the pq_crypto tests; web MUST match. |
+| DM size padding | Sealed plaintext rounded to buckets `[256,1024,4096,16384]` so ciphertext length doesn't leak message length | `src/net/dm_pq.rs` (`DM_PAD_BUCKETS`), web `crypto.js` | **Shipped 2026-08-24.** Buckets must match web. |
+| Transport IP privacy | Optional Tor v3 onion service (operator-run); over `.onion` the relay never learns the user's IP | `scripts/tor-onion-setup.sh`, `docs/admin/tor-onion-service.md` | **Shipped 2026-08-24 (opt-in, additive).** The application-layer answer to "connection metadata is physics." |
 | Federation object signing | ML-DSA-65 / Dilithium3 | `src/relay/core/pq_crypto.rs` | Active (unchanged by this cutover) |
 | Profile gossip signing | **Dilithium3 / ML-DSA-65** over `profile_v1\n...` preimage | `src/relay/handlers/federation.rs` `verify_profile_signature` | **v0.276.0** — switched from Ed25519. The signing key referenced `public_key` (which has been Dilithium hex since Inc3), so the old Ed25519 verify would silently reject every signed gossip; this restores the path end-to-end. |
 | DID derivation | `did:hum:<base58(BLAKE3(dilithium_pubkey)[..16])>` | `src/relay/core/did.rs` | Active — from the PQ key |
@@ -611,7 +614,6 @@ channels       (id, name, description, created_by, created_at, topic, is_private
 profiles       (name, bio, socials, avatar_url, banner_url, pronouns, location, website, streaming_url, streaming_live)
 tasks          (id, title, description, status, priority, assignee, created_by, created_at, updated_at, labels)
 task_comments  (id, task_id, author_key, author_name, content, created_at)
-follows        (follower_key, followee_key, created_at)
 vault_blobs    (public_key, blob, updated_at)
 key_rotations  (old_key, new_key, sig_by_old, sig_by_new, rotated_at)
 uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
@@ -624,11 +626,15 @@ server_members (public_key, name, role, joined_at, last_seen, hide_presence)
 dm_mailbox     (id, to_key, content, received_day)  -- sealed-sender DMs; NO sender column by design
 ```
 
-> **Removed 2026-08-23 (privacy hardening, do NOT re-add):** `direct_messages`
-> (the DM social graph), `listing_messages` (plaintext buyer-seller threads,
-> broadcast to everyone), and `groups`/`group_members`/`group_messages`
-> (plaintext legacy groups). Marketplace contact rides sealed-sender DMs;
-> groups are exclusively the E2EE P2P signed-object system.
+> **Removed (privacy hardening, do NOT re-add):** `direct_messages` (the DM
+> social graph, 2026-08-23), `listing_messages` (plaintext buyer-seller threads,
+> broadcast to everyone, 2026-08-23), `groups`/`group_members`/`group_messages`
+> (plaintext legacy groups, 2026-08-23), and `follows` (the last server-side
+> social graph, 2026-08-24). Marketplace contact rides sealed-sender DMs; groups
+> are the E2EE P2P signed-object system; following/friendship are client-side
+> (sealed control DMs + client-held Dilithium friendship certificates verified
+> statelessly). If a feature seems to need a server-side social edge, the
+> certificate pattern (client-held, statelessly verified) is the house answer.
 
 ## Known gotchas
 

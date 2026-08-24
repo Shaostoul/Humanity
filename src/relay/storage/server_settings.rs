@@ -126,6 +126,11 @@ pub struct ServerSettings {
     /// days of pseudonymous, sender-less ciphertext blobs. Minimum 1.
     #[serde(default = "default_dm_mailbox_ttl_days")]
     pub dm_mailbox_ttl_days: i64,
+    /// Days to keep public channel messages before auto-expiring them
+    /// (privacy maximization, 2026-08-24). 0 = keep forever (the default,
+    /// preserving current behavior). Pinned messages are always kept.
+    #[serde(default)]
+    pub message_retention_days: i64,
     /// Last update unix-millis. 0 = never updated since creation.
     pub updated_at: i64,
     /// Public key of the admin who last touched it. Empty = never.
@@ -178,6 +183,7 @@ impl Default for ServerSettings {
             server_name: String::new(),
             local_channel_enabled: default_local_channel_enabled(),
             dm_mailbox_ttl_days: default_dm_mailbox_ttl_days(),
+            message_retention_days: 0,
             updated_at: 0,
             updated_by: String::new(),
         }
@@ -238,7 +244,8 @@ impl Storage {
                         require_pq_signatures, p2p_distribution_enabled,
                         COALESCE(server_description, ''), COALESCE(server_name, ''),
                         COALESCE(local_channel_enabled, 1),
-                        COALESCE(dm_mailbox_ttl_days, 30)
+                        COALESCE(dm_mailbox_ttl_days, 30),
+                        COALESCE(message_retention_days, 0)
                  FROM server_settings WHERE id = 1",
                 [],
                 |row| {
@@ -278,6 +285,7 @@ impl Storage {
                         server_name: row.get(25)?,
                         local_channel_enabled: local_ch != 0,
                         dm_mailbox_ttl_days: row.get::<_, i64>(27)?.max(1),
+                        message_retention_days: row.get::<_, i64>(28)?.max(0),
                     })
                 },
             ) {
@@ -331,6 +339,7 @@ impl Storage {
                     server_name                     = ?26,
                     local_channel_enabled           = ?27,
                     dm_mailbox_ttl_days             = ?28,
+                    message_retention_days          = ?29,
                     updated_at               = ?15,
                     updated_by               = ?16
                  WHERE id = 1",
@@ -365,6 +374,7 @@ impl Storage {
                     s.server_name,
                     s.local_channel_enabled as i32,
                     s.dm_mailbox_ttl_days.max(1),
+                    s.message_retention_days.max(0),
                 ],
             )?;
             Ok(rows > 0)

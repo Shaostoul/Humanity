@@ -2172,6 +2172,18 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             int_input(ui, &mut draft.dm_mailbox_ttl_days, 1, 365);
         });
 
+        ui.add_space(theme.spacing_md);
+        widgets::subsection_label(ui, theme, "Public message retention (days)");
+        widgets::body_hint(
+            ui, theme,
+            "Auto-delete public channel messages older than this many days (0 = keep \
+             forever). Pinned messages are always kept. Shorter = less history a \
+             subpoena or breach of this server could ever reach.",
+        );
+        widgets::form_row(ui, theme, "Keep messages for (days, 0 = forever)", |ui| {
+            int_input(ui, &mut draft.message_retention_days, 0, 3650);
+        });
+
         ui.add_space(theme.spacing_sm);
         widgets::subsection_label(ui, theme, "Security policy");
         // Full-PQ: the "Require post-quantum signatures" toggle was removed.
@@ -2743,6 +2755,8 @@ fn send_server_settings_update(
                 "server_name":                    draft.server_name,
                 // Sealed-sender DM mailbox TTL (2026-08-23).
                 "dm_mailbox_ttl_days":            draft.dm_mailbox_ttl_days,
+                // Public message retention (2026-08-24).
+                "message_retention_days":         draft.message_retention_days,
                 // Guaranteed local-only room toggle (v0.1132).
                 "local_channel_enabled":           draft.local_channel_enabled,
             });

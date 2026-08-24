@@ -482,23 +482,41 @@ pub async fn handle_profile_update(
                     target: Some(my_key.to_string()),
                 });
 
-                // Also cache as a signed profile (key-based, for federation replication).
-                // The signature is empty until clients sign profiles client-side; peers
-                // accept empty-signature gossip under the trust-by-source model.
-                // See `federation::should_accept_profile_gossip`.
-                let ts = crate::relay::storage::now_millis();
-                let _ = state.db.store_signed_profile(
-                    my_key, name, &clean_bio, &avatar, &banner, &socials,
-                    &pronoun, &loc, &w_site, ts, "",
-                );
+                // Privacy (2026-08-24): a user who opts OUT of the public
+                // directory (privacy.directory = "unlisted", set by the
+                // Private/Balanced tiers) must NOT have their profile
+                // replicated across federated servers — that would make
+                // them discoverable network-wide, the exact opposite of
+                // their choice. Their profile is still stored + shown to
+                // friends on this server (ProfileData above); it just
+                // doesn't propagate. Listed users (Open/Spotlight) gossip
+                // as before.
+                let unlisted = privacy
+                    .as_deref()
+                    .and_then(|p| serde_json::from_str::<serde_json::Value>(p).ok())
+                    .and_then(|v| v.get("directory").and_then(|d| d.as_str()).map(|s| s == "unlisted"))
+                    .unwrap_or(false);
 
-                // Gossip the profile update to federated servers. Forward the empty
-                // signature today; once clients sign over `canonical_profile_message`,
-                // pass the stored sig here and peers will verify it.
-                crate::relay::handlers::federation::gossip_profile(
-                    state, my_key, name, &clean_bio, &avatar, &banner,
-                    &socials, &pronoun, &loc, &w_site, ts, "",
-                ).await;
+                let ts = crate::relay::storage::now_millis();
+                if unlisted {
+                    // Don't cache-for-replication and don't gossip. Remove any
+                    // previously-replicated copy so a switch to Private
+                    // actually retracts.
+                    let _ = state.db.delete_signed_profile(my_key);
+                } else {
+                    // Cache as a signed profile (key-based, for federation
+                    // replication). Signature empty until clients sign
+                    // client-side; peers accept empty-sig gossip under the
+                    // trust-by-source model.
+                    let _ = state.db.store_signed_profile(
+                        my_key, name, &clean_bio, &avatar, &banner, &socials,
+                        &pronoun, &loc, &w_site, ts, "",
+                    );
+                    crate::relay::handlers::federation::gossip_profile(
+                        state, my_key, name, &clean_bio, &avatar, &banner,
+                        &socials, &pronoun, &loc, &w_site, ts, "",
+                    ).await;
+                }
             }
             Err(e) => {
                 tracing::error!("Failed to save profile: {e}");
@@ -522,14 +540,24 @@ pub async fn handle_profile_request(
     state: &Arc<RelayState>,
     my_key: &str,
     name: String,
+    friend_cert: Option<String>,
 ) {
-    let is_friend = state.db.are_friends(my_key, &{
+    // Follows-graph removal (2026-08-24): friends-visibility profile
+    // fields unlock by presenting the profile OWNER's friendship
+    // certificate, verified statelessly. The server holds no friends
+    // table to consult.
+    let owner_key = {
         let peers = state.peers.read().await;
         peers.values()
             .find(|p| p.display_name.as_deref().map(|n| n.eq_ignore_ascii_case(&name)).unwrap_or(false))
             .map(|p| p.public_key_hex.clone())
             .unwrap_or_default()
-    }).unwrap_or(false);
+    };
+    let is_friend = !owner_key.is_empty()
+        && friend_cert
+            .as_deref()
+            .map(|c| crate::relay::core::pq_crypto::verify_friend_cert(&owner_key, my_key, c))
+            .unwrap_or(false);
 
     match state.db.get_public_profile(&name, is_friend) {
         Ok(Some(fields)) => {
@@ -603,11 +631,20 @@ fn is_v2_envelope(content: &str) -> bool {
         })
 }
 
+/// Cert-less "knocks" allowed per sender per day (follows-graph removal,
+/// 2026-08-24). A stranger without a friendship certificate can still
+/// reach out — sealed, delivered, client-tagged as a request — but only
+/// this many times a day across ALL recipients, so nobody can flood.
+/// Deliberately sender-scoped, never per-pair: a per-pair counter would
+/// be a social graph again.
+const DM_KNOCKS_PER_DAY: u32 = 20;
+
 pub async fn handle_dm_put(
     state: &Arc<RelayState>,
     my_key: &str,
     to: String,
     content: String,
+    friend_cert: Option<String>,
 ) {
     if content.is_empty() || to.is_empty() {
         return;
@@ -662,14 +699,37 @@ pub async fn handle_dm_put(
             });
             return;
         }
-        let are_friends = state.db.are_friends(my_key, &to).unwrap_or(false);
-        if !are_friends {
-            let target_name = state.db.name_for_key(&to).ok().flatten().unwrap_or_else(|| "this user".to_string());
-            let _ = state.broadcast_tx.send(RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("🔒 You must be friends to DM {target_name}. Use /follow <name> — if they follow you back, you'll be friends."),
-            });
-            return;
+        // Follows-graph removal (2026-08-24): the server keeps no friends
+        // table. A friendship CERTIFICATE (issued by the recipient,
+        // Dilithium-signed, delivered to the sender over the sealed
+        // mailbox when the two became friends) is verified statelessly.
+        // Without one, this is a "knock": still allowed, but capped per
+        // sender per day so strangers can reach out without flooding.
+        let cert_ok = friend_cert
+            .as_deref()
+            .map(|c| crate::relay::core::pq_crypto::verify_friend_cert(&to, my_key, c))
+            .unwrap_or(false);
+        if !cert_ok {
+            let today = (std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+                / 86_400) as i64;
+            let mut knocks = state.dm_knocks.write().await;
+            let entry = knocks.entry(my_key.to_string()).or_insert((today, 0));
+            if entry.0 != today {
+                *entry = (today, 0);
+            }
+            if entry.1 >= DM_KNOCKS_PER_DAY {
+                let _ = state.broadcast_tx.send(RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!(
+                        "🔒 Daily limit for messaging people who haven't befriended you yet ({DM_KNOCKS_PER_DAY}/day). Once they add you as a friend, messages are unlimited."
+                    ),
+                });
+                return;
+            }
+            entry.1 += 1;
         }
     }
 
@@ -1643,89 +1703,9 @@ pub async fn handle_mod_action(
 }
 
 // ── Social handlers ──
-
-pub async fn handle_follow(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    target_key: String,
-) {
-    if target_key == my_key {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You can't follow yourself.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-    let target_name = state.db.name_for_key(&target_key).ok().flatten();
-    if target_name.is_none() {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "User not found.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-    match state.db.add_follow(my_key, &target_key) {
-        Ok(true) => {
-            let my_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Someone".to_string());
-            let tname = target_name.unwrap();
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("✅ You are now following {tname}."),
-            };
-            let _ = state.broadcast_tx.send(private);
-            let _ = state.broadcast_tx.send(RelayMessage::FollowUpdate {
-                follower_key: my_key.to_string(),
-                followed_key: target_key.clone(),
-                action: "follow".to_string(),
-            });
-            let private2 = RelayMessage::Private {
-                to: target_key.clone(),
-                message: format!("👁️ {my_name} is now following you."),
-            };
-            let _ = state.broadcast_tx.send(private2);
-        }
-        Ok(false) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "You are already following this user.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-        }
-        Err(e) => tracing::error!("Follow error: {e}"),
-    }
-}
-
-pub async fn handle_unfollow(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    target_key: String,
-) {
-    match state.db.remove_follow(my_key, &target_key) {
-        Ok(true) => {
-            let tname = state.db.name_for_key(&target_key).ok().flatten().unwrap_or_else(|| "user".to_string());
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("✅ You unfollowed {tname}."),
-            };
-            let _ = state.broadcast_tx.send(private);
-            let _ = state.broadcast_tx.send(RelayMessage::FollowUpdate {
-                follower_key: my_key.to_string(),
-                followed_key: target_key,
-                action: "unfollow".to_string(),
-            });
-        }
-        Ok(false) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "You are not following this user.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-        }
-        Err(e) => tracing::error!("Unfollow error: {e}"),
-    }
-}
+// (handle_follow/handle_unfollow removed 2026-08-24: following is
+// client-side over sealed control messages; friendship certificates
+// replace the server-side friends check. The relay stores no edges.)
 
 pub async fn handle_friend_code_request(
     state: &Arc<RelayState>,
@@ -1764,6 +1744,7 @@ pub async fn handle_friend_code_redeem(
                 let _ = state.broadcast_tx.send(RelayMessage::FriendCodeResult {
                     success: false,
                     name: None,
+                    owner_key: None,
                     message: "You can't redeem your own friend code.".to_string(),
                     target: Some(my_key.to_string()),
                 });
@@ -1772,30 +1753,23 @@ pub async fn handle_friend_code_redeem(
             let my_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Someone".to_string());
             let oname = owner_name.clone().unwrap_or_else(|| "Unknown".to_string());
 
-            let _ = state.db.add_follow(my_key, &owner_key);
-            let _ = state.db.add_follow(&owner_key, my_key);
-
-            let _ = state.broadcast_tx.send(RelayMessage::FollowUpdate {
-                follower_key: my_key.to_string(),
-                followed_key: owner_key.clone(),
-                action: "follow".to_string(),
-            });
-            let _ = state.broadcast_tx.send(RelayMessage::FollowUpdate {
-                follower_key: owner_key.clone(),
-                followed_key: my_key.to_string(),
-                action: "follow".to_string(),
-            });
-
+            // Follows-graph removal (2026-08-24): the relay creates NO
+            // follow rows. It hands the redeemer the owner's identity;
+            // the CLIENTS complete the friendship over sealed control
+            // messages (follow notice + certificate exchange). The
+            // owner_key rides in FriendCodeResult's name slot? No — a
+            // dedicated field, so clients can start the exchange.
             let _ = state.broadcast_tx.send(RelayMessage::FriendCodeResult {
                 success: true,
                 name: owner_name.clone(),
-                message: format!("🎉 You are now friends with {oname}!"),
+                message: format!("🎉 Friend code accepted. Say hello to {oname}; your clients will exchange friendship credentials."),
+                owner_key: Some(owner_key.clone()),
                 target: Some(my_key.to_string()),
             });
 
             let private = RelayMessage::Private {
                 to: owner_key.clone(),
-                message: format!("🎉 {my_name} redeemed your friend code! You are now friends."),
+                message: format!("🎉 {my_name} redeemed your friend code. When their hello arrives, add them back to complete the friendship."),
             };
             let _ = state.broadcast_tx.send(private);
         }
@@ -1804,6 +1778,7 @@ pub async fn handle_friend_code_redeem(
                 success: false,
                 name: None,
                 message: "Invalid or expired friend code.".to_string(),
+                owner_key: None,
                 target: Some(my_key.to_string()),
             });
         }
@@ -1813,6 +1788,7 @@ pub async fn handle_friend_code_redeem(
                 success: false,
                 name: None,
                 message: "Server error while redeeming code.".to_string(),
+                owner_key: None,
                 target: Some(my_key.to_string()),
             });
         }
@@ -4483,15 +4459,29 @@ mod dm_mailbox_tests {
         tokio::runtime::Runtime::new().expect("tokio rt").block_on(f)
     }
 
-    /// A verified friend pair, the normal DM configuration.
-    fn friends(st: &Arc<RelayState>) -> (&'static str, &'static str) {
-        st.db.register_name("Alice", "alice_key").unwrap();
-        st.db.register_name("Bob", "bob_key").unwrap();
-        st.db.set_role("alice_key", "verified").unwrap();
-        st.db.set_role("bob_key", "verified").unwrap();
-        st.db.add_follow("alice_key", "bob_key").unwrap();
-        st.db.add_follow("bob_key", "alice_key").unwrap();
-        ("alice_key", "bob_key")
+    /// A REAL Dilithium identity for cert-based tests (follows removal
+    /// 2026-08-24: the DM gate verifies certificates, so test keys must
+    /// be actual public keys, not fake strings).
+    fn identity(seed_byte: u8) -> (Vec<u8>, String) {
+        let seed = vec![seed_byte; 32];
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let hex_pk = hex::encode(
+            crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed).public_key(),
+        );
+        (seed, hex_pk)
+    }
+
+    /// A verified pair where BOB has issued ALICE a friendship cert
+    /// (so alice can DM bob freely). Returns (alice_hex, bob_hex, cert).
+    fn friends(st: &Arc<RelayState>) -> (String, String, String) {
+        let (_alice_seed, alice_hex) = identity(51);
+        let (bob_seed, bob_hex) = identity(52);
+        st.db.register_name("Alice", &alice_hex).unwrap();
+        st.db.register_name("Bob", &bob_hex).unwrap();
+        st.db.set_role(&alice_hex, "verified").unwrap();
+        st.db.set_role(&bob_hex, "verified").unwrap();
+        let cert = crate::net::dm_pq::build_friend_cert(&bob_seed, &bob_hex, &alice_hex);
+        (alice_hex, bob_hex, cert)
     }
 
     /// A syntactically valid v2 envelope (the relay can't check more).
@@ -4507,14 +4497,14 @@ mod dm_mailbox_tests {
     #[test]
     fn put_stores_senderless_row_and_delivers_targeted() {
         let st = fresh_state();
-        let (alice, bob) = friends(&st);
+        let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, alice, bob.to_string(), envelope()));
+        block(handle_dm_put(&st, &alice, bob.clone(), envelope(), Some(cert)));
         // Delivered live, targeted at Bob's mailbox key only.
         let mut saw_dm_new = false;
         while let Ok(msg) = rx.try_recv() {
             if let RelayMessage::DmNew { target, content, .. } = msg {
-                assert_eq!(target.as_deref(), Some(bob));
+                assert_eq!(target.as_deref(), Some(bob.as_str()));
                 assert_eq!(content, envelope());
                 saw_dm_new = true;
             }
@@ -4522,10 +4512,10 @@ mod dm_mailbox_tests {
         assert!(saw_dm_new, "recipient must get a live dm_new");
         // Stored, addressed-only, and the row physically has no sender —
         // this is what a subpoena of the mailbox table yields.
-        let rows = st.db.mailbox_fetch(bob, 0, 10).unwrap();
+        let rows = st.db.mailbox_fetch(&bob, 0, 10).unwrap();
         assert_eq!(rows.len(), 1);
-        assert!(!rows[0].content.contains(alice), "envelope must not leak the sender key");
-        assert!(st.db.mailbox_fetch(alice, 0, 10).unwrap().is_empty());
+        assert!(!rows[0].content.contains(&alice), "envelope must not leak the sender key");
+        assert!(st.db.mailbox_fetch(&alice, 0, 10).unwrap().is_empty());
     }
 
     /// No plaintext path exists: anything that isn't a v2 envelope is
@@ -4533,11 +4523,11 @@ mod dm_mailbox_tests {
     #[test]
     fn put_rejects_non_envelope_content() {
         let st = fresh_state();
-        let (alice, bob) = friends(&st);
+        let (alice, bob, cert) = friends(&st);
         let mut rx = st.broadcast_tx.subscribe();
-        block(handle_dm_put(&st, alice, bob.to_string(), "hi bob, plaintext".to_string()));
-        block(handle_dm_put(&st, alice, bob.to_string(), r#"{"v":1,"r":{},"s":{}}"#.to_string()));
-        assert!(st.db.mailbox_fetch(bob, 0, 10).unwrap().is_empty(), "nothing may be stored");
+        block(handle_dm_put(&st, &alice, bob.clone(), "hi bob, plaintext".to_string(), Some(cert.clone())));
+        block(handle_dm_put(&st, &alice, bob.clone(), r#"{"v":1,"r":{},"s":{}}"#.to_string(), Some(cert)));
+        assert!(st.db.mailbox_fetch(&bob, 0, 10).unwrap().is_empty(), "nothing may be stored");
         let mut refusals = 0;
         while let Ok(msg) = rx.try_recv() {
             if let RelayMessage::Private { message, .. } = msg {
@@ -4549,20 +4539,64 @@ mod dm_mailbox_tests {
         assert_eq!(refusals, 2, "both non-envelope puts must be refused with a reason");
     }
 
-    /// The self-copy (sender depositing sent history into their OWN
-    /// mailbox) skips the friendship gate — but mail to others needs it.
+    /// Follows-graph removal (2026-08-24): certless mail to a stranger is
+    /// a "knock" — allowed (client tags it a request) but capped per
+    /// sender per day; the self-copy path stays exempt; a FORGED cert
+    /// counts as no cert.
     #[test]
-    fn self_copy_allowed_friend_gate_enforced_for_others() {
+    fn knock_budget_and_forged_cert() {
         let st = fresh_state();
         st.db.register_name("Loner", "loner_key").unwrap();
         st.db.set_role("loner_key", "verified").unwrap();
         st.db.register_name("Stranger", "stranger_key").unwrap();
-        // Self-copy: fine without any friendship.
-        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope()));
+        // Self-copy: unlimited, no cert, no knock budget spent.
+        block(handle_dm_put(&st, "loner_key", "loner_key".to_string(), envelope(), None));
         assert_eq!(st.db.mailbox_fetch("loner_key", 0, 10).unwrap().len(), 1);
-        // Mail to a non-friend: refused.
-        block(handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope()));
-        assert!(st.db.mailbox_fetch("stranger_key", 0, 10).unwrap().is_empty());
+        // Certless knocks land until the daily budget is spent, then stop.
+        // (The Fibonacci per-message limiter is reset between sends — it
+        // is a separate mechanism with its own coverage; here we isolate
+        // the knock budget.)
+        for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
+            block(async {
+                st.rate_limits.write().await.remove("loner_key");
+                handle_dm_put(&st, "loner_key", "stranger_key".to_string(), envelope(), None).await;
+            });
+        }
+        let landed = st.db.mailbox_fetch("stranger_key", 0, 200).unwrap().len();
+        assert_eq!(landed as u32, DM_KNOCKS_PER_DAY, "knocks cap at the daily budget");
+        // A forged cert (garbage signature) is treated as no cert: it
+        // spends knock budget instead of granting friend status — and the
+        // budget is already spent, so nothing lands.
+        block(async {
+            st.rate_limits.write().await.remove("loner_key");
+            handle_dm_put(
+                &st,
+                "loner_key",
+                "stranger_key".to_string(),
+                envelope(),
+                Some("Zm9yZ2VkLXNpZw==".to_string()),
+            )
+            .await;
+        });
+        assert_eq!(
+            st.db.mailbox_fetch("stranger_key", 0, 200).unwrap().len() as u32,
+            DM_KNOCKS_PER_DAY,
+            "a forged cert must not bypass the knock budget"
+        );
+        // A VALID cert bypasses the exhausted knock budget entirely.
+        let (_stranger_seed, _) = identity(53);
+        let (recipient_seed, recipient_hex) = identity(54);
+        st.db.register_name("Recipient", &recipient_hex).unwrap();
+        let cert = crate::net::dm_pq::build_friend_cert(&recipient_seed, &recipient_hex, "loner_key");
+        block(async {
+            st.rate_limits.write().await.remove("loner_key");
+            handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert)).await;
+        });
+        assert_eq!(
+            st.db.mailbox_fetch(&recipient_hex, 0, 10).unwrap().len(),
+            1,
+            "friend mail flows despite the spent knock budget"
+        );
     }
 
     /// Unverified senders can't deposit into other mailboxes, and bots
@@ -4572,8 +4606,8 @@ mod dm_mailbox_tests {
         let st = fresh_state();
         st.db.register_name("Newbie", "newbie_key").unwrap();
         st.db.register_name("Target", "target_key").unwrap();
-        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope()));
-        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope()));
+        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None));
+        block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None));
         assert!(st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty());
     }
 

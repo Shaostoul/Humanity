@@ -58,6 +58,8 @@ Most of this is the TIER 0/1 ops work (built fast under incident pressure, all V
 | **Disk-guard / retention knobs** | env vars on the systemd unit | Server Settings → System | thresholds (warn/crit %, keep-counts) as editable settings. |
 | **Deploy / version** | `git`/CI/`just` | Ops page (web has one) | mostly informational in-app; actual deploy stays CI (a "deploy" button would need careful auth). |
 | **Homepage flavor** (per-node front door, v0.1141) | `cp /var/www/humanity/home/<flavor>.html /var/www/humanity-site/index.html` over SSH | Server Settings → Website | a relay endpoint (admin-Dilithium-authed) that lists `web/home/` flavors + current state and writes/removes the override file; UI = flavor picker with preview links. The nginx seam is already data-shaped (presence of one file), so the endpoint is a thin file write. |
+| **nginx log retention** (privacy sweep 2026-08-23: rotate 14 → 2 + history purge) | `sed` on `/etc/logrotate.d/nginx` over SSH | Server Settings → System | a retention-days setting the relay applies via the sudo-gated system bridge (same seam as fail2ban control). Until then any change is a documented SSH edit. |
+| **Backup encryption key custody** (`data/backup.key`, 2026-08-23) | operator copies it off-box by hand | Server Settings → Backups | the Backups panel should DISPLAY key fingerprint + created date and offer a one-click "download key copy" (admin-authed) with a keep-this-safe warning; no key, no restore. |
 
 ## What's ALREADY in-app (the model to follow)
 

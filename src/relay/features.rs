@@ -354,12 +354,11 @@ pub fn ws_message_feature(msg_type: &str) -> Option<Feature> {
     if msg_type.ends_with("notification_prefs") || msg_type == "notification_prefs_data" {
         return Some(Feature::Push);
     }
-    // The social graph and the member directory ride the message plane: follows,
-    // friend codes, threads, member lists, profiles and link previews are all
-    // chat surfaces, and several persist to the owner's disk.
-    if msg_type.starts_with("follow")
-        || msg_type == "unfollow"
-        || msg_type.starts_with("friend_code_")
+    // The member directory rides the message plane: friend codes, threads,
+    // member lists, profiles and link previews are all chat surfaces, and
+    // several persist to the owner's disk. (follow/unfollow types died
+    // 2026-08-24 with the follows table — the social graph is client-side.)
+    if msg_type.starts_with("friend_code_")
         || msg_type.starts_with("thread_")
         || msg_type.starts_with("member_")
         || msg_type.starts_with("profile_")

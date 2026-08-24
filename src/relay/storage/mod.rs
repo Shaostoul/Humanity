@@ -988,6 +988,20 @@ impl Storage {
             info!("Migration: dropped legacy plaintext group tables (groups are E2EE P2P now)");
         }
 
+        // Migration (follows-graph removal, 2026-08-24): DROP the follows
+        // table — the last server-side social graph. Friendship became a
+        // client-held certificate verified statelessly; following became
+        // sealed client-to-client control messages. Same rationale and
+        // secure-delete discipline as direct_messages above.
+        let has_follows: bool = conn.prepare("SELECT 1 FROM follows LIMIT 0").is_ok();
+        if has_follows {
+            conn.execute_batch(
+                "DROP TABLE follows;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+            info!("Migration: dropped follows table (the social graph is client-side now)");
+        }
+
         // Migration: add reply_to columns to messages for threaded replies.
         let has_reply_to: bool = conn
             .prepare("SELECT reply_to_from FROM messages LIMIT 0")
@@ -1065,6 +1079,7 @@ impl Storage {
                 server_description        TEXT    NOT NULL DEFAULT '',
                 server_name               TEXT    NOT NULL DEFAULT '',
                 dm_mailbox_ttl_days       INTEGER NOT NULL DEFAULT 30,
+                message_retention_days    INTEGER NOT NULL DEFAULT 0,
                 updated_at                INTEGER NOT NULL DEFAULT 0,
                 updated_by                TEXT
             );
@@ -1142,6 +1157,15 @@ impl Storage {
                 "ALTER TABLE server_settings ADD COLUMN dm_mailbox_ttl_days INTEGER NOT NULL DEFAULT 30;"
             )?;
             info!("Migration: added dm_mailbox_ttl_days (server_settings)");
+        }
+
+        // Guarded ALTER (message retention, 2026-08-24). 0 = keep forever
+        // (default preserves the current behavior).
+        if conn.prepare("SELECT message_retention_days FROM server_settings LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_settings ADD COLUMN message_retention_days INTEGER NOT NULL DEFAULT 0;"
+            )?;
+            info!("Migration: added message_retention_days (server_settings)");
         }
 
 
@@ -1375,21 +1399,10 @@ impl Storage {
             info!("Migration: split max_upload_mb into per-role columns (server_settings)");
         }
 
-        // Follows table (social system).
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS follows (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                follower_key TEXT NOT NULL,
-                followed_key TEXT NOT NULL,
-                created_at  TEXT NOT NULL,
-                UNIQUE(follower_key, followed_key)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_follows_follower
-                ON follows(follower_key);
-            CREATE INDEX IF NOT EXISTS idx_follows_followed
-                ON follows(followed_key);"
-        )?;
+        // (follows table removed 2026-08-24: it was the last server-side
+        // social graph. Following is client-side over sealed control
+        // messages; friendship is a client-held certificate verified
+        // statelessly. Dropped in the migration section below.)
 
         // (Legacy groups/group_members/group_messages tables removed
         // 2026-08-23: they stored membership rosters and every group

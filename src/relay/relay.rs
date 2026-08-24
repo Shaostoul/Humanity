@@ -108,6 +108,10 @@ pub struct RelayState {
     pub http_client: reqwest::Client,
     /// Per-key rate limiting state (Fibonacci backoff).
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
+    /// Cert-less DM "knock" budget: sender_key → (unix_day, count).
+    /// In-memory only, sender-scoped — deliberately never a pair graph.
+    /// (Follows-graph removal, 2026-08-24.)
+    pub dm_knocks: RwLock<HashMap<String, (i64, u32)>>,
     /// Lockdown mode: when true, new name registrations are blocked.
     pub lockdown: RwLock<bool>,
     /// Whether the current lockdown was set automatically (vs manually).
@@ -334,6 +338,7 @@ impl RelayState {
             webhook,
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
+            dm_knocks: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
             kicked_keys: RwLock::new(HashSet::new()),
@@ -959,6 +964,10 @@ pub enum RelayMessage {
         /// (sealed-sender cutover, 2026-08-23).
         #[serde(default)]
         dm_mailbox_ttl_days: Option<i64>,
+        /// Days to keep public messages (0 = forever). Privacy
+        /// maximization, 2026-08-24.
+        #[serde(default)]
+        message_retention_days: Option<i64>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -1047,6 +1056,12 @@ pub enum RelayMessage {
     #[serde(rename = "profile_request")]
     ProfileRequest {
         name: String,
+        /// Friendship certificate issued by the profile OWNER to the
+        /// requester (follows-graph removal, 2026-08-24): presenting a
+        /// valid one unlocks friends-visibility profile fields. The old
+        /// server-side are_friends lookup is gone.
+        #[serde(default)]
+        friend_cert: Option<String>,
     },
 
     /// Server sends a batch of persisted reactions (on connect / channel switch).
@@ -1066,6 +1081,13 @@ pub enum RelayMessage {
     DmPut {
         to: String,
         content: String,
+        /// Friendship certificate issued by the RECIPIENT to the sender
+        /// (follows-graph removal, 2026-08-24). Valid cert = friend mail
+        /// (normal rate limits). Absent/invalid = a "knock": still
+        /// sealed, still delivered, but capped per sender per day so
+        /// strangers can reach out politely without flooding anyone.
+        #[serde(default)]
+        friend_cert: Option<String>,
     },
 
     /// Client asks for its mailbox contents after a rowid high-water mark.
@@ -1457,35 +1479,12 @@ pub enum RelayMessage {
     },
 
     // ── Follow/Friend System ──
-
-    /// Client requests to follow a user.
-    #[serde(rename = "follow")]
-    Follow {
-        target_key: String,
-    },
-
-    /// Client requests to unfollow a user.
-    #[serde(rename = "unfollow")]
-    Unfollow {
-        target_key: String,
-    },
-
-    /// Server sends the user's follow list on connect.
-    #[serde(rename = "follow_list")]
-    FollowList {
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-        following: Vec<String>,
-        followers: Vec<String>,
-    },
-
-    /// Server broadcasts follow/unfollow updates.
-    #[serde(rename = "follow_update")]
-    FollowUpdate {
-        follower_key: String,
-        followed_key: String,
-        action: String, // "follow" | "unfollow"
-    },
+    // (follow/unfollow/follow_list/follow_update REMOVED 2026-08-24: the
+    // `follows` table was the last server-side social graph. Following is
+    // client-side now — sealed control messages over the DM mailbox carry
+    // follow/unfollow notices, and FRIENDSHIP CERTIFICATES (client-held,
+    // Dilithium-signed, verified statelessly at dm_put) replace the
+    // server's are_friends check. The relay stores no social edges.)
 
     // ── Friend Code System ──
 
@@ -1513,6 +1512,11 @@ pub enum RelayMessage {
         success: bool,
         name: Option<String>,
         message: String,
+        /// The code owner's identity key (2026-08-24): the redeemer's
+        /// client uses it to open the friendship exchange (sealed follow
+        /// notice + certificate) — the relay no longer creates follows.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        owner_key: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
     },
@@ -2990,19 +2994,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 // and reconstructs its conversations locally by decrypting
                 // its mailbox.
 
-                // Send follow list to the new peer.
-                {
-                    let following = state.db.get_following(&public_key).unwrap_or_default();
-                    let followers = state.db.get_followers(&public_key).unwrap_or_default();
-                    if !following.is_empty() || !followers.is_empty() {
-                        let follow_msg = serde_json::to_string(&RelayMessage::FollowList {
-                            target: None,
-                            following,
-                            followers,
-                        }).unwrap();
-                        let _ = ws_tx.send(Message::Text(follow_msg.into())).await;
-                    }
-                }
+                // (Follow-list push removed 2026-08-24: the social graph
+                // lives client-side now.)
 
                 // (Legacy group_list push removed 2026-08-23: groups are the
                 // E2EE P2P system now — clients fetch GET /api/v2/groups.)
@@ -3240,14 +3233,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 if to != &my_key_for_broadcast { continue; }
             }
 
-            // FollowList: only deliver to the target client.
-            if let RelayMessage::FollowList { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
 
 
             // FriendCodeResponse: only deliver to the target client.
@@ -5645,6 +5630,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 server_name,
                                 local_channel_enabled,
                                 dm_mailbox_ttl_days,
+                                message_retention_days,
                             } => {
                                 let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if role != "admin" && role != "owner" {
@@ -5748,6 +5734,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     if let Some(v) = dm_mailbox_ttl_days {
                                         current.dm_mailbox_ttl_days = v.clamp(1, 365);
                                     }
+                                    // Message retention: 0 = forever, else clamp to a year.
+                                    if let Some(v) = message_retention_days {
+                                        current.message_retention_days = if v <= 0 { 0 } else { v.min(3650) };
+                                    }
                                     match state_clone.db.set_server_settings(&current, &my_key_for_recv) {
                                         Ok(true) => {
                                             // Broadcast new state to everyone.
@@ -5818,12 +5808,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).await;
                             }
                             // Profile request — look up the profile, apply privacy filter, and unicast to requester.
-                            RelayMessage::ProfileRequest { name } => {
-                                handle_profile_request(&state_clone, &my_key_for_recv, name).await;
+                            RelayMessage::ProfileRequest { name, friend_cert } => {
+                                handle_profile_request(&state_clone, &my_key_for_recv, name, friend_cert).await;
                             }
                             // DM — deposit a sealed envelope into a mailbox.
-                            RelayMessage::DmPut { to, content } => {
-                                handle_dm_put(&state_clone, &my_key_for_recv, to, content).await;
+                            RelayMessage::DmPut { to, content, friend_cert } => {
+                                handle_dm_put(&state_clone, &my_key_for_recv, to, content, friend_cert).await;
                             }
                             // DM fetch — page the caller's own mailbox.
                             RelayMessage::DmFetch { after_id } => {
@@ -6004,13 +5994,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::ProjectDelete { id } => {
                                 handle_project_delete(&state_clone, &my_key_for_recv, id).await;
                             }
-                            // ── Follow/Unfollow ──
-                            RelayMessage::Follow { target_key } => {
-                                handle_follow(&state_clone, &my_key_for_recv, target_key).await;
-                            }
-                            RelayMessage::Unfollow { target_key } => {
-                                handle_unfollow(&state_clone, &my_key_for_recv, target_key).await;
-                            }
+                            // (Follow/unfollow removed 2026-08-24: the social
+                            // graph is client-side; see friendship certificates.)
                             // ── Moderation Actions (kick / ban / mute / mod / unmod) ──
                             RelayMessage::ModAction { action, target, target_name } => {
                                 handle_mod_action(&state_clone, &my_key_for_recv, &action, &target, &target_name).await;

@@ -171,6 +171,17 @@ pub fn open(
 /// Signature preimage domain. Web MUST use the identical string.
 const DM_SIG_DOMAIN: &str = "hum/dm/v2";
 
+/// Build MY friendship certificate for `grantee_hex` (base64 Dilithium
+/// signature over `pq_crypto::friend_cert_preimage`). Handed to the
+/// grantee via a sealed control message; they present it on every dm_put
+/// addressed to me. Verification lives in relay/core/pq_crypto.rs
+/// (`verify_friend_cert`) because the relay checks it statelessly.
+pub fn build_friend_cert(seed: &[u8], my_hex: &str, grantee_hex: &str) -> String {
+    let dil_seed = pq_crypto::derive_dilithium_seed(seed);
+    let kp = pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+    B64.encode(kp.sign(pq_crypto::friend_cert_preimage(my_hex, grantee_hex).as_bytes()))
+}
+
 /// A parsed, signature-verified inner DM payload.
 #[derive(Debug, Clone)]
 pub struct DmInner {
@@ -180,11 +191,24 @@ pub struct DmInner {
     pub to: String,
     /// Sender-claimed timestamp (ms since epoch).
     pub ts: u64,
-    /// The message text.
+    /// The message text. Control messages (follows-graph removal,
+    /// 2026-08-24) use reserved markers: `[[hum:follow]]`,
+    /// `[[hum:unfollow]]`, `[[hum:friend-cert]]` — clients act on them
+    /// instead of rendering them.
     pub text: String,
     /// Base64 Dilithium3 signature (kept for dedupe keying).
     pub sig_b64: String,
+    /// Optional friendship certificate riding a `[[hum:friend-cert]]`
+    /// control message (the sender authorizing the RECIPIENT to DM
+    /// them). Self-authenticating (verified against `from` when stored),
+    /// so it is not covered by `sig`.
+    pub cert: Option<String>,
 }
+
+/// Reserved control-message texts (must match web chat-privacy/dms).
+pub const CTL_FOLLOW: &str = "[[hum:follow]]";
+pub const CTL_UNFOLLOW: &str = "[[hum:unfollow]]";
+pub const CTL_FRIEND_CERT: &str = "[[hum:friend-cert]]";
 
 impl DmInner {
     /// Stable dedupe key for a message: the same inner payload arrives
@@ -210,19 +234,51 @@ pub fn build_signed_inner(
     ts: u64,
     text: &str,
 ) -> Result<String, String> {
+    build_signed_inner_ext(seed, from_hex, to_hex, ts, text, None)
+}
+
+/// Like `build_signed_inner` but optionally attaching a friendship
+/// certificate (for `[[hum:friend-cert]]` control messages).
+pub fn build_signed_inner_ext(
+    seed: &[u8],
+    from_hex: &str,
+    to_hex: &str,
+    ts: u64,
+    text: &str,
+    cert: Option<&str>,
+) -> Result<String, String> {
     let dil_seed = pq_crypto::derive_dilithium_seed(seed);
     let kp = pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
     let sig = kp.sign(sig_preimage(from_hex, to_hex, ts, text).as_bytes());
-    Ok(serde_json::json!({
+    let mut v = serde_json::json!({
         "v": 2,
         "from": from_hex,
         "to": to_hex,
         "ts": ts,
         "text": text,
         "sig": B64.encode(sig),
-    })
-    .to_string())
+    });
+    if let Some(c) = cert {
+        v["cert"] = serde_json::Value::String(c.to_string());
+    }
+    // Size padding (2026-08-24): round the sealed plaintext up to a
+    // bucket so ciphertext length doesn't leak message length ("ok" vs a
+    // paragraph is visible to anyone holding the mailbox otherwise). The
+    // pad field is ignored by parsers; AES-GCM authenticates the whole
+    // blob. Buckets must match the web client.
+    let bare = v.to_string();
+    let bucket = DM_PAD_BUCKETS
+        .iter()
+        .copied()
+        .find(|b| bare.len() + 12 <= *b)
+        .unwrap_or(bare.len() + 12);
+    let pad_len = bucket.saturating_sub(bare.len() + 12); // 12 ≈ ,"pad":"" overhead
+    v["pad"] = serde_json::Value::String(" ".repeat(pad_len));
+    Ok(v.to_string())
 }
+
+/// Plaintext size buckets (bytes) for DM padding. Must match web.
+pub const DM_PAD_BUCKETS: [usize; 4] = [256, 1024, 4096, 16384];
 
 /// Seal an inner payload (or any plaintext) into a v2 wire envelope for
 /// the holder of `recipient_pub_b64`.
@@ -277,7 +333,8 @@ pub fn parse_verify_inner(inner_json: &str) -> Result<DmInner, String> {
         .map_err(|e| format!("sig base64: {e}"))?;
     pq_crypto::verify_dilithium(&from_pk, sig_preimage(&from, &to, ts, &text).as_bytes(), &sig)
         .map_err(|_| "sender signature INVALID (spoofed or corrupted)".to_string())?;
-    Ok(DmInner { from, to, ts, text, sig_b64 })
+    let cert = v.get("cert").and_then(|x| x.as_str()).map(|s| s.to_string());
+    Ok(DmInner { from, to, ts, text, sig_b64, cert })
 }
 
 #[cfg(test)]
@@ -386,6 +443,29 @@ mod tests {
         let mut v2: serde_json::Value = serde_json::from_str(&inner).unwrap();
         v2["ts"] = serde_json::json!(43);
         assert!(parse_verify_inner(&v2.to_string()).is_err());
+    }
+
+    /// Size padding: short and medium messages land in the same bucket,
+    /// so ciphertext length does not distinguish "ok" from a paragraph.
+    #[test]
+    fn v2_padding_hides_message_length() {
+        let (alice_seed, alice_hex, _) = party(11);
+        let (_b, bob_hex, bob_kp) = party(22);
+        let short =
+            build_signed_inner(&alice_seed, &alice_hex, &bob_hex, 1, "ok").unwrap();
+        let medium = build_signed_inner(
+            &alice_seed, &alice_hex, &bob_hex, 2,
+            "a considerably longer message with several clauses in it, the kind a length observer would love to distinguish",
+        )
+        .unwrap();
+        // The Dilithium sig makes every inner > 4KB already; both must
+        // round to the SAME bucket.
+        assert_eq!(short.len(), medium.len(), "padded inners must be bucket-equal");
+        let env_a = seal_v2(&bob_kp.public_base64(), &short).unwrap();
+        let env_b = seal_v2(&bob_kp.public_base64(), &medium).unwrap();
+        assert_eq!(env_a.len(), env_b.len(), "ciphertext lengths must match");
+        // And they still parse + verify.
+        assert_eq!(parse_verify_inner(&open_v2(&bob_kp, &env_a).unwrap()).unwrap().text, "ok");
     }
 
     #[test]

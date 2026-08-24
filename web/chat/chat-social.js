@@ -55,36 +55,20 @@ handleMessage = function(msg) {
   if (msg.type === 'friend_code_result') {
     if (msg.success) {
       const name = esc(msg.name || 'them');
-      addSystemMessage(`🤝 Friend code redeemed! You and ${name} now follow each other.`);
-      // Refresh follow list
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'chat', content: '/friends', channel: activeChannel || 'general', from: myKey, from_name: myName, timestamp: Date.now() }));
+      addSystemMessage(`🤝 Friend code accepted! Following ${name} and sending your hello; when they add you back, you'll be friends.`);
+      // Follows removal (2026-08-24): the relay no longer creates the
+      // edges — the redeemer's client opens the friendship exchange.
+      if (msg.owner_key && typeof setFollowLocal === 'function') {
+        setFollowLocal(msg.owner_key, true);
       }
     } else {
       addSystemMessage(`⚠️ Friend code failed: ${esc(msg.message || 'Unknown error')}`);
     }
     return;
   }
-  if (msg.type === 'follow_list') {
-    myFollowing = new Set(msg.following || []);
-    myFollowers = new Set(msg.followers || []);
-    updateFriendIndicators();
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
-  if (msg.type === 'follow_update') {
-    if (msg.follower_key === myKey) {
-      if (msg.action === 'follow') myFollowing.add(msg.followed_key);
-      else myFollowing.delete(msg.followed_key);
-    }
-    if (msg.followed_key === myKey) {
-      if (msg.action === 'follow') myFollowers.add(msg.follower_key);
-      else myFollowers.delete(msg.follower_key);
-    }
-    updateFriendIndicators();
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
+  // (follow_list/follow_update handlers removed 2026-08-24: the social
+  // graph is client-side, fed by sealed control messages + the local
+  // encrypted store. See the social layer at the bottom of this file.)
   // (Legacy group_list/group_message/group_history/group_members handlers
   // removed 2026-08-23: the plaintext relay-group system died server-side;
   // groups are the E2EE P2P signed-object system in chat-groups-p2p.js.)
@@ -166,9 +150,8 @@ function addFollowContextMenu() {
       item.onmouseenter = () => { item.style.background = 'var(--bg-hover)'; };
       item.onmouseleave = () => { item.style.background = ''; };
       item.onclick = () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: following ? 'unfollow' : 'follow', target_key: key }));
-        }
+        // Follows removal (2026-08-24): sealed control message, no server edge.
+        setFollowLocal(key, !following);
         menu.remove();
       };
       menu.appendChild(item);
@@ -407,3 +390,105 @@ function addMessageToChat(name, content, timestamp, isYou, fromKey) {
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
+
+// ── Client-side social graph (follows removal, 2026-08-24) ────────────────
+// The server stores no follow edges. Following is local state persisted in
+// the encrypted DM store; follow/unfollow notices and friendship
+// certificates travel as sealed control messages over the DM mailbox, and
+// self-copies keep every device of the same identity in sync.
+
+/** Pull the social sets out of the store into the UI globals. */
+function syncSocialFromStore() {
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  myFollowing = new Set(hosDmStore.following);
+  myFollowers = new Set(hosDmStore.followers);
+  updateFriendIndicators();
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+}
+window.syncSocialFromStore = syncSocialFromStore;
+
+/** Seal + send one control message (recipient copy + self copy). */
+async function sendDmControl(peer, text, ctlCert) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  const built = await pqBuildDmPuts(text, peer, Date.now(), ctlCert ? { ctlCert } : undefined);
+  if (!built) {
+    console.warn('control not sent (no key for peer yet):', text, peer.slice(0, 12));
+    return false;
+  }
+  ws.send(JSON.stringify(built.recipientPut));
+  ws.send(JSON.stringify(built.selfPut));
+  return true;
+}
+
+/** Issue + deliver MY friendship certificate to `peer` (idempotent). */
+async function sendFriendCertTo(peer) {
+  if (!(window.hosDmStore && hosDmStore.ready) || hosDmStore.certSentTo(peer)) return;
+  const cert = await pqBuildFriendCert(peer);
+  if (!cert) return;
+  if (await sendDmControl(peer, CTL_FRIEND_CERT, cert)) {
+    hosDmStore.markCertSent(peer);
+  }
+}
+
+/** Follow / unfollow (the UI entry point everywhere in the web client). */
+async function setFollowLocal(peer, on) {
+  if (!peer || peer === myKey) return;
+  if (window.hosDmStore && hosDmStore.ready) hosDmStore.setFollowing(peer, on);
+  if (on) myFollowing.add(peer); else myFollowing.delete(peer);
+  await sendDmControl(peer, on ? CTL_FOLLOW : CTL_UNFOLLOW);
+  if (on && myFollowers.has(peer)) {
+    // Mutual now: complete the friendship with our certificate.
+    await sendFriendCertTo(peer);
+  }
+  updateFriendIndicators();
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+  addSystemMessage(on
+    ? '✅ Following. If they follow you back, your clients exchange friendship credentials automatically.'
+    : '✅ Unfollowed.');
+}
+window.setFollowLocal = setFollowLocal;
+
+/**
+ * Act on a verified control message; returns true when it was one (the
+ * caller then skips rendering it). Self-copies sync our own state from
+ * other devices.
+ */
+async function ingestDmControl(inner) {
+  if (![CTL_FOLLOW, CTL_UNFOLLOW, CTL_FRIEND_CERT].includes(inner.text)) return false;
+  const fromMe = inner.from === myKey;
+  const peer = fromMe ? inner.to : inner.from;
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (inner.text === CTL_FOLLOW) {
+    if (fromMe) {
+      if (store) store.setFollowing(peer, true);
+      myFollowing.add(peer);
+    } else {
+      if (store) store.setFollower(peer, true);
+      myFollowers.add(peer);
+      const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
+      addSystemMessage(`👁️ ${esc(peerName)} is now following you.`);
+      if (myFollowing.has(peer)) await sendFriendCertTo(peer);
+    }
+  } else if (inner.text === CTL_UNFOLLOW) {
+    if (fromMe) {
+      if (store) store.setFollowing(peer, false);
+      myFollowing.delete(peer);
+    } else {
+      if (store) store.setFollower(peer, false);
+      myFollowers.delete(peer);
+    }
+  } else if (inner.text === CTL_FRIEND_CERT && inner.cert) {
+    if (fromMe) {
+      if (store) store.markCertSent(peer);
+    } else if (await pqVerifyFriendCert(inner.from, myKey, inner.cert)) {
+      if (store) store.storeCertFrom(inner.from, inner.cert);
+      const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
+      addSystemMessage(`🤝 You and ${esc(peerName)} are friends now — messages between you are unlimited.`);
+    } else {
+      console.warn('friend-cert failed verification; dropped');
+    }
+  }
+  updateFriendIndicators();
+  return true;
+}
+window.ingestDmControl = ingestDmControl;

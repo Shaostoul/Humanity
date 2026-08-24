@@ -846,6 +846,36 @@ impl Storage {
         })
     }
 
+    /// Expire public channel messages older than `days` (privacy
+    /// maximization, 2026-08-24). 0 = keep forever. Preserves pinned
+    /// messages (a pin is an explicit "keep this"). secure_delete zeroes
+    /// the freed pages; the caller/loop truncates the WAL. Returns rows
+    /// deleted.
+    pub fn expire_messages(&self, days: i64) -> Result<usize, rusqlite::Error> {
+        if days <= 0 {
+            return Ok(0);
+        }
+        let cutoff_ms = super::now_millis().saturating_sub((days as u64) * 86_400 * 1000) as i64;
+        self.with_conn(|conn| {
+            // Preserve pinned messages: a pin is an explicit "keep this".
+            // Pins are keyed (from_key, original_timestamp), not id.
+            let n = conn.execute(
+                "DELETE FROM messages
+                 WHERE timestamp < ?1
+                   AND NOT EXISTS (
+                     SELECT 1 FROM pinned_messages p
+                     WHERE p.from_key = messages.from_key
+                       AND p.original_timestamp = messages.timestamp
+                   )",
+                rusqlite::params![cutoff_ms],
+            )?;
+            if n > 0 {
+                let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            }
+            Ok(n)
+        })
+    }
+
     /// Get total message count.
     pub fn message_count(&self) -> Result<i64, rusqlite::Error> {
         // Read-only COUNT (stats). Read pool.
@@ -1143,6 +1173,28 @@ mod channel_message_tests {
     /// Store a chat message in a channel and read it back, ordered oldest→newest.
     /// `load_channel_messages` must also inject the DB row id as `message_id`
     /// (clients rely on it to correlate `message_deleted` events).
+    /// Message retention (2026-08-24): expire_messages drops public
+    /// messages older than the window but PRESERVES pinned ones, and
+    /// 0 = keep forever.
+    #[test]
+    fn expire_messages_respects_window_and_pins() {
+        let db = fresh_db();
+        let now = super::super::now_millis();
+        let old_ts = now - 40 * 86_400 * 1000; // 40 days ago
+        let fresh_ts = now - 1 * 86_400 * 1000; // yesterday
+        db.store_message_in_channel(&chat("alice", "ancient", old_ts, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("bob", "ancient-but-pinned", old_ts + 1, "general"), "general").unwrap();
+        db.store_message_in_channel(&chat("carol", "recent", fresh_ts, "general"), "general").unwrap();
+        db.pin_message("general", "bob", "bob", "ancient-but-pinned", old_ts + 1, "admin").unwrap();
+        // 0 = keep forever: nothing expires.
+        assert_eq!(db.expire_messages(0).unwrap(), 0);
+        assert_eq!(db.message_count().unwrap(), 3);
+        // 30-day window: the un-pinned ancient message goes; pinned + recent stay.
+        let removed = db.expire_messages(30).unwrap();
+        assert_eq!(removed, 1, "only the un-pinned 40-day-old message expires");
+        assert_eq!(db.message_count().unwrap(), 2);
+    }
+
     #[test]
     fn store_and_load_channel_messages_roundtrip() {
         let db = fresh_db();

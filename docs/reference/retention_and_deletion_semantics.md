@@ -150,9 +150,47 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
 - **Account sovereignty**: any member can self-service EXPORT everything the
   server stores about them (`account_export` → JSON download / local file)
   and ERASE it all (`account_delete`, typed-name confirmation): messages,
-  uploads + files on disk, profile, follows both directions, mailbox, vault,
-  push subscriptions, listings, reviews, tasks, membership, registered name.
-  Admins must hand off the admin role first so a server is never orphaned.
-  secure_delete zeroes the freed pages and the WAL is truncated; rotating
-  backups hold prior snapshots until they age out, as everywhere else in
-  this document.
+  uploads + files on disk, profile, mailbox, vault, push subscriptions,
+  listings, reviews, tasks, membership, registered name. Admins must hand off
+  the admin role first so a server is never orphaned. secure_delete zeroes
+  the freed pages and the WAL is truncated; rotating backups hold prior
+  snapshots until they age out, as everywhere else in this document.
+
+## Privacy maximization (2026-08-24, the follow-up arc)
+
+The remaining server-held data classes and length/transport leaks, closed:
+
+- **Follows graph GONE.** The `follows` table was the last server-side social
+  graph; it is DROPPED by migration. Following is now sealed client-to-client
+  control messages (`[[hum:follow]]`/`[[hum:unfollow]]` over the DM mailbox),
+  and each client keeps its own following/followers sets in its local
+  encrypted store. Friendship is a client-held Dilithium CERTIFICATE (the
+  recipient authorizes the sender) that the relay verifies statelessly at
+  dm_put — no friends table exists. A subpoena of the server yields NOTHING
+  about who follows or is friends with whom. Strangers without a certificate
+  can still "knock" (sealed DMs, capped at 20 per sender per day) so cold
+  outreach works without enabling floods.
+- **DM length no longer leaks.** Sealed DM plaintext is padded up to size
+  buckets (256 / 1024 / 4096 / 16384 bytes) before encryption, so ciphertext
+  length no longer distinguishes "ok" from a paragraph.
+- **Message retention (server setting).** `message_retention_days` (default 0
+  = keep forever) auto-expires public channel messages past the window;
+  pinned messages are always kept. Bounds how long even public history
+  lingers, on the same maintenance sweep as the DM-mailbox TTL.
+- **Federation gossip respects unlisted.** A user who opts out of the public
+  directory (Private/Balanced tiers) no longer has their profile replicated
+  across federated servers — the gossip + signed-profile cache are gated on
+  the directory choice, and going unlisted retracts the local replicated
+  copy. Listed users (Open/Spotlight) gossip as before. Note that gossip only
+  ever carried user-authored PUBLIC profile fields (name/bio/avatar/socials/
+  location/website), never presence, IP, or DM metadata.
+- **Transport IP privacy (opt-in).** An optional Tor v3 onion service
+  (`scripts/tor-onion-setup.sh`, `docs/admin/tor-onion-service.md`) lets users
+  reach the relay without revealing their IP at all — the honest answer to the
+  wiretap-class exposure this document has flagged throughout. Additive; the
+  clearnet endpoint is unchanged.
+
+Remaining honest limits after this arc: certificates in v1 don't expire and
+can't be server-side revoked (unfriending is client-side); live traffic
+analysis by an active wire observer on the clearnet endpoint is still a
+mixnet problem the onion service sidesteps but doesn't universally solve.

@@ -793,14 +793,19 @@ pub async fn run_relay() {
                 // DM mailbox TTL sweep (sealed-sender store-and-forward):
                 // expire envelopes past the configured window BEFORE the
                 // backup runs, so expired mail doesn't ride into backups.
+                // Same pass expires public messages past the retention
+                // window (0 = keep forever; pins always kept).
                 {
-                    let ttl = sweep_state.db.get_server_settings()
-                        .map(|s| s.dm_mailbox_ttl_days)
-                        .unwrap_or(30);
-                    match sweep_state.db.mailbox_expire(ttl) {
+                    let settings = sweep_state.db.get_server_settings().unwrap_or_default();
+                    match sweep_state.db.mailbox_expire(settings.dm_mailbox_ttl_days) {
                         Ok(0) => {}
-                        Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {ttl}-day TTL"),
+                        Ok(n) => tracing::info!("DM mailbox: expired {n} envelope(s) past the {}-day TTL", settings.dm_mailbox_ttl_days),
                         Err(e) => tracing::error!("DM mailbox TTL sweep failed: {e}"),
+                    }
+                    match sweep_state.db.expire_messages(settings.message_retention_days) {
+                        Ok(0) => {}
+                        Ok(n) => tracing::info!("Messages: expired {n} past the {}-day retention", settings.message_retention_days),
+                        Err(e) => tracing::error!("Message retention sweep failed: {e}"),
                     }
                 }
 

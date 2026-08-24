@@ -230,6 +230,58 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
     out
 }
 
+// ── Friendship certificates (follows-graph removal, 2026-08-24) ────────────
+// The `follows` table was the last server-side social graph. It is gone:
+// friendship is now a CLIENT-HELD credential. When two people become
+// friends, each issues the other a certificate:
+//
+//   cert = Dilithium_issuer("hum/friend/v1\n{issuer_hex}\n{grantee_hex}")
+//
+// The grantee presents it on every dm_put addressed to the issuer (and on
+// friends-visibility profile requests). The relay verifies STATELESSLY and
+// stores nothing — a subpoena or breach finds no who-is-friends-with-whom
+// data because it is never recorded. Certs are minted client-side
+// (net::dm_pq::build_friend_cert) and delivered over the sealed mailbox.
+// Known v1 limitation (documented): certs do not expire and cannot be
+// server-side revoked; "unfriending" is client-side (your client stops
+// showing them; their mail still lands under the knock budget rules).
+
+/// Certificate signature domain. Web MUST use the identical string.
+pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v1";
+
+/// The preimage an issuer signs to authorize a grantee.
+pub fn friend_cert_preimage(issuer_hex: &str, grantee_hex: &str) -> String {
+    format!("{FRIEND_CERT_DOMAIN}\n{issuer_hex}\n{grantee_hex}")
+}
+
+/// Verify a friendship certificate: did `issuer_hex` really authorize
+/// `grantee_hex`? Stateless.
+pub fn verify_friend_cert(issuer_hex: &str, grantee_hex: &str, cert_b64: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let Ok(issuer_pk) = hex_decode_str(issuer_hex) else { return false };
+    let Ok(sig) = B64.decode(cert_b64.trim()) else { return false };
+    verify_dilithium(
+        &issuer_pk,
+        friend_cert_preimage(issuer_hex, grantee_hex).as_bytes(),
+        &sig,
+    )
+    .is_ok()
+}
+
+/// Local hex decode (the `hex` crate is native-gated in some builds; the
+/// relay feature carries it too, but a dependency-free decode keeps this
+/// function unconditionally available).
+fn hex_decode_str(s: &str) -> std::result::Result<Vec<u8>, ()> {
+    let s = s.trim();
+    if s.len() % 2 != 0 {
+        return Err(());
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| ()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,5 +508,30 @@ mod tests {
         let (ct, ss_send) = encapsulate_to(&recipient.public_key()).unwrap();
         let ss_recv = recipient.decapsulate(&ct).unwrap();
         assert_eq!(ss_send, ss_recv);
+    }
+
+    /// Friendship-certificate roundtrip + a PINNED preimage. The web
+    /// client builds the exact same string inline (chat-privacy/crypto.js
+    /// `pqBuildFriendCert`); if this format ever changes, cross-client
+    /// friendship silently breaks, so the preimage bytes are frozen here.
+    #[test]
+    fn friend_cert_roundtrip_and_pinned_preimage() {
+        // Pinned wire format — web MUST match byte-for-byte.
+        assert_eq!(
+            friend_cert_preimage("AABB", "CCDD"),
+            "hum/friend/v1\nAABB\nCCDD"
+        );
+        // Real issue + verify.
+        let dil_seed = derive_dilithium_seed(&[0x11u8; 32]);
+        let issuer = DilithiumKeypair::from_seed(&dil_seed);
+        let issuer_hex = hex::encode(issuer.public_key());
+        let grantee_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key());
+        use base64::{engine::general_purpose::STANDARD as B64, Engine};
+        let cert = B64.encode(issuer.sign(friend_cert_preimage(&issuer_hex, &grantee_hex).as_bytes()));
+        assert!(verify_friend_cert(&issuer_hex, &grantee_hex, &cert), "valid cert must verify");
+        // Wrong grantee, wrong issuer, and garbage all fail.
+        assert!(!verify_friend_cert(&issuer_hex, "deadbeef", &cert));
+        assert!(!verify_friend_cert("deadbeef", &grantee_hex, &cert));
+        assert!(!verify_friend_cert(&issuer_hex, &grantee_hex, "bm90LWEtc2ln"));
     }
 }

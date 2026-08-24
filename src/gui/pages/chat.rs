@@ -5506,27 +5506,17 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
             // Follow / Unfollow (Follow reads as a positive confirm ⇒ success green)
             if is_following {
                 if widgets::Button::secondary("Unfollow").full_width().show(&mut cols[1], theme) {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            // Field is "target_key" — must match
-                            // RelayMessage::Unfollow + the web client (v0.243).
-                            let msg = serde_json::json!({ "type": "unfollow", "target_key": key });
-                            client.send(&msg.to_string());
-                        }
-                    }
-                    state.chat_friends.retain(|f| f.public_key != key);
-                    state.chat_following_keys.remove(&key);
+                    // Follows removal (2026-08-24): a sealed control message
+                    // to the peer; the server stores no edges.
+                    crate::engine::dm::set_follow(state, &key, false);
                 }
             } else {
                 // "Follow back" when they already follow you (v0.721).
                 let follow_label = if follows_me { "Follow back" } else { "Follow" };
                 if widgets::Button::success(follow_label).full_width().show(&mut cols[1], theme) {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let msg = serde_json::json!({ "type": "follow", "target_key": key });
-                            client.send(&msg.to_string());
-                        }
-                    }
+                    // Follows removal (2026-08-24): sealed control message +
+                    // certificate exchange when it becomes mutual.
+                    crate::engine::dm::set_follow(state, &key, true);
                     state.chat_following_keys.insert(key.clone());
                     if !state.chat_friends.iter().any(|f| f.public_key == key) {
                         if let Some(u) = state.chat_users.iter().find(|u| u.public_key == key).cloned() {
@@ -8172,14 +8162,19 @@ fn build_dm_puts(
         .map_err(|_| "encryption_failed")?;
     let env_self = crate::net::dm_pq::seal_v2(&my_kp.public_base64(), &inner_json)
         .map_err(|_| "encryption_failed")?;
-    let put = |env: &str, to: &str| {
-        serde_json::json!({ "type": "dm_put", "to": to, "content": env }).to_string()
-    };
-    Ok((
-        put(&env_recipient, partner_key),
-        put(&env_self, &state.profile_public_key),
-        inner,
-    ))
+    // Attach the recipient's friendship certificate when we hold one
+    // (follows removal 2026-08-24): certified mail rides the friend lane;
+    // without it this send spends the sender's daily knock budget.
+    let mut put_recipient = serde_json::json!({
+        "type": "dm_put", "to": partner_key, "content": env_recipient,
+    });
+    if let Some(cert) = state.dm_store.as_ref().and_then(|s| s.cert_for(partner_key)) {
+        put_recipient["friend_cert"] = serde_json::Value::String(cert.to_string());
+    }
+    let put_self =
+        serde_json::json!({ "type": "dm_put", "to": state.profile_public_key, "content": env_self })
+            .to_string();
+    Ok((put_recipient.to_string(), put_self, inner))
 }
 
 /// Open a DM conversation: switch the channel and load its history from

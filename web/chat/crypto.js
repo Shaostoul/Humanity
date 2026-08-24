@@ -780,6 +780,34 @@ function getPeerEcdhPublic(peerKey) {
 
 const DM_SIG_DOMAIN_V2 = 'hum/dm/v2';
 
+// Reserved control-message texts (follows removal, 2026-08-24; must match
+// native net::dm_pq). Acted on by clients, never rendered.
+const CTL_FOLLOW = '[[hum:follow]]';
+const CTL_UNFOLLOW = '[[hum:unfollow]]';
+const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
+
+// Friendship certificates: cert = Dilithium_issuer("hum/friend/v1\n{issuer}\n{grantee}").
+// The issuer authorizes the grantee to DM them; the relay verifies it
+// STATELESSLY at dm_put (no server-side friends table exists).
+const FRIEND_CERT_DOMAIN = 'hum/friend/v1';
+
+/** Build MY certificate authorizing `granteeHex` to DM me. */
+async function pqBuildFriendCert(granteeHex) {
+  if (!myDilithiumSecret || !myDilithiumPublicHex) return null;
+  const preimage = `${FRIEND_CERT_DOMAIN}\n${myDilithiumPublicHex}\n${granteeHex}`;
+  const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
+  return sig ? btoa(String.fromCharCode(...sig)) : null;
+}
+
+/** Verify that `issuerHex` authorized `granteeHex`. */
+async function pqVerifyFriendCert(issuerHex, granteeHex, certB64) {
+  try {
+    const sig = Uint8Array.from(atob(certB64), (c) => c.charCodeAt(0));
+    const preimage = `${FRIEND_CERT_DOMAIN}\n${issuerHex}\n${granteeHex}`;
+    return await window.pqVerifyMessage(_hexToBytes(issuerHex), new TextEncoder().encode(preimage), sig);
+  } catch { return false; }
+}
+
 function _dmSigPreimage(from, to, ts, text) {
   return `${DM_SIG_DOMAIN_V2}\n${from}\n${to}\n${ts}\n${text}`;
 }
@@ -796,7 +824,7 @@ function _hexToBytes(hex) {
  * or null when the identity / peer key isn't ready (FAIL CLOSED — there
  * is no plaintext fallback in the v2 protocol).
  */
-async function pqBuildDmPuts(text, partnerKey, ts) {
+async function pqBuildDmPuts(text, partnerKey, ts, opts) {
   try {
     if (typeof window.pqDmSeal !== 'function' || typeof window.pqSignMessage !== 'function') return null;
     if (!myDilithiumPublicHex || !myDilithiumSecret || !myKyberPublicBase64) return null;
@@ -808,6 +836,18 @@ async function pqBuildDmPuts(text, partnerKey, ts) {
     if (!sigBytes) return null;
     const sigB64 = btoa(String.fromCharCode(...sigBytes));
     const inner = { v: 2, from, to: partnerKey, ts, text, sig: sigB64 };
+    // A [[hum:friend-cert]] control carries the certificate payload
+    // (self-authenticating, so outside the message signature).
+    if (opts && opts.ctlCert) inner.cert = opts.ctlCert;
+    // Size padding (2026-08-24): round the sealed plaintext up to a
+    // bucket so ciphertext length doesn't leak message length. Buckets
+    // must match native (net::dm_pq::DM_PAD_BUCKETS).
+    {
+      const buckets = [256, 1024, 4096, 16384];
+      const bare = JSON.stringify(inner).length;
+      const bucket = buckets.find((b) => bare + 12 <= b) || (bare + 12);
+      inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
+    }
     const innerJson = JSON.stringify(inner);
     const sealTo = async (kyberPubB64) => {
       const sealed = await window.pqDmSeal(kyberPubB64, innerJson);
@@ -817,8 +857,16 @@ async function pqBuildDmPuts(text, partnerKey, ts) {
     const envRecipient = await sealTo(peerKyber);
     const envSelf = await sealTo(myKyberPublicBase64);
     if (!envRecipient || !envSelf) return null;
+    const recipientPut = { type: 'dm_put', to: partnerKey, content: envRecipient };
+    // Attach the recipient's friendship certificate when we hold one
+    // (follows removal 2026-08-24): certified mail rides the friend lane;
+    // without it this send spends the daily knock budget.
+    try {
+      const cert = window.hosDmStore && hosDmStore.ready ? hosDmStore.certFor(partnerKey) : null;
+      if (cert) recipientPut.friend_cert = cert;
+    } catch {}
     return {
-      recipientPut: { type: 'dm_put', to: partnerKey, content: envRecipient },
+      recipientPut,
       selfPut: { type: 'dm_put', to: from, content: envSelf },
       inner,
     };
@@ -852,7 +900,7 @@ async function pqOpenDmEnvelope(contentStr) {
       console.warn('DM inner signature INVALID (spoofed or corrupted) — dropped');
       return null;
     }
-    return { from: inner.from, to: inner.to, ts: Number(inner.ts) || 0, text: String(inner.text ?? ''), sig: inner.sig };
+    return { from: inner.from, to: inner.to, ts: Number(inner.ts) || 0, text: String(inner.text ?? ''), sig: inner.sig, cert: inner.cert || null };
   } catch (e) {
     console.warn('pqOpenDmEnvelope failed:', e && e.message);
     return null;
