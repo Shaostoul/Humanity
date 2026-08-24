@@ -1574,7 +1574,16 @@ fn cloud_carve(
     // bite into this constructed rind, which is the job they are good
     // at. See 41-cloud-bodies.wgsl for why round Worley cells could
     // never make a cumulus.
-    if (material.params.y >= 2.5) {
+    // Footprint gate (2026-08-24, operator: Ultra "came to an absolute
+    // crawl being unable to fly to the Earth" at 4 FPS): the constructed
+    // bodies cost hundreds of hash evals per sample (the increment-14
+    // costing) and are SUB-PIXEL at orbit footprints anyway - the coarse
+    // mips both paid the full price and rendered nearly nothing (the
+    // built bodies thin out at coarse lod). v2 bodies now exist only
+    // where the footprint can actually resolve them (~a few km); coarse
+    // samples keep the noise body, so Ultra at orbit looks and costs
+    // exactly like High and the close-up range keeps the built look.
+    if (material.params.y >= 2.5 && lodb < 2.0) {
         let tc_v2 = cloud_type_coord(normalize(p), t, seed);
         // THIN-GENUS BLEND (increment 6, the promised-but-missing half):
         // grape clusters cannot be wisps, so cirrus/altocumulus keep the
