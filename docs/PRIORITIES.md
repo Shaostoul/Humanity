@@ -58,22 +58,32 @@
 > sign corrected, gradation preserved, coverage unbroken. Tried and
 > REVERTED: thr -> 0 at cov 1.0 (fills the slab vertically - scud).
 >
-> **NEXT: the environment backlog, ranked** (operator 2026-08-23: "All
-> of the environmental backlog is worth doing... One being off can
-> throw others off."):
-> 1. Water F5 (shadow box ramp - small) and F3 (weld holes: continuous
->    distance-based wave gate + saturation uniform) - full specs in
->    environment-program.md section 12w.
-> 2. Black horizon hairline - chord-sag mechanism makes the ATMOSPHERE
->    shell mesh the prime suspect; the analytic-ray cure from the cloud
->    march may apply to types 13/14.
-> 3. Water F6 (trains triplanar A/B), F4 (sky-LUT 400-height A/B).
-> 4. Stars vanishing below cloud-top altitude while the sky is black.
-> 5. Cloud streets (increment 13) + the ranked 14/15 track.
-> Operator flight-verdict watch items: 12e ghosting (tune
-> RESOLVE_CLIP_GAMMA toward 0.75 if edges still trail; check the
-> 800-1000 px FAR/NEAR hysteresis band), 12f underside taste (mottle
-> strength = the LWP mix range; pouch depth = the 0.72 constant).
+> **NEXT (TOP): THE FAR/NEAR HANDOFF POP - with a live contradiction to
+> resolve first.** The operator's orbit-approach "huge patch of clouds
+> just vanishes" is the regime switch (analyst: 9.4x footprint jump =
+> +3.2 mips in ONE frame, carve compensator saturated at its 0.02 cap).
+> BUT the derived fix (near march footprint = min(screen*4,
+> cloud_pix_ang_map())) produced a WHITE CONTINENT at 4,500-6,700 km
+> while the OCTA at a near-identical mip (2.8 vs 2.3) renders ~45%
+> areal: HALF A MIP CANNOT DOUBLE COVERAGE, so footprint is NOT the
+> whole octa-vs-near difference (v0.1204 journal has the full data).
+> Suspects for the residual difference: the composite's Catmull-Rom of
+> a 4096 map at a ~250 px disc (severe minification averaging), the 12e
+> resolve's variance clip, the weather wlod delta, the octa's 2x
+> spatial supersample. STEP 0 (instrument first): a 1 Hz [CloudRegime]
+> log line in lib.rs printing px + near + altitude - THREE sweeps were
+> confounded this round by guessing which regime a park ran.
+> 2. Overcast-completion veil: engine coverage 1.0 = thr floor 0.347 =
+>    ~87% areal; at >= 0.95 coverage add a thin base-level stratus veil
+>    that closes the sky AREALLY without filling the slab vertically
+>    (the round-5 scud lesson; gate4 recalibrated to 18% meanwhile).
+> 3. Black horizon hairline (atmosphere shell chord-sag suspect), water
+>    F6/F4 A/Bs, stars-below-cloud-top, cloud streets (13), 14/15.
+> Operator watch items: 12e ghosting residue (RESOLVE_CLIP_GAMMA toward
+> 0.75), 12f underside taste (LWP mix range; pouch 0.72), the new 1 km
+> base feel, edge stipple on cloud silhouettes (march jitter at
+> boundaries - if reported, widen the resolve's neighbourhood or add a
+> spatial post-filter).
 >
 > (Superseded live-path protocol, kept for the confound catalog: the
 > haze-corrected clouds-on/off design in journal 2026-08-22 - the
