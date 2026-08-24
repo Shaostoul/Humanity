@@ -381,6 +381,14 @@ pub async fn run_relay() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // Ensure the backup-encryption key exists from the first minute, so
+    // the 30-minute VPS snapshot script can seal its very first run
+    // instead of waiting for the 6-hour in-process backup to create it.
+    {
+        let key_dir = storage::backup_crypto::key_dir_for_db(std::path::Path::new(&db_path));
+        let _ = storage::backup_crypto::load_or_create_key(&key_dir);
+    }
+
     // Boot-time DM mailbox expiry (sealed-sender store-and-forward): drop
     // envelopes older than the configured TTL so a relay that was down for
     // a while doesn't wait 6 hours for the periodic sweep.
@@ -841,17 +849,45 @@ pub async fn run_relay() {
                     }
                 }
 
-                // Prune old backups, keeping the last 5.
+                // Privacy hardening (2026-08-23): seal the backup at rest.
+                // Backups travel (rotation dirs, rsync, the operator's
+                // off-box pull); ciphertext copies are worthless without
+                // the machine-local key (data/backup.key, NOT in the
+                // backups dir). Falls back to keeping the plain backup if
+                // the key or the seal fails — a readable backup beats
+                // none.
+                {
+                    let key_dir = storage::backup_crypto::key_dir_for_db(
+                        std::path::Path::new(&backup_db_path),
+                    );
+                    if let Some(key) = storage::backup_crypto::load_or_create_key(&key_dir) {
+                        let enc_path = backup_dir.join(format!("{backup_filename}.enc"));
+                        match storage::backup_crypto::encrypt_file(&key, &backup_path, &enc_path) {
+                            Ok(()) => {
+                                let _ = std::fs::remove_file(&backup_path);
+                                tracing::info!("DB backup: sealed {backup_filename}.enc (plain copy removed)");
+                            }
+                            Err(e) => {
+                                tracing::error!("DB backup: seal failed, keeping plain backup: {e}");
+                            }
+                        }
+                    }
+                }
+
+                // Prune old backups, keeping the last 5 (plain .db from
+                // the pre-encryption era and sealed .db.enc alike).
                 if let Ok(entries) = std::fs::read_dir(&backup_dir) {
                     let mut backups: Vec<PathBuf> = entries
                         .filter_map(|e| e.ok())
                         .map(|e| e.path())
                         .filter(|p| {
-                            p.extension().and_then(|e| e.to_str()) == Some("db")
-                                && p.file_name()
-                                    .and_then(|n| n.to_str())
-                                    .map(|n| n.starts_with("relay_"))
-                                    .unwrap_or(false)
+                            p.file_name()
+                                .and_then(|n| n.to_str())
+                                .map(|n| {
+                                    n.starts_with("relay_")
+                                        && (n.ends_with(".db") || n.ends_with(".db.enc"))
+                                })
+                                .unwrap_or(false)
                         })
                         .collect();
                     backups.sort();

@@ -110,3 +110,49 @@ The honest residuals:
 - Live traffic analysis (who is online when mail for X arrives) remains
   possible for an active observer; mitigating that is mixnet territory and
   out of scope for now.
+
+## Privacy-hardening sweep (2026-08-23, same day, second pass)
+
+The stored-data classes removed or bounded after the sealed-sender cutover:
+
+- **Marketplace buyer-seller threads**: the `listing_messages` table (plaintext
+  content with sender identity, and every new message was broadcast to ALL
+  connected clients) is DROPPED by migration. Marketplace contact now opens a
+  sealed-sender E2EE DM with the seller; the relay stores no marketplace
+  correspondence at all.
+- **Legacy relay groups**: the `groups` / `group_members` / `group_messages`
+  tables (plaintext rosters and messages) are DROPPED by migration. Groups are
+  exclusively the E2EE P2P signed-object system (`groups_p2p.rs`); the relay
+  stores opaque ciphertext plus signed membership objects.
+- **Image metadata**: every uploaded JPEG/PNG/WebP is stripped of
+  EXIF/XMP/IPTC/text metadata BEFORE touching disk (GPS coordinates in a phone
+  photo were a publish-your-home-address bug nobody consented to). Lossless
+  segment removal; see `relay/core/strip_metadata.rs`.
+- **Presence**: members can hide presence entirely (`privacy_update`):
+  never shown online, `last_seen` is not merely hidden but NEVER WRITTEN
+  (and scrubbed when hiding is enabled), no join/leave announcements, no
+  typing signals. New members start hidden until they choose a privacy tier
+  (the onboarding default is maximum privacy). The member stays listed in
+  the in-server roster (masked as offline) so friends can still reach them
+  and DM keys distribute; the public web directory listing remains the
+  separate `privacy.directory` opt-out.
+- **Database backups**: encrypted at rest. The in-process 6-hour snapshots
+  are sealed AES-256-GCM (`.db.enc`); the VPS 30-minute snapshots are sealed
+  via openssl (`.db.aes`). The key (`data/backup.key`) deliberately lives
+  OUTSIDE the backups directory, so backup copies that travel (rsync, the
+  operator's off-box pull) are ciphertext. Crash recovery decrypts
+  transparently; manual restores use `scripts/decrypt-backup.sh`. Keep a copy
+  of the key somewhere safe: a backup without its key is unreadable by design.
+- **Web-server IP logs**: nginx rotation cut from 14 days to 2 on the VPS and
+  the accumulated history purged. The live log remains (fail2ban needs it to
+  ban abusers); two days is ample for that and keeps no meaningful visit
+  history. (CLI-configured; tracked as GUI-first debt in in-app-ops.)
+- **Account sovereignty**: any member can self-service EXPORT everything the
+  server stores about them (`account_export` → JSON download / local file)
+  and ERASE it all (`account_delete`, typed-name confirmation): messages,
+  uploads + files on disk, profile, follows both directions, mailbox, vault,
+  push subscriptions, listings, reviews, tasks, membership, registered name.
+  Admins must hand off the admin role first so a server is never orphaned.
+  secure_delete zeroes the freed pages and the WAL is truncated; rotating
+  backups hold prior snapshots until they age out, as everywhere else in
+  this document.

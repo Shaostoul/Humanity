@@ -1220,45 +1220,13 @@ sendMessage = async function() {
       return;
     }
   }
-  if (val.startsWith('/group-create ')) {
-    const name = val.substring(14).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
-      input.value = '';
-      ws.send(JSON.stringify({ type: 'group_create', name: name }));
-      return;
-    }
-  }
-  if (val.startsWith('/group-join ')) {
-    const code = val.substring(12).trim();
-    if (code && ws && ws.readyState === WebSocket.OPEN) {
-      input.value = '';
-      ws.send(JSON.stringify({ type: 'group_join', invite_code: code }));
-      return;
-    }
-  }
-  if (val.startsWith('/group-leave')) {
+  if (val.startsWith('/group-create') || val.startsWith('/group-join')
+      || val.startsWith('/group-leave') || val.startsWith('/group-invite')) {
+    // Legacy relay-group commands died 2026-08-23. Groups are the E2EE
+    // P2P system: use the Groups tab's Create/Join buttons (invite is a
+    // signed ticket via right-click, leave/disband via right-click too).
     input.value = '';
-    if (activeGroupId && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'group_leave', group_id: activeGroupId }));
-    } else {
-      addSystemMessage('You are not viewing a group. Switch to a group first.');
-    }
-    return;
-  }
-  if (val.startsWith('/group-invite')) {
-    input.value = '';
-    if (activeGroupId) {
-      const group = myGroups.find(g => g.id === activeGroupId);
-      if (group) {
-        navigator.clipboard.writeText(group.invite_code).then(() => {
-          addSystemMessage('📋 Invite code copied: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
-        }).catch(() => {
-          addSystemMessage('📋 Invite code: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
-        });
-      }
-    } else {
-      addSystemMessage('Switch to a group first to get its invite code.');
-    }
+    addSystemMessage('Groups moved to the encrypted P2P system: use the Groups tab (Create Group / Join Group buttons; right-click a group for invite, leave, disband).');
     return;
   }
   // Group or DM view: route through the single content-routing authority
@@ -1288,11 +1256,8 @@ sendMessage = async function() {
 async function sendComposedContent(content) {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
 
-  // Group view -> group message (server round-trips the echo, like text).
-  if (activeGroupId) {
-    ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
-    return true;
-  }
+  // (Legacy group_msg branch removed 2026-08-23; the P2P group composer
+  // patch in chat-groups-p2p.js routes E2EE group sends before this runs.)
 
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.

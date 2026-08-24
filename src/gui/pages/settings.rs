@@ -350,6 +350,69 @@ fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
 
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let accent = section_accent(SettingsCategory::Account, theme);
+
+    // ── Your data: export + erase (sovereignty, 2026-08-23) ──
+    widgets::subsection_header(ui, theme, accent, "Your data", "");
+    widgets::card(ui, theme, |ui| {
+        widgets::body_hint(
+            ui, theme,
+            "Download everything the connected server stores about you, or erase it \
+             all, self-service, no admin needed. Data on this device is yours and stays.",
+        );
+        let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+        ui.horizontal(|ui| {
+            if connected && widgets::secondary_button(ui, theme, "Export my data") {
+                if let Some(ref client) = state.ws_client {
+                    client.send(&serde_json::json!({ "type": "account_export" }).to_string());
+                }
+                state.account_export_status = "Requested; writing the export file when it arrives.".to_string();
+            }
+            if !connected {
+                ui.label(
+                    egui::RichText::new("Connect to a server to export or erase.")
+                        .color(theme.text_muted())
+                        .size(theme.font_size_small),
+                );
+            }
+        });
+        if !state.account_export_status.is_empty() {
+            ui.label(
+                egui::RichText::new(&state.account_export_status)
+                    .color(theme.text_secondary())
+                    .size(theme.font_size_small),
+            );
+        }
+        ui.add_space(theme.spacing_sm);
+        widgets::body_hint(
+            ui, theme,
+            "Erase: removes your messages, uploads, profile, follows, mailbox, and \
+             membership from this server, permanently. Type your display name exactly \
+             to arm the button.",
+        );
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut state.account_delete_confirm_input)
+                    .hint_text("type your name to confirm")
+                    .desired_width(180.0),
+            );
+            let armed = connected
+                && !state.account_delete_confirm_input.trim().is_empty()
+                && state.account_delete_confirm_input.trim() == state.user_name;
+            if armed
+                && widgets::Button::danger("Erase my account on this server").show(ui, theme)
+            {
+                if let Some(ref client) = state.ws_client {
+                    client.send(&serde_json::json!({
+                        "type": "account_delete",
+                        "confirm_name": state.account_delete_confirm_input.trim(),
+                    }).to_string());
+                }
+                state.account_delete_confirm_input.clear();
+            }
+        });
+    });
+    ui.add_space(theme.spacing_md);
+
     // ── Identity: who you are (name, key, seed phrase, device linking) ──
     widgets::subsection_header(ui, theme, accent, "Identity", "");
     widgets::card(ui, theme, |ui| {
@@ -3151,20 +3214,20 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
 pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
+    // Privacy tiers (2026-08-23): the preset chooser + the server-enforced
+    // presence switch live in pages::privacy (shared with the first-connect
+    // modal). The old standalone "Show Online Status" toggle merged into it
+    // — it used to be written to config and read by NOTHING; the same field
+    // now drives the relay's privacy_update.
     widgets::card(ui, theme, |ui| {
-        // Both toggles must mark the settings dirty, otherwise the change is
-        // never written to the config and the person is public again on the
-        // next launch without being told (v0.1066: the return value of
-        // `toggle` was being discarded here, and neither field was on
-        // AppConfig at all).
+        crate::gui::pages::privacy::draw_privacy_content(ui, theme, state);
+    });
+    ui.add_space(theme.spacing_sm);
+    widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Whether other players can open and view your profile page.");
-        if widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(ui, theme, hint, "Whether others can see that you are online right now. Off = you appear offline.");
     });
 }
 

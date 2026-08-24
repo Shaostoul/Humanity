@@ -164,17 +164,24 @@ fn every_setting_the_ui_exposes_is_persisted() {
 /// return of `widgets::toggle`, so nothing ever asked for a write.
 #[test]
 fn privacy_toggles_mark_settings_dirty() {
-    let src = read("src/gui/pages/settings.rs");
-    let start = src
-        .find("fn draw_privacy_content")
-        .expect("draw_privacy_content present");
-    let body = &src[start..start + 1600.min(src.len() - start)];
-
-    for field in ["profile_visible", "online_status_visible"] {
+    // profile_visible stays in settings.rs; online_status_visible moved to
+    // pages/privacy.rs (2026-08-23, privacy tiers) where the SAME toggle is
+    // now also server-enforced via privacy_update. Each is checked where it
+    // actually renders.
+    let checks: [(&str, &str, &str); 2] = [
+        ("profile_visible", "src/gui/pages/settings.rs", "fn draw_privacy_content"),
+        ("online_status_visible", "src/gui/pages/privacy.rs", "fn draw_privacy_content"),
+    ];
+    for (field, file, anchor) in checks {
+        let src = read(file);
+        let start = src.find(anchor).unwrap_or_else(|| panic!("{anchor} present in {file}"));
+        let body = &src[start..(start + 4000).min(src.len())];
         let idx = body
             .find(field)
-            .unwrap_or_else(|| panic!("{field} should be rendered in the privacy section"));
-        let after = &body[idx..(idx + 220).min(body.len())];
+            .unwrap_or_else(|| panic!("{field} should be rendered in {file}'s privacy section"));
+        // Window is wide enough to span the toggle's hover-text string
+        // between the binding and the dirty-flag assignment.
+        let after = &body[idx..(idx + 700).min(body.len())];
         assert!(
             after.contains("settings_dirty = true"),
             "\n\n`{field}` is a PRIVACY toggle that does not set settings_dirty, so \

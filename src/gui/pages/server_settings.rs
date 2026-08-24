@@ -3116,17 +3116,10 @@ fn send_slash(state: &mut GuiState, command: &str) {
 
 fn do_disconnect(state: &mut GuiState, group_id: Option<String>) {
     match group_id {
-        Some(gid) => {
-            if let Some(ref client) = state.ws_client {
-                if client.is_connected() {
-                    let msg = serde_json::json!({
-                        "type": "group_leave",
-                        "group_id": gid,
-                    });
-                    client.send(&msg.to_string());
-                }
-            }
-            state.chat_groups.retain(|g| g.id != gid);
+        Some(_gid) => {
+            // Legacy relay groups died 2026-08-23; a group "disconnect"
+            // no longer exists (P2P groups have Leave/Disband in the chat
+            // sidebar). Just return to the chat page.
             state.chat_active_channel = "general".to_string();
             state.active_page = GuiPage::Chat;
         }
@@ -3180,13 +3173,15 @@ fn resolve_scope(state: &GuiState) -> (String, String) {
 }
 
 fn resolve_group(state: &GuiState) -> Option<(String, String)> {
+    // Legacy relay groups died 2026-08-23. P2P groups manage themselves
+    // from the chat sidebar (Leave/Disband), not this page.
     let ctx_id = state.chat_user_modal_key.clone();
     if ctx_id.is_empty() { return None; }
     state
-        .chat_groups
+        .p2p_groups
         .iter()
-        .find(|g| g.id == ctx_id)
-        .map(|g| (g.id.clone(), g.name.clone()))
+        .find(|g| g.group_id == ctx_id)
+        .map(|g| (g.group_id.clone(), g.name.clone()))
 }
 
 fn resolve_server_url(state: &GuiState) -> String {

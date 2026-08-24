@@ -29,15 +29,72 @@ impl Storage {
     // ── Server Membership methods ──
 
     /// Join the server as a member. If already a member, this is a no-op.
+    ///
+    /// Privacy default (2026-08-23): NEW members join with
+    /// `hide_presence = 1` — presence-invisible until they choose a
+    /// privacy tier in the onboarding picker (default tier keeps it on;
+    /// more public tiers turn it off). Fail-private: a client that never
+    /// implements the picker leaves its user hidden, not exposed.
+    /// Members from before the column existed keep their visible
+    /// behavior (the ALTER default is 0 for existing rows).
     pub fn join_server(&self, public_key: &str, name: &str) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
             let changed = conn.execute(
-                "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen)
-                 VALUES (?1, ?2, 'member', datetime('now'), datetime('now'))",
+                "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence)
+                 VALUES (?1, ?2, 'member', datetime('now'), NULL, 1)",
                 params![public_key, name],
             )?;
             Ok(changed > 0)
         })
+    }
+
+    /// Set presence visibility for a member. Turning hiding ON also
+    /// scrubs the stored last_seen — data that shouldn't be exposed
+    /// shouldn't be retained either.
+    pub fn set_hide_presence(&self, public_key: &str, hide: bool) -> Result<(), rusqlite::Error> {
+        self.with_conn(|conn| {
+            if hide {
+                conn.execute(
+                    "UPDATE server_members SET hide_presence = 1, last_seen = NULL WHERE public_key = ?1",
+                    params![public_key],
+                )?;
+            } else {
+                conn.execute(
+                    "UPDATE server_members SET hide_presence = 0, last_seen = datetime('now') WHERE public_key = ?1",
+                    params![public_key],
+                )?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Whether this key's presence is hidden.
+    pub fn presence_hidden(&self, public_key: &str) -> bool {
+        self.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COALESCE(hide_presence, 0) FROM server_members WHERE public_key = ?1",
+                params![public_key],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()
+            .map(|v| v.unwrap_or(0) != 0)
+        })
+        .unwrap_or(false)
+    }
+
+    /// The set of presence-hidden keys (one query for roster masking).
+    pub fn hidden_presence_keys(&self) -> std::collections::HashSet<String> {
+        self.with_read_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT public_key FROM server_members WHERE COALESCE(hide_presence, 0) = 1",
+            )?;
+            let set = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(set)
+        })
+        .unwrap_or_default()
     }
 
     /// Leave the server (delete member record).
@@ -184,11 +241,14 @@ impl Storage {
         })
     }
 
-    /// Update last_seen timestamp for a member.
+    /// Update last_seen timestamp for a member. Presence-hidden members
+    /// never get one written at all (what isn't stored can't leak — the
+    /// gate is in the SQL so every call site inherits it).
     pub fn update_last_seen(&self, public_key: &str) -> Result<(), rusqlite::Error> {
         self.with_conn(|conn| {
             conn.execute(
-                "UPDATE server_members SET last_seen = datetime('now') WHERE public_key = ?1",
+                "UPDATE server_members SET last_seen = datetime('now')
+                 WHERE public_key = ?1 AND COALESCE(hide_presence, 0) = 0",
                 params![public_key],
             )?;
             Ok(())
@@ -324,5 +384,38 @@ mod directory_optout_tests {
         // The search path honors the filter too (no surfacing an unlisted member).
         assert!(db.get_members(100, 0, Some("bob")).unwrap().is_empty(), "search hides unlisted");
         assert_eq!(db.get_member_count(Some("bob")).unwrap(), 0, "search count hides unlisted");
+    }
+
+    /// Presence privacy (2026-08-23): new members join hidden with no
+    /// last_seen; the gate keeps last_seen NULL until presence is made
+    /// visible; hiding again scrubs it.
+    #[test]
+    fn presence_privacy_defaults_and_last_seen_gate() {
+        let db = test_storage();
+        db.register_name("Newbie", "newbie_key").unwrap();
+        assert!(db.join_server("newbie_key", "Newbie").unwrap());
+        // Fail-private default for NEW members.
+        assert!(db.presence_hidden("newbie_key"), "new members start hidden");
+        assert!(db.hidden_presence_keys().contains("newbie_key"));
+        // While hidden, last_seen never gets written.
+        db.update_last_seen("newbie_key").unwrap();
+        let ls = db.with_read_conn(|c| {
+            c.query_row("SELECT last_seen FROM server_members WHERE public_key = 'newbie_key'", [], |r| r.get::<_, Option<String>>(0))
+        }).unwrap();
+        assert!(ls.is_none(), "hidden member must have NULL last_seen");
+        // Choosing a visible tier turns presence on and stamps last_seen.
+        db.set_hide_presence("newbie_key", false).unwrap();
+        assert!(!db.presence_hidden("newbie_key"));
+        db.update_last_seen("newbie_key").unwrap();
+        let ls2 = db.with_read_conn(|c| {
+            c.query_row("SELECT last_seen FROM server_members WHERE public_key = 'newbie_key'", [], |r| r.get::<_, Option<String>>(0))
+        }).unwrap();
+        assert!(ls2.is_some(), "visible member gets a last_seen");
+        // Hiding again SCRUBS the stored last_seen (retain nothing exposed).
+        db.set_hide_presence("newbie_key", true).unwrap();
+        let ls3 = db.with_read_conn(|c| {
+            c.query_row("SELECT last_seen FROM server_members WHERE public_key = 'newbie_key'", [], |r| r.get::<_, Option<String>>(0))
+        }).unwrap();
+        assert!(ls3.is_none(), "hiding scrubs last_seen");
     }
 }

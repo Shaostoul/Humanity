@@ -343,6 +343,9 @@ pub struct AppConfig {
     /// Show when you are online.
     #[serde(default = "default_true")]
     pub online_status_visible: bool,
+    /// Chosen privacy tier id (empty = never chosen; first-connect modal asks). 2026-08-23.
+    #[serde(default)]
+    pub privacy_tier: String,
     /// UI font size. An accessibility setting, so losing it every launch is
     /// worse than losing a cosmetic one.
     #[serde(default = "default_font_size")]
@@ -1194,6 +1197,7 @@ impl AppConfig {
             nav_display_mode: state.nav_display_mode,
             profile_visible: state.settings.profile_visible,
             online_status_visible: state.settings.online_status_visible,
+            privacy_tier: state.settings.privacy_tier.clone(),
             font_size: state.settings.font_size,
             dark_mode: state.settings.dark_mode,
             hint_display: state.settings.hint_display,
@@ -1345,6 +1349,7 @@ impl AppConfig {
         state.nav_display_mode = self.nav_display_mode;
         state.settings.profile_visible = self.profile_visible;
         state.settings.online_status_visible = self.online_status_visible;
+        state.settings.privacy_tier = self.privacy_tier.clone();
         // Clamp the ranges the UI enforces, so a hand-edited config cannot
         // produce an unusable window (a 0 font size or a 0 m far plane).
         state.settings.font_size = self.font_size.clamp(10.0, 24.0);

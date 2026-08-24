@@ -581,7 +581,6 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
         // sidebar dots (v0.715-718) only help while Chat is open. (v0.719)
         if item.page == GuiPage::Chat {
             let any_unread = state.chat_dms.iter().any(|d| d.unread)
-                || state.chat_groups.iter().any(|g| g.unread)
                 || state.chat_channels.iter().any(|c| c.unread);
             if any_unread {
                 painter.circle_filled(

@@ -75,17 +75,40 @@ mkdir -p "$BACKUP_DIR"
 # even while the source is being written. Crash-safe.
 sqlite3 "$DB_PATH" ".backup '$OUT'"
 
+# ── Encryption at rest (privacy hardening, 2026-08-23) ──
+# Backups travel: this directory is rsynced and pulled to the operator's
+# other machines. A plain .db copy hands the whole server to whoever
+# obtains one file. Seal each snapshot with the machine-local backup key
+# (data/backup.key, created by the relay; NOT inside this directory, so
+# a copied backups folder is ciphertext without it).
+#
+# Format note: `openssl enc` cannot do AES-GCM, so these script-side
+# seals use AES-256-CBC + PBKDF2 and the extension .db.aes. They are for
+# OPERATOR restores (decrypt with scripts/decrypt-backup.sh); the relay's
+# own crash recovery uses its 6-hour .db.enc snapshots in data/backups/.
+KEY_FILE="/opt/Humanity/data/backup.key"
+if [ -f "$KEY_FILE" ]; then
+  openssl enc -aes-256-cbc -pbkdf2 -iter 200000 \
+    -pass "file:$KEY_FILE" -in "$OUT" -out "$OUT.aes"
+  rm -f "$OUT"
+  OUT="$OUT.aes"
+else
+  echo "humanity-backup-db: NOTICE — no backup key at $KEY_FILE yet (relay creates it on first backup); keeping this snapshot PLAIN" >&2
+fi
+
 # Restrict mode on the backup — same secret-handling posture as the
 # live DB. The relay runs as user `humanity`; backups should be readable
 # only by that user (or root).
 chmod 640 "$OUT"
 chown humanity:humanity "$OUT" || true
 
-# Rotate: keep newest 15. Independent of the disk-guard's
-# HUMANITY_DB_BACKUP_KEEP (which is OFF by default and would otherwise
-# never rotate); we always cap at 15 here so backups/ doesn't grow
-# unbounded if the disk-guard is disabled.
+# Rotate: keep newest 15 of each form (plain from the pre-encryption
+# era age out naturally; sealed .db.aes thereafter). Independent of the
+# disk-guard's HUMANITY_DB_BACKUP_KEEP (which is OFF by default and
+# would otherwise never rotate); we always cap here so backups/ doesn't
+# grow unbounded if the disk-guard is disabled.
 ls -1t "$BACKUP_DIR"/relay-*.db 2>/dev/null | tail -n +16 | xargs -r rm -f
+ls -1t "$BACKUP_DIR"/relay-*.db.aes 2>/dev/null | tail -n +16 | xargs -r rm -f
 
 # Emit a parseable line for journalctl. The .timer captures stdout, so
 # this becomes a discoverable per-run audit trail.

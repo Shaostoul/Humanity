@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "default_tier": "private",
+  "_comment": "Privacy tiers shown at first connect (native modal + web modal) and in Settings. The DEFAULT is maximum privacy; Spotlight is maximum publicity by explicit choice (streamers, creators). A tier is a preset over two real switches: hide_presence (relay privacy_update: never online, no last_seen stored, no join/leave/typing signals) and directory_unlisted (profile privacy JSON: hidden from the public member directory). Messages are E2EE regardless of tier.",
+  "tiers": [
+    {
+      "id": "private",
+      "name": "Private",
+      "tagline": "Maximum privacy. The default.",
+      "description": "You never appear online, no last-seen time is stored on the server, no typing or join signals are sent, and you are not listed in the public member directory. Friends can still reach you (friend codes work, and your messages are end-to-end encrypted like everyone's).",
+      "hide_presence": true,
+      "directory_unlisted": true
+    },
+    {
+      "id": "balanced",
+      "name": "Balanced",
+      "tagline": "Visible to your server, invisible to the wider web.",
+      "description": "Members of servers you join can see when you are online. You stay out of the public web member directory.",
+      "hide_presence": false,
+      "directory_unlisted": true
+    },
+    {
+      "id": "open",
+      "name": "Open",
+      "tagline": "Findable by people looking for you.",
+      "description": "You appear online to members and in the public member directory, so people can find and follow you.",
+      "hide_presence": false,
+      "directory_unlisted": false
+    },
+    {
+      "id": "spotlight",
+      "name": "Spotlight",
+      "tagline": "Maximum publicity. For streamers and creators.",
+      "description": "Everything discoverable by choice: online presence, public directory listing, and your live-stream status shown so viewers can find you the moment you go live.",
+      "hide_presence": false,
+      "directory_unlisted": false,
+      "promote_streaming": true
+    }
+  ]
+}

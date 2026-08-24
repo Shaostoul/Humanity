@@ -85,39 +85,9 @@ handleMessage = function(msg) {
     if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
     return;
   }
-  if (msg.type === 'group_list') {
-    myGroups = msg.groups || [];
-    renderGroupList();
-    return;
-  }
-  if (msg.type === 'group_message') {
-    if (activeGroupId === msg.group_id) {
-      const name = resolveSenderName(msg.from_name, msg.from);
-      const isYou = msg.from === myKey;
-      addMessageToChat(name, msg.content, msg.timestamp, isYou, msg.from);
-    } else {
-      // Track unread count for groups not currently in view
-      groupUnread[msg.group_id] = (groupUnread[msg.group_id] || 0) + 1;
-      renderGroupList();
-    }
-    return;
-  }
-  if (msg.type === 'group_history') {
-    if (msg.group_id === activeGroupId) {
-      const messagesDiv = document.getElementById('messages');
-      messagesDiv.innerHTML = '';
-      for (const m of (msg.messages || [])) {
-        const isYou = m.from === myKey;
-        addMessageToChat(resolveSenderName(m.from_name, m.from), m.content, m.timestamp, isYou, m.from);
-      }
-    }
-    return;
-  }
-  if (msg.type === 'group_members') {
-    groupMembersByGroup[msg.group_id] = (msg.members || []).map(([key, role]) => ({ key, role }));
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
+  // (Legacy group_list/group_message/group_history/group_members handlers
+  // removed 2026-08-23: the plaintext relay-group system died server-side;
+  // groups are the E2EE P2P signed-object system in chat-groups-p2p.js.)
   _origHandleMessageFollow(msg);
 };
 
@@ -242,17 +212,7 @@ function renderGroupList() {
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
   }
-  // Legacy relay-mediated groups (shown until migrated, Phase 1 step e).
-  for (const g of myGroups) {
-    const isActive = activeGroupId === g.id;
-    const unread = groupUnread[g.id] || 0;
-    const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:var(--radius-lg);padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
-    html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
-      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
-      ${badge}
-    </div>`;
-  }
-  if (p2pGroups.length === 0 && myGroups.length === 0) {
+  if (p2pGroups.length === 0) {
     html += '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet. Create one, or paste an invite ticket to join.</div>';
   }
   html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
@@ -317,39 +277,6 @@ function renderGroupList() {
           });
         }});
       }
-      items.forEach(it => {
-        const div = document.createElement('div');
-        div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
-        if (it.html) div.innerHTML = it.label; else div.textContent = it.label;
-        div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
-        div.onmouseleave = () => { div.style.background = ''; };
-        div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
-        menu.appendChild(div);
-      });
-      document.body.appendChild(menu);
-      const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
-      setTimeout(() => document.addEventListener('click', closeMenu), 0);
-    };
-  });
-  // Click handler for groups
-  container.querySelectorAll('[data-group-id]').forEach(el => {
-    el.onclick = () => openGroup(el.dataset.groupId);
-    el.oncontextmenu = (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.group-ctx-menu').forEach(m => m.remove());
-      const gid = el.dataset.groupId;
-      const group = myGroups.find(g => g.id === gid);
-      if (!group) return;
-      const menu = document.createElement('div');
-      menu.className = 'group-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      const items = [
-        { label: hosIcon('copy', 14) + ' Copy Invite Code', html: true, action: () => { navigator.clipboard.writeText(group.invite_code).then(() => addSystemMessage('Invite code copied: ' + group.invite_code)); }},
-        { label: '👤 Invite User', action: () => { const name = prompt('Share this invite code with a user:\\n' + group.invite_code + '\\n\\nOr enter a username to tell them:'); if (name && name.trim()) { addSystemMessage('Share this invite code with ' + name.trim() + ': ' + group.invite_code); } }},
-        { label: '🚪 Leave Group', action: () => { if (confirm('Leave group "' + group.name + '"?') && ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'group_leave', group_id: gid })); if (activeGroupId === gid) { activeGroupId = null; activeGroupName = ''; } } }},
-      ];
       items.forEach(it => {
         const div = document.createElement('div');
         div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
@@ -453,33 +380,7 @@ function promptJoinGroup() {
   });
 }
 
-function openGroup(groupId) {
-  const group = myGroups.find(g => g.id === groupId);
-  if (!group) return;
-  activeGroupId = groupId;
-  activeGroupName = group.name;
-  groupUnread[groupId] = 0; // Clear unread on enter
-  activeDmPartner = null; // Exit DM view, also deselect server channel + DM highlights
-  renderChannelList();
-  if (typeof renderDmList === 'function') renderDmList();
-  // Update channel header, replace innerHTML fully so leftover DM spans don't linger.
-  const header = document.getElementById('channel-header');
-  if (header) {
-    header.style.display = 'flex';
-    header.innerHTML = `<span class="ch-name">${hosIcon('users', 16)} ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
-  }
-  // Clear messages, set group context (forest-green tint + green stripes), request history.
-  const msgsEl = document.getElementById('messages');
-  msgsEl.dataset.ctx = 'group';
-  if (typeof resetMsgStripe === 'function') resetMsgStripe();
-  msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
-    ws.send(JSON.stringify({ type: 'group_members_request', group_id: groupId }));
-  }
-  renderGroupList();
-  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-}
+// (openGroup removed 2026-08-23 with the legacy relay-group system.)
 
 // When switching to a channel, clear group view
 const _origSwitchChannelFollow = switchChannel;
@@ -490,20 +391,9 @@ switchChannel = function(channelId) {
   if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
 };
 
-// Patch sendMessage to route to group_msg when a group is active.
-// Without this, pressing Enter while in a group view sends to the channel instead.
-const _origSendMessageGroup = sendMessage;
-sendMessage = async function() {
-  if (!activeGroupId) return _origSendMessageGroup();
-  const input = document.getElementById('msg-input');
-  const content = input.value.trim();
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
-  addMessageToChat(myName, content, Date.now(), true, myKey);
-  input.value = '';
-  input.style.height = 'auto';
-  input.focus();
-};
+// (Legacy group_msg sendMessage patch removed 2026-08-23; the P2P group
+// composer patch lives in chat-groups-p2p.js.)
+
 
 // Helper to add a message to the chat (for groups)
 function addMessageToChat(name, content, timestamp, isYou, fromKey) {

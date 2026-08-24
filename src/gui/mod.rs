@@ -198,7 +198,6 @@ impl GuiState {
             active_channel: std::mem::replace(&mut self.chat_active_channel, "general".to_string()),
             users: take(&mut self.chat_users),
             dms: take(&mut self.chat_dms),
-            groups: take(&mut self.chat_groups),
             pins: take(&mut self.chat_pins),
             friends: take(&mut self.chat_friends),
             following_keys: take(&mut self.chat_following_keys),
@@ -247,7 +246,6 @@ impl GuiState {
         };
         self.chat_users = conn.users;
         self.chat_dms = conn.dms;
-        self.chat_groups = conn.groups;
         self.chat_pins = conn.pins;
         self.chat_friends = conn.friends;
         self.chat_following_keys = conn.following_keys;
@@ -288,7 +286,7 @@ impl GuiState {
 
 #[cfg(all(test, feature = "native"))]
 mod park_unpark_tests {
-    use super::{ChatChannel, ChatDm, ChatGroup, ChatMessage, GuiState};
+    use super::{ChatChannel, ChatDm, ChatMessage, GuiState};
 
     fn connected_state(url: &str) -> GuiState {
         let mut state = GuiState::default();
@@ -315,15 +313,6 @@ mod park_unpark_tests {
             last_message: "see you there".into(),
             timestamp: "12:00".into(),
             unread: true,
-        });
-        state.chat_groups.push(ChatGroup {
-            name: "Builders".into(),
-            id: "g1".into(),
-            member_count: 3,
-            channels: Vec::new(),
-            collapsed: false,
-            role: "member".into(),
-            unread: false,
         });
         state
             .chat_pins
@@ -358,8 +347,6 @@ mod park_unpark_tests {
         assert_eq!(state.chat_dms.len(), 1);
         assert_eq!(state.chat_dms[0].user_key, "bela_key");
         assert!(state.chat_dms[0].unread, "unread DM mark survives");
-        assert_eq!(state.chat_groups.len(), 1);
-        assert_eq!(state.chat_groups[0].id, "g1");
         assert!(state.chat_pins.contains_key("ops"));
     }
 
@@ -886,28 +873,8 @@ impl GuiReview {
     }
 }
 
-/// One buyer-seller message on a listing thread, mirroring the relay's
-/// ListingMessageData (v0.755).
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, Default)]
-pub struct GuiListingMsg {
-    pub sender_key: String,
-    pub sender_name: String,
-    pub content: String,
-    pub timestamp: i64,
-}
-
-#[cfg(feature = "native")]
-impl GuiListingMsg {
-    pub fn from_relay_json(v: &serde_json::Value) -> Self {
-        Self {
-            sender_key: v.get("sender_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            sender_name: v.get("sender_name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            content: v.get("content").and_then(|x| x.as_str()).unwrap_or("").to_string(),
-            timestamp: v.get("timestamp").and_then(|x| x.as_i64()).unwrap_or(0),
-        }
-    }
-}
+// (GuiListingMsg removed 2026-08-23: listing buyer-seller threads were
+// plaintext server-side; marketplace contact rides sealed-sender DMs now.)
 
 /// The relay's aggregated civilization stats (GET /api/civilization, v0.757).
 /// Flattened from the nested population/infrastructure/economy/resources/
@@ -1124,34 +1091,13 @@ mod listing_mapping_tests {
         assert_eq!(l.condition, "");
     }
 
-    /// Same wire pin for the v0.755 trade-flow frames: the relay's REAL
-    /// ListingMessages and ReviewCreated frames map through the native
-    /// dispatch path (a serde rename would silently empty the thread or
-    /// the reviews card).
+    /// Wire pin for the v0.755 review frame: the relay's REAL ReviewCreated
+    /// frame maps through the native dispatch path (a serde rename would
+    /// silently empty the reviews card). The listing-thread half of this
+    /// test died with the plaintext thread protocol (2026-08-23).
     #[test]
-    fn relay_thread_and_review_frames_round_trip_to_gui() {
-        use super::{GuiListingMsg, GuiReview};
-
-        let msgs = crate::relay::relay::RelayMessage::ListingMessages {
-            listing_id: "wire-1".into(),
-            messages: vec![crate::relay::relay::ListingMessageData {
-                id: 7,
-                listing_id: "wire-1".into(),
-                sender_key: "buyerkey".into(),
-                sender_name: Some("Ada".into()),
-                content: "Is this still available?".into(),
-                timestamp: 1_720_000_000_000,
-            }],
-            target: Some("buyerkey".into()),
-        };
-        let val: serde_json::Value =
-            serde_json::from_str(&serde_json::to_string(&msgs).unwrap()).unwrap();
-        assert_eq!(val.get("type").and_then(|t| t.as_str()), Some("listing_messages"));
-        let arr = val.get("messages").and_then(|v| v.as_array()).unwrap();
-        let m = GuiListingMsg::from_relay_json(&arr[0]);
-        assert_eq!(m.sender_name, "Ada");
-        assert_eq!(m.content, "Is this still available?");
-        assert_eq!(m.timestamp, 1_720_000_000_000);
+    fn relay_review_frame_round_trips_to_gui() {
+        use super::GuiReview;
 
         let review = crate::relay::relay::RelayMessage::ReviewCreated {
             review: crate::relay::relay::ReviewData {
@@ -1803,28 +1749,8 @@ pub struct ChatDm {
     pub unread: bool,
 }
 
-/// A group chat entry for the left panel.
-/// Each group acts like a mini-server with its own channels.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone)]
-pub struct ChatGroup {
-    pub name: String,
-    pub id: String,
-    pub member_count: u32,
-    /// Group channels (default: just #general)
-    pub channels: Vec<ChatChannel>,
-    /// Whether this group's channel list is collapsed in the sidebar
-    pub collapsed: bool,
-    /// This user's role in the group, as reported by the server's
-    /// `group_list` message (`GroupData.role`, `"admin"` for the group's
-    /// creator, `"member"` otherwise -- see `group_members.role` in
-    /// `src/relay/storage/social.rs::create_group`). Defaults to `"member"`
-    /// so an old/partial payload never silently grants admin.
-    pub role: String,
-    /// A message arrived in this group while its channel wasn't open —
-    /// drives the sidebar unread dot, same pattern as ChatDm. (v0.717)
-    pub unread: bool,
-}
+// (ChatGroup removed 2026-08-23 with the legacy plaintext group system;
+// P2P E2EE groups render from p2p_groups: Vec<P2pGroupInfo>.)
 
 /// A server entry for the left panel (each server has text + voice channels).
 #[cfg(feature = "native")]
@@ -1891,7 +1817,6 @@ pub struct ServerConnection {
     pub active_channel: String,
     pub users: Vec<ChatUser>,
     pub dms: Vec<ChatDm>,
-    pub groups: Vec<ChatGroup>,
     pub pins: std::collections::HashMap<String, Vec<ChatPin>>,
     pub friends: Vec<ChatUser>,
     pub following_keys: std::collections::HashSet<String>,
@@ -2706,7 +2631,6 @@ pub struct GuiState {
     pub chat_active_channel: String,
     pub chat_users: Vec<ChatUser>,
     pub chat_dms: Vec<ChatDm>,
-    pub chat_groups: Vec<ChatGroup>,
     pub chat_servers: Vec<ChatServer>,
     pub chat_friends: Vec<ChatUser>,
     /// Keys of everyone I follow — RAW from the relay's follow_list, so it
@@ -3117,12 +3041,6 @@ pub struct GuiState {
     /// Review form drafts (detail view).
     pub review_rating_draft: i32,
     pub review_comment_draft: String,
-    /// Buyer-seller thread for the OPEN detail listing (v0.755).
-    pub listing_thread: Vec<GuiListingMsg>,
-    pub listing_thread_for: String,
-    pub listing_thread_open: bool,
-    pub listing_msg_draft: String,
-
     /// P2P trades (v0.756), delivered via targeted private wrappers.
     pub trades: Vec<GuiTrade>,
     /// Set once trade_list_request has been sent this connection.
@@ -4144,6 +4062,15 @@ pub struct GuiState {
     pub notif_dnd_end: Option<String>,
     pub notif_prefs_loaded: bool,
 
+    /// Privacy-tier UI transients (2026-08-23): loaded tier defs, the
+    /// radio selection, and whether the first-connect chooser is open.
+    /// The CHOSEN tier persists as settings.privacy_tier.
+    /// Account export/erase UI transients (sovereignty, 2026-08-23).
+    pub account_export_status: String,
+    pub account_delete_confirm_input: String,
+    pub privacy_tiers_cache: Vec<crate::gui::pages::privacy::PrivacyTier>,
+    pub privacy_tier_selection: String,
+    pub privacy_tier_prompt_open: bool,
     /// Local encrypted DM history for the ACTIVE server (sealed-sender
     /// cutover, 2026-08-23). The relay's mailbox is a delivery window
     /// that expires and carries no sender; this store is the archive.
@@ -4908,7 +4835,6 @@ impl Default for GuiState {
             chat_active_channel: "general".to_string(),
             chat_users: Vec::new(),
             chat_dms: Vec::new(),
-            chat_groups: Vec::new(),
             chat_servers: Vec::new(),
             chat_friends: Vec::new(),
             chat_following_keys: std::collections::HashSet::new(),
@@ -5086,10 +5012,6 @@ impl Default for GuiState {
             listing_reviews_count: 0,
             review_rating_draft: 5,
             review_comment_draft: String::new(),
-            listing_thread: Vec::new(),
-            listing_thread_for: String::new(),
-            listing_thread_open: false,
-            listing_msg_draft: String::new(),
             trades: Vec::new(),
             trades_synced: false,
             trade_status: String::new(),
@@ -5460,6 +5382,11 @@ impl Default for GuiState {
             notif_dnd_start: None,
             notif_dnd_end: None,
             notif_prefs_loaded: false,
+            account_export_status: String::new(),
+            account_delete_confirm_input: String::new(),
+            privacy_tiers_cache: Vec::new(),
+            privacy_tier_selection: String::new(),
+            privacy_tier_prompt_open: false,
             dm_store: None,
             dm_fetch_sent: false,
             server_settings: None,
@@ -7276,6 +7203,9 @@ pub struct SettingsState {
     // Privacy
     pub profile_visible: bool,
     pub online_status_visible: bool,
+    /// Chosen privacy tier id (data/gui/privacy_tiers.json). Empty =
+    /// never chosen; the first-connect modal asks once. (2026-08-23)
+    pub privacy_tier: String,
     // Data
     pub seed_phrase_visible: bool,
     // Seed phrase recovery
@@ -7360,6 +7290,7 @@ impl Default for SettingsState {
             play_mode: crate::config::PlayMode::default(),
             profile_visible: true,
             online_status_visible: true,
+            privacy_tier: String::new(),
             seed_phrase_visible: false,
             seed_phrase_input: String::new(),
             seed_phrase_recovery_status: String::new(),

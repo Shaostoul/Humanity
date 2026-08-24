@@ -524,6 +524,26 @@ pub async fn upload_file(
             }
         }
 
+        // Privacy: strip EXIF/XMP/IPTC/text metadata from images BEFORE the
+        // bytes ever touch disk. A phone photo carries GPS coordinates and
+        // a camera serial; nobody consents to publishing their home
+        // address with a garden picture. Lossless (whole-segment removal,
+        // no re-encode); fails open to the original bytes on any parse
+        // trouble. See relay/core/strip_metadata.rs.
+        let data = if is_image {
+            let stripped = crate::relay::core::strip_metadata::strip_image_metadata(&content_type, &data);
+            if stripped.len() != data.len() {
+                tracing::info!(
+                    "Upload metadata strip: {} shed {} bytes of embedded metadata",
+                    content_type,
+                    data.len().saturating_sub(stripped.len())
+                );
+            }
+            axum::body::Bytes::from(stripped)
+        } else {
+            data
+        };
+
         // Determine the file extension for storage.
         let ext = if is_tar_gz {
             "tar.gz"

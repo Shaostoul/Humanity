@@ -325,11 +325,42 @@ impl Storage {
         }
 
         // Recovery: newest-first, restore the first backup that verifies.
-        let candidates = Self::list_backups(backups_dir);
-        tracing::warn!("Recovery: {} backup candidate(s) in {}", candidates.len(), backups_dir.display());
-        for backup in &candidates {
+        // Sealed backups (.db.enc, 2026-08-23) are decrypted to a scratch
+        // file with the machine-local key before the integrity probe.
+        // Scan BOTH backup layers: the caller's dir (the VPS script's
+        // 30-minute rotation) and the in-process 6-hour rotation next to
+        // the live DB (`<db_dir>/backups`), which historically was never
+        // consulted (its `relay_` underscore names failed the old filter).
+        let mut candidates = Self::list_backups(backups_dir);
+        let inproc_dir = backup_crypto::key_dir_for_db(path).join("backups");
+        if inproc_dir != backups_dir {
+            candidates.extend(Self::list_backups(&inproc_dir));
+        }
+        // Newest first across both layers.
+        candidates.sort_by_key(|p| {
+            std::cmp::Reverse(
+                std::fs::metadata(p).and_then(|m| m.modified()).ok()
+            )
+        });
+        tracing::warn!("Recovery: {} backup candidate(s) across {} and {}", candidates.len(), backups_dir.display(), inproc_dir.display());
+        let backup_key = backup_crypto::load_or_create_key(&backup_crypto::key_dir_for_db(path));
+        let scratch = backups_dir.join("restore-scratch.db");
+        for candidate in &candidates {
+            let backup: &Path = if backup_crypto::is_encrypted_backup(candidate) {
+                let Some(ref key) = backup_key else {
+                    tracing::warn!("Recovery: {} is sealed but no backup key is loadable — trying older", candidate.display());
+                    continue;
+                };
+                if let Err(e) = backup_crypto::decrypt_file(key, candidate, &scratch) {
+                    tracing::warn!("Recovery: could not unseal {} ({e}) — trying older", candidate.display());
+                    continue;
+                }
+                &scratch
+            } else {
+                candidate
+            };
             if !Self::verify_readonly(backup) {
-                tracing::warn!("Recovery: backup {} also fails integrity — trying older", backup.display());
+                tracing::warn!("Recovery: backup {} also fails integrity — trying older", candidate.display());
                 continue;
             }
             // Healthy backup found. Quarantine the corrupt live file(s),
@@ -338,21 +369,26 @@ impl Storage {
             match std::fs::copy(backup, path) {
                 Ok(_) => match Self::open_and_verify(path) {
                     Ok(s) => {
-                        tracing::warn!("DB RECOVERED from backup {}", backup.display());
+                        tracing::warn!("DB RECOVERED from backup {}", candidate.display());
+                        // Never leave a decrypted scratch copy behind.
+                        let _ = std::fs::remove_file(&scratch);
                         return Ok(s);
                     }
                     Err(e) => {
-                        tracing::error!("Restored backup {} failed post-copy verify: {}", backup.display(), e);
+                        tracing::error!("Restored backup {} failed post-copy verify: {}", candidate.display(), e);
                         // Fall through to the loud-failure path below.
                         break;
                     }
                 },
                 Err(e) => {
-                    tracing::error!("Failed to copy backup {} into place: {}", backup.display(), e);
+                    tracing::error!("Failed to copy backup {} into place: {}", candidate.display(), e);
                     break;
                 }
             }
         }
+        // Never leave a decrypted scratch copy behind, whichever way the
+        // loop ended.
+        let _ = std::fs::remove_file(&scratch);
 
         // No healthy backup (or post-copy verify failed). Fail loud —
         // refuse to start rather than silently wipe or run corrupt.
@@ -410,7 +446,12 @@ impl Storage {
             .filter_map(|e| {
                 let p = e.path();
                 let name = p.file_name()?.to_str()?;
-                if name.starts_with("relay-") && name.ends_with(".db") {
+                // Both naming schemes (in-process `relay_`, VPS script
+                // `relay-`) and both storage forms (legacy plain .db,
+                // sealed .db.enc from the 2026-08-23 encryption).
+                let named = name.starts_with("relay-") || name.starts_with("relay_");
+                let typed = name.ends_with(".db") || name.ends_with(".db.enc");
+                if named && typed {
                     let mtime = e.metadata().ok()?.modified().ok()?;
                     Some((mtime, p))
                 } else {
@@ -916,6 +957,37 @@ impl Storage {
             info!("Migration: dropped legacy direct_messages table (sealed-sender DM cutover — the server-side DM graph is gone)");
         }
 
+        // Migration (privacy hardening, 2026-08-23): DROP the plaintext
+        // buyer-seller listing_messages table. Marketplace contact rides
+        // sealed-sender E2EE DMs now; this correspondence class stops
+        // existing server-side, same rationale as direct_messages above.
+        let has_listing_msgs: bool = conn
+            .prepare("SELECT 1 FROM listing_messages LIMIT 0")
+            .is_ok();
+        if has_listing_msgs {
+            conn.execute_batch(
+                "DROP TABLE listing_messages;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+            info!("Migration: dropped plaintext listing_messages table (marketplace contact is E2EE DMs now)");
+        }
+
+        // Migration (privacy hardening, 2026-08-23): DROP the legacy
+        // plaintext group tables. Group membership + messages are the
+        // E2EE P2P signed-object system now (groups_p2p.rs).
+        let has_legacy_groups: bool = conn
+            .prepare("SELECT 1 FROM group_messages LIMIT 0")
+            .is_ok();
+        if has_legacy_groups {
+            conn.execute_batch(
+                "DROP TABLE IF EXISTS group_messages;
+                 DROP TABLE IF EXISTS group_members;
+                 DROP TABLE IF EXISTS groups;
+                 PRAGMA wal_checkpoint(TRUNCATE);",
+            )?;
+            info!("Migration: dropped legacy plaintext group tables (groups are E2EE P2P now)");
+        }
+
         // Migration: add reply_to columns to messages for threaded replies.
         let has_reply_to: bool = conn
             .prepare("SELECT reply_to_from FROM messages LIMIT 0")
@@ -1071,6 +1143,7 @@ impl Storage {
             )?;
             info!("Migration: added dm_mailbox_ttl_days (server_settings)");
         }
+
 
         // ── v0.1132 — guaranteed local-only room toggle. Default ON: every
         // server keeps a #local channel that refuses federation, so members
@@ -1318,39 +1391,12 @@ impl Storage {
                 ON follows(followed_key);"
         )?;
 
-        // Groups tables (foundation).
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS groups (
-                id          TEXT PRIMARY KEY,
-                name        TEXT NOT NULL,
-                creator_key TEXT NOT NULL,
-                created_at  TEXT NOT NULL,
-                invite_code TEXT UNIQUE
-            );
-
-            CREATE TABLE IF NOT EXISTS group_members (
-                group_id    TEXT NOT NULL,
-                member_key  TEXT NOT NULL,
-                role        TEXT NOT NULL DEFAULT 'member',
-                joined_at   TEXT NOT NULL,
-                PRIMARY KEY (group_id, member_key)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_group_members_key
-                ON group_members(member_key);
-
-            CREATE TABLE IF NOT EXISTS group_messages (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                group_id    TEXT NOT NULL,
-                from_key    TEXT NOT NULL,
-                from_name   TEXT NOT NULL DEFAULT '',
-                content     TEXT NOT NULL,
-                timestamp   INTEGER NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_group_messages_group
-                ON group_messages(group_id, timestamp);"
-        )?;
+        // (Legacy groups/group_members/group_messages tables removed
+        // 2026-08-23: they stored membership rosters and every group
+        // message in plaintext. Groups are the E2EE P2P signed-object
+        // system now (groups_p2p.rs — the relay stores only opaque
+        // ciphertext). The legacy tables are dropped in the migration
+        // section below.)
 
         // Friend codes table (out-of-band friend discovery).
         conn.execute_batch(
@@ -1607,20 +1653,11 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_trade_history_order ON trade_history(order_id);"
         )?;
 
-        // Listing messages for buyer-seller marketplace conversations.
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS listing_messages (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                listing_id  TEXT NOT NULL,
-                sender_key  TEXT NOT NULL,
-                sender_name TEXT,
-                content     TEXT NOT NULL,
-                timestamp   INTEGER NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_listing_messages_listing
-                ON listing_messages(listing_id, timestamp);"
-        )?;
+        // (listing_messages removed 2026-08-23: buyer-seller marketplace
+        // conversations were stored plaintext with sender identity AND
+        // broadcast to every connected client. Marketplace contact rides
+        // sealed-sender E2EE DMs now; the legacy table is dropped in the
+        // migration section below.)
 
         conn.execute_batch("
             -- Key rotation: maps an old identity key to a new one.
@@ -1973,9 +2010,24 @@ impl Storage {
                 name       TEXT,
                 role       TEXT NOT NULL DEFAULT 'member',
                 joined_at  TEXT NOT NULL,
-                last_seen  TEXT
+                last_seen  TEXT,
+                hide_presence INTEGER NOT NULL DEFAULT 0
             );"
         )?;
+
+        // Guarded ALTER (privacy tiers, 2026-08-23) — placed AFTER the
+        // CREATE above per the BUG-046 ordering rule (a fresh DB must
+        // have the table before any probe/ALTER touches it). DEFAULT 0
+        // for EXISTING rows (people already visible stay visible — no
+        // surprise disappearances); join_server inserts NEW members with
+        // 1 (fail-private until the onboarding tier picker records a
+        // choice).
+        if conn.prepare("SELECT hide_presence FROM server_members LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_members ADD COLUMN hide_presence INTEGER NOT NULL DEFAULT 0;"
+            )?;
+            info!("Migration: added hide_presence (server_members)");
+        }
 
         // FTS5 full-text search over chat messages.
         // Uses a content table (content=messages) so we don't duplicate data.
@@ -2149,6 +2201,8 @@ mod pool;
 // Domain method modules — each has its own impl Storage block.
 // Rust supports splitting impl blocks across files via the module system.
 mod assets;
+pub mod account;
+pub mod backup_crypto;
 pub mod backups;
 mod board;
 mod channels;
@@ -2200,7 +2254,6 @@ pub mod docs_accord;
 
 pub use civilization::CivilizationStats;
 pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
-pub use marketplace::ListingMessageRecord;
 pub use notification_prefs::NotifPrefs;
 pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};
@@ -2334,6 +2387,41 @@ mod resilient_open_tests {
             .flatten()
             .any(|e| e.file_name().to_string_lossy().contains("relay.db.corrupt-"));
         assert!(quarantined, "expected a quarantined relay.db.corrupt-* file");
+    }
+
+    /// The 2026-08-23 encrypted-backup path end-to-end: a SEALED backup
+    /// (.db.enc, machine-local key beside the live DB) restores a corrupt
+    /// database, and no decrypted scratch copy is left behind.
+    #[test]
+    fn corrupt_db_restores_from_sealed_backup() {
+        let dir = tmp_dir("restore_sealed");
+        let db = dir.join("relay.db");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+
+        // A healthy backup carrying marker 333, then sealed + plain removed
+        // (exactly what the 6h backup loop does).
+        let plain = backups.join("relay_20260101_000000.db");
+        make_healthy_db(&plain, 333);
+        let key = backup_crypto::load_or_create_key(&dir).expect("key");
+        let sealed = backups.join("relay_20260101_000000.db.enc");
+        backup_crypto::encrypt_file(&key, &plain, &sealed).unwrap();
+        std::fs::remove_file(&plain).unwrap();
+
+        // The live DB is garbage.
+        std::fs::write(&db, b"corrupt garbage").unwrap();
+
+        let s = Storage::open_resilient(&db, &backups).expect("should recover from sealed backup");
+        let n = s.with_conn(|c| c.query_row(
+            "SELECT COUNT(*) FROM messages WHERE timestamp = 333",
+            [], |r| r.get::<_, i64>(0),
+        )).unwrap();
+        assert_eq!(n, 1);
+        // The decrypted scratch copy must not linger.
+        assert!(
+            !backups.join("restore-scratch.db").exists(),
+            "decrypted scratch copy must be removed after recovery"
+        );
     }
 
     #[test]

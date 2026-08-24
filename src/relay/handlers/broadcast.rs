@@ -228,13 +228,24 @@ pub async fn broadcast_full_user_list(state: &Arc<RelayState>) {
             .map(|n| n.to_lowercase())
             .collect();
 
+        // Presence privacy (2026-08-23): hidden members stay LISTED (so
+        // friends can find them and their DM key distributes) but are
+        // masked as offline with no status — their real presence never
+        // leaves the server.
+        let hidden = state.db.hidden_presence_keys();
         let statuses = state.user_statuses.read().await;
         let users: Vec<UserInfo> = all_users
             .into_iter()
             .map(|(name, first_key, role, key_count)| {
+                let masked = hidden.contains(&first_key);
                 // Bot accounts (bot_ prefix keys) are always shown as online.
-                let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
-                let (user_status, user_status_text) = statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
+                let online = !masked
+                    && (first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase()));
+                let (user_status, user_status_text) = if masked {
+                    ("offline".to_string(), String::new())
+                } else {
+                    statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()))
+                };
                 let kyber_pub = state.db.get_kyber_public(&first_key).ok().flatten();
                 UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text, kyber_public: kyber_pub }
             })

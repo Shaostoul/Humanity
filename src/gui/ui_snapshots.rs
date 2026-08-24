@@ -208,17 +208,8 @@ fn demo_state() -> GuiState {
     // Ada follows me but I don't follow back — covers the one-way
     // follow-direction badge (v0.721) in the members list.
     s.chat_followers.insert("dlth3:5f77e0def".into());
-    // One group with an unread dot so the sidebar's group-unread rendering
-    // (v0.717) stays covered by the chat snapshot.
-    s.chat_groups = vec![crate::gui::ChatGroup {
-        name: "Garden Crew".into(),
-        id: "grp_garden".into(),
-        member_count: 3,
-        channels: vec![mk_channel("group:grp_garden", "general", true, false)],
-        collapsed: false,
-        role: "member".into(),
-        unread: true,
-    }];
+    // (Legacy ChatGroup snapshot fixture removed 2026-08-23 with the
+    // plaintext group system; P2P groups have their own fixtures.)
     s.chat_servers = vec![ChatServer {
         name: "United Humanity".into(),
         channels: s.chat_channels.clone(),

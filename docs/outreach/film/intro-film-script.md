@@ -60,6 +60,36 @@ narrator was one of the crew all along: "We are Humanity. You included."
 
 ---
 
+# v3 STRUCTURAL UPDATE (2026-08-16, operator + Higgsfield AI Director session)
+
+Minute one is PICTURE-LOCKED (weld arc -> torch match cut worked as a continuous
+reveal; VO generated and in hand). The middle of the film restructured as follows,
+superseding the shot-9-to-19 stretch of the v2 list:
+
+- Colonization montage before departure: MOON (domes + cranes, Earth overhead) ->
+  MARS half-green (v2 prompt) -> PLUTO/outer-system outpost (dark, distant sun,
+  industrial not hopeful). Time passing, civilization expanding.
+- Fleet assembled: INTIMATE scale (2-3 flagships + escorts, not hundreds).
+- NEW: departure ceremony CROWD shot, the film's first human-scale beat (crowd
+  watching the launch feed on a big screen).
+- Departure burn (v2 prompt).
+- System 1: fleet formation arrival exterior (wonder) + colony surface (full
+  treatment). System 2: colony surface ONLY, compressed (the loop repeats).
+  System 3: BRIDGE INTERIOR only, routine crew work, eerie through atmosphere
+  alone, viewport shows a NORMAL starfield (sets up that the sky was a lie).
+- System 4, six sub-beats (Act III climax, 60-90s): (4a) normal approach, VO ends;
+  (4b) lead ship hits the invisible barrier, a distortion pulse propagates across
+  the sphere's surface; (4c) more ships hit, multiple pulse rings interfere and the
+  SPHERE GEOMETRY becomes legible; (4d) THE STRAIN: flagship held motionless,
+  engines blazing against invisible nothing; (4e) rear ship at full cruise hits the
+  stopped ships, explosion; (4f) the reveal: manufactured system, Dyson structure,
+  Agartha in its million-year debris field.
+- Seedance silver bullets (3 remaining) are earmarked for 4b/4d/4e AFTER Kling
+  drafts fail, not before. Everything else: Kling window + stills-with-post-moves.
+- Reference library required BEFORE the interior/human beats generate: @bridge,
+  @commander, @colonyshells, @escort, then @fabricator/@android/@kid/@gardendeck.
+  Ceremony crowd needs no character refs (faces incidental).
+
 # BEAT SHEET
 
 | Act | Time | Beat |
@@ -330,3 +360,89 @@ transitions). Keep every generated audio file, tool name, and prompt in a manife
 3. The child now has a full mini-arc (watches the new star in shot 20, rescued by the
    androform AI in shot 25, at the viewport in shot 37): recommend KEEP (rules permit
    fictional children in non-harmful contexts; the rescue is protective, the arc is hope).
+
+---
+
+# ELEMENT REGISTRY (Cinema Studio, locked 2026-08-16)
+
+All nine references are built and approved in the festival project. **Use these exact
+tags in every prompt from now on.** Earlier drafts in this file reference
+`@prop_flagship_1`; the live tag is `@flagship`.
+
+| Tag | Category | What it is |
+|-----|----------|------------|
+| `@flagship` | Prop | The colony ship: kilometer spine, twin counter-rotating centrifuge wheels, amber command sphere at the bow, white ceramic and gold, teal seams |
+| `@escort` | Prop | Small crewed shuttle, aerospace design (the first pass came back looking like a car: no grille, no headlights, no wipers) |
+| `@insignia` | Prop | The gold spiral crest of the fleet. Also the film's title-card mark and a reusable HumanityOS brand asset |
+| `@bridge` | Location | Command sphere interior: forward-facing tiered stations, amber window band, console-glow lighting, harnesses and rails (zero-g deck on the rotation axis) |
+| `@garden` | Location | Garden deck inside a centrifuge wheel: terraced beds, grow-lights, mist, curved window wall |
+| `@captain` | Character | Fleet commander, fifties, weathered calm, navy uniform with the collar sigil |
+| `@fabricator` | Character | Ship fabricator, early thirties, calm and focused, grey coveralls with gold piping |
+| `@child` | Character | Ship kid, around eight, teal and grey jumpsuit with a shoulder patch |
+| `@android` | Character | AI crew member: matte-white ceramic, gold joints, teal core lines, featureless head, fully synthetic |
+
+Not built (optional, prose-described for now): a colony-shells asset for the Systems 1
+and 2 settlements. Worth making if the two colonies need to visibly rhyme.
+
+## Look-dev lessons accumulated (2026-08-15 to 08-16)
+
+- Models render OBJECTS THEY KNOW, not geometric instructions. "Golden-ratio
+  superstructure" produced whisks and sea urchins; "a pair of Ferris wheels" and
+  "folded like a closed umbrella" landed instantly.
+- Models cannot count. Asking for "hundreds of ships" produces kaleidoscope tiling.
+  Describe DEPTH LAYERS instead: one hero ship sharp in front, five or six staggered
+  and overlapping behind, everything else as scattered irregular points of light.
+- Video holds local geometry but loses global topology. A closed ring around a planet
+  T-junctions into nonsense off-frame. Show partial arcs; save whole-structure vistas
+  for stills with slow push-ins added in the edit.
+- A ring of identical chairs around a table reads as a BOARDROOM. Bridges face the
+  work: stepped tiers facing the glass, commander raised at the rear, lit by consoles.
+- Torus ring interiors are TUBES, not open drums. The floor ramps upward ahead and
+  curves out of sight; you never see the far side overhead (that is an O'Neill
+  cylinder, a different structure). Getting this wrong produced sideways-curving
+  corridors for several attempts.
+- "Size of a bus" pulled automotive DNA into a spacecraft (grille, headlights,
+  windshield wiper). Name the vehicle family you want, ban the one you don't.
+- Anti-cartoon armor for children: lead with "35mm film photograph, photorealistic
+  live-action film still, NOT animated", plus natural proportions and realistic eyes.
+- No edit/inpaint mode on this platform: every fix is a fresh generation. Unlimited
+  models make that fine; keep wording verbatim and vary only the seed when the goal
+  is a variation rather than a redesign.
+- Never name a real film or franchise in a prompt. All prompts become public and are
+  audited after the deadline.
+
+---
+
+# STILL BANK (2026-08-19, unlimited-image window)
+
+Strategy: during the free image window, bank a hero still for EVERY remaining beat.
+Each still serves three purposes: (1) start frame for image-to-video, which locks the
+design before the video model can drift, (2) a still-with-post-move shot in DaVinci
+(slow push/drift on a 4K still, legal traditional editing) for anything topology-heavy
+that video mangles, (3) a permanent reference. Priority order below.
+
+TIER 1, Act IV money shots (still + post move; video cannot hold these structures):
+  - Agartha revealed: gold/jade geometric world, debris rings, caged star behind
+  - Debris shells close pass: layered wreckage of a thousand alien shipbuilding styles
+  - The enclosed star: Dyson lattice caging the sun, hard light shafts between beams
+  - Fleet dwarfed: @flagship group tiny against Agartha's full immensity
+
+TIER 2, Act III barrier sequence (start frames for the Seedance silver bullets):
+  - 4d THE STRAIN: @flagship at full thrust, motionless, space buckling at the bow
+  - 4b first contact: pulse rings spreading across an invisible planet-scale sphere
+  - 4e collision aftermath: two ships fused, wheel torn free, silent vacuum fires
+  - Rescue: @fabricator EVA welding a shear line, survivors evacuating to @escort
+
+TIER 3, Act II montage:
+  - Moon colony under construction, Earth overhead
+  - Mars half-terraformed
+  - Pluto/outer outpost: dark, floodlit, grim
+  - System 1 arrival: @flagship coasting in, survey drones descending
+  - Colony surface: nautilus-shell habitats, terraced fields, beacon tower
+    (System 2 reuses this prompt with an amber desert world = the loop repeating)
+
+TIER 4, closing:
+  - Faces at the viewport: @fabricator + @captain + @child + @android at the glass
+  - Title plate: @insignia alone on black (title typeset in DaVinci, never generated)
+
+Generate 3-4 seeds for every Tier 1 image; those four frames carry the ending.

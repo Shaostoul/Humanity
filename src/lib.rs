@@ -15331,6 +15331,13 @@ mod native_app {
                                             // Show whatever local history we already have
                                             // while the fetch round-trips.
                                             crate::engine::dm::rebuild_dm_sidebar(&mut state.gui_state);
+                                            // Re-assert the chosen presence flag on every
+                                            // fresh bound socket: server_members flags are
+                                            // per-server, so a new/wiped server learns the
+                                            // user's choice immediately. (2026-08-23)
+                                            if !state.gui_state.settings.privacy_tier.is_empty() {
+                                                crate::gui::pages::privacy::send_presence_flag(&state.gui_state);
+                                            }
                                         }
                                     }
                                     Some("server_settings_state") => {
@@ -15683,6 +15690,35 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("account_export_data") => {
+                                        // Sovereignty (2026-08-23): everything the
+                                        // server stores about us, written to a local
+                                        // JSON file the user can keep or inspect.
+                                        if let Some(data) = val.get("data") {
+                                            let dir = if let Ok(appdata) = std::env::var("APPDATA") {
+                                                std::path::PathBuf::from(appdata).join("HumanityOS").join("exports")
+                                            } else {
+                                                std::path::PathBuf::from("exports")
+                                            };
+                                            let _ = std::fs::create_dir_all(&dir);
+                                            let ts = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs();
+                                            let path = dir.join(format!("account-export-{ts}.json"));
+                                            match std::fs::write(&path, serde_json::to_string_pretty(data).unwrap_or_default()) {
+                                                Ok(()) => {
+                                                    state.gui_state.account_export_status =
+                                                        format!("Export saved: {}", path.display());
+                                                    log::info!("Account export written to {}", path.display());
+                                                }
+                                                Err(e) => {
+                                                    state.gui_state.account_export_status =
+                                                        format!("Export failed to write: {e}");
+                                                }
+                                            }
+                                        }
+                                    }
                                     Some("dm_purged") => {
                                         // Confirmation of our own mailbox scrub
                                         // ("Delete my server mailbox" in DM Settings).
@@ -15693,63 +15729,7 @@ mod native_app {
                                         );
                                         log::info!("DM mailbox purged: {count} envelopes deleted server-side");
                                     }
-                                    Some("group_list") => {
-                                        if let Some(groups) = val.get("groups").and_then(|v| v.as_array()) {
-                                            // Preserve unread marks across rebuilds — group_list
-                                            // re-arrives on membership changes and would otherwise
-                                            // silently clear every dot. (v0.717)
-                                            let unread_ids: std::collections::HashSet<String> = state
-                                                .gui_state
-                                                .chat_groups
-                                                .iter()
-                                                .filter(|g| g.unread)
-                                                .map(|g| g.id.clone())
-                                                .collect();
-                                            state.gui_state.chat_groups.clear();
-                                            for g in groups {
-                                                let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                // "admin" for the group's creator, "member" otherwise (see
-                                                // GroupData::role, src/relay/storage/social.rs::create_group).
-                                                // Default to "member" so a malformed/legacy payload never
-                                                // silently grants admin.
-                                                let role = g.get("role").and_then(|v| v.as_str()).unwrap_or("member").to_string();
-                                                // Groups render like servers: an expandable header with
-                                                // nested channels. The channel id is `group:<id>` so the
-                                                // send path routes correctly (see chat.rs ~1609). When
-                                                // server-side multi-channel support for groups lands,
-                                                // additional channels get ids like `group:<id>:<name>`.
-                                                let active_id = format!("group:{}", id);
-                                                state.gui_state.chat_groups.push(crate::gui::ChatGroup {
-                                                    name: name.clone(),
-                                                    id: id.clone(),
-                                                    member_count: 0,
-                                                    channels: vec![crate::gui::ChatChannel {
-                                                        id: active_id,
-                                                        name: "general".to_string(),
-                                                        description: String::new(),
-                                                        category: "Text".to_string(),
-                                                        voice_joined: false,
-                                                        // Group channels are voice-capable by default,
-                                                        // matching server channels. Actual voice routing
-                                                        // still needs server multi-channel support.
-                                                        voice_enabled: true,
-                                                        read_only: false,
-                                                        federated: false,
-                                                        local_only: false,
-                                                        voice_participants: Vec::new(),
-                                                        // Group-level unread lives on ChatGroup.unread;
-                                                        // per-channel dots activate with multi-channel.
-                                                        unread: false,
-                                                    }],
-                                                    collapsed: false,
-                                                    role,
-                                                    unread: unread_ids.contains(&id),
-                                                });
-                                            }
-                                            log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
-                                        }
-                                    }
+                                    // (legacy group_list arm removed 2026-08-23; groups are P2P E2EE)
                                     Some("notification_prefs_data") => {
                                         // See GuiState::notif_dm_enabled doc comment: the relay + web
                                         // client already fully support this, the native client just
@@ -15862,68 +15842,7 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    Some("group_msg") => {
-                                        // Incoming group message
-                                        let group_id = val.get("group_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                        let group_channel = format!("group:{}", group_id);
-                                        // Sidebar unread dot: flag when the message isn't ours
-                                        // and this group's channel (or a nested "group:<id>:x"
-                                        // channel) isn't currently open. Same pattern as the
-                                        // DM handler above. (v0.717)
-                                        let group_is_open = state.gui_state.chat_active_channel == group_channel
-                                            || state
-                                                .gui_state
-                                                .chat_active_channel
-                                                .starts_with(&format!("group:{}:", group_id));
-                                        let is_from_me = from_key == state.gui_state.profile_public_key;
-                                        if !is_from_me && !group_is_open {
-                                            if let Some(g) = state.gui_state.chat_groups.iter_mut().find(|g| g.id == group_id) {
-                                                g.unread = true;
-                                            }
-                                        }
-                                        state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                            sender_name: from_name,
-                                            sender_key: from_key,
-                                            content,
-                                            timestamp: crate::gui::pages::chat::format_timestamp(ts),
-                                            timestamp_ms: ts,
-                                            channel: group_channel,
-                                            server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                            ..Default::default()
-                                        });
-                                        while state.gui_state.chat_messages.len() > 200 {
-                                            state.gui_state.chat_messages.remove(0);
-                                        }
-                                    }
-                                    Some("group_history") => {
-                                        let group_id = val.get("group_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        let group_channel = format!("group:{}", group_id);
-                                        // Clear existing messages for this group
-                                        state.gui_state.chat_messages.retain(|m| m.channel != group_channel);
-                                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
-                                            for m in msgs {
-                                                let from_key = m.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let from_name = m.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                                let content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
-                                                    sender_name: from_name,
-                                                    sender_key: from_key,
-                                                    content,
-                                                    timestamp: crate::gui::pages::chat::format_timestamp(ts),
-                                                    timestamp_ms: ts,
-                                                    channel: group_channel.clone(),
-                                                    server: crate::gui::pages::chat::norm_server_url(&state.gui_state.server_url),
-                                                    ..Default::default()
-                                                });
-                                            }
-                                            log::info!("Group history for {}: {} messages", group_id, msgs.len());
-                                        }
-                                    }
+                                    // (legacy group_msg/group_history arms removed 2026-08-23)
                                     Some("reaction") => {
                                         // Single reaction: target_from + target_timestamp + emoji + from
                                         let target_from = val.get("target_from").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -16551,30 +16470,10 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    // ── Listing thread + reviews (v0.755) ──
-                                    Some("listing_messages") => {
-                                        // History unicast for the thread we opened.
-                                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
-                                        if lid == state.gui_state.listing_thread_for {
-                                            if let Some(arr) = val.get("messages").and_then(|v| v.as_array()) {
-                                                state.gui_state.listing_thread = arr
-                                                    .iter()
-                                                    .map(crate::gui::GuiListingMsg::from_relay_json)
-                                                    .collect();
-                                            }
-                                        }
-                                    }
-                                    Some("listing_message_new") => {
-                                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
-                                        if lid == state.gui_state.listing_thread_for {
-                                            if let Some(m) = val.get("message") {
-                                                state
-                                                    .gui_state
-                                                    .listing_thread
-                                                    .push(crate::gui::GuiListingMsg::from_relay_json(m));
-                                            }
-                                        }
-                                    }
+                                    // ── Reviews (v0.755) ── (the listing thread
+                                    // arms died with the plaintext thread
+                                    // protocol, 2026-08-23; marketplace contact
+                                    // rides sealed-sender DMs now.)
                                     Some("review_created") => {
                                         if let Some(r) = val.get("review") {
                                             let gr = crate::gui::GuiReview::from_relay_json(r);
@@ -17703,6 +17602,22 @@ mod native_app {
                                 {
                                     crate::gui::pages::chat::draw_incoming_call_modal(ctx, &state.theme, &mut state.gui_state);
                                     crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);
+                                }
+
+                                // Privacy-tier first-connect chooser (2026-08-23):
+                                // asked ONCE per identity, over any page, the first
+                                // time a connection is identified with no tier ever
+                                // chosen. Default selection = maximum privacy; the
+                                // relay keeps the account presence-hidden until a
+                                // choice lands (fail-private).
+                                if state.gui_state.ws_identified
+                                    && state.gui_state.settings.privacy_tier.is_empty()
+                                    && !state.gui_state.privacy_tier_prompt_open
+                                {
+                                    state.gui_state.privacy_tier_prompt_open = true;
+                                }
+                                if state.gui_state.privacy_tier_prompt_open {
+                                    crate::gui::pages::privacy::draw_privacy_tier_modal(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // Vendor modal (v0.747, ladder rung 3): opened from

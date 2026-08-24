@@ -446,6 +446,13 @@ function onIdentityConfirmed() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('chat-screen').style.display = 'flex';
 
+  // Privacy tiers (2026-08-23): first-ever connect asks the user how
+  // visible they want to be (default = maximum privacy); later connects
+  // just re-assert the stored choice to this server.
+  if (typeof window.maybeShowPrivacyTierModal === 'function') {
+    window.maybeShowPrivacyTierModal();
+  }
+
   // Show identity in sidebar.
   document.getElementById('my-key-display').textContent = myKey;
   document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
@@ -992,6 +999,23 @@ async function handleMessage(msg) {
       if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
       if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
+      }
+      break;
+    }
+    case 'account_export_data': {
+      // Sovereignty (2026-08-23): everything the server stores about us,
+      // handed over as a downloadable JSON file.
+      try {
+        const blob = new Blob([JSON.stringify(msg.data || {}, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'humanityos-account-export-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (typeof addSystemMessage === 'function') addSystemMessage('Your account export downloaded.');
+      } catch (e) {
+        console.warn('account export download failed:', e && e.message);
       }
       break;
     }

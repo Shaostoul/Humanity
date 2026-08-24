@@ -1035,11 +1035,10 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // list is requested without ever freezing the render loop.
 
     // Sort groups alphabetically by name (see draw_dm_section for rationale).
-    state.chat_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     state.p2p_groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     let collapsed = state.chat_groups_collapsed;
-    let group_count = state.chat_groups.len() + state.p2p_groups.len();
+    let group_count = state.p2p_groups.len();
 
     // Track button clicks from the header.
     // Note: the Groups-level "settings" cog was REMOVED in v0.223
@@ -1099,7 +1098,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.set_min_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
 
-                if state.chat_groups.is_empty() && state.p2p_groups.is_empty() {
+                if state.p2p_groups.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
                         ui.label(
@@ -1284,343 +1283,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     disband_p2p_group(state, &gid);
                 }
 
-                // Groups render like servers (expandable header + nested channels)
-                // but remain P2P under the hood. Header: <arrow> <cog> <name> <count>.
-                // Channels inside route through `group_msg` with the group id. When
-                // server-side multi-channel support lands, additional channels appear
-                // here automatically from the GroupList data.
-                let groups = state.chat_groups.clone();
-                let ctx_time = ui.ctx().input(|i| i.time);
-                let mut toggle_group_idx: Option<usize> = None;
-                let mut leave_group_id: Option<String> = None;
-                let mut open_server_settings = false;
-
-                for (gi, group) in groups.iter().enumerate() {
-                    if gi > 0 { ui.add_space(4.0); }
-
-                    let hdr_height = 24.0;
-                    let full_w = ui.available_width();
-                    let (hdr_rect, _) = ui.allocate_exact_size(
-                        Vec2::new(full_w, hdr_height),
-                        egui::Sense::hover(),
-                    );
-
-                    let cog_click_rect;
-                    if ui.is_rect_visible(hdr_rect) {
-                        let hdr_bg = Color32::from_rgba_premultiplied(
-                            theme.group_bg().r().saturating_add(20),
-                            theme.group_bg().g().saturating_add(20),
-                            theme.group_bg().b().saturating_add(20),
-                            theme.group_bg().a(),
-                        );
-                        ui.painter().rect_filled(hdr_rect, 0.0, hdr_bg);
-
-                        let mut cx = hdr_rect.left() + 8.0;
-                        let cy = hdr_rect.center().y;
-
-                        // Collapse arrow
-                        let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
-                        if group.collapsed {
-                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, theme.text_secondary());
-                        } else {
-                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, theme.text_secondary());
-                        }
-                        cx += 14.0;
-
-                        // Cog icon with RGB hover (matches nav)
-                        cog_click_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, hdr_rect.top()), Vec2::new(14.0, hdr_height));
-                        let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
-                        let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
-                        let on_cog = cog_click_rect.contains(hover_pos);
-                        let cog_color = if on_cog { theme.accent() } else { theme.text_muted() };
-                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, cog_color);
-                        if on_cog {
-                            let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                            ui.painter().rect_stroke(
-                                cog_icon_rect.expand(2.0),
-                                Rounding::same(3),
-                                Stroke::new(1.0, rgb),
-                                egui::StrokeKind::Outside,
-                            );
-                            ui.ctx().request_repaint();
-                        }
-                        cx += 14.0;
-
-                        // Unread dot (same look as the DM rows). (v0.717)
-                        if group.unread {
-                            let dot_r = theme.status_dot_size * 0.375;
-                            ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.danger());
-                            cx += dot_r * 2.0 + 3.0;
-                        }
-
-                        // Group name
-                        ui.painter().text(
-                            egui::pos2(cx, cy),
-                            egui::Align2::LEFT_CENTER,
-                            &group.name,
-                            egui::FontId::proportional(theme.body_size),
-                            theme.text_primary(),
-                        );
-
-                        // Member count on right
-                        ui.painter().text(
-                            egui::pos2(hdr_rect.right() - theme.item_padding, cy),
-                            egui::Align2::RIGHT_CENTER,
-                            &format!("{}", group.member_count),
-                            egui::FontId::proportional(theme.small_size),
-                            theme.text_muted(),
-                        );
-                    } else {
-                        cog_click_rect = hdr_rect;
-                    }
-
-                    // Interact order: general header first, then specific arrow/cog so those
-                    // win hit-test within their rects (egui: last interact wins).
-                    let hdr_interact = ui.interact(hdr_rect, ui.id().with("grp_ctx").with(gi), egui::Sense::click());
-                    let show_menu_rc = hdr_interact.secondary_clicked();
-
-                    let arrow_click = egui::Rect::from_min_size(hdr_rect.min, Vec2::new(22.0, hdr_height));
-                    let arrow_resp = ui.interact(arrow_click, ui.id().with("grp_arrow").with(gi), egui::Sense::click());
-                    if arrow_resp.clicked() { toggle_group_idx = Some(gi); }
-                    if arrow_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-
-                    let cog_resp = ui.interact(cog_click_rect, ui.id().with("grp_cog").with(gi), egui::Sense::click());
-                    if cog_resp.hovered() { ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand); }
-                    let show_group_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
-
-                    let menu_id = ui.id().with("grp_menu").with(gi);
-                    if show_group_menu || show_menu_rc {
-                        ui.memory_mut(|m| m.toggle_popup(menu_id));
-                    }
-                    egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
-                        ui.set_min_width(180.0);
-                        ui.label(RichText::new(&group.name).size(theme.font_size_body).color(theme.text_primary()).strong());
-                        ui.separator();
-                        if ui.button("Group Settings").clicked() {
-                            open_server_settings = true;
-                            state.chat_user_modal_key = group.id.clone(); // piggyback context
-                        }
-                        let invite_url = format!("https://united-humanity.us/chat/group/{}", group.id);
-                        if ui.button("Copy Invite Link").clicked() { ui.ctx().copy_text(invite_url); }
-                        if ui.button("Copy Group ID").clicked() { ui.ctx().copy_text(group.id.clone()); }
-                        ui.separator();
-                        if ui.button("What's a group vs a server?").clicked() {
-                            state.active_help_topic = Some("groups-vs-servers".to_string());
-                        }
-                        ui.separator();
-                        if ui.button(RichText::new("Leave Group").color(theme.danger())).clicked() {
-                            leave_group_id = Some(group.id.clone());
-                        }
-                    });
-
-                    // Channel rows (only when expanded). Same layout as server
-                    // channels: voice-mic icon, settings cog, then the # name.
-                    if !group.collapsed {
-                        let is_group_admin = is_group_admin(&group.role);
-                        for (ci, ch) in group.channels.iter().enumerate() {
-                            let is_active = state.chat_active_channel == ch.id;
-                            let accent = theme.success();
-                            let base_bg = if is_active {
-                                Color32::from_rgb(accent.r() / 5 + 15, accent.g() / 5 + 15, accent.b() / 5 + 15)
-                            } else {
-                                theme.group_row_bg()
-                            };
-                            let row_w = ui.available_width();
-                            let (row_rect, response) = ui.allocate_exact_size(
-                                Vec2::new(row_w, theme.row_height),
-                                egui::Sense::click(),
-                            );
-
-                            let mut voice_icon_rect = egui::Rect::NOTHING;
-                            let mut gear_icon_rect = egui::Rect::NOTHING;
-
-                            if ui.is_rect_visible(row_rect) {
-                                let hover = response.hovered();
-                                let fill = if hover && !is_active { theme.group_row_hover() } else { base_bg };
-                                ui.painter().rect_filled(row_rect, 0.0, fill);
-                                if is_active {
-                                    let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
-                                    ui.painter().rect_filled(bar, 0.0, accent);
-                                }
-
-                                let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
-                                let icon_size = 12.0;
-                                let cy = row_rect.center().y;
-                                let mut cx = row_rect.left() + theme.item_padding + 2.0;
-                                let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
-
-                                // 1. Voice icon
-                                if ch.voice_enabled {
-                                    let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                    voice_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
-                                    if ch.voice_joined {
-                                        crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
-                                    } else {
-                                        let on_voice = response.hovered() && voice_icon_rect.contains(hover_pos);
-                                        let mic_color = if on_voice { Color32::WHITE } else { theme.text_muted() };
-                                        crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
-                                    }
-                                    cx += icon_size + 2.0;
-                                }
-
-                                // (Per-channel cog removed in v0.187 — group
-                                // channel admin lives in the group settings
-                                // cog next to the group name.)
-
-                                // 3. # channel name
-                                let name_str = format!("# {}", ch.name);
-                                ui.painter().text(
-                                    egui::pos2(cx + 2.0, cy),
-                                    egui::Align2::LEFT_CENTER,
-                                    &name_str,
-                                    egui::FontId::proportional(theme.body_size),
-                                    text_color,
-                                );
-                                // Status icons (eye = read-only, node =
-                                // federated). Same treatment as server
-                                // channels for consistency. v0.244.
-                                if ch.read_only || ch.federated {
-                                    let name_w = ui.fonts(|f| f.layout_no_wrap(
-                                        name_str.clone(),
-                                        egui::FontId::proportional(theme.body_size),
-                                        text_color,
-                                    )).size().x;
-                                    let isz = (theme.body_size * 0.9).min(14.0);
-                                    let mut ix = cx + 2.0 + name_w + 6.0;
-                                    if ch.read_only {
-                                        let r = egui::Rect::from_min_size(
-                                            egui::pos2(ix, cy - isz / 2.0),
-                                            Vec2::splat(isz),
-                                        );
-                                        crate::gui::widgets::icons::paint_eye(
-                                            ui.painter(), r, theme.text_muted());
-                                        ix += isz + 3.0;
-                                    }
-                                    if ch.federated {
-                                        let r = egui::Rect::from_min_size(
-                                            egui::pos2(ix, cy - isz / 2.0),
-                                            Vec2::splat(isz),
-                                        );
-                                        crate::gui::widgets::icons::paint_federation(
-                                            ui.painter(), r, theme.text_muted());
-                                    }
-                                }
-                            }
-
-                            if response.hovered() {
-                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                            if response.clicked() {
-                                let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
-                                if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
-                                    // Same voice_room join/leave protocol the server-channel voice
-                                    // icon already uses (see the voice_toggle_idx handling below in
-                                    // this file): the relay tracks voice rooms by an opaque room_id
-                                    // string, so this group channel's own id (already namespaced
-                                    // "group:<id>" by the group_list handler in src/lib.rs) works
-                                    // identically to a server channel's id. `groups` here is a clone
-                                    // (see `let groups = state.chat_groups.clone();` above), so
-                                    // mutating the real `state.chat_groups` directly is safe -- no
-                                    // borrow conflict, matching how this same loop already mutates
-                                    // `state.chat_active_channel` on a plain channel-row click below.
-                                    let joining = !ch.voice_joined;
-                                    if let Some(g) = state.chat_groups.get_mut(gi) {
-                                        if let Some(c) = g.channels.get_mut(ci) {
-                                            c.voice_joined = joining;
-                                        }
-                                    }
-                                    // voice_active_room is the single global "which room am I in"
-                                    // tracker the WebRTC session manager reads (src/lib.rs, the
-                                    // incumbent-dialing "newcomer offers" logic) -- it's genuinely
-                                    // room-type-agnostic (just an opaque room_id string), so a group
-                                    // voice channel needs the exact same bookkeeping the
-                                    // server-channel path already does, or the actual audio session
-                                    // never establishes even though the UI shows "joined."
-                                    if joining {
-                                        state.voice_active_room = Some(ch.id.clone());
-                                        state.voice_incumbents_captured = false;
-                                    } else {
-                                        state.voice_active_room = None;
-                                    }
-                                    let action = if joining { "join" } else { "leave" };
-                                    if let Some(ref client) = state.ws_client {
-                                        if client.is_connected() {
-                                            let msg = serde_json::json!({
-                                                "type": "voice_room",
-                                                "action": action,
-                                                "room_id": ch.id,
-                                            });
-                                            client.send(&msg.to_string());
-                                        }
-                                    }
-                                } else if gear_icon_rect.contains(click_pos) && is_group_admin {
-                                    state.show_channel_edit_modal = true;
-                                    state.edit_channel_id = ch.id.clone();
-                                    state.edit_channel_name = ch.name.clone();
-                                    state.edit_channel_description = ch.description.clone();
-                                } else if state.chat_active_channel != ch.id {
-                                    state.chat_active_channel = ch.id.clone();
-                                    state.chat_messages.clear();
-                                    state.history_fetched = false;
-                                    // Opening any of the group's channels clears its
-                                    // unread dot. (v0.717)
-                                    if let Some(g) = state.chat_groups.get_mut(gi) {
-                                        g.unread = false;
-                                    }
-                                    if let Some(ref client) = state.ws_client {
-                                        if client.is_connected() {
-                                            let msg = serde_json::json!({
-                                                "type": "group_history_request",
-                                                "group_id": group.id,
-                                            });
-                                            client.send(&msg.to_string());
-                                        }
-                                    }
-                                }
-                            }
-                            response.context_menu(|ui| {
-                                let link = format!("https://united-humanity.us/chat/group/{}/{}", group.id, ch.name);
-                                if ui.button("Copy Channel Link").clicked() {
-                                    ui.ctx().copy_text(link);
-                                    ui.close_menu();
-                                }
-                            });
-                        }
-                        // (The old "+ Channel (coming soon)" hint row
-                        // was removed in v0.222 — channel creation is
-                        // done via the group settings cog.)
-                    }
-                }
-
-                if let Some(idx) = toggle_group_idx {
-                    if let Some(g) = state.chat_groups.get_mut(idx) {
-                        g.collapsed = !g.collapsed;
-                    }
-                }
-
-                // Navigate to server-settings page if a group menu asked for it.
-                // push_nav_to so Esc on ServerSettings returns to Chat
-                // instead of jumping to FPS mode.
-                if open_server_settings {
-                    state.push_nav_to(crate::gui::GuiPage::ServerSettings);
-                }
-
-                // Apply group leave (send to server so groups don't come back)
-                if let Some(gid) = leave_group_id {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let msg = serde_json::json!({
-                                "type": "group_leave",
-                                "group_id": gid,
-                            });
-                            client.send(&msg.to_string());
-                        }
-                    }
-                    state.chat_groups.retain(|g| g.id != gid);
-                    if state.chat_active_channel.starts_with(&format!("group:{}", gid)) {
-                        state.chat_active_channel = "general".to_string();
-                    }
-                }
+                // (Legacy relay-group rendering removed 2026-08-23: the
+                // plaintext group system died server-side; groups are the E2EE
+                // P2P list above.)
             });
     }
 }
@@ -3302,22 +2967,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_muted()),
                         );
                     }
-                } else if ac.starts_with("group:") {
-                    // Group header: back button + group name
-                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
-                        state.chat_active_channel = "general".to_string();
-                    }
-                    let group_id = &ac[6..];
-                    let group_name = state.chat_groups.iter()
-                        .find(|g| g.id == group_id)
-                        .map(|g| g.name.clone())
-                        .unwrap_or_else(|| group_id.to_string());
-                    ui.label(
-                        RichText::new(format!("Group: {}", group_name))
-                            .size(theme.font_size_heading)
-                            .color(theme.group_accent())
-                            .strong(),
-                    );
                 } else if let Some(room) = commons_room_of(&state.chat_active_channel) {
                     // Commons room header: bare room name + which of my
                     // servers bridge it, so the merged view names its
@@ -4464,11 +4113,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let name = state.p2p_groups.iter().find(|g| g.group_id == gid)
                             .map(|g| g.name.as_str()).unwrap_or("group");
                         format!("Message {} (encrypted)", name)
-                    } else if state.chat_active_channel.starts_with("group:") {
-                        let gid = &state.chat_active_channel[6..];
-                        let name = state.chat_groups.iter().find(|g| g.id == gid)
-                            .map(|g| g.name.as_str()).unwrap_or("group");
-                        format!("Message {}", name)
                     } else if let Some(room) = commons_room_of(&state.chat_active_channel) {
                         // Name the outgoing server EXPLICITLY: in the first
                         // field test a Commons send silently routed through a
@@ -4863,13 +4507,6 @@ fn ingame_panel_title(state: &GuiState) -> String {
                     .find(|g| g.group_id == gid)
                     .map(|g| g.name.clone())
                     .unwrap_or_else(|| "Group".to_string())
-            } else if let Some(gid) = ac.strip_prefix("group:") {
-                state
-                    .chat_groups
-                    .iter()
-                    .find(|g| g.id == gid)
-                    .map(|g| g.name.clone())
-                    .unwrap_or_else(|| "Group".to_string())
             } else {
                 "Groups".to_string()
             }
@@ -4899,7 +4536,6 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     // never mutates the lists it is iterating (same pattern as the Chat page).
     let mut switch_to: Option<String> = None; // public channel id
     let mut open_dm: Option<String> = None; // DM partner key
-    let mut open_legacy_group: Option<String> = None; // ChatGroup.id
     let mut open_p2p_group: Option<String> = None; // P2pGroupInfo.group_id
     let mut open_full_chat = false;
 
@@ -4948,12 +4584,10 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                 crate::gui::IngameChatMode::Dms => {
                                     state.chat_dms.iter().any(|d| d.unread)
                                 }
-                                // P2P groups carry no unread flag (the
-                                // projection has no read tracking yet), so the
-                                // dot covers legacy relay groups only.
-                                crate::gui::IngameChatMode::Groups => {
-                                    state.chat_groups.iter().any(|g| g.unread)
-                                }
+                                // P2P groups carry no unread flag yet (the
+                                // projection has no read tracking), so no dot
+                                // for Groups since the legacy retirement.
+                                crate::gui::IngameChatMode::Groups => false,
                                 crate::gui::IngameChatMode::Options => false,
                             };
                             if has_unread {
@@ -5133,35 +4767,14 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                             }
                         }
                         crate::gui::IngameChatMode::Groups => {
-                            // Group switcher: P2P (signed-object) groups first,
-                            // then legacy relay groups -- the same two stores
-                            // the Chat page sidebar renders, clicked open via
-                            // the same load paths (spawn_group_load /
-                            // group_history_request).
+                            // Group switcher: the E2EE P2P groups (the only
+                            // kind since the 2026-08-23 legacy retirement).
                             let p2p: Vec<(String, String)> = state
                                 .p2p_groups
                                 .iter()
                                 .map(|g| (g.group_id.clone(), g.name.clone()))
                                 .collect();
-                            let legacy: Vec<(String, String, String, bool)> = state
-                                .chat_groups
-                                .iter()
-                                .map(|g| {
-                                    (
-                                        g.id.clone(),
-                                        g.name.clone(),
-                                        // Single channel today ("group:<id>", see the
-                                        // group_list handler in lib.rs); fall back to
-                                        // the same shape if a payload had none.
-                                        g.channels
-                                            .first()
-                                            .map(|c| c.id.clone())
-                                            .unwrap_or_else(|| format!("group:{}", g.id)),
-                                        g.unread,
-                                    )
-                                })
-                                .collect();
-                            if p2p.is_empty() && legacy.is_empty() {
+                            if p2p.is_empty() {
                                 ui.label(
                                     RichText::new(
                                         "No groups yet. Create or join one on the Chat page.",
@@ -5176,20 +4789,6 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                                         let resp = ui.selectable_label(is_active, name);
                                         if resp.clicked() && !is_active {
                                             open_p2p_group = Some(gid.clone());
-                                        }
-                                    }
-                                    for (gid, name, channel_id, unread) in &legacy {
-                                        let is_active = active == *channel_id;
-                                        let resp = ui.selectable_label(is_active, name);
-                                        if *unread && !is_active {
-                                            ui.painter().circle_filled(
-                                                resp.rect.right_top() + egui::vec2(-2.0, 4.0),
-                                                2.5,
-                                                theme.danger(),
-                                            );
-                                        }
-                                        if resp.clicked() && !is_active {
-                                            open_legacy_group = Some(gid.clone());
                                         }
                                     }
                                 });
@@ -5361,31 +4960,6 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
         // switch the channel and load the conversation from the LOCAL
         // encrypted store (sealed-sender: the relay keeps no DM history).
         open_dm_conversation(state, &key);
-    }
-    if let Some(gid) = open_legacy_group {
-        // SAME open path as the Chat page's group channel-row click: the
-        // single channel id is "group:<id>" (see the group_list handler).
-        let channel_id = state
-            .chat_groups
-            .iter()
-            .find(|g| g.id == gid)
-            .and_then(|g| g.channels.first().map(|c| c.id.clone()))
-            .unwrap_or_else(|| format!("group:{gid}"));
-        state.chat_active_channel = channel_id;
-        state.chat_messages.clear();
-        state.history_fetched = false;
-        if let Some(g) = state.chat_groups.iter_mut().find(|g| g.id == gid) {
-            g.unread = false;
-        }
-        if let Some(ref client) = state.ws_client {
-            if client.is_connected() {
-                let msg = serde_json::json!({
-                    "type": "group_history_request",
-                    "group_id": gid,
-                });
-                client.send(&msg.to_string());
-            }
-        }
     }
     if let Some(gid) = open_p2p_group {
         // SAME open path as the Chat page's P2P group row click: switch the
@@ -8803,17 +8377,6 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
     }
 }
 
-/// Whether `role` (a `ChatGroup::role`, as reported by the server's `group_list` message --
-/// `GroupData::role`, `"admin"` for the group's creator per
-/// `src/relay/storage/social.rs::create_group`, `"member"` otherwise) grants group-admin UI
-/// (currently: the channel-edit gear icon). Anything other than the exact string `"admin"` --
-/// including an empty/missing/malformed value -- is treated as non-admin, so a payload that
-/// fails to carry a role never silently grants admin (v0.641, was previously hardcoded `true`
-/// for every group regardless of real role).
-fn is_group_admin(role: &str) -> bool {
-    role == "admin"
-}
-
 #[cfg(test)]
 mod commons_rooms_tests {
     use super::commons_rooms;
@@ -8889,29 +8452,6 @@ mod commons_rooms_tests {
     }
 }
 
-#[cfg(test)]
-mod group_admin_tests {
-    use super::is_group_admin;
-
-    #[test]
-    fn admin_role_grants_admin() {
-        assert!(is_group_admin("admin"));
-    }
-
-    #[test]
-    fn member_role_does_not_grant_admin() {
-        assert!(!is_group_admin("member"));
-    }
-
-    #[test]
-    fn missing_or_malformed_role_defaults_closed_not_open() {
-        // A payload that fails to carry a real role must never be treated as admin --
-        // fail closed, not open.
-        assert!(!is_group_admin(""));
-        assert!(!is_group_admin("Admin")); // case-sensitive: no silent upgrade
-        assert!(!is_group_admin("owner")); // a plausible-sounding but wrong value
-    }
-}
 
 #[cfg(test)]
 mod ingame_chat_mode_tests {

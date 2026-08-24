@@ -205,11 +205,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         let sel_id = state.listing_selected.clone().unwrap_or_default();
         if state.listing_reviews_for != sel_id && state.listing_reviews_rx.is_none() {
             spawn_reviews_fetch(state, &sel_id);
-            // A fresh detail view also resets the message thread.
-            state.listing_thread.clear();
-            state.listing_thread_open = false;
-            state.listing_thread_for.clear();
-            state.listing_msg_draft.clear();
             state.review_rating_draft = 5;
             state.review_comment_draft.clear();
         }
@@ -457,105 +452,48 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         }
 
-                        // ── Messages (v0.755) ── the buyer-seller thread the
-                        // relay already stores; history is pulled on open and
-                        // listing_message_new broadcasts keep it live.
+                        // ── Contact (2026-08-23) ── the old server-stored
+                        // listing thread was plaintext AND broadcast; contact
+                        // now rides the sealed-sender E2EE DM system, so the
+                        // relay holds no marketplace correspondence at all.
                         ui.add_space(theme.spacing_sm);
                         widgets::card(ui, theme, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    RichText::new("Messages")
+                                    RichText::new("Contact")
                                         .size(theme.font_size_body)
                                         .color(theme.text_secondary()),
                                 );
-                                if !state.listing_thread_open {
-                                    let label = if listing.seller_key == my_key {
-                                        "View messages"
-                                    } else {
-                                        "Contact Seller"
-                                    };
-                                    if connected && widgets::secondary_button(ui, theme, label) {
-                                        state.listing_thread_open = true;
-                                        state.listing_thread_for = listing.id.clone();
-                                        if let Some(ws) = &state.ws_client {
-                                            ws.send(
-                                                &serde_json::json!({
-                                                    "type": "listing_message_history",
-                                                    "listing_id": listing.id,
-                                                })
-                                                .to_string(),
-                                            );
-                                        }
+                                if listing.seller_key != my_key
+                                    && connected
+                                    && widgets::secondary_button(ui, theme, "Message Seller")
+                                {
+                                    // Open the encrypted DM with the seller,
+                                    // prefilled with a listing reference so
+                                    // they know what it's about.
+                                    crate::gui::pages::chat::open_dm_conversation(
+                                        state,
+                                        &listing.seller_key,
+                                    );
+                                    if state.chat_input.trim().is_empty() {
+                                        state.chat_input =
+                                            format!("About your listing \"{}\": ", listing.title);
                                     }
+                                    state.active_page = crate::gui::GuiPage::Chat;
                                 }
                             });
-                            if !connected {
-                                ui.label(
-                                    RichText::new("Connect to a server to message the seller.")
-                                        .color(theme.text_muted())
-                                        .size(theme.font_size_small),
-                                );
-                            }
-                            if state.listing_thread_open {
-                                if state.listing_thread.is_empty() {
-                                    ui.label(
-                                        RichText::new("No messages yet - ask the seller anything.")
-                                            .color(theme.text_muted())
-                                            .size(theme.font_size_small),
-                                    );
-                                }
-                                for m in &state.listing_thread {
-                                    ui.horizontal_wrapped(|ui| {
-                                        let who = if m.sender_name.is_empty() {
-                                            if m.sender_key.len() > 8 {
-                                                format!("{}...", &m.sender_key[..8])
-                                            } else {
-                                                m.sender_key.clone()
-                                            }
-                                        } else {
-                                            m.sender_name.clone()
-                                        };
-                                        ui.label(
-                                            RichText::new(format!("{who}:"))
-                                                .color(theme.text_primary())
-                                                .size(theme.font_size_small),
-                                        );
-                                        ui.label(
-                                            RichText::new(&m.content)
-                                                .color(theme.text_secondary())
-                                                .size(theme.font_size_small),
-                                        );
-                                    });
-                                }
-                                ui.add_space(theme.spacing_xs);
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut state.listing_msg_draft)
-                                            .hint_text("Write a message...")
-                                            .desired_width(220.0),
-                                    );
-                                    if widgets::secondary_button(ui, theme, "Send")
-                                        && !state.listing_msg_draft.trim().is_empty()
-                                    {
-                                        if connected {
-                                            if let Some(ws) = &state.ws_client {
-                                                ws.send(
-                                                    &serde_json::json!({
-                                                        "type": "listing_message_send",
-                                                        "listing_id": listing.id,
-                                                        "content": state.listing_msg_draft.trim(),
-                                                    })
-                                                    .to_string(),
-                                                );
-                                            }
-                                            state.listing_msg_draft.clear();
-                                        } else {
-                                            state.listing_status =
-                                                "Connect to a server to send messages.".to_string();
-                                        }
-                                    }
-                                });
-                            }
+                            let hint = if listing.seller_key == my_key {
+                                "Buyers reach you through end-to-end encrypted DMs; check your Chat DM panel."
+                            } else if connected {
+                                "Messages go directly to the seller, end-to-end encrypted. The server cannot read them and keeps no record of who contacted whom."
+                            } else {
+                                "Connect to a server to message the seller."
+                            };
+                            ui.label(
+                                RichText::new(hint)
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
                         });
 
                         ui.add_space(theme.spacing_md);

@@ -413,6 +413,13 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // of revoking a lost device would be a worse failure than any feature.
     "device_list", "device_list_request", "device_label", "device_revoke",
     "mod_action",
+    // A user controlling their OWN privacy (presence hiding, 2026-08-23).
+    // Like account security, privacy controls must never be switch-off-able
+    // by a feature toggle - hiding yourself has to work on every server.
+    "privacy_update",
+    // A user's data sovereignty (2026-08-23): exporting and erasing your
+    // own data must work regardless of which features the owner offers.
+    "account_export", "account_export_data", "account_delete",
     // Outbound notifications (server -> client echoes of state changes).
     "message_deleted", "pin_added", "pin_removed", "pins_sync", "reactions_sync",
     "channel_list", "channel_update", "profile_data", "announcements",

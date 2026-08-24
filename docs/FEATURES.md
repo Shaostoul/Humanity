@@ -234,7 +234,43 @@ NOTE: the WEB DM sidebar stays name-only visually (original call: operator
 their DM lists from the local decrypted history store, so the old
 "web can't decrypt at list time" reason is gone; the web look is now just a
 layout choice.
-- Native: `src/lib.rs` (dm_new/dm_batch/group_msg/chat WS handlers), `src/engine/dm.rs` (store glue), `src/gui/pages/chat.rs` (row painters), `src/gui/pages/escape_menu.rs` (nav dot)
+- Native: `src/lib.rs` (dm_new/dm_batch/chat WS handlers), `src/engine/dm.rs` (store glue), `src/gui/pages/chat.rs` (row painters), `src/gui/pages/escape_menu.rs` (nav dot)
+
+### Privacy Tiers + Presence Privacy (both clients, 2026-08-23)
+Every user chooses how visible to be, once, at first connect; the DEFAULT is
+maximum privacy, and "Spotlight" is maximum publicity by explicit choice (for
+streamers). Tiers are data (`data/gui/privacy_tiers.json`), presets over two
+real switches: server-enforced presence hiding (never online, no last_seen
+WRITTEN, no join/leave/typing signals; new members join hidden until they
+choose) and the public member-directory listing (profile privacy JSON). Both
+individually overridable in Settings -> Privacy. Web additionally nudges an
+unwrapped seed into the passphrase-protection flow after the chooser, and has
+a fail-closed "relay my calls" toggle (callers cannot learn your IP).
+- Native: `src/gui/pages/privacy.rs` (modal + Settings section), relay `privacy_update`
+- Web: `web/chat/chat-privacy.js`
+- Server: `src/relay/storage/members.rs` (hide_presence), roster masking in `handlers/broadcast.rs`
+
+### Account Export + Erase (both clients, 2026-08-23)
+Self-service data sovereignty: download everything the server stores about you
+(JSON), or erase it all (typed-name confirmation; messages, uploads + files on
+disk, profile, follows, mailbox, vault, listings, membership). Admins must hand
+off the admin role first. Works regardless of server feature toggles.
+- Native: Settings -> Account -> "Your data"; export lands in `%APPDATA%/HumanityOS/exports/`
+- Web: identity block buttons (`web/chat/chat-privacy.js`)
+- Server: `src/relay/storage/account.rs`
+
+### Upload Metadata Stripping (server, 2026-08-23)
+Every uploaded JPEG/PNG/WebP is stripped of EXIF/XMP/IPTC/text metadata before
+the bytes touch disk, losslessly (whole-segment removal, no re-encode), so a
+phone photo never publishes GPS coordinates or a camera serial.
+- Server: `src/relay/core/strip_metadata.rs`, hooked in `api.rs::upload_file`
+
+### Encrypted Backups (server, 2026-08-23)
+Both backup layers sealed at rest (in-process 6h AES-256-GCM `.db.enc`; VPS
+30-min script openssl `.db.aes`); machine-local key `data/backup.key` lives
+OUTSIDE the backups dir, so traveling backup copies are ciphertext. Crash
+recovery decrypts transparently and scans both backup directories.
+- Server: `src/relay/storage/backup_crypto.rs`, `scripts/humanity-backup-db.sh`, `scripts/decrypt-backup.sh`
 
 ### Saved Servers: add / switch / forget (native, v0.712–v0.714)
 Add Server accepts a bare host (assumes https, v0.714); clicking a saved server's
@@ -360,9 +396,12 @@ Clickable seller names with aggregate ratings and listing count.
 - Server: `src/relay/storage/members.rs`
 
 ### Buyer-Seller Messaging
-Conversation threads on listings.
-- Web: `web/pages/market-app.js`
-- Server: `src/relay/storage/marketplace.rs` (listing_messages table)
+"Message Seller" opens a sealed-sender end-to-end encrypted DM with the seller,
+prefilled with the listing reference (2026-08-23; replaced the old server-stored
+plaintext listing threads, which were also broadcast to every connected client;
+the listing_messages table is dropped by migration). The relay stores no
+marketplace correspondence.
+- Native: `src/gui/pages/market.rs` (Contact card -> `chat::open_dm_conversation`)
 
 ### P2P Trading with Escrow
 Direct player-to-player item exchange with dual confirmation.

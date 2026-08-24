@@ -897,24 +897,12 @@ pub async fn handle_voice_room(
         }
         "join" => {
             if let Some(rid) = room_id {
-                // Group voice channels use a synthetic "group:<id>" room_id (see the
-                // group_list handler in src/lib.rs) -- there's no row for these in the
-                // `channels` table, so `channel_voice_enabled` would always reject them.
-                // Group channels are voice-capable by convention (the client always sets
-                // voice_enabled: true for them); the real gate here is GROUP MEMBERSHIP,
-                // not a channels-table lookup, so a non-member can't join by crafting or
-                // guessing another group's id.
-                let (allowed, deny_message, display_name_override) = if let Some(gid) = rid.strip_prefix("group:") {
-                    match state.db.is_group_member(gid, my_key) {
-                        Ok(true) => (true, None, state.db.get_user_groups(my_key).ok()
-                            .and_then(|gs| gs.into_iter().find(|(id, ..)| id == gid))
-                            .map(|(_, name, ..)| name)),
-                        Ok(false) => (false, Some("You are not a member of this group.".to_string()), None),
-                        Err(e) => {
-                            tracing::error!("is_group_member check failed: {e}");
-                            (false, Some("Could not verify group membership.".to_string()), None)
-                        }
-                    }
+                // Legacy "group:<id>" voice rooms died with the plaintext
+                // group system (2026-08-23). P2P E2EE groups will get voice
+                // when their transport lands (P3); until then a synthetic
+                // group room id is simply refused.
+                let (allowed, deny_message, display_name_override): (bool, Option<String>, Option<String>) = if rid.starts_with("group:") {
+                    (false, Some("Legacy group voice rooms no longer exist.".to_string()), None)
                 } else {
                     // `rid` is the TEXT channel's string id. Voice is per-channel via
                     // the voice_enabled flag (v0.493), not the legacy voice_channels
@@ -1831,218 +1819,58 @@ pub async fn handle_friend_code_redeem(
     }
 }
 
-// ── Group handlers ──
+// ── Account sovereignty handlers (2026-08-23) ──
 
-pub async fn handle_group_create(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    name: String,
-) {
-    let user_role = state.db.get_role(my_key).unwrap_or_default();
-    if user_role != "verified" && user_role != "donor" && user_role != "mod" && user_role != "admin" {
-        let private = RelayMessage::Private {
+/// Send the caller everything this server stores about them.
+pub async fn handle_account_export(state: &Arc<RelayState>, my_key: &str) {
+    let name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_default();
+    let data = state.db.export_account(my_key, &name);
+    let _ = state.broadcast_tx.send(RelayMessage::AccountExportData {
+        target: Some(my_key.to_string()),
+        data,
+    });
+}
+
+/// Erase the caller's account. Requires typing their exact registered
+/// name as confirmation; replies with a per-table receipt. Admin accounts
+/// must demote themselves first (a server must never lose its last admin
+/// to a mistyped confirmation flow).
+pub async fn handle_account_delete(state: &Arc<RelayState>, my_key: &str, confirm_name: String) {
+    let name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_default();
+    if name.is_empty() || confirm_name.trim() != name {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
-            message: "You must be verified to create groups.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
+            message: "Account deletion refused: the typed name did not match your registered name.".to_string(),
+        });
         return;
     }
-    if name.trim().is_empty() || name.len() > 50 {
-        let private = RelayMessage::Private {
+    let role = state.db.get_role(my_key).unwrap_or_default();
+    if role == "admin" || role == "owner" {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
-            message: "Group name must be 1-50 characters.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
+            message: "Account deletion refused: you are an admin. Hand off or remove the admin role first so the server is not orphaned.".to_string(),
+        });
         return;
     }
-    match state.db.create_group(name.trim(), my_key) {
-        Ok((id, invite_code)) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("✅ Group '{}' created! Invite code: {invite_code}", name.trim()),
-            };
-            let _ = state.broadcast_tx.send(private);
-            if let Ok(user_groups) = state.db.get_user_groups(my_key) {
-                let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                    GroupData { id, name, invite_code, role }
-                }).collect();
-                let _ = state.broadcast_tx.send(RelayMessage::GroupList {
-                    target: Some(my_key.to_string()),
-                    groups,
-                });
-            }
-        }
-        Err(e) => tracing::error!("Group create error: {e}"),
-    }
+    let receipt = state.db.delete_account(my_key, &name);
+    let summary: Vec<String> = receipt
+        .iter()
+        .filter(|(_, n)| *n > 0)
+        .map(|(label, n)| format!("{label}: {n}"))
+        .collect();
+    tracing::warn!("Account erased for {}… ({})", &my_key[..12.min(my_key.len())], summary.join(", "));
+    let _ = state.broadcast_tx.send(RelayMessage::Private {
+        to: my_key.to_string(),
+        message: format!(
+            "Your account and its data were erased from this server ({}). Local data on your own devices is untouched. Goodbye; you are welcome back any time.",
+            if summary.is_empty() { "nothing was stored".to_string() } else { summary.join(", ") }
+        ),
+    });
+    broadcast_full_user_list(state).await;
 }
 
-pub async fn handle_group_join(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    invite_code: String,
-) {
-    match state.db.join_group_by_invite(&invite_code, my_key) {
-        Ok(Some((gid, gname))) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: format!("✅ Joined group '{gname}'."),
-            };
-            let _ = state.broadcast_tx.send(private);
-            if let Ok(user_groups) = state.db.get_user_groups(my_key) {
-                let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                    GroupData { id, name, invite_code, role }
-                }).collect();
-                let _ = state.broadcast_tx.send(RelayMessage::GroupList {
-                    target: Some(my_key.to_string()),
-                    groups,
-                });
-            }
-        }
-        Ok(None) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "Invalid invite code.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-        }
-        Err(e) => tracing::error!("Group join error: {e}"),
-    }
-}
-
-pub async fn handle_group_leave(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    group_id: String,
-) {
-    match state.db.leave_group(&group_id, my_key) {
-        Ok(true) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "✅ Left the group.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-            if let Ok(user_groups) = state.db.get_user_groups(my_key) {
-                let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                    GroupData { id, name, invite_code, role }
-                }).collect();
-                let _ = state.broadcast_tx.send(RelayMessage::GroupList {
-                    target: Some(my_key.to_string()),
-                    groups,
-                });
-            }
-        }
-        Ok(false) => {
-            let private = RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "You are not in this group.".to_string(),
-            };
-            let _ = state.broadcast_tx.send(private);
-        }
-        Err(e) => tracing::error!("Group leave error: {e}"),
-    }
-}
-
-pub async fn handle_group_history_request(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    group_id: String,
-) {
-    let is_member = state.db.is_group_member(&group_id, my_key).unwrap_or(false);
-    if !is_member {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You are not a member of this group.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-
-    match state.db.load_group_messages(&group_id, 200) {
-        Ok(rows) => {
-            let messages: Vec<GroupMessageData> = rows
-                .into_iter()
-                .map(|(from, from_name, content, timestamp)| GroupMessageData {
-                    from, from_name, content, timestamp,
-                })
-                .collect();
-            let _ = state.broadcast_tx.send(RelayMessage::GroupHistory {
-                target: Some(my_key.to_string()),
-                group_id,
-                messages,
-            });
-        }
-        Err(e) => tracing::error!("Group history error: {e}"),
-    }
-}
-
-pub async fn handle_group_members_request(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    group_id: String,
-) {
-    let is_member = state.db.is_group_member(&group_id, my_key).unwrap_or(false);
-    if !is_member {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You are not a member of this group.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-
-    match state.db.get_group_members(&group_id) {
-        Ok(members) => {
-            let _ = state.broadcast_tx.send(RelayMessage::GroupMembers {
-                target: Some(my_key.to_string()),
-                group_id,
-                members,
-            });
-        }
-        Err(e) => tracing::error!("Group members error: {e}"),
-    }
-}
-
-pub async fn handle_group_msg(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    group_id: String,
-    content: String,
-) {
-    let is_member = state.db.is_group_member(&group_id, my_key).unwrap_or(false);
-    if !is_member {
-        let private = RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "You are not a member of this group.".to_string(),
-        };
-        let _ = state.broadcast_tx.send(private);
-        return;
-    }
-    if content.is_empty() || content.len() > 2000 {
-        return;
-    }
-    let sender_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    let _ = state.db.store_group_message(&group_id, my_key, &sender_name, &content, ts);
-
-    if let Ok(members) = state.db.get_group_members(&group_id) {
-        for (member_key, _role) in members {
-            let gm = RelayMessage::GroupMessage {
-                group_id: group_id.clone(),
-                from: my_key.to_string(),
-                from_name: Some(sender_name.clone()),
-                content: content.clone(),
-                timestamp: ts,
-                target: Some(member_key),
-            };
-            let _ = state.broadcast_tx.send(gm);
-        }
-    }
-}
-
-// ── Server Membership handlers ──
+// (Legacy group handlers removed 2026-08-23: plaintext group storage
+// died with the P2P E2EE group cutover — see storage/groups_p2p.rs.)
 
 pub async fn handle_member_list_request(
     state: &Arc<RelayState>,
@@ -2286,71 +2114,6 @@ pub async fn handle_get_notification_prefs(
         tasks,
         dnd_start,
         dnd_end,
-        target: Some(my_key.to_string()),
-    });
-}
-
-// ── Listing Message handlers (buyer-seller conversations) ──
-
-pub async fn handle_listing_message_send(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    listing_id: String,
-    content: String,
-) {
-    // Validate content.
-    let content = content.trim().to_string();
-    if content.is_empty() || content.len() > 2000 {
-        let _ = state.broadcast_tx.send(RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "Message must be 1-2000 characters.".to_string(),
-        });
-        return;
-    }
-
-    // Verify listing exists.
-    if state.db.get_listing_by_id(&listing_id).ok().flatten().is_none() {
-        let _ = state.broadcast_tx.send(RelayMessage::Private {
-            to: my_key.to_string(),
-            message: "Listing not found.".to_string(),
-        });
-        return;
-    }
-
-    let sender_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
-    let timestamp = crate::relay::storage::now_millis() as i64;
-
-    match state.db.create_listing_message(&listing_id, my_key, Some(&sender_name), &content, timestamp) {
-        Ok(id) => {
-            let msg_data = ListingMessageData {
-                id,
-                listing_id: listing_id.clone(),
-                sender_key: my_key.to_string(),
-                sender_name: Some(sender_name),
-                content,
-                timestamp,
-            };
-            let _ = state.broadcast_tx.send(RelayMessage::ListingMessageNew {
-                listing_id,
-                message: msg_data,
-            });
-        }
-        Err(e) => {
-            tracing::error!("Failed to create listing message: {e}");
-        }
-    }
-}
-
-pub async fn handle_listing_message_history(
-    state: &Arc<RelayState>,
-    my_key: &str,
-    listing_id: String,
-) {
-    let records = state.db.get_listing_messages(&listing_id, 100);
-    let messages: Vec<ListingMessageData> = records.iter().map(listing_message_from_db).collect();
-    let _ = state.broadcast_tx.send(RelayMessage::ListingMessages {
-        listing_id,
-        messages,
         target: Some(my_key.to_string()),
     });
 }

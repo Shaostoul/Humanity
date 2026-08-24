@@ -14,6 +14,7 @@ pub mod diagnostics;
 pub mod weather_panel;
 pub mod placeholder;
 pub mod tasks;
+pub mod privacy;
 pub mod profile;
 pub mod real;
 // v0.415.0: play module removed (the dead v0.360 Crafting/Studio fold —

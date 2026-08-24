@@ -1688,6 +1688,36 @@ pub enum RelayMessage {
 
     // ── Notification Preferences ──
 
+    /// Client requests a full export of their account data (2026-08-23).
+    #[serde(rename = "account_export")]
+    AccountExport {},
+
+    /// Server returns the export (targeted).
+    #[serde(rename = "account_export_data")]
+    AccountExportData {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        data: serde_json::Value,
+    },
+
+    /// Client erases their account (2026-08-23). `confirm_name` must
+    /// match the registered display name exactly (typed confirmation).
+    #[serde(rename = "account_delete")]
+    AccountDelete {
+        confirm_name: String,
+    },
+
+    /// Client updates presence privacy (privacy tiers, 2026-08-23).
+    /// `hide_presence: true` = never appear online, no last_seen stored,
+    /// no join/leave announcements, no typing signal. The member still
+    /// appears in the roster (masked as offline) so friends can reach
+    /// them and their DM key stays distributable. Directory listing is
+    /// separate (`privacy.directory` in the profile privacy JSON).
+    #[serde(rename = "privacy_update")]
+    PrivacyUpdate {
+        hide_presence: bool,
+    },
+
     /// Client updates notification preferences.
     #[serde(rename = "update_notification_prefs")]
     UpdateNotificationPrefs {
@@ -1723,71 +1753,15 @@ pub enum RelayMessage {
 
     // ── Listing Messages (buyer-seller conversations) ──
 
-    /// Client sends a message on a listing.
-    #[serde(rename = "listing_message_send")]
-    ListingMessageSend {
-        listing_id: String,
-        content: String,
-    },
-
-    /// Client requests message history for a listing.
-    #[serde(rename = "listing_message_history")]
-    ListingMessageHistory {
-        listing_id: String,
-    },
-
-    /// Server sends listing messages to the requesting client.
-    #[serde(rename = "listing_messages")]
-    ListingMessages {
-        listing_id: String,
-        messages: Vec<ListingMessageData>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        target: Option<String>,
-    },
-
-    /// Server broadcasts a new listing message.
-    #[serde(rename = "listing_message_new")]
-    ListingMessageNew {
-        listing_id: String,
-        message: ListingMessageData,
-    },
-
-    /// Client requests to create a group.
-    #[serde(rename = "group_create")]
-    GroupCreate {
-        name: String,
-    },
-
-    /// Client requests to join a group by invite code.
-    #[serde(rename = "group_join")]
-    GroupJoin {
-        invite_code: String,
-    },
-
-    /// Client requests to leave a group.
-    #[serde(rename = "group_leave")]
-    GroupLeave {
-        group_id: String,
-    },
-
-    /// Client sends a message to a group.
-    #[serde(rename = "group_msg")]
-    GroupMsg {
-        group_id: String,
-        content: String,
-    },
-
-    /// Client requests group message history.
-    #[serde(rename = "group_history_request")]
-    GroupHistoryRequest {
-        group_id: String,
-    },
-
-    /// Client requests group member list.
-    #[serde(rename = "group_members_request")]
-    GroupMembersRequest {
-        group_id: String,
-    },
+    // NOTE (privacy hardening, 2026-08-23): TWO plaintext message planes
+    // were DELETED here.
+    // - listing_message_*: buyer-seller listing threads were stored in
+    //   plaintext with sender identity and broadcast to ALL connected
+    //   clients. Marketplace contact rides sealed-sender E2EE DMs now.
+    // - group_create/join/leave/msg/history/members: the legacy relay
+    //   groups stored membership rosters and every message in plaintext.
+    //   Groups are the E2EE P2P system now (signed objects + per-epoch
+    //   group keys; the relay stores only opaque ciphertext).
 
     /// Client requests a thread (all replies to a specific message).
     #[serde(rename = "thread_request")]
@@ -1808,45 +1782,6 @@ pub enum RelayMessage {
         parent_timestamp: u64,
         /// All reply messages.
         messages: Vec<ThreadMessageData>,
-    },
-
-    /// Server sends group list to client.
-    #[serde(rename = "group_list")]
-    GroupList {
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-        groups: Vec<GroupData>,
-    },
-
-    /// Server sends group message history.
-    #[serde(rename = "group_history")]
-    GroupHistory {
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-        group_id: String,
-        messages: Vec<GroupMessageData>,
-    },
-
-    /// Server broadcasts a group message.
-    #[serde(rename = "group_message")]
-    GroupMessage {
-        group_id: String,
-        from: String,
-        from_name: Option<String>,
-        content: String,
-        timestamp: u64,
-        /// Target member key — only deliver to this client (stripped before sending).
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-    },
-
-    /// Server sends group members list.
-    #[serde(rename = "group_members")]
-    GroupMembers {
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-        group_id: String,
-        members: Vec<(String, String)>, // (member_key, role)
     },
 
     /// Client requests their device list.
@@ -2362,22 +2297,6 @@ pub struct PeerInfo {
 fn default_true() -> bool { true }
 fn default_online() -> String { "online".to_string() }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupData {
-    pub id: String,
-    pub name: String,
-    pub invite_code: String,
-    pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GroupMessageData {
-    pub from: String,
-    pub from_name: String,
-    pub content: String,
-    pub timestamp: u64,
-}
-
 /// Listing data sent to clients.
 /// Server member data for WebSocket responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2428,28 +2347,6 @@ pub fn review_from_db(r: &crate::relay::storage::ReviewRecord) -> ReviewData {
         rating: r.rating,
         comment: r.comment.clone(),
         created_at: r.created_at.clone(),
-    }
-}
-
-/// Listing message data sent to clients.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListingMessageData {
-    pub id: i64,
-    pub listing_id: String,
-    pub sender_key: String,
-    pub sender_name: Option<String>,
-    pub content: String,
-    pub timestamp: i64,
-}
-
-pub fn listing_message_from_db(m: &crate::relay::storage::ListingMessageRecord) -> ListingMessageData {
-    ListingMessageData {
-        id: m.id,
-        listing_id: m.listing_id.clone(),
-        sender_key: m.sender_key.clone(),
-        sender_name: m.sender_name.clone(),
-        content: m.content.clone(),
-        timestamp: m.timestamp,
     }
 }
 
@@ -2955,11 +2852,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
 
                 // Send current peer list to the new peer (with their upload_token).
+                // Presence-hidden members are excluded from the LIVE peer
+                // list (it is pure presence); they still appear masked in
+                // the full user list below. You always see yourself.
+                let hidden_peers = state.db.hidden_presence_keys();
                 let peers_raw: Vec<Peer> = state
                     .peers
                     .read()
                     .await
                     .values()
+                    .filter(|p| p.public_key_hex == public_key || !hidden_peers.contains(&p.public_key_hex))
                     .cloned()
                     .collect::<Vec<_>>();
                 let statuses_snap = state.user_statuses.read().await;
@@ -3102,21 +3004,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     }
                 }
 
-                // Send group list to the new peer.
-                {
-                    if let Ok(user_groups) = state.db.get_user_groups(&public_key) {
-                        if !user_groups.is_empty() {
-                            let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                                GroupData { id, name, invite_code, role }
-                            }).collect();
-                            let group_msg = serde_json::to_string(&RelayMessage::GroupList {
-                                target: None,
-                                groups,
-                            }).unwrap();
-                            let _ = ws_tx.send(Message::Text(group_msg.into())).await;
-                        }
-                    }
-                }
+                // (Legacy group_list push removed 2026-08-23: groups are the
+                // E2EE P2P system now — clients fetch GET /api/v2/groups.)
 
                 // Send persistent voice channel list with current participants.
                 {
@@ -3124,14 +3013,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&vc_msg).unwrap().into())).await;
                 }
 
-                // Announce to everyone.
+                // Announce to everyone — unless this member hides their
+                // presence (privacy tiers, 2026-08-23). Their kyber key
+                // still reaches peers via the masked full-user-list row,
+                // so DMs keep working; only the live "came online" signal
+                // is withheld.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
-                let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
-                    public_key,
-                    display_name: final_name,
-                    role: peer_role.clone(),
-                    kyber_public: kyber_public.clone(),
-                });
+                if !state.db.presence_hidden(&public_key) {
+                    let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
+                        public_key,
+                        display_name: final_name,
+                        role: peer_role.clone(),
+                        kyber_public: kyber_public.clone(),
+                    });
+                }
 
                 // Broadcast updated full user list to all clients.
                 broadcast_full_user_list(&state).await;
@@ -3223,6 +3118,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
+            // AccountExportData: only deliver to the requesting client.
+            if let RelayMessage::AccountExportData { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // DmBatch: only deliver to the target client.
             if let RelayMessage::DmBatch { ref target, .. } = msg {
                 match target {
@@ -3270,15 +3174,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
             // ProjectListResponse: only deliver to the target client.
             if let RelayMessage::ProjectListResponse { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
-
-            // H-5: GroupMessage — only deliver to targeted group member.
-            if let RelayMessage::GroupMessage { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -3354,23 +3249,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // GroupList: only deliver to the target client.
-            if let RelayMessage::GroupList { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
-
-            // GroupMembers: only deliver to the target client.
-            if let RelayMessage::GroupMembers { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
 
             // FriendCodeResponse: only deliver to the target client.
             if let RelayMessage::FriendCodeResponse { ref target, .. } = msg {
@@ -3408,14 +3286,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // ListingMessages: only deliver to the target client.
-            if let RelayMessage::ListingMessages { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
 
             // MemberListResponse: only deliver to the target client.
             if let RelayMessage::MemberListResponse { ref target, .. } = msg {
@@ -3426,14 +3296,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
-            // GroupHistory: only deliver to the target client.
-            if let RelayMessage::GroupHistory { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
-                }
-            }
 
             // ThreadResponse: only deliver to the target client.
             if let RelayMessage::ThreadResponse { ref target, .. } = msg {
@@ -5290,6 +5152,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     }
                                     typing_ts.insert(my_key_for_recv.clone(), now);
                                 }
+                                // Presence-hidden members emit no typing
+                                // signal (privacy tiers, 2026-08-23): a
+                                // "X is typing" line is live presence.
+                                if state_clone.db.presence_hidden(&my_key_for_recv) {
+                                    continue;
+                                }
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -6178,13 +6046,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::ReviewDelete { listing_id, review_id } => {
                                 handle_review_delete(&state_clone, &my_key_for_recv, listing_id, review_id).await;
                             }
-                            // ── Listing Messages (buyer-seller) ──
-                            RelayMessage::ListingMessageSend { listing_id, content } => {
-                                handle_listing_message_send(&state_clone, &my_key_for_recv, listing_id, content).await;
-                            }
-                            RelayMessage::ListingMessageHistory { listing_id } => {
-                                handle_listing_message_history(&state_clone, &my_key_for_recv, listing_id).await;
-                            }
+                            // (Listing buyer-seller threads removed 2026-08-23:
+                            // marketplace contact rides sealed-sender DMs now.)
                             // ── Notification Preferences ──
                             RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end } => {
                                 handle_update_notification_prefs(&state_clone, &my_key_for_recv, dm, mentions, tasks, dnd_start, dnd_end).await;
@@ -6192,24 +6055,37 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             RelayMessage::GetNotificationPrefs {} => {
                                 handle_get_notification_prefs(&state_clone, &my_key_for_recv).await;
                             }
-                            // ── Group System ──
-                            RelayMessage::GroupCreate { name } => {
-                                handle_group_create(&state_clone, &my_key_for_recv, name).await;
+                            // (Legacy group system removed 2026-08-23:
+                            // groups are the E2EE P2P signed-object system.)
+                            // ── Account sovereignty (2026-08-23) ──
+                            RelayMessage::AccountExport {} => {
+                                handle_account_export(&state_clone, &my_key_for_recv).await;
                             }
-                            RelayMessage::GroupJoin { invite_code } => {
-                                handle_group_join(&state_clone, &my_key_for_recv, invite_code).await;
+                            RelayMessage::AccountDelete { confirm_name } => {
+                                handle_account_delete(&state_clone, &my_key_for_recv, confirm_name).await;
                             }
-                            RelayMessage::GroupLeave { group_id } => {
-                                handle_group_leave(&state_clone, &my_key_for_recv, group_id).await;
-                            }
-                            RelayMessage::GroupHistoryRequest { group_id } => {
-                                handle_group_history_request(&state_clone, &my_key_for_recv, group_id).await;
-                            }
-                            RelayMessage::GroupMembersRequest { group_id } => {
-                                handle_group_members_request(&state_clone, &my_key_for_recv, group_id).await;
-                            }
-                            RelayMessage::GroupMsg { group_id, content } => {
-                                handle_group_msg(&state_clone, &my_key_for_recv, group_id, content).await;
+                            // ── Privacy ──
+                            RelayMessage::PrivacyUpdate { hide_presence } => {
+                                if let Err(e) = state_clone.db.set_hide_presence(&my_key_for_recv, hide_presence) {
+                                    tracing::error!("privacy_update failed: {e}");
+                                } else {
+                                    tracing::info!(
+                                        "privacy_update: presence {} for {}…",
+                                        if hide_presence { "hidden" } else { "visible" },
+                                        &my_key_for_recv[..12.min(my_key_for_recv.len())]
+                                    );
+                                    // Roster refresh so the change is
+                                    // immediate for everyone.
+                                    broadcast_full_user_list(&state_clone).await;
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: if hide_presence {
+                                            "Presence hidden: you no longer appear online, no last-seen is stored, and no join/leave or typing signals are sent.".to_string()
+                                        } else {
+                                            "Presence visible: you appear online to other members.".to_string()
+                                        },
+                                    });
+                                }
                             }
                             // ── Device management ──
                             RelayMessage::DeviceListRequest {} => {
@@ -6309,9 +6185,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     }
 
     info!("Peer disconnected: {my_key}");
-    let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
-        public_key: my_key,
-    });
+    // Presence-hidden members leave as silently as they arrived.
+    if !state.db.presence_hidden(&my_key) {
+        let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
+            public_key: my_key.clone(),
+        });
+    }
 
     // Broadcast updated full user list to all clients.
     broadcast_full_user_list(&state).await;
