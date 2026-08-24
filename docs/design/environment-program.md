@@ -687,6 +687,73 @@ Constants: RESOLVE_ALPHA_BASE 0.12, RESOLVE_CLIP_GAMMA 1.0 (raise
 toward 1.5 if converged detail visibly flickers, lower toward 0.75 if
 edge ghosts survive).
 
+STATUS: SHIPPED v0.1199.0. Measured hf-noise (Laplacian energy in
+cloud crops vs v0.1198): -69% under-deck, -53% mid-alt-45km, -16% at
+the fly-through cliff crop. March cost unchanged. The pre-ship
+adversarial review (5 agents, 3 lenses + refutation) confirmed exactly
+one defect, fixed before ship: the resolve's history-drop (snap) was
+coupled to the octa CADENCE sentinel, whose ~8-11 m/frame near-deck
+threshold fires on every frame of ordinary fast flight - it would
+have handed back raw unconverged march static during approach. Snap
+now fires only on TRUE teleports (frame delta > 0.25 x slab distance,
+~14 degrees of parallax); regime entry snaps via CloudScreen::fresh.
+The lesson generalizes: a threshold tuned for one consumer's error
+mechanism (iterated cadence warp) is not portable to a consumer with
+a different one (translation-exact per-pixel reprojection).
+
+### 12w. The open water F-catalog (reconstructed 2026-08-23; the
+authoring agent's full report was never persisted - this section is now
+the record. F1/F2 were fixed in the same round they were numbered
+(grazing footprint v0.1194, crest-warp short axis); F7 backstop closed
+v0.1195. Instruments: scripts/ocean-rms-profile.mjs,
+scripts/ocean-census.mjs; vantages ocean-150m, ocean-storm-horizon,
+blackline-clouds-off.)
+
+**F3 - patch-seam wave-amplitude step (THE WELD HOLES).** The wave
+gate `1.0 - smoothstep(lambda*0.111, lambda*0.185, cell_m)`
+(00-bindings-vertex.wgsl:461-469, 10 call sites) keys on the PER-PATCH
+cell_m, which jumps exactly 2x across a cross-depth border while the
+fade band spans only 1.67x - so one side carries full wave amplitude
+and the other zero: a hard displacement crack you can see through
+(operator: "thin black triangles", "holes through the water along the
+seams", worst from underwater). The geomorph weld deliberately does
+not morph wave height (v0.1044, the normalize(barycentric) lattice
+makes edge verts non-subsets). FIX (recorded, option a preferred):
+publish the water leaf-budget saturation (planet_chunks.rs:1050
+budget_saturated, set :1326) as a uniform and gate on a CONTINUOUS
+distance-based cell estimate instead of per-patch cell_m - a smooth
+scalar law cannot step at a patch border. Option b: border-flag
+geomorph of wave amplitude toward the coarse neighbour.
+
+**F4 - sky-LUT 200x100 quantisation (secondary, mechanism unproven).**
+No fix recorded - an ISOLATION A/B is: SKY_VIEW_H 100 -> 400
+(sky_view.rs:19-20), same vantages, joint sky+water decision (both
+consume the LUT: water_sky_lut 20-surface-detail.wgsl:1206-1257, sky
+30-atmosphere.wgsl:323; the two UV mappings are LOCKSTEP - change
+together).
+
+**F5 - shadow ortho box hard edge.** sun_shadow_offset early-returns
+1.0 outside |ndc| > 0.99 (00-bindings-vertex.wgsl:232-234), so at
+~1485 m (1500 m half-extent box, mod.rs:71-73) the shadow term steps
+to fully lit on a straight line - on water at v0.1104's full shadow
+strength the contrast is 1.67x the old. FIX (recorded): ramp to 1.0
+approaching the box edge. SHARED BLAST RADIUS: the helper serves
+terrain/trees/grass/water - verify all.
+
+**F6 - trains-mode wave UV anchor not axis-aligned (64 m grid pops).**
+ocean_tex_gradient projects p_anch onto a sphere-normal tangent basis
+(20-surface-detail.wgsl:1066-1074) - the basis rotates with position,
+so a 64 m anchor re-snap is NOT an integer number of tile periods
+along those axes and the tiles pop (the :1056-1065 seamlessness
+comment is true of the periods, false of the axes). The FFT path is
+immune (axis-aligned triplanar, 00-bindings-vertex.wgsl:544-584). FIX
+(recorded): triplanar like FFT - but it changes the look, A/B
+required.
+
+(Side note also recorded: the PLANET_PIXEL_ANGLE header comment's
+safety-direction claim at 20-surface-detail.wgsl:12-22 is backwards -
+doc-only.)
+
 ### 13. Cloud streets (cheap rung of G1)
 
 Point cloud_stretch_domain's stretch axis along the per-family wind vector reg.wind_* (shipped v0.1163) instead of the fixed tangent - wind-aligned parallel rows at 2-10 km spacing on the noise path, one of the most recognizable real-sky features from both flight and mid altitudes. The v2 placement-layer streets (orienting the budding-cluster population along wind) ride R15's calibration, not this increment.

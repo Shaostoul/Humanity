@@ -1479,9 +1479,39 @@
     "look_offset_deg": 150
    },
    "settle_s": 12,
-   "expect": "Unbroken grey cloud base overhead, no blue.",
+   "expect": "Unbroken grey cloud base overhead, no blue, and STRUCTURED: a cobbled ceiling of soft cells 1-5 km across, brightest where the deck is thinnest, at least a full stop of mottling once the smooth sun-ward wash is subtracted. Neutral to cool grey; the DARKEST parts must be the BLUEST, not the warmest.",
    "regressions": [
-    "panics=0"
+    "panics=0",
+    "NOT A LIT DOME: on the sky box (200,120)-(2360,1150) at 2560x1387 fit a least-squares plane to linear luminance, subtract; residual p95/p5 >= 1.80x and residual RMS >= 15% of mean. Derived from marine BL cloud inhomogeneity nu=2.5-3 through the shaders own two-stream floor. Baseline v0.1199.0: 1.26x / 7.19% (fail).",
+    "THICK CLOUD IS BLUE CLOUD: linear R/B of the darkest luminance decile <= R/B of the brightest decile. Baseline v0.1199.0: 1.377 vs 1.187, wrong sign (fixed warm bounce dominated).",
+    "ZENITH GRADATION STAYS: top-band/bottom-band mean luminance within 1.25-1.55x (CIE overcast predicts 1.39x for this span; v0.1199.0 measured 1.35x PASS - do not trade it away).",
+    "DECK STAYS UNBROKEN: zero blue-sky pixels in the sky box. The LWP field multiplies density (never the threshold) with floor 0.45, so min column tau ~15: brightness varies 2-3x, opacity varies < 1e-4."
+   ],
+   "perf_floor_fps": 12,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "1.0",
+    "weather": "cloudy",
+    "sea": "0.3"
+   },
+   "hold_altitude": true
+  },
+  {
+   "id": "cov100-groundlook",
+   "desc": "Ground-level twin of cov100-underdeck (30 m eye): at 0.5 km the camera sits above the 0.4 km slab floor for stratus/nimbostratus (h_lo=0) so the march starts INSIDE the medium, confounding a flat deck with being in the scud. At 30 m the base is 400-1500 m overhead and 1-5 km cells subtend 20-90 deg - the geometry real base photography has.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 0.03,
+    "look_offset_deg": 150
+   },
+   "settle_s": 12,
+   "expect": "Unbroken grey cloud base overhead, no blue, and STRUCTURED: a cobbled ceiling of soft cells 1-5 km across, brightest where the deck is thinnest, at least a full stop of mottling once the smooth sun-ward wash is subtracted. Neutral to cool grey; the DARKEST parts must be the BLUEST, not the warmest.",
+   "regressions": [
+    "panics=0",
+    "VISUAL-ONLY vantage: the metric sky box catches foliage at 30 m in the forest, so the numeric underside gates apply to cov100-underdeck; this twin exists for eyeball verdicts at real base-photography geometry."
    ],
    "perf_floor_fps": 12,
    "showcase": {

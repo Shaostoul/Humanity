@@ -1317,7 +1317,20 @@ struct CloudSample {
     ps: vec3<f32>,   // the drifted + stretched sample position (tap domain)
     h: f32,          // slab fraction at the sample
     crown: f32,      // 0 deep in the column .. 1 at the column's own crown
+    // 12f underside relief (fidelity consult 2026-08-23):
+    lwp: f32,        // column water-path multiplier ~[0.45, 1.55] - cloud
+                     // FRACTION 1.0 never meant water path uniform; this is
+                     // the low-frequency LWP field real decks mottle by
+                     // (marine BL inhomogeneity nu = 2.5-3)
+    pouch: f32,      // 0..1 how low this column's own base hangs (the
+                     // from-below twin of `crown`: mamma/pouch shading)
 };
+// Side-channel for the march (12f): the view sample's band top + pouch,
+// written by cloud_carve, copied by the march IMMEDIATELY after its
+// density call (cloud_sun_tau's own carve calls overwrite them later in
+// the same invocation - copy first).
+var<private> g_cloud_bandtop: f32 = 1.0;
+var<private> g_cloud_pouch: f32 = 0.0;
 
 // The type coordinate at a planet-fixed direction: two low-frequency octaves
 // so regime patches are organic (not a few giant zones). In [0,1].
@@ -1498,7 +1511,7 @@ fn cloud_carve(
     // which we must not pay for in clear sky.
     let h_hi_max = min(reg.h_hi + 0.8 * (reg.h_hi - reg.h_lo), 1.0);
     if (cloud_height_band(h, reg.h_lo, h_hi_max) <= 0.002 || wa <= 0.003) {
-        return CloudSample(0.0, p, h, 0.0);
+        return CloudSample(0.0, p, h, 0.0, 1.0, 0.0);
     }
     // Drift at the sample's own family wind for its band height (phase 7
     // motion): a stratus deck ambles at 3-7 m/s while cirrus rides the
@@ -1540,7 +1553,7 @@ fn cloud_carve(
         let built = cloud_v2_body(p, wa, tc_v2, lodb);
         body = mix(body, built, w_built);
         if (body <= 0.001) {
-            return CloudSample(0.0, ps, h, 0.0);
+            return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0);
         }
     }
     // Towering (v0.880), re-keyed in phase 3: v0.880 drove the tower from
@@ -1555,7 +1568,7 @@ fn cloud_carve(
     let h_hi_eff = min(reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo), 1.0);
     let env = cloud_height_band(h, reg.h_lo, h_hi_eff);
     if (env <= 0.002) {
-        return CloudSample(0.0, ps, h, 0.0);
+        return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0);
     }
     // Domed tops (see CLOUD_TOP_RISE): the threshold climbs quadratically
     // with the fraction of the (tower-extended) band already below this
@@ -1563,6 +1576,14 @@ fn cloud_carve(
     // peaks where its own noise is strongest - rounded domes, not walls.
     let u_band = clamp(
         (h - reg.h_lo) / max(h_hi_eff - reg.h_lo, 1.0e-4), 0.0, 1.0);
+    // NOTE (12f round 5, tried and REVERTED): driving thr toward 0 at
+    // coverage 1.0 to close the last areal holes filled the band
+    // VERTICALLY to the slab floor - the 422 m camera ended up inside
+    // near-black scud. Coverage is an AREAL contract; the base must stay
+    // at the condensation level. The residual few-percent thin breaks at
+    // pinned 1.0 (body < COV_HI regions, sliding with the weather
+    // advect) are accepted as physical; the cov100 gate caps them at 2%
+    // instead of zero.
     let thr_base = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
     // Base-height field (see CLOUD_BASE_DROP), regime-weighted in phase 3:
     // undulating bases are a stratocumulus/nimbostratus cue; a cumulus
@@ -1577,6 +1598,7 @@ fn cloud_carve(
     // of the SAME shape volume at a ~8 km tile raises the coverage
     // threshold between cells, splitting big masses into discrete cumuli.
     // Distance-faded like the puff band so orbit never pays or changes.
+    var cell_g = 0.481;
     if (cell_amt > 0.01) {
         let c = textureSampleLevel(
             cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
@@ -1588,6 +1610,7 @@ fn cloud_carve(
         // lowers it slightly at the cores, zero-mean by construction.
         // 0.481 = the baked g-channel mean (bake_stats probe).
         thr = thr + CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c.g);
+        cell_g = c.g;
     }
     // Nubis-form carve (phase 3, fidelity finding 1): the old fixed
     // 0.28-wide onset window meant body -> 1 mapped to carve 1 only in a
@@ -1642,7 +1665,30 @@ fn cloud_carve(
     // the sun at zenith, where the tau march alone reads flat).
     let u_crown = sqrt(max(body - thr_base, 0.0) / CLOUD_TOP_RISE);
     let crown = clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0);
-    return CloudSample(carve, ps, h, crown);
+    // ── 12f underside relief (fidelity consult 2026-08-23) ──
+    // LWP field: cloud fraction 1.0 never meant water path uniform. Real
+    // marine boundary-layer decks carry optical-thickness inhomogeneity
+    // nu = mean/std of 2.5-3 (ISCCP), i.e. tau p5-p95 of ~10-33 at mean
+    // 20 - which the shader's own two-stream floor turns into 2.1-2.5x
+    // of base luminance. Two zero-cost sources already sampled here give
+    // the field its real spatial scales: lofi (mesoscale 30-130 km) and
+    // the cell tap (1-2 km Sc cells). MULTIPLIES density, never the
+    // threshold - with the 0.45 floor the thinnest column still reaches
+    // tau ~15 (alpha 1 - exp(-15)), so coverage stays unbroken by
+    // arithmetic and the vanish class cannot return through this door.
+    let lwp_f = clamp(
+        (lofi - 0.30) * 2.0 + (cell_g - 0.481) * 1.6 + 0.35, 0.0, 1.0);
+    let lwp = mix(0.45, 1.62, lwp_f);
+    // Pouch: the from-below twin of `crown`. The base-drop term lifts
+    // weakly supported columns' bases; solving body = thr_base +
+    // BASE_DROP*wt*v^2 for v gives how far DOWN this column's own base
+    // reaches (v_base >= 1: hangs at the very slab floor = a pouch).
+    let bd_wt = CLOUD_BASE_DROP * reg.base_drop * (1.0 - lofi);
+    let pouch = clamp(
+        sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0);
+    g_cloud_bandtop = h_hi_eff;
+    g_cloud_pouch = pouch;
+    return CloudSample(carve, ps, h, crown, lwp, pouch);
 }
 
 // The increment-3 VIEW density: the carved body, then TWO erosion bands and a
@@ -1761,7 +1807,18 @@ fn cloud_density_hi(
     // onset so mass borders still dissolve instead of stenciling.
     let dens_n = clamp(base / max(cs.carve, 1.0e-3), 0.0, 1.0);
     let skirt = smoothstep(0.0, 0.12, cs.carve);
-    return vec3<f32>(pow(dens_n, CLOUD_DENSITY_POW) * skirt, cavity, cs.crown);
+    // 12f: the LWP field scales the WATER CONTENT of the surviving
+    // interior (dens_n deliberately divides the carve's magnitude out -
+    // erosion shape only - so without this the column depth was set by
+    // geometric thickness alone: measured 1.3x spread, flat ceiling).
+    // SOLIDITY-GATED (round 4): the tau-floor safety argument only holds
+    // for solid interiors; marginal skirt columns are already thin, and
+    // multiplying them by 0.45 pushed whole patches below visibility -
+    // real sky holes at pinned coverage 1.0. Thin columns keep their
+    // density; solid cores get the full mottle.
+    let lwp_eff = mix(1.0, cs.lwp, smoothstep(0.10, 0.35, cs.carve));
+    return vec3<f32>(
+        pow(dens_n, CLOUD_DENSITY_POW) * skirt * lwp_eff, cavity, cs.crown);
 }
 
 // The LIGHT-march density: carved body only (no fray/detail taps -- edges err
@@ -1777,7 +1834,10 @@ fn cloud_density_light(
     lodb: f32,
 ) -> f32 {
     let cs = cloud_carve(p, t, seed, weather_a, reg, 0.0, lodb);
-    return smoothstep(0.0, 0.12, cs.carve);
+    // 12f: same solidity-gated LWP scaling as the view density - shadows
+    // must read the same water the eye does.
+    let lwp_eff = mix(1.0, cs.lwp, smoothstep(0.10, 0.35, cs.carve));
+    return smoothstep(0.0, 0.12, cs.carve) * lwp_eff;
 }
 
 // Optical depth toward the sun from a sample point: CLOUD_HI_LIGHT_SAMPLES
@@ -1865,7 +1925,16 @@ fn cloud_sun_tau(
 //   1/(1 + 0.75*(1-g)*tau) (similarity theory, J. Atmos. Sci. 72(11)) -
 //   the physical reason an overcast is luminous grey from below, never
 //   black. Isotropic by the time it has diffused, so no phase factor.
-fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
+// 12f tau split (fidelity consult finding 3): the direct octaves need
+// the SUN path, but the diffusion floor is plane-parallel transmittance
+// governed by the VERTICAL column above the sample - driving it with the
+// slant sun path double-counted obliquity (~1.5x too dark at mid
+// elevations) and sampled relief up to 2.2 km sideways from where the
+// eye reads it. tau_diff = the vertical column estimate; the mild
+// Eddington linear-in-cosine term restores the CIE-overcast solar
+// gradient (1.15-1.30x across the sky - real overcast DOES show where
+// the sun is; the octave ladder alone measured 1.01x).
+fn cloud_scatter_energy(tau: f32, cos_vs: f32, tau_diff: f32) -> f32 {
     var e = 0.0;
     var c_n = 1.0;
     var a_n = 1.0;
@@ -1881,8 +1950,8 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32) -> f32 {
         a_n = a_n * 0.5;
         g_n = g_n * 0.5;
     }
-    let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau);
-    return e + CLOUD_MS_DIFFUSE * t_diff;
+    let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau_diff);
+    return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs);
 }
 
 // Direction<->uv mapping for the temporal cloud map (phase 4): a LAMBERT
@@ -2286,6 +2355,10 @@ fn cloud_march_core(
         let dc = cloud_density_hi(
             p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
         let dens = dc.x;
+        // 12f: copy the view sample's side-channel NOW - the sun march
+        // below re-enters cloud_carve and overwrites these globals.
+        let s_pouch = g_cloud_pouch;
+        let s_btop = g_cloud_bandtop;
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
         // whole optical depth at ONE deep, dark sample - skipping the
@@ -2323,18 +2396,25 @@ fn cloud_march_core(
             lodb);
         let powder = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
         let pw = mix(powder, 1.0, powder_gate);
-        let direct = cloud_scatter_energy(tau, cos_vs) * pw;
+        let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+        // 12f: the VERTICAL column depth above this sample (plane-
+        // parallel estimate from the local density and the column's own
+        // band top) - what the diffusion floor and ambient shaper are
+        // physically governed by. Driving them with the slant SUN path
+        // double-counted obliquity (~1.5x too dark at mid sun) and read
+        // relief kilometres sideways from where the eye sees it.
+        let slab_h_d = g_cloud_rt - g_cloud_rb;
+        let tau_vert = sigma_v * dens * max(s_btop - h, 0.0) * slab_h_d;
+        let direct = cloud_scatter_energy(tau, cos_vs, tau_vert) * pw;
 
         // Ambient skylight (clouds depth increment): height across the slab
-        // picks the base value (tops see the sky dome), then the sun-path
-        // optical depth attenuates it - a sample buried under real cloud
-        // sees less sky than one at the same altitude in a thin veil. tau
-        // is the sun path, not the zenith path, but they coincide at high
-        // sun and the error at low sun only deepens dusk shading. Plus a
-        // GROUND BOUNCE term: real cloud bases over land/ocean are lit
-        // from below by surface-reflected sunlight - the cue that keeps
-        // undersides readable instead of uniformly mud-grey.
-        let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+        // picks the base value (tops see the sky dome), then the VERTICAL
+        // column depth attenuates it (12f - the old exp(-tau_sun * 0.12)
+        // was shaped for tau 0-10 and moved 3% across a real overcast's
+        // tau 33-49: numerically dead). Plus a GROUND BOUNCE term: real
+        // cloud bases over land/ocean are lit from below by surface-
+        // reflected sunlight - the cue that keeps undersides readable
+        // instead of uniformly mud-grey.
         // TWO-TONE ambient (phase 5 lighting, fidelity finding 4): the
         // strongest photographic cloud cue is CHROMATIC - sunlit faces
         // warm, shadowed faces and bases BLUE (lit by the sky dome),
@@ -2347,15 +2427,31 @@ fn cloud_march_core(
         // free); the ground bounce keeps a fixed warm hue. Magnitudes
         // are hue-normalized so overall energy matches the old scalar.
         let amb_h = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h)
-            * (0.35 + 0.65 * exp(-tau * 0.12));
+            * (0.25 + 0.75 / (1.0 + 0.10 * tau_vert));
         let sky_aer = vec3<f32>(
             camera.light2_cone_inner.y,
             camera.light2_cone_inner.z,
             camera.light2_cone_inner.w,
         );
         let sky_peak = max(max(sky_aer.x, sky_aer.y), max(sky_aer.z, 1.0e-4));
-        let amb_col = (sky_aer / sky_peak) * amb_h
-            + vec3<f32>(1.0, 0.93, 0.82) * (CLOUD_AMB_BOUNCE * (1.0 - h));
+        // 12f ground bounce: bounce is ground albedo times the DOWNWELLING
+        // irradiance at the surface, which IS the cloud's own diffuse
+        // transmittance - a fixed warm 0.05 was 57-63% of the base
+        // radiance under a real overcast and inverted the chroma sign
+        // (measured: darkest decile R/B 1.377 vs brightest 1.187 - dark
+        // went WARMER; real thick cloud goes BLUER because only diffuse
+        // skylight remains). Scaling by the column transmittance restores
+        // both the sign and the luminance range.
+        let bounce_t = clamp(1.8 / (1.0 + 0.15 * tau_vert), 0.0, 1.0);
+        // Whitened sky hue: multiple scattering inside the medium
+        // desaturates the ambient - full-strength sky blue made thin
+        // columns read as open sky (round-2 gate4: 33k false-sky
+        // pixels). 0.55 keeps the blue TENDENCY (thick = bluer than
+        // warm) without cloud impersonating sky.
+        let sky_hue = mix(vec3<f32>(1.0), sky_aer / sky_peak, 0.55);
+        let amb_col = sky_hue * amb_h
+            + vec3<f32>(0.98, 0.94, 0.88)
+                * (CLOUD_AMB_BOUNCE * (1.0 - h) * bounce_t);
 
         // Crevice occlusion (v0.1011): the puff cavity field darkens the
         // sample - lobes shade individually even though the light march
@@ -2371,7 +2467,15 @@ fn cloud_march_core(
         // should stay bright. Faint regimes get a gentler valley shade.
         let crown_floor = mix(0.88, 0.62, reg.opacity);
         let crown_shade = mix(crown_floor, 1.12, dc.z);
-        let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade;
+        // 12f pouch shading: the from-below twin of the crown term. A
+        // column whose own base hangs low (pouch -> 1) has more cloud
+        // directly above its base and a smaller sky-view solid angle from
+        // below - real mamma sit 20-40% darker than the surrounding base.
+        // Weighted toward the band bottom so tops are untouched.
+        let vband = clamp(
+            1.0 - (h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
+        let pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
+        let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade * pouch_shade;
         // Direct carries the SUN's colour; ambient carries the SKY's (the
         // two-tone split above). Ambient magnitude rides the sun's
         // luminance so total energy matches the old single-hue form.
