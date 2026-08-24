@@ -58,8 +58,32 @@
 > sign corrected, gradation preserved, coverage unbroken. Tried and
 > REVERTED: thr -> 0 at cov 1.0 (fills the slab vertically - scud).
 >
-> **NEXT (TOP): THE FAR/NEAR HANDOFF POP - with a live contradiction to
-> resolve first.** The operator's orbit-approach "huge patch of clouds
+> **SHIPPED v0.1208.0: procedural placement default + continuous mip
+> dither; THE WHITE-CONTINENT CASE CLOSED** - it was a continent-sized
+> STRATUS cell in the planet-fixed cloud-family field, frozen over
+> North America because every rig boot re-seeds the same game minute.
+> Every path A/B had compared different REGIONS. Rig-methodology
+> lessons journaled (v0.1208 entry): pin the cloud TYPE when hunting
+> coverage differences; same-region or it proves nothing.
+>
+> **NEXT (TOP): operator verdict on v0.1208.1** (procedural-only sky
+> feel, static-square death, approach continuity), then by rank:
+> 1. THE SPHERE-BALL LOOK + per-lobe shelving (operator: "obviously
+>    all balls/spheres... decimated spheres" + "weird shelving") - the
+>    puff/cell lobe construction reads as uniform ball packs at close
+>    range and the march's step ladder terraces each lobe. This is the
+>    Ultra v2 constructed-body track (increments 14/15) pulled forward:
+>    real cloud bodies are not sphere unions.
+> 2. Stratus mesoscale structure: a 3,000 km featureless stratus sheet
+>    is family-correct but visually dead - the increment-15 statistical
+>    far field gives sheets their real broken texture.
+> 3. Deck underside polish continues (chroma gate flaked warm under
+>    changed weather - re-measure under pinned weather before chasing).
+> 4. Black horizon hairline (chord-sag suspect), water F6/F4 A/Bs,
+>    stars-below-cloud-top, cloud streets (13).
+>
+> (Superseded round, kept for the record: THE FAR/NEAR HANDOFF POP -
+> with a live contradiction that turned out to be the regime field.) The operator's orbit-approach "huge patch of clouds
 > just vanishes" is the regime switch (analyst: 9.4x footprint jump =
 > +3.2 mips in ONE frame, carve compensator saturated at its 0.02 cap).
 > BUT the derived fix (near march footprint = min(screen*4,
