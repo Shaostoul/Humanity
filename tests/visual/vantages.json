@@ -1521,6 +1521,58 @@
     "sea": "0.3"
    },
    "hold_altitude": true
+  },
+  {
+   "id": "regime-far-probe",
+   "desc": "Regime-handoff A/B far side: same place/time as regime-near-probe, planet disc just UNDER the 1000 px near threshold. The operator saw a huge cloud patch vanish between two adjacent orbit altitudes.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 6690
+   },
+   "settle_s": 14,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true
+  },
+  {
+   "id": "regime-near-probe",
+   "desc": "Regime-handoff A/B near side: disc just OVER 1000 px.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 4550
+   },
+   "settle_s": 14,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true
+  },
+  {
+   "id": "rings-nadir-26km",
+   "desc": "The operator ring artifact: look straight down from 26 km - concentric dotted rings centered on the camera (mip-ladder distance shells). Look_offset 270 = straight down.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12.02,
+    "altitude_km": 26,
+    "look_offset_deg": 20
+   },
+   "settle_s": 14,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true
   }
  ],
  "ladder": {

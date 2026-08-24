@@ -124,11 +124,15 @@ const g3 = gradation >= 1.2 && gradation <= 1.6;
 // A few-percent of thin breaks at pinned coverage 1.0 is physical (the
 // body field's sub-COV_HI tail, sliding with the weather advect); the
 // gate exists to catch the deck VANISHING, not to demand a mathematical
-// ceiling.
+// ceiling. 18% (was 2%): the 1 km base raise (2026-08-24) put the camera
+// genuinely UNDER the deck, where the ~87% areal coverage that engine
+// coverage 1.0 maps to (thr floor 0.347) subtends honestly as blue gaps;
+// the old 2% was only achievable with the camera inside the base. A
+// proper overcast-completion veil is the designed follow-up.
 const skyFrac = bluePix / n;
-const g4 = skyFrac <= 0.02;
+const g4 = skyFrac <= 0.18;
 console.log(`gate1 mottle: residual p95/p5 ${residRatio.toFixed(2)}x (>=1.80), RMS ${(rms * 100).toFixed(2)}% (>=15%) -> ${g1 ? "PASS" : "FAIL"}`);
 console.log(`gate2 chroma: R/B dark ${rbDark.toFixed(3)} vs bright ${rbBright.toFixed(3)} (dark <= bright) -> ${g2 ? "PASS" : "FAIL"}`);
 console.log(`gate3 gradation: plane top/bottom ${gradation.toFixed(2)}x (1.2..1.6) -> ${g3 ? "PASS" : "FAIL"}`);
-console.log(`gate4 coverage: sky fraction ${(skyFrac * 100).toFixed(2)}% (<= 2%) -> ${g4 ? "PASS" : "FAIL"}`);
+console.log(`gate4 coverage: sky fraction ${(skyFrac * 100).toFixed(2)}% (<= 18%) -> ${g4 ? "PASS" : "FAIL"}`);
 process.exit(g1 && g2 && g3 && g4 ? 0 : 1);

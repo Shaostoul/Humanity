@@ -462,13 +462,33 @@ fn cloud_pix_ang_screen() -> f32 {
     return select(0.00144, pa, pa > 1.0e-5);
 }
 
+// STOCHASTIC mip rounding (2026-08-24, the operator's "I'm the center of
+// a storm and all the clouds radiate away from me"): in the near regime
+// the march footprint grows with distance FROM THE CAMERA, so the mip
+// ladder crosses integer levels at fixed radii around the camera - and
+// both the trilinear blend (two decorrelated fields averaged = a
+// variance DIP between integers) and the carve-width table print those
+// crossings as CONCENTRIC RINGS of alternating cloud texture. The cure
+// is to never blend mips at all: each sample rounds to ONE integer mip,
+// with the rounding threshold jittered per pixel/frame (set by
+// cloud_march_core; 0 elsewhere so the Medium direct path - which has no
+// temporal accumulation to integrate the noise - keeps plain trilinear).
+// Variance stays uniform (no blend dip), boundaries dissolve into noise
+// the temporal accumulation integrates, and a single-mip fetch is
+// cheaper than trilinear.
+var<private> g_lod_jitter: f32 = 0.0;
+
 // Mip level for one sample site: log2 footprint minus the site's log2
 // voxel size, clamped to the 8-level chain (0..7).
 fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
     // 0..8: the 384-chain has nine levels; clamping at the old 7 would
     // saturate the deepest footprints one rung early and leave far-field
     // samples under-band-limited.
-    return clamp(lodb - site_c, 0.0, 8.0);
+    let l = clamp(lodb - site_c, 0.0, 8.0);
+    if (g_lod_jitter != 0.0) {
+        return clamp(floor(l + g_lod_jitter + 0.5), 0.0, 8.0);
+    }
+    return l;
 }
 
 // ── Mip-width-aware SOFT carve (Wave B, increment 9) ──
@@ -2159,6 +2179,10 @@ fn cloud_march_core(
     pix_ang: f32,
 ) -> vec4<f32> {
     g_march_first_t = 0.0;
+    // Stochastic mip threshold for this invocation (see cloud_lod): a
+    // second low-discrepancy channel derived from the caller's depth
+    // jitter, in (-0.5, 0.5), never exactly 0 (0 = trilinear opt-out).
+    g_lod_jitter = fract(jitter * 61.803399) - 0.4999;
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);

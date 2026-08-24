@@ -44,7 +44,13 @@
     // which is why every cloud family read as one distant flat ceiling.
     // Mountains genuinely rise through this deck (peaks reach ~9 km);
     // that is real and intended.
-    cloud_base_km: Some(0.4),
+    // 1.0 (was 0.4): a 400 m ASL base sat below the operator's home
+    // terrain, so the deck "followed them to the surface" and they could
+    // never get underneath (2026-08-24 flight report). Real PNW overcast
+    // bases run 300-1000 m ABOVE GROUND over ~100-400 m terrain; 1 km ASL
+    // keeps a walkable clear layer under the deck while the Olympics
+    // (2.4 km) still pierce it, which is physical.
+    cloud_base_km: Some(1.0),
     cloud_top_km: Some(12.0),
     has_water: true,
     // The only world whose open air an unsuited human can breathe.

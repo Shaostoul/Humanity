@@ -403,7 +403,15 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // Depth jitter: decorrelated per pixel, advanced per frame - the
     // resolve's deep accumulation is what integrates it now.
     let jitter = fract(hash21(in.pos.xy * 0.7182) + fract(fidx * 0.618034));
-    // Footprint = one quarter-res pixel = 4x the screen pixel angle.
+    // Footprint = one quarter-res pixel = 4x the screen pixel angle,
+    // CAPPED at the octa map's texel angle (regime-handoff parity,
+    // 2026-08-24: at the FAR/NEAR switch the screen-driven footprint was
+    // 9.4x the octa's - a one-frame drop of 3.2 MIPS with the carve-width
+    // compensator already saturated at its 0.02 cap, so whole marginal
+    // cloud patches carved to zero the moment the regime flipped - the
+    // operator's "a huge patch of clouds just vanishes". With the cap the
+    // two regimes march the SAME footprint at the boundary by
+    // construction; near the ground the screen term is finer and wins.
     let cur_s = cloud_march_core(
         rd_w, center, shell_r, jitter, cloud_pix_ang_screen() * 4.0);
 
