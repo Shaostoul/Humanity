@@ -47,25 +47,33 @@
 > accumulation every frame of ordinary fast flight; it now fires only
 > on true teleports (delta > 0.25 x slab distance).
 >
-> **NEXT (TOP): OPERATOR VERDICT on v0.1199.0, then the WHOLE
-> environment backlog** (operator, 2026-08-23: "All of the
-> environmental backlog is worth doing, especially since they all feed
-> to the same look. One being off can throw others off."). Ranked:
-> 1. Deck underside structure (the restored ceiling reads flat/uniform
->    from below - base relief, mamma undulation, light gradients).
-> 2. Black horizon hairline - the chord-sag mechanism (coarse shell
->    mesh chords sagging below near cameras, found 2026-08-23) makes
->    the ATMOSPHERE shell mesh the prime suspect; same analytic-ray
->    cure as the cloud march may apply to types 13/14.
-> 3. Water F3 (cell-gate weld holes need the saturation uniform), F4
->    (sky-LUT 200x100 quantisation), F5 (shadow box edge), F6
->    (trains-mode anchor pop).
+> **SHIPPED v0.1201.0 (12f): cloud underside relief.** The flat
+> ceiling was arithmetic (every lighting term saturated at overcast
+> tau + a constant warm bounce at 57-63% of base radiance, chroma sign
+> inverted). Landed: LWP mottle field (solidity-gated density
+> multiplier from existing taps), transmittance-scaled near-neutral
+> bounce, vertical-tau split for the diffusion floor + CIE solar term,
+> pouch shading. All four executable gates pass
+> (scripts/cloud-underside-metrics.mjs): mottle 1.26x -> 1.91x, chroma
+> sign corrected, gradation preserved, coverage unbroken. Tried and
+> REVERTED: thr -> 0 at cov 1.0 (fills the slab vertically - scud).
+>
+> **NEXT: the environment backlog, ranked** (operator 2026-08-23: "All
+> of the environmental backlog is worth doing... One being off can
+> throw others off."):
+> 1. Water F5 (shadow box ramp - small) and F3 (weld holes: continuous
+>    distance-based wave gate + saturation uniform) - full specs in
+>    environment-program.md section 12w.
+> 2. Black horizon hairline - chord-sag mechanism makes the ATMOSPHERE
+>    shell mesh the prime suspect; the analytic-ray cure from the cloud
+>    march may apply to types 13/14.
+> 3. Water F6 (trains triplanar A/B), F4 (sky-LUT 400-height A/B).
 > 4. Stars vanishing below cloud-top altitude while the sky is black.
 > 5. Cloud streets (increment 13) + the ranked 14/15 track.
-> If the operator still sees residual motion ghosting at the cloud
-> layer: tune RESOLVE_CLIP_GAMMA down toward 0.75 (tighter clip) and
-> check the FAR/NEAR hysteresis band (800-1000 px) where the octa map
-> still owns the image.
+> Operator flight-verdict watch items: 12e ghosting (tune
+> RESOLVE_CLIP_GAMMA toward 0.75 if edges still trail; check the
+> 800-1000 px FAR/NEAR hysteresis band), 12f underside taste (mottle
+> strength = the LWP mix range; pouch depth = the 0.72 constant).
 >
 > (Superseded live-path protocol, kept for the confound catalog: the
 > haze-corrected clouds-on/off design in journal 2026-08-22 - the

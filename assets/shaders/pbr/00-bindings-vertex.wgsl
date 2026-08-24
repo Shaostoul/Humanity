@@ -232,6 +232,16 @@ fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
     if (abs(ndc.x) > 0.99 || abs(ndc.y) > 0.99 || ndc.z <= 0.001 || ndc.z >= 0.999) {
         return 1.0;
     }
+    // F5 (water catalog, environment-program.md 12w): the hard return
+    // above used to be the ONLY box exit, so at ~1485 m from the camera
+    // (1500 m ortho half-extent) shadowing terminated on a straight
+    // step - a visible line across water/terrain, 1.67x harsher since
+    // shadow strength went to 1.0 (v0.1104). The outer 7% of the box
+    // now RAMPS to fully lit, applied at the return below. Shared blast
+    // radius: terrain, trees, grass, and water all read this helper -
+    // the ramp only alters a band that was previously a discontinuity.
+    let box_edge = max(abs(ndc.x), abs(ndc.y));
+    let edge_fade = smoothstep(0.92, 0.99, box_edge);
     let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
     // Slope-scaled bias: grazing sun needs more to dodge acne on the
     // 1056-vert terrain triangles; vegetation cards (normal = radial up)
@@ -246,7 +256,7 @@ fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
         }
     }
     lit = lit / 9.0;
-    return mix(1.0 - shadow_u.params.y, 1.0, lit);
+    return mix(mix(1.0 - shadow_u.params.y, 1.0, lit), 1.0, edge_fade);
 }
 
 // Plain entry point: fragments outside the ortho box (or with shadows off)
@@ -997,7 +1007,21 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     let t = camera.sun_color.w;
                     // uv.y carries this patch's measured vertex spacing.
                     let cell_m = vertex.uv.y * WATER_CELL_CODE_SCALE;
-                    let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir, cell_m);
+                    // F3 - THE WELD HOLES (environment-program.md 12w): the
+                    // amplitude gates key on per-patch cell_m, which steps
+                    // exactly 2x across a cross-depth border while the gate
+                    // band spans only 1.67x - one side at full wave height,
+                    // the other at zero: a hard displacement crack you can
+                    // see through (worst from underwater). Border verts now
+                    // evaluate the gates at the COARSE neighbour's spacing
+                    // as they geomorph (the same weld_w that already drops
+                    // them onto the coarse chord), so both sides of a seam
+                    // displace identically where they meet. This morphs the
+                    // amplitude GATE only - NOT the wave value (the v0.1044
+                    // lesson: value-morphing halves wave resolution over
+                    // whole patches on this non-subset lattice).
+                    let cell_eff = mix(cell_m, 2.0 * cell_m, weld_w);
+                    let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir, cell_eff);
                     // NO wave-height morph here (v0.1044). Collapsing odd
                     // verts onto their parents' mean is textbook CDLOD,
                     // but this lattice is normalize(barycentric) per patch,
