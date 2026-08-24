@@ -199,6 +199,11 @@ fn demo_state() -> GuiState {
         ChatMessage { sender_name: "Shaostoul".into(), content: "Welcome to HumanityOS!".into(), timestamp: "12:30".into(), channel: "general".into(), ..Default::default() },
         ChatMessage { sender_name: "Ada".into(), content: "The garden towers are looking great today.".into(), timestamp: "12:32".into(), channel: "general".into(), ..Default::default() },
         ChatMessage { sender_name: "Shaostoul".into(), content: "Shipping the Laws page next.".into(), timestamp: "12:35".into(), channel: "general".into(), ..Default::default() },
+        // Formatting-parity coverage (v0.1208): a blockquote + __bold__, a
+        // bullet list, and a fenced code block, so the snapshot proves the
+        // native renderer draws them (muted quote, real bullets, code panel).
+        ChatMessage { sender_name: "Ada".into(), content: "> from the design notes\nWe should try __two towers__ per plot:\n- more light\n- easier harvest".into(), timestamp: "12:36".into(), channel: "general".into(), ..Default::default() },
+        ChatMessage { sender_name: "Shaostoul".into(), content: "Here's the tick loop:\n```rust\nfor sys in systems {\n    sys.tick(dt);\n}\n```\nLooks good to me.".into(), timestamp: "12:37".into(), channel: "general".into(), ..Default::default() },
     ];
     s.chat_users = vec![
         ChatUser { name: "Shaostoul".into(), public_key: "dlth3:9a41c2abc".into(), role: "admin".into(), status: "online".into() },

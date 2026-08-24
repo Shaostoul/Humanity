@@ -188,6 +188,7 @@ pub fn message_row(
         const M_CODE: u8 = 8;
         const M_STRIKE: u8 = 16;
         const M_LINK: u8 = 32;
+        const M_QUOTE: u8 = 64;
         let mut mask = vec![0u8; chars.len()];
         for &(start, len) in mention_ranges {
             for m in mask.iter_mut().skip(start).take(len) {
@@ -201,6 +202,7 @@ pub fn message_row(
                 SpanKind::Code => M_CODE,
                 SpanKind::Strike => M_STRIKE,
                 SpanKind::Link(_) => M_LINK,
+                SpanKind::Quote => M_QUOTE,
             };
             for m in mask.iter_mut().skip(sp.start).take(sp.len) {
                 *m |= bit;
@@ -216,6 +218,9 @@ pub fn message_row(
                 theme.accent()
             } else if m & M_BOLD != 0 {
                 Color32::WHITE
+            } else if m & M_QUOTE != 0 {
+                // Blockquote lines render muted, matching web's `.quote-block`.
+                theme.text_muted()
             } else {
                 text_color
             };

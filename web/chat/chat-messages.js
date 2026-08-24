@@ -410,7 +410,22 @@ function loadImage(placeholder, url) {
   placeholder.replaceWith(img);
 }
 
+// Server cap is 6 MB (nginx client_max_body_size 6m). Guard client-side so an
+// oversize file fails fast with a clear message instead of a generic 413, and
+// so we never waste an upload that the server will reject.
+const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
+function attachmentTooLarge(file) {
+  if (file && file.size > MAX_ATTACHMENT_BYTES) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    addSystemMessage(`File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing it or sending a smaller file.`);
+    return true;
+  }
+  return false;
+}
+
 async function uploadImage(file) {
+  // Client-side size guard: abort before uploading anything over the 6 MB cap.
+  if (attachmentTooLarge(file)) return null;
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
@@ -434,7 +449,7 @@ async function uploadImage(file) {
       let friendly = text;
       if (text.includes('too large')) {
         const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-        friendly = `File "${file.name}" is ${sizeMB}MB. Max allowed: 10MB for images/docs, 20MB for audio/video. Try compressing the image or using a smaller file.`;
+        friendly = `File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing the image or using a smaller file.`;
       } else if (text.includes('Unsupported')) {
         friendly = `File type not allowed. Supported: images (png, jpg, gif, webp), documents (pdf, txt), audio (mp3, ogg, wav), video (mp4, webm).`;
       }
@@ -472,6 +487,9 @@ async function handleFileAttachment(event) {
 
 /** Encrypt a file, upload the ciphertext, and send it as a sealed DM. */
 async function sendEncryptedAttachment(file) {
+  // Same 6 MB cap applies to encrypted DM attachments (the ciphertext upload
+  // hits the same nginx body limit). Guard before encrypting/uploading.
+  if (attachmentTooLarge(file)) return;
   const indicator = document.getElementById('upload-indicator');
   try {
     if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }

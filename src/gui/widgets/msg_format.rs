@@ -43,6 +43,10 @@ pub enum SpanKind {
     Strike,
     /// The URL as it appears in the display text (used by the click handler).
     Link(String),
+    /// A blockquote line ("> ..."): rendered muted, matching the web client's
+    /// `.quote-block`. Emitted line-at-a-time by the blockquote pass below, not
+    /// by an inline marker, so it can coexist with inline spans on the same line.
+    Quote,
 }
 
 /// One styled span: `(char_start, char_len)` into the DISPLAY text.
@@ -115,6 +119,9 @@ pub fn parse(content: &str) -> (String, Vec<FormatSpan>) {
         let mut matched = false;
         for (marker, kind) in [
             (&['*', '*'][..], SpanKind::Bold),
+            // __bold__ is the web client's second bold form (app.js formatBody).
+            // Same handling as ** so the two clients accept the same dialect.
+            (&['_', '_'][..], SpanKind::Bold),
             (&['~', '~'][..], SpanKind::Strike),
             (&['*'][..], SpanKind::Italic),
             (&['`'][..], SpanKind::Code),
@@ -147,6 +154,38 @@ pub fn parse(content: &str) -> (String, Vec<FormatSpan>) {
 
         out.push(chars[i]);
         i += 1;
+    }
+
+    // --- Blockquote line pass (v0.1208, parity with web's `.quote-block`) ---
+    // A line beginning with "> " renders as a muted quote. This runs AFTER the
+    // inline scan and is WIDTH-PRESERVING: the 2-char "> " becomes the 2-char
+    // "| " (the '>' becomes an ASCII vertical bar, the space stays), so every
+    // inline span index computed above stays char-aligned. A Quote span covers
+    // the whole line so `message_row` mutes it; inline bold/italic inside a quote
+    // still apply because the style masks OR together. The bar is ASCII '|'
+    // deliberately: the earlier choice of ‖ (U+2016) rendered as tofu in the app
+    // font despite being in the General Punctuation block (snapshot-proven
+    // v0.1208), so we use a glyph that is guaranteed present. The muted color is
+    // what mainly signals the quote; the bar is the left-edge marker.
+    {
+        let n = out.len();
+        let mut idx = 0usize;
+        while idx < n {
+            // `idx` is always at a line start (position 0, or just after a '\n').
+            let mut end = idx;
+            while end < n && out[end] != '\n' {
+                end += 1;
+            }
+            if end >= idx + 2 && out[idx] == '>' && out[idx + 1] == ' ' {
+                out[idx] = '|'; // '>' -> | bar; the trailing space is kept.
+                spans.push(FormatSpan {
+                    start: idx,
+                    len: end - idx,
+                    kind: SpanKind::Quote,
+                });
+            }
+            idx = if end < n { end + 1 } else { end };
+        }
     }
 
     (out.into_iter().collect(), spans)
@@ -238,5 +277,48 @@ mod tests {
         assert_eq!(d, "héllo wörld ok");
         assert_eq!(s.len(), 1);
         assert_eq!(s[0], FormatSpan { start: 6, len: 5, kind: SpanKind::Bold });
+    }
+
+    #[test]
+    fn double_underscore_is_bold_like_double_star() {
+        let (d, s) = parse("__strong__ word");
+        assert_eq!(d, "strong word");
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0], FormatSpan { start: 0, len: 6, kind: SpanKind::Bold });
+    }
+
+    #[test]
+    fn single_underscore_is_not_italic() {
+        // Web only italicizes with *, not _, so snake_case identifiers stay plain.
+        let (d, s) = parse("call my_function now");
+        assert_eq!(d, "call my_function now");
+        assert!(s.is_empty());
+    }
+
+    #[test]
+    fn blockquote_line_is_muted_and_bar_prefixed_width_preserving() {
+        let (d, s) = parse("> quoted line");
+        // "> " (2 chars) -> "| " (2 chars): width preserved.
+        assert_eq!(d, "| quoted line");
+        assert_eq!(d.chars().count(), "> quoted line".chars().count());
+        let q: Vec<_> = s.iter().filter(|sp| sp.kind == SpanKind::Quote).collect();
+        assert_eq!(q.len(), 1);
+        assert_eq!(q[0].start, 0);
+        assert_eq!(q[0].len, "| quoted line".chars().count());
+    }
+
+    #[test]
+    fn blockquote_only_matches_at_line_start_and_keeps_inline_spans_aligned() {
+        // Quote on line 2 only; the '>' mid-line-1 is untouched; the **bold**
+        // inside the quote still gets its span, char-aligned after the swap.
+        let (d, s) = parse("a > b\n> keep **bold**");
+        assert_eq!(d, "a > b\n| keep bold");
+        let bold: Vec<_> = s.iter().filter(|sp| sp.kind == SpanKind::Bold).collect();
+        assert_eq!(bold.len(), 1, "bold inside the quote survives");
+        // The bold body "bold" sits at the right char offset in the display text.
+        let start = bold[0].start;
+        let got: String = d.chars().skip(start).take(bold[0].len).collect();
+        assert_eq!(got, "bold");
+        assert_eq!(s.iter().filter(|sp| sp.kind == SpanKind::Quote).count(), 1);
     }
 }

@@ -228,10 +228,36 @@ document.getElementById('reply-cancel').addEventListener('click', (e) => {
 });
 
 // Event delegation: handle clicks on image placeholders (data-img-url).
+// Resolve a mention name to a known peer's public key (case-insensitive match
+// on either display_name or name). Returns null if no user is known by that
+// name, so a mention of a stranger simply does nothing on click.
+function resolveMentionKey(name) {
+  if (!name || typeof peerData === 'undefined' || !peerData) return null;
+  const target = name.toLowerCase();
+  for (const key in peerData) {
+    const p = peerData[key];
+    if (!p) continue;
+    const dn = (p.display_name || p.name || '').toLowerCase();
+    if (dn && dn === target) return key;
+  }
+  return null;
+}
+
 document.getElementById('messages').addEventListener('click', function(e) {
   const placeholder = e.target.closest('[data-img-url]');
   if (placeholder) {
     loadImage(placeholder, placeholder.dataset.imgUrl);
+    return;
+  }
+  // Click an @mention → open that user (native parity: native opens the user's
+  // modal). Resolve the name to a known peer; unknown names are inert.
+  const mention = e.target.closest('.mention');
+  if (mention && mention.dataset.mention) {
+    const name = mention.dataset.mention;
+    const key = resolveMentionKey(name);
+    if (key) {
+      showUserContextMenu(e, peerData[key].display_name || peerData[key].name || name, key);
+    }
     return;
   }
   // Handle clicks on reaction badges (data-target-from).
@@ -1474,6 +1500,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
   if (isMe) {
     actions += '<button class="delete-btn" title="Delete">✕</button>';
+  } else if (isStaff) {
+    // Moderators/admins can delete others' messages (native parity). The relay
+    // authorizes this when the sent `from` is the ORIGINAL sender's key and the
+    // caller's role is admin/mod; the send site below picks the right `from`.
+    actions += '<button class="delete-btn" title="Delete (moderator)">✕</button>';
   }
   actions += '</div>';
 
@@ -1595,7 +1626,12 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'delete', from: myKey, timestamp: Number(timestamp) }));
+        // Own delete → from: myKey (unchanged). Moderator delete of someone
+        // else's message → from: the ORIGINAL sender's key (fromKey), which is
+        // how the relay recognizes an authorized mod/admin delete and how
+        // native does it. For own messages fromKey === myKey already.
+        const deleteFrom = isMe ? myKey : fromKey;
+        ws.send(JSON.stringify({ type: 'delete', from: deleteFrom, timestamp: Number(timestamp) }));
         el.remove(); // Remove locally immediately.
       }
     });
@@ -2057,11 +2093,13 @@ function formatBody(text) {
   // `inline code` (but not inside code blocks)
   safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
-  // @mentions, highlight usernames.
+  // @mentions, highlight usernames. The data-mention carries the raw name so a
+  // delegated click handler (see the #messages listener) can open that user,
+  // matching native (native opens the user's modal on mention click).
   safe = safe.replace(/@([A-Za-z0-9_-]+)/g, (match, name) => {
     const isMe = myName && name.toLowerCase() === myName.toLowerCase();
     const cls = isMe ? 'mention mention-me' : 'mention';
-    return `<span class="${cls}">@${esc(name)}</span>`;
+    return `<span class="${cls}" data-mention="${esc(name)}">@${esc(name)}</span>`;
   });
 
   // Step 5: Process line-level formatting (quotes, lists).

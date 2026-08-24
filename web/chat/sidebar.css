@@ -645,6 +645,7 @@
   color: var(--accent);
   padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 .mention-me {
   background: rgba(224,112,32,0.3);

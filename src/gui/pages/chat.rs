@@ -3264,6 +3264,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // the help modal has advertised markdown all along). Markers
                     // are stripped HERE so the mention detection below and the
                     // row's char-indexed ranges all see the same display text.
+                    // Fenced ```code``` blocks (v0.1208, parity with web's
+                    // formatBody step 1): pull them OUT of the inline flow before
+                    // bulletize/parse can mangle their contents (backticks, '*',
+                    // etc.), and render each as a monospace panel with a Copy
+                    // button below the message text. Mirrors how inline images
+                    // are stripped here and drawn as separate widgets. The
+                    // de-fenced text flows on through bulletize + parse as normal.
+                    let (display_text, code_blocks) = extract_code_blocks(&display_text);
                     // Line-leading "- "/"* " -> a real bullet, parity with the
                     // web client's list rendering. Width-preserving and done
                     // BEFORE parse so the inline spans below stay char-aligned.
@@ -3551,6 +3559,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ui.close_menu();
                             }
                         });
+                    }
+
+                    // Fenced code blocks (v0.1208): render each extracted ```
+                    // block as an indented monospace panel with an optional
+                    // language label + Copy button, directly under the message
+                    // text. Skipped while editing (the raw ``` is in the editor).
+                    if !is_editing && !code_blocks.is_empty() {
+                        draw_code_blocks(ui, theme, &code_blocks);
                     }
 
                     // (Old inline reaction PILLS row removed — reactions
@@ -4479,6 +4495,134 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+}
+
+/// One fenced code block pulled out of a chat message by `extract_code_blocks`.
+struct CodeBlock {
+    /// Optional language token from the opening fence (```rust -> "rust"). May
+    /// be empty. Shown as a small label; not used for syntax highlighting yet.
+    lang: String,
+    /// The code between the fences, verbatim (newlines preserved).
+    code: String,
+}
+
+/// Pull fenced ```code``` blocks out of a message body, mirroring the web
+/// client's `formatBody` step 1 (`/```(\w*)\n?([\s\S]*?)```/`). Returns the text
+/// with the fenced regions removed and the ordered list of blocks to render as
+/// separate monospace panels. Extracting BEFORE the inline parser is what keeps a
+/// code block's own backticks / `*` / URLs from being mis-parsed as inline
+/// markup. An UNCLOSED opening fence is left verbatim (nothing is silently eaten),
+/// matching the "unclosed marker renders as text" rule in msg_format.
+fn extract_code_blocks(s: &str) -> (String, Vec<CodeBlock>) {
+    const FENCE: &str = "```";
+    if !s.contains(FENCE) {
+        return (s.to_string(), Vec::new());
+    }
+    let mut text = String::with_capacity(s.len());
+    let mut blocks: Vec<CodeBlock> = Vec::new();
+    let mut rest = s;
+    loop {
+        match rest.find(FENCE) {
+            None => {
+                text.push_str(rest);
+                break;
+            }
+            Some(open) => {
+                let after_open = &rest[open + FENCE.len()..];
+                match after_open.find(FENCE) {
+                    None => {
+                        // No closing fence: leave the rest (incl. the ```) as text.
+                        text.push_str(rest);
+                        break;
+                    }
+                    Some(close_rel) => {
+                        text.push_str(&rest[..open]);
+                        let inner = &after_open[..close_rel];
+                        let (lang, code) = split_fence_lang(inner);
+                        blocks.push(CodeBlock { lang, code });
+                        let tail = &after_open[close_rel + FENCE.len()..];
+                        // Swallow one newline right after the closing fence so the
+                        // following prose doesn't render with a leading blank line
+                        // where the block used to sit.
+                        rest = tail
+                            .strip_prefix("\r\n")
+                            .or_else(|| tail.strip_prefix('\n'))
+                            .unwrap_or(tail);
+                    }
+                }
+            }
+        }
+    }
+    // Trim the blank lines the extraction can leave where a block used to be, so
+    // the surrounding prose doesn't render with stray empty rows.
+    let text = text.trim_matches('\n').to_string();
+    (text, blocks)
+}
+
+/// Split the inside of a fence into an optional language token and the code,
+/// matching web's `formatBody` regex `/```(\w*)\n?([\s\S]*?)```/` exactly so the
+/// two clients read the same dialect: a leading run of word chars (`[A-Za-z0-9_]`)
+/// is the language, then ONE optional newline is consumed, and the rest (trailing
+/// newlines trimmed) is the code.
+fn split_fence_lang(inner: &str) -> (String, String) {
+    let lang_end = inner
+        .char_indices()
+        .find(|(_, c)| !(c.is_ascii_alphanumeric() || *c == '_'))
+        .map(|(i, _)| i)
+        .unwrap_or(inner.len());
+    let lang = &inner[..lang_end];
+    let mut code = &inner[lang_end..];
+    // Consume a single optional newline right after the language token (CRLF too).
+    if let Some(stripped) = code.strip_prefix("\r\n") {
+        code = stripped;
+    } else if let Some(stripped) = code.strip_prefix('\n') {
+        code = stripped;
+    }
+    (lang.to_string(), code.trim_end_matches(['\n', '\r']).to_string())
+}
+
+/// Draw extracted fenced code blocks as indented monospace panels, each with an
+/// optional language label and a Copy button (parity with web's
+/// `code-block-wrapper`). Rendered directly under the message text.
+fn draw_code_blocks(ui: &mut egui::Ui, theme: &Theme, blocks: &[CodeBlock]) {
+    let indent = theme.avatar_size + theme.avatar_gap;
+    let panel_w = (ui.available_width() - indent - 8.0).max(80.0);
+    for cb in blocks {
+        ui.horizontal(|ui| {
+            ui.add_space(indent);
+            ui.vertical(|ui| {
+                // Bound the width so long code lines wrap inside the column
+                // instead of stretching the horizontal layout off the edge.
+                ui.set_max_width(panel_w);
+                Frame::none()
+                    .fill(theme.bg_card())
+                    .stroke(Stroke::new(theme.border_width, theme.border()))
+                    .rounding(Rounding::same(4))
+                    .inner_margin(egui::Margin::same(8))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if !cb.lang.is_empty() {
+                                ui.label(
+                                    RichText::new(&cb.lang)
+                                        .monospace()
+                                        .size(theme.small_size)
+                                        .color(theme.text_muted()),
+                                );
+                            }
+                            if widgets::Button::ghost("Copy").show(ui, theme) {
+                                ui.ctx().copy_text(cb.code.clone());
+                            }
+                        });
+                        ui.label(
+                            RichText::new(&cb.code)
+                                .monospace()
+                                .color(theme.text_primary()),
+                        );
+                    });
+            });
+        });
+        ui.add_space(2.0);
+    }
 }
 
 /// Render line-leading list markers as a real bullet on native, matching the
@@ -8515,6 +8659,67 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         if let Some(ref webrtc) = state.webrtc {
             webrtc.close_peer(peer_key);
         }
+    }
+}
+
+#[cfg(test)]
+mod code_block_tests {
+    use super::extract_code_blocks;
+
+    #[test]
+    fn no_fence_is_untouched() {
+        let (t, b) = extract_code_blocks("just a plain message with `inline` code");
+        assert_eq!(t, "just a plain message with `inline` code");
+        assert!(b.is_empty());
+    }
+
+    #[test]
+    fn a_fenced_block_with_language_is_extracted() {
+        let (t, b) = extract_code_blocks("before\n```rust\nlet x = 1;\n```\nafter");
+        assert_eq!(b.len(), 1);
+        assert_eq!(b[0].lang, "rust");
+        assert_eq!(b[0].code, "let x = 1;");
+        // The surrounding prose survives; the fence is gone.
+        assert!(t.contains("before"));
+        assert!(t.contains("after"));
+        assert!(!t.contains("```"));
+        assert!(!t.contains("let x = 1;"));
+    }
+
+    #[test]
+    fn a_fence_without_language_keeps_the_first_line_as_code() {
+        let (_t, b) = extract_code_blocks("```\nplain code\nline two\n```");
+        assert_eq!(b.len(), 1);
+        assert_eq!(b[0].lang, "");
+        assert_eq!(b[0].code, "plain code\nline two");
+    }
+
+    #[test]
+    fn language_token_is_the_leading_word_chars_matching_web() {
+        // Mirrors web's /```(\w*)\n?.../: "echo" is word chars so it's the lang;
+        // the space stops the token and " hello\nworld" is the code (one optional
+        // newline after the lang would have been consumed, but here it's a space).
+        let (_t, b) = extract_code_blocks("```echo hello\nworld\n```");
+        assert_eq!(b.len(), 1);
+        assert_eq!(b[0].lang, "echo");
+        assert_eq!(b[0].code, " hello\nworld");
+    }
+
+    #[test]
+    fn unclosed_fence_is_left_verbatim() {
+        let (t, b) = extract_code_blocks("look: ```rust\nlet x = 1; (never closed)");
+        assert!(b.is_empty());
+        assert_eq!(t, "look: ```rust\nlet x = 1; (never closed)");
+    }
+
+    #[test]
+    fn two_blocks_are_both_extracted_in_order() {
+        let (_t, b) = extract_code_blocks("```py\na\n```\nmid\n```js\nb\n```");
+        assert_eq!(b.len(), 2);
+        assert_eq!(b[0].lang, "py");
+        assert_eq!(b[0].code, "a");
+        assert_eq!(b[1].lang, "js");
+        assert_eq!(b[1].code, "b");
     }
 }
 
