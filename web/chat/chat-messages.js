@@ -458,11 +458,49 @@ async function handleFileAttachment(event) {
   if (!file) return;
   event.target.value = ''; // Reset for re-selection
 
-  const url = await uploadImage(file); // Reuse existing upload function
-  // Route through the shared content authority so the attachment goes to
-  // whatever is in view -- channel, DM (E2EE), or group -- instead of always
-  // posting to the public channel (privacy bug fixed 2026-07-04).
+  // In a DM, the FILE must be as private as the message (2026-08-24): encrypt
+  // it client-side, upload only ciphertext, and send an encrypted-attachment
+  // marker inside the sealed envelope. In a public channel, public is public,
+  // so keep the plain public-URL path.
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {
+    await sendEncryptedAttachment(file);
+    return;
+  }
+  const url = await uploadImage(file); // public channel / group path
   if (url) await window.sendComposedContent(url);
+}
+
+/** Encrypt a file, upload the ciphertext, and send it as a sealed DM. */
+async function sendEncryptedAttachment(file) {
+  const indicator = document.getElementById('upload-indicator');
+  try {
+    if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const enc = await pqEncryptFile(bytes);
+    if (indicator) indicator.textContent = `Uploading ${file.name}…`;
+    const uploadBase = myUploadToken
+      ? `/api/upload?token=${encodeURIComponent(myUploadToken)}&encrypted=1`
+      : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}&encrypted=1` : '/api/upload?encrypted=1');
+    const fd = new FormData();
+    fd.append('file', new Blob([enc.cipherBytes], { type: 'application/octet-stream' }), 'attachment.enc');
+    const resp = await fetch(uploadBase, { method: 'POST', body: fd });
+    if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
+    const data = await resp.json();
+    const marker = pqBuildFileMarker({
+      url: data.url,
+      k: enc.keyB64,
+      n: enc.nonceB64,
+      name: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+    });
+    // Goes through the exact DM send path (sealed envelope) as any message.
+    await window.sendComposedContent(marker);
+  } catch (e) {
+    addSystemMessage(`Encrypted upload failed: ${e && e.message}`);
+  } finally {
+    if (indicator) indicator.style.display = 'none';
+  }
 }
 
 // Paste image from clipboard → upload and send.

@@ -116,6 +116,24 @@ your image quality is untouched; it just quietly removes the coordinates and
 the serial number. You do not have to remember to do anything. It is simply
 gone.
 
+### Photos and files inside a private message
+
+Here is a subtle one we caught late, and it is worth telling you about because
+it is exactly the kind of gap that hides behind a feature that looks finished.
+Messages were encrypted. But a photo you attached to a private message was not
+encrypted the same way; only the link to it was hidden inside the encrypted
+message, while the file itself sat readable at a web address on the server.
+Someone sending a sensitive photo in a DM believed it was as private as the
+words, and it was not.
+
+So we fixed it to match the promise. A file shared in a private message is now
+encrypted on your device before it is uploaded, with a fresh key each time. The
+server stores only scrambled bytes; the key to unlock them travels sealed
+inside the message, so only the person you sent it to can turn it back into a
+photo. To the server operator, and to anyone who finds the web address, it is
+noise. Public channels are unchanged, because public is public. But a private
+photo is now genuinely private, file and all.
+
 ### Whether you appear online
 
 Being visible online is a real safety issue for some people. Knowing when a

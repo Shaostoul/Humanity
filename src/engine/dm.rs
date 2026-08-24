@@ -42,6 +42,20 @@ pub(crate) fn ensure_dm_store(gui_state: &mut GuiState) -> bool {
     true
 }
 
+/// Collapse an encrypted-attachment marker to a friendly sidebar preview
+/// (2026-08-24), so a file DM never shows raw base64 in the conversation list.
+pub(crate) fn dm_preview_text(text: &str) -> String {
+    if let Some(att) = crate::net::dm_pq::parse_file_marker(text) {
+        if att.mime.starts_with("image/") {
+            "Photo".to_string()
+        } else {
+            att.name
+        }
+    } else {
+        text.to_string()
+    }
+}
+
 /// Best display name we know for a peer key: online roster, then friends,
 /// then the existing sidebar entry, then a short key prefix.
 pub(crate) fn dm_display_name(gui_state: &GuiState, peer: &str) -> String {
@@ -72,10 +86,11 @@ pub(crate) fn rebuild_dm_sidebar(gui_state: &mut GuiState) {
     let rebuilt: Vec<crate::gui::ChatDm> = summaries
         .iter()
         .map(|s| {
+            let text = dm_preview_text(&s.last_text);
             let preview = if s.last_from_me {
-                format!("You: {}", s.last_text)
+                format!("You: {}", text)
             } else {
-                s.last_text.clone()
+                text
             };
             crate::gui::ChatDm {
                 user_name: dm_display_name(gui_state, &s.peer),

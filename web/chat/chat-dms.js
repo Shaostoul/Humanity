@@ -139,7 +139,7 @@ function loadDmListFromStore() {
     partner_name: (window.peerData && peerData[s.peer]?.display_name)
       || dmConversations.find(c => c.partner_key === s.peer)?.partner_name
       || shortKey(s.peer),
-    last_message: s.lastFromMe ? ('You: ' + s.lastText) : s.lastText,
+    last_message: (s.lastFromMe ? 'You: ' : '') + dmSafePreview(s.lastText),
     last_timestamp: s.lastTs,
     unread_count: s.unread ? 1 : 0,
   })).concat(localOnly);
@@ -185,16 +185,94 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const e2eeBadge = isEncrypted ? '<span class="dm-e2ee" title="End-to-end encrypted" style="opacity:0.6;margin-left:var(--space-xs);">' + hosIcon('lock', 12) + '</span>' : '';
 
   const metaHtml = `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`;
+
+  // Encrypted attachment (2026-08-24): a [[hum:file:v1]] marker renders as a
+  // decrypt-on-view card, not raw text. The file's ciphertext is public but
+  // useless; the key rode in this sealed message.
+  const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
+  const bodyHtml = fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body);
+
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
     pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
-    bodyHtml: formatBody(body),
+    bodyHtml,
   });
 
   appendMessage(el);
+  if (fileMeta) hydrateEncAttachment(el, fileMeta);
   if (window.twemoji) twemoji.parse(el);
+}
+
+function _fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+/** The card shown before (and instead of, for non-images) decryption. */
+function encAttachmentPlaceholder(meta) {
+  const isImg = (meta.mime || '').startsWith('image/');
+  return `<div class="enc-attach" data-enc="1">
+    <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
+      <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
+    <div class="enc-attach-body">${isImg
+      ? '<div class="enc-attach-loading">Decrypting image…</div>'
+      : '<button class="enc-attach-dl">Decrypt & download</button>'}</div>
+  </div>`;
+}
+
+/** Fetch the ciphertext, decrypt with the in-envelope key, render/offer it. */
+async function hydrateEncAttachment(el, meta) {
+  const card = el.querySelector('.enc-attach');
+  const bodyEl = card && card.querySelector('.enc-attach-body');
+  if (!bodyEl) return;
+  const isImg = (meta.mime || '').startsWith('image/');
+  try {
+    const decryptToBlob = async () => {
+      const resp = await fetch(meta.url);
+      if (!resp.ok) throw new Error('fetch ' + resp.status);
+      const ct = new Uint8Array(await resp.arrayBuffer());
+      const plain = await pqDecryptFile(ct, meta.k, meta.n);
+      if (!plain) throw new Error('decrypt failed');
+      return new Blob([plain], { type: meta.mime || 'application/octet-stream' });
+    };
+    if (isImg) {
+      const blob = await decryptToBlob();
+      const url = URL.createObjectURL(blob);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = meta.name || 'image';
+      img.className = 'enc-attach-img';
+      img.loading = 'lazy';
+      img.onclick = () => window.open(url, '_blank');
+      bodyEl.innerHTML = '';
+      bodyEl.appendChild(img);
+    } else {
+      const btn = bodyEl.querySelector('.enc-attach-dl');
+      if (btn) {
+        btn.onclick = async () => {
+          btn.disabled = true; btn.textContent = 'Decrypting…';
+          try {
+            const blob = await decryptToBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = meta.name || 'attachment';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            btn.textContent = 'Downloaded';
+          } catch (e) {
+            btn.disabled = false; btn.textContent = 'Decrypt & download';
+            addSystemMessage('Could not decrypt attachment.');
+          }
+        };
+      }
+    }
+  } catch (e) {
+    bodyEl.innerHTML = '<div class="enc-attach-loading">🔒 Attachment unavailable (expired or unreachable).</div>';
+  }
 }
 
 // DM previews loaded from the zero-knowledge relay arrive as the raw E2EE
@@ -206,6 +284,9 @@ function dmSafePreview(raw) {
   if (/^\s*\{\s*"v"\s*:\s*\d/.test(raw) || raw.includes('"ek_ct') || /"r"\s*:\s*\{/.test(raw)) {
     return '🔒 Encrypted message';
   }
+  // Encrypted attachment marker: show a friendly label, never the base64.
+  const fm = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(raw) : null;
+  if (fm) return ((fm.mime || '').startsWith('image/') ? '🔒 Photo' : '🔒 ' + (fm.name || 'File'));
   return raw;
 }
 

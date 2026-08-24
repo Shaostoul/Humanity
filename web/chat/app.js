@@ -968,13 +968,16 @@ async function handleMessage(msg) {
       const isFromMe = inner.from === myKey;
       const peer = isFromMe ? inner.to : inner.from;
       const peerName = peerData[peer]?.display_name || shortKey(peer);
-      upsertDmConversation(peer, peerName, inner.text, inner.ts, !isFromMe);
+      // Encrypted-attachment markers show a friendly label in the sidebar
+      // and notification, but render as a decrypt card in the thread.
+      const previewText = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : inner.text;
+      upsertDmConversation(peer, peerName, previewText, inner.ts, !isFromMe);
       if (activeDmPartner === peer) {
         addDmMessage(isFromMe ? myName : peerName, inner.text, inner.ts, inner.from, inner.to, true);
         if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
       }
       if (!isFromMe) {
-        notifyNewMessage(peerName, inner.text, true);
+        notifyNewMessage(peerName, previewText, true);
       }
       break;
     }

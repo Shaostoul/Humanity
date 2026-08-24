@@ -190,7 +190,22 @@ The remaining server-held data classes and length/transport leaks, closed:
   wiretap-class exposure this document has flagged throughout. Additive; the
   clearnet endpoint is unchanged.
 
+- **Encrypted DM attachments (2026-08-24).** A file or photo shared in a DM is
+  now encrypted client-side (fresh AES-256-GCM key per file) BEFORE upload; the
+  server stores only opaque ciphertext at a public URL (harmless without the
+  key), and the key + nonce + metadata ride inside the sealed DM envelope as a
+  `[[hum:file:v1]]` marker. The recipient decrypts the envelope, fetches the
+  ciphertext, and decrypts it locally. This closes the gap where a "private" DM
+  photo used to sit as readable bytes at a public URL, exposed to the operator,
+  to anyone who obtained the URL, and to EXIF-style leakage. Public-channel
+  uploads are unchanged (public is public). Web renders encrypted images inline;
+  native encrypts on send and shows a labeled card on receive (full native
+  inline decrypt is a tracked follow-up). Relay side: `?encrypted=1` upload
+  mode stores an inert `.enc` blob, skipping format/EXIF handling on ciphertext.
+
 Remaining honest limits after this arc: certificates in v1 don't expire and
 can't be server-side revoked (unfriending is client-side); live traffic
 analysis by an active wire observer on the clearnet endpoint is still a
-mixnet problem the onion service sidesteps but doesn't universally solve.
+mixnet problem the onion service sidesteps but doesn't universally solve;
+group-chat attachments are not yet encrypted the way DM attachments are (a
+follow-up once the pattern is proven on DMs).

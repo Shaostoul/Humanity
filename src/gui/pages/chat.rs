@@ -59,10 +59,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let mime = mime_for_filename(&filename).to_string();
                         let server = state.server_url.clone();
                         let pk = state.profile_public_key.clone();
+                        // DM attachments are encrypted client-side (2026-08-24):
+                        // the file must be as private as the message.
+                        let is_dm = state.chat_active_channel.starts_with("dm:");
                         let (tx, rx) = std::sync::mpsc::channel();
                         std::thread::spawn(move || {
-                            let result = upload_file_blocking(
-                                &server, &pk, &filename, &mime, bytes, share,
+                            let result = prepare_attachment_send(
+                                &server, &pk, &filename, &mime, bytes, share, is_dm,
                             )
                             .map_err(|e| e.to_string());
                             let _ = tx.send(result);
@@ -96,10 +99,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let server = state.server_url.clone();
             let pk = state.profile_public_key.clone();
             let channel = state.chat_active_channel.clone();
+            // Pasting an image into a DM encrypts it too (2026-08-24).
+            let is_dm = channel.starts_with("dm:");
             let (tx, rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
-                let result = upload_image_png_blocking(&server, &pk, png_bytes)
-                    .map_err(|e| e.to_string());
+                let result = prepare_attachment_send(
+                    &server, &pk, "pasted-image.png", "image/png", png_bytes, false, is_dm,
+                )
+                .map_err(|e| e.to_string());
                 let _ = tx.send(result);
             });
             state.clipboard_upload = Some((channel, rx));
@@ -3231,10 +3238,24 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
                     let channeling = state.chat_user_modal_open
                         && msg.sender_key == state.chat_user_modal_key;
+                    // Encrypted DM attachment (2026-08-24): a FILE_MARKER carries
+                    // an opaque ciphertext reference, not text or an image URL.
+                    // Show a clean label instead of the raw base64 (full native
+                    // inline decrypt is a tracked follow-up; the web client
+                    // renders it inline today).
+                    let enc_att = crate::net::dm_pq::parse_file_marker(&msg.content);
                     // Extract image URLs from the message so we can render them
                     // as inline thumbnails instead of raw /uploads/... text.
-                    let image_urls = crate::gui::widgets::image_cache::extract_image_urls(&msg.content);
-                    let display_text = if image_urls.is_empty() {
+                    let image_urls = if enc_att.is_some() {
+                        Vec::new()
+                    } else {
+                        crate::gui::widgets::image_cache::extract_image_urls(&msg.content)
+                    };
+                    let display_text = if let Some(ref att) = enc_att {
+                        let kb = (att.size as f64 / 1024.0).max(1.0).round() as u64;
+                        let kind = if att.mime.starts_with("image/") { "photo" } else { "file" };
+                        format!("Encrypted {kind}: {} ({} KB). Open in the web app to view.", att.name, kb)
+                    } else if image_urls.is_empty() {
                         msg.content.clone()
                     } else {
                         crate::gui::widgets::image_cache::strip_image_urls(&msg.content)
@@ -7749,9 +7770,60 @@ pub(crate) fn upload_file_blocking(
     bytes: Vec<u8>,
     share: bool,
 ) -> Result<String, String> {
+    upload_file_blocking_ext(server_url, public_key, filename, mime, bytes, share, false)
+}
+
+/// Prepare an attachment for sending and return the message CONTENT string to
+/// route through the normal send path (2026-08-24). For a DM the file is
+/// encrypted client-side, the ciphertext is uploaded, and a FILE_MARKER
+/// (carrying the key inside the sealed envelope) is returned. For a public
+/// channel the plain file is uploaded and its URL is returned. Runs on the
+/// upload worker thread.
+pub(crate) fn prepare_attachment_send(
+    server_url: &str,
+    public_key: &str,
+    filename: &str,
+    mime: &str,
+    bytes: Vec<u8>,
+    share: bool,
+    is_dm: bool,
+) -> Result<String, String> {
+    if is_dm {
+        let size = bytes.len() as u64;
+        let (ciphertext, k, n) = crate::net::dm_pq::encrypt_attachment(&bytes)?;
+        let url = upload_file_blocking_ext(
+            server_url, public_key, "attachment.enc", "application/octet-stream",
+            ciphertext, false, true,
+        )?;
+        Ok(crate::net::dm_pq::build_file_marker(&crate::net::dm_pq::DmAttachment {
+            url,
+            k,
+            n,
+            name: filename.to_string(),
+            mime: mime.to_string(),
+            size,
+        }))
+    } else {
+        upload_file_blocking(server_url, public_key, filename, mime, bytes, share)
+    }
+}
+
+/// As `upload_file_blocking`, plus an `encrypted` flag. When set, the body is
+/// opaque ciphertext and the server skips format/EXIF handling
+/// (`?encrypted=1`). Used for private DM attachments (2026-08-24).
+pub(crate) fn upload_file_blocking_ext(
+    server_url: &str,
+    public_key: &str,
+    filename: &str,
+    mime: &str,
+    bytes: Vec<u8>,
+    share: bool,
+    encrypted: bool,
+) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
     let share_q = if share { "&share=1" } else { "" };
-    let upload_url = format!("{base}/api/upload?key={key}{share_q}", base = base, key = public_key);
+    let enc_q = if encrypted { "&encrypted=1" } else { "" };
+    let upload_url = format!("{base}/api/upload?key={key}{share_q}{enc_q}", base = base, key = public_key);
     let boundary = format!("HumanityOSBoundary{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

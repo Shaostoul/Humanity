@@ -876,6 +876,62 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
   }
 }
 
+// ── Encrypted private attachments (2026-08-24) ──────────────────────────────
+// A file shared in a DM must be as private as the message. We encrypt it with
+// a fresh random AES-256-GCM key BEFORE upload; the server stores only opaque
+// ciphertext at a public URL (harmless without the key), and the key + nonce +
+// metadata ride INSIDE the sealed DM envelope as a [[hum:file:v1]] marker. The
+// recipient decrypts the envelope, fetches the ciphertext, and decrypts it
+// locally. The server never sees the key or the plaintext.
+
+const FILE_MARKER = '[[hum:file:v1]]';
+
+/** Encrypt file bytes with a fresh key. Returns {cipherBytes, keyB64, nonceB64}. */
+async function pqEncryptFile(bytes) {
+  const rawKey = crypto.getRandomValues(new Uint8Array(32));
+  const key = await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
+  return {
+    cipherBytes: ct,
+    keyB64: btoa(String.fromCharCode(...rawKey)),
+    nonceB64: btoa(String.fromCharCode(...iv)),
+  };
+}
+
+/** Decrypt an encrypted attachment. Returns a Uint8Array or null. */
+async function pqDecryptFile(cipherBytes, keyB64, nonceB64) {
+  try {
+    const rawKey = Uint8Array.from(atob(keyB64), (c) => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(nonceB64), (c) => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes));
+  } catch (e) {
+    console.warn('pqDecryptFile failed (wrong key / tampered):', e && e.message);
+    return null;
+  }
+}
+
+/** Build the [[hum:file:v1]] marker text that rides in a sealed DM. */
+function pqBuildFileMarker(meta) {
+  const json = JSON.stringify(meta);
+  return FILE_MARKER + btoa(unescape(encodeURIComponent(json)));
+}
+
+/** Parse a file marker back to its metadata, or null if not a file message. */
+function pqParseFileMarker(text) {
+  if (typeof text !== 'string' || !text.startsWith(FILE_MARKER)) return null;
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(text.slice(FILE_MARKER.length)))));
+  } catch { return null; }
+}
+
+window.pqEncryptFile = pqEncryptFile;
+window.pqDecryptFile = pqDecryptFile;
+window.pqBuildFileMarker = pqBuildFileMarker;
+window.pqParseFileMarker = pqParseFileMarker;
+window.FILE_MARKER = FILE_MARKER;
+
 /**
  * Open a v2 wire envelope with OUR OWN Kyber secret and VERIFY the inner
  * Dilithium signature against the claimed `from` key. Returns the inner

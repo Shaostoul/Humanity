@@ -210,6 +210,64 @@ pub const CTL_FOLLOW: &str = "[[hum:follow]]";
 pub const CTL_UNFOLLOW: &str = "[[hum:unfollow]]";
 pub const CTL_FRIEND_CERT: &str = "[[hum:friend-cert]]";
 
+/// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
+/// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:
+/// the file's ciphertext sits at a public URL, and the AES key `k` + nonce `n`
+/// ride here inside the sealed envelope. Must match web (crypto.js FILE_MARKER).
+pub const FILE_MARKER: &str = "[[hum:file:v1]]";
+
+/// One attachment's metadata (decoded from a FILE_MARKER message).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DmAttachment {
+    pub url: String,
+    pub k: String,
+    pub n: String,
+    pub name: String,
+    pub mime: String,
+    pub size: u64,
+}
+
+/// Encrypt file bytes with a fresh AES-256-GCM key. Returns
+/// `(ciphertext, key_b64, nonce_b64)`. The key never leaves the client
+/// except inside the sealed DM envelope.
+pub fn encrypt_attachment(bytes: &[u8]) -> Result<(Vec<u8>, String, String), String> {
+    use aes_gcm::aead::rand_core::RngCore;
+    let mut raw_key = [0u8; 32];
+    AesOsRng.fill_bytes(&mut raw_key);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&raw_key));
+    let nonce_bytes = Aes256Gcm::generate_nonce(&mut AesOsRng);
+    let ct = cipher
+        .encrypt(Nonce::from_slice(nonce_bytes.as_slice()), bytes)
+        .map_err(|e| format!("attachment seal: {e}"))?;
+    Ok((ct, B64.encode(raw_key), B64.encode(nonce_bytes.as_slice())))
+}
+
+/// Decrypt an attachment's ciphertext with the key + nonce from its marker.
+pub fn decrypt_attachment(ciphertext: &[u8], key_b64: &str, nonce_b64: &str) -> Result<Vec<u8>, String> {
+    let raw_key = B64.decode(key_b64.trim()).map_err(|e| format!("key b64: {e}"))?;
+    let nonce = B64.decode(nonce_b64.trim()).map_err(|e| format!("nonce b64: {e}"))?;
+    if raw_key.len() != 32 || nonce.len() != 12 {
+        return Err("bad key/nonce length".into());
+    }
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&raw_key));
+    cipher
+        .decrypt(Nonce::from_slice(&nonce), ciphertext)
+        .map_err(|e| format!("attachment open (wrong key / tampered): {e}"))
+}
+
+/// Build the FILE_MARKER message text for a sealed DM.
+pub fn build_file_marker(att: &DmAttachment) -> String {
+    let json = serde_json::to_string(att).unwrap_or_default();
+    format!("{FILE_MARKER}{}", B64.encode(json.as_bytes()))
+}
+
+/// Parse a FILE_MARKER message back to attachment metadata, or None.
+pub fn parse_file_marker(text: &str) -> Option<DmAttachment> {
+    let rest = text.strip_prefix(FILE_MARKER)?;
+    let json = B64.decode(rest.trim()).ok()?;
+    serde_json::from_slice(&json).ok()
+}
+
 impl DmInner {
     /// Stable dedupe key for a message: the same inner payload arrives
     /// twice on a sender's own device (live echo of the self-copy + the
@@ -466,6 +524,38 @@ mod tests {
         assert_eq!(env_a.len(), env_b.len(), "ciphertext lengths must match");
         // And they still parse + verify.
         assert_eq!(parse_verify_inner(&open_v2(&bob_kp, &env_a).unwrap()).unwrap().text, "ok");
+    }
+
+    /// Encrypted attachment: roundtrip, wrong key fails, marker survives.
+    #[test]
+    fn attachment_encrypt_decrypt_and_marker() {
+        let plain = b"a private photo's raw bytes, GPS and all".to_vec();
+        let (ct, k, n) = encrypt_attachment(&plain).unwrap();
+        // Ciphertext must not equal plaintext and must not contain it.
+        assert_ne!(ct, plain);
+        assert!(!ct.windows(4).any(|w| w == b"GPS "));
+        // Correct key roundtrips.
+        assert_eq!(decrypt_attachment(&ct, &k, &n).unwrap(), plain);
+        // A different key fails (GCM tag).
+        let (_ct2, k2, n2) = encrypt_attachment(b"other").unwrap();
+        assert!(decrypt_attachment(&ct, &k2, &n2).is_err());
+        // The marker roundtrips its metadata.
+        let att = DmAttachment {
+            url: "/uploads/123_attachment.enc".into(),
+            k: k.clone(),
+            n: n.clone(),
+            name: "garden.jpg".into(),
+            mime: "image/jpeg".into(),
+            size: plain.len() as u64,
+        };
+        let marker = build_file_marker(&att);
+        assert!(marker.starts_with(FILE_MARKER));
+        let parsed = parse_file_marker(&marker).unwrap();
+        assert_eq!(parsed.name, "garden.jpg");
+        assert_eq!(parsed.k, k);
+        assert_eq!(parsed.size, plain.len() as u64);
+        // Plain text is not a marker.
+        assert!(parse_file_marker("just a normal message").is_none());
     }
 
     #[test]

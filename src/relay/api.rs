@@ -228,6 +228,14 @@ pub struct UploadQuery {
     /// FIFO. Default absent/0 = ordinary chat media (reachable by URL only,
     /// unlisted, FIFO-pruned as before).
     pub share: Option<u8>,
+    /// Encrypted DM/private attachment (2026-08-24): `?encrypted=1` means the
+    /// body is an OPAQUE client-side ciphertext blob (AES-256-GCM, key never
+    /// sent to the server; it rides inside the sealed DM envelope). The relay
+    /// skips MIME/magic-byte validation (ciphertext matches no format) and
+    /// EXIF stripping (nothing to read), stores it as a `.enc` file, and still
+    /// enforces the size, disk, role, and FIFO limits. A public URL to
+    /// ciphertext is harmless: only the recipient holds the key.
+    pub encrypted: Option<u8>,
 }
 
 /// Query params for GET /api/uploads (the shared-file library listing).
@@ -445,19 +453,26 @@ pub async fn upload_file(
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
         let filename = field.file_name().unwrap_or("upload").to_string();
 
+        // Encrypted private attachment (2026-08-24): the body is opaque
+        // AES-256-GCM ciphertext, so format validation and EXIF stripping do
+        // not apply. Size, disk, role, and FIFO limits still do.
+        let is_encrypted = query.encrypted.unwrap_or(0) == 1;
+
         // Get file extension from filename.
         let file_ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
         let is_tar_gz = filename.to_lowercase().ends_with(".tar.gz");
 
-        // Block dangerous executable extensions.
-        if BLOCKED_EXTENSIONS.contains(&file_ext.as_str()) {
+        // Block dangerous executable extensions (skipped for ciphertext: it is
+        // stored as an inert .enc blob that is never sniffed or executed).
+        if !is_encrypted && BLOCKED_EXTENSIONS.contains(&file_ext.as_str()) {
             return Err((StatusCode::BAD_REQUEST, format!("File type .{} is not allowed.", file_ext)));
         }
 
-        // Validate by either content type or extension.
+        // Validate by either content type or extension (ciphertext matches no
+        // format, so this is skipped for encrypted uploads).
         let type_ok = ALLOWED_TYPES.contains(&content_type.as_str());
         let ext_ok = ALLOWED_EXTENSIONS.contains(&file_ext.as_str()) || is_tar_gz;
-        if !type_ok && !ext_ok {
+        if !is_encrypted && !type_ok && !ext_ok {
             return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {} (.{})", content_type, file_ext)));
         }
 
@@ -467,9 +482,10 @@ pub async fn upload_file(
         // this also closes a pre-existing gap — image_sharing_enabled /
         // file_sharing_enabled were settable but NEVER enforced
         // server-side before now (only the chat UI hid the button).
-        // Reject before reading the body.
+        // Reject before reading the body. Encrypted attachments use the
+        // file-sharing capability (the server can't tell it's an image).
         {
-            let is_img = content_type.starts_with("image/");
+            let is_img = content_type.starts_with("image/") && !is_encrypted;
             if is_img {
                 if !(server_settings.image_sharing_enabled && uploader_rdef.can_image_share) {
                     return Err((StatusCode::FORBIDDEN,
@@ -509,8 +525,9 @@ pub async fn upload_file(
             )));
         }
 
-        // Validate magic bytes for images (strict).
-        let is_image = content_type.starts_with("image/");
+        // Validate magic bytes for images (strict). Encrypted blobs match no
+        // magic and are exempt (they are opaque ciphertext by design).
+        let is_image = content_type.starts_with("image/") && !is_encrypted;
         if is_image {
             let magic_ok = match content_type.as_str() {
                 "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
@@ -545,7 +562,10 @@ pub async fn upload_file(
         };
 
         // Determine the file extension for storage.
-        let ext = if is_tar_gz {
+        let ext = if is_encrypted {
+            // Opaque ciphertext: inert extension, never sniffed/executed.
+            "enc"
+        } else if is_tar_gz {
             "tar.gz"
         } else {
             match content_type.as_str() {
@@ -568,7 +588,8 @@ pub async fn upload_file(
         };
 
         // Determine file type category for the response.
-        let file_type = if content_type.starts_with("image/") { "image" }
+        let file_type = if is_encrypted { "encrypted" }
+            else if content_type.starts_with("image/") { "image" }
             else if content_type.starts_with("audio/") || ["mp3", "ogg", "wav"].contains(&ext) { "audio" }
             else if content_type.starts_with("video/") || ["mp4", "webm"].contains(&ext) { "video" }
             else if ["blend", "stl", "obj", "gltf", "glb"].contains(&ext) { "3d_model" }

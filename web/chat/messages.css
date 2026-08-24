@@ -625,3 +625,47 @@
     font-size: var(--text-xs);
   }
 }
+
+/* ── Encrypted DM attachments (2026-08-24) ──────────────────────────────
+   A file shared in a DM is encrypted client-side; the card decrypts on
+   view. The ciphertext on the server is opaque; only the recipient's key
+   (which rode in the sealed message) opens it. */
+.enc-attach {
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-secondary);
+  max-width: 340px;
+  overflow: hidden;
+}
+.enc-attach-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.enc-attach-head span:first-of-type { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.enc-attach-size { margin-left: auto; opacity: 0.8; }
+.enc-attach-body { padding: 8px 10px; }
+.enc-attach-loading { font-size: var(--text-xs); color: var(--text-muted); }
+.enc-attach-img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 6px;
+  cursor: zoom-in;
+}
+.enc-attach-dl {
+  font-size: var(--text-sm);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.enc-attach-dl:hover { background: var(--bg-hover); }
+.enc-attach-dl:disabled { opacity: 0.6; cursor: default; }

@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/chat/base.css?v=3">
   <link rel="stylesheet" href="/chat/layout.css?v=3">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
-  <link rel="stylesheet" href="/chat/messages.css?v=3">
+  <link rel="stylesheet" href="/chat/messages.css?v=4">
   <link rel="stylesheet" href="/chat/modals.css?v=3">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=3">
@@ -672,7 +672,7 @@
   <!-- Load order: bip39-english (wordlist) → crypto → app (core) → feature modules (each patches globals from prior scripts) -->
   <!-- bip39-english.js must load before crypto.js so generateMnemonic() and restoreIdentityFromMnemonic() have the wordlist -->
   <script src="/chat/bip39-english.js?v=1"></script>
-  <script src="/chat/crypto.js?v=5"></script>
+  <script src="/chat/crypto.js?v=6"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
@@ -686,9 +686,9 @@
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=7"></script>
-  <script src="/chat/chat-messages.js?v=4"></script>
-  <script src="/chat/chat-dms.js?v=5"></script>
+  <script src="/chat/app.js?v=8"></script>
+  <script src="/chat/chat-messages.js?v=5"></script>
+  <script src="/chat/chat-dms.js?v=6"></script>
   <script src="/chat/chat-social.js?v=8"></script>
   <script src="/chat/chat-groups-p2p.js?v=8"></script>
   <script src="/chat/chat-ui.js?v=5"></script>
