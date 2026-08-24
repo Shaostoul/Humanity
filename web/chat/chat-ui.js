@@ -330,9 +330,14 @@ handleMessage = function(msg) {
 };
 
 // ── Auto-resize textarea to fit content ──
+// Grows with the content up to ~45% of the viewport so a whole multi-paragraph
+// post is visible while you write and proofread it, instead of the old 150px
+// cap that scrolled a long post inside a cramped box. Past that it scrolls
+// (overflow-y:auto in inputs.css) so it can never eat the whole window.
 function autoResizeTextarea(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+  const cap = Math.round(window.innerHeight * 0.45);
+  el.style.height = Math.min(el.scrollHeight, cap) + 'px';
 }
 
 // ── Enter to send + Shift+Enter for newline + typing indicator ──

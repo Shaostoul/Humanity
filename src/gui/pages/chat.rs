@@ -3264,6 +3264,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // the help modal has advertised markdown all along). Markers
                     // are stripped HERE so the mention detection below and the
                     // row's char-indexed ranges all see the same display text.
+                    // Line-leading "- "/"* " -> a real bullet, parity with the
+                    // web client's list rendering. Width-preserving and done
+                    // BEFORE parse so the inline spans below stay char-aligned.
+                    let display_text = bulletize_list_lines(&display_text);
                     let (display_text, format_spans) =
                         crate::gui::widgets::msg_format::parse(&display_text);
                     let link_targets: Vec<String> = format_spans
@@ -4179,9 +4183,27 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // the caret. A fixed id keeps focus across any layout
                     // shift (typing rows, reply banners, resizes).
                     let response = ui.add(
-                        egui::TextEdit::singleline(&mut state.chat_input)
+                        // Multiline (v0.1206.x composer expand) so a
+                        // multi-paragraph post can be written AND proofread in
+                        // place instead of a cramped single line (operator
+                        // 2026-08-24: "never expands to show the whole post;
+                        // editing is miserable"). desired_rows(1) keeps it
+                        // one line tall until you actually write more, then it
+                        // grows with the content. Enter still SENDS (the
+                        // universal chat gesture + matches the web client);
+                        // return_key = Shift+Enter makes Shift+Enter the
+                        // newline. NOTE: with a non-plain return_key, egui does
+                        // NOT surrender focus on plain Enter for a multiline box
+                        // (see egui text_edit builder.rs ~L990) -- so the send
+                        // trigger below uses has_focus()+Enter, NOT lost_focus().
+                        egui::TextEdit::multiline(&mut state.chat_input)
                             .id(egui::Id::new("chat_composer_input"))
                             .desired_width((ui.available_width() - 210.0).max(120.0))
+                            .desired_rows(1)
+                            .return_key(Some(egui::KeyboardShortcut::new(
+                                egui::Modifiers::SHIFT,
+                                egui::Key::Enter,
+                            )))
                             .hint_text(hint),
                     );
 
@@ -4387,9 +4409,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     // Suppress the message-send when Enter was just used to
                     // pick a mention from the autocomplete popup.
+                    //
+                    // The composer is now a multiline TextEdit with
+                    // return_key = Shift+Enter, so plain Enter is NOT consumed
+                    // by the box (it neither inserts a newline nor surrenders
+                    // focus). We therefore detect the send on has_focus()+Enter
+                    // (shift excluded, since Shift+Enter is the newline) rather
+                    // than the old singleline lost_focus() path.
                     let enter_pressed = !mention_took_enter
-                        && response.lost_focus()
-                        && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        && response.has_focus()
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
 
                     // Search button — opens the message search modal.
                     if widgets::Button::ghost("🔍").tooltip("Search messages in this channel").show(ui, theme) {
@@ -4450,6 +4479,49 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+}
+
+/// Render line-leading list markers as a real bullet on native, matching the
+/// web client, whose `formatBody` turns `- x` / `* x` into a `<ul>` list.
+///
+/// This is a WIDTH-PRESERVING text substitution done BEFORE
+/// `msg_format::parse`, which is the whole reason it's safe: the 2-char marker
+/// `"- "` / `"* "` becomes the 2-char `"\u{2022} "` (bullet + space), so the
+/// char-indexed inline spans (bold/italic/mention/link) computed by `parse`
+/// stay perfectly aligned. `\u{2022}` (•) is in the General Punctuation block,
+/// which the app font renders reliably.
+///
+/// Requires the trailing space (same rule as web's `/^[-*] /`), so an inline
+/// `*italic*` and a bare `-` in prose are left alone. Leading indentation is
+/// preserved so nested-looking lists keep their indent. Block-level quotes and
+/// headings remain a follow-up (native `msg_format` is inline-only).
+fn bulletize_list_lines(s: &str) -> String {
+    // Fast path: the overwhelmingly common message has no line-leading marker,
+    // so avoid rebuilding the string. `.any` over the (usually one) line is cheap.
+    let has_marker = s.split('\n').any(|l| {
+        let t = l.trim_start();
+        t.starts_with("- ") || t.starts_with("* ")
+    });
+    if !has_marker {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    for (i, line) in s.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let indent_len = line.len() - line.trim_start().len();
+        let (indent, rest) = line.split_at(indent_len);
+        if let Some(after) = rest.strip_prefix("- ").or_else(|| rest.strip_prefix("* ")) {
+            out.push_str(indent);
+            out.push('\u{2022}'); // • bullet, General Punctuation (font-safe)
+            out.push(' ');
+            out.push_str(after);
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
 }
 
 /// Human-readable label for a chat channel id (v0.772): server channels show
@@ -8187,6 +8259,8 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Formatting Tips").size(theme.font_size_body + 2.0).color(section_color).strong());
                     ui.add_space(4.0);
                     ui.label(RichText::new("**bold**, *italic*, `code`, ~~strike~~").size(theme.font_size_body).color(desc_color));
+                    ui.label(RichText::new("Start a line with \"- \" for a bullet list").size(theme.font_size_body).color(desc_color));
+                    ui.label(RichText::new("Enter sends; Shift+Enter starts a new line").size(theme.font_size_body).color(desc_color));
                     ui.label(RichText::new("Click the reply arrow on any message to reply").size(theme.font_size_body).color(desc_color));
                 });
     });
@@ -8441,6 +8515,49 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
         if let Some(ref webrtc) = state.webrtc {
             webrtc.close_peer(peer_key);
         }
+    }
+}
+
+#[cfg(test)]
+mod bulletize_tests {
+    use super::bulletize_list_lines;
+
+    #[test]
+    fn plain_message_is_untouched() {
+        assert_eq!(bulletize_list_lines("hello there"), "hello there");
+        assert_eq!(bulletize_list_lines("line one\nline two"), "line one\nline two");
+    }
+
+    #[test]
+    fn dash_and_star_line_starts_become_a_bullet() {
+        assert_eq!(bulletize_list_lines("- apples\n- pears"), "\u{2022} apples\n\u{2022} pears");
+        assert_eq!(bulletize_list_lines("* one"), "\u{2022} one");
+    }
+
+    #[test]
+    fn leading_indentation_is_preserved() {
+        assert_eq!(bulletize_list_lines("  - nested"), "  \u{2022} nested");
+    }
+
+    #[test]
+    fn inline_emphasis_and_mid_line_dashes_are_left_alone() {
+        // No trailing space after the leading `*` => an italic run, not a list.
+        assert_eq!(bulletize_list_lines("*italic* text"), "*italic* text");
+        // A dash that isn't at the line start is prose, not a bullet.
+        assert_eq!(bulletize_list_lines("a - b"), "a - b");
+        // A bare marker with no following space is left as-is.
+        assert_eq!(bulletize_list_lines("-x"), "-x");
+    }
+
+    #[test]
+    fn substitution_is_width_preserving_so_inline_spans_stay_aligned() {
+        // The whole point: "- " (2 chars) -> "\u{2022} " (2 chars), so a bold
+        // run later on the same line keeps its char offsets. The char count of
+        // each line must be identical before and after.
+        let src = "- buy *milk* today";
+        let out = bulletize_list_lines(src);
+        assert_eq!(src.chars().count(), out.chars().count());
+        assert!(out.starts_with("\u{2022} buy *milk* today"));
     }
 }
 

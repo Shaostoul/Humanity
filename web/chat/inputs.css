@@ -23,7 +23,7 @@
   font-family: inherit;
   resize: none;
   min-height: 38px;
-  max-height: 150px;
+  max-height: 45vh; /* was 150px; grows to fit a whole post, then scrolls */
   overflow-y: auto;
   line-height: 1.4;
 }
