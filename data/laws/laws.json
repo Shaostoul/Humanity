@@ -225,6 +225,22 @@
       ]
     },
     {
+      "id": "usa-right-to-keep-and-bear-arms-2nd-amendment",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Rights",
+      "title": "Right to keep and bear arms (2nd Amendment)",
+      "summary": "The Supreme Court reads this as an individual right to keep and carry commonly used weapons for lawful purposes such as self-defense, most clearly in the home (District of Columbia v. Heller, 2008), and applied to the states in McDonald v. Chicago (2010). It is not unlimited: bans on possession by felons and by people under domestic-violence orders, restrictions in sensitive places such as schools and government buildings, and conditions on commercial sale have all been upheld. Since New York State Rifle and Pistol Association v. Bruen (2022), a firearm regulation must fit the country's historical tradition of firearm regulation. States differ widely, so see the Washington entries for what actually applies where you live.",
+      "source": "U.S. Constitution, Amendment II; District of Columbia v. Heller (2008); McDonald v. Chicago (2010); New York State Rifle and Pistol Association v. Bruen (2022)",
+      "tags": [
+        "bear arms",
+        "firearms",
+        "self-defense",
+        "second amendment",
+        "weapons"
+      ]
+    },
+    {
       "id": "usa-protection-from-unreasonable-search-and-seizure-4th-amendmen",
       "jurisdiction": "usa",
       "kind": "real",
