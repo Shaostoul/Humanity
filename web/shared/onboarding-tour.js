@@ -34,6 +34,11 @@
         'pointer-events:none;transition:opacity 0.25s;' +
       '}' +
       '#hos-tour-overlay.active { pointer-events:auto; }' +
+      // On a step with no highlight target the highlight (and its 9999px
+      // dimming shadow) is switched off, which left the overlay fully
+      // transparent AND click-eating: the page looked normal and simply stopped
+      // responding. Dim it so the modal state is always visible to the user.
+      '#hos-tour-overlay.no-target { background:rgba(0,0,0,0.65); }' +
 
       '#hos-tour-highlight {' +
         'position:fixed;z-index:10001;' +
@@ -130,6 +135,7 @@
     if (!targetEl) {
       // Centered modal (no target element)
       highlight.style.display = 'none';
+      if (overlay) overlay.classList.add('no-target');
       popover.style.left = '50%';
       popover.style.top = '50%';
       popover.style.transform = 'translate(-50%, -50%)';
@@ -143,6 +149,7 @@
     var pad = 6;
 
     // Position highlight around target
+    if (overlay) overlay.classList.remove('no-target');
     highlight.style.display = 'block';
     highlight.style.left = (rect.left - pad) + 'px';
     highlight.style.top = (rect.top - pad) + 'px';
@@ -340,7 +347,14 @@
   window.startOnboardingTour = startTour;
 
   // ── Auto-start for first-time users ──
-  if (!localStorage.getItem('hos_tour_completed')) {
+  // Never on the landing page. The overlay is a full-viewport click catcher, so
+  // auto-firing it two seconds after load meant a first-time visitor's tap on
+  // "Get the free app" hit the overlay instead of the button, and only
+  // dismissed the tour. The front door has to answer "what is this" before it
+  // offers a guided tour, so there the tour stays opt-in via the "Take Tour"
+  // footer link that shell.js already injects.
+  var onLandingPage = location.pathname.replace(/\/index\.html$/, '/') === '/';
+  if (!onLandingPage && !localStorage.getItem('hos_tour_completed')) {
     setTimeout(function () {
       // Only auto-start if still no completion flag (user might have set it elsewhere)
       if (!localStorage.getItem('hos_tour_completed')) {

@@ -340,7 +340,7 @@
       <div style="font-size: 0.85rem; color: var(--accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;">First time here?</div>
       <h2 style="font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 12px; font-weight: 800;">Welcome to HumanityOS</h2>
       <p style="color: var(--text-muted); margin: 0 0 8px; line-height: 1.6;">
-        A free platform where anyone can learn self-sufficiency, share knowledge, trade, and build together. No ads, no accounts, no owner.
+        A free platform where anyone can learn self-sufficiency, share knowledge, trade, and build together. No ads, no email or password, no owner.
         Read about it below, or pick a name and jump straight into the community.
       </p>
       <p style="color: var(--text-muted); margin: 0 0 20px; line-height: 1.6; font-size: 0.9rem;">
@@ -351,7 +351,7 @@
       </p>
       <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 0 auto;">
         <input id="welcome-name" type="text" placeholder="Your chosen name (letters, numbers, _ -)"
-               style="flex: 1; min-width: 220px; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary);"
+               style="flex: 1; min-width: 220px; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text);"
                maxlength="24" autofocus>
         <button id="welcome-join" style="padding: 12px 22px; font-size: 1rem; font-weight: 700; border: none; border-radius: 8px; background: var(--accent); color: var(--text-on-accent, #000); cursor: pointer;">
           Join the community
@@ -434,7 +434,13 @@
       <p class="sub">Pollution, poverty, corruption, fraud, tyranny. Five structures that hold people down. HumanityOS is free, open software engineered to dismantle each one. Not a slogan. An architecture.</p>
       <a class="cta-big" href="/download">Get the free app</a>
       <p class="quiet">Or scroll. See how the software does it.</p>
-      <p class="micro">Open source. No ads. No sign-up. Runs on old computers.</p>
+      <!-- "Runs on old computers" was false and had to go: the renderer is
+           DX12-only on Windows and Vulkan/Metal elsewhere, with
+           force_fallback_adapter:false, so there is no software path at all
+           (src/renderer/mod.rs). It also confused phone readers, who took it to
+           mean the site itself was for desktops only. Real requirements live on
+           /download; the browser version is the genuine low-end answer. -->
+      <p class="micro">Free and open source. No ads, no email, no password. For Windows, Mac or Linux.</p>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
@@ -449,7 +455,11 @@
       <svg viewBox="0 0 48 48"><circle cx="24" cy="22" r="11"/><ellipse cx="24" cy="22" rx="21" ry="6.5" transform="rotate(-24 24 22)"/></svg>
       <div>
         <div class="gp-title">A whole ship to run, in space.</div>
-        <div class="gp-sub">Explore, build, and keep your home alive. What you learn playing is real: growing food, catching water, making power.</div>
+        <!-- Stated as what it is becoming, not as a finished game. The game is
+             not playable end to end yet, and a visitor who downloads on the
+             strength of this screen and finds a tech demo is exactly how a bad
+             review gets written. -->
+        <div class="gp-sub">Explore, build, and keep your home alive. What you learn playing is real: growing food, catching water, making power. Still being built, in the open.</div>
       </div>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
@@ -459,7 +469,14 @@
   <section class="screen" id="s3">
     <div class="inner">
       <h2 class="u-blue">The same app helps in real life.</h2>
+      <p>Plain versions of the same jobs: what to do this week, what you planted, what you have to trade.</p>
     </div>
+    <!-- A real capture of the running app, not a mockup. The page shipped with
+         no product imagery at all and a caption admitting it, which reads to a
+         stranger as "there is nothing to show yet". Regenerate with
+         `just snapshots` (headless, no GPU) whenever the UI moves. -->
+    <img class="shot" src="/shared/landing/app-tasks.png" width="1280" height="900"
+         alt="The Tasks page: a to do, in progress and done board beside step by step guides for water, power and food.">
     <div class="cards">
       <div class="card c-green">
         <div class="card-art"><svg viewBox="0 0 48 48"><path d="M24 42 V22"/><path d="M24 23 C24 15 31 12 37 12 C37 20 30 23 24 23 Z"/><path d="M24 28 C24 22 17 20 11 20 C11 26 18 28 24 28 Z"/></svg></div>
@@ -474,7 +491,10 @@
       <div class="card c-blue">
         <div class="card-art"><svg viewBox="0 0 48 48"><path d="M12 18 H36 L30 12"/><path d="M36 30 H12 L18 36"/></svg></div>
         <div class="cap">Trade with people near you</div>
-        <div class="card-sub">A local market of real goods and services, from real people.</div>
+        <!-- /api/listings returns an empty array today. Promising "real goods
+             from real people" sends people to an empty page, which reads as
+             abandonware; an honest invitation does not. -->
+        <div class="card-sub">A local market for real goods and services. No listings yet, so be the first.</div>
       </div>
       <div class="card c-red">
         <div class="card-art"><svg viewBox="0 0 48 48"><path d="M9 11 h30 a3 3 0 0 1 3 3 v16 a3 3 0 0 1 -3 3 H20 l-8 7 v-7 H9 a3 3 0 0 1 -3 -3 V14 a3 3 0 0 1 3 -3 Z"/></svg></div>
@@ -482,7 +502,6 @@
         <div class="card-sub">Community chat that no company owns or can shut off.</div>
       </div>
     </div>
-    <p class="cards-note">Clean placeholders while we capture better screenshots.</p>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
@@ -498,7 +517,7 @@
         </li>
         <li>
           <span class="adv adv-tyranny">Tyranny</span>
-          <div class="body"><b>You own your identity.</b> Your account is a key on your device, not something a company can suspend. No one owns the network; anyone can run a piece of it, and it keeps working when the grid and the internet don't. In the built-in governance, authority is granted by consent that is informed, ongoing, and revocable.</div>
+          <div class="body"><b>You own your identity.</b> Your identity is a key kept on your device, not a login a company can suspend. No one owns the network; anyone can run a piece of it, and it keeps working when the grid and the internet don't. In the built-in governance, authority is granted by consent that is informed, ongoing, and revocable.</div>
         </li>
         <li>
           <span class="adv adv-corruption">Corruption</span>
@@ -524,7 +543,7 @@
       <h2>It costs nothing.</h2>
       <ul class="free-list">
         <li><span class="ck">&#10003;</span>No ads.</li>
-        <li><span class="ck">&#10003;</span>No accounts.</li>
+        <li><span class="ck">&#10003;</span>No email or password.</li>
         <li><span class="ck">&#10003;</span>No subscriptions.</li>
         <li><span class="ck">&#10003;</span>Free today, free forever.</li>
       </ul>
@@ -561,17 +580,17 @@
       <h2>Come build it with us.</h2>
       <div class="home-ctas">
         <a class="cta-big" href="/download">Download the app</a>
-        <a class="cta-second" href="/chat">Say hello in chat</a>
+        <!-- Goes via the welcome step deliberately: /chat bounces any visitor
+             with no key straight back here with location.replace, so linking it
+             directly sent people who read the whole page back to its top with a
+             dead back button. -->
+        <a class="cta-second" href="/?welcome=1&amp;return=/chat">Say hello in chat</a>
       </div>
       <p class="donate-line">HumanityOS runs on donations. If you can give, <a href="/donate">thank you</a>.</p>
     </div>
   </section>
 
   <script>
-  document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
-    if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
-  });
-
   // Years of work, counted from the first commit in 2019 so it never goes stale.
   (function () {
     var el = document.getElementById('proof-years');
