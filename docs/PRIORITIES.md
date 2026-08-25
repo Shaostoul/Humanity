@@ -177,6 +177,64 @@
 
 ## Active focus
 
+> **>>> TIER 0: SCHEDULED RE-VOTES (operator design, 2026-08-25). SPEC, NOT BUILT.**
+>
+> Operator: "I like the votes having the option to be final and being open to
+> revision at a later time. Like maybe once a year we can revote on certain
+> things. That way if something about our way of life changes we can actually
+> vote to change things." His examples: laws that do not accommodate AI and now
+> need to, or a technology that changes the paradigm for a lot of things.
+>
+> This resolves a real tension, and it resolves it BETTER than the obvious
+> reading. The obvious reading was "let people edit a cast vote". That would
+> fight the architecture: votes are Dilithium-signed objects, and the relay
+> stores the first vote per identity with INSERT OR IGNORE
+> (src/relay/storage/governance.rs:169). An editable signed object is a
+> contradiction, and an audit trail you can rewrite is not an audit trail.
+>
+> **The design instead: never mutate a vote, SUPERSEDE a decision.**
+> - A cast vote stays immutable and final. Unchanged from today.
+> - A proposal carries a review date or cadence (for example one year). When it
+>   arrives, the system OPENS A NEW PROPOSAL on the same question, linked to the
+>   old one as its successor.
+> - The standing answer is "the most recent closed decision in the chain". The
+>   whole chain stays visible: what was decided, when, by what weight, and when
+>   it is next up for review. That is a feature, not overhead, because seeing
+>   that a rule was reaffirmed three times is itself information.
+> - Early trigger: a petition threshold reopens a question before its scheduled
+>   date, for exactly the case the operator described, where the world changes
+>   faster than the cadence.
+>
+> Work required, roughly in order:
+> 1. Schema: `review_after` / `review_cadence` and `supersedes` on proposal
+>    objects (data/governance/proposal_types.ron + the signed-object shape).
+> 2. Relay: resolve a chain to its current standing decision; expose the chain.
+> 3. A scheduler that opens the successor proposal when a review date arrives.
+> 4. UI on both clients: show the standing answer, the history, and the next
+>    review date. Native first per the Rust-first rule, then web mirrors.
+> 5. Petition threshold for early reopening.
+>
+> **Blocked-ish dependency worth knowing:** casting a vote is NATIVE ONLY today.
+> Web's vote button is a stub because it needs canonical-CBOR signing in JS plus
+> a cross-language KAT. Re-votes are worth little if most people land on the web
+> and cannot vote, so web voting is arguably the prerequisite item.
+>
+> **Open, and the operator's to answer, not ours:** he holds that free speech and
+> self-defense are universal rights that ought to be global. Asserting that
+> belongs in the "base" set, which is distilled from the Humanity Accord. The
+> Accord today protects "diversity of culture, belief, and expression"
+> (humanity_accord.md:98) but does NOT name speech or self-defense as rights.
+> Adding them is new Accord doctrine and needs his words, not ours. The
+> descriptive half is already done: the real-law set now carries the 2nd
+> Amendment beside the 1st, 4th, 5th, 6th and 14th, and Washington already
+> covers reasonable force in self-defense plus firearm carry and storage.
+>
+> Already true and NOT to be rebuilt: the jurisdiction tree is Humanity > Earth
+> > United States > Washington > Kitsap County > Silverdale, and rules are
+> already tagged by jurisdiction and category (Rights, Speech and association,
+> Privacy, ...). Location categorisation exists; it does not need inventing.
+
+
 > **>>> TIER 0 NEWEST (2026-08-25): THE FRONT DOOR. Shipped v0.1212.0, ONE DECISION OPEN.**
 >
 > Real people handed the operator's phone could not say what the site was. Two
