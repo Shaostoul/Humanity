@@ -185,9 +185,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 )
                                 .wrap_mode(egui::TextWrapMode::Extend),
                             );
+                            // Gated rules do not leak their summary into the
+                            // collapsed preview either, which is the easy half
+                            // to forget: the preview is what a person reads
+                            // while scrolling, without ever opening the row.
+                            let preview = if r.is_gated() {
+                                "Not shown: this one can cost you your liberty and nobody has \
+                                 checked it. Read the source."
+                                    .to_string()
+                            } else {
+                                r.summary.clone()
+                            };
                             ui.add(
                                 egui::Label::new(
-                                    RichText::new(&r.summary)
+                                    RichText::new(preview)
                                         .color(theme.text_secondary())
                                         .size(theme.font_size_small),
                                 )
@@ -196,7 +207,22 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         },
                         |ui| {
                             ui.add_space(theme.spacing_xs);
-                            ui.label(RichText::new(&r.summary).color(theme.text_secondary()));
+                            if r.is_gated() {
+                                ui.label(
+                                    RichText::new(
+                                        "We are not going to summarise this one. Getting it wrong \
+                                         here means prison or a death, a short summary is exactly \
+                                         what drops the condition that matters, and nobody has \
+                                         checked this entry. Read the law itself, and talk to a \
+                                         person: a lawyer, your county public defender, or for \
+                                         anything involving violence at home, a domestic violence \
+                                         advocate.",
+                                    )
+                                    .color(theme.text_primary()),
+                                );
+                            } else {
+                                ui.label(RichText::new(&r.summary).color(theme.text_secondary()));
+                            }
                             if !r.source.is_empty() {
                                 ui.add_space(theme.spacing_xs);
                                 ui.label(
@@ -205,6 +231,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .size(theme.font_size_small),
                                 );
                             }
+                            // Provenance on EVERY rule, gated or not, so no row
+                            // can be read as checked when it never was.
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(
+                                RichText::new(r.provenance_line())
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
                             if !r.tags.is_empty() {
                                 ui.label(
                                     RichText::new(format!("Tags: {}", r.tags.join(", ")))
