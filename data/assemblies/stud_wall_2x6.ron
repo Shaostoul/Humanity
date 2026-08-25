@@ -1,0 +1,80 @@
+// A light-frame wood stud wall, as a RECIPE rather than as geometry.
+//
+// The player draws a line. This file says what a real wall made along that line
+// is actually built from, in what order, and why that order. The generator in
+// src/ship/assembly.rs expands the line plus this recipe into an ordered list of
+// placement steps, and that one list is used four ways:
+//   instant mode folds every step at once to make the mesh,
+//   animated mode plays the same steps over time,
+//   counting the parts gives a real cut list and shopping list,
+//   and each step's `why` is the thing the player actually learns.
+//
+// Infinite-of-x: this is data. Adding a metal-stud wall, a SIP panel, a cordwood
+// wall or a rammed-earth wall means adding a file here, never touching Rust.
+//
+// Dimensions are METRES because the engine is metric. Nominal imperial names are
+// kept in `label` because that is what a lumber yard sells and what a person
+// reading a cut list needs to ask for. A nominal "2x6" is actually 38mm x 140mm
+// dressed, which is exactly the sort of real-world gap this app should teach
+// rather than hide.
+(
+    id: "stud_wall_2x6",
+    label: "2x6 wood stud wall, 16 inch on centre",
+    // What this assembly is for, shown in the picker.
+    description: "The standard load-bearing exterior wall in North American light-frame construction. Deeper than a 2x4 wall, which buys you insulation depth and a bit more capacity.",
+
+    // ── Members ──
+    // `section` is (thickness_m, depth_m): the DRESSED size, not the nominal one.
+    members: [
+        (role: "bottom_plate", label: "2x6 bottom plate",   section: (0.038, 0.140), count_rule: "one_per_wall"),
+        (role: "top_plate",    label: "2x6 top plate",      section: (0.038, 0.140), count_rule: "two_per_wall"),
+        (role: "stud",         label: "2x6 stud",           section: (0.038, 0.140), count_rule: "spaced"),
+        (role: "king_stud",    label: "2x6 king stud",      section: (0.038, 0.140), count_rule: "two_per_opening"),
+        (role: "jack_stud",    label: "2x6 jack stud",      section: (0.038, 0.140), count_rule: "two_per_opening"),
+        (role: "header",       label: "header over opening", section: (0.089, 0.184), count_rule: "one_per_opening"),
+        (role: "sill",         label: "window sill plate",  section: (0.038, 0.140), count_rule: "one_per_window"),
+    ],
+
+    // Stud centre-to-centre spacing. 16 inches is 0.4064 m. 24 inch (0.6096) is
+    // the other common value and is a different file, not a toggle, because it
+    // changes the header and sheathing rules too.
+    spacing_m: 0.4064,
+
+    // ── Sequence ──
+    // The ORDER is the lesson. A stud wall is built flat on the deck and tilted
+    // up, which is why the plates come first and the sheathing can go on before
+    // it stands. Groups run in the order listed; steps inside a group run in
+    // their own order.
+    sequence: [
+        (group: "layout",    why: "Mark the stud positions on both plates at once, so every stud lands in the same place on the top and the bottom. Measuring each stud separately is how walls end up out of square."),
+        (group: "plates",    why: "Bottom plate and the first top plate. The second top plate goes on later and laps the corners, which is what ties one wall to the next."),
+        (group: "openings",  why: "King studs run full height. Jack studs are cut short and carry the header. The header spans the hole, and everything above the opening bears on the jacks, not on the window."),
+        (group: "studs",     why: "Fill in the regular studs at spacing. Keep the layout consistent so sheathing edges land on framing, otherwise the panel edges have nothing to fasten to."),
+        (group: "sheathing", why: "Sheathing is what stops the wall racking sideways. Without it, or without bracing, a rectangle of studs folds over like a parallelogram. This is the part people leave off and it is the part holding the wall square."),
+        (group: "cap_plate", why: "The second top plate laps over the joint with the neighbouring wall, tying the walls into a continuous ring."),
+    ],
+
+    // ── Fastener schedule ──
+    // Real nailing schedules are the difference between a wall and a pile of
+    // wood, and they are exactly what people skip. `pattern` is what the player
+    // sees animated: where each fastener goes and in what order.
+    fasteners: [
+        (joint: "stud_to_plate",     kind: "framing nail 3.3x76mm", count: 2, pattern: "end_nail_through_plate",
+         why: "Two nails driven through the plate into the end of the stud. End grain holds badly, which is why the count matters and why a single nail is never enough."),
+        (joint: "header_to_jack",    kind: "framing nail 3.3x76mm", count: 3, pattern: "toe_nail_each_side",
+         why: "The header is carrying the load from above and handing it to the jack studs. This joint is a load path, not a spacer."),
+        (joint: "sheathing_to_stud", kind: "sheathing nail 2.9x63mm", count: 0, pattern: "150mm_edges_300mm_field",
+         why: "Closer spacing at the panel edges than in the middle, because the edges are where racking forces try to tear the panel off. Count is computed from the panel size, not fixed."),
+        (joint: "plate_lap",         kind: "framing nail 3.3x76mm", count: 4, pattern: "stagger",
+         why: "Staggered so the nails do not all sit in one grain line and split the plate."),
+    ],
+
+    // ── Sheathing ──
+    sheathing: (
+        label: "structural panel",
+        thickness_m: 0.011,
+        panel_w_m: 1.219,   // 4 ft
+        panel_h_m: 2.438,   // 8 ft
+        why: "Panels are 4 by 8 feet because that is what is sold, which is also why stud spacing is 16 or 24 inches: both divide 48 evenly so panel edges land on a stud.",
+    ),
+)

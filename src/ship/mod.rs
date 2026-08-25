@@ -3,6 +3,7 @@
 //! Ships are fleet vessels where players live, work, and travel between planets.
 //! Layouts are defined in RON data files under `data/ships/`.
 
+pub mod assembly;
 pub mod conduits;
 pub mod door_panels;
 pub mod fibonacci;
