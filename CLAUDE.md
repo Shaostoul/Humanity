@@ -205,6 +205,21 @@ Other things that follow from a shared checkout:
 - **Version bumps collide.** If `Cargo.toml` is already bumped but uncommitted, that is
   someone's pending `build-game` stamp: do NOT bump again (see the Version SOP), just
   commit your source and let their stamp carry the version.
+- **NEVER type a tag number from memory. Read it back from `Cargo.toml` after bumping.**
+  In a shared checkout another session ships releases while you work, so the version you
+  saw at the start of your session is stale by the time you tag. This produced a
+  mislabeled tag on 2026-08-25: a session that began at 0.1211.0 ran `bump-version.js
+  patch`, which printed `0.1214.1 -> 0.1214.2` because a concurrent session had shipped
+  three releases in between, and then tagged the commit `v0.1212.2` from its own stale
+  arithmetic. Per the never-delete/never-re-tag rule the stray tag was kept, the correct
+  `v0.1214.2` was tagged forward at the same commit, and the stray release was marked
+  pre-release so it could not take the Latest pointer. The safe pattern:
+  ```bash
+  node scripts/bump-version.js patch          # or minor
+  V=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
+  git commit -F msg.txt && git push origin main
+  git tag "v$V" && git push origin "v$V"      # the number comes from the file, not from you
+  ```
 - **`just clean-worktrees` stays operator-only** (see the START HERE note); it is even
   more dangerous with several sessions live.
 
