@@ -151,9 +151,12 @@ function loadDmListFromStore() {
  *  for us server-side (they auto-expire after the server TTL anyway; this
  *  is the immediate scrub). Local history on this device is untouched. */
 function purgeServerMailbox() {
-  if (!confirm('Delete all encrypted DM envelopes currently stored for you on the server?\n\nMessages already saved on your devices stay. Another device that hasn\'t synced yet won\'t receive what you delete.')) return;
+  // No confirm() dialog: the press-and-HOLD on the button IS the confirmation
+  // (see holdToConfirm / the .purge-mailbox-row wiring), so this only fires
+  // after a deliberate ~1.5s hold, never a stray click.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'dm_purge' }));
+    if (typeof addSystemMessage === 'function') addSystemMessage('Clearing your server mailbox…');
   }
 }
 
@@ -294,10 +297,18 @@ function dmSafePreview(raw) {
 function renderDmList() {
   const list = document.getElementById('dm-list');
   // Sealed-sender scrub control, always available at the foot of the list.
-  const purgeRow = '<div class="dm-item" style="opacity:0.7;" onclick="purgeServerMailbox()" title="Deletes the encrypted envelopes queued for you on the server. Local history stays.">'
-    + '<span class="dm-name">🗑 Delete my server mailbox</span></div>';
+  // PRESS-AND-HOLD, not a click: this scrubs the server mailbox for every
+  // device you haven't synced yet, so a single fat-fingered tap must not fire
+  // it (operator 2026-08-24). The .hold-ring fills over the hold; see
+  // holdToConfirm below. Mirrors native widgets::hold_to_confirm.
+  const purgeRow = '<div class="dm-item purge-mailbox-row" id="purge-mailbox-btn" '
+    + 'title="Press and HOLD to delete the encrypted envelopes queued for you on the server. Local history on your devices stays. Holding prevents an accidental misclick.">'
+    + '<span class="hold-ring" aria-hidden="true"></span>'
+    + '<span class="dm-name">Delete my server mailbox</span>'
+    + '<span class="hold-hint">hold</span></div>';
   if (dmConversations.length === 0) {
     list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    wirePurgeMailboxHold();
     return;
   }
 
@@ -320,5 +331,48 @@ function renderDmList() {
     </div>`;
   }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);
+  wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
+}
+
+/** Attach the press-and-hold gate to the mailbox-scrub row after each render. */
+function wirePurgeMailboxHold() {
+  const el = document.getElementById('purge-mailbox-btn');
+  if (el) holdToConfirm(el, { seconds: 1.5, onConfirm: purgeServerMailbox });
+}
+
+/**
+ * Press-and-HOLD confirmation for a destructive control, the web twin of native
+ * widgets::hold_to_confirm. The element must carry a `.hold-ring` child; this
+ * drives its `--hold-p` var 0 -> 1 over `seconds` while the primary pointer is
+ * held, then fires `onConfirm` once. Releasing early resets. A single misclick
+ * can therefore never fire the action. Reusable; promote to a shared UI file
+ * when a second caller appears.
+ */
+function holdToConfirm(el, { seconds = 1.5, onConfirm } = {}) {
+  let raf = null, start = null;
+  const stop = () => {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    start = null;
+    el.style.setProperty('--hold-p', 0);
+    el.classList.remove('holding');
+  };
+  const tick = (now) => {
+    if (start === null) start = now;
+    const p = Math.min(1, (now - start) / (seconds * 1000));
+    el.style.setProperty('--hold-p', p);
+    if (p >= 1) { stop(); if (onConfirm) onConfirm(); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return; // primary button only
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.classList.add('holding');
+    start = null;
+    if (!raf) raf = requestAnimationFrame(tick);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) =>
+    el.addEventListener(ev, stop)
+  );
 }
