@@ -1890,7 +1890,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
     widgets::body_hint(ui, theme, "The gate on destructive actions. Hold to the end to fire; release early to cancel.");
     if crate::gui::pages::chat::hold_to_confirm_button(
         ui, theme, egui::Id::new("bench_hold_3s"),
-        "Hold-to-confirm bar (3s)", "Hold to fire…", 3.0,
+        "Hold-to-confirm ring (3s)", "Hold to fire…", 3.0,
         "Demo only - completing this fires nothing.",
     ) {
         ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, "Hold bar (3s)".to_string()); });
@@ -1898,7 +1898,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
     ui.add_space(theme.spacing_xs);
     if crate::gui::pages::chat::hold_to_confirm_button(
         ui, theme, egui::Id::new("bench_hold_5s"),
-        "Hold-to-confirm bar (5s)", "Hold to fire…", 5.0,
+        "Hold-to-confirm ring (5s)", "Hold to fire…", 5.0,
         "Demo only - completing this fires nothing.",
     ) {
         ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, "Hold bar (5s)".to_string()); });

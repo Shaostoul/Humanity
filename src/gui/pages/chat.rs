@@ -4557,7 +4557,7 @@ pub(crate) fn hold_to_confirm_button(
 ) -> bool {
     let w = ui.available_width().max(180.0);
     let (rect, resp) =
-        ui.allocate_exact_size(egui::vec2(w, 24.0), egui::Sense::click_and_drag());
+        ui.allocate_exact_size(egui::vec2(w, 30.0), egui::Sense::click_and_drag());
     let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
     let holding = resp.is_pointer_button_down_on();
     if holding {
@@ -4572,23 +4572,42 @@ pub(crate) fn hold_to_confirm_button(
     }
     ui.ctx().data_mut(|d| d.insert_temp(id, progress));
 
-    ui.painter().rect_filled(rect, Rounding::same(4), theme.bg_card());
-    if progress > 0.0 {
-        let mut fill = rect;
-        fill.set_width(rect.width() * progress.clamp(0.0, 1.0));
-        ui.painter().rect_filled(fill, Rounding::same(4), theme.danger());
+    // A clock-style ring on the left fills as you hold, and the arc cycles RGB
+    // FAST (faster than the 3s nav channeling) so the wheel is as visible as
+    // possible - the operator found the old full-width fill bar "a bit much" and
+    // the ring more pleasant. The whole row is still the hold target.
+    if resp.hovered() || holding {
+        ui.painter().rect_filled(rect, Rounding::same(4), theme.bg_card());
     }
-    ui.painter().rect_stroke(
-        rect,
-        Rounding::same(4),
-        Stroke::new(theme.border_width, theme.danger()),
-        egui::epaint::StrokeKind::Inside,
-    );
+    let ring_r = 10.0;
+    let ring_c = egui::pos2(rect.left() + 6.0 + ring_r, rect.center().y);
+    // Faint full-circle track.
+    ui.painter()
+        .circle_stroke(ring_c, ring_r, Stroke::new(3.0, theme.border()));
+    // Progress arc from 12 o'clock, clockwise, in a fast-cycling RGB colour.
+    if progress > 0.0 {
+        let now = ui.input(|i| i.time);
+        let col = crate::gui::widgets::row::rgb_from_time(now * 15.0); // ~0.8s full cycle
+        let n = 48usize;
+        let filled = ((n as f32 * progress).ceil() as usize).clamp(1, n);
+        let mut pts = Vec::with_capacity(filled + 1);
+        for k in 0..=filled {
+            let a = -std::f32::consts::FRAC_PI_2
+                + std::f32::consts::TAU * (k as f32 / n as f32);
+            pts.push(egui::pos2(
+                ring_c.x + ring_r * a.cos(),
+                ring_c.y + ring_r * a.sin(),
+            ));
+        }
+        ui.painter()
+            .add(egui::Shape::line(pts, Stroke::new(3.0, col)));
+    }
+    // Label to the right of the ring.
     let label = if holding { held } else { idle };
-    let txt = if holding { Color32::WHITE } else { theme.text_primary() };
+    let txt = if holding { theme.danger() } else { theme.text_primary() };
     ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
+        egui::pos2(ring_c.x + ring_r + 10.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
         label,
         egui::FontId::proportional(theme.font_size_small),
         txt,

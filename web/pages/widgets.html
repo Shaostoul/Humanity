@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Widget Gallery, HumanityOS</title>
+  <title>Widget Playground, HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body { min-height: 100vh; }
@@ -63,11 +63,30 @@
     }
     .wg-hold.holding { border-color: var(--danger); color: var(--danger); }
     .wg-hold .ring {
-      width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto;
+      width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto;
       background: conic-gradient(var(--danger) calc(var(--hold-p, 0) * 1turn), var(--border) 0);
-      -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px);
-              mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+      -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.5px);
+              mask: radial-gradient(circle, transparent 5px, #000 5.5px);
     }
+    /* While holding, the arc cycles RGB fast so the wheel is maximally visible.
+       hos-hold-rgb is injected globally by /shared/hold-confirm.js. */
+    .wg-hold.holding .ring { animation: hos-hold-rgb 0.8s linear infinite; }
+
+    /* Cistercian numeral widget. */
+    .cis-wrap { display: flex; flex-wrap: wrap; gap: var(--space-xl); align-items: center; }
+    .cis-svg { background: var(--bg-card); border-radius: var(--radius); padding: 8px; }
+    .cis-svg line { stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
+    .cis-svg line.stave { stroke: var(--text); }
+    .cis-controls { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: var(--space-md); }
+    .cis-num { font-size: 1.8rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .cis-controls input[type=number] {
+      width: 90px; background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text); border-radius: var(--radius); padding: 6px 8px; font-size: 1rem;
+    }
+    .cis-controls input[type=range] { width: 100%; accent-color: var(--accent); }
+    .cis-parts { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+    .cis-part { font-size: 0.72rem; color: var(--text-muted); }
+    .cis-part b { color: var(--text); font-variant-numeric: tabular-nums; }
 
     /* Effect demos (channeling + badge pulse keyframes come from shell.js). */
     .wg-fx {
@@ -87,8 +106,8 @@
 <body>
   <div id="wg">
     <div>
-      <h1>Widget Gallery</h1>
-      <p class="lead">A safe place to see how the interface's interactive pieces behave, and why they behave that way. <strong>Everything here is inert</strong> - nothing you click, hold, or toggle triggers a real action. Use it to test that the effects work, or just to learn the building blocks.</p>
+      <h1>Widget Playground</h1>
+      <p class="lead">A sandbox for the interface's building blocks - the ones the real app uses, and experimental ones we're trying out. <strong>Everything here is inert</strong> - nothing you click, hold, or toggle triggers a real action, so it's a safe place to test that the effects work, prototype new widgets, and learn how each one behaves and why.</p>
     </div>
 
     <div class="wg-card">
@@ -138,6 +157,23 @@
         <label class="wg-toggle"><input type="checkbox"><span class="track"></span> Sample toggle (inert)</label>
       </div>
     </div>
+
+    <div class="wg-card">
+      <h2>Cistercian numerals (experimental)</h2>
+      <p class="why">A medieval monk's shorthand: one glyph encodes any number from 0 to 9999. A single vertical stave, four corners - units (top-right), tens (top-left), hundreds (bottom-right), thousands (bottom-left) - and each corner draws the digit 1 to 9, or nothing for 0. A whole base-10 number folded into one compact, dynamic symbol. We're trying it out as a dense way to show a count; drag the slider or type a number and watch the glyph rebuild.</p>
+      <div class="cis-wrap">
+        <svg class="cis-svg" id="cis-svg" width="140" height="180" viewBox="0 0 140 180" role="img" aria-label="Cistercian numeral"></svg>
+        <div class="cis-controls">
+          <div class="cis-num" id="cis-num">1988</div>
+          <input type="range" id="cis-range" min="0" max="9999" value="1988" aria-label="Number">
+          <div>
+            <label style="font-size:0.72rem;color:var(--text-muted);" for="cis-input">Type a number (0-9999): </label>
+            <input type="number" id="cis-input" min="0" max="9999" value="1988">
+          </div>
+          <div class="cis-parts" id="cis-parts"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/shared/events.js?v=1"></script>
@@ -171,6 +207,84 @@
           onConfirm: function () { say('✓ Inline hold complete (demo). Nothing happened.', true); },
         });
       }
+    })();
+  </script>
+  <script>
+    // Cistercian numeral widget: render 0-9999 as one glyph. A vertical stave;
+    // each of the four corners draws its digit (units top-right, tens top-left,
+    // hundreds bottom-right, thousands bottom-left). Digit shapes 1-9 are the
+    // standard construction; 0 draws nothing in that corner.
+    (function () {
+      var SVG = 'http://www.w3.org/2000/svg';
+      var svg = document.getElementById('cis-svg');
+      if (!svg) return;
+      var range = document.getElementById('cis-range');
+      var input = document.getElementById('cis-input');
+      var numEl = document.getElementById('cis-num');
+      var partsEl = document.getElementById('cis-parts');
+
+      var cx = 70, cy = 90, H = 60, A = 42, B = 40; // stave centre, half-height, arm, depth
+      // Which segments each digit draws, in the units local box:
+      //   TL(0,0) at the stave end, TR(A,0), BL(0,B), BR(A,B).
+      var SEG = {
+        1: ['h_top'], 2: ['h_bot'], 3: ['d_tl_br'], 4: ['d_bl_tr'],
+        5: ['h_top', 'd_bl_tr'], 6: ['v_right'], 7: ['h_top', 'v_right'],
+        8: ['h_bot', 'v_right'], 9: ['h_top', 'h_bot', 'v_right'],
+      };
+      function segPoints(name) {
+        if (name === 'h_top') return [0, 0, A, 0];
+        if (name === 'h_bot') return [0, B, A, B];
+        if (name === 'v_right') return [A, 0, A, B];
+        if (name === 'd_tl_br') return [0, 0, A, B];
+        if (name === 'd_bl_tr') return [0, B, A, 0];
+        return [0, 0, 0, 0];
+      }
+      // Per-corner transform: origin + sign of x (right/left) and y (down-from-top / up-from-bottom).
+      var QUAD = {
+        units:     { ox: cx, oy: cy - H, sx: 1,  sy: 1 },
+        tens:      { ox: cx, oy: cy - H, sx: -1, sy: 1 },
+        hundreds:  { ox: cx, oy: cy + H, sx: 1,  sy: -1 },
+        thousands: { ox: cx, oy: cy + H, sx: -1, sy: -1 },
+      };
+      function line(x1, y1, x2, y2, cls) {
+        var l = document.createElementNS(SVG, 'line');
+        l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+        l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+        if (cls) l.setAttribute('class', cls);
+        return l;
+      }
+      function draw(n) {
+        n = Math.max(0, Math.min(9999, n | 0));
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        svg.appendChild(line(cx, cy - H, cx, cy + H, 'stave')); // the stave
+        var digits = {
+          units: n % 10, tens: (n / 10 | 0) % 10,
+          hundreds: (n / 100 | 0) % 10, thousands: (n / 1000 | 0) % 10,
+        };
+        ['units', 'tens', 'hundreds', 'thousands'].forEach(function (q) {
+          var d = digits[q];
+          if (!d) return;
+          var t = QUAD[q];
+          SEG[d].forEach(function (segName) {
+            var p = segPoints(segName);
+            svg.appendChild(line(t.ox + t.sx * p[0], t.oy + t.sy * p[1],
+                                  t.ox + t.sx * p[2], t.oy + t.sy * p[3]));
+          });
+        });
+        numEl.textContent = n;
+        partsEl.innerHTML =
+          '<span class="cis-part">thousands <b>' + digits.thousands + '</b></span>' +
+          '<span class="cis-part">hundreds <b>' + digits.hundreds + '</b></span>' +
+          '<span class="cis-part">tens <b>' + digits.tens + '</b></span>' +
+          '<span class="cis-part">units <b>' + digits.units + '</b></span>';
+      }
+      function sync(v) {
+        v = Math.max(0, Math.min(9999, v | 0));
+        range.value = v; input.value = v; draw(v);
+      }
+      range.addEventListener('input', function () { sync(parseInt(range.value, 10) || 0); });
+      input.addEventListener('input', function () { sync(parseInt(input.value, 10) || 0); });
+      draw(1988);
     })();
   </script>
 </body>

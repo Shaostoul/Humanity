@@ -87,9 +87,13 @@
       const goBtn = document.createElement('button');
       goBtn.type = 'button';
       goBtn.className = 'hold-confirm-go';
+      const goRing = document.createElement('span');
+      goRing.className = 'hold-confirm-ring';
+      goRing.setAttribute('aria-hidden', 'true');
       const goLabel = document.createElement('span');
       goLabel.className = 'hold-confirm-golabel';
       goLabel.textContent = confirmLabel;
+      goBtn.appendChild(goRing);
       goBtn.appendChild(goLabel);
 
       actions.appendChild(cancelBtn);
@@ -135,17 +139,20 @@
       'border:1px solid var(--border,#444);border-radius:var(--radius,6px);',
       'padding:9px 16px;font-size:0.8rem;cursor:pointer;}',
       '.hold-confirm-cancel:hover{background:var(--bg-hover,#333);}',
-      '.hold-confirm-go{position:relative;overflow:hidden;border:1px solid var(--danger,#e05555);',
-      'border-radius:var(--radius,6px);background:transparent;color:var(--danger,#e05555);',
+      '.hold-confirm-go{display:inline-flex;align-items:center;justify-content:center;gap:8px;',
+      'border:1px solid var(--danger,#e05555);border-radius:var(--radius,6px);',
+      'background:transparent;color:var(--danger,#e05555);',
       'padding:9px 16px;font-size:0.8rem;font-weight:600;cursor:pointer;user-select:none;',
-      '-webkit-user-select:none;touch-action:none;min-width:150px;}',
-      /* danger fill sweeps left->right with the hold */
-      '.hold-confirm-go::before{content:"";position:absolute;inset:0;',
-      'background:var(--danger,#e05555);width:calc(var(--hold-p,0)*100%);',
-      'transition:none;z-index:0;}',
-      '.hold-confirm-go .hold-confirm-golabel{position:relative;z-index:1;}',
-      '.hold-confirm-go.holding{color:#fff;}',
+      '-webkit-user-select:none;touch-action:none;min-width:170px;}',
       '.hold-confirm-go:hover{background:rgba(224,85,85,0.12);}',
+      // Clock ring that fills clockwise with the hold; while holding, the arc
+      // cycles RGB FAST (hue-rotate) so the wheel is as visible as possible.
+      '.hold-confirm-ring{width:20px;height:20px;flex:0 0 auto;border-radius:50%;',
+      'background:conic-gradient(var(--danger,#e05555) calc(var(--hold-p,0)*1turn),var(--border,#555) 0);',
+      '-webkit-mask:radial-gradient(circle,transparent 5px,#000 5.5px);',
+      'mask:radial-gradient(circle,transparent 5px,#000 5.5px);}',
+      '.hold-confirm-go.holding .hold-confirm-ring{animation:hos-hold-rgb 0.8s linear infinite;}',
+      '@keyframes hos-hold-rgb{to{filter:hue-rotate(360deg);}}',
     ].join('');
     (document.head || document.documentElement).appendChild(style);
   }
