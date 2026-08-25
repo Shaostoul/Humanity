@@ -736,6 +736,23 @@ fn settings_panel(
 
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_widgets_settings() {
+    // The Widgets tab (theme sliders + live row preview) plus the v0.1214
+    // Effects test bench at the bottom (buttons, toggle, hold-to-confirm bar +
+    // pinwheel, channeling swatches). Rendered with a mutable Theme because the
+    // token sliders write to it (settings_panel only offers &Theme).
+    render_page_png("widgets_settings", 960, 3200, |ctx, theme, state| {
+        theme.apply_to_egui(ctx);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                crate::gui::pages::settings::draw_widgets_content(ui, theme, state);
+            });
+        });
+    });
+}
+
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_laws_page() {
     render_page_png("laws_page", 1400, 1400, |ctx, theme, state| {
         crate::gui::pages::laws::draw(ctx, theme, state);

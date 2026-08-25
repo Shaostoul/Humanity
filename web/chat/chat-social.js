@@ -241,8 +241,10 @@ function renderGroupList() {
           }
         }},
         // Leave, available to anyone. Removes me from the roster (self-leave).
-        { label: '🚪 Leave group', action: () => {
-          if (!confirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.')) return;
+        // 3s hold (operator 2026-08-25): a short gate so a stray tap doesn't
+        // drop you from a group you're active in; rejoining needs a new invite.
+        { label: '🚪 Leave group', action: async () => {
+          if (!await holdConfirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.', { seconds: 3 })) return;
           if (typeof window.leaveP2pGroup !== 'function') return;
           window.leaveP2pGroup(gid).catch((err) => {
             if (typeof addNotice === 'function') addNotice('Leave failed: ' + err.message, 'red', 6);

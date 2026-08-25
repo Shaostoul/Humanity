@@ -1267,7 +1267,17 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             if ui.button("Copy invite ticket").clicked() {
                                 p2p_copy_invite = Some((p.group_id.clone(), p.name.clone()));
                             }
-                            if ui.button("Leave group").clicked() {
+                            // 3s hold: a short gate so a stray tap doesn't drop
+                            // you from a group; rejoining needs a new invite.
+                            if hold_to_confirm_button(
+                                ui,
+                                theme,
+                                egui::Id::new(("p2p_leave_hold", p.group_id.as_str())),
+                                "Leave group (hold)",
+                                "Hold to leave…",
+                                3.0,
+                                "Press and HOLD to leave this group. You can rejoin later with a new invite ticket.",
+                            ) {
                                 p2p_leave_gid = Some(p.group_id.clone());
                             }
                             // Disband: creator only. Press-and-HOLD (5s): this
@@ -4533,7 +4543,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// completes, so a single click can never fire the action. `idle` / `held` are
 /// the labels shown before and during the hold. Uses the same `ctx.data_mut`
 /// progress technique as the shipped `hold_to_confirm` widget.
-fn hold_to_confirm_button(
+///
+/// `pub(crate)` so the Settings "Widgets" effects test bench can demo the exact
+/// same button the destructive chat actions use.
+pub(crate) fn hold_to_confirm_button(
     ui: &mut egui::Ui,
     theme: &Theme,
     id: egui::Id,

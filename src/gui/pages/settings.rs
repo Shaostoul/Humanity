@@ -1840,6 +1840,112 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                 });
             });
     });
+
+    // ── Effects test bench (v0.1214) ───────────────────────────────────
+    // A safe place to exercise the interactive widget EFFECTS - buttons,
+    // toggle, the press-and-hold confirm (both the full-width bar and the
+    // icon pinwheel), and the channeling animation - WITHOUT firing any real
+    // action. Everything here is inert; the only feedback is a transient
+    // "fired (demo)" flash. (Operator asked for a place to confirm the widget
+    // effects work without triggering functional buttons.)
+    ui.add_space(theme.spacing_lg);
+    widgets::section_header(ui, theme, "Effects test bench");
+    widgets::body_hint(
+        ui,
+        theme,
+        "Everything below is INERT - click, toggle and hold anything to watch the effect. Nothing here triggers a real action.",
+    );
+    ui.add_space(theme.spacing_sm);
+
+    let now = ui.input(|i| i.time);
+    let flash_t_id = egui::Id::new("widget_bench_flash_t");
+    let flash_l_id = egui::Id::new("widget_bench_flash_l");
+
+    // Buttons: every variant, inert.
+    ui.label(RichText::new("Buttons").size(theme.body_size).strong().color(theme.text_primary()));
+    let mut hit: Option<&str> = None;
+    ui.horizontal_wrapped(|ui| {
+        if widgets::Button::primary("Primary").show(ui, theme) { hit = Some("Primary button"); }
+        if widgets::Button::secondary("Secondary").show(ui, theme) { hit = Some("Secondary button"); }
+        if widgets::Button::ghost("Ghost").show(ui, theme) { hit = Some("Ghost button"); }
+        if widgets::Button::danger("Danger").show(ui, theme) { hit = Some("Danger button"); }
+    });
+    if let Some(l) = hit {
+        ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, l.to_string()); });
+    }
+    ui.add_space(theme.spacing_sm);
+
+    // Toggle: state parked in egui memory so it survives frames without a
+    // GuiState field (it's a demo, not a real setting).
+    ui.label(RichText::new("Toggle").size(theme.body_size).strong().color(theme.text_primary()));
+    let toggle_id = egui::Id::new("widget_bench_toggle");
+    let mut demo_on = ui.ctx().data_mut(|d| d.get_temp(toggle_id).unwrap_or(false));
+    if widgets::toggle(ui, theme, "Sample toggle (inert)", &mut demo_on) {
+        ui.ctx().data_mut(|d| d.insert_temp(toggle_id, demo_on));
+    }
+    ui.add_space(theme.spacing_sm);
+
+    // Press-and-hold confirm: the exact gate the destructive chat actions use.
+    ui.label(RichText::new("Press-and-hold confirm").size(theme.body_size).strong().color(theme.text_primary()));
+    widgets::body_hint(ui, theme, "The gate on destructive actions. Hold to the end to fire; release early to cancel.");
+    if crate::gui::pages::chat::hold_to_confirm_button(
+        ui, theme, egui::Id::new("bench_hold_3s"),
+        "Hold-to-confirm bar (3s)", "Hold to fire…", 3.0,
+        "Demo only - completing this fires nothing.",
+    ) {
+        ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, "Hold bar (3s)".to_string()); });
+    }
+    ui.add_space(theme.spacing_xs);
+    if crate::gui::pages::chat::hold_to_confirm_button(
+        ui, theme, egui::Id::new("bench_hold_5s"),
+        "Hold-to-confirm bar (5s)", "Hold to fire…", 5.0,
+        "Demo only - completing this fires nothing.",
+    ) {
+        ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, "Hold bar (5s)".to_string()); });
+    }
+    ui.add_space(theme.spacing_xs);
+    // The icon-sized pinwheel variant (used e.g. on the forget-server X).
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Pinwheel (2s):").size(theme.font_size_small).color(theme.text_muted()));
+        if widgets::hold_to_confirm(ui, theme, egui::Id::new("bench_hold_wheel"), "\u{00B7}", 2.0, "Demo pinwheel - fires nothing.") {
+            ui.ctx().data_mut(|d| { d.insert_temp(flash_t_id, now); d.insert_temp(flash_l_id, "Pinwheel (2s)".to_string()); });
+        }
+    });
+    ui.add_space(theme.spacing_sm);
+
+    // Channeling: the cycling border on active/attacking things. Uses the real
+    // channeling_color so it reflects the user's Animations setting.
+    ui.label(RichText::new("Channeling animation").size(theme.body_size).strong().color(theme.text_primary()));
+    widgets::body_hint(ui, theme, "The cycling border on active/attacking things. Reflects your Animations setting (Settings > Animations).");
+    let ch_idle = crate::gui::pages::escape_menu::channeling_color(theme, now as f32, false, theme.accent());
+    let ch_attack = crate::gui::pages::escape_menu::channeling_color(theme, now as f32, true, theme.danger());
+    ui.horizontal(|ui| {
+        for (label, col) in [("idle", ch_idle), ("attack", ch_attack)] {
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(44.0), egui::Sense::hover());
+            ui.painter().rect_filled(rect, egui::Rounding::same(6), theme.bg_card());
+            ui.painter().rect_stroke(rect, egui::Rounding::same(6), Stroke::new(2.5, col), egui::epaint::StrokeKind::Inside);
+            ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(theme.font_size_small), theme.text_muted());
+            ui.add_space(theme.spacing_xs);
+        }
+    });
+    // Keep the channeling border (and any in-progress hold ring) animating.
+    ui.ctx().request_repaint();
+    ui.add_space(theme.spacing_sm);
+
+    // Transient "fired" flash: visible confirmation that a click / hold
+    // completed, without any real action having run.
+    let last_t: f64 = ui.ctx().data(|d| d.get_temp(flash_t_id).unwrap_or(0.0));
+    // last_t > 0.0 gates out the default (nothing fired yet) so the flash never
+    // shows spuriously on the first frames of app life (now is near 0 then too).
+    if last_t > 0.0 && now - last_t < 2.0 {
+        let l: String = ui.ctx().data(|d| d.get_temp(flash_l_id).unwrap_or_default());
+        ui.label(
+            RichText::new(format!("\u{2713} {} fired (demo, nothing happened)", l))
+                .size(theme.font_size_small)
+                .color(theme.success()),
+        );
+        ui.ctx().request_repaint();
+    }
 }
 
 pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
