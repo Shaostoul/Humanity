@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS: Unite humanity in peaceful harmony</title>
-  <meta name="description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
+  <title>HumanityOS: free tools for food, water and power</title>
+  <meta name="description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no password.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS: Unite humanity in peaceful harmony">
-  <meta property="og:description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
+  <meta property="og:title" content="HumanityOS: free tools for food, water and power">
+  <meta property="og:description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no password.">
   <meta property="og:url" content="https://united-humanity.us">
   <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS: Unite humanity in peaceful harmony">
-  <meta name="twitter:description" content="HumanityOS is free, open software engineered to dismantle the five structures that hold humanity back - pollution, poverty, corruption, fraud, and tyranny - and to unite humanity in peaceful harmony. Not a slogan. An architecture.">
+  <meta name="twitter:title" content="HumanityOS: free tools for food, water and power">
+  <meta name="twitter:description" content="Free, open source tools for growing your own food, collecting your own water, and making your own power, plus a space game built on the same rules. No ads, no email, no password.">
   <meta name="twitter:image" content="https://united-humanity.us/shared/social/og-banner.png">
 
   <link rel="canonical" href="https://united-humanity.us/">
@@ -173,6 +173,27 @@
     }
     .cta-big:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(237,140,36,0.5); color: var(--text-on-accent, #000); }
     @media (max-width: 560px) { .cta-big { display: block; width: 100%; } }
+    .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .cta-see {
+      display: inline-block;
+      padding: 18px 30px;
+      min-height: 64px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 1.05rem;
+      font-weight: 700;
+      transition: border-color 0.12s;
+    }
+    .cta-see:hover { border-color: var(--accent); color: var(--text); }
+    @media (max-width: 560px) {
+      .cta-row { flex-direction: column; }
+      .cta-see { display: block; width: 100%; order: -1; }
+    }
+    /* Caption under the product shot. The page went from apologising for having
+       no screenshots to having one, so it should say what you are looking at. */
+    .shot-cap { color: var(--text-muted); font-size: 0.85rem; margin: 10px auto 0; max-width: 640px; }
     #s1 .quiet { margin-top: 22px; color: var(--text-secondary); font-size: 0.95rem; }
     #s1 .micro { margin-top: 6px; color: var(--text-muted); font-size: 0.8rem; }
 
@@ -198,6 +219,12 @@
     .shot {
       width: 100%;
       max-width: 860px;
+      /* Without this the width/height ATTRIBUTES on the img act as a
+         presentational height, so a 1280x900 capture rendered 860x900 and was
+         visibly stretched. The attributes stay: with height:auto they become an
+         aspect-ratio hint that reserves the right box before the image loads,
+         which is what stops the page jumping. */
+      height: auto;
       border-radius: 14px;
       border: 1px solid var(--border);
       box-shadow: 0 10px 44px rgba(0,0,0,0.65);
@@ -430,46 +457,27 @@
   <!-- ══ Screen 1: the promise ══ -->
   <section class="screen" id="s1">
     <div class="inner">
-      <h1>Unite humanity in peaceful harmony.</h1>
-      <p class="sub">Pollution, poverty, corruption, fraud, tyranny. Five structures that hold people down. HumanityOS is free, open software engineered to dismantle each one. Not a slogan. An architecture.</p>
-      <a class="cta-big" href="/download">Get the free app</a>
-      <p class="quiet">Or scroll. See how the software does it.</p>
+      <h1>Free tools for growing food, collecting water, and making power.</h1>
+      <p class="sub">One app for what you planted, what needs doing, and what you can trade with people near you. It also holds a space game built on the same rules, so playing it teaches the real thing.</p>
+      <div class="cta-row">
+        <a class="cta-big" href="/download">Download free</a>
+        <a class="cta-see" href="#s2">See what it looks like</a>
+      </div>
       <!-- "Runs on old computers" was false and had to go: the renderer is
            DX12-only on Windows and Vulkan/Metal elsewhere, with
            force_fallback_adapter:false, so there is no software path at all
            (src/renderer/mod.rs). It also confused phone readers, who took it to
            mean the site itself was for desktops only. Real requirements live on
            /download; the browser version is the genuine low-end answer. -->
-      <p class="micro">Free and open source. No ads, no email, no password. For Windows, Mac or Linux.</p>
+      <p class="micro">Windows, Mac or Linux. No ads, no email, no password. Open source, and still being built in the open since 2019.</p>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
-  <!-- ══ Screen 2: it starts as a game ══ -->
+  <!-- ══ Screen 2: show the tools before describing them ══ -->
   <section class="screen" id="s2">
     <div class="inner">
-      <h2 class="u-green">It starts as a game.</h2>
-      <p>You live on a big ship in space. You grow plants, fix things, and learn by playing.</p>
-    </div>
-    <div class="game-panel">
-      <svg viewBox="0 0 48 48"><circle cx="24" cy="22" r="11"/><ellipse cx="24" cy="22" rx="21" ry="6.5" transform="rotate(-24 24 22)"/></svg>
-      <div>
-        <div class="gp-title">A whole ship to run, in space.</div>
-        <!-- Stated as what it is becoming, not as a finished game. The game is
-             not playable end to end yet, and a visitor who downloads on the
-             strength of this screen and finds a tech demo is exactly how a bad
-             review gets written. -->
-        <div class="gp-sub">Explore, build, and keep your home alive. What you learn playing is real: growing food, catching water, making power. Still being built, in the open.</div>
-      </div>
-    </div>
-    <div class="chev" aria-hidden="true">&#9660;</div>
-  </section>
-
-  <!-- ══ Screen 3: the same app helps in real life ══ -->
-  <section class="screen" id="s3">
-    <div class="inner">
-      <h2 class="u-blue">The same app helps in real life.</h2>
-      <p>Plain versions of the same jobs: what to do this week, what you planted, what you have to trade.</p>
+      <h2 class="u-blue">Here is what you actually get.</h2>
     </div>
     <!-- A real capture of the running app, not a mockup. The page shipped with
          no product imagery at all and a caption admitting it, which reads to a
@@ -477,11 +485,20 @@
          `just snapshots` (headless, no GPU) whenever the UI moves. -->
     <img class="shot" src="/shared/landing/app-tasks.png" width="1280" height="900"
          alt="The Tasks page: a to do, in progress and done board beside step by step guides for water, power and food.">
+    <p class="shot-cap">The task board, beside step-by-step guides for water, power and food. It all lives on your own computer.</p>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
+
+  <!-- ══ Screen 3: the same app helps in real life ══ -->
+  <section class="screen" id="s3">
+    <div class="inner">
+      <h2 class="u-blue">Four things it does today.</h2>
+    </div>
     <div class="cards">
       <div class="card c-green">
         <div class="card-art"><svg viewBox="0 0 48 48"><path d="M24 42 V22"/><path d="M24 23 C24 15 31 12 37 12 C37 20 30 23 24 23 Z"/><path d="M24 28 C24 22 17 20 11 20 C11 26 18 28 24 28 Z"/></svg></div>
         <div class="cap">Grow your food</div>
-        <div class="card-sub">Track seeds, beds, and harvests. Learn real growing as you play.</div>
+        <div class="card-sub">Track seeds, beds and harvests, and what to plant next where you live.</div>
       </div>
       <div class="card c-purple">
         <div class="card-art"><svg viewBox="0 0 48 48"><rect x="7" y="11" width="34" height="26" rx="2"/><line x1="18.3" y1="11" x2="18.3" y2="37"/><line x1="29.6" y1="11" x2="29.6" y2="37"/></svg></div>
@@ -500,6 +517,16 @@
         <div class="card-art"><svg viewBox="0 0 48 48"><path d="M9 11 h30 a3 3 0 0 1 3 3 v16 a3 3 0 0 1 -3 3 H20 l-8 7 v-7 H9 a3 3 0 0 1 -3 -3 V14 a3 3 0 0 1 3 -3 Z"/></svg></div>
         <div class="cap">Talk freely</div>
         <div class="card-sub">Community chat that no company owns or can shut off.</div>
+      </div>
+    </div>
+    <div class="game-panel">
+      <svg viewBox="0 0 48 48"><circle cx="24" cy="22" r="11"/><ellipse cx="24" cy="22" rx="21" ry="6.5" transform="rotate(-24 24 22)"/></svg>
+      <div>
+        <div class="gp-title">And a game built on the same rules.</div>
+        <!-- Honest about the state. The game is not playable end to end yet,
+             and a visitor who downloads on the strength of this and finds a
+             tech demo is exactly how a bad review gets written. -->
+        <div class="gp-sub">You live on a ship in space and keep it alive: grow the food, catch the water, make the power. It works the way these things work in life, not the way they usually work in games, so you can practise a system before you depend on it. Still being built, and the devlog shows what changed today.</div>
       </div>
     </div>
     <div class="chev" aria-hidden="true">&#9660;</div>
@@ -586,7 +613,7 @@
              dead back button. -->
         <a class="cta-second" href="/?welcome=1&amp;return=/chat">Say hello in chat</a>
       </div>
-      <p class="donate-line">HumanityOS runs on donations. If you can give, <a href="/donate">thank you</a>.</p>
+      <p class="donate-line">Built in the open by <a href="https://github.com/Shaostoul">Shaostoul</a> since 2019, with help from anyone who shows up. Every line is public, and it runs on donations. If you can give, <a href="/donate">thank you</a>.</p>
     </div>
   </section>
 
