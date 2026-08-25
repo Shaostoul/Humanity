@@ -1573,6 +1573,549 @@
     "panics=0"
    ],
    "hold_altitude": true
+  },
+  {
+   "id": "timeflip-a",
+   "desc": "Operator time-flip repro: same camera, two game times 16 min apart - the deck was full at one and near-empty at the other.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 13.07,
+    "altitude_km": 20000
+   },
+   "settle_s": 14,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true
+  },
+  {
+   "id": "timeflip-b",
+   "desc": "Operator time-flip repro: same camera, two game times 16 min apart - the deck was full at one and near-empty at the other.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 13.33,
+    "altitude_km": 20000
+   },
+   "settle_s": 14,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true
+  },
+  {
+   "id": "covladder-30000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 30000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-20000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 20000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-13000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 13000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-09000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 9000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-06000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 6000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-04000",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 4000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-02500",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 2500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-01500",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 1500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-00900",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 900
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covladder-00400",
+   "desc": "Coverage-vs-distance ladder at ONE fixed spot with cloud TYPE and COVERAGE pinned (the white-continent lesson: an unpinned type field varies by region and fakes scale-dependence). Cloud fraction in the screen-centre crop must stay ~constant down the ladder; any step is a rendering defect.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 400
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "horizon-line-3km",
+   "desc": "Operator artifact: a dead-straight horizon line through the whole cloud layer, seen from inside/above the deck, gone once below it. Full coverage, horizontal look from 3 km.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 3,
+    "look_offset_deg": 90
+   },
+   "settle_s": 16,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "1.0",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "lobe-rings-ultra",
+   "desc": "Operator artifact: concentric rings radiating from each cloud lobe centre (eyeball look) on the Ultra constructed bodies. Inside the deck at full coverage so lobes are guaranteed in frame.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 2,
+    "look_offset_deg": 100
+   },
+   "settle_s": 16,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "1.0",
+    "cloud_type": "0.34",
+    "weather": "clear",
+    "cloud_quality": "ultra"
+   }
+  },
+  {
+   "id": "covfine-12500",
+   "desc": "Fine bisect of the coverage cliff between 13,000 and 9,000 km (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 12500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-12000",
+   "desc": "Fine bisect of the coverage cliff between 13,000 and 9,000 km (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 12000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-11500",
+   "desc": "Fine bisect of the coverage cliff between 13,000 and 9,000 km (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 11500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-11000",
+   "desc": "Fine bisect of the coverage cliff between 13,000 and 9,000 km (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 11000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-10500",
+   "desc": "Fine bisect of the coverage cliff between 13,000 and 9,000 km (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 10500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-10000",
+   "desc": "Same-boot bisect of the coverage cliff (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 10000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-09750",
+   "desc": "Same-boot bisect of the coverage cliff (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 9750
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-09500",
+   "desc": "Same-boot bisect of the coverage cliff (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 9500
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-09250",
+   "desc": "Same-boot bisect of the coverage cliff (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 9250
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
+  },
+  {
+   "id": "covfine-09000",
+   "desc": "Same-boot bisect of the coverage cliff (type+cover pinned).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 9000
+   },
+   "settle_s": 12,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "cloud_cover": "0.5",
+    "cloud_type": "0.34",
+    "weather": "clear"
+   }
   }
  ],
  "ladder": {

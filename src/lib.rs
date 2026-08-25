@@ -11607,7 +11607,7 @@ mod native_app {
                                                 .unwrap_or(0);
                                             if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
                                                 log::info!(
-                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={} pin={:.2} live={} cov={:.2}",
+                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={} pin={:.2} live={} cov={:.2} camr={:.6} vscale={:.1} rb={:.6} rt={:.6} cmax={:.6}",
                                                     px,
                                                     near_mix,
                                                     (cam_r_ratio as f32 - 1.0).max(0.0)
@@ -11616,6 +11616,11 @@ mod native_app {
                                                     pin,
                                                     state.gui_state.settings.live_weather,
                                                     cov_eff,
+                                                    cam_r_ratio,
+                                                    visual_scale,
+                                                    slab_rb,
+                                                    slab_rt,
+                                                    state.renderer.cloud_map_cmax,
                                                 );
                                             }
                                         }
@@ -11947,7 +11952,52 @@ mod native_app {
                                     if let Some(f) =
                                         state.renderer.cloud_composite_frame.as_mut()
                                     {
-                                        f.atmo_over = has_atmo && !inside_atmo;
+                                        // THE APPROACH VANISH, ROOT-CAUSED
+                                        // (2026-08-25, the operator's "most
+                                        // of the clouds just vanish"):
+                                        // ALWAYS composite the deck AFTER
+                                        // the atmosphere dome.
+                                        //
+                                        // The 12c order rule sent the
+                                        // composite BEFORE the transparent
+                                        // pass whenever the camera sat
+                                        // outside the atmosphere, so the
+                                        // dome would sit over the deck at
+                                        // the limb (the v0.997 look). But
+                                        // over the DISC the dome's alpha is
+                                        // near-opaque, so it did not veil
+                                        // the clouds - it ERASED them.
+                                        // Measured at 9,500 km: the
+                                        // composite wrote 1.2% of the disc
+                                        // with the old order and 99.9% with
+                                        // this one, and every discard
+                                        // sentinel inside the composite read
+                                        // zero (the clouds were drawn, then
+                                        // painted over).
+                                        //
+                                        // Drawing clouds last is also the
+                                        // PHYSICALLY correct order here: the
+                                        // march already applies this
+                                        // engine's own aerial perspective at
+                                        // the cloud's first-hit distance
+                                        // (aerial_apply + aerial_transmittance
+                                        // in cloud_march_core), so the
+                                        // composited radiance ALREADY carries
+                                        // the air column in front of it.
+                                        // Letting the dome blend over it
+                                        // applied that same air twice, and
+                                        // the second application was opaque.
+                                        //
+                                        // Why it looked like a terrain bug:
+                                        // the chunked-terrain LOD engaging at
+                                        // 1.5 planet radii (9,556 km) flipped
+                                        // which shells the celestial lists
+                                        // carried, and so flipped this very
+                                        // ordering - which is why the cliff
+                                        // sat exactly at the chunk-activation
+                                        // altitude and survived a dozen
+                                        // cloud-only investigations.
+                                        f.atmo_over = false;
                                     }
                                     match (cloud_shell_obj, atmo_shell_obj) {
                                         (Some(c), Some(a)) if inside_atmo => {

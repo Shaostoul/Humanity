@@ -216,6 +216,28 @@ var<private> g_cloud_rt: f32 = CLOUD_RT;
 // worst inside the slab, which is exactly where the operator still saw
 // ghosting after the analytic cut.
 var<private> g_march_first_t: f32 = 0.0;
+// The v2 constructed body's soft-rind width in METRES, frozen ONCE per
+// ray by cloud_march_core (2026-08-25, the operator's "rings extending
+// from their center... like eyeballs").
+//
+// THE BUG IT KILLS: cloud_v2_body derived its rind from whatever `lodb`
+// its caller passed - and cloud_sun_tau calls the density function EIGHT
+// times per shading evaluation with a different per-tap `lod_t` (the
+// geometric shadow ladder: 30/57/108/206/391/743 m segments). Because
+// the v2 body is a DISTANCE FIELD, the rind is a metric radius, so each
+// tap shaded a concentrically SHRUNKEN copy of the same lobe, and each
+// tap's optical-depth riser printed that copy's boundary as a hard
+// bright-or-dark ring: six nested rings per lobe, offset sunward (the
+// "pupil"), breathing as the coverage threshold drifted past. The noise
+// body was immune because a mip level has no radius; a distance field
+// has one. The view march's own step-driven footprint latch added a
+// seventh ring at every silhouette.
+//
+// Freezing it per ray keeps the band-limiting intent (the rind still
+// widens with distance, one value per pixel, continuous across the
+// screen) while making a ring centred on a lobe impossible: nothing
+// downstream can vary the body's scale within one shading evaluation.
+var<private> g_v2_foot_m: f32 = 0.0;
 // Drawn-shell units per kilometre (clouds depth increment): converts the
 // metre-expressed noise ladder + fade constants below into the march's
 // coordinate space, so feature sizes are anchored to physical lengths
@@ -2260,6 +2282,11 @@ fn cloud_march_core(
     let seg = m1 - m0;
     let mid_dir = normalize(ro + rd * (m0 + seg * 0.5));
     let reg = cloud_regime(cloud_type_coord(mid_dir, t, seed));
+    // Freeze the v2 body's rind for this ray (see g_v2_foot_m): the ray's
+    // own footprint at the segment midpoint, in metres. Every density
+    // call in this invocation - view samples AND all eight sun-shadow
+    // taps - now sees ONE body scale.
+    g_v2_foot_m = (m0 + seg * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
     // Placement moves at the family's BASE wind (phase 7 motion, the
     // v0.1021 coherence rule: silhouettes must not slide through
     // interiors - the carve's own drift mixes up from this same value).

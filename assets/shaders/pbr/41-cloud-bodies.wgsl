@@ -319,7 +319,14 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // (increment 6): a rind narrower than the march's own step aliases
     // into salt-and-pepper no matter how the field is shaped - the same
     // prefilter law the noise mips obey.
-    let foot_m = exp2(lodb) * 1000.0;
-    let rind = max(CLOUD_V2_RIND_M, foot_m);
+    // PER-RAY footprint, never the caller's per-tap lodb (see
+    // g_v2_foot_m in 40-clouds.wgsl): the sun-shadow ladder passes eight
+    // different lodb values per shading evaluation, and since this body
+    // is a DISTANCE FIELD the rind is a metric radius - so a per-tap rind
+    // shaded eight concentrically shrunken copies of the same lobe and
+    // printed them as nested rings (the "eyeball" artifact). Falls back
+    // to the constant floor when unset, which is the pre-increment-6
+    // behaviour.
+    let rind = max(CLOUD_V2_RIND_M, g_v2_foot_m);
     return clamp(-best / rind, 0.0, 1.0);
 }
