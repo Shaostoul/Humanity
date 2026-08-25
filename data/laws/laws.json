@@ -63,7 +63,8 @@
       "tags": [
         "vision",
         "simplicity"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-agency",
@@ -77,7 +78,8 @@
         "agency",
         "consent",
         "freedom"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-privacy",
@@ -91,7 +93,8 @@
         "privacy",
         "surveillance",
         "confidentiality"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-truth",
@@ -105,7 +108,8 @@
         "transparency",
         "honesty",
         "trust"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-participation",
@@ -119,7 +123,8 @@
         "voting",
         "governance",
         "integrity"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-equal-standing",
@@ -132,7 +137,8 @@
       "tags": [
         "equality",
         "fairness"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-exit",
@@ -146,7 +152,8 @@
         "consent",
         "freedom",
         "exit"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-responsibility",
@@ -160,7 +167,8 @@
         "responsibility",
         "harm",
         "duty"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "base-no-nonconsensual-harm",
@@ -174,7 +182,8 @@
         "safety",
         "consent",
         "harm"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-equal-protection-and-due-process-under-the-law-14th-amendmen",
@@ -189,7 +198,8 @@
         "due process",
         "discrimination",
         "citizenship"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-civil-rights-no-discrimination-in-public-life",
@@ -205,7 +215,8 @@
         "public accommodation",
         "disability",
         "civil rights"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-free-speech-religion-press-assembly-1st-amendment",
@@ -222,7 +233,8 @@
         "protest",
         "assembly",
         "petition"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-keep-and-bear-arms-2nd-amendment",
@@ -238,7 +250,8 @@
         "self-defense",
         "second amendment",
         "weapons"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "usa-protection-from-unreasonable-search-and-seizure-4th-amendmen",
@@ -254,7 +267,8 @@
         "warrant",
         "privacy",
         "police"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-a-lawyer-and-a-fair-criminal-trial-6th-amendment",
@@ -270,7 +284,8 @@
         "jury",
         "public defender",
         "criminal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-remain-silent-and-against-self-incrimination-5th-am",
@@ -286,7 +301,8 @@
         "due process",
         "double jeopardy",
         "Miranda"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-vote-regardless-of-race-sex-or-age-18",
@@ -301,7 +317,8 @@
         "suffrage",
         "elections",
         "civil rights"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-background-check-to-buy-a-gun-from-a-dealer",
@@ -317,7 +334,8 @@
         "NICS",
         "prohibited-persons",
         "federal"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "usa-federal-vehicle-and-product-safety-standards-protect-you",
@@ -333,7 +351,8 @@
         "vehicle-standards",
         "consumer-protection",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-defamation-you-are-responsible-for-false-statements-of-fact",
@@ -349,7 +368,8 @@
         "slander",
         "reputation",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-free-speech-press-assembly-and-petition-first-amendment",
@@ -366,7 +386,8 @@
         "petition",
         "federal",
         "constitution"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-freedom-of-association",
@@ -381,7 +402,8 @@
         "membership",
         "groups",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-organize-and-join-a-union",
@@ -397,7 +419,8 @@
         "organizing",
         "association",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-time-place-and-manner-limits-are-allowed",
@@ -412,7 +435,8 @@
         "permits",
         "time place manner",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-children-s-online-data-has-special-protection-coppa",
@@ -427,7 +451,8 @@
         "children",
         "online",
         "parental-consent"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-wiretap-law-restricts-intercepting-communications",
@@ -443,7 +468,8 @@
         "interception",
         "email",
         "calls"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-fourth-amendment-limits-government-searches",
@@ -458,7 +484,8 @@
         "search-warrant",
         "government",
         "phone"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-student-education-records-are-private-ferpa",
@@ -473,7 +500,8 @@
         "education",
         "students",
         "records"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-telemarketing-and-robocall-limits-tcpa-do-not-call",
@@ -489,7 +517,8 @@
         "do-not-call",
         "texts",
         "telemarketing"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-your-credit-report-has-federal-privacy-protections-fcra",
@@ -504,7 +533,8 @@
         "credit-report",
         "disputes",
         "fraud-alert"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-your-medical-records-are-protected-hipaa",
@@ -519,7 +549,8 @@
         "medical-records",
         "health",
         "phi"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-fair-housing-act-bans-housing-discrimination",
@@ -535,7 +566,8 @@
         "discrimination",
         "fair-housing",
         "civil-rights"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-income-payroll-and-self-employment-tax",
@@ -550,7 +582,8 @@
         "federal",
         "self-employment",
         "FICA"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-job-discrimination-protections",
@@ -565,7 +598,8 @@
         "discrimination",
         "federal",
         "EEOC"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-federal-minimum-wage-and-overtime-flsa",
@@ -580,7 +614,8 @@
         "overtime",
         "federal",
         "FLSA"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-organize-and-concerted-activity",
@@ -595,7 +630,8 @@
         "unions",
         "labor-rights",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-commercial-drivers-follow-federal-trucking-rules",
@@ -604,13 +640,16 @@
       "category": "Driving and transport",
       "title": "Commercial drivers follow federal trucking rules",
       "summary": "If you drive a commercial vehicle (large trucks, buses), federal rules set hours-of-service limits, logging, drug/alcohol testing, and CDL standards on top of state law. These apply nationwide, including on Kitsap roads and the Washington State Ferries routes you may use.",
-      "source": "49 CFR Parts 350-399 (FMCSA) (verify current)",
+      "source": "49 CFR Parts 350-399 (FMCSA)",
       "tags": [
         "commercial",
         "cdl",
         "trucking",
         "federal"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "usa-real-id-for-federal-purposes",
@@ -619,13 +658,16 @@
       "category": "Driving and transport",
       "title": "REAL ID for federal purposes",
       "summary": "A standard Washington license is fine for driving, but to board a domestic flight or enter many federal facilities you need a REAL ID-compliant license, an Enhanced Driver License, or another accepted ID like a passport. Washington offers an Enhanced license that also works for land/sea border crossings to Canada.",
-      "source": "REAL ID Act of 2005 (49 U.S.C. 30301 note); enforced via TSA (verify current)",
+      "source": "REAL ID Act of 2005 (49 U.S.C. 30301 note); enforced via TSA",
       "tags": [
         "real-id",
         "enhanced-license",
         "identification",
         "federal"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "usa-free-speech-assembly-and-petition",
@@ -641,7 +683,8 @@
         "petition",
         "assembly",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-register-to-vote-at-the-dmv-motor-voter",
@@ -656,7 +699,8 @@
         "motor voter",
         "federal",
         "DMV"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-vote-federal-protections",
@@ -671,7 +715,8 @@
         "civil rights",
         "federal",
         "elections"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-don-t-harm-protected-species-or-their-habitat",
@@ -680,7 +725,7 @@
       "category": "Environment and land",
       "title": "Don't harm protected species or their habitat",
       "summary": "The federal Endangered Species Act makes it illegal to 'take' (harm, kill, harass, or significantly degrade habitat of) species listed as threatened or endangered, including on private land. In the Puget Sound region this commonly affects waterfront and stream work near salmon and orcas. Projects may require consultation with U.S. Fish and Wildlife or NOAA Fisheries.",
-      "source": "Endangered Species Act (16 U.S.C. 1531-1544) (verify current)",
+      "source": "Endangered Species Act (16 U.S.C. 1531-1544)",
       "tags": [
         "endangered species",
         "ESA",
@@ -688,7 +733,10 @@
         "habitat",
         "federal",
         "wildlife"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "usa-filling-wetlands-or-waters-needs-a-federal-clean-water-act-p",
@@ -697,7 +745,7 @@
       "category": "Environment and land",
       "title": "Filling wetlands or waters needs a federal Clean Water Act permit",
       "summary": "Federal law regulates discharging dredged or fill material into 'waters of the United States,' including many wetlands. Filling or building in such areas generally requires a Section 404 permit from the U.S. Army Corps of Engineers. Some normal farming and maintenance activities are exempt. This is separate from and additional to state and county rules.",
-      "source": "Clean Water Act Section 404 (33 U.S.C. 1344) (verify current)",
+      "source": "Clean Water Act Section 404 (33 U.S.C. 1344)",
       "tags": [
         "wetlands",
         "clean water act",
@@ -705,7 +753,10 @@
         "army corps",
         "federal",
         "fill"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "usa-protection-from-unreasonable-searches",
@@ -722,7 +773,8 @@
         "warrant",
         "police",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "usa-right-to-remain-silent-and-to-a-lawyer",
@@ -739,7 +791,8 @@
         "police",
         "miranda",
         "federal"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-all-party-consent-to-record-conversations",
@@ -755,7 +808,8 @@
         "wiretap",
         "consent",
         "two-party"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-equal-rights-regardless-of-sex-state-era",
@@ -770,7 +824,8 @@
         "sex",
         "gender equality",
         "ERA"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-open-meetings-of-government-bodies",
@@ -785,7 +840,8 @@
         "transparency",
         "government",
         "public participation"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-reproductive-freedom-protected-by-state-law",
@@ -794,13 +850,16 @@
       "category": "Rights",
       "title": "Reproductive freedom protected by state law",
       "summary": "Washington law affirms the right to choose to have an abortion before viability and to access reproductive health care, and limits the state from denying or interfering with that right. (Verify current statute for specifics and any updates.)",
-      "source": "RCW 9.02 (Reproductive Privacy Act) (verify current)",
+      "source": "RCW 9.02 (Reproductive Privacy Act)",
       "tags": [
         "reproductive rights",
         "abortion",
         "privacy",
         "health care"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-right-to-a-jury-trial-in-civil-and-criminal-cases",
@@ -816,7 +875,8 @@
         "criminal",
         "civil",
         "due process"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-right-to-access-government-records-public-records-act",
@@ -832,7 +892,8 @@
         "open government",
         "FOIA",
         "access"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-voting-rights-restored-when-not-confined",
@@ -848,7 +909,8 @@
         "restoration",
         "rights restoration",
         "elections"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-washington-law-against-discrimination-broad-protected-classe",
@@ -865,7 +927,8 @@
         "housing",
         "employment",
         "human rights commission"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-washington-s-own-broad-privacy-and-rights-guarantee",
@@ -880,7 +943,8 @@
         "state constitution",
         "due process",
         "free speech"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-assault-is-a-crime-any-unwanted-harmful-or-offensive-touchin",
@@ -896,7 +960,8 @@
         "battery",
         "bodily-harm",
         "crime"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-child-abuse-neglect-and-mandatory-reporting",
@@ -911,7 +976,8 @@
         "neglect",
         "mandatory-reporting",
         "child-safety"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-child-car-seats-and-booster-seats-are-mandatory",
@@ -926,7 +992,10 @@
         "booster",
         "child-safety",
         "vehicle-safety"
-      ]
+      ],
+      "risk_class": "routine",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "wa-domestic-violence-triggers-extra-protections",
@@ -941,7 +1010,8 @@
         "household",
         "no-contact",
         "coercive-control"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-driving-under-the-influence-endangers-everyone",
@@ -957,7 +1027,8 @@
         "alcohol",
         "traffic-safety",
         "implied-consent"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-firearm-ownership-carry-and-storage-rules",
@@ -965,8 +1036,8 @@
       "kind": "real",
       "category": "Safety and bodily integrity",
       "title": "Firearm ownership, carry, and storage rules",
-      "summary": "Open carry of a legal firearm is allowed for adults who may lawfully possess one, but carrying a concealed pistol requires a Concealed Pistol License, and a loaded handgun in a vehicle generally requires a CPL. Buying a pistol or a semiautomatic assault rifle requires being 21+ (a 2018 Initiative 1639 change); other long guns such as bolt-action, pump-action, or lever-action rifles and shotguns can still be purchased at 18, and the state's secure-storage and child-access laws make it a crime to store firearms where a prohibited person or minor can easily access them.",
-      "source": "RCW 9.41.050 (Carrying firearms); RCW 9.41.240 (age 21 for pistols / semiautomatic assault rifles, Initiative 1639); RCW 9.41.360 (Unsafe storage of a firearm) (verify current)",
+      "summary": "Open carry of a firearm you may lawfully possess is generally allowed. Carrying a concealed pistol requires a Concealed Pistol License, and a loaded handgun in a vehicle generally requires one too. Since April 25, 2023, RCW 9.41.390 has prohibited manufacturing, importing, distributing, selling, or offering for sale what the statute defines as an assault weapon, with narrow exceptions. It does not ban possession, and someone who lawfully owned one before that date may keep it. Buying a pistol requires being 21 or older under Initiative 1639. Secure-storage and child-access law makes it a crime to store a firearm where a prohibited person or a minor can easily get to it. The statutory definition of assault weapon is long and specific, so read it rather than guessing.",
+      "source": "RCW 9.41.050 (carrying firearms); RCW 9.41.390 (assault weapons, HB 1240, effective 2023-04-25); RCW 9.41.240 (age 21 for pistols, Initiative 1639); RCW 9.41.360 (unsafe storage)",
       "tags": [
         "firearms",
         "guns",
@@ -974,7 +1045,13 @@
         "open-carry",
         "safe-storage",
         "CPL"
-      ]
+      ],
+      "verified": {
+        "on": "2026-08-25",
+        "by": "AI-assisted, checked against the cited RCW sections and the Washington Legislature bill text",
+        "human_reviewed": false
+      },
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-harassment-threats-and-stalking-are-crimes",
@@ -989,7 +1066,8 @@
         "stalking",
         "threats",
         "intimidation"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-motorcycle-and-moped-riders-must-wear-an-approved-helmet",
@@ -1005,7 +1083,8 @@
         "moped",
         "head-protection",
         "vehicle-safety"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-reckless-endangerment-and-putting-others-in-danger",
@@ -1020,7 +1099,8 @@
         "safety",
         "negligence",
         "crime"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-seat-belts-are-required-for-everyone-in-the-vehicle",
@@ -1035,7 +1115,8 @@
         "vehicle-safety",
         "traffic",
         "passengers"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-vulnerable-adults-are-protected-from-abuse-and-neglect",
@@ -1051,7 +1132,8 @@
         "neglect",
         "exploitation",
         "mandatory-reporting"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-you-can-get-a-civil-protection-order-for-safety",
@@ -1067,7 +1149,8 @@
         "stalking",
         "restraining-order",
         "safety"
-      ]
+      ],
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-you-generally-cannot-carry-weapons-into-restricted-places",
@@ -1083,7 +1166,10 @@
         "gun-free-zones",
         "schools",
         "courthouse"
-      ]
+      ],
+      "risk_class": "liberty_or_life",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "wa-you-may-use-reasonable-force-in-self-defense",
@@ -1091,14 +1177,20 @@
       "kind": "real",
       "category": "Safety and bodily integrity",
       "title": "You may use reasonable force in self-defense",
-      "summary": "You may use force to defend yourself or another person from an imminent attack, but only force that is reasonable and proportional to the threat. Washington has no general duty to retreat where you lawfully are; deadly force is only justified against a threat of death or serious bodily harm.",
-      "source": "RCW 9A.16.020 (Use of force - when lawful) and RCW 9A.16.050 (Homicide - by other person - when justifiable)",
+      "summary": "Washington law allows force to defend yourself or another person from an imminent attack, and only force that is reasonable and proportional to the threat. Deadly force is justified only against a threat of death or serious bodily harm. Two conditions are easy to miss and either one can destroy the defense completely: you must be somewhere you are lawfully entitled to be, and you must not have started or provoked the confrontation. Someone who provokes a fight generally cannot claim self-defense unless they clearly withdrew from it first. This is a doctrine decided case by case on the specific facts, and being wrong about it means prison or a death. Read the statutes, and talk to a lawyer or the county public defender before relying on any summary, including this one.",
+      "source": "RCW 9A.16.020 (use of force, when lawful); RCW 9A.16.050 (justifiable homicide); no-duty-to-retreat and first-aggressor doctrine are Washington case law, not statute",
       "tags": [
         "self-defense",
         "use-of-force",
         "stand-your-ground",
         "castle-doctrine"
-      ]
+      ],
+      "verified": {
+        "on": "2026-08-25",
+        "by": "AI-assisted, checked against the cited RCW sections and the Washington Legislature bill text",
+        "human_reviewed": false
+      },
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-anti-slapp-protection-from-lawsuits-meant-to-silence-you",
@@ -1114,7 +1206,8 @@
         "lawsuits",
         "petition",
         "wa"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-disorderly-conduct-speech-crossing-into-disruption",
@@ -1130,7 +1223,8 @@
         "public meeting",
         "misdemeanor",
         "wa"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-political-activity-and-campaign-disclosure",
@@ -1146,7 +1240,8 @@
         "disclosure",
         "association",
         "wa"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-right-to-organize-labor-is-protected-by-state-law",
@@ -1162,7 +1257,8 @@
         "organizing",
         "association",
         "wa"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-washington-gives-speech-extra-protection",
@@ -1178,7 +1274,8 @@
         "assembly",
         "petition",
         "wa"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-businesses-can-t-enroll-your-biometrics-for-marketing-withou",
@@ -1187,14 +1284,17 @@
       "category": "Privacy",
       "title": "Businesses can't enroll your biometrics for marketing without notice/consent",
       "summary": "A business may not capture a biometric identifier (fingerprint, voiceprint, iris/retina scan, etc.) into a database for a commercial purpose without first giving notice and obtaining consent or an opt-out. It must protect the data and not keep it longer than reasonably necessary. Security and law-enforcement uses are excluded.",
-      "source": "RCW 19.375.020 (verify current)",
+      "source": "RCW 19.375.020",
       "tags": [
         "biometrics",
         "fingerprint",
         "face",
         "consent",
         "commercial"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-gps-trackers-pen-registers-and-cell-site-simulators-need-a-c",
@@ -1210,7 +1310,8 @@
         "surveillance",
         "location",
         "cell-site"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-hidden-cameras-and-voyeurism-are-crimes",
@@ -1225,7 +1326,8 @@
         "hidden-camera",
         "filming",
         "expectation-of-privacy"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-identity-theft-is-a-felony",
@@ -1240,7 +1342,8 @@
         "fraud",
         "ssn",
         "felony"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-records-with-your-personal-info-must-be-securely-destroyed",
@@ -1255,7 +1358,8 @@
         "shredding",
         "ssn",
         "records"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-sharing-intimate-images-without-consent-is-illegal",
@@ -1264,13 +1368,16 @@
       "category": "Privacy",
       "title": "Sharing intimate images without consent is illegal",
       "summary": "Disclosing or distributing intimate images of a person without their consent, knowing it would cause harm, is prohibited and can give rise to both criminal charges and civil liability for damages. This covers 'revenge porn' and similar non-consensual sharing.",
-      "source": "RCW 9A.86.010 (criminal) and the civil action in chapter 4.24 RCW (verify current)",
+      "source": "RCW 9A.86.010 (criminal) and the civil action in chapter 4.24 RCW",
       "tags": [
         "intimate-images",
         "revenge-porn",
         "consent",
         "civil-damages"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-strong-protection-for-your-health-data-my-health-my-data-act",
@@ -1286,7 +1393,8 @@
         "deletion",
         "reproductive",
         "consumer-protection"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-you-can-place-a-free-credit-freeze",
@@ -1295,13 +1403,16 @@
       "category": "Privacy",
       "title": "You can place a free credit freeze",
       "summary": "Washington residents have the right to place, temporarily lift, or remove a security freeze on their credit reports with the major credit bureaus to block new-account fraud. Under state and federal law this is free, and is a key self-help tool after a breach or identity theft.",
-      "source": "RCW 19.182.170 (verify current); federal Fair Credit Reporting Act, 15 U.S.C. 1681c-1",
+      "source": "RCW 19.182.170; federal Fair Credit Reporting Act, 15 U.S.C. 1681c-1",
       "tags": [
         "credit-freeze",
         "credit-report",
         "identity-theft",
         "fcra"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-you-must-be-told-if-your-personal-data-is-breached",
@@ -1316,7 +1427,8 @@
         "notification",
         "personal-information",
         "attorney-general"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-14-day-pay-or-vacate-notice-before-eviction-for-unpaid-rent",
@@ -1325,13 +1437,16 @@
       "category": "Property and housing",
       "title": "14-day pay-or-vacate notice before eviction for unpaid rent",
       "summary": "If you fall behind on rent, the landlord must give a written 14-day notice stating the amount owed before starting an eviction. Paying the full amount within those 14 days stops the eviction. Only a court (the sheriff) can actually remove you.",
-      "source": "RCW 59.18.057 / RCW 59.12 (verify current)",
+      "source": "RCW 59.18.057 / RCW 59.12",
       "tags": [
         "renter",
         "eviction",
         "rent",
         "tenant-rights"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-home-sellers-must-give-a-form-17-disclosure-statement",
@@ -1347,7 +1462,8 @@
         "real-estate",
         "disclosure",
         "home-sale"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-homestead-exemption-automatically-protects-home-equity-from-",
@@ -1363,7 +1479,8 @@
         "homestead",
         "bankruptcy",
         "equity"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-landlords-must-keep-rentals-habitable-and-give-notice-to-ent",
@@ -1379,7 +1496,8 @@
         "habitability",
         "tenant-rights",
         "privacy"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-landlords-need-a-legal-just-cause-to-end-most-tenancies",
@@ -1394,7 +1512,8 @@
         "eviction",
         "tenant-rights",
         "lease"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-month-to-month-tenants-get-20-days-to-give-notice-written-re",
@@ -1409,7 +1528,8 @@
         "lease",
         "notice",
         "tenant-rights"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-property-tax-relief-for-seniors-disabled-and-veterans",
@@ -1426,7 +1546,8 @@
         "disability",
         "veterans",
         "tax-relief"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-rent-increases-are-capped-and-need-90-days-notice",
@@ -1435,13 +1556,16 @@
       "category": "Property and housing",
       "title": "Rent increases are capped and need 90 days' notice",
       "summary": "As of 2025, a landlord generally cannot raise rent in the first 12 months of a tenancy, and any later annual increase is capped at 7% plus CPI or 10%, whichever is lower (5% for manufactured/mobile home lots). At least 90 days' written notice is required. Some new construction and owner-occupied small buildings are exempt.",
-      "source": "RCW 59.18 (HB 1217, 2025) (verify current)",
+      "source": "RCW 59.18 (HB 1217, 2025)",
       "tags": [
         "renter",
         "rent",
         "tenant-rights",
         "rent-cap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-security-deposit-needs-a-written-checklist-and-limited-deduc",
@@ -1456,7 +1580,8 @@
         "deposit",
         "tenant-rights",
         "move-out"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-self-help-eviction-lockouts-utility-shutoffs-is-illegal",
@@ -1471,7 +1596,8 @@
         "eviction",
         "tenant-rights",
         "utilities"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-washington-adds-more-protected-classes-including-source-of-i",
@@ -1487,7 +1613,8 @@
         "fair-housing",
         "section-8",
         "civil-rights"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-equal-pay-and-pay-range-disclosure",
@@ -1502,7 +1629,8 @@
         "equal-pay",
         "pay-transparency",
         "hiring"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-final-paycheck-and-timely-wage-payment",
@@ -1517,7 +1645,8 @@
         "final-paycheck",
         "deductions",
         "employment"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-no-state-income-tax-but-sales-and-b-o-taxes",
@@ -1532,7 +1661,8 @@
         "income-tax",
         "B&O-tax",
         "business"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-overtime-over-40-hours",
@@ -1546,7 +1676,8 @@
         "wages",
         "overtime",
         "employment"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-paid-family-medical-leave",
@@ -1561,7 +1692,8 @@
         "family-leave",
         "PFML",
         "employment"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-paid-sick-leave-for-employees",
@@ -1575,7 +1707,8 @@
         "leave",
         "sick-leave",
         "employment"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-state-business-license-required-to-operate",
@@ -1590,7 +1723,8 @@
         "licensing",
         "self-employment",
         "registration"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-state-minimum-wage-higher-than-federal",
@@ -1599,12 +1733,15 @@
       "category": "Work and money",
       "title": "State minimum wage (higher than federal)",
       "summary": "Washington's minimum wage is set by the state and rises each year with inflation; for 2026 it is $17.13/hour for workers 16 and older (verify current each January). Washington allows NO tip credit, so tipped workers must get full minimum wage before tips. Workers 14-15 may be paid 85% of the rate.",
-      "source": "RCW 49.46.020 (verify current rate)",
+      "source": "RCW 49.46.020",
       "tags": [
         "wages",
         "minimum-wage",
         "employment"
-      ]
+      ],
+      "risk_class": "routine",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "wa-workers-compensation-and-unemployment",
@@ -1619,7 +1756,8 @@
         "unemployment",
         "L&I",
         "benefits"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-carry-insurance-and-proof-of-it",
@@ -1634,7 +1772,8 @@
         "financial-responsibility",
         "proof",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-driving-on-a-suspended-or-revoked-license-is-illegal",
@@ -1649,7 +1788,8 @@
         "revoked",
         "crime",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-give-bicyclists-safe-space",
@@ -1658,13 +1798,16 @@
       "category": "Driving and transport",
       "title": "Give bicyclists safe space",
       "summary": "When passing a bicycle, give a safe buffer (at least three feet, or move into an adjacent lane when you can). Bicyclists generally have the same rights and duties as drivers on the road.",
-      "source": "RCW 46.61.110 (safe passing) and RCW 46.61.755 (verify current)",
+      "source": "RCW 46.61.110 (safe passing) and RCW 46.61.755",
       "tags": [
         "bicycle",
         "safe-passing",
         "vulnerable-user",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-hands-free-only-no-holding-your-phone",
@@ -1679,7 +1822,8 @@
         "phone",
         "hands-free",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-implied-consent-refusing-a-breath-test-has-consequences",
@@ -1688,13 +1832,16 @@
       "category": "Driving and transport",
       "title": "Implied consent — refusing a breath test has consequences",
       "summary": "By driving in Washington you agree to a breath or blood test if lawfully arrested for DUI. Refusing the test triggers an automatic license suspension and can be used against you in court, on top of any DUI penalty.",
-      "source": "RCW 46.20.308 (verify current)",
+      "source": "RCW 46.20.308",
       "tags": [
         "dui",
         "implied-consent",
         "breath-test",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-keep-your-vehicle-s-safety-equipment-working",
@@ -1710,7 +1857,8 @@
         "brakes",
         "maintenance",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-move-over-and-slow-down-for-emergency-and-work-zones",
@@ -1725,7 +1873,8 @@
         "emergency-vehicle",
         "work-zone",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-obey-speed-limits-and-don-t-drive-too-fast-for-conditions",
@@ -1734,13 +1883,16 @@
       "category": "Driving and transport",
       "title": "Obey speed limits and don't drive too fast for conditions",
       "summary": "Drive at or under the posted limit, and slow further when rain, snow, fog, or traffic make the posted speed unsafe. Default limits where unposted are commonly 25 mph in cities/towns, 50 mph on county roads, and 60 mph on state highways unless signs say otherwise.",
-      "source": "RCW 46.61.400 (basic speed rule) and RCW 46.61.415 (verify current)",
+      "source": "RCW 46.61.400 (basic speed rule) and RCW 46.61.415",
       "tags": [
         "speed-limit",
         "basic-rule",
         "conditions",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-other-distractions-can-still-get-you-ticketed",
@@ -1754,7 +1906,8 @@
         "distracted-driving",
         "secondary-offense",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-reckless-and-negligent-driving-are-crimes-infractions",
@@ -1769,7 +1922,8 @@
         "negligent",
         "dangerous-driving",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-register-and-license-plate-your-vehicle",
@@ -1778,13 +1932,16 @@
       "category": "Driving and transport",
       "title": "Register and license-plate your vehicle",
       "summary": "Vehicles operated on public roads must be registered with the state and display current license plates and tabs. New residents generally must register within 30 days. Driving with expired or no registration is a ticketable infraction.",
-      "source": "RCW 46.16A.030 (verify current)",
+      "source": "RCW 46.16A.030",
       "tags": [
         "registration",
         "plates",
         "tabs",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-stop-and-exchange-info-after-a-crash",
@@ -1799,7 +1956,8 @@
         "hit-and-run",
         "duty-to-stop",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-stop-for-school-buses-with-red-lights-flashing",
@@ -1808,13 +1966,16 @@
       "category": "Driving and transport",
       "title": "Stop for school buses with red lights flashing",
       "summary": "When a school bus stops with its red lights flashing and stop arm out, you must stop in both directions, except on a divided highway where you're on the opposite side of a physical barrier. Passing a stopped school bus carries a large fine and is reported to the state.",
-      "source": "RCW 46.61.370 (verify current)",
+      "source": "RCW 46.61.370",
       "tags": [
         "school-bus",
         "stop",
         "children",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-studded-tires-only-in-the-winter-window",
@@ -1829,7 +1990,8 @@
         "winter",
         "equipment",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-teen-intermediate-license-restrictions",
@@ -1845,7 +2007,8 @@
         "passenger-limit",
         "curfew",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-washington-state-ferries-are-part-of-the-highway-system",
@@ -1854,13 +2017,16 @@
       "category": "Driving and transport",
       "title": "Washington State Ferries are part of the highway system",
       "summary": "Ferries serving Kitsap (e.g., Bainbridge, Bremerton, Kingston, Southworth) are run by WSDOT and operate under state rules: follow crew directions, posted fares, hazardous-material limits, and vehicle staging instructions. The ferry deck is treated as part of the public roadway.",
-      "source": "Chapter 47.60 RCW (Washington State Ferries) (verify current)",
+      "source": "Chapter 47.60 RCW (Washington State Ferries)",
       "tags": [
         "ferry",
         "wsdot",
         "transit",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-yield-to-pedestrians-in-crosswalks",
@@ -1869,13 +2035,16 @@
       "category": "Driving and transport",
       "title": "Yield to pedestrians in crosswalks",
       "summary": "Drivers must stop and yield to pedestrians crossing at any crosswalk, marked or unmarked at an intersection. Pedestrians also must not suddenly leave a curb into the path of a vehicle that can't stop.",
-      "source": "RCW 46.61.235 (verify current)",
+      "source": "RCW 46.61.235",
       "tags": [
         "pedestrian",
         "crosswalk",
         "yield",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-you-must-have-a-valid-driver-license",
@@ -1884,13 +2053,16 @@
       "category": "Driving and transport",
       "title": "You must have a valid driver license",
       "summary": "You need a valid Washington driver license to drive on public roads. New residents generally must transfer an out-of-state license within 30 days of moving here. Different vehicle types (motorcycle, commercial) require the matching endorsement or license class.",
-      "source": "RCW 46.20.021 and RCW 46.20.001 (verify current)",
+      "source": "RCW 46.20.021 and RCW 46.20.001",
       "tags": [
         "license",
         "driving",
         "requirement",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-campaign-finance-disclosure",
@@ -1906,7 +2078,8 @@
         "PDC",
         "lobbying",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-jury-service-is-a-duty-and-a-right",
@@ -1921,7 +2094,8 @@
         "civic duty",
         "courts",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-running-for-elective-office",
@@ -1930,13 +2104,16 @@
       "category": "Participation and governance",
       "title": "Running for elective office",
       "summary": "To run for most Washington offices you generally must be a registered voter in the area you'd represent, and you file a Declaration of Candidacy during the filing week and pay a filing fee (or file a petition in lieu of the fee). Some offices have added residency or age requirements.",
-      "source": "RCW 29A.24 (candidacy); WA Constitution Art. VI §4 (verify current)",
+      "source": "RCW 29A.24 (candidacy); WA Constitution Art. VI §4",
       "tags": [
         "candidacy",
         "running for office",
         "elections",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-statewide-initiative-referendum-and-recall",
@@ -1952,7 +2129,8 @@
         "recall",
         "direct democracy",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-vote-by-mail-and-ballot-deadline",
@@ -1961,14 +2139,17 @@
       "category": "Participation and governance",
       "title": "Vote-by-mail and ballot deadline",
       "summary": "Washington conducts all elections by mail; every registered voter is mailed a ballot. Ballots must be postmarked by election day or dropped in an official drop box by 8 p.m. on election day. Same-day registration is available in person through election day.",
-      "source": "RCW 29A.40 (vote by mail); RCW 29A.08.140 (registration deadlines) (verify current)",
+      "source": "RCW 29A.40 (vote by mail); RCW 29A.08.140 (registration deadlines)",
       "tags": [
         "vote by mail",
         "ballot",
         "deadline",
         "elections",
         "state"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-voter-eligibility-in-washington",
@@ -1983,7 +2164,8 @@
         "eligibility",
         "elections",
         "state"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-a-household-well-usually-doesn-t-need-a-water-right-permit-b",
@@ -1992,14 +2174,17 @@
       "category": "Environment and land",
       "title": "A household well usually doesn't need a water-right permit, but has limits",
       "summary": "Washington lets a single home draw groundwater from a permit-exempt well: up to 5,000 gallons/day for domestic use plus irrigation of generally no more than a half-acre of lawn or garden. Multiple homes sharing wells must stay under the combined limit, and local rules may add restrictions. The well itself still must be properly constructed and reported.",
-      "source": "RCW 90.44.050 (groundwater permit exemption) (verify current)",
+      "source": "RCW 90.44.050 (groundwater permit exemption)",
       "tags": [
         "wells",
         "water rights",
         "groundwater",
         "domestic water",
         "irrigation"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-bigger-projects-get-an-environmental-review-sepa",
@@ -2008,14 +2193,17 @@
       "category": "Environment and land",
       "title": "Bigger projects get an environmental review (SEPA)",
       "summary": "Washington's State Environmental Policy Act requires state and local agencies to review the environmental impacts of many development proposals before approving them. Smaller projects are often categorically exempt, but larger ones may need an environmental checklist and can be conditioned or denied based on significant impacts.",
-      "source": "RCW 43.21C (State Environmental Policy Act); rules at WAC 197-11 (verify current)",
+      "source": "RCW 43.21C (State Environmental Policy Act); rules at WAC 197-11",
       "tags": [
         "SEPA",
         "environmental review",
         "permit",
         "development",
         "impact"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-commercial-forest-cutting-follows-forest-practices-rules",
@@ -2024,14 +2212,17 @@
       "category": "Environment and land",
       "title": "Commercial forest cutting follows Forest Practices rules",
       "summary": "Significant timber harvest in Washington is regulated under the Forest Practices Act and generally requires an approved forest practices application, with protections for streams and slopes. Cutting a few trees on a residential lot is usually handled under county clearing/critical-area rules instead, but larger harvests trigger state oversight.",
-      "source": "RCW 76.09 (Forest Practices Act) (verify current)",
+      "source": "RCW 76.09 (Forest Practices Act)",
       "tags": [
         "trees",
         "timber",
         "forest practices",
         "logging",
         "streams"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-critical-areas-on-your-property-are-protected-wetlands-strea",
@@ -2040,14 +2231,17 @@
       "category": "Environment and land",
       "title": "Critical areas on your property are protected (wetlands, streams, slopes)",
       "summary": "Washington's Growth Management Act requires counties to identify and protect 'critical areas' on private land: wetlands, fish and wildlife habitat, streams, steep/landslide-prone slopes, frequently flooded areas, and aquifer recharge zones. If any exist on your lot, clearing or building near them is restricted and usually needs a county review, even on land you own.",
-      "source": "RCW 36.70A.060 and RCW 36.70A.170 (verify current)",
+      "source": "RCW 36.70A.060 and RCW 36.70A.170",
       "tags": [
         "critical areas",
         "wetlands",
         "GMA",
         "land use",
         "buffers"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-littering-is-illegal-with-penalties-scaled-to-the-amount",
@@ -2056,14 +2250,17 @@
       "category": "Environment and land",
       "title": "Littering is illegal, with penalties scaled to the amount",
       "summary": "Washington's litter law makes it an offense to discard waste improperly. Small amounts (one cubic foot or less) are a civil infraction; larger amounts climb to misdemeanor and gross misdemeanor, plus possible cleanup costs. This covers roadside dumping and litter from vehicles.",
-      "source": "RCW 70A.205.195 (litter penalties) (verify current)",
+      "source": "RCW 70A.205.195 (litter penalties)",
       "tags": [
         "litter",
         "dumping",
         "fines",
         "roadside",
         "waste"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-shoreline-work-needs-a-permit-shoreline-management-act",
@@ -2072,14 +2269,17 @@
       "category": "Environment and land",
       "title": "Shoreline work needs a permit (Shoreline Management Act)",
       "summary": "Washington's Shoreline Management Act regulates development along marine shorelines, large lakes, and bigger streams. 'Substantial development' near a shoreline generally needs a shoreline permit administered by the county, and shoreline areas have their own buffer and use rules under the local Shoreline Master Program.",
-      "source": "RCW 90.58 (Shoreline Management Act); Kitsap County Code Title 22 (Shoreline Master Program) (verify current)",
+      "source": "RCW 90.58 (Shoreline Management Act); Kitsap County Code Title 22 (Shoreline Master Program)",
       "tags": [
         "shoreline",
         "waterfront",
         "permit",
         "SMA",
         "buffers"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-cannabis-legal-to-possess-not-in-public",
@@ -2095,7 +2295,8 @@
         "public use",
         "21+",
         "infraction"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-criminal-trespass",
@@ -2110,7 +2311,8 @@
         "property",
         "private property",
         "misdemeanor"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-duty-to-give-your-name-to-police-on-a-traffic-civil-stop",
@@ -2119,13 +2321,16 @@
       "category": "Everyday conduct",
       "title": "Duty to give your name to police on a traffic/civil stop",
       "summary": "Washington has no general 'stop and identify' law for just walking around, but if you're stopped for a traffic infraction you must give your name and ID, and refusing or giving false information is a misdemeanor. You can otherwise decline to answer questions.",
-      "source": "RCW 46.61.020 (verify current)",
+      "source": "RCW 46.61.020",
       "tags": [
         "police",
         "identification",
         "traffic stop",
         "rights"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-littering-is-prohibited",
@@ -2141,7 +2346,8 @@
         "dumping",
         "environment",
         "infraction"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-no-open-container-or-drinking-in-a-vehicle",
@@ -2157,7 +2363,8 @@
         "vehicle",
         "driving",
         "infraction"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-no-open-container-or-drinking-in-public-places",
@@ -2172,7 +2379,8 @@
         "open container",
         "public place",
         "infraction"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-pedestrians-use-sidewalks-walk-facing-traffic",
@@ -2188,7 +2396,8 @@
         "sidewalk",
         "traffic",
         "road"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "wa-public-intoxication-is-not-a-crime",
@@ -2197,13 +2406,16 @@
       "category": "Everyday conduct",
       "title": "Public intoxication is not a crime",
       "summary": "Washington does not criminalize being drunk in public by itself; intoxication is treated as a health issue, not an offense (former RCW 70.96A.120, recodified at RCW 71.24.565). Police can still act if you're a danger to yourself or others, and related conduct like disorderly conduct, trespass, or DUI is still illegal.",
-      "source": "RCW 71.24.565 (former RCW 70.96A.120) (verify current)",
+      "source": "RCW 71.24.565 (former RCW 70.96A.120)",
       "tags": [
         "alcohol",
         "intoxication",
         "public health",
         "not a crime"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "wa-smoking-and-vaping-banned-in-indoor-public-places",
@@ -2219,7 +2431,8 @@
         "indoor",
         "public health",
         "25 feet"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-county-must-follow-state-public-records-and-meetings-law",
@@ -2228,14 +2441,17 @@
       "category": "Rights",
       "title": "County must follow state public-records and meetings law",
       "summary": "Kitsap County operates under the state Public Records Act and Open Public Meetings Act: you can request county records and attend Board of County Commissioners meetings. The county code sets the local procedure for making requests and giving meeting notice.",
-      "source": "Kitsap County Code (public records / administration provisions) (verify current); RCW 42.56 and RCW 42.30",
+      "source": "Kitsap County Code (public records / administration provisions); RCW 42.56 and RCW 42.30",
       "tags": [
         "public records",
         "open meetings",
         "county",
         "transparency",
         "access"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-right-to-be-heard-in-county-land-use-and-permit-decisions",
@@ -2244,7 +2460,7 @@
       "category": "Rights",
       "title": "Right to be heard in county land-use and permit decisions",
       "summary": "Before the county adopts land-use rules or decides many permits affecting you or your neighborhood, you generally have a right to notice and a chance to comment or appeal through public hearings, consistent with state growth-management and due-process requirements.",
-      "source": "Kitsap County Code, Title 21 (Land Use and Development Procedures) (verify current); RCW 36.70B / RCW 36.70C",
+      "source": "Kitsap County Code, Title 21 (Land Use and Development Procedures); RCW 36.70B / RCW 36.70C",
       "tags": [
         "land use",
         "permits",
@@ -2252,7 +2468,10 @@
         "due process",
         "appeal",
         "county"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-county-weapons-and-dangerous-object-rules",
@@ -2261,14 +2480,17 @@
       "category": "Safety and bodily integrity",
       "title": "County weapons and dangerous-object rules",
       "summary": "Kitsap County restricts certain dangerous weapons and the throwing or shooting of deadly missiles where people could be endangered, supplementing state weapons law. These local rules apply in unincorporated areas like Silverdale.",
-      "source": "Kitsap County Code Chapter 10.24 (Weapons) (verify current)",
+      "source": "Kitsap County Code Chapter 10.24 (Weapons)",
       "tags": [
         "weapons",
         "dangerous-objects",
         "local",
         "county",
         "public-safety"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "kitsap-where-you-may-discharge-a-firearm-in-kitsap-county",
@@ -2277,7 +2499,7 @@
       "category": "Safety and bodily integrity",
       "title": "Where you may discharge a firearm in Kitsap County",
       "summary": "Outside a permitted shooting range, you generally cannot discharge a firearm in designated no-shooting areas, within 500 yards of several named lakes, or on any parcel smaller than five acres. The discharge must also not endanger people or property; check the current map and rules before shooting on private land.",
-      "source": "Kitsap County Code Chapter 10.25 (Firearms Discharge) (verify current)",
+      "source": "Kitsap County Code Chapter 10.25 (Firearms Discharge)",
       "tags": [
         "firearms",
         "discharge",
@@ -2285,7 +2507,10 @@
         "rural",
         "local",
         "county"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "kitsap-gatherings-and-events-in-county-parks-need-permission",
@@ -2294,14 +2519,17 @@
       "category": "Speech and association",
       "title": "Gatherings and events in county parks need permission",
       "summary": "Organized events, large gatherings, temporary signs, or decorations in Kitsap County parks require the park director's permission or a permit. This is a content-neutral logistics rule for using public park space, not a restriction on what your group believes or says.",
-      "source": "Kitsap County Code ch. 10.12 (Park Code) (verify current)",
+      "source": "Kitsap County Code ch. 10.12 (Park Code)",
       "tags": [
         "parks",
         "events",
         "permit",
         "assembly",
         "kitsap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-large-assembly-events-on-private-land-are-capped-and-permitt",
@@ -2310,14 +2538,17 @@
       "category": "Speech and association",
       "title": "Large assembly events on private land are capped and permitted",
       "summary": "Hosting assembly events (gatherings, festivals) on rural or agricultural property in Kitsap County is limited in number per year, spacing, attendance, and duration, and requires a permit after site review. Larger events may need a conditional use permit; the goal is managing noise, traffic, and safety, not the event's message.",
-      "source": "Kitsap County Code ch. 17.455 (assembly events) (verify current)",
+      "source": "Kitsap County Code ch. 17.455 (assembly events)",
       "tags": [
         "assembly events",
         "permit",
         "private property",
         "attendance limits",
         "kitsap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-noise-limits-apply-to-amplified-speech-and-events",
@@ -2326,14 +2557,17 @@
       "category": "Speech and association",
       "title": "Noise limits apply to amplified speech and events",
       "summary": "Excessive or unreasonable noise, including amplified sound at rallies, events, or gatherings, is regulated and can be enforced, especially during nighttime hours. This is a content-neutral time/place/manner rule; it limits volume and timing, not your message.",
-      "source": "Kitsap County Code noise provisions (verify current); WA Administrative Code ch. 173-60 (state noise standards)",
+      "source": "Kitsap County Code noise provisions; WA Administrative Code ch. 173-60 (state noise standards)",
       "tags": [
         "noise",
         "amplified sound",
         "events",
         "time place manner",
         "kitsap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-drone-and-surveillance-use-is-limited-by-trespass-and-voyeur",
@@ -2342,14 +2576,17 @@
       "category": "Privacy",
       "title": "Drone and surveillance use is limited by trespass and voyeurism law",
       "summary": "There is no special Silverdale privacy ordinance, but flying a drone or aiming a camera to capture people where they expect privacy can trigger Washington trespass, nuisance, and voyeurism law, plus FAA airspace rules. Persistent surveillance of a neighbor's private spaces may also support a civil invasion-of-privacy claim.",
-      "source": "Washington trespass/nuisance and RCW 9A.44.115; FAA 14 C.F.R. Part 107 (verify current)",
+      "source": "Washington trespass/nuisance and RCW 9A.44.115; FAA 14 C.F.R. Part 107",
       "tags": [
         "drone",
         "surveillance",
         "neighbors",
         "trespass",
         "voyeurism"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-accessory-dwelling-units-adus-are-allowed-with-limits",
@@ -2358,14 +2595,17 @@
       "category": "Property and housing",
       "title": "Accessory dwelling units (ADUs) are allowed with limits",
       "summary": "Kitsap County permits attached or detached accessory dwelling units (in-law units) on residential lots, subject to size caps (generally up to about 1,000 sq ft), a limit of up to two ADUs per lot, parking, and septic/water capacity. A building permit and zoning review are required.",
-      "source": "Kitsap County Code Title 17 (Allowed Use Standards) (verify current)",
+      "source": "Kitsap County Code Title 17 (Allowed Use Standards)",
       "tags": [
         "homeowner",
         "ADU",
         "zoning",
         "permit",
         "housing"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-building-permits-required-for-most-construction-and-major-ad",
@@ -2381,7 +2621,8 @@
         "permit",
         "construction",
         "remodel"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-critical-areas-and-shoreline-rules-restrict-building-near-wa",
@@ -2390,7 +2631,7 @@
       "category": "Property and housing",
       "title": "Critical areas and shoreline rules restrict building near water and wetlands",
       "summary": "Land near wetlands, streams, steep slopes, fish habitat, or the shoreline is regulated. Buffers and special permits limit how close you can clear, grade, or build. Check the Critical Areas Ordinance and Shoreline Master Program before any work near water or sensitive land.",
-      "source": "Kitsap County Code Title 19 (Critical Areas Ordinance) (verify current)",
+      "source": "Kitsap County Code Title 19 (Critical Areas Ordinance)",
       "tags": [
         "homeowner",
         "shoreline",
@@ -2398,7 +2639,10 @@
         "environment",
         "building",
         "buffers"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-septic-systems-and-wells-need-health-district-approval",
@@ -2415,7 +2659,8 @@
         "water",
         "health",
         "rural"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-zoning-controls-what-you-can-build-and-how-you-use-your-land",
@@ -2431,7 +2676,8 @@
         "land-use",
         "setbacks",
         "subdivision"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-no-county-business-license-but-home-businesses-need-a-permit",
@@ -2440,14 +2686,17 @@
       "category": "Work and money",
       "title": "No county business license, but home businesses need a permit",
       "summary": "Unincorporated Kitsap County (which includes Silverdale) does not require a general county business license, unlike the cities of Bremerton, Poulsbo, Port Orchard, and Bainbridge Island. But running a business from your home requires a Home Business / home-occupation permit, with limits on signs, traffic, employees, and use of the property. Verify current rules with the Department of Community Development.",
-      "source": "Kitsap County Code Title 17 (home business: KCC 17.110.345, 17.381) (verify current)",
+      "source": "Kitsap County Code Title 17 (home business: KCC 17.110.345, 17.381)",
       "tags": [
         "business",
         "home-business",
         "zoning",
         "licensing",
         "silverdale"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-abandoned-and-junk-vehicles-on-private-property",
@@ -2456,13 +2705,16 @@
       "category": "Driving and transport",
       "title": "Abandoned and junk vehicles on private property",
       "summary": "Storing inoperable, wrecked, or junk vehicles in public view on residential property can violate county nuisance/zoning rules and lead to removal orders or fines. Silverdale is unincorporated, so Kitsap County code (not a city code) applies.",
-      "source": "Kitsap County Code (junk vehicle / nuisance provisions) (verify current chapter)",
+      "source": "Kitsap County Code (junk vehicle / nuisance provisions)",
       "tags": [
         "junk-vehicle",
         "abandoned",
         "nuisance",
         "kitsap"
-      ]
+      ],
+      "risk_class": "routine",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "kitsap-local-parking-and-traffic-rules-on-county-roads",
@@ -2471,13 +2723,16 @@
       "category": "Driving and transport",
       "title": "Local parking and traffic rules on county roads",
       "summary": "Kitsap County sets local rules for parking, abandoned vehicles, road use, and traffic control on county-maintained roads, layered on top of state law. Check the county code or posted signs for things like overnight parking, junk vehicles, and load limits in your area.",
-      "source": "Kitsap County Code Title 10 (Vehicles and Traffic) (verify current chapter)",
+      "source": "Kitsap County Code Title 10 (Vehicles and Traffic)",
       "tags": [
         "parking",
         "county-roads",
         "local",
         "kitsap"
-      ]
+      ],
+      "risk_class": "routine",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "kitsap-kitsap-is-governed-by-three-county-commissioners",
@@ -2493,7 +2748,8 @@
         "Silverdale",
         "local",
         "unincorporated"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-no-initiative-or-referendum-at-the-county-level",
@@ -2502,14 +2758,17 @@
       "category": "Participation and governance",
       "title": "No initiative or referendum at the county level",
       "summary": "Because Kitsap is a non-charter (commission) county, residents do NOT have local initiative or referendum power over county measures. To weigh in, you participate through commissioner meetings, advisory boards, elections, and the statewide initiative/referendum process instead.",
-      "source": "Kitsap County non-charter status under RCW Title 36; WA Const. Art. XI §4 (charter counties) (verify current)",
+      "source": "Kitsap County non-charter status under RCW Title 36; WA Const. Art. XI §4 (charter counties)",
       "tags": [
         "initiative",
         "referendum",
         "non-charter",
         "county",
         "local"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-serve-on-a-county-advisory-board-or-comment-at-meetings",
@@ -2525,7 +2784,8 @@
         "participation",
         "county",
         "local"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-clearing-grading-and-filling-land-needs-a-county-permit",
@@ -2534,7 +2794,7 @@
       "category": "Environment and land",
       "title": "Clearing, grading, and filling land needs a county permit",
       "summary": "In Kitsap, land-disturbing work such as clearing vegetation, grading, filling, or excavating generally requires a Site Development Activity Permit before you start, with erosion and stormwater controls in place. Small exempt activities exist, but larger soil-disturbing projects must be permitted to control runoff and sediment.",
-      "source": "Kitsap County Code Title 12 (Storm Water Drainage) and the Kitsap Stormwater Design Manual (verify current)",
+      "source": "Kitsap County Code Title 12 (Storm Water Drainage) and the Kitsap Stormwater Design Manual",
       "tags": [
         "grading",
         "clearing",
@@ -2542,7 +2802,10 @@
         "erosion",
         "land disturbance",
         "permit"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-garbage-and-recycling-are-managed-illegal-dumping-is-penaliz",
@@ -2551,14 +2814,17 @@
       "category": "Environment and land",
       "title": "Garbage and recycling are managed; illegal dumping is penalized",
       "summary": "In unincorporated Kitsap, curbside recycling is bundled with garbage service for single- and multi-family customers (limited-income seniors and disabled residents can opt out of recycling). Dumping junk, garbage, or debris on public land or roadsides is illegal dumping and can be cited.",
-      "source": "Kitsap County Code (solid waste / recycling chapters) under RCW 70A.205 (verify current)",
+      "source": "Kitsap County Code (solid waste / recycling chapters) under RCW 70A.205",
       "tags": [
         "garbage",
         "recycling",
         "solid waste",
         "illegal dumping",
         "kitsap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-kitsap-requires-buffers-around-wetlands-and-streams",
@@ -2567,7 +2833,7 @@
       "category": "Environment and land",
       "title": "Kitsap requires buffers around wetlands and streams",
       "summary": "Kitsap's Critical Areas Ordinance sets no-clearing native vegetation buffers around wetlands and streams (for example, larger fish-bearing 'Type F' streams generally get a 150-foot buffer plus a 15-foot building setback). Buffers can sometimes be reduced (often up to about 25%) only with an approved request. Check with Kitsap DCD before clearing or building near water or wet ground.",
-      "source": "Kitsap County Code Title 19 (Critical Areas Ordinance) (verify current)",
+      "source": "Kitsap County Code Title 19 (Critical Areas Ordinance)",
       "tags": [
         "buffers",
         "wetlands",
@@ -2575,7 +2841,10 @@
         "critical areas",
         "kitsap",
         "clearing"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-outdoor-burning-is-banned-in-urban-areas-trash-burning-is-al",
@@ -2584,14 +2853,17 @@
       "category": "Environment and land",
       "title": "Outdoor burning is banned in urban areas; trash burning is always illegal",
       "summary": "Outdoor burning is permanently banned inside Kitsap's urban growth areas (which includes Silverdale), and land-clearing fires are banned countywide. Burning trash is never allowed. Where burning of natural yard debris is permitted in rural areas, you may need a permit, and temporary Phase 1/Phase 2 burn bans suspend even recreational fires during fire season.",
-      "source": "Chapter 173-425 WAC / RCW 70A.15 (Clean Air Act), Puget Sound Clean Air Agency rules (verify current)",
+      "source": "Chapter 173-425 WAC / RCW 70A.15 (Clean Air Act), Puget Sound Clean Air Agency rules",
       "tags": [
         "burning",
         "burn ban",
         "air quality",
         "fire",
         "yard debris"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-septic-systems-must-be-permitted-maintained-and-inspected",
@@ -2600,14 +2872,17 @@
       "category": "Environment and land",
       "title": "Septic systems must be permitted, maintained, and inspected",
       "summary": "If your home is on a septic (on-site sewage) system, Kitsap Public Health regulates its installation, repair, and upkeep. Systems must be kept in working order, inspected on a schedule, and an inspection is typically required before selling the property. This protects drinking water, groundwater, and shellfish beds.",
-      "source": "Kitsap Public Health Board on-site sewage ordinance, under RCW 70A.110 / WAC 246-272A (verify current)",
+      "source": "Kitsap Public Health Board on-site sewage ordinance, under RCW 70A.110 / WAC 246-272A",
       "tags": [
         "septic",
         "onsite sewage",
         "kitsap public health",
         "inspection",
         "water quality"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-what-you-do-on-your-land-is-limited-by-zoning",
@@ -2616,7 +2891,7 @@
       "category": "Environment and land",
       "title": "What you do on your land is limited by zoning",
       "summary": "Every parcel in unincorporated Kitsap has a zoning designation (residential, rural, commercial, etc.) that controls allowed uses, lot sizes, building setbacks, and density. Silverdale lies within Kitsap's urban growth area, where urban-level development is directed. Check your parcel's zoning before building, subdividing, or starting a home business.",
-      "source": "Kitsap County Code Title 17 (Zoning) (verify current)",
+      "source": "Kitsap County Code Title 17 (Zoning)",
       "tags": [
         "zoning",
         "land use",
@@ -2624,7 +2899,10 @@
         "density",
         "kitsap",
         "UGA"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-keep-your-dog-under-control-not-at-large",
@@ -2641,7 +2919,8 @@
         "at large",
         "animal control",
         "kitsap"
-      ]
+      ],
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-license-your-dog-or-cat",
@@ -2650,14 +2929,17 @@
       "category": "Everyday conduct",
       "title": "License your dog or cat",
       "summary": "Kitsap County requires pet dogs and cats to be licensed (and current on rabies vaccination), with the Kitsap Humane Society as the animal control authority. Failing to license, or violating animal rules, can result in infractions or fines.",
-      "source": "Kitsap County Code Title 7 (verify current chapter)",
+      "source": "Kitsap County Code Title 7",
       "tags": [
         "pets",
         "dog license",
         "cat license",
         "rabies",
         "kitsap"
-      ]
+      ],
+      "risk_class": "routine",
+      "needs_verification": true,
+      "verified": null
     },
     {
       "id": "kitsap-no-public-nuisances-on-your-property",
@@ -2666,7 +2948,7 @@
       "category": "Everyday conduct",
       "title": "No public nuisances on your property",
       "summary": "Property owners and occupants can't maintain conditions that harm neighbors or the public, such as accumulated garbage, junk, overgrowth, or unsafe structures. The county can order abatement and bill you for cleanup costs if you don't fix it.",
-      "source": "Kitsap County Code (nuisance/code enforcement, Title 9 / Title 17.530) (verify current)",
+      "source": "Kitsap County Code (nuisance/code enforcement, Title 9 / Title 17.530)",
       "tags": [
         "nuisance",
         "property",
@@ -2674,7 +2956,10 @@
         "junk",
         "abatement",
         "kitsap"
-      ]
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
     },
     {
       "id": "kitsap-noise-limits-in-kitsap-county",
@@ -2690,7 +2975,8 @@
         "nighttime",
         "nuisance",
         "kitsap"
-      ]
+      ],
+      "risk_class": "routine"
     }
   ]
 }
