@@ -138,7 +138,11 @@
       <p>The rules that apply where you live, nested from Humanity down to your town. Two kinds: the HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source to verify).</p>
     </header>
 
-    <div class="disclaimer-card" id="laws-disclaimer" hidden></div>
+    <!-- Deliberately NOT hidden and NOT empty. This element used to be blank
+         until the JSON fetch resolved, so a slow or failed load could show law
+         with no caveat attached. The text below is the fallback that exists
+         before any script runs; the fetch replaces it with the file's own. -->
+    <div class="disclaimer-card" id="laws-disclaimer">This is a worked example, not the law. Entries may be incomplete, out of date, or wrong, and most have never been checked by a person. Not legal advice. Always read the cited source.</div>
 
     <section class="where-card">
       <h3>Where you are</h3>
@@ -244,17 +248,42 @@
           }
           var base = logic.isBase(r);
           var isOpen = !!expanded[r.id];
+
+          // Provenance travels WITH the entry, because the entry is what
+          // travels: people screenshot one row, or open a deep link to it, and
+          // a caveat that lives at the top of the page does not go with it.
+          var prov;
+          if (r.verified && r.verified.on) {
+            prov = 'Checked ' + escapeHtml(r.verified.on) +
+              (r.verified.human_reviewed ? ' by a reviewer.' : ', not yet reviewed by a person.');
+          } else {
+            prov = 'Never checked by anyone. Treat as a draft.';
+          }
+
+          // The gate. For rules whose failure mode is prison, deportation or
+          // death (use of force, weapons carry and discharge, protection
+          // orders, mandatory reporting, immigration), a SUMMARY IS THE DEFECT:
+          // the compression is exactly what removes the condition that would
+          // have saved the reader. If nobody has checked it, do not show it in
+          // the answer position at all. Show the citation and a human to ask.
+          var gated = r.risk_class === 'liberty_or_life' && !(r.verified && r.verified.on);
+          var preview = gated
+            ? 'Not shown: this one can cost you your liberty and nobody has checked it. Read the source.'
+            : escapeHtml(r.summary);
           html += '<div class="law-row">' +
             '<button class="law-row-head" type="button" data-rule-id="' + escapeHtml(r.id) + '"' +
               ' aria-expanded="' + (isOpen ? 'true' : 'false') + '">' +
               '<span class="kind-chip ' + (base ? 'base' : 'real') + '">' + (base ? 'BASE' : 'REAL') + '</span>' +
               (r.category ? '<span class="law-cat">' + escapeHtml(r.category) + '</span>' : '') +
               '<span class="law-title">' + escapeHtml(r.title) + '</span>' +
-              '<span class="law-summary-preview">' + escapeHtml(r.summary) + '</span>' +
+              '<span class="law-summary-preview">' + preview + '</span>' +
             '</button>' +
             '<div class="law-detail"' + (isOpen ? '' : ' hidden') + '>' +
-              '<p>' + escapeHtml(r.summary) + '</p>' +
+              (gated
+                ? '<p><strong>We are not going to summarise this one.</strong> Getting it wrong here means prison or a death, a short summary is exactly what drops the condition that matters, and nobody has checked this entry. Read the law itself, and talk to a person: a lawyer, your county public defender, or for anything involving violence at home, a domestic violence advocate.</p>'
+                : '<p>' + escapeHtml(r.summary) + '</p>') +
               (r.source ? '<p class="law-source">Source: ' + escapeHtml(r.source) + '</p>' : '') +
+              '<p class="law-source">' + prov + '</p>' +
               (r.tags && r.tags.length
                 ? '<p class="law-tags">Tags: ' + escapeHtml(r.tags.join(', ')) + '</p>'
                 : '') +

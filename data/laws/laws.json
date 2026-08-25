@@ -1,6 +1,6 @@
 {
   "_comment": "Nested, location-aware rules. Two kinds: 'base' = the HumanityOS base set (distilled from the Humanity Accord, docs/accord/) which is where we want to GO; 'real' = plain-language summaries of real-world laws (where we ARE) with a source to verify. The point is a SMALL memorable base set plus condensed real laws, not millions of statutes. Data-driven (infinite-of-X): add jurisdictions + rules here, the app picks them up. Content focus: the operator's location (Silverdale, Kitsap County, WA, USA). See docs/design/laws.md.",
-  "disclaimer": "Plain-language summaries for learning, not legal advice. Real laws change and vary by place; always verify with the cited source before relying on one. The HumanityOS base set is our own framework (where we want to be), not the law of any government.",
+  "disclaimer": "This is a WORKED EXAMPLE, not the law. It shows how HumanityOS intends to record rules so anyone can see what applies where they live and why. Entries may be incomplete, out of date, or simply wrong, and most have never been checked by a person. Nothing here is legal advice, nothing here is guaranteed to be current, and you should never act on it without reading the cited source. Enforcement also varies by who you are, so what happened to someone else is not a prediction about you. The HumanityOS base set is our own framework, what we think ought to be true, and is not the law of any government.",
   "jurisdictions": [
     {
       "id": "humanity",
