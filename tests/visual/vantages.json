@@ -1840,11 +1840,11 @@
   },
   {
    "id": "horizon-line-3km",
-   "desc": "Operator artifact: a dead-straight horizon line through the whole cloud layer, seen from inside/above the deck, gone once below it. Full coverage, horizontal look from 3 km.",
+   "desc": "Operator artifact: a dead-straight line through the whole cloud layer seen from inside/above the deck, gone once underneath. NATURAL weather (no coverage pin - pinning 1.0 just buries the camera in dense cloud).",
    "camera": {
     "body": "earth",
-    "lat": -15,
-    "lon": 165,
+    "lat": 47.645,
+    "lon": -122.6925,
     "time": 12,
     "altitude_km": 3,
     "look_offset_deg": 90
@@ -1857,9 +1857,7 @@
    "hold_altitude": true,
    "showcase": {
     "clouds": "1",
-    "cloud_cover": "1.0",
-    "cloud_type": "0.34",
-    "weather": "clear"
+    "weather": "cloudy"
    }
   },
   {
@@ -2115,6 +2113,73 @@
     "cloud_cover": "0.5",
     "cloud_type": "0.34",
     "weather": "clear"
+   }
+  },
+  {
+   "id": "horizon-line-6km",
+   "desc": "Same artifact from above the mid-slab: dead-straight line through the deck.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12,
+    "altitude_km": 6,
+    "look_offset_deg": 90
+   },
+   "settle_s": 16,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy"
+   }
+  },
+  {
+   "id": "horizon-line-under",
+   "desc": "Control: BELOW the deck, where the operator says the line is gone.",
+   "camera": {
+    "body": "earth",
+    "lat": 47.645,
+    "lon": -122.6925,
+    "time": 12,
+    "altitude_km": 0.5,
+    "look_offset_deg": 90
+   },
+   "settle_s": 16,
+   "expect": "diagnostic",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy"
+   }
+  },
+  {
+   "id": "ultra-lobes-8km",
+   "desc": "Operator close-range Ultra view: above a cloud field over water looking down across the tops. Owns three complaints at once - the concentric eyeball rings on each lobe, the TV-static stipple on small isolated clouds (transparency faked by dither), and the ball-pit look (lobe spheres not merged).",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 8,
+    "look_offset_deg": 65
+   },
+   "settle_s": 18,
+   "expect": "Merged cauliflower cloud mass with soft translucent edges - NOT a pit of separate spheres, NOT stippled edges, NO concentric rings on any lobe.",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy",
+    "cloud_quality": "ultra"
    }
   }
  ],

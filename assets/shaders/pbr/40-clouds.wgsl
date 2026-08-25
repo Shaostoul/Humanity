@@ -597,6 +597,12 @@ const CLOUD_COV_LO: f32 = 0.854;
 // in cores. Normalizing the carve against the real body top keeps that
 // contract without retuning four erosion bands.
 const CLOUD_BODY_TOP: f32 = 0.79;
+// Coverage threshold for the CONSTRUCTED body. Near zero on purpose:
+// the per-cell occupancy law in 41-cloud-bodies.wgsl already applies
+// coverage, so this only has to keep clear air clear. Raising it
+// re-introduces the ball pit (it deletes the small buds) and the
+// stipple (it crushes the density rind to a stencil).
+const CLOUD_V2_THR: f32 = 0.02;
 const CLOUD_COV_HI: f32 = 0.347;
 // Domed tops (v0.1013.x, operator field report: "the big bulky clouds still
 // look like their edges are mostly cliffs" / "from above they mostly just
@@ -1589,6 +1595,11 @@ fn cloud_carve(
     // field into dust (carve-map probe, 2026-08-21). The coverage window
     // below is re-derived against the single-construction distribution.
     var body = s.r;
+    // How much of this sample is the CONSTRUCTED (v2) body rather than
+    // the noise field. The constructed body is a DISTANCE FIELD, so the
+    // downstream terms designed for a fractal are neutralised in
+    // proportion to this weight (see each use below).
+    var v2_w = 0.0;
     // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
     // CONSTRUCTED primitives instead of the noise field. This is the
     // Nubis wiring the survey found universal: noise ERODES a body, it
@@ -1613,6 +1624,7 @@ fn cloud_carve(
         // the convective range. Replaces the unconditional swap that
         // rendered thin high cloud as low grape clusters.
         let w_built = smoothstep(0.20, 0.30, tc_v2);
+        v2_w = w_built;
         let built = cloud_v2_body(p, wa, tc_v2, lodb);
         body = mix(body, built, w_built);
         if (body <= 0.001) {
@@ -1647,14 +1659,44 @@ fn cloud_carve(
     // pinned 1.0 (body < COV_HI regions, sliding with the weather
     // advect) are accepted as physical; the cov100 gate caps them at 2%
     // instead of zero.
-    let thr_base = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
+    // COVERAGE IS APPLIED ONCE (2026-08-25 - the operator's "ball pit"
+    // and "faking transparency through TV static"). On the NOISE path
+    // this threshold IS the coverage mechanism. On the CONSTRUCTED path
+    // coverage was ALREADY applied by the per-cell occupancy law in
+    // 41-cloud-bodies.wgsl (p_cell = wa * cell_area / cloud_area), so
+    // thresholding again did nothing but shave every lobe inward:
+    // 31-77 m of erosion depending on wa, out of a 90 m rind. Two
+    // consequences the operator saw directly:
+    //  - it DELETED THE BUDS. Lobe radii are Pareto-distributed from
+    //    0.06*width up, so 40-57% of the 14 lobes fell below threshold,
+    //    and on a small cumulus only the core lobe survived - one bald
+    //    sphere. That is the ball pit, and the cauliflower that should
+    //    have hidden it was exactly what got cut.
+    //  - it CRUSHED the 90 m density rind to a 3-18 m skin (sub-metre
+    //    for isolated low-coverage clouds - a hard stencil), leaving no
+    //    gradient to be translucent with, so the erosion bands stippled
+    //    the edge instead. That is the TV static.
+    // Thresholded at ~0, the full rind becomes the density ramp: a real
+    // ~69 m soft edge that Beer-Lambert integrates into genuine
+    // transparency. The v0.1201 "thr -> 0 fills the slab vertically",
+    // (scud) lesson does NOT transfer: that was the noise body, where
+    // thr is the only vertical shaping. The constructed body carries
+    // its own flat condensation base and height cap in the SDF.
+    let thr_noise = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
+    let thr_base = mix(thr_noise, CLOUD_V2_THR, v2_w);
     // Base-height field (see CLOUD_BASE_DROP), regime-weighted in phase 3:
     // undulating bases are a stratocumulus/nimbostratus cue; a cumulus
     // base is the flat condensation level and keeps it near zero.
     let v_band = 1.0 - u_band;
+    // The domed-top and base-undulation threshold terms shape the NOISE
+    // body vertically; the constructed body already carries a modelled
+    // crown and a flat condensation base in its SDF, so applying them
+    // again only re-erodes it - and, being functions of the body value,
+    // they draw further iso-distance rings on a distance field.
+    let shape_w = 1.0 - v2_w;
     var thr = thr_base
-        + CLOUD_TOP_RISE * u_band * u_band
-        + CLOUD_BASE_DROP * reg.base_drop * v_band * v_band * (1.0 - lofi);
+        + shape_w * CLOUD_TOP_RISE * u_band * u_band
+        + shape_w * CLOUD_BASE_DROP * reg.base_drop * v_band * v_band * (1.0 - lofi);
     // Cumulus-scale cell split (phase 3, fidelity finding 4): the shape
     // volume's finest feature is ~11 km, and erosion can only nibble a
     // blob's edges - nothing could ever make a 1-2 km cloud. A second tap
@@ -1727,7 +1769,16 @@ fn cloud_carve(
     // the folds between them sit in their own shade - visible even with
     // the sun at zenith, where the tau march alone reads flat).
     let u_crown = sqrt(max(body - thr_base, 0.0) / CLOUD_TOP_RISE);
-    let crown = clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0);
+    // THE EYEBALL (2026-08-25): crown is a pure function of `body`, and
+    // on the constructed path `body` IS distance-to-surface - so
+    // crown_shade (mix(0.62, 1.12, crown) in the march) painted a 1.81x
+    // bright arc on a contour concentric with every lobe. Measured
+    // arc/interior on the operator capture: 1.90x, predicted to 5%. It
+    // is a valid relief cue for the FRACTAL body, where `body` is not a
+    // radial coordinate; on a distance field it is meaningless, so it
+    // fades out with the constructed weight.
+    let crown = mix(
+        clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0), 1.0, v2_w);
     // ── 12f underside relief (fidelity consult 2026-08-23) ──
     // LWP field: cloud fraction 1.0 never meant water path uniform. Real
     // marine boundary-layer decks carry optical-thickness inhomogeneity
@@ -1747,8 +1798,11 @@ fn cloud_carve(
     // BASE_DROP*wt*v^2 for v gives how far DOWN this column's own base
     // reaches (v_base >= 1: hangs at the very slab floor = a pouch).
     let bd_wt = CLOUD_BASE_DROP * reg.base_drop * (1.0 - lofi);
-    let pouch = clamp(
-        sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0);
+    // Same iso-distance defect as crown above: pouch is f(body), which
+    // on the constructed path is a radial coordinate. Faded out with the
+    // constructed weight (0 = no pouch darkening).
+    let pouch = mix(clamp(
+        sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0), 0.0, v2_w);
     g_cloud_bandtop = h_hi_eff;
     g_cloud_pouch = pouch;
     return CloudSample(carve, ps, h, crown, lwp, pouch);
@@ -2465,7 +2519,21 @@ fn cloud_march_core(
         let tau = cloud_sun_tau(
             p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lodb);
-        let powder = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
+        // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
+        // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
+        // 12.5x darkening. Measured on the operator capture, that put
+        // the cloud rim at 0.71x the luminance of the SKY BEHIND IT -
+        // physically impossible for a conservative scatterer (droplet
+        // single-scatter albedo > 0.9999). It is also double-counted:
+        // cloud_scatter_energy already evaluates the dual-lobe HG phase
+        // per octave AND carries a two-stream diffusion floor, which is
+        // the multiple-scattering behaviour powder is an ad-hoc stand-in
+        // for. The noise path keeps it (its look is calibrated around
+        // it); the constructed path floors it so an edge can never go
+        // darker than the sky it is seen against.
+        let powder_raw = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
+        let powder = select(powder_raw, max(powder_raw, 0.75),
+            material.params.y >= 2.5);
         let pw = mix(powder, 1.0, powder_gate);
         let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
         // 12f: the VERTICAL column depth above this sample (plane-
