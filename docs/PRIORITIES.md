@@ -66,6 +66,31 @@
 > lessons journaled (v0.1208 entry): pin the cloud TYPE when hunting
 > coverage differences; same-region or it proves nothing.
 >
+> **SHIPPED v0.1214.0: THE APPROACH VANISH, ROOT-CAUSED AND CLOSED.**
+> The atmosphere DOME was painting over the composited deck. The 12c
+> order rule composited clouds BEFORE the transparent pass whenever the
+> camera sat outside the atmosphere; over the disc that dome alpha is
+> near-opaque, so it erased them. Measured: the composite wrote 1.2% of
+> the disc under the old order, 99.9% under the new one, with every
+> discard sentinel reading ZERO (drawn, then overdrawn). Ladder is now
+> smooth 20,000 km -> 900 km (was a 60.9% -> 8.8% cliff). Physically
+> correct too: the march already applies aerial perspective, so the old
+> order applied the air column twice. It masqueraded as a terrain bug
+> because the cliff sat exactly at the chunked-terrain trigger (1.5
+> planet radii), which flips the shell lists and hence this ordering.
+> ALSO: the Ultra eyeball rings - the v2 body is a DISTANCE field, so a
+> footprint-derived rind is a metric radius and the 8-tap sun ladder
+> shaded eight shrunken copies of each lobe; the rind is now frozen
+> once per ray.
+>
+> **NEXT (TOP): operator verdict on v0.1214.1** (approach continuity
+> orbit-to-ground, Ultra lobes ring-free), then by rank:
+> 0. THE HORIZON LINE (operator, still open): a dead-straight line
+>    through the whole cloud layer seen from inside/above the deck,
+>    gone once underneath. Needs a NATURAL-weather repro - pinning
+>    coverage 1.0 just buries the camera in dense cloud. Side finding
+>    deserving its own item: inside a pinned-100% deck at noon the view
+>    renders near-BLACK, where real in-cloud is bright white fog.
 > **NEXT (TOP): operator verdict on v0.1208.1** (procedural-only sky
 > feel, static-square death, approach continuity), then by rank:
 > 1. THE SPHERE-BALL LOOK + per-lobe shelving (operator: "obviously
