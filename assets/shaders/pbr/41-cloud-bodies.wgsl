@@ -50,6 +50,28 @@ const CLOUD_V2_RIND_M: f32 = 90.0;
 // How far a cloud may sit from its cell centre, as a fraction of the
 // cell, so the field is not a visible lattice.
 const CLOUD_V2_JITTER: f32 = 0.38;
+// ── SURFACE DISPLACEMENT (2026-08-25, the operator: "up close they are
+// still an obvious ball pit. How do we get rid of the ball shapes?") ──
+//
+// No amount of smooth-union blending can stop a union of spheres reading
+// as spheres, because BETWEEN the blend seams the surface is still exactly
+// spherical. Every shipped volumetric cloud system answers this the same
+// way: noise does not build the body, it DISPLACES the body surface. A
+// real cumulus boundary is fractal at every scale - that is what makes
+// cauliflower - so the distance field gets pushed in and out by an FBM
+// before it becomes density.
+//
+// Two octaves, in METRES, applied to the reduced distance: coarse for the
+// billow silhouette, fine for the cauliflower rind. Amplitudes are
+// physical, NOT footprint-scaled - a term whose scale rides the rind is
+// exactly the class that produced the eyeball rings.
+const CLOUD_V2_DISP_TILE_KM: f32 = 2.0;
+const CLOUD_V2_DISP_M: f32 = 85.0;
+const CLOUD_V2_DISP2_TILE_KM: f32 = 0.55;
+const CLOUD_V2_DISP2_M: f32 = 26.0;
+// log2 of each octave voxel size in km (256^3 volume), for band-limiting.
+const CLOUD_V2_DISP_LODC: f32 = -6.90;
+const CLOUD_V2_DISP2_LODC: f32 = -8.76;
 
 // Deterministic hash on a 2D integer cell -> [0,1). Matches the CPU
 // model's avalanche family closely enough for placement; the shapes
@@ -351,6 +373,34 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // A real cloud edge has a physical transition width that does not care
     // where it is seen from. Band-limiting is the job of the noise mip chain
     // and the temporal accumulation, NOT of reshaping the body.
+    // FRACTAL SURFACE DISPLACEMENT (see the constants above). Applied HERE,
+    // after the min-reduction over cells and lobes, for four reasons that
+    // all matter:
+    //  - this is the only point where the value is still a metric distance
+    //    in METRES, so the amplitude is footprint-independent,
+    //  - it is a pure function of world position, so the view sample and
+    //    all eight sun-shadow taps see the SAME displaced surface (a
+    //    per-tap quantity here is what drew the eyeball rings),
+    //  - being post-reduction it also warps the seams BETWEEN neighbouring
+    //    clouds, which is the other half of the ball-pit look, for free,
+    //  - one texture fetch per sample instead of one per lobe: 42 calls per
+    //    ray rather than 882.
+    // The texture is used rather than procedural hash noise specifically so
+    // the mip chain band-limits it; unfiltered value noise here would alias
+    // straight back into the salt-and-pepper this is meant to remove. The
+    // mip is taken WITHOUT the per-pixel lod dither: this displacement is
+    // SHAPE, and shape must be identical for every ray that reaches this
+    // point in the world, or it stipples.
+    let d1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+        p * (1.0 / (CLOUD_V2_DISP_TILE_KM * g_cloud_upkm)),
+        clamp(lodb - CLOUD_V2_DISP_LODC, 0.0, 8.0));
+    let d2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+        p * (1.0 / (CLOUD_V2_DISP2_TILE_KM * g_cloud_upkm)),
+        clamp(lodb - CLOUD_V2_DISP2_LODC, 0.0, 8.0));
+    let n1 = d1.r * 0.625 + d1.g * 0.25 + d1.b * 0.125;
+    let n2 = d2.r * 0.625 + d2.g * 0.25 + d2.b * 0.125;
+    let disp_m = (n1 - 0.5) * 2.0 * CLOUD_V2_DISP_M
+               + (n2 - 0.5) * 2.0 * CLOUD_V2_DISP2_M;
     let rind = CLOUD_V2_RIND_M;
-    return clamp(-best / rind, 0.0, 1.0);
+    return clamp(-(best - disp_m) / rind, 0.0, 1.0);
 }
