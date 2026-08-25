@@ -11,6 +11,15 @@
       ]
     },
     {
+      "name": "Founding Documents",
+      "docs": [
+        {
+          "title": "The Constitution of the United States",
+          "file": "us-constitution.md"
+        }
+      ]
+    },
+    {
       "name": "The Mission",
       "docs": [
         {

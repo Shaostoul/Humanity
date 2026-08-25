@@ -20,6 +20,15 @@ const CATEGORIES = [
   { name: 'Credits', docs: [
     { title: 'Credits and Thanks', src: 'CREDITS.md' },
   ]},
+  // Primary sources, verbatim. A plain-language SUMMARY of a law can be wrong;
+  // a verbatim primary source cannot be a wrong summary, which makes this the
+  // safest content the project ships and the kind it can ship responsibly
+  // without a lawyer. Built by scripts/build-constitution.js from the official
+  // USLM XML (govinfo bulk data, public domain under 17 U.S.C. 105(a)), which
+  // verifies 12 famous passages byte-for-byte before it will write the file.
+  { name: 'Founding Documents', docs: [
+    { title: 'The Constitution of the United States', src: 'docs/reference/us-constitution.md' },
+  ]},
   // v0.1090.x mission layer (operator: supporting docs for the overall mission
   // of ending pollution, poverty, corruption, fraud, and tyranny in pursuit of
   // uniting humanity in peaceful harmony). Source: docs/mission/.
