@@ -1403,6 +1403,10 @@ mod native_app {
             // Load data-driven catalogs into GUI state
             gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
+            // Keymaps used to load lazily on the first F1 press. The top-right help
+            // button can open the same panel without F1 ever being touched, so they
+            // are loaded up front now; the lazy path below stays as a safety net.
+            gui_state.keymaps = crate::gui::pages::keymap::load_keymaps(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
             gui_state.map_planets = crate::gui::load_planets();
             gui_state.places = crate::gui::load_places(&data_dir);
@@ -2219,6 +2223,15 @@ mod native_app {
                         //      Same as before.
                         //   4. MainMenu always stays put — operator can't
                         //      Esc out of the title screen.
+                        // Esc closes the pinned help panel FIRST (v0.1212). It is the
+                        // topmost thing on screen, so dismissing it is what Esc means
+                        // while it is up; everything below (showroom cancel, nav back,
+                        // drop to FPS) happens on the next press, unchanged.
+                        if key == KeyCode::Escape && pressed && state.gui_state.help_panel_pinned {
+                            state.gui_state.help_panel_pinned = false;
+                            return;
+                        }
+
                         if key == KeyCode::Escape && pressed {
                             // Esc cancels the showroom cleanly. Leaving showroom_active
                             // set would make the next Play render the showroom instead
@@ -17767,8 +17780,21 @@ mod native_app {
                                     painter.circle_filled(center, 3.0, color);
                                 }
 
-                                // Keymap reference overlay while F1 is held (v0.465).
-                                if state.gui_state.keymap_visible {
+                                // Top-right help toggle (v0.1212): "?" when the panel is
+                                // closed, "X" while it is open, always the same spot so
+                                // the way in and the way out never move. Draws itself on
+                                // every screen EXCEPT the first-person world view, where
+                                // F1 remains the way in.
+                                crate::gui::pages::keymap::draw_help_toggle(
+                                    ctx,
+                                    &state.theme,
+                                    &mut state.gui_state,
+                                );
+                                // The panel itself: transient while F1 is held (v0.465,
+                                // unchanged) or sticky while pinned by the button above.
+                                if state.gui_state.keymap_visible
+                                    || state.gui_state.help_panel_pinned
+                                {
                                     crate::gui::pages::keymap::draw(ctx, &state.theme, &state.gui_state);
                                 }
                                 // Diagnostics dev-HUD overlays (F2/F3/F4), v0.482.

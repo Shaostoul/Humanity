@@ -56,6 +56,18 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         // doubled line compared to other separators in the layout.
         .show_separator_line(false)
         .show(ctx, |ui| {
+            // Keep the top-right corner clear for the always-in-place help toggle
+            // (pages/keymap.rs::draw_help_toggle, v0.1212). That button is anchored to
+            // the window, not laid out in this row, so without reserving its width the
+            // wrapped nav would run a tab underneath it. Reserved unconditionally so
+            // the nav layout never shifts as the help panel opens and closes.
+            // NOTE: `ui.set_max_width` here does NOT work - it leaves the wrapped row
+            // exactly as wide as before (proved with an absurd 326 px reserve that moved
+            // nothing). The child ui has to be given the narrower width when it is
+            // ALLOCATED, which is what allocate_ui does.
+            let help_reserve = crate::gui::pages::keymap::HELP_TOGGLE_SIZE + 10.0;
+            let nav_width = (ui.available_width() - help_reserve).max(120.0);
+            ui.allocate_ui(Vec2::new(nav_width, 0.0), |ui| {
             // horizontal_WRAPPED (v0.859): buttons that overflow the window width wrap
             // into a second row instead of being clipped off the right edge, matching
             // the web header. The TopBottomPanel auto-grows to fit the extra rows.
@@ -310,6 +322,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     crate::config::AppConfig::from_gui_state(state).save();
                 }
             });
+            }); // allocate_ui: the width-reserved region for the help toggle
         });
 
     // RGB channeling separator below the nav — matches the two-tier

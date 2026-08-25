@@ -33,6 +33,17 @@ struct HelpTopicsFile {
     #[allow(dead_code)]
     version: u32,
     topics: HashMap<String, HelpTopic>,
+    /// Which topics belong to which page, keyed by WEB ROUTE ("/chat" -> ["chat-context-menu", ...]).
+    /// This map already existed for the web client; native reads the same one so a
+    /// page's help is written once and shows up in both UIs.
+    #[serde(default)]
+    pages: HashMap<String, Vec<String>>,
+    /// Alias map for native screens whose name does not derive to a web route.
+    /// GuiPage variant name -> a key in `pages` (e.g. "Quests" -> "/onboarding").
+    /// Data, not a match arm, so pairing a new page with existing help is a
+    /// one-line edit to the JSON. The web reader ignores unknown top-level keys.
+    #[serde(default)]
+    native_pages: HashMap<String, String>,
 }
 
 fn default_version() -> u32 { 1 }
@@ -41,6 +52,10 @@ fn default_version() -> u32 { 1 }
 #[derive(Default, Debug, Clone)]
 pub struct HelpRegistry {
     topics: HashMap<String, HelpTopic>,
+    /// Route -> topic ids, straight from the JSON's shared `pages` map.
+    pages: HashMap<String, Vec<String>>,
+    /// GuiPage name -> route alias, for screens whose name is not the route.
+    native_pages: HashMap<String, String>,
 }
 
 impl HelpRegistry {
@@ -48,6 +63,26 @@ impl HelpRegistry {
 
     pub fn get(&self, id: &str) -> Option<&HelpTopic> {
         self.topics.get(id)
+    }
+
+    /// The prose topics that belong to a native page, in the order the content
+    /// author listed them. Empty when nobody has written help for this screen,
+    /// so the caller renders keys only instead of an empty prose section.
+    ///
+    /// `page_name` is the `GuiPage` variant name (e.g. "Wallet"). Resolution:
+    ///   1. `native_pages["Wallet"]` if present, for screens whose name is not
+    ///      the web route (GuiPage::Quests is the web's "/onboarding" page);
+    ///   2. otherwise the derived route "/" + lowercased name, which already
+    ///      hits for most pages ("Chat" -> "/chat", "Studio" -> "/studio").
+    /// Both land in the SAME `pages` map the web client uses, so a topic added
+    /// for a web route immediately shows up on the matching native screen.
+    pub fn topics_for_page(&self, page_name: &str) -> Vec<&HelpTopic> {
+        let derived = format!("/{}", page_name.to_lowercase());
+        let route = self.native_pages.get(page_name).map(|s| s.as_str()).unwrap_or(&derived);
+        self.pages
+            .get(route)
+            .map(|ids| ids.iter().filter_map(|id| self.topics.get(id)).collect())
+            .unwrap_or_default()
     }
 
     pub fn len(&self) -> usize { self.topics.len() }
@@ -73,12 +108,18 @@ pub fn load_help_registry(data_dir: &Path) -> HelpRegistry {
         }
     };
     log::info!("Loaded {} help topics from {}", parsed.topics.len(), path.display());
-    HelpRegistry { topics: parsed.topics }
+    HelpRegistry {
+        topics: parsed.topics,
+        pages: parsed.pages,
+        native_pages: parsed.native_pages,
+    }
 }
 
 /// Strip simple inline HTML-like tags from a string so native can render plain text.
 /// Recognises `<strong>`, `</strong>`, `<em>`, `</em>`, etc. Drops anything in `<...>`.
-fn strip_html(s: &str) -> String {
+/// `pub(crate)` because the top-right help panel (pages/keymap.rs) renders the same
+/// topic bodies and must strip them the same way.
+pub(crate) fn strip_html(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut in_tag = false;
     for ch in s.chars() {
@@ -223,5 +264,55 @@ pub fn draw(
 
     if should_close {
         *active_topic = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shipped() -> HelpRegistry {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        load_help_registry(&dir)
+    }
+
+    /// `load_help_registry` swallows every error and returns an EMPTY registry, so a
+    /// stray comma in topics.json would not crash or warn - the help panel would just
+    /// quietly show no prose anywhere, on both clients. This is the gate against that.
+    #[test]
+    fn shipped_help_topics_parse() {
+        let reg = shipped();
+        assert!(!reg.is_empty(), "data/help/topics.json produced no topics (parse error?)");
+    }
+
+    /// The native panel finds a page's prose by deriving a web route from the page
+    /// name. If that derivation ever stops matching the shared `pages` map, every
+    /// page silently loses its prose half while still looking fine (keys still show).
+    #[test]
+    fn a_derived_route_page_resolves_its_topics() {
+        let reg = shipped();
+        assert!(
+            !reg.topics_for_page("Chat").is_empty(),
+            "GuiPage::Chat should derive to the \"/chat\" entry of the shared pages map"
+        );
+    }
+
+    /// Every alias in `native_pages` must point at a route that exists AND carries at
+    /// least one real topic. A typo here is invisible at runtime (you just get no
+    /// prose), which is exactly the kind of silent miss this repo keeps getting bitten
+    /// by, so it is asserted instead of trusted.
+    #[test]
+    fn every_native_page_alias_points_at_real_topics() {
+        let reg = shipped();
+        for (page, route) in &reg.native_pages {
+            let ids = reg
+                .pages
+                .get(route)
+                .unwrap_or_else(|| panic!("native_pages[{page}] -> {route}, which is not a key in `pages`"));
+            assert!(
+                ids.iter().any(|id| reg.topics.contains_key(id)),
+                "native_pages[{page}] -> {route} lists no topic that actually exists"
+            );
+        }
     }
 }

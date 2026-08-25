@@ -2247,6 +2247,30 @@ Single source of truth for colors, spacing, radii, fonts. Native reads `data/gui
 - Native: `src/gui/widgets/help_modal.rs` (help_button + draw fn + HelpRegistry loader), `src/gui/pages/studio.rs` (first real adoption)
 - Web: `window.hosHelp.register/show` in `web/shared/shell.js`, plus `[data-help-id]` attribute on any button
 
+### Anchored Help Button (dual UI, v0.1212)
+One `?` button pinned to the top right of every screen, which becomes an `X` while the
+panel is open so the way in and the way out are the same pixel. It is the single
+tutorial entry point on both clients, and it replaced the onboarding tour's auto-popup:
+the tour used to open itself 2s after load behind a full-viewport click catcher, which
+also swallowed the first tap anywhere on the page. The tour still exists, opt-in, from
+inside the panel.
+The panel is per-page and data-driven: prose from the shared `data/help/topics.json`
+(its `pages` map pairs a route with topic ids; `native_pages` aliases the screens whose
+name is not the route), keys from `data/keymaps.ron` on native and
+`data/keybindings/web.json` on web. Only bindings that actually resolve are listed.
+- Absent in two places on native: the first-person world view (the screen belongs to the
+  game there) and MainMenu (neither draws a nav bar to reserve the corner). F1 still
+  works everywhere, including both.
+- **F1 is unchanged**: hold to glance, non-interactable, centred, exactly as since
+  v0.465. The button pins the SAME panel, which additionally scrolls and shows prose.
+  Prose is pinned-only ON PURPOSE: the F1 overlay does not scroll, so a page with topics
+  (`/chat` is 3 topics, 14 paragraphs) overflowed a 900px window and clipped key rows
+  out of reach. Guarded by `snapshot_help_f1_prose_page`.
+- Data: `data/help/topics.json` (`pages`, `native_pages`), `data/keymaps.ron`, `data/keybindings/web.json`
+- Native: `src/gui/pages/keymap.rs` (`draw_help_toggle` + `draw`), `src/gui/widgets/help_modal.rs` (`topics_for_page`), `src/gui/pages/escape_menu.rs` (reserves the nav corner), `src/lib.rs` (per-frame draw + Esc precedence)
+- Web: `initHelpPanel` in `web/shared/shell.js` (`#hos-help-toggle` / `#hos-help-panel`)
+- Snapshots: `tests/snapshots/help_button_closed.png`, `help_panel_open.png`, `help_f1_world.png`, `help_f1_prose_page.png`
+
 ### Real/Sim Help Icon
 Built-in help topic `real-sim` explains the context toggle. Rendered as a `?` next to the Real/Sim pill in both the native nav bar and the web hub nav.
 - Native: `src/gui/pages/escape_menu.rs`

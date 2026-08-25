@@ -3395,6 +3395,11 @@ pub struct GuiState {
     /// screen/mode. Loaded once from data/keymaps.ron.
     pub keymap_visible: bool,
     pub keymaps: Vec<crate::gui::pages::keymap::KeymapContext>,
+    /// Help panel pinned OPEN by the top-right "?" button (v0.1212). F1 is a
+    /// hold-to-glance; this is the sticky twin, so the panel renders when either
+    /// `keymap_visible` (F1 down) or this is true. The button flips to "X" while
+    /// set, and Esc clears it. Never persisted: help starts closed each run.
+    pub help_panel_pinned: bool,
     /// Diagnostics dev-HUD overlays (v0.482), each toggled by an F-key and shown
     /// stacked in the top-right corner. F2 = performance, F3 = network, F4 =
     /// system. Listed in the F1 keymap so they are discoverable.
@@ -5180,6 +5185,7 @@ impl Default for GuiState {
             construction_remove: None,
             construction_plan_view: false,
             keymap_visible: false,
+            help_panel_pinned: false,
             show_perf_overlay: false,
             show_weather_panel: false,
             weather_manual: false,

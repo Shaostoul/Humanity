@@ -1466,3 +1466,80 @@ fn snapshot_studio() {
         crate::gui::pages::studio::draw(ctx, theme, state);
     });
 }
+
+/// The top-right help toggle in its CLOSED state: a "?" sitting in the corner the
+/// nav bar reserves for it. The point of the snapshot is the geometry, not the
+/// glyph: the button must not be sitting on top of a nav tab.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_help_button_closed() {
+    render_page_png("help_button_closed", 1280, 200, |ctx, theme, state| {
+        let data = std::path::Path::new("data");
+        state.keymaps = crate::gui::pages::keymap::load_keymaps(data);
+        state.help_registry = crate::gui::widgets::help_modal::load_help_registry(data);
+        state.active_page = crate::gui::GuiPage::Chat;
+        state.help_panel_pinned = false;
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+    });
+}
+
+/// The same button PINNED open: it must read "X" in the identical spot, with the
+/// panel below showing this screen's keys plus the prose topics paired with the
+/// page in data/help/topics.json (Chat has three).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_help_panel_open() {
+    render_page_png("help_panel_open", 1280, 900, |ctx, theme, state| {
+        let data = std::path::Path::new("data");
+        state.keymaps = crate::gui::pages::keymap::load_keymaps(data);
+        state.help_registry = crate::gui::widgets::help_modal::load_help_registry(data);
+        state.active_page = crate::gui::GuiPage::Chat;
+        state.help_panel_pinned = true;
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+        crate::gui::pages::keymap::draw(ctx, theme, state);
+    });
+}
+
+/// The F1-held glance in the first-person world, unchanged since v0.465: centred,
+/// World keys, and crucially NO top-right toggle button. The FPS view is the one
+/// screen the button stays out of, and this is the proof it does.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_help_f1_world() {
+    render_page_png("help_f1_world", 1280, 900, |ctx, theme, state| {
+        let data = std::path::Path::new("data");
+        state.keymaps = crate::gui::pages::keymap::load_keymaps(data);
+        state.help_registry = crate::gui::widgets::help_modal::load_help_registry(data);
+        // active_page None with nothing else active IS the world context.
+        state.active_page = crate::gui::GuiPage::None;
+        state.help_panel_pinned = false;
+        crate::gui::pages::keymap::draw_help_toggle(ctx, theme, state);
+        crate::gui::pages::keymap::draw(ctx, theme, state);
+    });
+}
+
+/// F1 held on a page that HAS help topics. This is the regression guard for the bug
+/// that shipped in the first cut of the help panel: the prose was drawn into the body
+/// shared by both modes, so holding F1 on /chat (3 topics, 14 paragraphs) grew the
+/// overlay to 1213 px inside a 900 px window. The F1 overlay is centred, does not
+/// scroll and is deliberately non-interactable, so everything past the edge was
+/// unreachable, including the first seven KEY ROWS clipped off the top.
+///
+/// What this must show: the key grid, whole and on screen, and NO prose. Prose belongs
+/// to the pinned panel, which can scroll. If someone later moves the topic loop back
+/// out of its `if pinned` guard, this snapshot is how they find out.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_help_f1_prose_page() {
+    render_page_png("help_f1_prose_page", 1280, 900, |ctx, theme, state| {
+        let data = std::path::Path::new("data");
+        state.keymaps = crate::gui::pages::keymap::load_keymaps(data);
+        state.help_registry = crate::gui::widgets::help_modal::load_help_registry(data);
+        // Chat is the densest help page we ship, so it is the worst case for overflow.
+        state.active_page = crate::gui::GuiPage::Chat;
+        state.help_panel_pinned = false;
+        crate::gui::pages::keymap::draw(ctx, theme, state);
+    });
+}
