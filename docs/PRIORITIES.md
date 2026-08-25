@@ -174,27 +174,23 @@
 >   clients, replacing the popup. Per-page, data-driven, non-modal. Native F1
 >   hold-to-glance is unchanged. See FEATURES.md "Anchored Help Button".
 >
-> **THE OPEN DECISION, operator only. This is the top of TIER 0.**
-> A cold-reader comprehension test (4 personas, first screen only) came back
-> 4/4 CONFUSED, with all four filing the site as a political movement. The
-> headline spends the only slot that matters on a GOAL, never on a NOUN, so
-> nothing after it has anything to attach to. Three findings to design around:
-> "HumanityOS" reads as an OPERATING SYSTEM people fear installing over
-> Windows; "no sign-up" ALARMS rather than reassures; and the mission language
-> SUBTRACTS trust on first contact (largest possible claim + zero evidence +
-> free download = the learned shape of a scam). The mission is not deleted, it
-> moves deep, in the author's own voice, where returning readers are.
+> **THE HERO DECISION: MADE AND SHIPPED (v0.1212.1). Tools-first.**
+> Operator chose tools-first because it "more accurately portrays the holistic
+> purpose of the software". Screens 1-3 rewritten as a set:
+> 1. "Free tools for growing food, collecting water, and making power." A noun
+>    in the first three words, concrete verbs, and the game arriving in the same
+>    breath as a CONSEQUENCE rather than a second product.
+> 2. SHOW it before describing it: the real capture with a caption.
+> 3. Four things it does today, then the game as a consequence of the tools.
+> The author is now named on the page (3 of 4 cold readers said the absent human
+> was why they would not install). Title/description/og/twitter all match.
 >
-> Pick game-first or tools-first, then screens 1-3 get written as a set:
-> - GAME FIRST: "A 3D space game where you run a ship." Measured best (fastest
->   filing). Risk: contradicts the operator's own framing that the 3D world is
->   the tech demo and the app is the product, and the game is not playable end
->   to end, so it promises what the download cannot deliver.
-> - TOOLS FIRST (recommended): "Free tools for growing food, collecting water,
->   and making power. Plus a space game that teaches the same skills." Gives a
->   category noun in three words, resolves the game/tools duality CAUSALLY in
->   one sentence rather than as two products, and is true today. It is also
->   nearly the operator's own words, already in the og-banner and the JSON-LD.
+> Kept OUT of the hero on purpose, each measured a net negative with cold
+> readers: the word "OS" (two thought they were being asked to replace Windows),
+> "open source" unexplained, "no sign-up" (alarms rather than reassures), and
+> the five-adversary list. The mission was NOT deleted, it moved down the page.
+> If a future session is tempted to restore mission-first framing at the top,
+> read the comprehension data in orchestrator_state.json 2026-08-25 first.
 >
 > **Known and NOT yet fixed** (from the same audit, ranked):
 > - The share banner web/shared/social/og-banner.png leads with the RETIRED
@@ -203,6 +199,11 @@
 > - Desktop releases are UNSIGNED, so the updater refuses every one of them
 >   (src/updater.rs) while download.html promises "It keeps itself up to date".
 >   OPERATOR ONLY: `just sign-release vX.Y.Z`, needs the passphrase.
+>    Operator's position 2026-08-25: will sign "when appropriate", because
+>    releases currently ship faster than signing each one would justify.
+>    DO NOT NAG about this. The half that does NOT need him: stop
+>    download.html promising "It keeps itself up to date" until signing is
+>    routine, since that sentence is false for every release today.
 > - On an unsupported GPU the app panics before a window exists and the user
 >   sees nothing. Wants a window-first "Starting HumanityOS" panel and a real
 >   message box naming the requirement.
