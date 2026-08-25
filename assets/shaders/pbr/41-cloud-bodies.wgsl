@@ -213,7 +213,13 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // crease-sharp union produced as little as 7 m of density
     // transition - a guaranteed salt-and-pepper generator under any
     // sampling.
-    let k = max(mean_r * arch.blend, CLOUD_V2_RIND_M);
+    // TAPER MERGE (2026-08-25, operator: "can we taper merge the sections
+    // together as to remove some of the ball pit look... the skirt of one
+    // model merged to another via modifiers instead of by hand"). The blend
+    // radius IS that modifier: it is the width over which two lobe surfaces
+    // melt into one. Floored at 1.6x the rind rather than 1.0x so even the
+    // smallest cluster fuses rather than reading as touching spheres.
+    let k = max(mean_r * arch.blend, CLOUD_V2_RIND_M * 1.6);
     var d = length(local_m - lc[0].xyz) - lc[0].w;
     for (var i = 1; i < CLOUD_V2_LOBES; i = i + 1) {
         let ds = length(local_m - lc[i].xyz) - lc[i].w;
@@ -327,6 +333,24 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // printed them as nested rings (the "eyeball" artifact). Falls back
     // to the constant floor when unset, which is the pre-increment-6
     // behaviour.
-    let rind = max(CLOUD_V2_RIND_M, g_v2_foot_m);
+    // FIXED PHYSICAL WIDTH (2026-08-25, the operator: "the clouds do not
+    // really seem to maintain their shape while moving around them... the
+    // fine cloud detail is weirdly non-permanent, always morphing" and "I
+    // still get the feel that the clouds are oriented to me").
+    //
+    // The rind used to be max(90 m, the ray footprint). The footprint is a
+    // function of CAMERA DISTANCE, and the rind is the width of the density
+    // ramp - i.e. the cloud SHAPE. So the shape was a function of where the
+    // viewer stood: at the far edge of the v2 range (lodb 2 = a 4 km
+    // footprint) the rind reached 4000 m and the entire cloud dissolved into
+    // one soft gradient, then firmed up into lobes as you approached. That is
+    // the morphing, and it is why the clouds read as oriented to the viewer
+    // rather than to the planet: their placement is planet-fixed, but their
+    // detail was camera-fixed.
+    //
+    // A real cloud edge has a physical transition width that does not care
+    // where it is seen from. Band-limiting is the job of the noise mip chain
+    // and the temporal accumulation, NOT of reshaping the body.
+    let rind = CLOUD_V2_RIND_M;
     return clamp(-best / rind, 0.0, 1.0);
 }

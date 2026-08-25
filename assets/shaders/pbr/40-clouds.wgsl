@@ -2395,7 +2395,26 @@ fn cloud_march_core(
     // cap only guards degenerate rays; the step law itself terminates
     // grazing paths in ~CLOUD_HI_SAMPLES steps.
     let slab_h = g_cloud_rt - g_cloud_rb;
-    let step_near = slab_h * CLOUD_STEP_BAND_FRAC;
+    // STEP FLOOR, SEGMENT-RELATIVE (2026-08-25, the operator: "balls would
+    // just disappear in game never to return despite being incredibly dense
+    // looking clouds").
+    //
+    // This floor was a flat fraction of the SLAB (11.6 km x 0.045 = 522 m).
+    // A fair-weather cumulus is 100-500 m across, so its whole segment fitted
+    // inside ONE step: the march either happened to sample it or stepped
+    // clean over it, and which of those occurred changed as the camera moved.
+    // That is a cloud winking out of existence, and it is the same
+    // undersampling that stipples the skirts (the ramp is ~69 m wide and the
+    // step was 522 m).
+    //
+    // The floor now scales with the SEGMENT this ray actually has to cross,
+    // targeting ~16 samples through it, clamped to the old value above and a
+    // 30 m physical floor below. Long segments (deep slab crossings, grazing
+    // limb rays) keep their old step and their old cost; only the short
+    // segments - small isolated clouds and silhouette skirts, exactly where
+    // the operator sees the problem - get refined.
+    let step_near = min(slab_h * CLOUD_STEP_BAND_FRAC,
+        max(seg * (1.0 / 16.0), 30.0 * g_cloud_upkm * 0.001));
     // Per-ray physical extinction (phase 3): per-family sigma converted to
     // drawn units. Replaces the global CLOUD_HI_SIGMA_KM.
     let sigma_v = reg.ext_km / g_cloud_upkm;
