@@ -42,6 +42,16 @@ for f in "$SRC"/web/pages/*.js; do
   [ -f "$f" ] && cp "$f" "$DST/pages/$(basename "$f")"
 done
 
+# Root-level files the pages declare by ABSOLUTE path: /favicon.svg, /favicon.png,
+# /favicon.ico. Nothing above copies web/*.* at the top level (the loops take
+# web/pages/, web/shared/, web/chat/, web/home/), so these shipped in the repo
+# and 404'd on every page of the site anyway. Caught 2026-08-25 by fetching them
+# against the LIVE origin after a green deploy, which is the only way a
+# never-copied file shows up: the repo looks correct and CI looks correct.
+for f in "$SRC"/web/favicon.*; do
+  [ -f "$f" ] && cp "$f" "$DST/$(basename "$f")"
+done
+
 # The homepage IS pages/index.html; the loop above already placed it at the
 # root. Assert rather than assume - a 404 landing page is the whole reason
 # this script exists.
