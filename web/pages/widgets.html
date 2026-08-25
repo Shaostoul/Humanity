@@ -73,20 +73,33 @@
     .wg-hold.holding .ring { animation: hos-hold-rgb 0.8s linear infinite; }
 
     /* Cistercian numeral widget. */
-    .cis-wrap { display: flex; flex-wrap: wrap; gap: var(--space-xl); align-items: center; }
-    .cis-svg { background: var(--bg-card); border-radius: var(--radius); padding: 8px; }
+    .cis-svg { background: var(--bg-card); border-radius: var(--radius); padding: 6px; }
     .cis-svg line { stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
     .cis-svg line.stave { stroke: var(--text); }
-    .cis-controls { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: var(--space-md); }
-    .cis-num { font-size: 1.8rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
-    .cis-controls input[type=number] {
-      width: 90px; background: var(--bg-input); border: 1px solid var(--border);
+    .cis-controls-row { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+    .cis-controls-row label { font-size: 0.85rem; color: var(--text); display: inline-flex; align-items: center; gap: 8px; }
+    .cis-controls-row input[type=number] {
+      width: 140px; background: var(--bg-input); border: 1px solid var(--border);
       color: var(--text); border-radius: var(--radius); padding: 6px 8px; font-size: 1rem;
     }
-    .cis-controls input[type=range] { width: 100%; accent-color: var(--accent); }
+    .cis-controls-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .cis-toggles { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-md); }
+    .cis-toggles label { font-size: 0.75rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .cis-main { display: flex; flex-wrap: wrap; gap: var(--space-xl); align-items: center; margin-top: var(--space-lg); }
+    .cis-glyphs { display: flex; gap: var(--space-md); align-items: flex-end; flex-wrap: wrap; }
+    .cis-glyph { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .cis-glyph .place { font-size: 0.6rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .cis-readouts { display: flex; flex-direction: column; gap: var(--space-sm); min-width: 200px; }
+    .cis-read { font-size: 0.85rem; color: var(--text-muted); }
+    .cis-read b { color: var(--text); font-variant-numeric: tabular-nums; word-break: break-all; }
+    .cis-read.dec b { font-size: 1.5rem; }
     .cis-parts { display: flex; gap: var(--space-md); flex-wrap: wrap; }
     .cis-part { font-size: 0.72rem; color: var(--text-muted); }
     .cis-part b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .cis-legend { display: flex; flex-wrap: wrap; gap: var(--space-md); margin-top: var(--space-lg);
+      border-top: 1px solid var(--border); padding-top: var(--space-md); }
+    .cis-key { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .cis-key .d { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
     /* Effect demos (channeling + badge pulse keyframes come from shell.js). */
     .wg-fx {
@@ -160,19 +173,28 @@
 
     <div class="wg-card">
       <h2>Cistercian numerals (experimental)</h2>
-      <p class="why">A medieval monk's shorthand: one glyph encodes any number from 0 to 9999. A single vertical stave, four corners - units (top-right), tens (top-left), hundreds (bottom-right), thousands (bottom-left) - and each corner draws the digit 1 to 9, or nothing for 0. A whole base-10 number folded into one compact, dynamic symbol. We're trying it out as a dense way to show a count; drag the slider or type a number and watch the glyph rebuild.</p>
-      <div class="cis-wrap">
-        <svg class="cis-svg" id="cis-svg" width="140" height="180" viewBox="0 0 140 180" role="img" aria-label="Cistercian numeral"></svg>
-        <div class="cis-controls">
-          <div class="cis-num" id="cis-num">1988</div>
-          <input type="range" id="cis-range" min="0" max="9999" value="1988" aria-label="Number">
-          <div>
-            <label style="font-size:0.72rem;color:var(--text-muted);" for="cis-input">Type a number (0-9999): </label>
-            <input type="number" id="cis-input" min="0" max="9999" value="1988">
-          </div>
+      <p class="why">A medieval monk's shorthand: one glyph encodes 0 to 9999 on a single vertical stave, one digit per corner (units top-right, tens top-left, hundreds bottom-right, thousands bottom-left; 0 draws nothing). We push it further here: past 9999 it chains glyphs in base-10000, so any number fits. The idea is learning by comparison, the same number shown at once as the glyph(s), as the decimal you already read, and in binary, with a key to all nine symbols. Drag the slider or type a number and watch them rebuild together.</p>
+
+      <div class="cis-controls-row">
+        <label for="cis-input">Number: <input type="number" id="cis-input" min="0" value="1988"></label>
+        <input type="range" id="cis-range" min="0" max="9999" value="1988" aria-label="Number 0 to 9999">
+      </div>
+      <div class="cis-toggles">
+        <label><input type="checkbox" id="cis-t-dec" checked> Show decimal</label>
+        <label><input type="checkbox" id="cis-t-bin" checked> Show binary</label>
+        <label><input type="checkbox" id="cis-t-key" checked> Show symbol key (0-9)</label>
+      </div>
+
+      <div class="cis-main">
+        <div class="cis-glyphs" id="cis-glyphs"></div>
+        <div class="cis-readouts">
+          <div class="cis-read dec" id="cis-dec"></div>
+          <div class="cis-read" id="cis-bin"></div>
           <div class="cis-parts" id="cis-parts"></div>
         </div>
       </div>
+
+      <div class="cis-legend" id="cis-legend"></div>
     </div>
   </div>
 
@@ -210,22 +232,28 @@
     })();
   </script>
   <script>
-    // Cistercian numeral widget: render 0-9999 as one glyph. A vertical stave;
-    // each of the four corners draws its digit (units top-right, tens top-left,
-    // hundreds bottom-right, thousands bottom-left). Digit shapes 1-9 are the
-    // standard construction; 0 draws nothing in that corner.
+    // Cistercian numeral widget. A single glyph encodes 0-9999 (one digit per
+    // corner: units top-right, tens top-left, hundreds bottom-right, thousands
+    // bottom-left; digit shapes 1-9 by the standard construction, 0 = blank).
+    // Past 9999 we chain glyphs in base-10000. Alongside we show the same number
+    // in decimal and binary, and a 0-9 symbol key, so the glyph is learned next
+    // to systems the reader already knows.
     (function () {
       var SVG = 'http://www.w3.org/2000/svg';
-      var svg = document.getElementById('cis-svg');
-      if (!svg) return;
-      var range = document.getElementById('cis-range');
       var input = document.getElementById('cis-input');
-      var numEl = document.getElementById('cis-num');
+      if (!input) return;
+      var range = document.getElementById('cis-range');
+      var glyphsEl = document.getElementById('cis-glyphs');
+      var decEl = document.getElementById('cis-dec');
+      var binEl = document.getElementById('cis-bin');
       var partsEl = document.getElementById('cis-parts');
+      var legendEl = document.getElementById('cis-legend');
+      var tDec = document.getElementById('cis-t-dec');
+      var tBin = document.getElementById('cis-t-bin');
+      var tKey = document.getElementById('cis-t-key');
 
+      var MAX = 999999999999; // up to three base-10000 glyphs
       var cx = 70, cy = 90, H = 60, A = 42, B = 40; // stave centre, half-height, arm, depth
-      // Which segments each digit draws, in the units local box:
-      //   TL(0,0) at the stave end, TR(A,0), BL(0,B), BR(A,B).
       var SEG = {
         1: ['h_top'], 2: ['h_bot'], 3: ['d_tl_br'], 4: ['d_bl_tr'],
         5: ['h_top', 'd_bl_tr'], 6: ['v_right'], 7: ['h_top', 'v_right'],
@@ -239,7 +267,6 @@
         if (name === 'd_bl_tr') return [0, B, A, 0];
         return [0, 0, 0, 0];
       }
-      // Per-corner transform: origin + sign of x (right/left) and y (down-from-top / up-from-bottom).
       var QUAD = {
         units:     { ox: cx, oy: cy - H, sx: 1,  sy: 1 },
         tens:      { ox: cx, oy: cy - H, sx: -1, sy: 1 },
@@ -253,38 +280,94 @@
         if (cls) l.setAttribute('class', cls);
         return l;
       }
-      function draw(n) {
-        n = Math.max(0, Math.min(9999, n | 0));
-        while (svg.firstChild) svg.removeChild(svg.firstChild);
-        svg.appendChild(line(cx, cy - H, cx, cy + H, 'stave')); // the stave
+      // Build an <svg> glyph for a value 0-9999 at the given pixel width.
+      function glyphSvg(value, px) {
+        value = Math.max(0, Math.min(9999, value | 0));
+        var svg = document.createElementNS(SVG, 'svg');
+        svg.setAttribute('viewBox', '0 0 140 180');
+        svg.setAttribute('width', px);
+        svg.setAttribute('height', Math.round(px * 180 / 140));
+        svg.setAttribute('class', 'cis-svg');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', 'Cistercian ' + value);
+        svg.appendChild(line(cx, cy - H, cx, cy + H, 'stave'));
         var digits = {
-          units: n % 10, tens: (n / 10 | 0) % 10,
-          hundreds: (n / 100 | 0) % 10, thousands: (n / 1000 | 0) % 10,
+          units: value % 10, tens: (value / 10 | 0) % 10,
+          hundreds: (value / 100 | 0) % 10, thousands: (value / 1000 | 0) % 10,
         };
         ['units', 'tens', 'hundreds', 'thousands'].forEach(function (q) {
-          var d = digits[q];
-          if (!d) return;
-          var t = QUAD[q];
-          SEG[d].forEach(function (segName) {
-            var p = segPoints(segName);
+          var d = digits[q]; if (!d) return; var t = QUAD[q];
+          SEG[d].forEach(function (s) {
+            var p = segPoints(s);
             svg.appendChild(line(t.ox + t.sx * p[0], t.oy + t.sy * p[1],
                                   t.ox + t.sx * p[2], t.oy + t.sy * p[3]));
           });
         });
-        numEl.textContent = n;
+        return svg;
+      }
+      // Split n into base-10000 groups, most-significant first.
+      function groups10000(n) {
+        var g = []; if (n === 0) return [0];
+        while (n > 0) { g.unshift(n % 10000); n = Math.floor(n / 10000); }
+        return g;
+      }
+      function fmt(n) { return n.toLocaleString('en-US'); }
+      function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+
+      function applyToggles() {
+        decEl.style.display = tDec.checked ? '' : 'none';
+        binEl.style.display = tBin.checked ? '' : 'none';
+        legendEl.style.display = tKey.checked ? '' : 'none';
+      }
+
+      function render(n) {
+        n = Math.max(0, Math.min(MAX, n | 0));
+        // Glyph chain (base-10000, most-significant first).
+        clear(glyphsEl);
+        var g = groups10000(n);
+        g.forEach(function (val, i) {
+          var wrap = document.createElement('div'); wrap.className = 'cis-glyph';
+          wrap.appendChild(glyphSvg(val, 88));
+          if (g.length > 1) {
+            var place = document.createElement('div'); place.className = 'place';
+            var pow = g.length - 1 - i;
+            place.textContent = '×' + fmt(Math.pow(10000, pow)); // x place value
+            wrap.appendChild(place);
+          }
+          glyphsEl.appendChild(wrap);
+        });
+        // Same number, other systems.
+        decEl.innerHTML = 'Decimal <b>' + fmt(n) + '</b>';
+        binEl.innerHTML = 'Binary <b>' + n.toString(2) + '</b>';
+        // Per-place breakdown of the lowest glyph.
+        var low = n % 10000;
         partsEl.innerHTML =
-          '<span class="cis-part">thousands <b>' + digits.thousands + '</b></span>' +
-          '<span class="cis-part">hundreds <b>' + digits.hundreds + '</b></span>' +
-          '<span class="cis-part">tens <b>' + digits.tens + '</b></span>' +
-          '<span class="cis-part">units <b>' + digits.units + '</b></span>';
+          '<span class="cis-part">thousands <b>' + ((low / 1000 | 0) % 10) + '</b></span>' +
+          '<span class="cis-part">hundreds <b>' + ((low / 100 | 0) % 10) + '</b></span>' +
+          '<span class="cis-part">tens <b>' + ((low / 10 | 0) % 10) + '</b></span>' +
+          '<span class="cis-part">units <b>' + (low % 10) + '</b></span>';
+        input.value = n;
+        range.value = Math.min(9999, n);
+        applyToggles();
       }
-      function sync(v) {
-        v = Math.max(0, Math.min(9999, v | 0));
-        range.value = v; input.value = v; draw(v);
+
+      // Symbol key: digits 0-9 as small glyphs (0 = the bare stave).
+      function buildLegend() {
+        clear(legendEl);
+        for (var d = 0; d <= 9; d++) {
+          var k = document.createElement('div'); k.className = 'cis-key';
+          k.appendChild(glyphSvg(d, 38));
+          var lbl = document.createElement('div'); lbl.className = 'd'; lbl.textContent = d;
+          k.appendChild(lbl);
+          legendEl.appendChild(k);
+        }
       }
-      range.addEventListener('input', function () { sync(parseInt(range.value, 10) || 0); });
-      input.addEventListener('input', function () { sync(parseInt(input.value, 10) || 0); });
-      draw(1988);
+
+      input.addEventListener('input', function () { render(parseInt(input.value, 10) || 0); });
+      range.addEventListener('input', function () { render(parseInt(range.value, 10) || 0); });
+      [tDec, tBin, tKey].forEach(function (t) { t.addEventListener('change', applyToggles); });
+      buildLegend();
+      render(1988);
     })();
   </script>
 </body>
