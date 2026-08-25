@@ -244,7 +244,7 @@ async function autoSave() {
   setStatus('Saved ' + new Date().toLocaleTimeString(), 3000);
 }
 
-function toggleEncrypt() {
+async function toggleEncrypt() {
   const note = getNote(activeId);
   if (!note) return;
 
@@ -261,7 +261,7 @@ function toggleEncrypt() {
     setStatus('Note will be encrypted on next save.');
   } else {
     // Disable encryption
-    if (!confirm('Remove encryption from this note? The content will be stored in plain text.')) return;
+    if (!await holdConfirm('Remove encryption from this note? The content will be stored in plain text.', { seconds: 3 })) return;
     note.encrypted = false;
     note._unlockPassphrase = null;
     note.content = document.getElementById('note-content').value;
@@ -275,10 +275,10 @@ function toggleEncrypt() {
   }
 }
 
-function deleteActiveNote() {
+async function deleteActiveNote() {
   if (!activeId) return;
   const note = getNote(activeId);
-  if (!confirm('Delete "' + (note?.title || 'Untitled') + '"? This cannot be undone.')) return;
+  if (!await holdConfirm('Delete "' + (note?.title || 'Untitled') + '"? This cannot be undone.', { seconds: 3 })) return;
   notes = notes.filter(n => n.id !== activeId);
   activeId = null;
   saveNotes();
@@ -458,9 +458,9 @@ function log_openEntry(id) {
   document.getElementById('log-textarea').focus();
 }
 
-function log_deleteCurrentEntry() {
+async function log_deleteCurrentEntry() {
   if (!log_activeId) return;
-  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  if (!await holdConfirm('Delete this entry? This cannot be undone.', { seconds: 3 })) return;
   log_entries = log_entries.filter(x => x.id !== log_activeId);
   log_activeId = null;
   log_save();

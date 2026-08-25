@@ -1059,7 +1059,7 @@ function openProjectSettings(id) {
 
 /** Delete a project via REST API */
 async function deleteProject(id) {
-  if (!confirm('Delete this project? Its tasks will be moved to General.')) return;
+  if (!await holdConfirm('Delete this project? Its tasks will be moved to General.', { seconds: 3 })) return;
   try {
     const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);

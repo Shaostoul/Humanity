@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (location.hash.indexOf('devicelink=') === -1) return;
   const raw = location.hash;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-  if (!confirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.')) {
+  if (!await holdConfirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.', { seconds: 5 })) {
     return;
   }
   try {

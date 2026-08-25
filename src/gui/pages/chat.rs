@@ -794,7 +794,17 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             ui.set_min_width(140.0);
                             ui.label(RichText::new("DM Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
                             ui.separator();
-                            if ui.button("Clear All DMs").clicked() {
+                            // Press-and-HOLD (5s): wipes local DM history on THIS
+                            // device; unrecoverable unless another device has it.
+                            if hold_to_confirm_button(
+                                ui,
+                                theme,
+                                egui::Id::new("dm_clear_all_hold"),
+                                "Clear all DMs (hold)",
+                                "Hold to clear all DMs…",
+                                5.0,
+                                "Press and HOLD to erase your local DM history on THIS device. It cannot be recovered unless another device still has a copy.",
+                            ) {
                                 state.chat_dms.clear();
                                 state.dm_settings_popup_open = false;
                             }
@@ -803,76 +813,24 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             // (They auto-expire after the server's TTL
                             // anyway; this is the immediate scrub. Local
                             // history on this device is untouched.)
-                            // Press-and-HOLD to fire (operator 2026-08-24): this
-                            // scrubs the SERVER mailbox for every device you have
-                            // not synced yet, so a single click is far too easy
-                            // to fat-finger. A danger bar fills over ~1.5s of
-                            // hold; releasing resets. Same intent as the web
-                            // .purge-mailbox-row hold and widgets::hold_to_confirm
-                            // (that widget is icon-sized; this is a full-width
-                            // labeled button, so the hold is inline here).
-                            {
-                                let id = egui::Id::new("dm_purge_hold");
-                                let w = ui.available_width().max(180.0);
-                                let (rect, resp) = ui.allocate_exact_size(
-                                    egui::vec2(w, 24.0),
-                                    egui::Sense::click_and_drag(),
-                                );
-                                let mut progress: f32 =
-                                    ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
-                                let holding = resp.is_pointer_button_down_on();
-                                if holding {
-                                    let dt = ui.input(|i| i.stable_dt).min(0.1);
-                                    progress += dt / 1.5; // ~1.5s hold to fire
-                                } else {
-                                    progress = 0.0;
-                                }
-                                let fired = progress >= 1.0;
-                                if fired {
-                                    progress = 0.0;
-                                }
-                                ui.ctx().data_mut(|d| d.insert_temp(id, progress));
-
-                                ui.painter().rect_filled(rect, Rounding::same(4), theme.bg_card());
-                                if progress > 0.0 {
-                                    let mut fill = rect;
-                                    fill.set_width(rect.width() * progress.clamp(0.0, 1.0));
-                                    ui.painter().rect_filled(fill, Rounding::same(4), theme.danger());
-                                }
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    Rounding::same(4),
-                                    Stroke::new(theme.border_width, theme.danger()),
-                                    egui::epaint::StrokeKind::Inside,
-                                );
-                                let label = if holding {
-                                    "Hold to delete mailbox…"
-                                } else {
-                                    "Delete my server mailbox (hold)"
-                                };
-                                let txt = if holding { Color32::WHITE } else { theme.text_primary() };
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    label,
-                                    egui::FontId::proportional(theme.font_size_small),
-                                    txt,
-                                );
-                                if resp.hovered() {
-                                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                                }
-                                if holding {
-                                    ui.ctx().request_repaint();
-                                }
-                                resp.on_hover_text("Press and HOLD to delete all encrypted DM envelopes stored for you on the server. Messages already saved on your devices stay. Holding prevents an accidental misclick.");
-                                if fired {
-                                    if let Some(ref client) = state.ws_client {
-                                        if client.is_connected() {
-                                            client.send(&serde_json::json!({ "type": "dm_purge" }).to_string());
-                                        }
+                            // Press-and-HOLD (5s) to fire: this scrubs the SERVER
+                            // mailbox for every device you have not synced yet, so
+                            // a single click is far too easy to fat-finger.
+                            if hold_to_confirm_button(
+                                ui,
+                                theme,
+                                egui::Id::new("dm_purge_hold"),
+                                "Delete my server mailbox (hold)",
+                                "Hold to delete mailbox…",
+                                5.0,
+                                "Press and HOLD to delete all encrypted DM envelopes stored for you on the server. Messages already saved on your devices stay. Holding prevents an accidental misclick.",
+                            ) {
+                                if let Some(ref client) = state.ws_client {
+                                    if client.is_connected() {
+                                        client.send(&serde_json::json!({ "type": "dm_purge" }).to_string());
                                     }
-                                    state.dm_settings_popup_open = false;
                                 }
+                                state.dm_settings_popup_open = false;
                             }
                             let dm_notif_label = if state.notif_dm_enabled {
                                 "DM Notifications: On"
@@ -1312,8 +1270,19 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             if ui.button("Leave group").clicked() {
                                 p2p_leave_gid = Some(p.group_id.clone());
                             }
-                            // Disband: creator only.
-                            if p.is_creator && ui.button("Disband group (for everyone)").clicked() {
+                            // Disband: creator only. Press-and-HOLD (5s): this
+                            // destroys the group for EVERY member, irreversibly.
+                            if p.is_creator
+                                && hold_to_confirm_button(
+                                    ui,
+                                    theme,
+                                    egui::Id::new(("p2p_disband_hold", p.group_id.as_str())),
+                                    "Disband for everyone (hold)",
+                                    "Hold to disband…",
+                                    5.0,
+                                    "Press and HOLD to permanently disband this group for ALL members. This cannot be undone.",
+                                )
+                            {
                                 p2p_disband_gid = Some(p.group_id.clone());
                             }
                         },
@@ -4555,6 +4524,70 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+}
+
+/// Full-width press-and-HOLD confirmation button for a destructive native
+/// action -- the button-shaped twin of `widgets::hold_to_confirm`'s icon-sized
+/// pinwheel. A danger bar fills over `hold_seconds` while the pointer is held;
+/// releasing resets to zero. Returns true exactly once, on the frame the hold
+/// completes, so a single click can never fire the action. `idle` / `held` are
+/// the labels shown before and during the hold. Uses the same `ctx.data_mut`
+/// progress technique as the shipped `hold_to_confirm` widget.
+fn hold_to_confirm_button(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: egui::Id,
+    idle: &str,
+    held: &str,
+    hold_seconds: f32,
+    tooltip: &str,
+) -> bool {
+    let w = ui.available_width().max(180.0);
+    let (rect, resp) =
+        ui.allocate_exact_size(egui::vec2(w, 24.0), egui::Sense::click_and_drag());
+    let mut progress: f32 = ui.ctx().data_mut(|d| d.get_temp(id).unwrap_or(0.0));
+    let holding = resp.is_pointer_button_down_on();
+    if holding {
+        let dt = ui.input(|i| i.stable_dt).min(0.1);
+        progress += dt / hold_seconds.max(0.1);
+    } else {
+        progress = 0.0;
+    }
+    let fired = progress >= 1.0;
+    if fired {
+        progress = 0.0;
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+
+    ui.painter().rect_filled(rect, Rounding::same(4), theme.bg_card());
+    if progress > 0.0 {
+        let mut fill = rect;
+        fill.set_width(rect.width() * progress.clamp(0.0, 1.0));
+        ui.painter().rect_filled(fill, Rounding::same(4), theme.danger());
+    }
+    ui.painter().rect_stroke(
+        rect,
+        Rounding::same(4),
+        Stroke::new(theme.border_width, theme.danger()),
+        egui::epaint::StrokeKind::Inside,
+    );
+    let label = if holding { held } else { idle };
+    let txt = if holding { Color32::WHITE } else { theme.text_primary() };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::proportional(theme.font_size_small),
+        txt,
+    );
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if holding {
+        ui.ctx().request_repaint();
+    }
+    resp.on_hover_text(tooltip);
+    fired
 }
 
 /// One fenced code block pulled out of a chat message by `extract_code_blocks`.

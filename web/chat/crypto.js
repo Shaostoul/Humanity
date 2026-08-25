@@ -360,8 +360,8 @@ function labelDevice(publicKey, label) {
   }
 }
 
-function revokeDevice(keyPrefix) {
-  if (!confirm('Revoke this device? It will be disconnected and removed from your account.')) return;
+async function revokeDevice(keyPrefix) {
+  if (!await holdConfirm('Revoke this device? It will be disconnected and removed from your account.', { seconds: 3 })) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'device_revoke', key_prefix: keyPrefix }));
   }

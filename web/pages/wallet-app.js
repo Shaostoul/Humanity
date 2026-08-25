@@ -741,7 +741,7 @@
   };
 
   window.unstakeSOL = async function (stakeAccountPubkey) {
-    if (!confirm('Unstake this account? It takes ~2-3 days to deactivate.')) return;
+    if (!await holdConfirm('Unstake this account? It takes ~2-3 days to deactivate.', { seconds: 3 })) return;
 
     try {
       var privateKey = await getPrivateKey();
@@ -844,7 +844,7 @@
       return alert('Invalid Solana address format.');
     }
 
-    if (!confirm('Send "' + (selectedNFT.name || 'this NFT') + '" to ' + toAddr.slice(0, 8) + '...?')) return;
+    if (!await holdConfirm('Send "' + (selectedNFT.name || 'this NFT') + '" to ' + toAddr.slice(0, 8) + '...?', { seconds: 5 })) return;
 
     try {
       var privateKey = await getPrivateKey();

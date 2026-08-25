@@ -335,44 +335,10 @@ function renderDmList() {
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }
 
-/** Attach the press-and-hold gate to the mailbox-scrub row after each render. */
+/** Attach the press-and-hold gate to the mailbox-scrub row after each render.
+ *  5s hold (operator 2026-08-25: max protection on the catastrophic scrub).
+ *  holdToConfirm is the shared gate from /shared/hold-confirm.js. */
 function wirePurgeMailboxHold() {
   const el = document.getElementById('purge-mailbox-btn');
-  if (el) holdToConfirm(el, { seconds: 1.5, onConfirm: purgeServerMailbox });
-}
-
-/**
- * Press-and-HOLD confirmation for a destructive control, the web twin of native
- * widgets::hold_to_confirm. The element must carry a `.hold-ring` child; this
- * drives its `--hold-p` var 0 -> 1 over `seconds` while the primary pointer is
- * held, then fires `onConfirm` once. Releasing early resets. A single misclick
- * can therefore never fire the action. Reusable; promote to a shared UI file
- * when a second caller appears.
- */
-function holdToConfirm(el, { seconds = 1.5, onConfirm } = {}) {
-  let raf = null, start = null;
-  const stop = () => {
-    if (raf) { cancelAnimationFrame(raf); raf = null; }
-    start = null;
-    el.style.setProperty('--hold-p', 0);
-    el.classList.remove('holding');
-  };
-  const tick = (now) => {
-    if (start === null) start = now;
-    const p = Math.min(1, (now - start) / (seconds * 1000));
-    el.style.setProperty('--hold-p', p);
-    if (p >= 1) { stop(); if (onConfirm) onConfirm(); return; }
-    raf = requestAnimationFrame(tick);
-  };
-  el.addEventListener('pointerdown', (e) => {
-    if (e.button !== undefined && e.button !== 0) return; // primary button only
-    e.preventDefault();
-    try { el.setPointerCapture(e.pointerId); } catch (_) {}
-    el.classList.add('holding');
-    start = null;
-    if (!raf) raf = requestAnimationFrame(tick);
-  });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) =>
-    el.addEventListener(ev, stop)
-  );
+  if (el && window.holdToConfirm) holdToConfirm(el, { seconds: 5, onConfirm: purgeServerMailbox });
 }

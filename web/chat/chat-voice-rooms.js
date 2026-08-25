@@ -85,8 +85,8 @@ function leaveVoiceRoom() {
   cleanupRoomAudio();
 }
 
-function deleteVoiceChannel(vcId) {
-  if (!confirm('Delete this voice channel permanently?')) return;
+async function deleteVoiceChannel(vcId) {
+  if (!await holdConfirm('Delete this voice channel permanently?', { seconds: 3 })) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(vcId) }));
   }
@@ -729,7 +729,7 @@ async function handleVoiceRoomSignal(msg) {
         <div class="cog-item" data-cog-action="rename">✏️ Rename</div>
         <div class="cog-item danger" data-cog-action="delete">🗑️ Delete</div>
       `;
-      dropdown.addEventListener('click', function(ev) {
+      dropdown.addEventListener('click', async function(ev) {
         const item = ev.target.closest('.cog-item');
         if (!item) return;
         const action = item.dataset.cogAction;
@@ -745,7 +745,7 @@ async function handleVoiceRoomSignal(msg) {
             sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').then(ok => { if (!ok) failChannelAdminCmd('Rename command failed to send.'); }).catch(console.error);
           }
         } else if (action === 'delete') {
-          if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
+          if (await holdConfirm('Delete channel "' + name + '"? This cannot be undone.', { seconds: 3 })) {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
               addNotice('Not connected. Reconnect, then retry delete.', 'red', 8);
               return;
@@ -765,7 +765,7 @@ async function handleVoiceRoomSignal(msg) {
         <div class="cog-item" data-cog-action="rename">✏️ Rename</div>
         <div class="cog-item danger" data-cog-action="delete">🗑️ Delete</div>
       `;
-      dropdown.addEventListener('click', function(ev) {
+      dropdown.addEventListener('click', async function(ev) {
         const item = ev.target.closest('.cog-item');
         if (!item) return;
         const action = item.dataset.cogAction;
@@ -780,7 +780,7 @@ async function handleVoiceRoomSignal(msg) {
             addNotice('Voice channel rename sent.', 'cyan', 4);
           }
         } else if (action === 'delete') {
-          if (confirm('Delete voice channel "' + name + '"?')) {
+          if (await holdConfirm('Delete voice channel "' + name + '"?', { seconds: 3 })) {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
               addNotice('Not connected. Reconnect, then retry voice delete.', 'red', 8);
               return;

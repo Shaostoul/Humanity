@@ -776,11 +776,12 @@ async function doRestoreFromMnemonic() {
  *
  * No key material is touched here. This asks, then delegates.
  */
-function confirmRevealSeedPhrase() {
-  if (!confirm(
+async function confirmRevealSeedPhrase() {
+  if (!await holdConfirm(
     'Reveal your 24-word seed phrase?\n\n' +
     'Anyone who reads these words controls your identity permanently.\n' +
-    'Make sure you are NOT screen-sharing, streaming, or being recorded.'
+    'Make sure you are NOT screen-sharing, streaming, or being recorded.',
+    { seconds: 5 }
   )) return;
   openSeedPhraseModal();
 }
@@ -1162,8 +1163,8 @@ async function doEnableKeyProtection() {
   }
 }
 
-function doRemoveKeyProtection() {
-  if (!confirm('Remove passphrase protection? Your private key will be stored in plaintext in localStorage again.')) return;
+async function doRemoveKeyProtection() {
+  if (!await holdConfirm('Remove passphrase protection? Your private key will be stored in plaintext in localStorage again.', { seconds: 5 })) return;
   try {
     localStorage.removeItem(WRAPPED_KEY_LS);
     const msg = document.getElementById('kp-msg');

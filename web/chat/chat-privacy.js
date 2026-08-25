@@ -175,7 +175,8 @@ function exportMyAccountData() {
   }
 }
 
-function deleteMyAccount() {
+async function deleteMyAccount() {
+  if (!await holdConfirm('Erase your entire account on this server (messages, uploads, profile, mailbox, membership)? This is permanent. Data on your own devices stays.', { seconds: 5, confirmLabel: 'Hold to erase account' })) return;
   const typed = prompt(
     'This ERASES your account on this server: messages, uploads, profile, follows, '
     + 'mailbox, and membership, permanently. Data on your own devices stays.\n\n'

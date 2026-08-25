@@ -252,8 +252,8 @@ function renderGroupList() {
       // Disband, creator only (relay enforces; we hide it for non-creators to
       // avoid a confusing silent no-op). is_creator comes from /api/v2/groups.
       if (g.is_creator) {
-        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: () => {
-          if (!confirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.')) return;
+        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: async () => {
+          if (!await holdConfirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.', { seconds: 5 })) return;
           if (typeof window.disbandP2pGroup !== 'function') return;
           window.disbandP2pGroup(gid).catch((err) => {
             if (typeof addNotice === 'function') addNotice('Disband failed: ' + err.message, 'red', 6);
