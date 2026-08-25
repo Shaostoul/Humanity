@@ -152,6 +152,67 @@
 
 ## Active focus
 
+> **>>> TIER 0 NEWEST (2026-08-25): THE FRONT DOOR. Shipped v0.1212.0, ONE DECISION OPEN.**
+>
+> Real people handed the operator's phone could not say what the site was. Two
+> investigations ran, and both found things worse than "the copy is vague".
+>
+> **SHIPPED in v0.1212.0** (all verifiable defects, not taste):
+> - The FIRST CLICK WAS BROKEN sitewide. The onboarding tour auto-started 2s
+>   after load behind a full-viewport pointer-events:auto overlay at z-index
+>   10000; hit-testing confirmed the overlay, not the button, was the top
+>   element at the centre of "Get the free app". The tour is now opt-in only.
+> - "Runs on old computers" was FALSE and is gone. The renderer is
+>   Backends::DX12 only on Windows, VULKAN|METAL elsewhere,
+>   force_fallback_adapter:false, with a hard .expect panic BEFORE any window
+>   is shown, so an unsupported machine shows the user nothing at all, forever.
+> - "Say hello in chat" bounced first-time visitors back to the top of the page
+>   they had just finished reading. Zero product imagery plus a caption
+>   admitting it. "No accounts" three lines from explaining your account.
+>   Favicons 404ing on every page. All fixed.
+> - ONE anchored help button ("?" -> "X", same pixel both ways) on both
+>   clients, replacing the popup. Per-page, data-driven, non-modal. Native F1
+>   hold-to-glance is unchanged. See FEATURES.md "Anchored Help Button".
+>
+> **THE OPEN DECISION, operator only. This is the top of TIER 0.**
+> A cold-reader comprehension test (4 personas, first screen only) came back
+> 4/4 CONFUSED, with all four filing the site as a political movement. The
+> headline spends the only slot that matters on a GOAL, never on a NOUN, so
+> nothing after it has anything to attach to. Three findings to design around:
+> "HumanityOS" reads as an OPERATING SYSTEM people fear installing over
+> Windows; "no sign-up" ALARMS rather than reassures; and the mission language
+> SUBTRACTS trust on first contact (largest possible claim + zero evidence +
+> free download = the learned shape of a scam). The mission is not deleted, it
+> moves deep, in the author's own voice, where returning readers are.
+>
+> Pick game-first or tools-first, then screens 1-3 get written as a set:
+> - GAME FIRST: "A 3D space game where you run a ship." Measured best (fastest
+>   filing). Risk: contradicts the operator's own framing that the 3D world is
+>   the tech demo and the app is the product, and the game is not playable end
+>   to end, so it promises what the download cannot deliver.
+> - TOOLS FIRST (recommended): "Free tools for growing food, collecting water,
+>   and making power. Plus a space game that teaches the same skills." Gives a
+>   category noun in three words, resolves the game/tools duality CAUSALLY in
+>   one sentence rather than as two products, and is true today. It is also
+>   nearly the operator's own words, already in the og-banner and the JSON-LD.
+>
+> **Known and NOT yet fixed** (from the same audit, ranked):
+> - The share banner web/shared/social/og-banner.png leads with the RETIRED
+>   "Project Universe" logo across the left half of every link preview anyone
+>   has ever posted. Needs a rebuild at 1200x630. Highest impact per effort.
+> - Desktop releases are UNSIGNED, so the updater refuses every one of them
+>   (src/updater.rs) while download.html promises "It keeps itself up to date".
+>   OPERATOR ONLY: `just sign-release vX.Y.Z`, needs the passphrase.
+> - On an unsupported GPU the app panics before a window exists and the user
+>   sees nothing. Wants a window-first "Starting HumanityOS" panel and a real
+>   message box naming the requirement.
+> - Stated download size understates macOS/Linux by ~2.7x (62 MB claimed, ~170
+>   MB actual). nginx serves JS/CSS uncompressed (gzip_types is default).
+> - Only ONE real product screenshot exists on the landing page. The other
+>   candidates were unusable: garden_modal_tower.png has overlapping text,
+>   chat_commons.png shows "Not connected" in red. Wants fresh captures.
+
+
 > **>>> VPS: REBUILT, LIVE, AND HARDENED (2026-08-07 .. 08-12). DONE.**
 > The server was null-routed by Namecheap for relaying attack traffic through
 > an abusable coturn TURN relay (legacy static credential, public in the repo
