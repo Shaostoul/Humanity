@@ -135,7 +135,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 40 standalone; humanity hub added + agents removed 2026-08-17; devlog added 2026-08-01; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 41 standalone; widget-gallery added 2026-08-25; humanity hub added + agents removed 2026-08-17; devlog added 2026-08-01; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -150,6 +150,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | WalletGuide | `wallet-guide.html` | "?" help page from Wallet. | everyone | yes |
 | Roadmap | `roadmap.html` | Public roadmap view, rendered from `data/roadmap.json`. | everyone | yes |
 | Dev | `dev.html` | Developer hub. | dev | yes |
+| Widget Gallery | `widgets.html` | Inert widget/effects test bench + reference (added 2026-08-25): the web mirror of the native Settings > Widgets "Effects test bench". Demos buttons, a toggle, the shared press-and-hold confirm (modal `holdConfirm` + inline ring via `/shared/hold-confirm.js`), and the channeling/badge-pulse RGB effects, with plain-language captions. Nothing triggers a real action; linked from the Platform hub. | everyone (dev/edu) | yes |
 | Ops | `ops.html` | Operations / monitoring. | admin | yes |
 | Admin | `admin.html` | Admin dashboard. **Read-only** (`admin-app.js` has exactly one `fetch()` call, a GET; no service control, no alert-channel editing, no backup trigger, mutating admin actions require the native exe or SSH). | admin | yes |
 | Accord | `accord.html` | The Humanity Accord rendered as a navigable web page (built 2026-07-01 during the fleet redo of the destroyed Accord-page work; registry row added 2026-07-02 when page_registry_lint caught the omission). | everyone | web (native Library page shows the same documents) |

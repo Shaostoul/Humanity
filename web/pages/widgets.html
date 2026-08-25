@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widget Gallery, HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { min-height: 100vh; }
+    #wg {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+    #wg h1 { font-size: 1.5rem; color: var(--text); margin: 0; }
+    #wg .lead { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; margin: 0; }
+    .wg-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-lg);
+    }
+    .wg-card h2 { font-size: 1.05rem; color: var(--text); margin: 0 0 var(--space-sm); }
+    .wg-card .why { color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; margin: 0 0 var(--space-lg); }
+    .wg-row { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+    .wg-note { color: var(--text-muted); font-size: 0.75rem; margin-top: var(--space-md); min-height: 1.1em; }
+    .wg-note.ok { color: var(--success, #3a6); }
+
+    /* Representative button styles (accent = primary, danger, neutral). */
+    .wg-btn {
+      border: none; border-radius: var(--radius); padding: 9px 16px;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; color: #fff;
+    }
+    .wg-btn.primary { background: var(--accent); }
+    .wg-btn.neutral { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+    .wg-btn.ghost { background: transparent; color: var(--text-muted); }
+    .wg-btn.danger { background: var(--danger); }
+
+    /* Toggle switch (inert demo). */
+    .wg-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; color: var(--text); font-size: 0.85rem; }
+    .wg-toggle input { display: none; }
+    .wg-toggle .track {
+      width: 40px; height: 22px; border-radius: 11px; background: var(--bg-card);
+      border: 1px solid var(--border); position: relative; transition: background 0.15s;
+    }
+    .wg-toggle .track::after {
+      content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--text-muted); transition: transform 0.15s, background 0.15s;
+    }
+    .wg-toggle input:checked + .track { background: var(--accent); }
+    .wg-toggle input:checked + .track::after { transform: translateX(18px); background: #fff; }
+
+    /* Inline hold gate: a conic-gradient ring driven by --hold-p (the same
+       mechanism as the chat "delete my server mailbox" control). */
+    .wg-hold {
+      display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+      user-select: none; -webkit-user-select: none; touch-action: none;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 14px; color: var(--text); font-size: 0.85rem;
+    }
+    .wg-hold.holding { border-color: var(--danger); color: var(--danger); }
+    .wg-hold .ring {
+      width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto;
+      background: conic-gradient(var(--danger) calc(var(--hold-p, 0) * 1turn), var(--border) 0);
+      -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+              mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+    }
+
+    /* Effect demos (channeling + badge pulse keyframes come from shell.js). */
+    .wg-fx {
+      width: 96px; height: 44px; border-radius: var(--radius);
+      background: var(--bg-card); display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 0.72rem;
+    }
+    .wg-fx.channeling { animation: channeling 3s linear infinite; }
+    .wg-badge {
+      display: inline-block; min-width: 20px; height: 20px; line-height: 20px;
+      text-align: center; border-radius: 50%; background: #e33; color: #fff;
+      font-size: 11px; font-weight: 700; padding: 0 4px;
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="wg">
+    <div>
+      <h1>Widget Gallery</h1>
+      <p class="lead">A safe place to see how the interface's interactive pieces behave, and why they behave that way. <strong>Everything here is inert</strong> - nothing you click, hold, or toggle triggers a real action. Use it to test that the effects work, or just to learn the building blocks.</p>
+    </div>
+
+    <div class="wg-card">
+      <h2>Press-and-hold confirm</h2>
+      <p class="why">Actions you can't take back - erasing your server mailbox, disbanding a group, deleting all your data - are guarded by a press-and-HOLD instead of a single click. A stray tap does nothing; you have to hold until the meter fills. Releasing early cancels. This is the one thing that turns a fat-fingered misclick from a disaster into a non-event.</p>
+      <div class="wg-row">
+        <button class="wg-btn danger" id="wg-modal-3">Hold-confirm dialog (3s)</button>
+        <button class="wg-btn danger" id="wg-modal-5">Hold-confirm dialog (5s)</button>
+        <div class="wg-hold" id="wg-inline"><span class="ring" aria-hidden="true"></span><span>Hold me (3s)</span></div>
+      </div>
+      <div class="wg-note" id="wg-hold-note">Try the buttons or the inline control. Nothing real happens.</div>
+    </div>
+
+    <div class="wg-card">
+      <h2>Channeling (RGB) border</h2>
+      <p class="why">The cycling rainbow border marks something that is live or active - the current nav tab, or the Download button when a new version is ready. It's decorative signal, not noise: it only appears on the one thing that's "on". It also respects accessibility: turning on Reduce Motion / No RGB in Settings holds it to a steady colour.</p>
+      <div class="wg-row">
+        <div class="wg-fx channeling">active</div>
+        <div class="wg-fx">inactive</div>
+      </div>
+    </div>
+
+    <div class="wg-card">
+      <h2>Attention badge</h2>
+      <p class="why">A gently pulsing badge draws the eye to something new without stealing focus - an unread count, or an available update. The pulse is slow on purpose; a fast flash would be stressful and hurt accessibility.</p>
+      <div class="wg-row">
+        <span class="wg-badge">3</span>
+        <span class="wg-badge">!</span>
+      </div>
+    </div>
+
+    <div class="wg-card">
+      <h2>Buttons</h2>
+      <p class="why">The button roles used across the app: a primary/accent action, a neutral action, a quiet ghost action, and a danger action for destructive things (which, when they're truly irreversible, also get the hold gate above).</p>
+      <div class="wg-row">
+        <button class="wg-btn primary">Primary</button>
+        <button class="wg-btn neutral">Neutral</button>
+        <button class="wg-btn ghost">Ghost</button>
+        <button class="wg-btn danger">Danger</button>
+      </div>
+    </div>
+
+    <div class="wg-card">
+      <h2>Toggle</h2>
+      <p class="why">The on/off switch used for settings. Slides and colours to show its state at a glance.</p>
+      <div class="wg-row">
+        <label class="wg-toggle"><input type="checkbox"><span class="track"></span> Sample toggle (inert)</label>
+      </div>
+    </div>
+  </div>
+
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js" data-active="platform"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+  <script src="/shared/eli5.js"></script>
+  <script src="/shared/hold-confirm.js?v=1"></script>
+  <script>
+    // Wire the inert hold-confirm demos. window.holdConfirm / holdToConfirm come
+    // from /shared/hold-confirm.js; here they fire nothing but a status note.
+    (function () {
+      var note = document.getElementById('wg-hold-note');
+      function say(msg, ok) {
+        note.textContent = msg;
+        note.classList.toggle('ok', !!ok);
+      }
+      async function demoModal(seconds) {
+        if (!window.holdConfirm) return;
+        var held = await window.holdConfirm(
+          'This is a demo. In the real app this is where an irreversible action would fire. Nothing happens here.',
+          { seconds: seconds, confirmLabel: 'Hold to confirm (demo)' });
+        if (held) say('✓ You held it to the end. In the real app, the action would now run.', true);
+        else say('Cancelled. Nothing happened.', false);
+      }
+      document.getElementById('wg-modal-3').addEventListener('click', function () { demoModal(3); });
+      document.getElementById('wg-modal-5').addEventListener('click', function () { demoModal(5); });
+      if (window.holdToConfirm) {
+        window.holdToConfirm(document.getElementById('wg-inline'), {
+          seconds: 3,
+          onConfirm: function () { say('✓ Inline hold complete (demo). Nothing happened.', true); },
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
