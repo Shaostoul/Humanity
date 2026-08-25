@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Help topics consumed by both the web (window.hosHelp) and native (HelpRegistry) UIs. Each topic has a title and a body (array of paragraphs). HTML tags in body are allowed on web; native strips them. Adding a new topic here makes it available in both UIs next time they load.",
+  "description": "Help topics consumed by both the web (window.hosHelp) and native (HelpRegistry) UIs. Each topic has a title and a body (array of paragraphs). HTML tags in body are allowed on web; native strips them. Adding a new topic here makes it available in both UIs next time they load. The pages map pairs a web route with the topics shown on it; the native app reads that SAME map, deriving the route from its page name (GuiPage::Chat -> /chat) or, when the name is not the route, via the native_pages alias map below. The \"pages\" map says which topics the help button shows on each page.",
   "topics": {
     "real-sim": {
       "title": "Real mode vs. Sim mode",
@@ -117,5 +117,68 @@
         "The broadcast transport is still rehearsal-only: nothing is actually sent anywhere yet (see the Go Live tooltip). The split controls which scene <em>would</em> be sent once real streaming lands."
       ]
     }
+  },
+  "pages": {
+    "/": [
+      "onboarding"
+    ],
+    "/chat": [
+      "chat-context-menu",
+      "groups-vs-servers",
+      "identity"
+    ],
+    "/identity": [
+      "identity",
+      "seed-phrase"
+    ],
+    "/recovery": [
+      "seed-phrase",
+      "identity"
+    ],
+    "/wallet": [
+      "wallet",
+      "identity"
+    ],
+    "/market": [
+      "real-sim"
+    ],
+    "/trade": [
+      "real-sim"
+    ],
+    "/onboarding": [
+      "onboarding",
+      "seed-phrase"
+    ],
+    "/humanity": [
+      "humanity-accord"
+    ],
+    "/accord": [
+      "humanity-accord"
+    ],
+    "/platform": [
+      "federation",
+      "groups-vs-servers"
+    ],
+    "/studio": [
+      "studio-scenes-sources",
+      "studio-stream-settings",
+      "studio-chat-overlay",
+      "studio-program-preview"
+    ],
+    "/watch": [
+      "studio-scenes-sources"
+    ],
+    "/settings": [
+      "real-sim",
+      "identity"
+    ]
+  },
+  "native_pages": {
+    "MainMenu": "/",
+    "Quests": "/onboarding",
+    "Library": "/accord",
+    "Real": "/identity",
+    "Guilds": "/platform",
+    "ServerSettings": "/platform"
   }
 }

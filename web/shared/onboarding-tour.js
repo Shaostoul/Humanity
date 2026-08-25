@@ -1,7 +1,7 @@
 /**
  * HumanityOS Onboarding Tour, guided first-time user walkthrough.
  * Self-contained IIFE, no external dependencies beyond DOM.
- * Auto-starts for new users; callable via window.startOnboardingTour().
+ * Opt-in only: opened from the help button (?), or window.startOnboardingTour().
  */
 (function () {
   if (window.__HOS_TOUR_INIT__) return;
@@ -346,20 +346,15 @@
 
   window.startOnboardingTour = startTour;
 
-  // ── Auto-start for first-time users ──
-  // Never on the landing page. The overlay is a full-viewport click catcher, so
-  // auto-firing it two seconds after load meant a first-time visitor's tap on
-  // "Get the free app" hit the overlay instead of the button, and only
-  // dismissed the tour. The front door has to answer "what is this" before it
-  // offers a guided tour, so there the tour stays opt-in via the "Take Tour"
-  // footer link that shell.js already injects.
-  var onLandingPage = location.pathname.replace(/\/index\.html$/, '/') === '/';
-  if (!onLandingPage && !localStorage.getItem('hos_tour_completed')) {
-    setTimeout(function () {
-      // Only auto-start if still no completion flag (user might have set it elsewhere)
-      if (!localStorage.getItem('hos_tour_completed')) {
-        startTour();
-      }
-    }, 2000);
-  }
+  // ── No auto-start. The tour is opt-in, always. ──
+  // This used to fire 2s after load for every first-time visitor, on every page.
+  // The overlay is a full-viewport click catcher, so the tour was stealing the
+  // first tap anywhere on the page: hit-testing showed the overlay, not the
+  // button, was the top element at the centre of the landing page CTA. Beyond
+  // the bug, an unrequested popup is the thing people most reliably dislike.
+  // The tour is now reached deliberately, from the help button (?) anchored at
+  // the top right of every page, alongside that page's shortcuts and help.
+  // Entry points: window.startOnboardingTour(), the help panel, and the
+  // "Take Tour" footer link that shell.js already injects.
+
 })();

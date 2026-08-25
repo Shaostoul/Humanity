@@ -106,7 +106,13 @@
   }
   window.hosHelp = {
     register: function(id, title, content) { helpRegistry[id] = { title: title, content: content }; },
-    show: showHelp
+    show: showHelp,
+    // The help panel renders topics INLINE rather than opening the modal, so it
+    // needs to read a topic instead of just showing one.
+    get: function(id) { return helpRegistry[id]; },
+    // page path -> [topic id], filled in by loadHelpTopics from the shared
+    // data/help/topics.json "pages" map. Empty until that fetch lands.
+    pages: {}
   };
   // Load help topics from data/help/topics.json (shared with native app).
   // This is the canonical source so both UIs show the same help content.
@@ -115,6 +121,9 @@
       .then(function (r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
       .then(function (data) {
         if (!data || !data.topics) return;
+        // Which topics belong to which page. Data, not code: a new page gets
+        // help by editing data/help/topics.json, not by editing this file.
+        if (data.pages) window.hosHelp.pages = data.pages;
         Object.keys(data.topics).forEach(function (id) {
           var entry = data.topics[id];
           var html = (entry.body || [])
@@ -1493,79 +1502,249 @@
     });
   }
 
-  // ── Keyboard shortcut panel (? key) ──
-  (function () {
-    var overlay = document.createElement('div');
-    overlay.id = 'hos-shortcut-overlay';
-    overlay.style.cssText = [
-      'display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000',
-      'align-items:center;justify-content:center;font-family:\'Segoe UI\',system-ui,sans-serif'
-    ].join(';');
+  // ── Help button and panel: the single tutorial entry point ──
+  // Anchored to the top right of every page. It reads "?" when closed and "X"
+  // when open, inside a fixed-size box, so the button never moves between
+  // states: you close it with the exact pixel you opened it with.
+  //
+  // This REPLACES the old shortcut overlay, which carried a literal array of
+  // shortcuts inside this file (against the infinite-of-x rule) and advertised
+  // a Ctrl+K command palette that data/keybindings/web.json records as never
+  // implemented. Everything here is data driven instead: the prose comes from
+  // data/help/topics.json (shared with the native app) and the keys come from
+  // data/keybindings/web.json (the same registry Settings > Keybindings edits),
+  // so neither can drift from what the app actually does.
+  //
+  // It is also where the onboarding tour now lives. The tour used to start
+  // itself two seconds after load, and its full-viewport overlay swallowed the
+  // first click anywhere on the page. Nothing opens now unless someone asks.
+  //
+  // Deliberately NOT a modal: no backdrop and no click blocking, so the page
+  // stays usable with the panel open. That is the whole difference between a
+  // helper and a popup.
+  (function initHelpPanel() {
+    var isOpen = false;
+    var btn = null;
+    var panel = null;
+    var keybindGroups = [];
 
-    var shortcuts = [
-      ['Navigation', [
-        ['?', 'Open / close this shortcut panel'],
-        ['Esc', 'Close modals and panels'],
-        ['Alt + ←', 'Browser back'],
-        ['Alt + →', 'Browser forward'],
-      ]],
-      ['Chat (/chat)', [
-        ['Enter', 'Send message'],
-        ['Shift + Enter', 'New line in message'],
-        ['↑ (empty input)', 'Edit your last message'],
-        ['Ctrl + K', 'Open command palette'],
-        ['/ (or !)  ', 'Slash commands'],
-        ['Tab', 'Autocomplete mention / command'],
-      ]],
-      ['Tasks (/tasks)', [
-        ['Click card', 'Open detail panel'],
-        ['Esc', 'Close detail panel'],
-        ['← →', 'Scroll scope tabs'],
-      ]],
-      ['Notes (/notes)', [
-        ['Ctrl + S', 'Force save (auto-saves on pause)'],
-      ]],
-      ['Global', [
-        ['🌙 / ☀️ nav button', 'Toggle light / dark theme'],
-      ]],
-    ];
+    var CSS =
+      '#hos-help-toggle{position:fixed;z-index:9000;width:38px;height:38px;' +
+        'border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+        'background:var(--bg-card,#161616);border:1px solid var(--border,#333);' +
+        'color:var(--text-muted,#999);font-size:1rem;font-weight:700;line-height:1;' +
+        'cursor:pointer;font-family:inherit;padding:0;' +
+        'transition:color .15s,border-color .15s;}' +
+      '#hos-help-toggle:hover,#hos-help-toggle[aria-expanded="true"]' +
+        '{border-color:var(--accent,#ed8c24);color:var(--accent,#ed8c24);}' +
+      '#hos-help-panel{position:fixed;z-index:9001;width:min(360px,calc(100vw - 20px));' +
+        'max-height:min(70vh,620px);overflow-y:auto;background:var(--bg-card,#161616);' +
+        'border:1px solid var(--border,#333);border-left:3px solid var(--accent,#ed8c24);' +
+        'border-radius:var(--radius-lg,10px);box-shadow:0 12px 40px rgba(0,0,0,.5);' +
+        'padding:18px;color:var(--text,#e0e0e0);font-family:inherit;}' +
+      '#hos-help-panel h2{font-size:.7rem;font-weight:700;letter-spacing:.1em;' +
+        'text-transform:uppercase;color:var(--text-muted,#888);margin:0 0 14px;}' +
+      '#hos-help-panel h3{font-size:.92rem;font-weight:700;color:var(--text,#fff);' +
+        'margin:0 0 6px;}' +
+      '#hos-help-panel .hos-help-sec{margin-bottom:18px;}' +
+      '#hos-help-panel p{font-size:.85rem;line-height:1.6;color:var(--text-muted,#bbb);' +
+        'margin:0 0 8px;}' +
+      '#hos-help-panel strong{color:var(--text,#fff);}' +
+      '#hos-help-panel table{width:100%;border-collapse:collapse;}' +
+      '#hos-help-panel td{padding:4px 0;font-size:.78rem;vertical-align:top;}' +
+      '#hos-help-panel td.k{font-family:monospace;color:var(--accent,#ed8c24);' +
+        'white-space:nowrap;padding-right:12px;}' +
+      '#hos-help-panel td.d{color:var(--text-muted,#bbb);}' +
+      '#hos-help-panel .hos-help-act{display:block;width:100%;text-align:left;' +
+        'background:transparent;border:1px solid var(--border,#333);' +
+        'border-radius:var(--radius,6px);color:var(--text,#e0e0e0);padding:9px 12px;' +
+        'font-size:.82rem;font-family:inherit;cursor:pointer;margin-top:8px;' +
+        'transition:border-color .15s;}' +
+      '#hos-help-panel .hos-help-act:hover{border-color:var(--accent,#ed8c24);}' +
+      '@media (max-width:600px){#hos-help-panel{width:calc(100vw - 20px);}' +
+        // 44px is the iOS/Android minimum touch target. The desktop 38px box
+        // is comfortable with a mouse but too small for a thumb, and this is
+        // the control someone reaches for precisely when they are stuck.
+        '#hos-help-toggle{width:44px;height:44px;}}';
 
-    var html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);' +
-      'padding:var(--space-2xl) var(--space-3xl);width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:var(--text)">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2xl)">' +
-      '<h2 style="font-size:1rem;font-weight:700;color:var(--accent)">Keyboard Shortcuts</h2>' +
-      '<button onclick="document.getElementById(\'hos-shortcut-overlay\').style.display=\'none\'" ' +
-      'style="background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer">✕</button>' +
-      '</div>';
-
-    shortcuts.forEach(function (group) {
-      html += '<div style="margin-bottom:var(--space-2xl)">';
-      html += '<div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;color:var(--text-muted);' +
-        'text-transform:uppercase;margin-bottom:var(--space-lg)">' + group[0] + '</div>';
-      html += '<table style="width:100%;border-collapse:collapse">';
-      group[1].forEach(function (row) {
-        html += '<tr style="border-bottom:1px solid var(--bg-input)">' +
-          '<td style="padding:var(--space-sm) var(--space-xl);font-family:monospace;font-size:.78rem;color:var(--accent);white-space:nowrap">' + row[0] + '</td>' +
-          '<td style="padding:var(--space-sm) var(--space-xl);font-size:.78rem;color:var(--text-muted)">' + row[1] + '</td></tr>';
-      });
-      html += '</table></div>';
-    });
-    html += '</div>';
-    overlay.innerHTML = html;
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) overlay.style.display = 'none';
-    });
-    document.body.appendChild(overlay);
-
-    document.addEventListener('keydown', function (e) {
-      // ? key, but NOT when focus is in an input/textarea
-      if (e.key === '?' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
-        e.preventDefault();
-        var vis = overlay.style.display;
-        overlay.style.display = (vis === 'none' || vis === '') ? 'flex' : 'none';
+    // The nav is fixed and its height changes between mobile and desktop, so
+    // measure it rather than guessing an offset that would overlap on one of
+    // them. Called on open and on resize.
+    function place() {
+      var nav = document.querySelector('.hub-nav');
+      var top = nav ? Math.round(nav.getBoundingClientRect().bottom) + 8 : 12;
+      if (btn) btn.style.top = top + 'px';
+      if (btn) btn.style.right = '10px';
+      if (panel) {
+        panel.style.top = (top + 46) + 'px';
+        panel.style.right = '10px';
       }
-      if (e.key === 'Escape') overlay.style.display = 'none';
-    });
+    }
+
+    function normalisedPath() {
+      var path = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+      if (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1);
+      return path === '' ? '/' : path;
+    }
+
+    // "Ctrl+KeyK" is the capture format Settings writes. Humans read "Ctrl + K".
+    function prettyCombo(combo) {
+      return String(combo)
+        .replace(/\bKey([A-Z])\b/g, '$1')
+        .replace(/\bDigit(\d)\b/g, '$1')
+        .replace(/\+/g, ' + ');
+    }
+
+    // Only list keys that ACTUALLY do something: a registry default, or the
+    // user's own rebind. Listing keys that do nothing is the exact drift the
+    // keybindings registry was created to end, so do not reintroduce it here.
+    function liveShortcuts() {
+      var stored = {};
+      try { stored = JSON.parse(localStorage.getItem('hos_keybinds_v1')) || {}; }
+      catch (e) { stored = {}; }
+      var rows = [];
+      keybindGroups.forEach(function (group) {
+        (group.binds || []).forEach(function (bind) {
+          var combo = stored[bind.id] !== undefined ? stored[bind.id] : bind.default;
+          if (combo) rows.push([prettyCombo(combo), bind.label || bind.id]);
+        });
+      });
+      return rows;
+    }
+
+    function keyTable(rows) {
+      var html = '<table>';
+      rows.forEach(function (r) {
+        html += '<tr><td class="k">' + r[0] + '</td><td class="d">' + r[1] + '</td></tr>';
+      });
+      return html + '</table>';
+    }
+
+    function render() {
+      var path = normalisedPath();
+      var pages = (window.hosHelp && window.hosHelp.pages) || {};
+      var ids = pages[path] || [];
+      var html = '<h2>Help for this page</h2>';
+
+      var shown = 0;
+      ids.forEach(function (id) {
+        var topic = window.hosHelp.get && window.hosHelp.get(id);
+        if (!topic) return;
+        shown++;
+        html += '<div class="hos-help-sec"><h3>' + topic.title + '</h3>' + topic.content + '</div>';
+      });
+      if (!shown) {
+        html += '<div class="hos-help-sec"><p>There is no written guide for this ' +
+          'screen yet. The tour below is a good place to start.</p></div>';
+      }
+
+      // Universal keys are stated here rather than in the registry because they
+      // are implemented in this file, a few lines below, and are not rebindable.
+      var rows = [['?', 'Open or close this panel'], ['Esc', 'Close this panel']];
+      var live = liveShortcuts();
+      html += '<div class="hos-help-sec"><h3>Keyboard</h3>' +
+        keyTable(rows.concat(live));
+      if (!live.length) {
+        html += '<p style="margin-top:8px">No page shortcuts are set yet. ' +
+          'You can choose your own in <a href="/settings" style="color:var(--accent)">Settings</a>.</p>';
+      }
+      html += '</div>';
+
+      html += '<div class="hos-help-sec">' +
+        '<button class="hos-help-act" type="button" id="hos-help-tour">Take the tour</button>' +
+        '<button class="hos-help-act" type="button" id="hos-help-glossary">Look up a word</button>' +
+        '</div>';
+
+      panel.innerHTML = html;
+
+      var tourBtn = panel.querySelector('#hos-help-tour');
+      if (tourBtn) {
+        tourBtn.addEventListener('click', function () {
+          setOpen(false);
+          if (typeof window.startOnboardingTour === 'function') window.startOnboardingTour();
+        });
+      }
+      var glossBtn = panel.querySelector('#hos-help-glossary');
+      if (glossBtn) {
+        glossBtn.addEventListener('click', function () {
+          setOpen(false);
+          if (window.hosGlossary && typeof window.hosGlossary.open === 'function') {
+            window.hosGlossary.open();
+          } else {
+            window.location.href = '/library';
+          }
+        });
+      }
+    }
+
+    function setOpen(next) {
+      isOpen = next;
+      btn.textContent = isOpen ? 'X' : '?';
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      btn.setAttribute('aria-label', isOpen ? 'Close help' : 'Open help');
+      btn.title = isOpen ? 'Close help' : 'Help and shortcuts for this page';
+      if (isOpen) {
+        render();
+        place();
+        panel.style.display = 'block';
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+
+    function build() {
+      var st = document.createElement('style');
+      st.id = 'hos-help-panel-styles';
+      st.textContent = CSS;
+      document.head.appendChild(st);
+
+      btn = document.createElement('button');
+      btn.id = 'hos-help-toggle';
+      btn.type = 'button';
+      btn.textContent = '?';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('aria-label', 'Open help');
+      btn.setAttribute('aria-controls', 'hos-help-panel');
+      btn.title = 'Help and shortcuts for this page';
+      btn.addEventListener('click', function () { setOpen(!isOpen); });
+      document.body.appendChild(btn);
+
+      panel = document.createElement('div');
+      panel.id = 'hos-help-panel';
+      panel.style.display = 'none';
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-label', 'Help for this page');
+      document.body.appendChild(panel);
+
+      place();
+      window.addEventListener('resize', place);
+
+      // The registry the Keyboard section reads. Offline just means the
+      // universal keys are listed and nothing else, which is still correct.
+      fetch('/data/keybindings/web.json')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && Array.isArray(d.groups)) keybindGroups = d.groups; })
+        .catch(function () { /* offline: universal keys only, no harm */ });
+
+      document.addEventListener('keydown', function (e) {
+        var t = document.activeElement;
+        var typing = t && ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(t.tagName) >= 0;
+        if (e.key === '?' && !typing) { e.preventDefault(); setOpen(!isOpen); }
+        else if (e.key === 'Escape' && isOpen) { setOpen(false); }
+      });
+
+      // Click outside closes it. The panel is not modal, so this is the only
+      // dismissal besides the button and Esc, and it must never swallow the
+      // click it acts on: no preventDefault here.
+      document.addEventListener('click', function (e) {
+        if (!isOpen) return;
+        if (panel.contains(e.target) || btn.contains(e.target)) return;
+        setOpen(false);
+      });
+    }
+
+    if (document.body) build();
+    else document.addEventListener('DOMContentLoaded', build);
   })();
 
   // ── Debug Overlay ──
