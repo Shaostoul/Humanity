@@ -594,6 +594,7 @@
 <script src="/shared/shell.js" data-active="gear"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
+<script src="/shared/hold-confirm.js?v=1"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Your own list of what you own, saved on this device, sorted by where it is: on you, in your bag, or at home.</div>
@@ -1069,9 +1070,9 @@ function saveItem() {
   renderItems();
 }
 
-function deleteItem() {
+async function deleteItem() {
   if (!invEditingId) return;
-  if (!confirm('Delete this item?')) return;
+  if (!await holdConfirm('Delete this item?', { seconds: 3 })) return;
   invItems = invItems.filter(i => i.id !== invEditingId);
   save();
   closeModal();

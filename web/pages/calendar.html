@@ -465,6 +465,7 @@
 <script src="/shared/shell.js" data-active="calendar"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
+<script src="/shared/hold-confirm.js?v=1"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Your calendar, see what's happening today, this week, or this month.</div>
@@ -981,9 +982,9 @@ function saveEvent() {
   render();
 }
 
-function deleteEvent() {
+async function deleteEvent() {
   if (!editingId) return;
-  if (!confirm('Delete this event?')) return;
+  if (!await holdConfirm('Delete this event?', { seconds: 3 })) return;
   events = events.filter(e => e.id !== editingId);
   save();
   closeModal();

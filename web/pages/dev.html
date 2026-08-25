@@ -342,6 +342,7 @@
   <script src="/shared/shell.js" data-active="dev"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
+  <script src="/shared/hold-confirm.js?v=1"></script>
   <script src="/shared/icons.js"></script>
   <p class="page-hint" style="text-align:center; margin-bottom: 16px;">Asset browser, icon testing, component showcase, and design tokens. For development use.</p>
 
@@ -990,7 +991,7 @@
       }
 
       // ── Wire up asset grid clicks (detail, copy, download, delete, audio play, shader view) ──
-      document.getElementById('asset-grid').addEventListener('click', function(e) {
+      document.getElementById('asset-grid').addEventListener('click', async function(e) {
         // Audio play button
         var audioBtn = e.target.closest('.audio-play-btn');
         if (audioBtn) {
@@ -1043,7 +1044,7 @@
             a.click();
             document.body.removeChild(a);
           } else if (action === 'delete') {
-            if (confirm('Delete ' + asset.n + '? This removes the asset record from the server.')) {
+            if (await holdConfirm('Delete ' + asset.n + '? This removes the asset record from the server.', { seconds: 3 })) {
               fetch('/api/assets/' + encodeURIComponent(asset.n) + '?key=local', { method: 'DELETE' })
                 .then(function(r) {
                   if (r.ok) showToast('Deleted: ' + asset.n);

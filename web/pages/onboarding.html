@@ -223,6 +223,7 @@
   <script src="/shared/shell.js"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
+  <script src="/shared/hold-confirm.js?v=1"></script>
 
   <!-- ── Hero ── -->
   <header class="onboarding-hero">
@@ -422,8 +423,8 @@
         });
 
       if (resetBtn) {
-        resetBtn.addEventListener('click', function () {
-          if (confirm('Clear all quest progress in this browser?')) {
+        resetBtn.addEventListener('click', async function () {
+          if (await holdConfirm('Clear all quest progress in this browser?', { seconds: 3 })) {
             localStorage.removeItem(STORAGE_KEY);
             location.reload();
           }
