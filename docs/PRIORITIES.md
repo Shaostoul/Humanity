@@ -1,5 +1,48 @@
 # HumanityOS: Priorities
 
+> **SHIPPED v0.1225.0: the homestead gets a day.** The station now propagates
+> real Keplerian elements from `data/stations/home.ron` on the GAME clock, with
+> a nadir-pointing (LVLH) attitude. Full reasoning in the release message and
+> `src/station/orbit.rs`. The one number worth carrying forward: **orbital
+> position cannot light anything** - the sun is 1 AU away, so a whole
+> synchronous orbit moves the sun direction by 0.03 degrees. Only attitude can.
+> Gate: `scripts/home-clock-metrics.mjs` over the `home-clock-*` vantage trio.
+>
+> **NOTICED WHILE VERIFYING, not yet chased: solar generation aboard looks
+> inverted.** In the A/B captures the HUD read `gen 1948W` at local midnight
+> aboard and `gen 150W` at local noon aboard. That is the wrong way round, and
+> the likely cause is that `SolarSystem` scales panel output by the GLOBAL
+> game hour (a lon-0 ground site) while the station now has its own sun angle
+> from its attitude. The two clocks disagreed before this change too; the
+> change just made it visible. The fix is presumably to drive aboard-station
+> panels from the same hull sun vector the renderer uses
+> (`station_world_rot.inverse() * sun_dir`) rather than from the wall-clock
+> hour. Verify the inversion first - it was read off a HUD in two captures
+> taken at different day counts, which is suggestive, not proof.
+>
+> **Deferred from this increment, in order:**
+> 1. **Eclipse / umbra for hull geometry.** The homestead never enters Earth's
+>    shadow. `sun_gate` is hardcoded 1.0 for everything but the planet-surface
+>    branch (`90-fragment-main.wgsl`), and `lit_uniform`
+>    (`renderer/mod.rs:2235-2237`) stamps a flat 2.5 intensity over the
+>    celestial pass's day-gated value. Night aboard is currently "the sun is
+>    behind the hull", not "the planet is between us and the sun". Both are
+>    needed for a real orbital night.
+> 2. **Moon fill and godrays through the hull frame.** Three sites were
+>    converted (celestial `render_off`, `sun_dir`, local up); these two were
+>    not, so they still reason in world axes aboard.
+> 3. **Rotation-aware particle rebase** (`lib.rs` floating-origin rebase
+>    handles translation only).
+> 4. **The cosmos ephemeris is still on `SystemTime::now()`.** Same class of
+>    bug as the one just fixed, one level up: the planets' own positions do
+>    not follow the game clock either. Nobody has reported it because the
+>    drift is slow, but the hour slider does not move them.
+> 5. **Rate-limited attitude slew.** Changing attitude mode re-points the
+>    station instantly; a real one would slew on RCS over minutes.
+> 6. **Web mirror of the station card** - orbit, attitude and next sunrise read
+>    from the same `data/stations/home.ron`.
+
+
 > **OPEN (2026-08-26, from live play on v0.1223.1) - two operator reports,
 > neither reproduced yet. Read this before re-deriving either.**
 >
