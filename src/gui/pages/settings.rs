@@ -1932,6 +1932,84 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
     ui.ctx().request_repaint();
     ui.add_space(theme.spacing_sm);
 
+    // Cistercian numerals (experimental) - the native twin of the web Widget
+    // Playground's version. One glyph encodes 0-9999 (a digit per corner); past
+    // 9999 it chains in base-10000. Marks are painted in the ACCENT colour and
+    // the stave in the text colour, so retheming in Appearance recolours it
+    // live - the bench doubles as a theme preview (operator 2026-08-25).
+    ui.label(RichText::new("Cistercian numerals (experimental)").size(theme.body_size).strong().color(theme.text_primary()));
+    widgets::body_hint(ui, theme, "One glyph = a number 0-9999 (a digit in each corner: units top-right, tens top-left, hundreds bottom-right, thousands bottom-left). Bigger numbers chain in base-10000. Shown beside decimal and binary, with a 0-9 key. Retheme in Appearance to recolour it live.");
+
+    let cis_id = egui::Id::new("bench_cistercian_n");
+    let cis_dec_id = egui::Id::new("bench_cistercian_dec");
+    let cis_bin_id = egui::Id::new("bench_cistercian_bin");
+    let cis_key_id = egui::Id::new("bench_cistercian_key");
+    let mut cis_n: i64 = ui.ctx().data_mut(|d| d.get_temp(cis_id).unwrap_or(1988));
+    let mut cis_dec: bool = ui.ctx().data_mut(|d| d.get_temp(cis_dec_id).unwrap_or(true));
+    let mut cis_bin: bool = ui.ctx().data_mut(|d| d.get_temp(cis_bin_id).unwrap_or(true));
+    let mut cis_key: bool = ui.ctx().data_mut(|d| d.get_temp(cis_key_id).unwrap_or(true));
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Number:").size(theme.font_size_small).color(theme.text_muted()));
+        if ui.add(egui::DragValue::new(&mut cis_n).range(0..=999_999_999).speed(1.0)).changed() {
+            ui.ctx().data_mut(|d| d.insert_temp(cis_id, cis_n));
+        }
+        ui.add_space(theme.spacing_md);
+        if ui.checkbox(&mut cis_dec, "Decimal").changed() { ui.ctx().data_mut(|d| d.insert_temp(cis_dec_id, cis_dec)); }
+        if ui.checkbox(&mut cis_bin, "Binary").changed() { ui.ctx().data_mut(|d| d.insert_temp(cis_bin_id, cis_bin)); }
+        if ui.checkbox(&mut cis_key, "Key 0-9").changed() { ui.ctx().data_mut(|d| d.insert_temp(cis_key_id, cis_key)); }
+    });
+
+    let cis_n = cis_n.clamp(0, 999_999_999) as u64;
+    // Base-10000 glyph chain, most-significant first.
+    let mut cis_groups: Vec<u32> = Vec::new();
+    {
+        let mut m = cis_n;
+        if m == 0 { cis_groups.push(0); } else { while m > 0 { cis_groups.insert(0, (m % 10000) as u32); m /= 10000; } }
+    }
+    let cis_ngroups = cis_groups.len();
+    ui.horizontal(|ui| {
+        for (i, &val) in cis_groups.iter().enumerate() {
+            ui.vertical(|ui| {
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(70.0, 90.0), egui::Sense::hover());
+                draw_cistercian(ui.painter(), rect, val, theme.accent(), theme.text_primary());
+                if cis_ngroups > 1 {
+                    let pow = (cis_ngroups - 1 - i) as u32;
+                    ui.label(RichText::new(format!("x{}", 10000u64.pow(pow))).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
+        ui.add_space(theme.spacing_md);
+        ui.vertical(|ui| {
+            if cis_dec {
+                ui.label(RichText::new(format!("Decimal  {}", cis_n)).size(theme.font_size_small).color(theme.text_primary()));
+            }
+            if cis_bin {
+                ui.label(RichText::new(format!("Binary  {:b}", cis_n)).size(theme.font_size_small).color(theme.text_muted()));
+            }
+            let low = (cis_n % 10000) as u32;
+            ui.label(RichText::new(format!("thousands {}   hundreds {}   tens {}   units {}",
+                (low / 1000) % 10, (low / 100) % 10, (low / 10) % 10, low % 10))
+                .size(theme.font_size_small).color(theme.text_muted()));
+        });
+    });
+    // Symbol key: digits 0-9 as small glyphs (0 = the bare stave).
+    if cis_key {
+        ui.add_space(theme.spacing_sm);
+        ui.horizontal_wrapped(|ui| {
+            for d in 0..=9u32 {
+                ui.vertical(|ui| {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(30.0, 38.0), egui::Sense::hover());
+                    draw_cistercian(ui.painter(), rect, d, theme.accent(), theme.text_primary());
+                    ui.label(RichText::new(d.to_string()).size(theme.font_size_small).color(theme.text_muted()));
+                });
+                ui.add_space(theme.spacing_xs);
+            }
+        });
+    }
+    ui.add_space(theme.spacing_sm);
+
     // Transient "fired" flash: visible confirmation that a click / hold
     // completed, without any real action having run.
     let last_t: f64 = ui.ctx().data(|d| d.get_temp(flash_t_id).unwrap_or(0.0));
@@ -1945,6 +2023,75 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                 .color(theme.success()),
         );
         ui.ctx().request_repaint();
+    }
+}
+
+/// Paint a Cistercian numeral glyph for `value` (0-9999) into `rect`: marks in
+/// `mark_col`, the central stave in `stave_col`. The design space is 140x180
+/// (stave cx=70 from y=30 to y=150; arm 42, quadrant depth 40), scaled into
+/// `rect`. Mirrors the web /widgets glyph exactly (same digit construction:
+/// units top-right, tens top-left, hundreds bottom-right, thousands bottom-left;
+/// 1-9 standard, 0 = blank). Used by the Widgets "Effects test bench".
+fn draw_cistercian(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    value: u32,
+    mark_col: Color32,
+    stave_col: Color32,
+) {
+    let value = value.min(9999);
+    let scale_x = rect.width() / 140.0;
+    let scale_y = rect.height() / 180.0;
+    let p = |x: f32, y: f32| egui::pos2(rect.left() + x * scale_x, rect.top() + y * scale_y);
+    let w = (rect.width().min(rect.height()) / 24.0).max(1.5);
+    // Central stave.
+    painter.line_segment([p(70.0, 30.0), p(70.0, 150.0)], Stroke::new(w, stave_col));
+    let a = 42.0f32;
+    let b = 40.0f32;
+    // (origin_x, origin_y, x-sign, y-sign) per corner, matching the web QUAD map.
+    let quads = [
+        (70.0f32, 30.0f32, 1.0f32, 1.0f32),  // units: top-right
+        (70.0, 30.0, -1.0, 1.0),             // tens: top-left
+        (70.0, 150.0, 1.0, -1.0),            // hundreds: bottom-right
+        (70.0, 150.0, -1.0, -1.0),           // thousands: bottom-left
+    ];
+    let digits = [value % 10, (value / 10) % 10, (value / 100) % 10, (value / 1000) % 10];
+    let seg = |name: &str| -> (f32, f32, f32, f32) {
+        match name {
+            "h_top" => (0.0, 0.0, a, 0.0),
+            "h_bot" => (0.0, b, a, b),
+            "v_right" => (a, 0.0, a, b),
+            "d_tl_br" => (0.0, 0.0, a, b),
+            "d_bl_tr" => (0.0, b, a, 0.0),
+            _ => (0.0, 0.0, 0.0, 0.0),
+        }
+    };
+    let digit_segs = |d: u32| -> Vec<&'static str> {
+        match d {
+            1 => vec!["h_top"],
+            2 => vec!["h_bot"],
+            3 => vec!["d_tl_br"],
+            4 => vec!["d_bl_tr"],
+            5 => vec!["h_top", "d_bl_tr"],
+            6 => vec!["v_right"],
+            7 => vec!["h_top", "v_right"],
+            8 => vec!["h_bot", "v_right"],
+            9 => vec!["h_top", "h_bot", "v_right"],
+            _ => Vec::new(),
+        }
+    };
+    for (i, &(ox, oy, sx, sy)) in quads.iter().enumerate() {
+        let d = digits[i];
+        if d == 0 {
+            continue;
+        }
+        for name in digit_segs(d) {
+            let (x1, y1, x2, y2) = seg(name);
+            painter.line_segment(
+                [p(ox + sx * x1, oy + sy * y1), p(ox + sx * x2, oy + sy * y2)],
+                Stroke::new(w, mark_col),
+            );
+        }
     }
 }
 

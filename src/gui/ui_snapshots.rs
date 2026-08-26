@@ -741,7 +741,7 @@ fn settings_panel(
     // Effects test bench at the bottom (buttons, toggle, hold-to-confirm bar +
     // pinwheel, channeling swatches). Rendered with a mutable Theme because the
     // token sliders write to it (settings_panel only offers &Theme).
-    render_page_png("widgets_settings", 960, 3200, |ctx, theme, state| {
+    render_page_png("widgets_settings", 960, 3700, |ctx, theme, state| {
         theme.apply_to_egui(ctx);
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
