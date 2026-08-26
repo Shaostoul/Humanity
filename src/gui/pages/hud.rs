@@ -431,6 +431,29 @@ pub fn draw(
                     }
                 }
             }
+
+            // OpenStreetMap credit (bottom-right), shown ONLY while real OSM
+            // geometry is actually on screen.
+            //
+            // This is a licence obligation, not a courtesy. ODbL treats the
+            // drawn view of OSM data as a Produced Work, and the OSM
+            // Foundation asks that the credit appear WITH the map. Until
+            // v0.1226 the in-world view carried the notice only in a log line
+            // and the F12 debug console, so a player walking real Silverdale
+            // streets saw no credit at all. The Maps page footer had it right
+            // all along; this brings the 3D view level with it, using the same
+            // string (credits::OSM_NOTICE) so the two cannot drift.
+            if !state.osm_regions_drawn.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(screen.right() - 16.0, screen.bottom() - 96.0),
+                    Align2::RIGHT_BOTTOM,
+                    crate::credits::OSM_NOTICE,
+                    11.0,
+                    theme.text_muted(),
+                );
+            }
+
             for (i, label) in state.machine_labels.iter().enumerate() {
                 // Project at the label's WORLD position: home content rides
                 // the orbital station, so the scene pass shifts it by

@@ -898,6 +898,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // Now the orbit is data (data/stations/home.ron), it is propagated on the
     // GAME clock, and the same elements are used here and every frame after.
     {
+        state.gui_state.credits = crate::credits::Credits::load(&state.data_dir);
         let defs = crate::station::load_all(&state.data_dir);
         state.station_def = crate::station::home(&defs);
         let (pos, vel) = crate::station::orbit::propagate(

@@ -33,6 +33,22 @@ pub fn hull_frame_rot(riding: bool, station_rot: glam::DQuat) -> glam::DQuat {
     }
 }
 
+/// The rotation taking a RENDER-frame direction back out into world axes -
+/// the inverse of [`hull_frame_rot`].
+///
+/// Needed by anything drawn in WORLD/celestial coordinates that is handed a
+/// render-frame direction. The star field is the case that motivated it: its
+/// sky rotation is built from the camera's forward/up, which while riding are
+/// hull-frame vectors, so without this the whole sky is pinned to the deck and
+/// turns with the station instead of standing still.
+pub fn render_to_world_rot(riding: bool, station_rot: glam::DQuat) -> glam::DQuat {
+    if riding {
+        station_rot
+    } else {
+        glam::DQuat::IDENTITY
+    }
+}
+
 /// Convenience: apply [`hull_frame_rot`] to a direction or offset.
 pub fn to_hull(riding: bool, station_rot: glam::DQuat, v: glam::DVec3) -> glam::DVec3 {
     if riding {

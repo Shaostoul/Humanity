@@ -703,7 +703,15 @@ pub(crate) fn capture_hires_screenshot(
     // never undefined.
     {
         if let Some(ref star_r) = state.star_renderer {
-            star_r.update_camera(&state.renderer.queue, &state.camera);
+            star_r.update_camera(
+                                        &state.renderer.queue,
+                                        &state.camera,
+                                        crate::station::render_to_world_rot(
+                                            state.station_ride,
+                                            state.station_world_rot,
+                                        )
+                                        .as_quat(),
+                                    );
         }
         let mut encoder = state.renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("HiRes Star Encoder") },

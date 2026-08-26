@@ -1,0 +1,78 @@
+// Third-party sources HumanityOS uses, and what each one's licence obliges us
+// to show. This is a DATA file, not a list in code: the set of sources grows
+// forever, and several of these are legal obligations rather than courtesies.
+//
+// `notice` is the exact text shown to a user. Where a licence or a project
+// specifies wording (OpenStreetMap and Gaia both do), copy it rather than
+// paraphrasing.
+//
+// `shown_in` records WHERE the notice is actually surfaced, so an audit can
+// tell at a glance whether an obligation is met rather than merely recorded
+// here. "Credits" alone is enough for a source that only asks to be thanked;
+// an attribution-REQUIRED source that renders content must also name the
+// surface that renders it.
+//
+// Verify before adding a row. Every entry here was checked against the code
+// that loads the data, not against memory: the star catalogue is ATHYG and
+// Gaia, NOT Hipparcos, which is what a first draft of this file guessed.
+(
+    sources: [
+        (
+            id: "openstreetmap",
+            name: "OpenStreetMap",
+            used_for: "Real roads and building footprints for Earth regions (Silverdale and Seattle Center), drawn both as the Maps planet view and as 3D geometry you can walk through.",
+            licence: "ODbL 1.0",
+            notice: "Map data (c) OpenStreetMap contributors (ODbL)",
+            url: "https://www.openstreetmap.org/copyright",
+            attribution_required: true,
+            // ODbL treats the RENDERED view and the SHIPPED DATA as two
+            // separate obligations. The rendered view is a Produced Work and
+            // needs a visible notice wherever it is displayed; the region
+            // files under data/maps/regions/ are a Derivative Database and
+            // must themselves be offered under ODbL. LICENSES.md covers the
+            // second, these surfaces cover the first.
+            shown_in: ["Maps planet view footer", "In-world region credit", "Credits"],
+        ),
+        (
+            id: "nasa_gibs",
+            name: "NASA GIBS / Worldview",
+            used_for: "Live global cloud-cover imagery (MODIS cloud fraction) placed on the real Earth.",
+            licence: "Public domain (NASA open data)",
+            notice: "Cloud imagery courtesy of NASA GIBS / Worldview",
+            url: "https://worldview.earthdata.nasa.gov/",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
+        (
+            id: "nasa_blue_marble",
+            name: "NASA Blue Marble",
+            used_for: "Earth's surface colour grid.",
+            licence: "Public domain (NASA open data)",
+            notice: "Earth surface imagery courtesy of NASA Blue Marble",
+            url: "https://visibleearth.nasa.gov/collection/1484/blue-marble",
+            attribution_required: false,
+            shown_in: ["Credits"],
+        ),
+        (
+            id: "athyg",
+            name: "ATHYG star database",
+            used_for: "The standard star catalogue (~120k stars): positions, magnitudes and colours for the night sky.",
+            licence: "See the ATHYG repository",
+            notice: "Star data from the ATHYG database (astronexus)",
+            url: "https://github.com/astronexus/ATHYG-Database",
+            attribution_required: true,
+            shown_in: ["Credits"],
+        ),
+        (
+            id: "esa_gaia",
+            name: "ESA Gaia",
+            used_for: "The extended star catalogue (Gaia G<14, ~25M stars), an optional in-app download, and the integrated galaxy glow built from it.",
+            licence: "ESA Gaia data, freely available with acknowledgement",
+            // Gaia asks for this specific acknowledgement. Keep the wording.
+            notice: "This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium).",
+            url: "https://www.cosmos.esa.int/gaia",
+            attribution_required: true,
+            shown_in: ["Credits"],
+        ),
+    ],
+)

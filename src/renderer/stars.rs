@@ -701,7 +701,23 @@ impl StarRenderer {
 
     /// Update the star camera uniform with a rotation-only view-projection.
     /// This strips translation so stars don't shift when the camera moves.
-    pub fn update_camera(&self, queue: &wgpu::Queue, camera: &super::camera::Camera) {
+    /// `sky_rot` takes a RENDER-frame direction into world axes. It is the
+    /// identity everywhere except aboard the orbital homestead, where the
+    /// render frame IS the hull frame (see `station::hull_frame_rot`).
+    ///
+    /// Without it the sky is drawn in hull coordinates and therefore glued to
+    /// the deck: under nadir-pointing attitude the station turns a full
+    /// revolution per orbit, the sun and Earth sweep past correctly (they are
+    /// counter-rotated into the hull frame), and the constellations sit
+    /// frozen in the same window forever. That shipped in v0.1225, where the
+    /// frame conversion covered the sun, the celestial bodies and local up
+    /// and MISSED this one - the exact failure its own comment warned about.
+    pub fn update_camera(
+        &self,
+        queue: &wgpu::Queue,
+        camera: &super::camera::Camera,
+        sky_rot: glam::Quat,
+    ) {
         // Build the sky rotation DIRECTLY from the camera's forward/up (which
         // come from yaw/pitch and do NOT depend on position), NOT by extracting
         // it from view_matrix(). Why (v0.826, operator "the stars jitter as if
@@ -715,7 +731,7 @@ impl StarRenderer {
         // should. Matches glam::look_at_rh's basis exactly (rows s, u, -f) so
         // the sky still aligns with the scene; a unit test locks the equivalence
         // at small coordinates.
-        let rot_view = sky_rot_view(camera.forward(), camera.up);
+        let rot_view = sky_rot_view(sky_rot * camera.forward(), sky_rot * camera.up);
         // DEDICATED star projection (v0.446): the shader puts stars at 5000 units, but the
         // gameplay far plane is render_distance (default 500), which CLIPPED the entire
         // skybox (black void). Use a huge far here so the skybox is never clipped; x/y

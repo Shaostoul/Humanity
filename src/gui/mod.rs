@@ -3450,6 +3450,17 @@ pub struct GuiState {
     pub station_attitude_dirty: bool,
     /// One-line orbit summary published by the frame loop for the panel.
     pub station_readout: String,
+    /// Third-party attributions from data/credits.ron, loaded once at startup.
+    /// Several are licence obligations - see src/credits.rs.
+    pub credits: crate::credits::Credits,
+    /// Names of the OpenStreetMap regions currently drawn in the world.
+    ///
+    /// Drives the in-world attribution line. ODbL treats a rendered view of
+    /// OSM data as a Produced Work needing a visible notice wherever it is
+    /// shown, and until v0.1226 the in-world view had the notice only in a
+    /// log line and the F12 debug console - neither of which a player sees.
+    /// Empty means no OSM geometry is on screen and nothing is owed.
+    pub osm_regions_drawn: Vec<String>,
     pub show_network_overlay: bool,
     pub show_system_overlay: bool,
     /// Recent frame times in milliseconds (ring buffer, newest last), for the
@@ -5239,6 +5250,8 @@ impl Default for GuiState {
             station_roll_deg: 0.0,
             station_attitude_dirty: false,
             station_readout: String::new(),
+            credits: crate::credits::Credits::default(),
+            osm_regions_drawn: Vec::new(),
             show_network_overlay: false,
             show_system_overlay: false,
             frame_times: Vec::new(),
@@ -6990,6 +7003,7 @@ pub enum SettingsCategory {
     Privacy,
     Data,
     Updates,
+    Credits,
 }
 
 /// Profile page sidebar sections.

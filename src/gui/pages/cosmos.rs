@@ -2073,12 +2073,20 @@ fn draw_planet_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     );
 
     // Footer: region + stats + the ODbL attribution OpenStreetMap requires.
+    // The notice text comes from credits::OSM_NOTICE, shared with the in-world
+    // credit, so the two surfaces that draw OSM data cannot drift apart.
     paint.text(
         Pos2::new(rect.left() + 8.0, rect.bottom() - 8.0),
         Align2::LEFT_BOTTOM,
         format!(
-            "{} ({:.4}, {:.4}) · {} roads, {} buildings, {} water in view · Map data (c) OpenStreetMap contributors (ODbL)",
-            region.name, region.origin_lat, region.origin_lon, roads_drawn, buildings_drawn, water_drawn,
+            "{} ({:.4}, {:.4}) · {} roads, {} buildings, {} water in view · {}",
+            region.name,
+            region.origin_lat,
+            region.origin_lon,
+            roads_drawn,
+            buildings_drawn,
+            water_drawn,
+            crate::credits::OSM_NOTICE,
         ),
         egui::FontId::proportional(10.0),
         theme.text_muted(),

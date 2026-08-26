@@ -711,6 +711,20 @@ fn settings_panel(
 
 #[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
+    fn snapshot_credits_settings() {
+    // Third-party attributions. Rendered so the ODbL obligation is REVIEWABLE:
+    // a licence notice that silently stops drawing is a compliance failure, not
+    // a cosmetic one, and a snapshot is how that gets noticed.
+    render_page_png("credits_settings", 960, 1400, |ctx, theme, state| {
+        state.credits = crate::credits::Credits::load(std::path::Path::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/data"),
+        ));
+        settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_credits_content);
+    });
+}
+
+#[test]
+    #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_graphics_settings() {
     // Tall canvas (v0.1117): Graphics gained pronounced subsections (General /
     // Planets seen from space / Ground detail / Detail distances / Light and

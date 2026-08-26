@@ -131,6 +131,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 ("Privacy", SettingsCategory::Privacy),
                 ("Data", SettingsCategory::Data),
                 ("Updates", SettingsCategory::Updates),
+                ("Credits", SettingsCategory::Credits),
             ];
 
             // The nav mirrors the section tints on the right: each item wears
@@ -221,6 +222,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                             SettingsCategory::Controls => "Controls",
                             SettingsCategory::Privacy => "Privacy",
                             SettingsCategory::Data => "Data",
+                            SettingsCategory::Credits => "Credits",
                             SettingsCategory::Updates => "Updates",
                         };
 
@@ -263,6 +265,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                                     SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
                                     SettingsCategory::Data => draw_data_content(ui, theme, state),
                                     SettingsCategory::Updates => draw_updates_content(ui, theme, state),
+                                    SettingsCategory::Credits => draw_credits_content(ui, theme, state),
                                 }
                             });
                         section_rects.push((*cat, heading_rect));
@@ -345,6 +348,7 @@ fn section_accent(cat: SettingsCategory, theme: &Theme) -> Color32 {
         SettingsCategory::Privacy => theme.warning(),
         SettingsCategory::Data => theme.nav_settings(),
         SettingsCategory::Updates => theme.accent(),
+        SettingsCategory::Credits => theme.info(),
     }
 }
 
@@ -3669,6 +3673,87 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         widgets::setting_hint(ui, theme, hint, "Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your seed and data folders, see the paths above.)");
         let _ = widgets::danger_button(ui, theme, "Delete Account");
     });
+}
+
+/// Third-party attributions, from `data/credits.ron`.
+///
+/// This exists because some of these are licence OBLIGATIONS, not thanks.
+/// OpenStreetMap is the sharp one: ODbL treats a rendered view of OSM data as
+/// a Produced Work that needs a visible notice wherever it is shown, so a
+/// credit that lives only in the repository does not discharge it. Sources
+/// whose licence requires attribution are marked, and each row names the
+/// surfaces where its notice actually appears - so this page doubles as the
+/// audit of whether we are honouring them.
+pub(crate) fn draw_credits_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.label(
+        RichText::new("Real-world data HumanityOS is built on")
+            .size(theme.font_size_heading)
+            .strong()
+            .color(theme.text_primary()),
+    );
+    ui.label(
+        RichText::new(
+            "The maps, the weather and the night sky are real measurements, not \
+             invented ones. These are the people and projects that made them \
+             freely available. Where a licence requires the credit, it says so.",
+        )
+        .size(theme.font_size_small)
+        .color(theme.text_secondary()),
+    );
+    ui.add_space(theme.spacing_md);
+
+    if state.credits.sources.is_empty() {
+        ui.label(
+            RichText::new(
+                "Could not read data/credits.ron. That is a bug worth reporting: \
+                 attributions are not optional.",
+            )
+            .size(theme.font_size_small)
+            .color(theme.warning()),
+        );
+        return;
+    }
+
+    for src in state.credits.sources.clone() {
+        ui.add_space(theme.spacing_sm);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(&src.name)
+                    .strong()
+                    .color(theme.accent()),
+            );
+            if src.attribution_required {
+                ui.label(
+                    RichText::new("credit required")
+                        .size(theme.font_size_small)
+                        .color(theme.warning()),
+                );
+            }
+        });
+        ui.label(
+            RichText::new(&src.used_for)
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.label(
+            RichText::new(&src.notice)
+                .size(theme.font_size_small)
+                .color(theme.text_primary()),
+        );
+        ui.label(
+            RichText::new(format!("{} - {}", src.licence, src.url))
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        if !src.shown_in.is_empty() {
+            ui.label(
+                RichText::new(format!("Shown in: {}", src.shown_in.join(", ")))
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
+        ui.separator();
+    }
 }
 
 pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

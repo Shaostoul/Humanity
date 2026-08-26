@@ -36,6 +36,8 @@ pub mod cosmos;
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
 /// run under every feature set. See `src/dev_travel.rs`.
 pub mod dev_travel;
+/// Third-party attributions, several of which are licence obligations.
+pub mod credits;
 /// Crewed stations: the homestead as a real orbiting, pointed object.
 pub mod station;
 /// Planetary-surface FPS math (task #76 increment 1): tangent-frame camera
@@ -9189,6 +9191,10 @@ mod native_app {
                                     // grid sampling, background mesh builds,
                                     // and the per-frame class-mesh draws all
                                     // live in region_meshes::tick.
+                                    // ODbL: publish which regions are actually
+                                    // DRAWN so the HUD can carry the notice. Done
+                                    // here rather than inside tick() because the
+                                    // obligation is about what is ON SCREEN.
                                     let carve_published = crate::engine::region_meshes::tick(
                                         &mut state.region_meshes,
                                         d,
@@ -9201,6 +9207,12 @@ mod native_app {
                                         rot_d,
                                         rotation,
                                     );
+                                    state.gui_state.osm_regions_drawn = state
+                                        .region_meshes
+                                        .active
+                                        .iter()
+                                        .map(|a| a.name.clone())
+                                        .collect();
                                     // The water carve just changed the
                                     // elevation formula itself: every
                                     // terrain/water patch cached before
@@ -17289,7 +17301,15 @@ mod native_app {
                                     // the halo vertex buffer at world load).
                                     star_r.show_star_halos =
                                         state.gui_state.settings.sky_star_halos;
-                                    star_r.update_camera(&state.renderer.queue, &state.camera);
+                                    star_r.update_camera(
+                                        &state.renderer.queue,
+                                        &state.camera,
+                                        crate::station::render_to_world_rot(
+                                            state.station_ride,
+                                            state.station_world_rot,
+                                        )
+                                        .as_quat(),
+                                    );
                                     let mut encoder = state.renderer.device.create_command_encoder(
                                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
                                     );
