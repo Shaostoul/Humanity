@@ -1087,6 +1087,11 @@ mod native_app {
                 "time_set_hour_request",
                 std::sync::Mutex::new(Option::<f32>::None),
             );
+            // Clock speed, same channel shape (v0.1224, F11 time scrubber).
+            data_store.insert(
+                "time_set_scale_request",
+                std::sync::Mutex::new(Option::<f32>::None),
+            );
             // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id,
             // plant id, unit count). One CropInstance per unit, tagged with the
             // machine id as its grow-area so the Garden GUI groups them.
@@ -17852,11 +17857,41 @@ mod native_app {
                                 // F11 weather panel (v0.1050). Publishes into
                                 // the DataStore slot on any change, so the
                                 // sim picks it up on its next tick.
-                                if crate::gui::pages::weather_panel::draw(
+                                let weather_changed = crate::gui::pages::weather_panel::draw(
                                     ctx,
                                     &state.theme,
                                     &mut state.gui_state,
-                                ) {
+                                );
+                                // Time scrubber (v0.1224). Drained every frame
+                                // regardless of the weather-changed flag: the two
+                                // live in one panel but are independent channels,
+                                // and a dropped hour request would read as the
+                                // slider silently not working.
+                                if let Some(h) = state.gui_state.time_hour_request.take() {
+                                    if let Some(m) = state
+                                        .data_store
+                                        .get::<std::sync::Mutex<Option<f32>>>(
+                                            "time_set_hour_request",
+                                        )
+                                    {
+                                        if let Ok(mut r) = m.lock() {
+                                            *r = Some(h);
+                                        }
+                                    }
+                                }
+                                if let Some(sc) = state.gui_state.time_scale_request.take() {
+                                    if let Some(m) = state
+                                        .data_store
+                                        .get::<std::sync::Mutex<Option<f32>>>(
+                                            "time_set_scale_request",
+                                        )
+                                    {
+                                        if let Ok(mut r) = m.lock() {
+                                            *r = Some(sc);
+                                        }
+                                    }
+                                }
+                                if weather_changed {
                                     if let Some(m) = state
                                         .data_store
                                         .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>(

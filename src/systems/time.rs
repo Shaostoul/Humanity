@@ -165,6 +165,19 @@ impl System for TimeSystem {
                 }
             }
         }
+        // Clock SPEED over the same channel shape (v0.1224, the F11 time
+        // scrubber). Needed for the same reason the hour is: time_scale lives
+        // in this system's own GameTime, and the DataStore copy is overwritten
+        // from it at the end of every tick, so a GUI write straight to the
+        // mutex would be erased before anything read it. 0 holds the clock
+        // still, which is what makes a lighting comparison repeatable.
+        if let Some(req) = data.get::<std::sync::Mutex<Option<f32>>>("time_set_scale_request") {
+            if let Ok(mut r) = req.lock() {
+                if let Some(sc) = r.take() {
+                    self.set_time_scale(sc);
+                }
+            }
+        }
         let scaled_dt = dt as f64 * self.game_time.time_scale as f64;
         self.game_time.elapsed_seconds += scaled_dt;
 

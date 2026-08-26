@@ -3416,6 +3416,24 @@ pub struct GuiState {
     pub weather_pick_note: String,
     /// Set on a condition pick so the sim re-runs its 30 s transition.
     pub weather_retrigger: bool,
+    /// Time-of-day scrubber (v0.1224). The clock lives inside TimeSystem's own
+    /// accumulator (the DataStore copy is overwritten every tick), so the panel
+    /// cannot just poke `game_time`: it drains these into the
+    /// `time_set_hour_request` / `time_set_scale_request` channels, the same
+    /// pattern the screenshot hook has used since v0.871. Until now that hook
+    /// was the ONLY way to move the clock - there was no in-app control at all,
+    /// which the GUI-first rule does not allow for something this central to
+    /// reviewing sky, sea and lighting.
+    pub time_hour_request: Option<f32>,
+    pub time_scale_request: Option<f32>,
+    /// Last hour the scrubber published, so the slider does not fight the
+    /// running clock while the operator is dragging it.
+    pub time_pick_hour: f32,
+    /// Chosen clock speed (1 = real time, 60 = a game day per 20 s) and
+    /// whether the clock is held still. Frozen publishes scale 0, which is what
+    /// makes a lighting or sky comparison actually repeatable.
+    pub time_speed: f32,
+    pub time_frozen: bool,
     pub show_network_overlay: bool,
     pub show_system_overlay: bool,
     /// Recent frame times in milliseconds (ring buffer, newest last), for the
@@ -5194,6 +5212,11 @@ impl Default for GuiState {
             weather_pick_wind: 8.0,
             weather_pick_note: String::new(),
             weather_retrigger: false,
+            time_hour_request: None,
+            time_scale_request: None,
+            time_pick_hour: 8.0,
+            time_speed: 1.0,
+            time_frozen: false,
             show_network_overlay: false,
             show_system_overlay: false,
             frame_times: Vec::new(),

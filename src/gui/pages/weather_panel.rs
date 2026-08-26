@@ -27,6 +27,19 @@ use crate::gui::theme::Theme;
 use crate::gui::GuiState;
 use crate::systems::weather::WeatherCondition;
 
+#[cfg(test)]
+thread_local! {
+    static TEST_STOP_RECTS: std::cell::RefCell<
+        std::collections::HashMap<&'static str, egui::Rect>,
+    > = std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Rect of a named time stop from the last layout, for the click test.
+#[cfg(test)]
+pub fn test_stop_rect(name: &str) -> Option<egui::Rect> {
+    TEST_STOP_RECTS.with(|m| m.borrow().get(name).copied())
+}
+
 /// One row of the preset ladder: a name, the condition, intensity, and the
 /// wind that defines its sea. Wind is the important column - it is what the
 /// ocean spectrum is built from.
@@ -146,6 +159,17 @@ pub fn sea_description(wind: f32) -> &'static str {
     }
 }
 
+/// Turn a clock multiplier into how long a full game day takes in real time,
+/// so the speed slider says something concrete instead of a bare number.
+pub fn fmt_day_length(scale: f32) -> String {
+    let secs = crate::systems::time::SECONDS_PER_DAY / scale.max(0.001) as f64;
+    if secs >= 90.0 {
+        format!("{:.0} minutes", secs / 60.0)
+    } else {
+        format!("{:.0} seconds", secs)
+    }
+}
+
 /// Draw the panel. Returns true when the operator changed something, so the
 /// caller can publish the new control state.
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
@@ -154,7 +178,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
     }
     let mut changed = false;
     let mut open = true;
-    egui::Window::new("Weather (F11)")
+    egui::Window::new("Weather and time (F11)")
         .open(&mut open)
         .default_pos([40.0, 80.0])
         .default_width(330.0)
@@ -162,12 +186,136 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(
-                    "Wind is the sea. The ocean spectrum is rebuilt from wind speed, \
-                     so these sliders change the waves, not just the sky.",
+                    "Everything that sets the mood of a scene: the clock, the sky \
+                     and the sea. Wind is the sea - the ocean spectrum is rebuilt \
+                     from wind speed, so these sliders change the waves too.",
                 )
                 .size(theme.font_size_small)
                 .color(theme.text_secondary()),
             );
+            ui.add_space(theme.spacing_sm);
+
+            // TIME OF DAY (v0.1224).
+            // Operator: "I do not see the control for adjusting time of day
+            // while on the homestead. Where can I find that?" There was none.
+            // The clock could only be moved over IPC by the screenshot/probe
+            // hook (v0.871), whose own comment promised "future in-app dev
+            // controls" that never arrived. Time belongs in THIS panel rather
+            // than Settings, because it is the same job as the wind slider:
+            // it is how the sky, the sun angle and the sea get reviewed.
+            //
+            // The slider is LOCAL mean solar time, matching the HUD clock and
+            // the sun you can actually see. The engine clock underneath is
+            // GLOBAL (lon-0), so we convert on the way in. Exposing the global
+            // hour here would re-run the sun-clock incident of 2026-08-18,
+            // where a 20:04 readout sat beside a noon sun because the two were
+            // lon/15 = 8.2 h apart.
+            ui.label(RichText::new("Time of day").strong().color(theme.accent()));
+            ui.add_space(2.0);
+            let g_hour = state.game_time.as_ref().map(|t| t.hour).unwrap_or(0.0);
+            let has_local = state
+                .game_time
+                .as_ref()
+                .and_then(|t| t.local_hour)
+                .is_some();
+            let l_hour = state
+                .game_time
+                .as_ref()
+                .and_then(|t| t.local_hour)
+                .unwrap_or(g_hour);
+            // Local minus global: this site's longitude offset, in hours.
+            let lon_off = l_hour - g_hour;
+            let hh = state.time_pick_hour.floor().clamp(0.0, 23.0) as u32;
+            let mm = ((state.time_pick_hour - state.time_pick_hour.floor()) * 60.0) as u32;
+            ui.label(
+                RichText::new(if has_local {
+                    format!("{:02}:{:02} local solar time at this site", hh, mm)
+                } else {
+                    format!("{:02}:{:02}", hh, mm)
+                })
+                .size(theme.font_size_small)
+                .color(theme.text_primary()),
+            );
+            let scrub = ui.add(
+                egui::Slider::new(&mut state.time_pick_hour, 0.0..=24.0)
+                    .text("Hour")
+                    .fixed_decimals(2),
+            );
+            if scrub.changed() {
+                state.time_hour_request =
+                    Some((state.time_pick_hour - lon_off).rem_euclid(24.0));
+            }
+            // Follow the running clock whenever the operator is not holding the
+            // handle, so the slider reads as a clock instead of drifting away
+            // from the sky it is meant to describe.
+            if !scrub.dragged() && !scrub.has_focus() {
+                state.time_pick_hour = l_hour;
+            }
+            // Named stops: the lighting situations worth returning to. They are
+            // only meaningful in LOCAL solar time, which is why the slider is.
+            const STOPS: &[(&str, f32, &str)] = &[
+                ("Dawn", 6.0, "Sun on the horizon, longest shadows, warmest light."),
+                ("Morning", 9.0, "Clean side light. The everyday working sky."),
+                ("Noon", 12.0, "Sun overhead. Hardest test for cloud and water shading."),
+                ("Golden", 17.0, "Low warm sun, where the sunset tinting shows."),
+                ("Sunset", 18.4, "Sun at the horizon: the terminator itself."),
+                ("Night", 1.0, "Sun far below the horizon. Everything sunlit should be dark."),
+            ];
+            for row in STOPS.chunks(3) {
+                ui.horizontal(|ui| {
+                    for (name, hour, note) in row {
+                        let b = ui.add_sized(
+                            [98.0, 24.0],
+                            egui::Button::new(RichText::new(*name).size(theme.font_size_small))
+                                .fill(theme.bg_tertiary()),
+                        );
+                        #[cfg(test)]
+                        TEST_STOP_RECTS.with(|m| {
+                            m.borrow_mut().insert(*name, b.rect);
+                        });
+                        if b.clicked() {
+                            state.time_pick_hour = *hour;
+                            state.time_hour_request = Some((*hour - lon_off).rem_euclid(24.0));
+                        }
+                        b.on_hover_text(*note);
+                    }
+                });
+            }
+            ui.add_space(theme.spacing_sm);
+            // Freeze is what earns this section its keep for review work: a game
+            // day is 20 real minutes, so an unfrozen clock walks the sun about 3
+            // degrees while you study one frame, and no two captures of the same
+            // scene are comparable.
+            let mut frozen = state.time_frozen;
+            if ui.checkbox(&mut frozen, "Hold the clock still").changed() {
+                state.time_frozen = frozen;
+                state.time_scale_request =
+                    Some(if frozen { 0.0 } else { state.time_speed });
+            }
+            if !state.time_frozen {
+                if ui
+                    .add(
+                        egui::Slider::new(&mut state.time_speed, 1.0..=600.0)
+                            .text("Clock speed")
+                            .logarithmic(true)
+                            .fixed_decimals(0),
+                    )
+                    .changed()
+                {
+                    state.time_scale_request = Some(state.time_speed);
+                }
+                ui.label(
+                    RichText::new(format!(
+                        "{:.0}x real time. A full day takes {}.",
+                        state.time_speed,
+                        fmt_day_length(state.time_speed)
+                    ))
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
+            }
+            ui.add_space(theme.spacing_sm);
+            ui.separator();
             ui.add_space(theme.spacing_sm);
 
             // Manual takeover. Off = the sim rolls its own weather every

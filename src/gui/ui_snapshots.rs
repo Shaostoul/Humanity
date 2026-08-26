@@ -1560,3 +1560,91 @@ fn snapshot_help_f1_prose_page() {
         crate::gui::pages::keymap::draw(ctx, theme, state);
     });
 }
+
+
+/// REAL interaction test on the F11 time scrubber (v0.1224). Clicking the
+/// "Noon" stop must publish a clock request, and it must publish the GLOBAL
+/// hour, not the local one the button is labelled with.
+///
+/// The conversion is the whole point of the test. The engine clock is lon-0
+/// solar time; the panel (like the HUD) speaks LOCAL solar time. Getting this
+/// backwards is not hypothetical - it is the sun-clock incident of 2026-08-18,
+/// where the HUD printed 20:04 beside a noon sun because the two were exactly
+/// lon/15 = 8.2 h apart. Here the site is 8 h east of lon 0, so asking for
+/// local noon must set the global clock to 04:00.
+#[test]
+fn weather_panel_time_stop_publishes_converted_global_hour() {
+    let ctx = egui::Context::default();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = demo_state();
+    state.show_weather_panel = true;
+    state.game_time = Some(crate::gui::GuiGameTime {
+        hour: 0.0,
+        day_count: 0,
+        season: "Spring".to_string(),
+        is_daytime: false,
+        local_hour: Some(8.0),
+    });
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 1400.0));
+    let run = |events: Vec<egui::Event>, state: &mut GuiState| {
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            crate::gui::pages::weather_panel::draw(ctx, &theme, state);
+        });
+    };
+
+    // Two settle frames so the window lays out and records its stop rects.
+    run(Vec::new(), &mut state);
+    run(Vec::new(), &mut state);
+    let rect = crate::gui::pages::weather_panel::test_stop_rect("Noon")
+        .expect("the Noon time stop should be laid out and hit-testable");
+    let at = rect.center();
+
+    state.time_hour_request = None;
+    let m = egui::Modifiers::default();
+    run(vec![egui::Event::PointerMoved(at)], &mut state);
+    run(
+        vec![egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: m,
+        }],
+        &mut state,
+    );
+    run(
+        vec![egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: m,
+        }],
+        &mut state,
+    );
+
+    let got = state
+        .time_hour_request
+        .expect("clicking a time stop must publish a clock request");
+    assert!(
+        (got - 4.0).abs() < 1.0e-3,
+        "local noon at a site 8 h east of lon 0 is global 04:00, got {got}"
+    );
+    assert!(
+        (state.time_pick_hour - 12.0).abs() < 1.0e-3,
+        "the slider should read the LOCAL hour the operator asked for, got {}",
+        state.time_pick_hour
+    );
+}
+
+/// The clock-speed readout must describe a day in units a person can picture.
+#[test]
+fn clock_speed_readout_describes_a_real_day_length() {
+    // 1200 s per game day at 1x.
+    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(1.0), "20 minutes");
+    assert_eq!(crate::gui::pages::weather_panel::fmt_day_length(60.0), "20 seconds");
+}
