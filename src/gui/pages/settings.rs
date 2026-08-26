@@ -2410,9 +2410,6 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.");
-        if widgets::toggle(ui, theme, "Tiled light lists (EXPERIMENTAL, higher light counts)", &mut state.settings.lights_tiled) {
-            state.settings_dirty = true;
-        }
         // ── Detail distances by item type (v0.965, operator: "a settings
         // section dedicated to the LODs of everything organized by type of
         // item") ── every row a live control; categories whose ladder
@@ -2584,6 +2581,18 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.");
+        // Moved here from the bottom of the TERRAIN section (2026-08-25,
+        // operator: "I appear to be missing the light control that is for
+        // like combined lighting. I am not seeing it in the settings menu").
+        // It was filed between "Terrain stream speed" and the per-item LOD
+        // rows, and it was the only control in that whole page with no hint
+        // line - so it was both in the wrong place and unexplained. Renamed
+        // from "Tiled light lists", which is renderer jargon nobody would
+        // search for; the term is kept in the hint for anyone who knows it.
+        if widgets::toggle(ui, theme, "Many lights at once", &mut state.settings.lights_tiled) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, "Lets the scene show far more lamps, fires, and glowing objects lit at the same time (up to 2048 instead of 256) by sorting lights into screen tiles so each pixel only weighs the ones near it - the renderer calls this tiled light lists. Turn it on if lights stop lighting things when several are close together. Off is the classic loop: fine for a handful of lights and slightly cheaper. Experimental.");
         if widgets::labeled_slider(ui, theme, "Shadow strength", &mut state.settings.shadow_strength, 0.0..=1.0) {
             state.settings_dirty = true;
         }
