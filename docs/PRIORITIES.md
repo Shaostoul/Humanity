@@ -1,5 +1,35 @@
 # HumanityOS: Priorities
 
+> **LESSON (v0.1227): counting frame-conversion sites is not the same as
+> finding them.** v0.1225 converted the world into the station hull frame and
+> the comments proudly labelled the consumers "site 1 of 3" through "3 of 3".
+> There were four. `src/renderer/stars.rs` builds its sky rotation from the
+> camera forward/up, which while riding are hull-frame vectors, so the sun and
+> Earth swept past correctly and the stars stayed nailed to the deck. The
+> release note even asserted the opposite.
+>
+> What would have caught it: the missed site had no textual link to the
+> others - it does not mention the station, the hull, or the frame, so no grep
+> for those words finds it. The reliable sweep is to enumerate every consumer
+> of a CAMERA-derived direction or its own camera uniform, not every mention of
+> the frame. When converting a frame, list the renderer subsystems that hold
+> their own view matrix (stars, godrays, particles, any post pass) and rule
+> each in or out explicitly.
+>
+> Still unconverted, and known: moon fill and godrays (deferred, see the
+> v0.1225 list below).
+
+> **ATTRIBUTIONS ARE NOW A SURFACE (v0.1227).** `data/credits.ron` +
+> Settings > Credits + `LICENSES.md`. **Adding any real-world data source
+> means adding a row in the same commit** - `src/credits.rs` has a test that
+> fails if a source marked `attribution_required` names no surface showing its
+> notice. OpenStreetMap is the one with teeth: ODbL treats the RENDERED view
+> as a Produced Work needing a visible notice wherever it is drawn (Maps
+> footer + in-world HUD line, both from `credits::OSM_NOTICE`), AND the region
+> files as a Derivative Database that must itself be offered under ODbL. A
+> credit in the repo alone does not discharge the first.
+
+
 > **SHIPPED v0.1225.0: the homestead gets a day.** The station now propagates
 > real Keplerian elements from `data/stations/home.ron` on the GAME clock, with
 > a nadir-pointing (LVLH) attitude. Full reasoning in the release message and
