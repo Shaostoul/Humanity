@@ -1469,14 +1469,40 @@ impl AppConfig {
         state.settings.fog_density = self.fog_density;
         state.settings.gpu_particles = self.gpu_particles;
         state.settings.far_tree_sheet = self.far_tree_sheet;
-        // Guard a corrupted saved value: only the three known tiers pass
-        // through; anything else falls back to the high default.
+        // Guard a corrupted saved value: only known tiers pass through;
+        // anything else falls back to the high default.
+        //
+        // "ultra" was missing from this list from the day the tier shipped, and
+        // the failure was silent and total: the Settings page offered Ultra, the
+        // save wrote "ultra", and this line turned it back into "high" on every
+        // single boot. Ultra is the ONLY tier that reaches the constructed cloud
+        // bodies, so the operator could never keep the renderer they picked -
+        // while the probe rig pins the tier through a different path with no
+        // whitelist and therefore verified everything happily. Weeks of cloud
+        // work were reviewed against a renderer their game silently reverted.
+        //
+        // `every_offered_cloud_quality_survives_a_round_trip` now drives this
+        // from the same tier list the chooser uses, so the two cannot drift again.
         state.settings.cloud_quality =
-            if ["low", "medium", "high"].contains(&self.cloud_quality.as_str()) {
+            if ["low", "medium", "high", "ultra"].contains(&self.cloud_quality.as_str()) {
                 self.cloud_quality.clone()
             } else {
+                log::warn!(
+                    "config: unknown cloud_quality {:?}, falling back to {}",
+                    self.cloud_quality,
+                    default_cloud_quality()
+                );
                 default_cloud_quality()
             };
+        // Say out loud which cloud renderer is actually active. The whole point
+        // of the bug above was that it was silent: the tier the operator chose,
+        // the tier on disk and the tier the shader ran could all disagree with
+        // nothing anywhere saying so, and the next save then overwrote the
+        // choice, erasing the evidence it had ever been made.
+        log::info!(
+            "config: cloud renderer tier = {}",
+            state.settings.cloud_quality
+        );
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
@@ -1961,5 +1987,35 @@ mod saved_servers_tests {
         // default: empty list), so old installs upgrade without ceremony.
         let old: AppConfig = serde_json::from_str("{}").expect("old config parses");
         assert!(old.saved_servers.is_empty());
+    }
+
+    /// Every tier the Settings page OFFERS must survive a save/load round trip.
+    ///
+    /// This failed for "ultra" from the moment that tier was added: the loader
+    /// whitelisted only low/medium/high, so choosing Ultra wrote "ultra" to disk
+    /// and silently became "high" on the next boot. Ultra is the ONLY tier that
+    /// reaches the constructed-cloud-body renderer (`quality_param` maps it to
+    /// 3.0 and the shader gates on `>= 2.5`), so the operator could never keep
+    /// the renderer they had selected - while the probe rig pins the tier
+    /// through a different code path with no whitelist, so it verified happily
+    /// on a tier their game could not hold. Weeks of cloud work were reviewed
+    /// against a renderer that reverted on every restart.
+    ///
+    /// Driven from the same tier list the Settings chooser is built from, so
+    /// adding a tier to the page without teaching the loader about it fails here
+    /// rather than silently downgrading the player.
+    #[test]
+    fn every_offered_cloud_quality_survives_a_round_trip() {
+        for tier in ["low", "medium", "high", "ultra"] {
+            let json = format!("{{\"cloud_quality\":\"{tier}\"}}");
+            let cfg: AppConfig = serde_json::from_str(&json).expect("config parses");
+            let mut st = crate::gui::GuiState::default();
+            cfg.apply_to_gui_state(&mut st);
+            assert_eq!(
+                st.settings.cloud_quality, tier,
+                "cloud quality '{tier}' did not survive load: the loader whitelist \
+                 and the Settings chooser have drifted apart"
+            );
+        }
     }
 }

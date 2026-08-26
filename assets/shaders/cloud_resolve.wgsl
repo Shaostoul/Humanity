@@ -104,6 +104,10 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
     var hist = cur;
     var have_hist = false;
+    // How far this texel's history moved on screen, in half-res texels. The
+    // motion gate below needs it, and the reprojection is already computing
+    // the two UVs it is the distance between.
+    var shift_tx = 0.0;
     if (u.cam_up.w < 0.5 && t_w > 0.0) {
         let p_w = u.cam_pos.xyz + rd * t_w;
         let prev_pos = u.cam_pos.xyz + u.prev_dpos.xyz;
@@ -118,6 +122,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             {
                 hist = textureSampleLevel(history, lin_sampler, uv_p, 0.0);
                 have_hist = true;
+                let dims = vec2<f32>(textureDimensions(history));
+                shift_tx = length((uv_p - in.uv) * dims);
             }
         }
     }
@@ -130,12 +136,34 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // blend constant could never provide.
     let hist_c = clamp(hist, box_lo, box_hi);
 
-    // Deep accumulation, mildly accelerated by residual disagreement
-    // (the clip already absorbed the gross part).
+    // Deep accumulation, accelerated by residual disagreement (the clip
+    // already absorbed the gross part) but ONLY in proportion to real motion.
+    //
+    // ── THE STATIC (v0.1228) ──
+    // The acceleration used to be ungated: `base + smoothstep(diff) * 0.5`,
+    // capped at 1.0. That is a positive feedback loop against noise. A noisy
+    // pixel disagrees with its own history BECAUSE it is noisy, which raised
+    // its blend rate from 0.07 toward 0.57, which stopped it averaging, which
+    // kept it noisy. The filter switched itself off at exactly the pixels it
+    // existed to fix, and stayed off with the camera completely still - so the
+    // operator saw permanent fizz on every cloud silhouette while the flat
+    // interiors, which had nothing to fix, converged beautifully.
+    //
+    // The FAR path never had this bug (45-cloud-temporal.wgsl): it scales both
+    // the diff response and its cap by measured motion, capping at 0.12 at
+    // rest. This is that same shape. At rest, disagreement can lift alpha only
+    // to 0.12, so noise still averages away over ~8 frames; under motion the
+    // cap opens to 1.0, because then a changed pixel is signal rather than
+    // noise and holding stale history would be a ghost.
     let diff = abs(cur.a - hist_c.a)
         + (abs(cur.r - hist_c.r) + abs(cur.g - hist_c.g)
             + abs(cur.b - hist_c.b)) * 0.333;
     let base = clamp(u.cam_right.w, 0.02, 1.0);
-    let alpha = clamp(base + smoothstep(0.08, 0.45, diff) * 0.5, base, 1.0);
+    let motion = clamp(shift_tx - 0.75, 0.0, 1.0);
+    let alpha = clamp(
+        base + smoothstep(0.08, 0.45, diff) * mix(0.05, 0.5, motion),
+        base,
+        max(base, mix(0.12, 1.0, motion)),
+    );
     return mix(hist_c, cur, alpha);
 }
