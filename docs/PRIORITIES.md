@@ -1,5 +1,50 @@
 # HumanityOS: Priorities
 
+> **OPEN (2026-08-26, from live play on v0.1223.1) - two operator reports,
+> neither reproduced yet. Read this before re-deriving either.**
+>
+> **1. "Glowing ocean" at night.** Screenshot at 01:05 local: a large soft
+> pale-cyan mass over an otherwise correctly dark planet, with dark holes in
+> it and two small isolated cells nearby. Their run.log for that session puts
+> the camera at **alt=399.8 km with `[CloudRegime] mix=1.00`**, i.e. the NEAR
+> screen-march cloud regime at full strength. So despite the name, the prime
+> suspect is CLOUD, not water: `CLOUD_NIGHT_FLOOR = 0.006` is added UNGATED at
+> three sites in 40-clouds.wgsl (the `day` factor multiplies the sun and
+> ambient terms but not the floor), which on the night side leaves every cloud
+> sample at a flat `base_color * 0.006` - a shadeless pale mass following the
+> coverage field, holes and all. NEXT STEP: an orbital night vantage over a
+> cloudy region at ~400 km, then A/B the floor at 0.
+>
+> **RULED OUT: the water path.** Chased first and disproven, do not redo it.
+> The real defect found there is genuine but is NOT this: the sky-view LUT
+> cannot represent a deep-night sun at all - its sun-elevation axis spans
+> `mu_s in [-0.15, 1.0]` and both samplers clamp below that (atmo_luts
+> `u_to_mu`, and the `(mu_s + 0.15) / 1.15` clamps in sky_view_lut.wgsl), so
+> past about 8.6 degrees under the horizon it keeps returning civil-twilight
+> radiance. The drawn sky and the celestial pass both multiply that away with
+> `celestial_sun_day`; the two consumers of `water_sky_lut` (the water mirror
+> and `sky_ambient`) never did. A day-gated version was built and A/B captured
+> at ocean-night-glow: **both the gated and ungated builds render the night sea
+> black**, so at 150 m this changes nothing visible and cannot be the report.
+> It was REVERTED rather than shipped, because gating `sky_ambient` removes the
+> night ambient fill from all terrain and props and would darken night scenes
+> while a black-screen report (below) is open. Worth doing later on its own
+> merits, scoped to the water mirror only, with its own evidence.
+>
+> The A/B pair is kept as `ocean-night-glow` + `ocean-noon-control` in
+> vantages.json. They are a matched pair on purpose: night alone cannot fail
+> honestly, since a gate that zeroed the mirror at every hour would also pass
+> it. The noon twin is what proves a gate is time-dependent rather than off.
+>
+> **2. "Solid black floor, no homestead, no Earth/planets."** Reported
+> immediately after the ocean report, same v0.1223.1 session. NOT reproduced
+> and not diagnosable from disk: their run.log ends in a clean shutdown at
+> 07:12:59 with no later boot, so there is no failing process or crash trace to
+> read. The session it belongs to was at 400 km orbit with terrain and water
+> both drawing (`[WaterDiag] draws=1024 covered=true`). Needs a repro from the
+> operator: which build, and what they did just before it went black.
+
+
 > **ACTIVE (2026-08-21): the ENVIRONMENT PROGRAM** - the council plan of
 > record at docs/design/environment-program.md, executed serially by rank.
 > Done through v0.1184.0: increments 7 (ocean specular AA), 8 (reference
