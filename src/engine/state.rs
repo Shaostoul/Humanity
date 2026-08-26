@@ -193,11 +193,32 @@ pub(crate) struct EngineState {
     /// (v0.897): thick real cloud masses BLOCK the sun, so the shafts
     /// fade out under an overcast instead of blasting through the deck.
     pub(crate) weather_grid: Option<Vec<u8>>,
-    /// Orbital home station (v0.881): the homestead's Earth-centered
-    /// position on its 400 km LEO orbit, recomputed each frame (phase =
-    /// wall-clock UTC x the real orbital rate, so the orbit persists
-    /// across sessions). DVec3::ZERO until the first frame propagates it.
+    /// Orbital home station (v0.881, put on the game clock v0.1225): the
+    /// homestead's Earth-centered position, propagated each frame from
+    /// `data/stations/home.ron` against GameTime::elapsed_seconds.
+    ///
+    /// It used to be a hardcoded 400 km circle phased off wall-clock UTC,
+    /// which meant the in-game clock could not move it: the operator's
+    /// "it's turning the planet but I can't get it to affect the homestead".
+    /// DVec3::ZERO until the first frame propagates it.
     pub(crate) station_world_pos: glam::DVec3,
+    /// The station's ATTITUDE: body-to-world rotation, nadir-pointing by
+    /// default. This is the field whose absence caused the frozen lighting.
+    ///
+    /// A station has no radial that turns on its own, so with no attitude the
+    /// hull kept a fixed heading while it swept its orbit, and the sun sat at
+    /// exactly the same angle on the deck forever. Orbital POSITION cannot
+    /// help: the sun is 1 AU away, so a full geosynchronous circle moves the
+    /// sun direction by 0.03 degrees. Under LVLH this quaternion turns once
+    /// per orbit, which is what sweeps sunlight across the deck.
+    ///
+    /// The renderer consumes it by rotating the WORLD into the hull frame
+    /// (see `station_to_hull` in lib.rs) rather than by rotating the hull's
+    /// geometry, so home-local coordinates are untouched.
+    pub(crate) station_world_rot: glam::DQuat,
+    /// The station definition in force, from data. Held so the F11 panel can
+    /// show and change it without re-reading the file every frame.
+    pub(crate) station_def: crate::station::StationDef,
     /// True while the player frame RIDES the station (within the aboard
     /// radius): ship_world_pos advances by the station's orbital delta
     /// each frame so every home-local system works unchanged.

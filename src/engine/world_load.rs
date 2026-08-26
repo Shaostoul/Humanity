@@ -889,15 +889,35 @@ pub(crate) fn load_world(state: &mut EngineState) {
     reload_planet_defs(state);
     state.boot_timer.since("planet_defs_bake", t_planets);
 
-    // ── Ship position (GEO above Silverdale, WA) ──
-    let lat_rad = 47.6_f64.to_radians();
-    let lon_rad = (-122.3_f64).to_radians();
-    let geo_radius = 42_164_000.0_f64;
-    state.ship_world_pos = glam::DVec3::new(
-        geo_radius * lat_rad.cos() * lon_rad.cos(),
-        geo_radius * lat_rad.sin(),
-        geo_radius * lat_rad.cos() * lon_rad.sin(),
-    );
+    // ── Home station: load its orbit from data and place the ship frame on it ──
+    //
+    // This used to be a hardcoded GEO position above Silverdale that never
+    // survived a single frame: the frame loop's station block overwrote
+    // ship_world_pos immediately with a wall-clock 400 km circle, so the
+    // intent in the old comment was dead code for four hundred releases.
+    // Now the orbit is data (data/stations/home.ron), it is propagated on the
+    // GAME clock, and the same elements are used here and every frame after.
+    {
+        let defs = crate::station::load_all(&state.data_dir);
+        state.station_def = crate::station::home(&defs);
+        let (pos, vel) = crate::station::orbit::propagate(
+            &state.station_def.orbit,
+            crate::station::orbit::MU_EARTH,
+            crate::station::orbit::REAL_SECONDS_PER_DAY,
+            0.0,
+        );
+        state.station_world_pos = pos;
+        state.station_world_rot =
+            crate::station::orbit::attitude(&state.station_def.attitude, pos, vel);
+        state.ship_world_pos = pos;
+        log::info!(
+            "station: {} on a {:.0} km orbit of {}, {:?}",
+            state.station_def.name,
+            pos.length() / 1000.0,
+            state.station_def.parent,
+            state.station_def.attitude,
+        );
+    }
 
     // ── Sun setup ──
     // Sun world position: 1 AU from Earth, placed along the existing

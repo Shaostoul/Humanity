@@ -66,6 +66,14 @@ pub fn look_angles(dir: DVec3) -> (f32, f32) {
     (yaw as f32, pitch as f32)
 }
 
+/// Inverse of [`look_angles`]: the unit direction the camera faces at a given
+/// yaw/pitch. Kept beside its twin so the two conventions cannot drift - they
+/// are round-trip tested together.
+pub fn look_dir(yaw: f32, pitch: f32) -> DVec3 {
+    let (y, p) = (yaw as f64, pitch as f64);
+    DVec3::new(y.sin() * p.cos(), p.sin(), -y.cos() * p.cos())
+}
+
 /// Planet spin angle from GAME TIME (v0.878 sun-frame unification).
 ///
 /// Before this, three clocks ran independently: app uptime drove the spin

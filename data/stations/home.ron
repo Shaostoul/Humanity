@@ -1,0 +1,50 @@
+// The player's homestead: a real orbiting station, not a position constant.
+//
+// Before v0.1225 these numbers lived hardcoded in the engine's frame loop and
+// the orbit was phased off the REAL-WORLD wall clock, so the in-game time of day
+// could not move the station at all. Operator, 2026-08-26: "it's turning the
+// planet but, I can't get it to affect the homestead locked in orbit with the
+// Earth."
+//
+// Two things make the lighting work now, and both live here:
+//
+//  * a SYNCHRONOUS orbit, so the home hangs over one spot on Earth and one game
+//    day is exactly one orbit. That is what makes the F11 hour slider mean the
+//    same thing aboard as it does on the ground.
+//  * LVLH attitude (nadir pointing: floor toward the planet), the way real
+//    crewed stations fly. Under LVLH the hull turns once per orbit against the
+//    fixed sun, and THAT is what sweeps sunlight across the deck. Orbital
+//    position cannot do it: the sun is 1 AU away, so a whole geosynchronous
+//    circle moves the sun direction by 0.03 degrees.
+//
+// Want the ISS instead? Change `period` to Seconds(5545.0) and set an
+// inclination of 51.6 - you get 16 sunrises per game day, which is what low
+// orbit actually looks like. Switching `attitude` to Inertial restores the old
+// frozen-lighting behaviour as a deliberate choice.
+(
+    id: "home",
+    name: "Homestead",
+    parent: "earth",
+    orbit: (
+        // Synchronous derives the semi-major axis from Earth's rotation period
+        // (~42,164 km from the centre, ~35,786 km altitude). Expressed as a
+        // period rather than an altitude because that is what geostationary
+        // actually means; the altitude is a consequence.
+        period: Synchronous,
+        eccentricity: 0.0,
+        inclination_deg: 0.0,
+        raan_deg: 0.0,
+        arg_periapsis_deg: 0.0,
+        // Phased to hang over Silverdale, WA (lon -122.3). This is the intent
+        // src/engine/world_load.rs has carried in a comment since v0.881
+        // ("Ship position (GEO above Silverdale, WA)") and never got to apply,
+        // because the wall-clock circle overwrote it on the first frame.
+        mean_anomaly_at_epoch_deg: -122.3,
+        epoch_game_seconds: 0.0,
+    ),
+    attitude: Lvlh(
+        yaw_deg: 0.0,
+        pitch_deg: 0.0,
+        roll_deg: 0.0,
+    ),
+)

@@ -819,6 +819,73 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         fail("3D world not loaded".to_string());
         return;
     }
+    // Station vantage (v0.1225): {"station":"home"} parks the camera ABOARD
+    // the orbital homestead and leaves it there. Every other path in this
+    // function teleports to a body-relative vantage, which is why the rig has
+    // never been able to photograph the home at all - the moment it asked for
+    // a camera it was somewhere else. Without this verb there is no way to
+    // hold a fixed pose on the hull across several clock times, which is
+    // exactly the A/B the homestead lighting needs.
+    //
+    // Optional "time" here is the GLOBAL clock hour, not a local solar one:
+    // a station has no longitude to be local to (the lat/lon conversion
+    // further down deliberately does not apply).
+    if v.get("station").is_some() {
+        if let Some(hours) = v.get("time").and_then(|a| a.as_f64()) {
+            if let Some(req) = state
+                .data_store
+                .get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request")
+            {
+                if let Ok(mut r) = req.lock() {
+                    *r = Some(hours as f32);
+                }
+            }
+        }
+        if state.dev_travel_home.is_none() {
+            state.dev_travel_home = Some((
+                state.ship_world_pos,
+                state.camera.position,
+                state.camera.yaw,
+                state.camera.pitch,
+            ));
+        }
+        // Ride the station, and make sure no PLANET frame lock is left
+        // engaged: aboard the home we are not standing on a surface, and a
+        // stale lock leaves the double-writer live (see the station block in
+        // lib.rs) and drives aerial_up off a stale anchor.
+        state.ship_world_pos = state.station_world_pos;
+        state.station_ride = true;
+        state.aboard_station = true;
+        state.frame_lock_body = None;
+        state.frame_lock_anchor = glam::DVec3::ZERO;
+        if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
+            state
+                .camera
+                .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+        }
+        // A deliberately FIXED pose over the deck: the whole point is that
+        // several captures differ only by the clock, so the camera must not
+        // vary by so much as a pixel between them.
+        let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
+        state.camera.position = Vec3::new(0.0, hull_top + 14.0, 34.0);
+        state.camera.clear_surface();
+        let (yaw, pitch) = crate::dev_travel::look_angles(
+            glam::DVec3::new(0.0, -0.34, -1.0).normalize(),
+        );
+        state.camera.yaw = yaw;
+        state.camera.pitch = pitch;
+        state.gui_state.dev_fly_mode = true;
+        state.controller.fly_mode = true;
+        state.gui_state.dev_travel_away = false;
+        state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+        let _ = std::fs::create_dir_all("debug");
+        let _ = std::fs::write(
+            DONE_PATH,
+            serde_json::json!({"ok": true, "station": "home"}).to_string(),
+        );
+        log::info!("Camera request: parked aboard the home station");
+        return;
+    }
     // Bookmark restore (v0.890): {"bookmark":"bm-N"} places the camera at
     // an F6-saved exact pose and skips the scenic/altitude path entirely.
     if restore_location_bookmark(state, &v) {

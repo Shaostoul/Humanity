@@ -318,6 +318,83 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             ui.separator();
             ui.add_space(theme.spacing_sm);
 
+            // HOME STATION (v0.1225).
+            // Operator: "I may need to add a control to the mothership to
+            // actually change its orientation to also change that of the
+            // lighting." Correct, and it turned out to be the ONLY thing that
+            // could work: the sun is 1 AU away, so moving the station around a
+            // whole synchronous orbit shifts the sun direction by 0.03 degrees.
+            // A hull only gets a day if it TURNS. This is a lighting control,
+            // which is why it sits with the clock and not in Settings.
+            ui.label(RichText::new("Home station").strong().color(theme.accent()));
+            ui.add_space(2.0);
+            if !state.station_readout.is_empty() {
+                ui.label(
+                    RichText::new(&state.station_readout)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+            }
+            let mut nadir = state.station_nadir;
+            if ui
+                .checkbox(&mut nadir, "Point the floor at the planet")
+                .changed()
+            {
+                state.station_nadir = nadir;
+                state.station_attitude_dirty = true;
+            }
+            ui.label(
+                RichText::new(if state.station_nadir {
+                    "Nadir pointing, the way real crewed stations fly: the floor \
+                     faces Earth and the hull turns once per orbit, so the sun \
+                     crosses the deck and the homestead gets a sunrise."
+                } else {
+                    "Holding a fixed heading against the stars. The sun then never \
+                     moves across the deck, so the lighting stops following the \
+                     clock - this is what the home did before v0.1225."
+                })
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(2.0);
+            // Trim: how the hull sits within whichever mode is chosen. Under
+            // nadir pointing these turn the home on its own axes without
+            // breaking the floor-down rule.
+            let mut trimmed = false;
+            trimmed |= ui
+                .add(
+                    egui::Slider::new(&mut state.station_yaw_deg, -180.0..=180.0)
+                        .text("Yaw")
+                        .fixed_decimals(0),
+                )
+                .changed();
+            trimmed |= ui
+                .add(
+                    egui::Slider::new(&mut state.station_pitch_deg, -180.0..=180.0)
+                        .text("Pitch")
+                        .fixed_decimals(0),
+                )
+                .changed();
+            trimmed |= ui
+                .add(
+                    egui::Slider::new(&mut state.station_roll_deg, -180.0..=180.0)
+                        .text("Roll")
+                        .fixed_decimals(0),
+                )
+                .changed();
+            if trimmed {
+                state.station_attitude_dirty = true;
+            }
+            if ui.button("Level the hull").clicked() {
+                state.station_yaw_deg = 0.0;
+                state.station_pitch_deg = 0.0;
+                state.station_roll_deg = 0.0;
+                state.station_attitude_dirty = true;
+            }
+            ui.add_space(theme.spacing_sm);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+
             // Manual takeover. Off = the sim rolls its own weather every
             // 5-15 minutes, which is why a chosen sky never used to stick.
             let mut manual = state.weather_manual;

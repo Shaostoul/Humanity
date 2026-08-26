@@ -3434,6 +3434,22 @@ pub struct GuiState {
     /// makes a lighting or sky comparison actually repeatable.
     pub time_speed: f32,
     pub time_frozen: bool,
+    /// Home-station attitude, mirrored for the F11 panel (v0.1225).
+    ///
+    /// This is the operator's own proposal - "add a control to the mothership
+    /// to actually change its orientation to also change that of the lighting"
+    /// - and it is a LIGHTING control, which is why it lives beside the clock
+    /// rather than in Settings. Nadir-pointing is how real stations fly and is
+    /// what gives the homestead a day; Inertial is the old frozen behaviour,
+    /// kept as a deliberate choice instead of an accident.
+    pub station_nadir: bool,
+    pub station_yaw_deg: f32,
+    pub station_pitch_deg: f32,
+    pub station_roll_deg: f32,
+    /// Set when the panel changes attitude; the frame loop applies it.
+    pub station_attitude_dirty: bool,
+    /// One-line orbit summary published by the frame loop for the panel.
+    pub station_readout: String,
     pub show_network_overlay: bool,
     pub show_system_overlay: bool,
     /// Recent frame times in milliseconds (ring buffer, newest last), for the
@@ -5217,6 +5233,12 @@ impl Default for GuiState {
             time_pick_hour: 8.0,
             time_speed: 1.0,
             time_frozen: false,
+            station_nadir: true,
+            station_yaw_deg: 0.0,
+            station_pitch_deg: 0.0,
+            station_roll_deg: 0.0,
+            station_attitude_dirty: false,
+            station_readout: String::new(),
             show_network_overlay: false,
             show_system_overlay: false,
             frame_times: Vec::new(),

@@ -36,6 +36,8 @@ pub mod cosmos;
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
 /// run under every feature set. See `src/dev_travel.rs`.
 pub mod dev_travel;
+/// Crewed stations: the homestead as a real orbiting, pointed object.
+pub mod station;
 /// Planetary-surface FPS math (task #76 increment 1): tangent-frame camera
 /// basis (up = local radial) + stand/walk ground clamp. Pure glam, ungated
 /// like `dev_travel`, so its unit tests run under every feature set. See
@@ -1702,6 +1704,8 @@ mod native_app {
                 },
                 current_spin: 0.0,
                 station_world_pos: glam::DVec3::ZERO,
+                station_world_rot: glam::DQuat::IDENTITY,
+                station_def: crate::station::default_home(),
                 station_ride: false,
                 station_spawn_snap: false,
                 station_off: Vec3::ZERO,
@@ -3029,32 +3033,84 @@ mod native_app {
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
-                    // -- Orbital home station (v0.881, operator: "get the
-                    // player home disconnected from the player and placed in
-                    // a stable orbit... like the ISS") --
-                    // Real 400 km circular equatorial LEO in the
-                    // Earth-centered inertial frame (the ship_world_pos
-                    // frame): period ~92.6 real minutes, phase tied to
-                    // wall-clock UTC so the orbit persists across sessions.
+                    // -- Orbital home station (v0.881; put on the GAME clock and
+                    // given an attitude v0.1225) --
+                    //
+                    // Operator, 2026-08-26: "it's turning the planet but, I can't
+                    // get it to affect the homestead locked in orbit with the Earth.
+                    // It seems like I may need to add a control to the mothership to
+                    // actually change its orientation to also change that of the
+                    // lighting." Exactly right, and there were two faults under it.
+                    //
+                    // 1. The orbit was phased off SystemTime::now() - the real-world
+                    //    wall clock - while everything else in the sim runs on the
+                    //    game clock. So the time-of-day slider could not move the
+                    //    station even in principle.
+                    // 2. The station had no ORIENTATION at all, just a position
+                    //    vector. That is the one that actually froze the light:
+                    //    orbital position cannot change lighting, because the sun is
+                    //    1 AU away and a full geosynchronous circle moves the sun
+                    //    direction by 0.03 degrees. A hull only gets a day if it
+                    //    TURNS.
+                    //
+                    // Now: elements from data/stations/home.ron, propagated against
+                    // GameTime::elapsed_seconds, with a nadir-pointing (LVLH)
+                    // attitude that rotates once per orbit - which is how real
+                    // crewed stations fly and what sweeps the sun across the deck.
                     {
-                        const MU_EARTH: f64 = 3.986_004_418e14;
-                        const STATION_ORBIT_R: f64 = 6.371e6 + 400_000.0;
-                        let omega = (MU_EARTH
-                            / (STATION_ORBIT_R * STATION_ORBIT_R * STATION_ORBIT_R))
-                            .sqrt();
-                        let t_unix = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|d| d.as_secs_f64())
+                        use crate::station::orbit;
+                        // The F11 station card writes attitude here. Applied before
+                        // propagation so a change takes effect on the same frame it is
+                        // made - dragging a trim slider should move the light now, not
+                        // next frame.
+                        if state.gui_state.station_attitude_dirty {
+                            let (y, pi, r) = (
+                                state.gui_state.station_yaw_deg as f64,
+                                state.gui_state.station_pitch_deg as f64,
+                                state.gui_state.station_roll_deg as f64,
+                            );
+                            state.station_def.attitude = if state.gui_state.station_nadir {
+                                orbit::AttitudeMode::Lvlh {
+                                    yaw_deg: y,
+                                    pitch_deg: pi,
+                                    roll_deg: r,
+                                }
+                            } else {
+                                orbit::AttitudeMode::Inertial {
+                                    yaw_deg: y,
+                                    pitch_deg: pi,
+                                    roll_deg: r,
+                                }
+                            };
+                            state.gui_state.station_attitude_dirty = false;
+                        }
+                        let game_elapsed = state
+                            .data_store
+                            .get::<std::sync::Mutex<crate::systems::time::GameTime>>(
+                                "game_time",
+                            )
+                            .and_then(|m| m.lock().ok().map(|g| g.elapsed_seconds))
                             .unwrap_or(0.0);
-                        let th = (t_unix * omega).rem_euclid(std::f64::consts::TAU);
-                        let new_pos =
-                            glam::DVec3::new(th.cos(), 0.0, th.sin()) * STATION_ORBIT_R;
-                        let delta = if state.station_world_pos == glam::DVec3::ZERO {
-                            glam::DVec3::ZERO
-                        } else {
-                            new_pos - state.station_world_pos
-                        };
+                        // The parent rotation period is the SOLAR day, not the
+                        // sidereal one, because this engine defines a planet's spin
+                        // relative to the sun (planet_spin_from_time is
+                        // sun_azimuth + (hour - 12) * TAU / 24). Synchronous here
+                        // therefore means synchronous with the day/night cycle the
+                        // player actually sees. Using 86164 would drift the home a
+                        // quarter degree of longitude per game day.
+                        let (new_pos, vel) = orbit::propagate(
+                            &state.station_def.orbit,
+                            orbit::MU_EARTH,
+                            orbit::REAL_SECONDS_PER_DAY,
+                            orbit::sim_seconds(game_elapsed),
+                        );
+                        let prev_rot = state.station_world_rot;
+                        let prev_pos = state.station_world_pos;
+                        let new_rot =
+                            orbit::attitude(&state.station_def.attitude, new_pos, vel);
                         state.station_world_pos = new_pos;
+                        state.station_world_rot = new_rot;
+
                         let cam_local = glam::DVec3::new(
                             state.camera.position.x as f64,
                             state.camera.position.y as f64,
@@ -3062,33 +3118,62 @@ mod native_app {
                         );
                         let cam_world = state.ship_world_pos + cam_local;
                         let aboard = (cam_world - new_pos).length() < 400.0;
+                        // Departure is measured against where the station was when the
+                        // frame was last synced to it, NOT against where it has since
+                        // moved. Two different things break if you get this wrong:
+                        //
+                        //  * a hitchy frame or a scrub of the hour slider advances the
+                        //    station a long way in one step (at synchronous speed that
+                        //    is 3 km/s, and a slider drag is unbounded), which against
+                        //    the NEW position reads as the player having teleported off
+                        //    their own home. That is the v0.881 bug the original
+                        //    comment describes, and the game clock makes it far worse.
+                        //  * conversely it must still notice a REAL departure: dev
+                        //    travel and the probe rig move ship_world_pos directly, and
+                        //    if riding just re-asserts the station pose every frame it
+                        //    drags the camera straight back and no vantage away from
+                        //    the home can ever be reached. (It did exactly that for one
+                        //    build: blue-marble-12000km came back as empty starfield
+                        //    with the hull in the corner.)
+                        //
+                        // Measuring against prev_pos answers only "did the player move
+                        // relative to the home", which is the actual question.
+                        let departed = (cam_world - prev_pos).length() >= 400.0
+                            && prev_pos != glam::DVec3::ZERO;
+                        let was_riding = state.station_ride;
+
                         if state.station_spawn_snap {
-                            // World load: the spawn room IS aboard - put the
-                            // player frame on the station outright.
+                            // World load: the spawn room IS aboard.
                             state.ship_world_pos = new_pos;
                             state.station_ride = true;
                             state.station_spawn_snap = false;
                         } else if state.station_ride {
-                            // RIDE the orbit: apply the orbital delta FIRST,
-                            // then test departure with the RIDDEN position.
-                            // Testing before riding broke the lock on any
-                            // hitchy frame (a 200 ms load stall let the
-                            // station advance 1.5 km before the check, past
-                            // the 400 m aboard radius - found live during
-                            // v0.881 bring-up). Now only the PLAYER actually
-                            // flying away disengages.
-                            state.ship_world_pos += delta;
-                            let ridden = state.ship_world_pos + cam_local;
-                            if (ridden - new_pos).length() >= 400.0 {
+                            if departed {
+                                // Left under our own power (or was teleported by dev
+                                // travel). Let go and leave the frame where it is.
                                 state.station_ride = false;
+                            } else {
+                                // RIDE by absolute pose, not by accumulating a
+                                // per-frame delta. The delta form was fine at a
+                                // wall-clock crawl but is a hazard on a clock the
+                                // operator can SCRUB: one drag of the hour slider is up
+                                // to a full orbit in a single frame, and integrating
+                                // that flings the player frame. Riding aboard simply
+                                // means the ship frame IS the station.
+                                state.ship_world_pos = new_pos;
                             }
                         } else if aboard {
-                            // BOARDING: adopt the station as the frame origin
-                            // while PRESERVING the camera's world position, so
-                            // local coords become exact home coords with no
-                            // visual pop (the background shifts <=400 m at a
-                            // 400 km distance - imperceptible; the station
-                            // itself does not move on screen).
+                            // BOARDING: adopt the station as the frame origin while
+                            // preserving the camera's world position, so local coords
+                            // become exact home coords with no visual pop.
+                            //
+                            // Drop any planet frame-lock on the way in (v0.1225).
+                            // Aboard we are not standing on a surface, and the
+                            // auto-release is gated off while riding, so a lock that
+                            // survives boarding stays engaged forever and fights this
+                            // block for ownership of ship_world_pos.
+                            state.frame_lock_body = None;
+                            state.frame_lock_anchor = glam::DVec3::ZERO;
                             state.ship_world_pos = new_pos;
                             let rel = cam_world - new_pos;
                             state.camera.position =
@@ -3096,6 +3181,56 @@ mod native_app {
                             state.station_ride = true;
                         }
                         state.aboard_station = state.station_ride;
+
+                        // One-line orbit summary for the F11 card. Recomputed each
+                        // frame but only formatted when the panel is open, since it
+                        // allocates a String.
+                        if state.gui_state.show_weather_panel {
+                            let alt_km = (new_pos.length() - 6.371e6) / 1000.0;
+                            let period_s = orbit::period_from_axis(
+                                new_pos.length().max(1.0),
+                                orbit::MU_EARTH,
+                            );
+                            // Expressed in GAME hours, which is what the slider above
+                            // speaks. The physical period means little to the player;
+                            // "one sunrise per game day" is the useful fact.
+                            let period_game_h = period_s
+                                / (orbit::REAL_SECONDS_PER_DAY
+                                    / crate::systems::time::SECONDS_PER_DAY)
+                                / (crate::systems::time::SECONDS_PER_DAY / 24.0);
+                            state.gui_state.station_readout = format!(
+                                "{}: {:.0} km up, one orbit every {:.1} game hours.",
+                                state.station_def.name, alt_km, period_game_h
+                            );
+                        }
+
+                        // Keep the VIEW still across a ride transition. While riding,
+                        // the render frame is the hull's body frame; off the station
+                        // it is world-aligned. Boarding or departing therefore swaps
+                        // the basis under the camera, and without this the sky would
+                        // lurch at the hatch. Re-expressing the look direction in the
+                        // new basis holds it exactly (roll is not represented in a
+                        // yaw/pitch camera, so a rolled station still turns the
+                        // horizon - correct, and it is what the hull is doing).
+                        //
+                        // No compensation is applied WHILE riding, on purpose: someone
+                        // standing on a turning station turns with it and watches the
+                        // stars sweep past. That sweep is the entire point.
+                        if state.station_ride != was_riding {
+                            let look = crate::dev_travel::look_dir(
+                                state.camera.yaw,
+                                state.camera.pitch,
+                            );
+                            let adjusted = if state.station_ride {
+                                new_rot.inverse() * look
+                            } else {
+                                prev_rot * look
+                            };
+                            let (yaw, pitch) = crate::dev_travel::look_angles(adjusted);
+                            state.camera.yaw = yaw;
+                            state.camera.pitch = pitch;
+                        }
+
                         let off = new_pos - state.ship_world_pos;
                         state.station_off =
                             Vec3::new(off.x as f32, off.y as f32, off.z as f32);
@@ -4012,6 +4147,11 @@ mod native_app {
                             (Some(cur), _) if cur_ratio.is_none_or(|r| r > 1.2) => {
                                 log::info!("[FrameLock] released {cur} (left its envelope)");
                                 state.frame_lock_body = None;
+                                // Clear the ANCHOR too (v0.1225): it is read outside
+                                // the frame_lock_body guard when local up is published,
+                                // so leaving it set lets a stale anchor from an earlier
+                                // planet visit keep steering the lighting.
+                                state.frame_lock_anchor = glam::DVec3::ZERO;
                             }
                             _ => {}
                         }
@@ -5444,8 +5584,10 @@ mod native_app {
                                 state.gui_state.dev_fly_mode = false;
                                 state.controller.fly_mode = false;
                                 state.gui_state.dev_travel_away = false;
-                                // Back home: release the planet frame-lock.
+                                // Back home: release the planet frame-lock, anchor and
+                                // all (v0.1225 - see the other release site).
                                 state.frame_lock_body = None;
+                                state.frame_lock_anchor = glam::DVec3::ZERO;
                                 // Rejoin the shared world if this session was shared
                                 // before travel stepped out (launcher intent rules:
                                 // only clear solo if the step-out set it).
@@ -8821,7 +8963,16 @@ mod native_app {
                             // showroom; the sky bodies themselves are hidden
                             // there (a dark Earth limb would fill the view).
                             if showroom { continue; }
-                            let render_off = rel_earth_m - state.ship_world_pos;
+                            // HULL FRAME (v0.1225), site 1 of 3. Aboard the station the
+                            // render frame is the hull's body frame, so every external
+                            // body has to be counter-rotated into it. This is the single
+                            // place a celestial position becomes a render position, so
+                            // Sun, Earth, Moon and planets are all covered here at once.
+                            let render_off = crate::station::to_hull(
+                                state.station_ride,
+                                state.station_world_rot,
+                                rel_earth_m - state.ship_world_pos,
+                            );
                             let dist = render_off.length().max(1.0);
                             let radius_m = (b.radius_km * 1000.0) as f64;
 
@@ -8959,7 +9110,15 @@ mod native_app {
                                 // spin the uniform body uses, but composed in
                                 // f64 for anchor placement (precision rule:
                                 // narrow to f32 only at the very end).
-                                let rot_d = glam::DQuat::from_rotation_y(spin_f64);
+                                // Composed with the hull frame (v0.1225): a point at
+                                // planet-local p renders at render_off + R_hull * R_spin * p,
+                                // so the model rotation in render space is the product.
+                                // Without this Earth would swing across the window with its
+                                // axis still pinned to the world frame.
+                                let rot_d = crate::station::hull_frame_rot(
+                                    state.station_ride,
+                                    state.station_world_rot,
+                                ) * glam::DQuat::from_rotation_y(spin_f64);
                                 // Camera position in the planet's UNROTATED
                                 // local frame, f64 end to end. The camera
                                 // lives at metre scale near the origin (dev
@@ -12157,8 +12316,17 @@ mod native_app {
                         // imperceptible) and keeps every lit hemisphere honest
                         // anywhere in the system.
                         state.sun_world_pos = sun_rel_earth_m;
-                        let sun_dir =
-                            (sun_rel_earth_m - state.ship_world_pos).normalize_or_zero();
+                        // HULL FRAME (v0.1225), site 2 of 3, and the one that actually
+                        // lights the deck. Note this cannot be replaced by "move the
+                        // station and let the direction follow": the sun is 1 AU away, so
+                        // a whole geosynchronous circle moves this vector by 0.03 degrees.
+                        // The change comes entirely from the hull TURNING under it.
+                        let sun_dir = crate::station::to_hull(
+                            state.station_ride,
+                            state.station_world_rot,
+                            (sun_rel_earth_m - state.ship_world_pos).normalize_or_zero(),
+                        )
+                        .normalize_or_zero();
                         // GI master switch (v0.571): when OFF, zero the sun + fill so only LOCAL placed
                         // lights illuminate -- the operator's "turn off global illumination and still
                         // see" test. Default ON restores the normal sun (2.5) + the cool fill (0.6).
@@ -12374,7 +12542,16 @@ mod native_app {
                             let up_w = glam::DQuat::from_rotation_y(state.current_spin)
                                 * state.frame_lock_anchor.normalize_or_zero();
                             let mut up = [0.0f32, 1.0, 0.0];
-                            if up_w.length_squared() > 0.5 {
+                            if state.station_ride {
+                                // HULL FRAME (v0.1225), site 3 of 3. Aboard, the render
+                                // frame IS the hull body frame and LVLH puts the hull
+                                // zenith on body +Y, so local up is exactly +Y. That is
+                                // also what the fallback below produces, but by
+                                // accident - the anchor happens to be zero. Stating it
+                                // means a future anchor change cannot silently tilt the
+                                // homestead's ambient.
+                                up = [0.0, 1.0, 0.0];
+                            } else if up_w.length_squared() > 0.5 {
                                 up = [up_w.x as f32, up_w.y as f32, up_w.z as f32];
                             }
                             if s > 0.001 {

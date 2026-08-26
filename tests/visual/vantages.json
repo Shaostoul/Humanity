@@ -456,6 +456,66 @@
       "hold_altitude": true
     },
     {
+      "id": "home-clock-dawn",
+      "desc": "The homestead at 06:00 local. One of three frames that differ ONLY by the clock.",
+      "expect": "Low sun grazing the deck, long shadows across the hull.",
+      "_why": "Operator 2026-08-26: \"it is turning the planet but I cannot get it to affect the homestead locked in orbit with the Earth.\" The hour slider moved Earth and left the home in permanent noon. Two causes: the station carried NO orientation at all (only a position vector), and orbital position cannot light anything - sweeping a whole geosynchronous circle moves the sun direction by 0.016 degrees, because the sun is 1 AU away. Lighting aboard can only come from the station TURNING, which a nadir-pointing (LVLH) attitude does once per orbit.",
+      "_pair_note": "These three share one fixed camera pose and differ only in `time`. That is the entire gate: before the fix all three are identical apart from Earth turning in the background, so any check that passes on all three is measuring nothing. Score with scripts/home-clock-metrics.mjs.",
+      "regressions": [
+        "homestead lighting must follow the game clock"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 14.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-clock-noon",
+      "desc": "The homestead at 12:00 local. One of three frames that differ ONLY by the clock.",
+      "expect": "Sun high over the hull, short shadows, deck brightly lit.",
+      "_why": "Operator 2026-08-26: \"it is turning the planet but I cannot get it to affect the homestead locked in orbit with the Earth.\" The hour slider moved Earth and left the home in permanent noon. Two causes: the station carried NO orientation at all (only a position vector), and orbital position cannot light anything - sweeping a whole geosynchronous circle moves the sun direction by 0.016 degrees, because the sun is 1 AU away. Lighting aboard can only come from the station TURNING, which a nadir-pointing (LVLH) attitude does once per orbit.",
+      "_pair_note": "These three share one fixed camera pose and differ only in `time`. That is the entire gate: before the fix all three are identical apart from Earth turning in the background, so any check that passes on all three is measuring nothing. Score with scripts/home-clock-metrics.mjs.",
+      "regressions": [
+        "homestead lighting must follow the game clock"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "home-clock-night",
+      "desc": "The homestead at 00:00 local. One of three frames that differ ONLY by the clock.",
+      "expect": "Deck in shadow, lit only by ambient and Earthshine. No sun on the hull.",
+      "_why": "Operator 2026-08-26: \"it is turning the planet but I cannot get it to affect the homestead locked in orbit with the Earth.\" The hour slider moved Earth and left the home in permanent noon. Two causes: the station carried NO orientation at all (only a position vector), and orbital position cannot light anything - sweeping a whole geosynchronous circle moves the sun direction by 0.016 degrees, because the sun is 1 AU away. Lighting aboard can only come from the station TURNING, which a nadir-pointing (LVLH) attitude does once per orbit.",
+      "_pair_note": "These three share one fixed camera pose and differ only in `time`. That is the entire gate: before the fix all three are identical apart from Earth turning in the background, so any check that passes on all three is measuring nothing. Score with scripts/home-clock-metrics.mjs.",
+      "regressions": [
+        "homestead lighting must follow the game clock"
+      ],
+      "camera": {
+        "station": "home",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "ocean-700m",
       "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
       "expect": "Wave field to the horizon, no flat facets.",
