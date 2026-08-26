@@ -1,5 +1,78 @@
 # HumanityOS: Priorities
 
+> **ACTIVE: THE CLOUD PLAN (from the v0.1228 decision).** The operator, out of
+> patience: "I am really tired of seeing these spheres with zero transparency
+> and TV static effect... I don't get why we can't get rid of this."
+>
+> **SHIPPED v0.1228.0 (increments 0 + 1).** Ultra never survived a restart (the
+> loader whitelist omitted it, and the next save overwrote the choice), so every
+> recent cloud change was reviewed on a renderer the operator's game reverted,
+> and what they were describing was the older noise path. And the near-field
+> temporal denoiser accelerated its own blend rate in proportion to
+> disagreement with no motion gate - positive feedback against noise, so it
+> switched itself off at exactly the pixels it existed to fix, even at rest.
+> Both fixed, both zero frame cost.
+>
+> **NEXT, in order. Do not reorder without reading why.**
+>
+> **Inc 2. Make the sun see the surface the eye sees.** The comment at
+> `41-cloud-bodies.wgsl:351-360` claims all eight sun-shadow taps sample the
+> displaced surface. They do not: the displacement mip comes from the caller's
+> `lodb`, and `cloud_sun_tau` passes a different `lod_t` per tap
+> (`40-clouds.wgsl:2029`), so near taps land where the displacement is gone.
+> The silhouette is bumpy while the LIGHTING still shades a smooth sphere.
+> Very likely why the v0.1221 displacement work "did nothing". ~0 ms.
+>
+> **Inc 3. Kill the coin flip: step by distance, not a fixed hop.** Clear air is
+> marched in 495 m hops (`slab_h * CLOUD_STEP_BAND_FRAC`, 11 km slab x 0.045)
+> while the cloud edge it is hunting is 90 m thick, so every silhouette pixel is
+> a per-frame coin flip. Note the v0.1218 refinement `max(seg/16, 30 m)` does
+> NOT help from the ground: `seg` is the whole slab crossing, so seg/16 = 690 m
+> and the `min` always picks 495 m. It was verified from inside the deck, where
+> it does work. `cv2_cloud_sdf` already returns a real distance in metres and we
+> throw it away - use it, in the hoisted per-cell form
+> (`environment-program.md:769-779`), NOT the naive per-sample form that gave
+> 4 fps at v0.1210. Gate at `gpu.cloud_screen <= 4 ms`, abandon if it misses.
+>
+> **Inc 4. Demote the sphere from surface to envelope.** This is the "spheres
+> with zero transparency" complaint. Density is `clamp(-best / 90 m, 0, 1)`, a
+> linear ramp off a distance field, which leaves 79-93% of every lobe at
+> constant full opacity with only a 90 m soft shell - measured per archetype.
+> Displacement is 9-26% of lobe radius, far too small to disguise a sphere. The
+> 14-lobe cluster should decide WHERE a cloud is and its proportions (its flat
+> condensation base is genuinely good, keep it) while multi-octave noise carves
+> the surface, with a vector domain warp applied BEFORE the lobe reduction so
+> shapes can fold and overhang instead of merely getting bumpy. Same increment
+> fixes plain defects found in the audit: cloud width is drawn UNIFORMLY
+> (`:134`) and should follow a power law; lobe count is hardcoded to 14 (`:46`)
+> against 6-48 in `data/clouds/archetypes.ron`; `cv2_arch_index` (`:152-162`)
+> can never return 1, so **cumulus congestus has never once been rendered**;
+> and placement is not wind-advected while the coverage gating it is, so clouds
+> pop in fully formed instead of fading.
+>
+> **Inc 5. Fix the interior and the light.** Shade on the analytic smooth-min
+> normal (the lobe loop can accumulate it free; named "the designed cure" in
+> four journal entries and never built). Restore crown as sky-view and pouch as
+> a crevice mask. Delete Beer-powder (`CLOUD_POWDER_STRENGTH = 0.92`): droplets
+> scatter essentially all the light they receive, so a cloud edge physically
+> cannot be darker than the sky behind it, and ours measured 0.71x. Add the
+> adiabatic vertical water gradient and a turbulent interior field at 50-500 m.
+>
+> **Explicitly NOT the plan: a voxel-atlas / full Nubis-3 rebuild.** More famous,
+> but this project has no artists and no offline fluid pipeline, and
+> `environment-program.md:775` already names it the fallback rather than the plan.
+>
+> **Clouds should NOT become particles.** Camera-facing cards are right for a
+> bounded, short-lived puff (a smoke grenade) and wrong for a deck to the
+> horizon: ~10,000 km2 of cloud is a quarter-million sorted blended quads, they
+> lose parallax the moment you fly into them (the "oriented to me" complaint,
+> already fixed once), and they cannot report absorption along a ray, which is
+> what dims the sun disc and casts cloud shadow on the ground. The 2030 version
+> of a smoke grenade is a small dense voxel grid marched against the SAME
+> scattering model - so if we ever want one, feed a local volume into the cloud
+> march rather than building a second billboard system beside it.
+
+
 > **LESSON (v0.1227): counting frame-conversion sites is not the same as
 > finding them.** v0.1225 converted the world into the station hull frame and
 > the comments proudly labelled the consumers "site 1 of 3" through "3 of 3".
