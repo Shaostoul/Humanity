@@ -2181,6 +2181,29 @@
     "weather": "cloudy",
     "cloud_quality": "ultra"
    }
+  },
+  {
+   "id": "ultra-inside-5km",
+   "desc": "The operator close-range Ultra view at their own scale: 5.5 km, right in among the cloud tops, looking down across them. This is where the ball-pit and eyeball rings are most obvious.",
+   "camera": {
+    "body": "earth",
+    "lat": -15,
+    "lon": 165,
+    "time": 12,
+    "altitude_km": 5.5,
+    "look_offset_deg": 60
+   },
+   "settle_s": 18,
+   "expect": "Irregular cauliflower mass with soft translucent edges. NO concentric rings on any lobe, no visible disc outlines.",
+   "regressions": [
+    "panics=0"
+   ],
+   "hold_altitude": true,
+   "showcase": {
+    "clouds": "1",
+    "weather": "cloudy",
+    "cloud_quality": "ultra"
+   }
   }
  ],
  "ladder": {

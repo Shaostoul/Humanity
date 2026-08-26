@@ -1382,6 +1382,7 @@ struct CloudSample {
                      // FRACTION 1.0 never meant water path uniform; this is
                      // the low-frequency LWP field real decks mottle by
                      // (marine BL inhomogeneity nu = 2.5-3)
+    v2: f32,         // 0..1 how much of this sample is the CONSTRUCTED body
     pouch: f32,      // 0..1 how low this column's own base hangs (the
                      // from-below twin of `crown`: mamma/pouch shading)
 };
@@ -1571,7 +1572,7 @@ fn cloud_carve(
     // which we must not pay for in clear sky.
     let h_hi_max = min(reg.h_hi + 0.8 * (reg.h_hi - reg.h_lo), 1.0);
     if (cloud_height_band(h, reg.h_lo, h_hi_max) <= 0.002 || wa <= 0.003) {
-        return CloudSample(0.0, p, h, 0.0, 1.0, 0.0);
+        return CloudSample(0.0, p, h, 0.0, 1.0, 0.0, 0.0);
     }
     // Drift at the sample's own family wind for its band height (phase 7
     // motion): a stratus deck ambles at 3-7 m/s while cirrus rides the
@@ -1628,7 +1629,7 @@ fn cloud_carve(
         let built = cloud_v2_body(p, wa, tc_v2, lodb);
         body = mix(body, built, w_built);
         if (body <= 0.001) {
-            return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0);
+            return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0, 0.0);
         }
     }
     // Towering (v0.880), re-keyed in phase 3: v0.880 drove the tower from
@@ -1643,7 +1644,7 @@ fn cloud_carve(
     let h_hi_eff = min(reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo), 1.0);
     let env = cloud_height_band(h, reg.h_lo, h_hi_eff);
     if (env <= 0.002) {
-        return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0);
+        return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0, 0.0);
     }
     // Domed tops (see CLOUD_TOP_RISE): the threshold climbs quadratically
     // with the fraction of the (tower-extended) band already below this
@@ -1805,7 +1806,7 @@ fn cloud_carve(
         sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0), 0.0, v2_w);
     g_cloud_bandtop = h_hi_eff;
     g_cloud_pouch = pouch;
-    return CloudSample(carve, ps, h, crown, lwp, pouch);
+    return CloudSample(carve, ps, h, crown, lwp, pouch, v2_w);
 }
 
 // The increment-3 VIEW density: the carved body, then TWO erosion bands and a
@@ -1934,8 +1935,32 @@ fn cloud_density_hi(
     // real sky holes at pinned coverage 1.0. Thin columns keep their
     // density; solid cores get the full mottle.
     let lwp_eff = mix(1.0, cs.lwp, smoothstep(0.10, 0.35, cs.carve));
+    // ── THE CONSTRUCTED PATH TAKES ITS DENSITY STRAIGHT (2026-08-25) ──
+    // The operator, on the fourth round of this: "I am waiting for the ball
+    // pit look to go away... I do not know what to say or how to articulate
+    // making this look remotely real."
+    //
+    // Every term in the line above is a function of `body` - dens_n (the
+    // erosion ratio, which has an interior maximum), skirt (a smoothstep
+    // over the outer 12% of the carve), lwp_eff (gated on the carve), and
+    // the three erosion bands feeding `base` through their (1 - base) edge
+    // weights. On the FRACTAL body those are organic, because `body` is a
+    // fractal. On the CONSTRUCTED body `body` is distance-to-surface, so
+    // every one of them is a circle concentric with its lobe, and they
+    // STACK: a bright rim, a darker interior, further rings inside. That is
+    // the eyeball, and patching them one at a time was whack-a-mole.
+    //
+    // So the constructed path stops using the chain at all. Its density IS
+    // the displaced signed-distance ramp - the fractal detail now lives in
+    // the SURFACE (the FBM displacement in 41-cloud-bodies.wgsl), which is
+    // where a real cumulus keeps it, and all remaining brightness variation
+    // has to come from the sun march, i.e. from geometry. That is the
+    // principled split the analysis asked for: noise DISPLACES the surface
+    // on the built path, and noise ERODES the density on the noise path.
+    let dens_fractal = pow(dens_n, CLOUD_DENSITY_POW) * skirt * lwp_eff;
+    let dens_built = cs.carve * cs.lwp;
     return vec3<f32>(
-        pow(dens_n, CLOUD_DENSITY_POW) * skirt * lwp_eff, cavity, cs.crown);
+        mix(dens_fractal, dens_built, cs.v2), cavity, cs.crown);
 }
 
 // The LIGHT-march density: carved body only (no fray/detail taps -- edges err
