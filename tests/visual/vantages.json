@@ -311,6 +311,290 @@
       "perf_floor_fps": 30
     },
     {
+      "id": "orbit-tier-high",
+      "desc": "Earth from 12000 km on cloud quality high. One of a tier ladder that isolates what Ultra costs at orbit.",
+      "expect": "A readable blue marble at an interactive frame rate.",
+      "_why": "Operator 2026-08-27, on v0.1228.1 with Ultra finally persisting: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" The v0.1228 design claimed Ultra only differs within a few km because the constructed-body branch is footprint-gated (lodb < 2.0), so orbit should be unchanged. The operator's 1 fps falsifies that, so the cost is somewhere else and this ladder is how it gets found rather than guessed at.",
+      "_pair_note": "high vs ultra at one camera. If they cost the same, the tier is not the cause and the regression is elsewhere. If ultra is far dearer, the gate is not doing what its comment claims.",
+      "regressions": [
+        "ultra cloud cost at orbit"
+      ],
+      "camera": {
+        "body": "earth",
+        "altitude_km": 12000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 10,
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "orbit-tier-ultra",
+      "desc": "Earth from 12000 km on cloud quality ultra. One of a tier ladder that isolates what Ultra costs at orbit.",
+      "expect": "A readable blue marble at an interactive frame rate.",
+      "_why": "Operator 2026-08-27, on v0.1228.1 with Ultra finally persisting: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" The v0.1228 design claimed Ultra only differs within a few km because the constructed-body branch is footprint-gated (lodb < 2.0), so orbit should be unchanged. The operator's 1 fps falsifies that, so the cost is somewhere else and this ladder is how it gets found rather than guessed at.",
+      "_pair_note": "high vs ultra at one camera. If they cost the same, the tier is not the cause and the regression is elsewhere. If ultra is far dearer, the gate is not doing what its comment claims.",
+      "regressions": [
+        "ultra cloud cost at orbit"
+      ],
+      "camera": {
+        "body": "earth",
+        "altitude_km": 12000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 10,
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "approach-2000km-high",
+      "desc": "Earth approach at 2000 km on cloud quality high.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-2000km-ultra",
+      "desc": "Earth approach at 2000 km on cloud quality ultra.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 2000,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-400km-high",
+      "desc": "Earth approach at 400 km on cloud quality high.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 400,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-400km-ultra",
+      "desc": "Earth approach at 400 km on cloud quality ultra.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 400,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-120km-high",
+      "desc": "Earth approach at 120 km on cloud quality high.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 120,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-120km-ultra",
+      "desc": "Earth approach at 120 km on cloud quality ultra.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 120,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-40km-high",
+      "desc": "Earth approach at 40 km on cloud quality high.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 40,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-40km-ultra",
+      "desc": "Earth approach at 40 km on cloud quality ultra.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 40,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-12km-high",
+      "desc": "Earth approach at 12 km on cloud quality high.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 12,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
+      "id": "approach-12km-ultra",
+      "desc": "Earth approach at 12 km on cloud quality ultra.",
+      "expect": "Interactive frame time. A tier gap here localises the Ultra cost.",
+      "_why": "Operator 2026-08-27: \"I can't get any closer to Earth than this. Hitting below 1 fps.\" Orbit (12000 km) measured 66 ms on BOTH tiers, so the tier is not globally dearer and the cost must live in a band on the way down. They had also reported earlier that \"the approach to Earth from far orbit is really bad framerate wise until I'm entering atmosphere then framerate goes up\", which is the same band seen from the other side.",
+      "_pair_note": "Each rung is a high/ultra pair at ONE altitude. Compare within a rung, not across rungs: across rungs the terrain load changes too, so only the within-rung gap is attributable to the cloud tier.",
+      "regressions": [
+        "ultra cloud cost during Earth approach"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 12,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.4"
+      },
+      "settle_s": 8,
+      "hold_altitude": true
+    },
+    {
       "id": "blue-marble-clouds",
       "desc": "The full disc WITH the cloud deck pinned on (clouds depth increment): the orbital regression lock for the physical 0.4-12 km slab - the deck must still read from 12,000 km. Pins clouds:1 because the operator config may have them toggled off (which is how two sweeps ran cloudless before anyone noticed).",
       "camera": {

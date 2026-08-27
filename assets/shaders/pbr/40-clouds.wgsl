@@ -238,6 +238,14 @@ var<private> g_march_first_t: f32 = 0.0;
 // screen) while making a ring centred on a lobe impossible: nothing
 // downstream can vary the body's scale within one shading evaluation.
 var<private> g_v2_foot_m: f32 = 0.0;
+
+// May this march build CONSTRUCTED cloud bodies (Ultra)?
+//
+// Defaults to FALSE and each screen-march entry opts IN, which is the safe
+// direction: a site that forgets to set it loses the built look, which is
+// visible and cheap. The other polarity cost the operator a session - see the
+// gate in cloud_carve for what happens when the bodies run in the octa map.
+var<private> g_v2_allowed: bool = false;
 // Drawn-shell units per kilometre (clouds depth increment): converts the
 // metre-expressed noise ladder + fade constants below into the march's
 // coordinate space, so feature sizes are anchored to physical lengths
@@ -1617,7 +1625,28 @@ fn cloud_carve(
     // where the footprint can actually resolve them (~a few km); coarse
     // samples keep the noise body, so Ultra at orbit looks and costs
     // exactly like High and the close-up range keeps the built look.
-    if (material.params.y >= 2.5 && lodb < 2.0) {
+    // REGIME GATE (v0.1229), and the footprint gate is NOT enough on its own.
+    //
+    // Operator, on the first build where Ultra actually persisted: "I can't get
+    // any closer to Earth than this. Hitting below 1 fps." Measured on the rig:
+    // at 2000 km, High 86.9 ms vs Ultra 195.5 ms; at 12000 km and at 400 km the
+    // two tiers were identical. A cost that appears only in a BAND is a gate
+    // problem, not a shader-is-heavy problem.
+    //
+    // The band is the FAR octa map. That map is 4096x4096 = 16.7M texels, about
+    // 76x more rays than the quarter-res screen march's ~222k. Its angular
+    // resolution is 8.65e-4 rad, so the footprint it reports is distance-
+    // dependent: 10.4 km at 12000 km altitude (over the 4 km threshold, gate
+    // blocks, tiers match) but 1.73 km at 2000 km - under the threshold, so the
+    // constructed bodies switched on across all 16.7M texels. At that altitude
+    // the entire planet is 1526 px wide, so a 1.7 km cloud is far below one
+    // pixel: the map paid the full price of building cauliflower and then
+    // resolved none of it.
+    //
+    // The footprint alone can never express this, because the map and the screen
+    // report footprints on completely different ray budgets. The regime has to
+    // be asked directly.
+    if (material.params.y >= 2.5 && g_v2_allowed && lodb < 2.0) {
         let tc_v2 = cloud_type_coord(normalize(p), t, seed);
         // THIN-GENUS BLEND (increment 6, the promised-but-missing half):
         // grape clusters cannot be wisps, so cirrus/altocumulus keep the
@@ -2285,6 +2314,8 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let jitter = fract(
         hash21(dirf.xy * 49152.0 + vec2<f32>(dirf.z * 12288.0, 17.0)),
     );
+    // Screen march: constructed bodies are welcome here (see g_v2_allowed).
+    g_v2_allowed = true;
     let s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_screen());
     return vec4<f32>(s.rgb, s.a * limb);
 }

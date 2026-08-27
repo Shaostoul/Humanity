@@ -419,6 +419,8 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // cap was briefly reverted when a live-MODIS-saturated map made its
     // A/B look like an over-render - the placement, not the footprint,
     // was the white there.)
+    // Screen march (the near regime): constructed bodies allowed.
+    g_v2_allowed = true;
     let cur_s = cloud_march_core(
         rd_w, center, shell_r, jitter,
         min(cloud_pix_ang_screen() * 4.0, cloud_pix_ang_map()));
