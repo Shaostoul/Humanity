@@ -2432,6 +2432,31 @@ fn cloud_march_core(
     if (m1 <= 0.0) {
         return vec4<f32>(0.0);
     }
+    // ── THE HORIZON SEAM (v0.1233) ──
+    //
+    // Operator screenshots at 5.7 and 6.2 km show a hard horizontal line across
+    // the frame, smoother cloud above it and sharper, grainier cloud below.
+    //
+    // It is the CLOUD BASE SHELL horizon. From 5.7 km it sits 2.20 degrees below
+    // horizontal and from 6.2 km 2.31 degrees, which is exactly where the line
+    // appears. Across it the marched segment jumps discontinuously, because a ray
+    // just below the tangent is clipped where it enters the base shell while a ray
+    // just above it runs on to the far side of the top shell: 245 km versus 619 km
+    // at 5.7 km altitude, a 375 km step at the tangent.
+    //
+    // That matters because the step law is SEGMENT-RELATIVE (dt_seg = seg / 48)
+    // and the sampling mip is derived from the step. A 2.53x jump in step is 1.34
+    // mip levels of detail, appearing instantly along one line - coarser above
+    // where the segment is long, finer below where it is short, which is the way
+    // round the operator describes.
+    //
+    // The cure is to stop letting a WHOLE-RAY property set PER-SAMPLE detail.
+    // This keeps the unclipped top-shell chord for the step budget, which is
+    // continuous in d2 and therefore across the tangent, while the march itself
+    // still stops at the clipped m1. Cost is unchanged or lower: the unclipped
+    // chord is the longer of the two, so steps below the line get no finer than
+    // they already were above it.
+    let seg_step = m1 - m0;
     if (d2 < g_cloud_rb * g_cloud_rb) {
         let thc_b = sqrt(g_cloud_rb * g_cloud_rb - d2);
         let b0 = tca - thc_b;
@@ -2472,7 +2497,26 @@ fn cloud_march_core(
     // own footprint at the segment midpoint, in metres. Every density
     // call in this invocation - view samples AND all eight sun-shadow
     // taps - now sees ONE body scale.
-    g_v2_foot_m = (m0 + seg * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+    // ── THE HORIZON SEAM, THE ACTUAL CHANNEL (v0.1233) ──
+    //
+    // This midpoint is where the seam came from, and it took a wrong guess
+    // first: the segment-relative STEP law was blamed, but the step is identical
+    // on both sides of the tangent for the first ~109 km of every ray. This is
+    // the line that jumps for EVERY sample.
+    //
+    // seg is clipped at the base shell, so it steps 245 -> 619 km across the
+    // base-shell tangent (2.201 degrees below horizontal at 5.7 km altitude,
+    // 2.315 at 6.2 km - exactly where the operator photographed a hard line).
+    // The midpoint therefore steps by the same 2.53x, and it is frozen into the
+    // per-ray footprint that sets the rind AND the displacement mip - so the
+    // surface DETAIL of every cloud on the ray changes by 1.34 mip levels along
+    // one screen row. Coarser above where the segment is long, finer below where
+    // it is short, which is the way round it was reported.
+    //
+    // seg_step is the UNCLIPPED top-shell chord, continuous in d2 and therefore
+    // across the tangent. The march still stops at the clipped m1; only the
+    // detail scale is taken from the continuous one.
+    g_v2_foot_m = (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
     // Same freeze for the displacement mip, in the same units as `lodb`
     // (log2 of the footprint in km). The rind was frozen back in v0.1213 for
     // exactly this reason and the displacement was left behind.
@@ -2590,7 +2634,7 @@ fn cloud_march_core(
             step_near,
             slab_h * CLOUD_STEP_VERT_FRAC / max(r_rate, 0.05),
         );
-        let dt_seg = max(step_near, seg * CLOUD_STEP_SEG_FRAC);
+            let dt_seg = max(step_near, seg_step * CLOUD_STEP_SEG_FRAC);
         var dt = min(
             min(
                 max(step_near, t_cur * pix_ang * CLOUD_STEP_CONE_K),

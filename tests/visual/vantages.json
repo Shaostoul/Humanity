@@ -2624,6 +2624,58 @@
       "hold_altitude": true
     },
     {
+      "id": "base-horizon-seam-5p7km",
+      "desc": "Inside the cloud slab at 5.7 km, aimed so the cloud-base-shell horizon is in frame.",
+      "expect": "No hard horizontal line. Cloud detail must not change abruptly along one screen row.",
+      "_why": "Operator screenshots at 5.7 and 6.2 km show a hard horizontal line with smoother cloud above and sharper, grainier cloud below. It is the cloud BASE shell horizon: from 5.7 km it sits about 2.2-2.3 degrees below horizontal, and across it the marched segment jumps from 245 km to 619 km because a ray below the tangent is clipped where it enters the base shell while one above runs to the far side of the top shell. The step law was segment-relative (seg / 48) and the sampling mip derives from the step, so a 2.53x step jump is 1.34 mip levels of detail appearing along one line.",
+      "_pair_note": "Two altitudes because the line MOVES with altitude (2.20 vs 2.31 degrees). A fix that merely hides it at one altitude will show at the other.",
+      "regressions": [
+        "cloud detail must be continuous across the base-shell horizon"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 5.7,
+        "look_offset_deg": 88,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "base-horizon-seam-6p2km",
+      "desc": "Inside the cloud slab at 6.2 km, aimed so the cloud-base-shell horizon is in frame.",
+      "expect": "No hard horizontal line. Cloud detail must not change abruptly along one screen row.",
+      "_why": "Operator screenshots at 5.7 and 6.2 km show a hard horizontal line with smoother cloud above and sharper, grainier cloud below. It is the cloud BASE shell horizon: from 6.2 km it sits about 2.2-2.3 degrees below horizontal, and across it the marched segment jumps from 245 km to 619 km because a ray below the tangent is clipped where it enters the base shell while one above runs to the far side of the top shell. The step law was segment-relative (seg / 48) and the sampling mip derives from the step, so a 2.53x step jump is 1.34 mip levels of detail appearing along one line.",
+      "_pair_note": "Two altitudes because the line MOVES with altitude (2.20 vs 2.31 degrees). A fix that merely hides it at one altitude will show at the other.",
+      "regressions": [
+        "cloud detail must be continuous across the base-shell horizon"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 6.2,
+        "look_offset_deg": 88,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
       "id": "ultra-inside-5km",
       "desc": "The operator close-range Ultra view at their own scale: 5.5 km, right in among the cloud tops, looking down across them. This is where the ball-pit and eyeball rings are most obvious.",
       "camera": {
