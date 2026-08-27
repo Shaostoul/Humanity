@@ -2667,8 +2667,17 @@ fn cloud_march_core(
         // it); the constructed path floors it so an edge can never go
         // darker than the sky it is seen against.
         let powder_raw = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
-        let powder = select(powder_raw, max(powder_raw, 0.75),
-            material.params.y >= 2.5);
+        // Beer-powder DELETED for the constructed path (v0.1231). Cloud
+        // droplets have a single-scatter albedo above 0.9999 - they scatter
+        // essentially every photon they receive - so a cloud edge physically
+        // CANNOT be darker than the sky behind it. Ours measured 0.71x, which
+        // read as grey mush exactly where a real cloud is at its brightest and
+        // most translucent. It is also double-counted: cloud_scatter_energy
+        // already evaluates the dual-lobe phase per octave AND carries a
+        // two-stream diffusion floor, which is the multiple scattering that
+        // powder is an ad-hoc stand-in for. The noise path keeps it, its look
+        // being calibrated around it.
+        let powder = select(powder_raw, 1.0, material.params.y >= 2.5);
         let pw = mix(powder, 1.0, powder_gate);
         let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
         // 12f: the VERTICAL column depth above this sample (plane-

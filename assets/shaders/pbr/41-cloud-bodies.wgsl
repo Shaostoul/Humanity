@@ -79,6 +79,14 @@ const CLOUD_V2_WARP_LODC: f32 = -5.2;
 // Rind over which density falls to zero at the surface, in metres. The
 // erosion bands chew into this, so it must be wide enough to have room.
 const CLOUD_V2_RIND_M: f32 = 90.0;
+// Interior structure (v0.1231). Density at the condensation base as a
+// fraction of the adiabatic peak: a real cumulus base is thin and ragged,
+// which is why you can often see through the bottom edge of one.
+const CLOUD_V2_BASE_FRAC: f32 = 0.30;
+// Turbulent interior: tile size in km and how far it swings the density.
+const CLOUD_V2_INT_TILE_KM: f32 = 0.34;
+const CLOUD_V2_INT_LODC: f32 = -7.9;
+const CLOUD_V2_TURB_AMP: f32 = 0.42;
 // How far a cloud may sit from its cell centre, as a fraction of the
 // cell, so the field is not a visible lattice.
 const CLOUD_V2_JITTER: f32 = 0.38;
@@ -375,6 +383,7 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     }
 
     var best = 1.0e9;
+    var best_height_m = 1.0;
     // Check the 3x3 neighbourhood so a wide cloud reaches across cells.
     for (var dj = -1; dj <= 1; dj = dj + 1) {
         for (var di = -1; di <= 1; di = di + 1) {
@@ -419,7 +428,14 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
                 continue;
             }
             let local_m = vec3<f32>(ox, up_m, oy);
-            best = min(best, cv2_cloud_sdf(local_m, seed, arch));
+            let d_cell = cv2_cloud_sdf(local_m, seed, arch);
+            if (d_cell < best) {
+                best = d_cell;
+                // Remember the WINNING cloud's own height, so the interior
+                // profile below is expressed as a fraction of the cloud the
+                // sample is actually inside rather than of the whole slab.
+                best_height_m = height_m;
+            }
         }
     }
     // Publish the distance for the march to steer by (v0.1230). `best` is a
@@ -509,5 +525,39 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     let disp_m = (n1 - 0.5) * 2.0 * CLOUD_V2_DISP_M
                + (n2 - 0.5) * 2.0 * CLOUD_V2_DISP2_M;
     let rind = CLOUD_V2_RIND_M;
-    return clamp(-(best - disp_m) / rind, 0.0, 1.0);
+    let core = clamp(-(best - disp_m) / rind, 0.0, 1.0);
+
+    // ── THE INTERIOR (v0.1231) ──
+    //
+    // `core` alone is a linear ramp off a distance field, so it saturates one
+    // rind (90 m) inside the surface and is CONSTANT everywhere beyond that.
+    // Measured against the archetypes, that left 79% of a cumulus lobe and 93%
+    // of a storm lobe at exactly full density with no internal structure at
+    // all. That is the operator's "spheres with ZERO TRANSPARENCY", and it was
+    // arithmetic rather than taste: light cannot get into a medium that is
+    // uniformly opaque, so no lighting work could ever have made it translucent.
+    //
+    // Two physical terms replace the constant.
+    //
+    // 1. THE ADIABATIC PROFILE. In a rising parcel, liquid water content grows
+    //    roughly linearly with height above the condensation base as vapour
+    //    condenses out, then falls off near the top where the parcel detrains
+    //    and mixes with dry air. So a real cumulus is thin and ragged at its
+    //    base, densest in its upper-middle, and soft at the crown - it is NOT a
+    //    uniform lump. This single gradient is most of what makes a cloud read
+    //    as a body of water rather than a solid.
+    //
+    // 2. THE TURBULENT FIELD. Cloud interiors are stirred at every scale, so
+    //    the density has structure at 50-500 m throughout, not just on the
+    //    skin. This is what lets light find paths through and gives the mass
+    //    depth instead of a painted-on surface.
+    let hf = clamp(up_m / max(best_height_m, 1.0), 0.0, 1.0);
+    let adiabatic = smoothstep(0.0, 0.30, hf) * (1.0 - smoothstep(0.68, 1.0, hf));
+    let t1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+        p * (1.0 / (CLOUD_V2_INT_TILE_KM * g_cloud_upkm)),
+        clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
+    let turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
+    let interior = mix(CLOUD_V2_BASE_FRAC, 1.0, adiabatic)
+        * mix(1.0 - CLOUD_V2_TURB_AMP, 1.0 + CLOUD_V2_TURB_AMP, turb);
+    return clamp(core * interior, 0.0, 1.0);
 }
