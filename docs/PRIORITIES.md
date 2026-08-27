@@ -1,5 +1,58 @@
 # HumanityOS: Priorities
 
+> **CLOUDS: THE THREE OPEN ITEMS (v0.1232.3).** Everything below was measured,
+> not guessed. Read the findings before reattempting either fix - both are
+> written and deliberately switched off, so the work is not the code.
+>
+> **1. Snowflakes from orbit.** Operator: "a ton of white dots appear
+> everywhere... like snow flakes." Cause is understood: the v0.1230 power-law
+> made most clouds a few hundred metres, so from orbit each lands on about one
+> pixel, and a sub-pixel bright object cannot be filtered - only twinkled. The
+> fix shape is right (fade the built body back to the noise body across a 250 m
+> to 1 km footprint window, a mip fade) and IS WRITTEN in
+> `CLOUD_V2_FADE_LO/HI`, currently neutralised at 1.9/2.0.
+>
+> **BLOCKER, and this is the real task: the two body models are not
+> brightness-matched.** The noise body renders darker, so fading toward it with
+> distance darkened the far half of every frame. Measured at
+> `cumulus-closeup-ultra`, mean grey over a fixed crop: **191.1 fade off, 157.4
+> fade on**, and still 157 with the shading term that was first blamed removed
+> entirely. Match the two bodies at the handover, THEN reopen the window. Do
+> not tune the window; it is not the window.
+>
+> **2. Clouds read as opaque fluff, not cloud.** The smooth-min normal is now
+> COMPUTED and nearly free (the smin already derives the blend factor h that
+> combines the distances; the same h combines the normals - one normalize per
+> lobe, no extra field evaluations, against three to six full re-evaluations
+> for finite differences). It yields the sky-facing cosine and the seam
+> strength 4h(1-h) that peaks in the crevices between buds.
+>
+> **BLOCKER: wiring it into `ao` turned every cloud into a dark silhouette**,
+> and three retunes failed to recover. The diagnosis: the normal is only
+> meaningful within a rind of the surface - deep inside a body the gradient
+> direction is arbitrary, and interior samples carry most of the accumulated
+> weight, so an occlusion built from it is applied hardest exactly where it
+> means least. Next attempt: weight by surface proximity (`g_v2_sdf_m` is
+> already published) and apply to the AMBIENT only, never to direct - a
+> sky-view term is by definition about the sky.
+>
+> **3. The horizon seam.** Operator screenshots at 5.7 and 6.2 km show a hard
+> horizontal line across the frame with visibly different cloud rendering above
+> and below it, plus one cloud "indented on the right side". NOT yet
+> investigated. The standing theory from the earlier arc is a uniformly-capped
+> slab top; the new evidence suggests looking instead at the cloud BASE shell
+> horizon, which from 6 km sits about 280 km away and projects as a near-
+> straight line at exactly that screen height, and at what changes
+> discontinuously in the marched segment as a ray stops intersecting the lower
+> slab boundary.
+>
+> **Method note for this arc.** Perf on this rig has ~1.6x run-to-run variance
+> (the same unchanged frame measured 37 ms once and ~60 ms three times), so a
+> single sample is not evidence. Take repeated or back-to-back measurements
+> before quoting a number; the 137.7-vs-59.8 jitter comparison is trustworthy
+> because it was back-to-back.
+
+
 > **ACTIVE: THE CLOUD PLAN (from the v0.1228 decision).** The operator, out of
 > patience: "I am really tired of seeing these spheres with zero transparency
 > and TV static effect... I don't get why we can't get rid of this."
