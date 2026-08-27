@@ -2572,6 +2572,58 @@
       }
     },
     {
+      "id": "cumulus-closeup-ultra",
+      "desc": "A big convective cloud seen close and from below, on Ultra. THE ball-pit test.",
+      "expect": "Cauliflower: folded, overhanging, irregular. Not a cluster of visible spheres.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "regressions": [
+        "constructed cloud bodies must not read as spheres"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cumulus-closeup-high",
+      "desc": "The same close convective cloud on High (noise body), as the control.",
+      "expect": "The older look: rounder Worley blobs with nothing finer than about 700 m.",
+      "regressions": [
+        "constructed cloud bodies must not read as spheres"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
       "id": "ultra-inside-5km",
       "desc": "The operator close-range Ultra view at their own scale: 5.5 km, right in among the cloud tops, looking down across them. This is where the ball-pit and eyeball rings are most obvious.",
       "camera": {

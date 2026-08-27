@@ -246,6 +246,23 @@ var<private> g_v2_foot_m: f32 = 0.0;
 // visible and cheap. The other polarity cost the operator a session - see the
 // gate in cloud_carve for what happens when the bodies run in the octa map.
 var<private> g_v2_allowed: bool = false;
+
+// The mip the v2 surface DISPLACEMENT is sampled at, frozen once per ray
+// alongside g_v2_foot_m. Displacement is SHAPE, so every evaluation that
+// reaches a given point in the world must agree on it. See the taps in
+// 41-cloud-bodies.wgsl for what went wrong when it did not.
+var<private> g_v2_disp_lod: f32 = 0.0;
+
+// Signed distance in METRES from the last constructed-body evaluation to the
+// lobe cluster surface. Large positive = nothing near. Stays at this sentinel
+// on tiers that do not build bodies, which is how the march knows not to
+// steer by it.
+var<private> g_v2_sdf_m: f32 = 1.0e9;
+
+// Peak domain-warp displacement in metres for the last body evaluated. The
+// warp bends the space the distance field is measured in, so it is exactly
+// how far the true surface can sit from where the raw distance says.
+var<private> g_v2_warp_m: f32 = 0.0;
 // Drawn-shell units per kilometre (clouds depth increment): converts the
 // metre-expressed noise ladder + fade constants below into the march's
 // coordinate space, so feature sizes are anchored to physical lengths
@@ -2397,6 +2414,10 @@ fn cloud_march_core(
     // call in this invocation - view samples AND all eight sun-shadow
     // taps - now sees ONE body scale.
     g_v2_foot_m = (m0 + seg * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+    // Same freeze for the displacement mip, in the same units as `lodb`
+    // (log2 of the footprint in km). The rind was frozen back in v0.1213 for
+    // exactly this reason and the displacement was left behind.
+    g_v2_disp_lod = log2(max(g_v2_foot_m * 0.001, 1.0e-4));
     // Placement moves at the family's BASE wind (phase 7 motion, the
     // v0.1021 coherence rule: silhouettes must not slide through
     // interiors - the carve's own drift mixes up from this same value).
@@ -2492,6 +2513,10 @@ fn cloud_march_core(
     // density is known, so it follows the last one; the jitter
     // decorrelates the one-step lag at boundaries).
     var dens_prev = 0.0;
+    // Distance to the constructed surface at the PREVIOUS sample, in metres.
+    // Follows the same one-step lag as dens_prev: the step has to commit
+    // before the new sample is known, and the jitter decorrelates the lag.
+    var sdf_prev = 1.0e9;
     for (var i = 0; i < CLOUD_STEP_ITER_CAP; i = i + 1) {
         if (t_cur >= m1) {
             break;
@@ -2517,6 +2542,39 @@ fn cloud_march_core(
         if (dens_prev > CLOUD_STEP_INTERIOR_GATE) {
             let dt_mfp = CLOUD_STEP_TAU_MAX / (sigma_v * dens_prev);
             dt = min(dt, max(dt_mfp, slab_h * 0.002));
+        }
+        // ── SDF-GUIDED STEP (v0.1230): stride the gaps, refine at surfaces ──
+        //
+        // The march was hopping a fixed 495 m through clear air while hunting a
+        // cloud edge 90 m thick. At every silhouette pixel that is a coin flip -
+        // did the hop land inside the edge or step clean over it - and the answer
+        // changes as the camera moves. That coin flip IS the grain the operator
+        // has been calling TV static, and no denoiser can average away a signal
+        // that is genuinely random per frame.
+        //
+        // The constructed body already computes a real distance to its surface
+        // and threw it away. Now the step uses it in both directions: far from
+        // any cloud, stride the whole safe distance in one hop (cheaper than the
+        // fixed step); within reach of a surface, refine to a fraction of the
+        // rind so the edge is measured rather than guessed.
+        //
+        // The safety margin is subtracted because the field is NOT a strict
+        // distance bound once shaped: surface displacement can push the boundary
+        // out by up to DISP + DISP2, the rind widens it further, and the domain
+        // warp bends the space it is measured in. Stride less than the true
+        // distance and the worst case is wasted work; stride more and clouds get
+        // skipped, which is the bug being fixed.
+        if (sdf_prev < 1.0e8) {
+            let margin_m = CLOUD_V2_RIND_M + CLOUD_V2_DISP_M + CLOUD_V2_DISP2_M
+                + g_v2_warp_m;
+            let safe_m = sdf_prev - margin_m;
+            let to_draw = 0.001 * g_cloud_upkm;
+            if (safe_m > 0.0) {
+                dt = max(dt, safe_m * to_draw);
+            } else {
+                dt = min(dt, CLOUD_V2_RIND_M * 0.5 * to_draw);
+            }
+            dt = min(dt, m1 - t_cur);
         }
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
@@ -2573,9 +2631,11 @@ fn cloud_march_core(
         {
             t_cur = t_cur - dt;
             dens_prev = dens;
+            sdf_prev = g_v2_sdf_m;
             continue;
         }
         dens_prev = dens;
+        sdf_prev = g_v2_sdf_m;
         if (dens <= 0.001) {
             continue;
         }

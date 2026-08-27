@@ -41,9 +41,41 @@ fn cv2_cell_km(idx: i32) -> f32 {
     var t = array<f32, 4>(1.1, 2.2, 3.2, 3.2);
     return t[clamp(idx, 0, 3)];
 }
-// Lobes evaluated per cloud. The CPU model draws 6-48; the shader caps
-// the loop for cost. 14 is enough for a readable cauliflower.
-const CLOUD_V2_LOBES: i32 = 14;
+// Lobes evaluated per cloud. The CPU model draws 6-48; the shader caps the
+// loop for cost. This used to be a flat 14 for every genus, which is why a
+// flat stratocumulus sheet and a towering cumulonimbus were built from the
+// same number of parts: the sheet was over-described and the tower was
+// under-described, and both read as the same handful of balls. Now the count
+// comes from the archetype (see cv2_arch), and this is only the ceiling that
+// bounds the array and the loop.
+const CLOUD_V2_LOBES: i32 = 20;
+
+// ── DOMAIN WARP (v0.1230) ──
+//
+// The single change that stops a union of spheres reading as spheres.
+//
+// Surface displacement, added in v0.1221, pushes the surface in or out along
+// its own normal. It can roughen a sphere but it cannot make one FOLD, so a
+// displaced sphere is a bumpy sphere - which is exactly what the operator kept
+// reporting after each amplitude increase. Warping the DOMAIN instead bends
+// the space the distance field is measured in, so the resulting surface can
+// overhang, pinch and fold: the cauliflower geometry a real cumulus has and a
+// blended sphere union never can.
+//
+// Applied BEFORE the lobe reduction, which is the whole point - warping after
+// it would just be displacement by another name.
+//
+// Amplitude is a fraction of the LOBE radius, not a fixed metre count. That is
+// the lesson from the displacement work: a 111 m detail on a 1238 m storm lobe
+// is 9% and invisible, while the same number on a 169 m fair-weather lobe is
+// 66% and destroys it. Scale-relative detail is the only thing that reads
+// correctly across a genus range spanning 300 m to 8 km.
+const CLOUD_V2_WARP_FRAC: f32 = 0.42;
+// Warp tile as a multiple of lobe radius. Near 1 means the warp turns lobes
+// inside out; well above 1 means it merely translates them. This is the band
+// that folds them.
+const CLOUD_V2_WARP_TILE_R: f32 = 1.7;
+const CLOUD_V2_WARP_LODC: f32 = -5.2;
 // Rind over which density falls to zero at the surface, in metres. The
 // erosion bands chew into this, so it must be wide enough to have room.
 const CLOUD_V2_RIND_M: f32 = 90.0;
@@ -113,6 +145,7 @@ struct Cv2Arch {
     base_flat: f32,
     crown_bias: f32,
     blend: f32,
+    lobes: i32,
 };
 
 fn cv2_arch(idx: i32, u: f32) -> Cv2Arch {
@@ -129,9 +162,27 @@ fn cv2_arch(idx: i32, u: f32) -> Cv2Arch {
     var t_flat = array<f32, 4>(0.92, 0.95, 0.80, 0.97);
     var t_crown = array<f32, 4>(0.35, 0.70, 0.10, 0.80);
     var t_blend = array<f32, 4>(0.45, 0.38, 0.70, 0.32);
+    // Lobes per genus: a flat sheet needs few, a turret needs many.
+    var t_lobes = array<i32, 4>(10, 20, 12, 18);
     let i = clamp(idx, 0, 3);
     var o: Cv2Arch;
-    o.width_m = mix(w_lo[i], w_hi[i], u);
+    o.lobes = t_lobes[i];
+    // ── POWER-LAW SIZE (v0.1230) ──
+    // This was `mix(w_lo, w_hi, u)`: a UNIFORM draw, so a cloud field held as
+    // many 8 km giants as 3 km ones. Real cumulus fields are strongly
+    // power-law - observed cloud-area distributions run about n(A) ~ A^-1.7 -
+    // which is why a real sky is mostly small clouds with a few big ones, and
+    // why a uniform draw reads as a field of same-sized blobs no matter how
+    // good each individual blob is. Half the "ball pit" is this line.
+    //
+    // Area exponent 1.7 with A ~ w^2 gives a width exponent of 2*1.7-1 = 2.4,
+    // sampled by the exact inverse CDF of a bounded power law rather than by a
+    // pow() curve chosen to look about right.
+    let alpha = 2.4;
+    let e = 1.0 - alpha;
+    let lo_e = pow(w_lo[i], e);
+    let hi_e = pow(w_hi[i], e);
+    o.width_m = pow(mix(lo_e, hi_e, clamp(u, 0.0, 1.0)), 1.0 / e);
     o.aspect = mix(a_lo[i], a_hi[i], fract(u * 7.31));
     o.expo = t_expo[i];
     o.base_flat = t_flat[i];
@@ -154,10 +205,20 @@ fn cv2_arch_index(tc: f32) -> i32 {
     if (tc < 0.25) {
         return -1; // cirrus/altocu: thin - noise body, not built
     }
-    if (tc < 0.44) {
-        return 0; // humilis (the cumulus band)
+    if (tc < 0.40) {
+        return 0; // humilis (fair-weather cumulus)
     }
-    if (tc < 0.56) {
+    // CONGESTUS (v0.1230). Index 1 was UNREACHABLE: the old ladder returned
+    // -1, 0, 3 and 2 and never 1, so the towering-cumulus genus - the tall
+    // cauliflower with aspect 1.2 to 2.6, the most recognisable cloud shape
+    // there is - had never been rendered once since the archetypes were
+    // written. Every "cloud" in the convective band was either a squat humilis
+    // or a full cumulonimbus, which is a large part of why the sky read as
+    // uniform blobs with no vertical development.
+    if (tc < 0.50) {
+        return 1; // congestus: the tall towers
+    }
+    if (tc < 0.58) {
         return 3; // cumulonimbus - its own band only
     }
     return 2; // stratus..stratocumulus: flat broken sheets
@@ -182,13 +243,14 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // offset along a direction whose upward bias is the archetype's
     // crown_bias (flat stratocumulus buds sideways, congestus buds
     // straight up), at a separation that keeps the pair merged.
-    var lc: array<vec4<f32>, 14>; // xyz = centre (m), w = radius (m)
+    let n_lobes = clamp(arch.lobes, 1, CLOUD_V2_LOBES);
+    var lc: array<vec4<f32>, 20>; // xyz = centre (m), w = radius (m)
     let r0 = r_hi * mix(0.7, 1.0, cv2_hash(vec2<f32>(seed, 0.0), 31.0));
     // Core lobe: its surface respects the height cap too - flat genera
     // draw r0 comparable to their whole deck depth.
     lc[0] = vec4<f32>(0.0, min(r0, max(height - r0, r0 * arch.base_flat)), 0.0, r0);
     var mean_r = r0;
-    for (var i = 1; i < CLOUD_V2_LOBES; i = i + 1) {
+    for (var i = 1; i < n_lobes; i = i + 1) {
         let fi = f32(i);
         // Pick a parent among the lobes placed so far. Later lobes
         // prefer recent (higher, smaller) parents, which grows a turret
@@ -228,7 +290,7 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
         lc[i] = vec4<f32>(c, r);
         mean_r = mean_r + r;
     }
-    mean_r = mean_r / f32(CLOUD_V2_LOBES);
+    mean_r = mean_r / f32(n_lobes);
 
     // Evaluate the smooth union of the cluster. The blend radius never
     // drops below the rind (increment 6): a 90 m rind thresholded by a
@@ -242,9 +304,30 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // melt into one. Floored at 1.6x the rind rather than 1.0x so even the
     // smallest cluster fuses rather than reading as touching spheres.
     let k = max(mean_r * arch.blend, CLOUD_V2_RIND_M * 1.6);
-    var d = length(local_m - lc[0].xyz) - lc[0].w;
-    for (var i = 1; i < CLOUD_V2_LOBES; i = i + 1) {
-        let ds = length(local_m - lc[i].xyz) - lc[i].w;
+
+    // ── DOMAIN WARP (see CLOUD_V2_WARP_FRAC) ──
+    // Bend the space the cluster is measured in, so the union can fold and
+    // overhang instead of only bulging. One texture fetch, and it is the
+    // difference between cauliflower and marbles.
+    //
+    // The vertical component is applied to the lobe field ONLY. The flat base
+    // below still intersects against the UNWARPED local_m.y, because that
+    // level base marks the lifting condensation level - a real thermodynamic
+    // surface, and the most recognisable cue the whole constructed path has.
+    // Warping it would buy nothing and would bend the one thing that is right.
+    let warp_tile_m = max(mean_r * CLOUD_V2_WARP_TILE_R, 1.0);
+    let wn = textureSampleLevel(
+        cloud_detail_tex, cloud_tile_sampler,
+        local_m / warp_tile_m,
+        clamp(g_v2_disp_lod - CLOUD_V2_WARP_LODC, 0.0, 8.0),
+    ).rgb;
+    let warp_amp_m = mean_r * CLOUD_V2_WARP_FRAC;
+    g_v2_warp_m = warp_amp_m;
+    let warped = local_m + (wn - vec3<f32>(0.5)) * 2.0 * warp_amp_m;
+
+    var d = length(warped - lc[0].xyz) - lc[0].w;
+    for (var i = 1; i < n_lobes; i = i + 1) {
+        let ds = length(warped - lc[i].xyz) - lc[i].w;
         d = cv2_smin(d, ds, k);
     }
 
@@ -339,6 +422,12 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             best = min(best, cv2_cloud_sdf(local_m, seed, arch));
         }
     }
+    // Publish the distance for the march to steer by (v0.1230). `best` is a
+    // real signed distance in METRES to the lobe cluster, and until now it was
+    // computed, thresholded into a density, and thrown away - while the march
+    // outside stepped by a fixed hop that knew nothing about where the surface
+    // was. See the SDF-guided step in 40-clouds.wgsl.
+    g_v2_sdf_m = best;
     if (best >= 0.0) {
         return 0.0;
     }
@@ -391,12 +480,30 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // mip is taken WITHOUT the per-pixel lod dither: this displacement is
     // SHAPE, and shape must be identical for every ray that reaches this
     // point in the world, or it stipples.
+    // PER-RAY mip, never the caller's per-tap `lodb` (v0.1230).
+    //
+    // The comment above states the requirement - shape must be identical for
+    // every ray reaching this point - and the code used to violate it. The
+    // sun-shadow ladder calls this eight times per view sample with a lod
+    // band-limited by each tap's OWN stride (40-clouds.wgsl, `lod_t`), and
+    // those strides grow geometrically, so the far taps landed at a mip where
+    // the displacement has been filtered away entirely.
+    //
+    // The consequence was quietly ruinous: the EYE saw a displaced, bumpy
+    // surface while the SUN saw a smooth sphere, so the silhouette had relief
+    // and the shading across it was a smooth radial gradient. Adding more
+    // displacement could never fix it, because the light was not looking at
+    // the displacement - which is why the v0.1221 amplitude work read as
+    // having done nothing at all.
+    //
+    // g_v2_disp_lod is frozen once per ray next to g_v2_foot_m, so the view
+    // sample and all eight sun taps now shade the SAME surface.
     let d1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
         p * (1.0 / (CLOUD_V2_DISP_TILE_KM * g_cloud_upkm)),
-        clamp(lodb - CLOUD_V2_DISP_LODC, 0.0, 8.0));
+        clamp(g_v2_disp_lod - CLOUD_V2_DISP_LODC, 0.0, 8.0));
     let d2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
         p * (1.0 / (CLOUD_V2_DISP2_TILE_KM * g_cloud_upkm)),
-        clamp(lodb - CLOUD_V2_DISP2_LODC, 0.0, 8.0));
+        clamp(g_v2_disp_lod - CLOUD_V2_DISP2_LODC, 0.0, 8.0));
     let n1 = d1.r * 0.625 + d1.g * 0.25 + d1.b * 0.125;
     let n2 = d2.r * 0.625 + d2.g * 0.25 + d2.b * 0.125;
     let disp_m = (n1 - 0.5) * 2.0 * CLOUD_V2_DISP_M
