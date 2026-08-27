@@ -347,11 +347,56 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     g_v2_warp_m = warp_amp_m;
     let warped = local_m + (wn - vec3<f32>(0.5)) * 2.0 * warp_amp_m;
 
+    // ── THE ANALYTIC SMOOTH-MIN NORMAL (v0.1233) ──
+    //
+    // Named "the designed cure" in four consecutive journal entries and never
+    // built. It is nearly free: the smooth minimum already computes a blend
+    // factor h to combine two distances, and that SAME h combines the two
+    // surface normals. Carrying it costs one normalize per lobe and no extra
+    // field evaluations at all - the alternative, finite differences, would
+    // cost three to six whole re-evaluations of the cluster.
+    //
+    // Two things come out of it, and both replace terms that had to be faded
+    // to neutral for the constructed path because they were computed from
+    // distance and therefore drew rings concentric with each lobe:
+    //
+    //   * the surface's VERTICAL component, which is how much sky a patch of
+    //     cloud can see - up-facing surfaces are lit by the whole dome, and
+    //     down-facing ones are not. This is what gives a cloud a top and a
+    //     bottom instead of a uniform glow.
+    //   * the SEAM strength 4h(1-h), which peaks exactly where two lobes melt
+    //     together and is zero on open surface. That is the crevice between
+    //     buds, and crevices are where a cauliflower gets its depth.
     var d = length(warped - lc[0].xyz) - lc[0].w;
+    // Guarded: normalize() of a zero-length vector is NaN, and a single NaN
+    // here propagates through the sky-view term into the accumulated radiance,
+    // which is what turned every cloud black on the first cut of this. A sample
+    // sitting exactly on a lobe centre is rare but a shader runs millions of
+    // them a frame, so rare is a guarantee.
+    let d0v = warped - lc[0].xyz;
+    let d0l = length(d0v);
+    var nrm = select(vec3<f32>(0.0, 1.0, 0.0), d0v / max(d0l, 1.0e-4), d0l > 1.0e-4);
+    var seam = 0.0;
     for (var i = 1; i < n_lobes; i = i + 1) {
-        let ds = length(warped - lc[i].xyz) - lc[i].w;
-        d = cv2_smin(d, ds, k);
+        let dv = warped - lc[i].xyz;
+        let dl = max(length(dv), 1.0e-4);
+        let ds = dl - lc[i].w;
+        // Mirrors cv2_smin exactly - h near 1 keeps the accumulated side.
+        // LOCKSTEP: if cv2_smin changes shape, change this with it.
+        let h = clamp(0.5 + 0.5 * (ds - d) / max(k, 1.0e-4), 0.0, 1.0);
+        d = mix(ds, d, h) - k * h * (1.0 - h);
+        // The same guard, and here the degenerate case is NOT rare: two lobes
+        // facing opposite ways at h = 0.5 mix to exactly the zero vector.
+        let nmix = mix(dv / dl, nrm, h);
+        let nml = length(nmix);
+        nrm = select(nrm, nmix / nml, nml > 1.0e-4);
+        seam = max(seam, 4.0 * h * (1.0 - h));
     }
+    // Only the VERTICAL component is published, which conveniently dodges the
+    // frame question entirely: local +Y is planet up at this cell, so n.y is
+    // already the sky-facing cosine and needs no basis conversion.
+    g_v2_ny = nrm.y;
+    g_v2_seam = seam;
 
     // Hard flat base: intersect with the half-space y >= 0. A real
     // cumulus base is LEVEL because it marks the lifting condensation

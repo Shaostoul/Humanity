@@ -109,6 +109,33 @@ const CLOUD_SHADOW_SHARP: f32 = 2.5;
 // toward the sun (Henyey-Greenstein lobe, reusing the atmosphere's phase
 // function -- no third scattering model).
 const CLOUD_SILVER_GAIN: f32 = 0.3;
+// Footprint window over which constructed bodies hand back to the noise body,
+// as log2(footprint in km).
+//
+// CURRENTLY NEUTRALISED (1.9 -> 2.0 reproduces the old hard cut at a 4 km
+// footprint), and the reason is worth reading before widening it again.
+//
+// The intent was to fix the operator's "a ton of white dots... like snow
+// flakes" seen from orbit: once a whole cloud is near or below one sample
+// footprint it cannot be filtered, only twinkled, so the built body should
+// hand back to the smooth noise body. That reasoning is sound and the window
+// -2 to 0 (250 m to 1 km of footprint) is about right.
+//
+// What it exposed is that THE TWO BODY MODELS ARE NOT BRIGHTNESS-MATCHED. The
+// noise body renders darker, so fading toward it with distance darkened the
+// far half of every frame. Measured at cumulus-closeup-ultra: mean grey 191.1
+// with the fade off, 157.4 with it on, and the same 157 with the shading term
+// that was initially blamed removed entirely.
+//
+// So the fade cannot ship until the two bodies agree on brightness at the
+// handover. That is the actual next task here - matching them, then reopening
+// this window - not tuning these two numbers.
+const CLOUD_V2_FADE_LO: f32 = 1.9;
+const CLOUD_V2_FADE_HI: f32 = 2.0;
+// How dark a fully down-facing cloud surface goes, and how much the crevices
+// between buds darken. Both act on the constructed path only.
+const CLOUD_V2_SKY_FLOOR: f32 = 0.80;
+const CLOUD_V2_SEAM_AO: f32 = 0.16;
 // Ambient skylight floor on the day side (shadowed cloud flanks stay
 // visibly white, not gray mush) and the night-side floor (near-black but
 // not absolute zero, matching the surface shader's ambient posture).
@@ -263,6 +290,12 @@ var<private> g_v2_sdf_m: f32 = 1.0e9;
 // warp bends the space the distance field is measured in, so it is exactly
 // how far the true surface can sit from where the raw distance says.
 var<private> g_v2_warp_m: f32 = 0.0;
+
+// Vertical component of the constructed surface normal, and the smooth-union
+// seam strength, from the last body evaluated. See the smin loop in
+// 41-cloud-bodies.wgsl. Neutral defaults so the noise path is untouched.
+var<private> g_v2_ny: f32 = 0.0;
+var<private> g_v2_seam: f32 = 0.0;
 // Drawn-shell units per kilometre (clouds depth increment): converts the
 // metre-expressed noise ladder + fade constants below into the march's
 // coordinate space, so feature sizes are anchored to physical lengths
@@ -1417,6 +1450,10 @@ struct CloudSample {
 // the same invocation - copy first).
 var<private> g_cloud_bandtop: f32 = 1.0;
 var<private> g_cloud_pouch: f32 = 0.0;
+// How much of this sample is the CONSTRUCTED body rather than the noise body.
+// Published on the same side-channel as g_cloud_pouch because the shading site
+// needs it and the CloudSample it lives on is not in scope there.
+var<private> g_v2_w: f32 = 0.0;
 
 // The type coordinate at a planet-fixed direction: two low-frequency octaves
 // so regime patches are organic (not a few giant zones). In [0,1].
@@ -1626,6 +1663,7 @@ fn cloud_carve(
     // downstream terms designed for a fractal are neutralised in
     // proportion to this weight (see each use below).
     var v2_w = 0.0;
+    g_v2_w = 0.0;
     // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
     // CONSTRUCTED primitives instead of the noise field. This is the
     // Nubis wiring the survey found universal: noise ERODES a body, it
@@ -1663,15 +1701,36 @@ fn cloud_carve(
     // The footprint alone can never express this, because the map and the screen
     // report footprints on completely different ray budgets. The regime has to
     // be asked directly.
-    if (material.params.y >= 2.5 && g_v2_allowed && lodb < 2.0) {
+    // ── FOOTPRINT FADE (v0.1233) ──
+    //
+    // Operator, floating above the planet: "a ton of white dots appear
+    // everywhere. Makes it look kind of like snow flakes."
+    //
+    // Constructed bodies stop paying for themselves once a whole cloud is
+    // near or below ONE sample footprint. The power-law sizes made most
+    // clouds a few hundred metres across, so from orbit each one lands on
+    // about a pixel - and a sub-pixel bright object cannot be filtered, it
+    // can only twinkle. That is the snow.
+    //
+    // The old gate was a hard cut at a 4 km footprint, chosen to bound COST,
+    // not to bound aliasing, and 4 km is many times the size of the clouds it
+    // was letting through. This fades the built body back to the smooth noise
+    // body across 250 m to 1 km of footprint - which is a mip fade, the same
+    // reasoning that says stop drawing detail once it is smaller than a
+    // sample. Fading rather than cutting because a hard switch of body model
+    // would pop.
+    if (material.params.y >= 2.5 && g_v2_allowed && lodb < CLOUD_V2_FADE_HI) {
         let tc_v2 = cloud_type_coord(normalize(p), t, seed);
         // THIN-GENUS BLEND (increment 6, the promised-but-missing half):
         // grape clusters cannot be wisps, so cirrus/altocumulus keep the
         // noise body and the built body fades in across the boundary of
         // the convective range. Replaces the unconditional swap that
         // rendered thin high cloud as low grape clusters.
-        let w_built = smoothstep(0.20, 0.30, tc_v2);
+        let w_foot = 1.0
+            - smoothstep(CLOUD_V2_FADE_LO, CLOUD_V2_FADE_HI, lodb);
+        let w_built = smoothstep(0.20, 0.30, tc_v2) * w_foot;
         v2_w = w_built;
+        g_v2_w = w_built;
         let built = cloud_v2_body(p, wa, tc_v2, lodb);
         body = mix(body, built, w_built);
         if (body <= 0.001) {
@@ -2616,6 +2675,9 @@ fn cloud_march_core(
         // 12f: copy the view sample's side-channel NOW - the sun march
         // below re-enters cloud_carve and overwrites these globals.
         let s_pouch = g_cloud_pouch;
+        let s_v2_w = g_v2_w;
+        let s_v2_ny = g_v2_ny;
+        let s_v2_seam = g_v2_seam;
         let s_btop = g_cloud_bandtop;
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
@@ -2758,7 +2820,27 @@ fn cloud_march_core(
         let vband = clamp(
             1.0 - (h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
         let pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
-        let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade * pouch_shade;
+        var ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade * pouch_shade;
+        // ── SHADE ON THE REAL SURFACE: GROUNDWORK ONLY (v0.1233) ──
+        //
+        // The normal and seam ARE computed now (41-cloud-bodies.wgsl) and cost
+        // almost nothing, but the attempt to shade with them is NOT shipped:
+        // wiring them into ao turned every cloud into a dark silhouette and
+        // three separate retunes - gentler floor, gentler seam, NaN guards on
+        // both normalizes - each failed to bring the brightness back, which
+        // says the fault is in HOW the term enters the lighting rather than in
+        // its magnitude.
+        //
+        // The likely reason, for whoever picks this up: the normal is only
+        // meaningful within a rind of the surface. Deep inside a body the
+        // gradient direction is arbitrary, and those interior samples carry
+        // most of the accumulated weight - so an ao built from it is being
+        // applied hardest exactly where it means least. The next attempt should
+        // weight the term by surface proximity (g_v2_sdf_m is right there) and
+        // apply it to the AMBIENT only, never to direct, since a sky-view term
+        // is by definition about the sky.
+        //
+        // Shipping the groundwork unused rather than shipping a regression.
         // Direct carries the SUN's colour; ambient carries the SKY's (the
         // two-tone split above). Ambient magnitude rides the sun's
         // luminance so total energy matches the old single-hue form.
