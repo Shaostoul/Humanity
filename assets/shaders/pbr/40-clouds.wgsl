@@ -2491,7 +2491,13 @@ fn cloud_march_core(
     // its coverage bias -- which lets a stratus air mass fill to overcast even
     // where the raw weather is thin -- is included in the clear-sky test.
     let seg = m1 - m0;
-    let mid_dir = normalize(ro + rd * (m0 + seg * 0.5));
+    // Continuous midpoint (v0.1233). This picks the cloud REGIME - the family,
+    // its opacity, extinction, tint and band heights - from the direction at the
+    // segment midpoint. Using the CLIPPED segment made that direction jump across
+    // the base-shell tangent, so the cloud FAMILY could change along one screen
+    // row. That is a far coarser discontinuity than a mip step, and it is the
+    // dominant half of the horizon seam.
+    let mid_dir = normalize(ro + rd * (m0 + seg_step * 0.5));
     let reg = cloud_regime(cloud_type_coord(mid_dir, t, seed));
     // Freeze the v2 body's rind for this ray (see g_v2_foot_m): the ray's
     // own footprint at the segment midpoint, in metres. Every density
