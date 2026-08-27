@@ -1882,6 +1882,7 @@ mod native_app {
                 probe_hold: None,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
+                cloud_map_reanchors: 0,
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
                 sea_state_override: None,
@@ -11783,7 +11784,7 @@ mod native_app {
                                                 .unwrap_or(0);
                                             if now_s != LAST.swap(now_s, std::sync::atomic::Ordering::Relaxed) {
                                                 log::info!(
-                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={} pin={:.2} live={} cov={:.2} camr={:.6} vscale={:.1} rb={:.6} rt={:.6} cmax={:.6}",
+                                                    "[CloudRegime] px={:.0} mix={:.2} alt_km={:.1} temporal={} pin={:.2} live={} cov={:.2} camr={:.6} vscale={:.1} rb={:.6} rt={:.6} cmax={:.6} reanchors={}",
                                                     px,
                                                     near_mix,
                                                     (cam_r_ratio as f32 - 1.0).max(0.0)
@@ -11797,6 +11798,7 @@ mod native_app {
                                                     slab_rb,
                                                     slab_rt,
                                                     state.renderer.cloud_map_cmax,
+                                                    state.cloud_map_reanchors,
                                                 );
                                             }
                                         }
@@ -11859,6 +11861,13 @@ mod native_app {
                                             const BAND_RT: f32 = 0.0004;
                                             let band_rb =
                                                 ((slab_rb - 1.0) * 0.5).max(1.0e-6);
+                                            // How far the map anchor may drift before it
+                                            // is re-anchored, and the margin every extent
+                                            // is inflated by to cover exactly that drift.
+                                            // The two MUST stay equal - see the re-anchor
+                                            // test below for why.
+                                            const MAP_DRIFT: f32 =
+                                                8.0 * std::f32::consts::PI / 180.0;
                                             let r0 = state.cloud_map_regime;
                                             let regime = if r0 == 1 && c >= slab_rt {
                                                 1
@@ -11893,7 +11902,8 @@ mod native_app {
                                                     (
                                                         -up_l,
                                                         sin_t.asin()
-                                                            + 4.0f32.to_radians(),
+                                                            + 4.0f32.to_radians()
+                                                            + MAP_DRIFT,
                                                     )
                                                 }
                                                 // Inside the slab: cloud in
@@ -11905,17 +11915,75 @@ mod native_app {
                                                 // horizon, stopping 25 deg
                                                 // below horizontal (terrain
                                                 // relief margin).
-                                                _ => (up_l, 115.0f32.to_radians()),
+                                                _ => (
+                                                    up_l,
+                                                    (115.0f32.to_radians() + MAP_DRIFT)
+                                                        .min(std::f32::consts::PI),
+                                                ),
                                             };
+                                            // ── RE-ANCHOR THRASH (v0.1232) ──
+                                            //
+                                            // Operator: "when I fly around and sit in
+                                            // space above I get very weird cloud
+                                            // artifacting. It is like it regens all the
+                                            // clouds all over and then tries to phase
+                                            // out the ones that do not belong."
+                                            //
+                                            // The old test re-anchored on 0.02 rad of
+                                            // drift - 1.15 DEGREES. The anchor for the
+                                            // above-deck regime is the nadir, so simply
+                                            // flying along an orbit sweeps past that in a
+                                            // moment and the map re-anchored again and
+                                            // again, continuously.
+                                            //
+                                            // A re-anchor is meant to be invisible: the
+                                            // shader looks history up through the OLD
+                                            // mapping. But a direction outside the OLD
+                                            // extent has no history and takes the fresh
+                                            // march outright - an unconverged, noisy
+                                            // texel. Re-anchoring constantly meant a
+                                            // permanent supply of those, which is exactly
+                                            // the regenerate-then-fade the operator sees,
+                                            // and why it tracks cloud density: dense
+                                            // regions have more marched content to be
+                                            // unconverged about.
+                                            //
+                                            // The fix is to make the two agree by
+                                            // construction. The extent above is inflated
+                                            // by exactly MAP_DRIFT, and we only re-anchor
+                                            // once drift EXCEEDS MAP_DRIFT - so while the
+                                            // anchor is stale, every direction the new
+                                            // ideal extent wants is still inside the old
+                                            // one, and history is always there to be
+                                            // found. Costs a wider map (coarser texels by
+                                            // the same ratio) and buys a stable sky.
                                             let re = match state.cloud_map_anchor {
                                                 Some((a, th)) => {
-                                                    a.dot(ideal_a) < (0.02f32).cos()
-                                                        || (th - ideal_th).abs()
-                                                            > 2.0f32.to_radians()
+                                                    let drifted =
+                                                        a.dot(ideal_a) < MAP_DRIFT.cos();
+                                                    // Re-anchor for extent only when the
+                                                    // map no longer COVERS what is needed,
+                                                    // or is so much wider than needed that
+                                                    // most of its resolution is wasted.
+                                                    // The old symmetric 2 deg test fired on
+                                                    // any altitude change at all.
+                                                    let short = th < ideal_th;
+                                                    let wasteful =
+                                                        th > ideal_th + 2.0 * MAP_DRIFT;
+                                                    drifted || short || wasteful
                                                 }
                                                 None => true,
                                             };
                                             if re {
+                                                // Instrument (v0.1232): the
+                                                // re-anchor RATE is the thing
+                                                // that has to fall. A static
+                                                // capture cannot show this -
+                                                // the artifact only exists
+                                                // while the camera moves - so
+                                                // the count is the gate.
+                                                state.cloud_map_reanchors =
+                                                    state.cloud_map_reanchors + 1;
                                                 state.renderer.cloud_map_resample.set(
                                                     state.cloud_map_anchor.map(|(a, th)| {
                                                         ([a.x, a.y, a.z], th.cos())

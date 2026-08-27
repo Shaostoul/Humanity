@@ -87,8 +87,22 @@ const CLOUD_V2_BASE_FRAC: f32 = 0.30;
 const CLOUD_V2_INT_TILE_KM: f32 = 0.34;
 const CLOUD_V2_INT_LODC: f32 = -7.9;
 const CLOUD_V2_TURB_AMP: f32 = 0.42;
-// How far a cloud may sit from its cell centre, as a fraction of the
-// cell, so the field is not a visible lattice.
+// How far a cloud may sit from its cell centre, as a fraction of the cell,
+// so the field is not a visible lattice.
+//
+// Raised from 0.38 to 0.9 in v0.1232, and the reason is a lesson: the
+// LATTICE WAS EXPOSED BY FIXING SOMETHING ELSE. Cloud widths used to be a
+// uniform draw, so clouds were typically comparable to their own cell and
+// the regular spacing was hidden by the clouds overlapping each other. The
+// v0.1230 power-law sizes made most clouds much smaller than their cell, and
+// a field of small objects each sitting near the centre of a regular grid
+// reads instantly as a grid - which is what the operator saw the moment the
+// size distribution became correct.
+//
+// 0.9 means +-0.45 cells, so a cloud centre stays inside its own cell and the
+// 3x3 neighbourhood search still finds every cloud whose envelope reaches the
+// sample. Going to or past 1.0 would let a centre leave its cell and the
+// search would start missing clouds from the far side.
 const CLOUD_V2_JITTER: f32 = 0.38;
 // ── SURFACE DISPLACEMENT (2026-08-25, the operator: "up close they are
 // still an obvious ball pit. How do we get rid of the ball shapes?") ──
@@ -409,7 +423,29 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // sample, measured in the local tangent plane.
             let jx = (cv2_hash(cell, 17.0) - 0.5) * CLOUD_V2_JITTER;
             let jy = (cv2_hash(cell, 19.0) - 0.5) * CLOUD_V2_JITTER;
-            let dx_cells = (ci + 0.5 + jx) - cx;
+            // ── ROW STAGGER (v0.1232): break the lattice for free ──
+            //
+            // Operator: "the clouds seem to follow a grid pattern". They did,
+            // and fixing the SIZE distribution in v0.1230 is what exposed it:
+            // clouds used to be comparable to their own cell and overlapped
+            // enough to hide the spacing, and once most of them became much
+            // smaller than a cell, a field of small objects on a regular square
+            // grid reads instantly as a grid.
+            //
+            // The obvious fix - more positional jitter - was tried and MEASURED
+            // at 137.7 ms against 59.8 ms for the same frame. Jitter lets two
+            // neighbouring clouds drift together until they overlap, and a ray
+            // through clumped material refines far more steps than one through
+            // evenly spaced material. It buys irregularity by making the march
+            // work harder.
+            //
+            // Offsetting alternate ROWS by half a cell costs nothing at all,
+            // because the spacing stays perfectly regular - it is only no longer
+            // SQUARE. A staggered (brick) arrangement has no long straight rows
+            // to catch the eye along, which is what a lattice actually reads as.
+            // Same trick masonry uses, for the same reason.
+            let stagger = select(0.0, 0.5, (i32(cj) & 1) == 1);
+            let dx_cells = (ci + 0.5 + jx + stagger) - cx;
             let dy_cells = (cj + 0.5 + jy) - cy;
             // Cell-space offset -> metres on the ground.
             let m_per_cell = cell_km * 1000.0;

@@ -831,6 +831,10 @@ pub(crate) struct EngineState {
     /// way the first cut's stateless in-shader snap did. Every re-anchor
     /// orders a one-frame history resample through the old mapping.
     pub(crate) cloud_map_anchor: Option<(glam::Vec3, f32)>,
+    /// How many times the cloud map has re-anchored this session. A high
+    /// RATE is the re-anchor thrash that makes the sky regenerate while
+    /// flying; see the re-anchor test in lib.rs.
+    pub(crate) cloud_map_reanchors: u32,
     /// Which extent regime the frozen params came from (12c): 0 = unset,
     /// 1 = above the deck (nadir anchor, shell-disc extent), 2 = inside
     /// the slab (zenith, full sphere), 3 = under the deck (zenith,
