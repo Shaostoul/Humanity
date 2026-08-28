@@ -1,5 +1,43 @@
 # HumanityOS: Priorities
 
+> **THE CLOUD COVERAGE DEFECT - everything measured, cause narrowed to one
+> function (2026-08-28).** Gate: `node scripts/cloud-coverage-metrics.mjs
+> <sweep-dir>` over `overcast-nadir-ultra`. RED at 14% delivered against 95%
+> asked. Read all of this before touching it; four hypotheses have been
+> eliminated by measurement and re-testing them is waste.
+>
+> **What the operator saw, and it is the clearest statement of the bug:** far
+> from the planet the clouds render as large solid sheets that look like real
+> coverage; flying closer, those same regions DISSOLVE into sparse speckle.
+> That transition is the constructed-body gate switching on. The noise body and
+> the constructed body disagree about how much sky is covered, and the
+> constructed one covers far less. Their words for the fix: "we might be adding
+> too much detail to the clouds instead of making them larger to actually fill
+> their space." That is the direction.
+>
+> **ELIMINATED - do not re-investigate:**
+>
+> 1. **The weather alpha is NOT the bottleneck.** Rendering `wa` directly as the
+>    body (a two-line diagnostic, reverted) measured a mean of **0.766** at a
+>    vantage asking for 0.95. Coverage arrives. The loss is entirely downstream,
+>    inside the constructed-body placement.
+> 2. **The occupancy clamp is real but is not the binding constraint.** The law
+>    `p = wa * cell_area / cloud_area` clamps at 1, giving ceilings of 17.7%
+>    (humilis), 30.2% (congestus), 52.2% (stratocumulus) from the power-law mean
+>    widths. A fix that GROWS the cloud when p saturates was written and A/B
+>    measured at **14.3% to 14.0% - nothing** - and reverted. With wa = 0.766
+>    that growth should have been 1.6x for congestus and reached ~0.77 areal
+>    coverage by construction, and it did not. **Something is discarding the
+>    grown size, and finding what is the next concrete step** - instrument the
+>    ACTUAL width reaching cv2_cloud_sdf the same way wa was instrumented,
+>    rather than reasoning about the call chain again.
+>
+> **Method that worked and should be reused:** render the suspect quantity
+> directly as the cloud body and measure the image. It settled in one sweep what
+> two rounds of reading the call chain could not. WGSL needs no rebuild, so a
+> diagnostic like that costs about a minute.
+
+
 > **THE CLOUD DEFECT, MEASURED (v0.1232.6). Asked for 95% coverage, the field
 > delivers 14%.** The operator saw it first: "the voxel the cloud is in is only
 > filled like 5%... the cloud chunks can never get large enough to fill the
