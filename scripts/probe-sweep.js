@@ -531,7 +531,13 @@ async function main() {
     // the held-key set, masking it). The engine's HUMANITY_NO_FOCUS
     // window path (v0.828) exists exactly for this; the rig just never
     // set it.
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+    // HUMANITY_SHADERS_FROM_DISK: build the boot pipelines from the repo's
+    // shader parts (reached through the assets junction) rather than the copy
+    // compiled into the exe. Hot reload only fires on an mtime change while the
+    // app RUNS, and a sweep boots-captures-exits, so without this every sweep
+    // renders the shader as it was at the last cargo build - which silently
+    // invalidated a full day of cloud measurements before a control caught it.
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1" },
   });
   const pid = child.pid;
   fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(pid));

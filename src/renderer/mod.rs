@@ -905,7 +905,7 @@ impl Renderer {
         let batch_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("pbr_simple (terrain-batch variant)"),
             source: wgpu::ShaderSource::Wgsl(
-                shader_loader::assembled_pbr_batch_source().into(),
+                shader_loader::boot_pbr_batch_source().into(),
             ),
         });
         log::info!("[BootPhase]   batch_module: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);

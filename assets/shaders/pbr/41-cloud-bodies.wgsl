@@ -104,6 +104,43 @@ const CLOUD_V2_TURB_AMP: f32 = 0.42;
 // sample. Going to or past 1.0 would let a centre leave its cell and the
 // search would start missing clouds from the far side.
 const CLOUD_V2_JITTER: f32 = 0.38;
+
+// ── HOW MUCH OF ITS OWN ENVELOPE A CLUSTER ACTUALLY COVERS (v0.1233) ──
+//
+// Operator: "the voxel the cloud is in is only filled like 5%... the cloud
+// chunks can never get large enough to fill the presently empty space."
+//
+// The occupancy law below assumes a cloud covers pi * width^2 / 4 - a filled
+// disc of its own width. It does not. The body is a cluster of budding lobes
+// and a cluster has gaps, so the law places too few clouds by exactly the
+// shortfall. Measured by projecting the real cluster onto the ground over 24
+// clouds per genus (scripts note: the projection harness is a faithful port of
+// cv2_cloud_sdf, so these track the shader):
+//
+//   humilis        68.7% of its envelope   -> real max coverage 12.5%
+//   congestus      59.4%                   -> 18.5%
+//   stratocumulus  23.5%                   -> 12.6%
+//   cumulonimbus   55.0%                   -> 90.4%
+//
+// against a law that assumed 18.2 / 31.1 / 53.8 / 164.3. That gap is the
+// missing sky.
+//
+// STRATOCUMULUS IS THE OUTLIER AND IT IS A SEPARATE BUG: its lobe radius is
+// capped by HEIGHT (r_hi = min(width * 0.34, height * 0.9)) and its aspect is
+// 0.12 to 0.28, so a lobe can never exceed ~0.18 of the width. Twelve lobes of
+// that size cannot tile a disc of radius 0.5 width, so the flattest genus -
+// the one whose whole job is broken SHEETS - was the sparsest thing in the
+// sky. Its lobe budget goes to the cap.
+fn cv2_fill_frac(idx: i32) -> f32 {
+    var t = array<f32, 4>(0.687, 0.594, 0.235, 0.550);
+    return t[clamp(idx, 0, 3)];
+}
+
+// Widest a coverage-grown cloud may get, in cells. The lobe loop searches a
+// 3x3 neighbourhood, so a centre plus its radius must stay inside 1.5 cells;
+// 1.9 cells wide is 0.95 of a cell in radius, which clears it with room for
+// the jitter and the rind.
+const CLOUD_V2_MAX_CELL_SPAN: f32 = 1.9;
 // ── SURFACE DISPLACEMENT (2026-08-25, the operator: "up close they are
 // still an obvious ball pit. How do we get rid of the ball shapes?") ──
 //
@@ -185,7 +222,9 @@ fn cv2_arch(idx: i32, u: f32) -> Cv2Arch {
     var t_crown = array<f32, 4>(0.35, 0.70, 0.10, 0.80);
     var t_blend = array<f32, 4>(0.45, 0.38, 0.70, 0.32);
     // Lobes per genus: a flat sheet needs few, a turret needs many.
-    var t_lobes = array<i32, 4>(10, 20, 12, 18);
+    // Stratocumulus raised 12 -> 20: a flat sheet needs the most lobes, not the
+    // fewest, because its height cap keeps every lobe small (see cv2_fill_frac).
+    var t_lobes = array<i32, 4>(10, 20, 20, 18);
     let i = clamp(idx, 0, 3);
     var o: Cv2Arch;
     o.lobes = t_lobes[i];
@@ -459,8 +498,31 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // sky ~11x denser than the weather said - the wall of
             // giants.
             let m_per_cell_o = cell_km * 1000.0;
-            let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25;
-            let p_cell = clamp(wa * (m_per_cell_o * m_per_cell_o) / max(foot, 1.0), 0.0, 1.0);
+            let cell_area = m_per_cell_o * m_per_cell_o;
+            // TRUE footprint: the disc the width implies, times the fraction of
+            // it the cluster actually covers. Using the disc alone over-counted
+            // every cloud by 1.5x to 4x and starved the sky by that factor.
+            let fill = cv2_fill_frac(arch_i);
+            let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25 * fill;
+            let demand = wa * cell_area / max(foot, 1.0);
+
+            // ── GROW RATHER THAN CLAMP ──
+            // p is a probability, so it saturates at 1, and once every cell holds
+            // its one cloud, asking for more coverage buys nothing at all - the
+            // gaps can never close however overcast the weather claims to be.
+            // When one cloud cannot meet the demand even at p = 1, the cloud has
+            // to get BIGGER. Area goes as width squared, so the width multiplier
+            // is sqrt(demand). Below saturation this changes nothing, so the
+            // power-law size variety survives at ordinary coverage - and growing
+            // is also what overcast physically IS: larger merged clouds, not more
+            // small ones.
+            var arch_g = arch;
+            if (demand > 1.0) {
+                let cap = CLOUD_V2_MAX_CELL_SPAN * m_per_cell_o
+                    / max(arch.width_m, 1.0);
+                arch_g.width_m = arch.width_m * clamp(sqrt(demand), 1.0, max(cap, 1.0));
+            }
+            let p_cell = clamp(demand, 0.0, 1.0);
             if (cv2_hash(cell, 3.0) > p_cell) {
                 continue;
             }
@@ -500,8 +562,8 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // is now a true bound (centre+radius clamped), so width/2
             // plus the rind suffices - the old 0.62 factor let clamped
             // lobes truncate at the reject edge.
-            let height_m = arch.width_m * arch.aspect;
-            let br = arch.width_m * 0.5 + CLOUD_V2_RIND_M;
+            let height_m = arch_g.width_m * arch_g.aspect;
+            let br = arch_g.width_m * 0.5 + CLOUD_V2_RIND_M;
             if (ox * ox + oy * oy > br * br) {
                 continue;
             }
@@ -509,7 +571,7 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
                 continue;
             }
             let local_m = vec3<f32>(ox, up_m, oy);
-            let d_cell = cv2_cloud_sdf(local_m, seed, arch);
+            let d_cell = cv2_cloud_sdf(local_m, seed, arch_g);
             if (d_cell < best) {
                 best = d_cell;
                 // Remember the WINNING cloud's own height, so the interior

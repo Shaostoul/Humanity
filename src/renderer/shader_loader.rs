@@ -106,6 +106,57 @@ pub fn assembled_pbr_batch_source() -> &'static str {
     })
 }
 
+/// The megashader source to BUILD PIPELINES FROM AT BOOT.
+///
+/// Normally the embedded assembly, which is baked in at compile time. With
+/// `HUMANITY_SHADERS_FROM_DISK=1` it reads the on-disk parts instead.
+///
+/// WHY THIS EXISTS (2026-08-28). Hot reload only fires when a part's mtime
+/// changes WHILE THE APP IS RUNNING. The probe rig boots, captures and exits,
+/// so a rig sweep always rendered the COMPILED-IN shader no matter what was on
+/// disk - and a whole day of cloud measurements was made against an unchanged
+/// shader before a control (force the cloud body to 1.0 everywhere; the sky did
+/// not go white) caught it. Every "no change" result from that day was an
+/// artifact of the edit never reaching the GPU.
+///
+/// With the flag, a shader iteration is one sweep (about a minute) instead of a
+/// four-minute rebuild plus a sweep. That matters: the cloud work needs dozens
+/// of iterations, and a slow loop is why so many were batched and confounded.
+///
+/// Off by default so a shipped build can never depend on loose files.
+#[cfg(feature = "native")]
+pub fn boot_pbr_source() -> std::borrow::Cow<'static, str> {
+    if std::env::var("HUMANITY_SHADERS_FROM_DISK").ok().as_deref() == Some("1") {
+        if let Some(dir) = find_shaders_dir() {
+            if let Some(src) = assembled_pbr_source_from_dir(&dir) {
+                log::info!(
+                    "[Shaders] BOOT FROM DISK ({} bytes) under {:?}",
+                    src.len(),
+                    dir.join("pbr")
+                );
+                return std::borrow::Cow::Owned(src);
+            }
+        }
+        log::warn!(
+            "[Shaders] HUMANITY_SHADERS_FROM_DISK=1 but no on-disk parts found; \
+             using the embedded assembly"
+        );
+    }
+    std::borrow::Cow::Borrowed(assembled_pbr_source())
+}
+
+#[cfg(not(feature = "native"))]
+pub fn boot_pbr_source() -> std::borrow::Cow<'static, str> {
+    std::borrow::Cow::Borrowed(assembled_pbr_source())
+}
+
+/// The terrain-batch variant of whatever [`boot_pbr_source`] returned, so both
+/// pipelines come from the SAME source and cannot disagree.
+pub fn boot_pbr_batch_source() -> String {
+    let base = boot_pbr_source();
+    batched_variant_of(&base).unwrap_or_else(|| assembled_pbr_batch_source().to_string())
+}
+
 /// Assemble the megashader from ON-DISK parts (dev checkout / portable rig):
 /// every .wgsl under `shaders_dir/pbr/`, joined in name order. None when the
 /// directory is absent or empty (stripped install) - the embedded assembly
@@ -286,9 +337,10 @@ impl ShaderLoader {
     /// Load the embedded PBR-lite shader directly (no disk path needed).
     /// Works on all platforms.
     pub fn load_embedded_pbr(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
+        let src = boot_pbr_source();
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("pbr_simple (embedded)"),
-            source: wgpu::ShaderSource::Wgsl(assembled_pbr_source().into()),
+            label: Some("pbr_simple (boot)"),
+            source: wgpu::ShaderSource::Wgsl(src.into()),
         })
     }
 
