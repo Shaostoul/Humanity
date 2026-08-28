@@ -364,7 +364,11 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // radius IS that modifier: it is the width over which two lobe surfaces
     // melt into one. Floored at 1.6x the rind rather than 1.0x so even the
     // smallest cluster fuses rather than reading as touching spheres.
-    let k = max(mean_r * arch.blend, CLOUD_V2_RIND_M * 1.6);
+    // Blend radius bounded above as well as below (v0.1234): it scales with
+    // the lobe size, and on grown or naturally-huge clouds it reached ~500 m,
+    // at which point the union stops reading as merged puffs and starts
+    // reading as melted wax. 300 m merges generously without liquefying.
+    let k = clamp(mean_r * arch.blend, CLOUD_V2_RIND_M * 1.6, 300.0);
 
     // ── DOMAIN WARP (see CLOUD_V2_WARP_FRAC) ──
     // Bend the space the cluster is measured in, so the union can fold and
@@ -518,9 +522,19 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // small ones.
             var arch_g = arch;
             if (demand > 1.0) {
+                // GROWTH CAPPED AT 1.35x (v0.1234). The uncapped sqrt(demand)
+                // grew clouds to 1.9 cells wide, and everything about the
+                // cluster scales with its width - lobe radii AND the smooth-min
+                // blend radius - so overcast skies turned into giant melted-wax
+                // blobs (the operator's ascent screenshots). A modest growth
+                // keeps clouds looking like clouds; the SHEET UNION in
+                // cloud_carve (40-clouds.wgsl) is what actually closes the sky
+                // at high coverage now, the way real overcast is a continuous
+                // stratiform layer rather than ever-bigger cumulus.
                 let cap = CLOUD_V2_MAX_CELL_SPAN * m_per_cell_o
                     / max(arch.width_m, 1.0);
-                arch_g.width_m = arch.width_m * clamp(sqrt(demand), 1.0, max(cap, 1.0));
+                arch_g.width_m = arch.width_m
+                    * clamp(sqrt(demand), 1.0, min(1.35, max(cap, 1.0)));
             }
             let p_cell = clamp(demand, 0.0, 1.0);
             if (cv2_hash(cell, 3.0) > p_cell) {

@@ -2624,8 +2624,8 @@
       "hold_altitude": true
     },
     {
-      "id": "base-horizon-seam-5p7km",
-      "desc": "Inside the cloud slab at 5.7 km, aimed so the cloud-base-shell horizon is in frame.",
+      "id": "base-horizon-seam-3p0km",
+      "desc": "Inside the cloud layer at 3 km, heavy cover, looking level - the operator's ascent condition where the shelf that follows the camera appears.",
       "expect": "No hard horizontal line. Cloud detail must not change abruptly along one screen row.",
       "_why": "Operator screenshots at 5.7 and 6.2 km show a hard horizontal line with smoother cloud above and sharper, grainier cloud below. It is the cloud BASE-shell tangent. Inside the slab m0 is 0 for every ray and only m1 varies, and m1 is clipped where a ray dives below the base - so the marched segment steps 245 to 619 km across that tangent, a factor of 2.530 (log2 = 1.339). The tangent sits 2.201 degrees below horizontal at 5.7 km and 2.315 at 6.2 km, which is exactly where the line was photographed.",
       "_pair_note": "Two altitudes because the line MOVES with altitude (2.20 vs 2.31 degrees). A fix that merely hides it at one altitude will show at the other.",
@@ -2636,24 +2636,24 @@
         "body": "earth",
         "lat": 24,
         "lon": 14,
-        "altitude_km": 5.7,
+        "altitude_km": 3,
         "look_offset_deg": 88,
         "time": 10.5
       },
       "showcase": {
         "cloud_quality": "ultra",
         "clouds": "1",
-        "cloud_cover": "0.85",
+        "cloud_cover": "0.55",
         "weather": "clear",
         "cloud_type": "0.46"
       },
       "settle_s": 12,
       "hold_altitude": true,
       "_channel_note": "The channel is NOT the segment-relative step law - step_near picks slab_h * 0.045 = 495 m on BOTH sides for the first ~109 km of every ray, so the step is identical across the line. It is the per-ray frozen footprint g_v2_foot_m, taken at the segment MIDPOINT, which inherits the same 2.530x jump and sets the density rind AND four shape mips (displacement, second displacement, domain warp, interior turbulence). That is 1.34 mip levels of surface detail changing along one screen row.",
-      "_gate_note": "The first cut of these vantages pinned neither cloud_type nor enough cover, so the seam row held no cloud and the metric scored empty sky against empty sky. cloud_type 0.46 gives convective towers that reach above the camera, putting cloud on BOTH sides of the tangent; cloud_cover 0.85 fills the deck below so the GROUND horizon is hidden. That last part matters: the base tangent and the ground horizon are only about 3 rows apart at these altitudes, so an unfilled deck makes them impossible to tell apart.",
+      "_gate_note": "The first cut of these vantages pinned neither cloud_type nor enough cover, so the seam row held no cloud and the metric scored empty sky against empty sky. cloud_type 0.46 gives convective towers that reach above the camera, putting cloud on BOTH sides of the tangent; cloud_cover 0.85 fills the deck below so the GROUND horizon is hidden. That last part matters: the base tangent and the ground horizon are only about 3 rows apart at these altitudes, so an unfilled deck makes them impossible to tell apart. Cover retuned 0.85 -> 0.55 after the sheet union (v0.1234): 0.85 became a genuinely closed deck and the camera sat inside featureless cloud, scoring empty again. The shelf lives among distinct clouds.",
       "seam_gate": {
-        "row": 697,
-        "tangent_deg_below_horizontal": 2.2,
+        "row": 685,
+        "tangent_deg_below_horizontal": 1.435,
         "band": 12,
         "x_range": [
           0.12,
@@ -2664,8 +2664,8 @@
       }
     },
     {
-      "id": "base-horizon-seam-6p2km",
-      "desc": "Inside the cloud slab at 6.2 km, aimed so the cloud-base-shell horizon is in frame.",
+      "id": "base-horizon-seam-3p7km",
+      "desc": "Inside the cloud layer at 3.7 km, heavy cover, looking level - the operator's ascent condition where the shelf that follows the camera appears.",
       "expect": "No hard horizontal line. Cloud detail must not change abruptly along one screen row.",
       "_why": "Operator screenshots at 5.7 and 6.2 km show a hard horizontal line with smoother cloud above and sharper, grainier cloud below. It is the cloud BASE-shell tangent. Inside the slab m0 is 0 for every ray and only m1 varies, and m1 is clipped where a ray dives below the base - so the marched segment steps 245 to 619 km across that tangent, a factor of 2.530 (log2 = 1.339). The tangent sits 2.201 degrees below horizontal at 5.7 km and 2.315 at 6.2 km, which is exactly where the line was photographed.",
       "_pair_note": "Two altitudes because the line MOVES with altitude (2.20 vs 2.31 degrees). A fix that merely hides it at one altitude will show at the other.",
@@ -2676,24 +2676,24 @@
         "body": "earth",
         "lat": 24,
         "lon": 14,
-        "altitude_km": 6.2,
+        "altitude_km": 3.7,
         "look_offset_deg": 88,
         "time": 10.5
       },
       "showcase": {
         "cloud_quality": "ultra",
         "clouds": "1",
-        "cloud_cover": "0.85",
+        "cloud_cover": "0.55",
         "weather": "clear",
         "cloud_type": "0.46"
       },
       "settle_s": 12,
       "hold_altitude": true,
       "_channel_note": "The channel is NOT the segment-relative step law - step_near picks slab_h * 0.045 = 495 m on BOTH sides for the first ~109 km of every ray, so the step is identical across the line. It is the per-ray frozen footprint g_v2_foot_m, taken at the segment MIDPOINT, which inherits the same 2.530x jump and sets the density rind AND four shape mips (displacement, second displacement, domain warp, interior turbulence). That is 1.34 mip levels of surface detail changing along one screen row.",
-      "_gate_note": "The first cut of these vantages pinned neither cloud_type nor enough cover, so the seam row held no cloud and the metric scored empty sky against empty sky. cloud_type 0.46 gives convective towers that reach above the camera, putting cloud on BOTH sides of the tangent; cloud_cover 0.85 fills the deck below so the GROUND horizon is hidden. That last part matters: the base tangent and the ground horizon are only about 3 rows apart at these altitudes, so an unfilled deck makes them impossible to tell apart.",
+      "_gate_note": "The first cut of these vantages pinned neither cloud_type nor enough cover, so the seam row held no cloud and the metric scored empty sky against empty sky. cloud_type 0.46 gives convective towers that reach above the camera, putting cloud on BOTH sides of the tangent; cloud_cover 0.85 fills the deck below so the GROUND horizon is hidden. That last part matters: the base tangent and the ground horizon are only about 3 rows apart at these altitudes, so an unfilled deck makes them impossible to tell apart. Cover retuned 0.85 -> 0.55 after the sheet union (v0.1234): 0.85 became a genuinely closed deck and the camera sat inside featureless cloud, scoring empty again. The shelf lives among distinct clouds.",
       "seam_gate": {
-        "row": 698,
-        "tangent_deg_below_horizontal": 2.314,
+        "row": 688,
+        "tangent_deg_below_horizontal": 1.668,
         "band": 12,
         "x_range": [
           0.12,

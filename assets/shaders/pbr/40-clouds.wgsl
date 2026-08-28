@@ -1732,7 +1732,34 @@ fn cloud_carve(
         v2_w = w_built;
         g_v2_w = w_built;
         let built = cloud_v2_body(p, wa, tc_v2, lodb);
-        body = mix(body, built, w_built);
+        // ── SHEET UNION (v0.1234) ──
+        //
+        // Operator: "the volume of cloud in the grid coordinate still doesn't
+        // fill the full area so we can never have real sheets of clouds...
+        // all the clouds are small and never merge with other grid sections."
+        //
+        // Structurally true: the constructed bodies are placed ONE PER GRID
+        // CELL, so no coverage value can ever merge cells into a sheet. But
+        // the continuous noise field CAN make sheets - it is why the planet
+        // looks properly overcast from orbit (the far renderer uses it) and
+        // then dissolves into per-cell speckle as the constructed bodies take
+        // over on approach. The two models disagreed about the sky.
+        //
+        // The fix is what real skies do. Scattered fair-weather cumulus ARE
+        // discrete objects; overcast is NOT more of them, it is a continuous
+        // stratiform layer. So as coverage rises past ~0.55 the field itself
+        // is unioned back in under the clusters, filling the space between
+        // them until at ~0.85 the sky closes. Below that the union term is
+        // zero and scattered skies are exactly as before.
+        // Gated on the GLOBAL coverage, not the local weather alpha. The first
+        // cut used wa, which is a PER-SAMPLE value that reaches 1.0 inside any
+        // cloud at any coverage - so the union fired everywhere there was any
+        // cloud at all, closed the whole sky at 0.55, and put the camera of the
+        // scattered-cumulus test inside a dark solid deck. The sky-wide question
+        // "is this an overcast day" belongs to the sky-wide coverage value.
+        let sheet_w = smoothstep(0.60, 0.90, material.base_color.a);
+        let fused = max(built, body * sheet_w);
+        body = mix(body, fused, w_built);
         if (body <= 0.001) {
             return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0, 0.0);
         }
@@ -2697,6 +2724,17 @@ fn cloud_march_core(
         // Weather-map texel = 27.8 km at mip 0.
         let foot = max(tm * pix_ang, dt * 0.25);
         let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
+        // Surface-detail mip frozen PER SAMPLE, not per ray (v0.1234). The
+        // per-ray freeze took the footprint at the SEGMENT MIDPOINT, and inside
+        // the slab the unclipped chord runs ~600 km - so a cloud 500 m from the
+        // camera was surfaced at the mip of a point 300 km away, which is why
+        // the NEAREST clouds were the smooth melted ones while mid-distance
+        // ones kept their detail (backwards from any honest mip ladder). The
+        // freeze exists so the eight sun-shadow taps shade the SAME surface the
+        // eye sees; setting it here, from this sample's own footprint, before
+        // the view density call, preserves exactly that - the sun march that
+        // follows reuses the value - while giving near clouds near detail.
+        g_v2_disp_lod = lodb;
         let wlod = max(log2(max(foot / g_cloud_upkm / 27.8, 1.0)), 0.0);
         let weather_a = clamp(
             cloud_alpha_from_field(
