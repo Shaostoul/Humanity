@@ -1,66 +1,29 @@
 # HumanityOS: Priorities
 
-> **THE CLOUD COVERAGE DEFECT - everything measured, cause narrowed to one
-> function (2026-08-28).** Gate: `node scripts/cloud-coverage-metrics.mjs
-> <sweep-dir>` over `overcast-nadir-ultra`. RED at 14% delivered against 95%
-> asked. Read all of this before touching it; four hypotheses have been
-> eliminated by measurement and re-testing them is waste.
+> **CLOUD COVERAGE: RESOLVED (v0.1234).** Asked 0.95, delivered 1.00 from nadir;
+> `node scripts/cloud-coverage-metrics.mjs <sweep>` over `overcast-nadir-ultra`
+> PASSES. The winning mechanism was the SHEET UNION in cloud_carve: overcast is
+> a continuous stratiform layer, so past sky-wide coverage 0.6 the noise field
+> is unioned back under the per-cell constructed clusters until the sky closes
+> near 0.9. Gate it on the GLOBAL coverage (material.base_color.a), never the
+> local weather alpha - the local value is 1.0 inside any cloud at any coverage
+> and closes the whole sky. Growth is capped at 1.35x and the smooth-min blend
+> radius at 300 m (uncapped, coverage-grown clouds were giant melted-wax blobs).
 >
-> **What the operator saw, and it is the clearest statement of the bug:** far
-> from the planet the clouds render as large solid sheets that look like real
-> coverage; flying closer, those same regions DISSOLVE into sparse speckle.
-> That transition is the constructed-body gate switching on. The noise body and
-> the constructed body disagree about how much sky is covered, and the
-> constructed one covers far less. Their words for the fix: "we might be adding
-> too much detail to the clouds instead of making them larger to actually fill
-> their space." That is the direction.
+> **THE DETAIL MIP IS PER SAMPLE (v0.1234), keep it that way.** The per-ray
+> freeze at the segment midpoint surfaced a cloud 500 m away at the mip of a
+> point 300 km downrange - the NEAREST clouds were the smoothest. g_v2_disp_lod
+> is now set from each view sample's own footprint just before the density
+> call; the eight sun taps that follow reuse it, which is the eye/sun surface
+> consistency the freeze existed for.
 >
-> **ELIMINATED - do not re-investigate:**
->
-> 1. **The weather alpha is NOT the bottleneck.** Rendering `wa` directly as the
->    body (a two-line diagnostic, reverted) measured a mean of **0.766** at a
->    vantage asking for 0.95. Coverage arrives. The loss is entirely downstream,
->    inside the constructed-body placement.
-> 2. **The occupancy clamp is real but is not the binding constraint.** The law
->    `p = wa * cell_area / cloud_area` clamps at 1, giving ceilings of 17.7%
->    (humilis), 30.2% (congestus), 52.2% (stratocumulus) from the power-law mean
->    widths. A fix that GROWS the cloud when p saturates was written and A/B
->    measured at **14.3% to 14.0% - nothing** - and reverted. With wa = 0.766
->    that growth should have been 1.6x for congestus and reached ~0.77 areal
->    coverage by construction, and it did not. **Something is discarding the
->    grown size, and finding what is the next concrete step** - instrument the
->    ACTUAL width reaching cv2_cloud_sdf the same way wa was instrumented,
->    rather than reasoning about the call chain again.
->
-> **Method that worked and should be reused:** render the suspect quantity
-> directly as the cloud body and measure the image. It settled in one sweep what
-> two rounds of reading the call chain could not. WGSL needs no rebuild, so a
-> diagnostic like that costs about a minute.
-
-
-> **THE CLOUD DEFECT, MEASURED (v0.1232.6). Asked for 95% coverage, the field
-> delivers 14%.** The operator saw it first: "the voxel the cloud is in is only
-> filled like 5%... the cloud chunks can never get large enough to fill the
-> presently empty space." Gate: `node scripts/cloud-coverage-metrics.mjs
-> <sweep-dir>` over `overcast-nadir-ultra`. It is RED today, deliberately.
->
-> **The occupancy ceiling is real but is NOT the binding constraint.** The law
-> `p = coverage * cell_area / cloud_area` clamps at 1, so the field saturates at
-> what one cloud per cell fills: 17.7% humilis, 30.2% congestus, 52.2%
-> stratocumulus from the power-law mean widths. (The v0.1230 power-law sizes
-> roughly halved those from 36.5 / 58.6 / 107.9 - fixing the size distribution
-> is what made this visible.) A fix that GROWS the cloud when p saturates was
-> written and A/B measured: **14.3% to 14.0%, i.e. nothing**. It was reverted.
-> Do not re-attempt it before the step below.
->
-> **NEXT STEP, and it is instrumentation, not a fix: find out what `wa` is.**
-> `wa` is the weather alpha reaching the placement law, from
-> `cloud_alpha_from_field(field, coverage)` - a smoothstep of the noise FIELD
-> against a coverage-driven threshold. If a pinned coverage of 0.95 is arriving
-> as a mean `wa` near 0.15, that mapping is the ceiling and everything
-> downstream is arguing with it. Measure it (a debug output of `wa` as
-> luminance over the nadir vantage would settle it in one capture) rather than
-> reasoning about it, which has now failed twice.
+> **THE SHELF (base-tangent seam): visually gone, numerically open.** Repro
+> found: inside the layer ~3 km, cover 0.55, level view - the re-authored
+> `base-horizon-seam-{3p0,3p7}km` vantages. The gate still measures a 1.93x
+> detail step (threshold 1.25) and stays RED rather than being tuned to pass;
+> part of the step is genuine depth (crowded translucent cloud above the line
+> reads softer), part may remain artifact. Judge against the capture, not the
+> ratio alone, before spending on it again.
 
 > **MEASUREMENT LESSONS from this arc. Four wrong answers were produced
 > confidently before being caught; each is now enforced in a script.**
