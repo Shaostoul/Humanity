@@ -159,7 +159,30 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         + (abs(cur.r - hist_c.r) + abs(cur.g - hist_c.g)
             + abs(cur.b - hist_c.b)) * 0.333;
     let base = clamp(u.cam_right.w, 0.02, 1.0);
-    let motion = clamp(shift_tx - 0.75, 0.0, 1.0);
+    // ── THE EPIPOLE BLIND SPOT (v0.1235) ──
+    //
+    // Operator, inside the clouds: "this very obvious weird effect that comes
+    // to a point at the bottom of my feet. Kind of like the bottom of my feet
+    // are a balloon tied off... most noticeable in the clouds."
+    //
+    // shift_tx measures how far a texel SLID on screen. Flying TOWARD content,
+    // texels at the centre of motion do not slide - they EXPAND radially
+    // around a fixed point (the epipole: straight ahead in forward flight,
+    // straight down in a descent). There shift_tx reads ~0, the gate calls the
+    // camera at rest, caps blending at the anti-boil 0.12, and stale history
+    // smears radially around the very point being flown toward. A starburst
+    // knotted at the feet is this gate lying.
+    //
+    // The cure is the second motion channel the texel already carries: how
+    // much CLOSER its content got this frame. prev_dpos is the camera
+    // translation, t_w this texel's content distance - their ratio is the
+    // zoom rate, and 3 percent closer per frame is unambiguous flight however
+    // little the texel slid.
+    let zoom_rel = length(u.prev_dpos.xyz) / max(t_w, 1.0);
+    let motion = max(
+        clamp(shift_tx - 0.75, 0.0, 1.0),
+        smoothstep(0.005, 0.03, zoom_rel),
+    );
     let alpha = clamp(
         base + smoothstep(0.08, 0.45, diff) * mix(0.05, 0.5, motion),
         base,

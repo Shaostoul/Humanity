@@ -1758,7 +1758,12 @@ fn cloud_carve(
         // scattered-cumulus test inside a dark solid deck. The sky-wide question
         // "is this an overcast day" belongs to the sky-wide coverage value.
         let sheet_w = smoothstep(0.60, 0.90, material.base_color.a);
-        let fused = max(built, body * sheet_w);
+        // Fade the UNION, never the sheet's own density (v0.1235). The first
+        // form was max(built, body * sheet_w): scaling the field down at partial
+        // coverage pushed it under the visibility threshold and punched holes -
+        // the operator's "very holey swiss cheese" sheets. A sheet that exists
+        // should exist at full density; what fades in is how much of it joins.
+        let fused = mix(built, max(built, body), sheet_w);
         body = mix(body, fused, w_built);
         if (body <= 0.001) {
             return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0, 0.0);

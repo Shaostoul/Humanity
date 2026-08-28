@@ -282,7 +282,18 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // inverts - content change is signal, not noise - so both the diff
     // response and its cap scale with the measured shift. At rest the
     // v0.1159 anti-boil discipline stands untouched.
-    let motion = clamp(shift_tx - 0.75, 0.0, 1.0);
+    // Same epipole blind spot as the near resolve (see cloud_resolve.wgsl
+    // v0.1235): shift-only motion reads ~0 at the point being flown toward.
+    // light4.xyz is this frame's translation baseline in world axes;
+    // g_march_first_t is this texel's own content distance when it hit cloud.
+    var zoom_rel = 0.0;
+    if (g_march_first_t > 0.0) {
+        zoom_rel = length(camera.light4.xyz) / max(g_march_first_t, 1.0);
+    }
+    let motion = max(
+        clamp(shift_tx - 0.75, 0.0, 1.0),
+        smoothstep(0.005, 0.03, zoom_rel),
+    );
     var alpha = clamp(
         0.04 + diff * mix(0.05, 0.6, motion),
         0.04,
