@@ -183,10 +183,21 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         clamp(shift_tx - 0.75, 0.0, 1.0),
         smoothstep(0.005, 0.03, zoom_rel),
     );
-    let alpha = clamp(
+    var alpha = clamp(
         base + smoothstep(0.08, 0.45, diff) * mix(0.05, 0.5, motion),
         base,
         max(base, mix(0.12, 1.0, motion)),
     );
+    // ── THE FLOOR MUST RISE WITH MOTION, NOT JUST THE CAP (v0.1236) ──
+    //
+    // The v0.1235 zoom gate opened the CAP under motion, but alpha itself
+    // only rises with DISAGREEMENT - and a smooth cloud interior barely
+    // disagrees with its own smear. Inside a cloud the content is metres
+    // away, so walking even 1 m per frame is a 25 percent parallax error:
+    // the history lookup lands far from where it should, and at alpha 0.07
+    // that wrongly-fetched history still won. The operator's starburst
+    // survived the gate because the gate opened a door nothing walked
+    // through. Under real motion the fresh march must simply WIN.
+    alpha = max(alpha, motion * 0.6);
     return mix(hist_c, cur, alpha);
 }

@@ -2778,6 +2778,32 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "starburst-repro",
+      "desc": "Inside the cloud layer at 4.3 km looking steeply down through clouds - the operator's starburst condition.",
+      "expect": "Clouds seen from above/inside. NO radial arms converging at the view centre.",
+      "_why": "Operator screenshot at 4.3 km, WALK x10 (nearly parked), 12 FPS: a smooth melted starburst of dark and light wedges converging exactly at the crosshair, cutting through clouds and flattening them. Present while nearly stationary, so NOT the epipole motion smear (that fix shipped in v0.1235 and did not cure it).",
+      "regressions": [
+        "no radial starburst converging at the view centre"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 4.3,
+        "look_offset_deg": 35,
+        "time": 13.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

@@ -302,6 +302,10 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // Residual parallax error also scales with shift - a floor keeps the
     // trail from persisting even where diff happens to be small.
     alpha = max(alpha, min(0.35, max(shift_tx - 1.0, 0.0) * 0.02));
+    // Zoom-driven floor, same reasoning as the near resolve (v0.1236): close
+    // content under translation mis-reprojects too badly for history to be
+    // worth keeping, however small the screen-space shift reads.
+    alpha = max(alpha, smoothstep(0.005, 0.03, zoom_rel) * 0.6);
     // No history for this direction (outside the old extent on a resample
     // frame, or a teleport-scale reprojection): start from the fresh
     // march instead of EMA-ing toward zero or smearing stale content.
