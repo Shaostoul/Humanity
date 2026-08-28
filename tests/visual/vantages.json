@@ -2725,6 +2725,59 @@
         "weather": "cloudy",
         "cloud_quality": "ultra"
       }
+    },
+    {
+      "id": "overcast-fill-ultra",
+      "desc": "The same close cumulus camera at near-full coverage. Tests whether the field can actually CLOSE UP.",
+      "expect": "A filled deck. Gaps between clouds should be the exception, not the rule.",
+      "_why": "Operator: \"a place that looks like it is supposed to have big dense clouds are instead rendering as smaller than their container... the cloud chunks can never get large enough to fill the presently empty space.\" The occupancy law sets p = coverage * cell_area / cloud_area and CLAMPS it at 1, so once every cell holds its one cloud the field saturates at whatever a single cloud fills - measured ceilings 17.7% (humilis), 30.2% (congestus), 52.2% (stratocumulus). Any requested coverage above those was unreachable. This vantage asks for far more than the ceiling, which is the only place the defect is visible.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "regressions": [
+        "constructed cloud bodies must not read as spheres"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "overcast-nadir-ultra",
+      "desc": "Straight down on the deck at near-full coverage. The only view where screen coverage EQUALS areal coverage.",
+      "expect": "A filled deck at cloud_cover 0.95. Large gaps mean the field cannot reach the coverage it was asked for.",
+      "_why": "The occupancy law controls AREAL coverage, so it must be measured from nadir. A grazing view exaggerates coverage badly - looking out near the horizon, even a sparse field fills most of the frame - which is exactly how an earlier attempt to measure this fix read 46% both with and without it and concluded nothing had changed.",
+      "regressions": [
+        "the cloud field must reach the coverage the weather asks for"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 9,
+        "look_offset_deg": 0,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {
