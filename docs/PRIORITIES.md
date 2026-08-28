@@ -1,5 +1,64 @@
 # HumanityOS: Priorities
 
+> **THE CLOUD DEFECT, MEASURED (v0.1232.6). Asked for 95% coverage, the field
+> delivers 14%.** The operator saw it first: "the voxel the cloud is in is only
+> filled like 5%... the cloud chunks can never get large enough to fill the
+> presently empty space." Gate: `node scripts/cloud-coverage-metrics.mjs
+> <sweep-dir>` over `overcast-nadir-ultra`. It is RED today, deliberately.
+>
+> **The occupancy ceiling is real but is NOT the binding constraint.** The law
+> `p = coverage * cell_area / cloud_area` clamps at 1, so the field saturates at
+> what one cloud per cell fills: 17.7% humilis, 30.2% congestus, 52.2%
+> stratocumulus from the power-law mean widths. (The v0.1230 power-law sizes
+> roughly halved those from 36.5 / 58.6 / 107.9 - fixing the size distribution
+> is what made this visible.) A fix that GROWS the cloud when p saturates was
+> written and A/B measured: **14.3% to 14.0%, i.e. nothing**. It was reverted.
+> Do not re-attempt it before the step below.
+>
+> **NEXT STEP, and it is instrumentation, not a fix: find out what `wa` is.**
+> `wa` is the weather alpha reaching the placement law, from
+> `cloud_alpha_from_field(field, coverage)` - a smoothstep of the noise FIELD
+> against a coverage-driven threshold. If a pinned coverage of 0.95 is arriving
+> as a mean `wa` near 0.15, that mapping is the ceiling and everything
+> downstream is arguing with it. Measure it (a debug output of `wa` as
+> luminance over the nadir vantage would settle it in one capture) rather than
+> reasoning about it, which has now failed twice.
+
+> **MEASUREMENT LESSONS from this arc. Four wrong answers were produced
+> confidently before being caught; each is now enforced in a script.**
+>
+> 1. **Areal coverage must be measured from NADIR.** From a grazing camera the
+>    same A/B read 46% with and without a change, because a sparse field fills
+>    the frame near the horizon. `cloud-coverage-metrics.mjs` refuses to score a
+>    vantage whose `look_offset_deg` is not 0.
+> 2. **Classify cloud on SATURATION, not brightness.** Calibrated on real
+>    pixels: cloud 0.05-0.07, sand 0.36, sky 0.39 - while luminance overlaps all
+>    three (cloud 163-224, sand 191, sky 170). A brightness threshold reported
+>    86% cloud in a frame that was mostly sand.
+> 3. **A gate whose subject is not in frame is not a gate.** The first seam
+>    vantages had no cloud at the seam row and reported before and after
+>    identical. The guard added to catch that was then itself fooled by pale
+>    horizon haze passing the cloud-fraction test, producing a confident 6.6x
+>    "detail step" that was haze against cloud. Looking at the image caught it;
+>    the number never would have. Both guards now sit in
+>    `cloud-seam-metrics.mjs`, which currently REFUSES to score and exits 2.
+> 4. **Do not judge across non-adjacent captures by eye.** A change that
+>    "clearly" enlarged the clouds measured at 6.6% of pixels differing - the
+>    comparison being made was against a remembered older frame, not the actual
+>    previous one.
+
+> **WORKFLOW: WGSL edits need NO cargo build.** The megashader assembles from
+> on-disk parts when they exist (`shader_loader::assembled_pbr_source_from_dir`;
+> the embedded copy is the stripped-install fallback) and probe-sweep junctions
+> the repo `assets/` into the rig. Edit the shader, run the sweep. A whole
+> session was spent paying four-minute rebuilds per shader iteration.
+
+> **SHELL: use a QUOTED heredoc for commit messages.** `<<MSGEOF` interpolates,
+> so backticks in prose get command-substituted and words vanish from the
+> message (v0.1232.6 lost the word it was defining). Write the message with
+> `<<'MSGEOF'` and put the version in with sed afterwards.
+
+
 > **CLOUDS: THE THREE OPEN ITEMS (v0.1232.3).** Everything below was measured,
 > not guessed. Read the findings before reattempting either fix - both are
 > written and deliberately switched off, so the work is not the code.
