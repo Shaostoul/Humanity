@@ -1,5 +1,31 @@
 # HumanityOS: Priorities
 
+> **CLOUDS, state as of v0.1235 (2026-08-28 evening).**
+>
+> **Balloon-at-the-feet motion artifact: fixed in code, flight verdict pending.**
+> Both temporal paths judged motion by screen-space SLIDE only, which reads zero
+> at the epipole - the point being flown toward - so stale history smeared
+> radially around it (worst inside cloud, knotted under the feet in a descent).
+> The gates now also open on the ZOOM RATE: camera translation over the texel's
+> own content distance (near: prev_dpos vs march-dist target; far: light4
+> baseline vs g_march_first_t). NOT rig-verifiable - the rig captures parked
+> frames - so the verdict is the operator's next flight. Statics verified
+> unchanged; coverage gate still PASSES.
+>
+> **Swiss-cheese sheets: fixed.** The v0.1234 union scaled the field density by
+> sheet_w, pushing it under the visibility threshold at partial coverage - holes.
+> Now mix(built, max(built, body), sheet_w): the sheet keeps full density, the
+> UNION is what fades.
+>
+> **STILL OPEN, the last big look item: clouds read as sphere clusters up
+> close.** Placement, coverage, detail mips, temporal artifacts are all fixed or
+> gated - the remaining problem is the LOBE SHAPE itself. Next levers, in order:
+> (1) stronger domain warp relative to lobe radius (CLOUD_V2_WARP_FRAC 0.42,
+> tile 1.7r - try 0.6/1.3 with an A/B on cumulus-closeup-ultra); (2) flatten the
+> lobe primitive into a base-weighted ellipsoid so buds read as risen dough
+> rather than marbles; (3) only then relight (the smin normal groundwork from
+> v0.1232.2 is computed and unused).
+
 > **CLOUD COVERAGE: RESOLVED (v0.1234).** Asked 0.95, delivered 1.00 from nadir;
 > `node scripts/cloud-coverage-metrics.mjs <sweep>` over `overcast-nadir-ultra`
 > PASSES. The winning mechanism was the SHEET UNION in cloud_carve: overcast is
