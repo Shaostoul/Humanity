@@ -46,6 +46,10 @@ struct CloudCompositeUniforms {
 // 12g: the NEAR screen-pass accumulation, crossfaded with the octa map
 // by u.cam_right.w (0 = pure map, 1 = pure screen).
 @group(0) @binding(4) var cloud_screen: texture_2d<f32>;
+// Quarter-res first-hit distance (km) from the near march (v0.1244): the
+// per-pixel key that decides which arm owns each pixel. 0 = the near ray
+// found nothing it owns (clear, or it abstained past its range) - map's.
+@group(0) @binding(5) var march_dist: texture_2d<f32>;
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -248,19 +252,46 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     //    own screen coordinate (texture rows run downward, so flip v
     //    like the depth lookup above).
     let w_mix = clamp(u.cam_right.w, 0.0, 1.0);
+    // ── PER-PIXEL DISTANCE KEY (v0.1244) ──
+    // The global altitude crossfade blended two whole-frame renders and its
+    // band was wherever the streaks lived (74 km at 40..80, 36 km at
+    // 22..42 - moving the band moved the artifact). The regime handoff is
+    // now decided per PIXEL by the near arm's own first-hit distance:
+    // content within ~20 km is the near march's (full weight), content past
+    // ~32 km is the map's, and a single frame can hold both regimes side by
+    // side at matched apparent scale - the MSFS-style continuous handoff.
+    // The near arm abstains past 34 km (see fs_cloud_screen), so its buffer
+    // holds distance 0 or shell-fallback values exactly where the map must
+    // win. w_mix keeps two jobs: the px ramp arming the near system at all,
+    // and the whale ceiling.
+    var w_px = 0.0;
+    var s_scr = vec4<f32>(0.0);
+    if (w_mix > 0.001) {
+        let duv = vec2<f32>(in.uv.x, 1.0 - in.uv.y);
+        let dd = vec2<f32>(textureDimensions(march_dist));
+        let tpx = vec2<i32>(clamp(duv * dd, vec2<f32>(0.0), dd - vec2<f32>(1.0)));
+        let d_km = textureLoad(march_dist, tpx, 0).r;
+        if (d_km > 0.001) {
+            s_scr = textureSampleLevel(
+                cloud_screen, map_sampler, duv, 0.0);
+            // The near arm claims a pixel only where it (a) hit content
+            // inside its ownership range AND (b) actually drew something:
+            // a CLEAR near ray's distance is the shell fallback (it needs
+            // one for history tracking), and letting it claim the pixel
+            // would blank distant map banks behind clear foreground air -
+            // horizon cloud walls would vanish at low altitude.
+            let near_has = smoothstep(0.005, 0.03, s_scr.a);
+            w_px = w_mix * (1.0 - smoothstep(20.0, 32.0, d_km)) * near_has;
+        }
+    }
     var s_map = vec4<f32>(0.0);
-    if (w_mix < 0.999) {
+    if (w_px < 0.999) {
         let e = map_encode(rd);
         if (e.z <= 1.02) {
             s_map = map_catmull_rom(e.xy);
         }
     }
-    var s_scr = vec4<f32>(0.0);
-    if (w_mix > 0.001) {
-        s_scr = textureSampleLevel(
-            cloud_screen, map_sampler, vec2<f32>(in.uv.x, 1.0 - in.uv.y), 0.0);
-    }
-    let s = mix(s_map, s_scr, w_mix);
+    let s = mix(s_map, s_scr, w_px);
     if (s.a <= 0.003) {
         discard;
     }

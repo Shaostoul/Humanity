@@ -1,5 +1,24 @@
 # HumanityOS: Priorities
 
+> **v0.1244 (2026-08-29, in verification): the per-pixel regime split - the
+> "missing tech" for the sheet-to-ballpit transition.** The operator's
+> persistent down-look starburst was the near march's footprint cap
+> (min(screen*4, map_texel)) forcing ~5x-above-Nyquist sampling at long
+> slant - undersampling moire, radial on a down look; every altitude-band
+> move just relocated it (74 km -> 36 km). Both fixed at the root:
+> footprint = the near grid's own Nyquist (screen*4 alone), and the global
+> altitude crossfade is REPLACED by a per-pixel key: cloud_march_core gains
+> g_march_max_km (screen path 34 km - rays abstain pre-step beyond it, far
+> end clamped; kills the both-whales 3 FPS), cloud_composite gains binding
+> 5 = march_dist and keys each pixel (near owns content < 20 km, map > 32
+> km, claim requires drawn alpha so clear foreground cannot blank distant
+> banks), near_mix reduced to an arming gate (px ramp x 45..60 km ceiling).
+> Handoff is now per CONTENT at matched apparent scale (the MSFS-style
+> continuous LOD). Verify on the blend ladder + flower + starburst +
+> marble vantages before ship; watch for (a) near/map representation
+> disagreement at the 20-32 km seam, (b) thin-near-over-far-sheet pixels
+> (accepted edge case, documented in cloud_composite.wgsl).
+
 > **CLOUDS, state as of v0.1239 (2026-08-29).**
 >
 > **The operator's starburst-at-the-feet: REPRODUCED AND ROOT-CAUSED (the

@@ -132,6 +132,19 @@ impl CloudCompositePass {
                         },
                         count: None,
                     },
+                    // v0.1244: the near march's quarter-res first-hit
+                    // distance (km) - the per-pixel regime key. Read with
+                    // textureLoad, so non-filterable.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -221,6 +234,7 @@ impl CloudCompositePass {
         view: &wgpu::TextureView,
         frame: &CloudCompositeFrame,
         screen_view: &wgpu::TextureView,
+        dist_view: &wgpu::TextureView,
         near_mix: f32,
         cam_pos: [f32; 3],
         cam_fwd: [f32; 3],
@@ -270,6 +284,10 @@ impl CloudCompositePass {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::TextureView(screen_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(dist_view),
                 },
             ],
         });

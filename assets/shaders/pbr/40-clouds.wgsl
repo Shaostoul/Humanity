@@ -246,6 +246,13 @@ var<private> g_march_first_t: f32 = 0.0;
 // March iterations actually used by the last cloud_march_core call (dev
 // instrument: the flower-nadir ring forensics render this; costs one MOV).
 var<private> g_march_iters: f32 = 0.0;
+// Maximum march range in KM for the next cloud_march_core call (v0.1244,
+// the per-pixel regime split). The NEAR screen path sets this to its
+// ownership range: content entering the slab beyond it is the octa map's
+// job, so the ray ABSTAINS (returns clear, first_t = 0) before stepping
+// once - which is what turns the both-whales blend band into near-pays-
+// only-for-near. The map path leaves it huge (unbounded).
+var<private> g_march_max_km: f32 = 1.0e9;
 // The v2 constructed body's soft-rind width in METRES, frozen ONCE per
 // ray by cloud_march_core (2026-08-25, the operator's "rings extending
 // from their center... like eyeballs").
@@ -2475,6 +2482,17 @@ fn cloud_march_core(
     if (m1 <= 0.0) {
         return vec4<f32>(0.0);
     }
+    // Per-pixel regime split (v0.1244): content beyond the caller's
+    // ownership range belongs to the octa map. Abstain before stepping when
+    // the slab ENTRY is already past it; otherwise clamp the far end so
+    // this ray only pays for (and only claims, via g_march_first_t feeding
+    // the composite's distance key) the content it owns. Local units:
+    // 1 unit = 1 planet radius; km = t / g_cloud_upkm.
+    let max_t = g_march_max_km * g_cloud_upkm;
+    if (m0 > max_t) {
+        return vec4<f32>(0.0);
+    }
+    m1 = min(m1, max_t);
     // ── THE HORIZON SEAM (v0.1233) ──
     //
     // Operator screenshots at 5.7 and 6.2 km show a hard horizontal line across

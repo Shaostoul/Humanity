@@ -11833,26 +11833,34 @@ mod native_app {
                                         // distance regime bug.
                                         let alt_km_mix = (cam_r_ratio as f32 - 1.0).max(0.0)
                                             * (d.radius / 1000.0) as f32;
-                                        // Band lowered 40..80 -> 22..42 km (v0.1243,
-                                        // blend forensics): the near arm has NO
-                                        // resolution advantage in regime 1 - its
-                                        // quarter-res grid is ~5.5x coarser than the
-                                        // map texels it is footprint-capped to
-                                        // resolve, so at long slant it is undersampled
-                                        // by construction and its moire over the
-                                        // cellular field printed as thin radial
-                                        // combing at 14 percent weight (the operator's
-                                        // 74.4 km streaks). Above ~25 km the proven
-                                        // map owns the view outright; the band also
-                                        // halves the range where BOTH whales run
-                                        // every frame. Long-term design (PRIORITIES):
-                                        // key the blend per-pixel on the near arm's
-                                        // own first-hit distance instead of a global
-                                        // altitude proxy.
+                                        // PER-PIXEL regime split (v0.1244). The global
+                                        // altitude crossfade is GONE - it blended two
+                                        // whole-frame renders and its band was wherever
+                                        // the radial streaks lived (74 km at 40..80,
+                                        // 36 km at 22..42; moving the band moved the
+                                        // artifact). The composite now keys each pixel
+                                        // on the near march's own first-hit distance:
+                                        // content within ~20 km is the near arm's,
+                                        // past ~32 km the map's, and near rays ABSTAIN
+                                        // beyond 34 km (cloud_march_core g_march_max),
+                                        // so the near whale pays only for content it
+                                        // can actually resolve. near_mix here is just
+                                        // the ARMING gate: the px ramp, plus a ceiling
+                                        // above which even nadir content is beyond the
+                                        // ownership range and arming the near system
+                                        // would be pure overhead. Ceiling fades
+                                        // 30..42 km, ALIGNED with the ownership ramp:
+                                        // at 30 km the nadir slab entry is ~18 km
+                                        // (well inside ownership); by 42 km it is
+                                        // ~30 km - the ramp's tail - and past that
+                                        // every march lands at zero composite weight
+                                        // (the first battery showed exactly that:
+                                        // 4.6 FPS at 45 km marching content the
+                                        // composite then discarded).
                                         let near_mix = if temporal {
                                             (((px - 1600.0) / 400.0).clamp(0.0, 1.0))
                                                 * (1.0
-                                                    - ((alt_km_mix - 22.0) / 20.0)
+                                                    - ((alt_km_mix - 30.0) / 12.0)
                                                         .clamp(0.0, 1.0))
                                         } else {
                                             0.0

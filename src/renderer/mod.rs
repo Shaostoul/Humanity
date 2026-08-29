@@ -4170,11 +4170,18 @@ impl Renderer {
             // SCREEN accumulation by cloud_near_mix. When the screen pair
             // does not exist yet (first near frame races
             // ensure_cloud_screen) the octa map stands in at weight 0.
-            let (screen_view, near_mix) = match (self.cloud_mode_near, self.cloud_screen.as_ref())
-            {
-                (true, Some(cs)) => (&cs.views[cs.cur.get()], self.cloud_near_mix),
-                _ => (&ct.views[ct.cur.get()], 0.0),
-            };
+            // v0.1244: the dist view rides along for the per-pixel regime
+            // key. When the screen pair does not exist the map view stands
+            // in as a dummy (near_mix 0 means the shader never reads it).
+            let (screen_view, dist_view, near_mix) =
+                match (self.cloud_mode_near, self.cloud_screen.as_ref()) {
+                    (true, Some(cs)) => (
+                        &cs.views[cs.cur.get()],
+                        &cs.dist_view,
+                        self.cloud_near_mix,
+                    ),
+                    _ => (&ct.views[ct.cur.get()], &ct.views[ct.cur.get()], 0.0),
+                };
             self.cloud_composite.render(
                 &self.device,
                 &self.queue,
@@ -4184,6 +4191,7 @@ impl Renderer {
                 view,
                 frame,
                 screen_view,
+                dist_view,
                 near_mix,
                 [eye.x, eye.y, eye.z],
                 [fwd.x, fwd.y, fwd.z],
