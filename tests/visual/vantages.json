@@ -2806,6 +2806,34 @@
       "hold_altitude": true
     },
     {
+      "id": "starburst-far",
+      "desc": "The starburst-repro pose but with the camera FLOWN here: far_frame_km pushes 36,000 km into the f32 camera.position, the state a real flight from the homestead leaves behind.",
+      "expect": "Identical to starburst-repro. Any radial arms or cardinal-locked lattice HERE but not in starburst-repro is the flown-camera f32 quantization defect.",
+      "_why": "Operator (v0.1237): 'Doesn't appear like you actually affected the thing at all. I still see the weird starburst effect at my feet.' Every sampling fix dissolved the rig's starburst but not theirs. Difference between the rig and the operator: the rig teleports (camera ~30 m, ship_world_pos carries the distance in f64); the operator FLIES, and with no floating-origin rebase the whole 3.6e7 m journey accumulates in the f32 camera.position, where one ulp is 4 m. Every shader difference of camera.view_pos against a world position then carries an axis-aligned 4 m lattice - cardinal-locked, feet-centred, clouds-only, immune to sampling fixes. This vantage is the A/B twin that reproduces the flown state on the rig.",
+      "regressions": [
+        "no radial starburst converging at the view centre",
+        "matches starburst-repro (the teleported twin)"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 4.3,
+        "look_offset_deg": 35,
+        "time": 13.5,
+        "far_frame_km": 36000
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
       "id": "starburst-space",
       "desc": "Planet filling the frame from close space, heavy cover - the operator's from-space starburst condition.",
       "expect": "Cloud deck with NO axis-aligned smear bands or radial arms through the view centre.",

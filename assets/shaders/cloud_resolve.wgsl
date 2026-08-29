@@ -109,9 +109,18 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // the two UVs it is the distance between.
     var shift_tx = 0.0;
     if (u.cam_up.w < 0.5 && t_w > 0.0) {
-        let p_w = u.cam_pos.xyz + rd * t_w;
-        let prev_pos = u.cam_pos.xyz + u.prev_dpos.xyz;
-        let d_prev = normalize(p_w - prev_pos);
+        // SMALL FORM (v0.1238): algebraically identical to
+        // (cam + rd*t_w) - (cam + prev_dpos), but the big form routed two
+        // small quantities through the camera position - which after a real
+        // flight from the homestead sits at ~3.6e7 m in f32 (no
+        // floating-origin rebase), where one ulp is 4 m. Each add rounded to
+        // that axis-aligned lattice, so the reprojected history direction
+        // carried up to ~8 m of cardinal-locked error - worst exactly where
+        // t_w is smallest, directly below the feet: the operator's starburst.
+        // The rig never saw it because a teleport keeps camera.position ~30 m
+        // (exact); the starburst-far vantage (far_frame_km) reproduces the
+        // flown state and proved this red before the fix.
+        let d_prev = normalize(rd * t_w - u.prev_dpos.xyz);
         let z = dot(d_prev, u.prev_fwd.xyz);
         if (z > 1.0e-4) {
             let nx = dot(d_prev, u.prev_right.xyz) / (z * tanf * aspect);

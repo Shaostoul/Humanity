@@ -8976,7 +8976,31 @@ mod native_app {
                                 state.station_world_rot,
                                 rel_earth_m - state.ship_world_pos,
                             );
-                            let dist = render_off.length().max(1.0);
+                            // Distance from the CAMERA, not the frame origin
+                            // (v0.1238 starburst-far forensics). This was
+                            // render_off.length(): the body's distance from
+                            // the SHIP-LOCAL ORIGIN, indistinguishable from
+                            // camera distance in normal play (the camera sits
+                            // ~30 m from the origin) but wrong by the whole
+                            // journey for a camera FLOWN tens of thousands of
+                            // km (no floating-origin rebase). At 4.3 km inside
+                            // Earth's cloud layer the instrument read px=280
+                            // mix=0.00: the engine believed the planet disc
+                            // was 280 px wide and rendered the ORBITAL far-map
+                            // cloud regime + a starved LOD level from inside
+                            // the atmosphere - the operator's murky veil,
+                            // "clouds regen all over when I fly around", and
+                            // the shelf that followed the camera up. camr
+                            // (cam_r_ratio) always knew the truth because it
+                            // measures from cam_p; dist now does too. f64
+                            // throughout, so the subtraction is exact at these
+                            // magnitudes.
+                            let cam_rel = glam::DVec3::new(
+                                state.camera.position.x as f64,
+                                state.camera.position.y as f64,
+                                state.camera.position.z as f64,
+                            );
+                            let dist = (render_off - cam_rel).length().max(1.0);
                             let radius_m = (b.radius_km * 1000.0) as f64;
 
                             // Visibility floor: without a bloom/billboard
@@ -12007,15 +12031,44 @@ mod native_app {
                                             // back to current world axes, is
                                             // the content-relative motion
                                             // the octa pass reprojects by.
-                                            let p_l = rotation.conjugate()
-                                                * (cam_p - position);
+                                            //
+                                            // f64 END TO END (v0.1238). The
+                                            // old f32 chain subtracted two
+                                            // ~3.6e7 m quantities (a camera
+                                            // FLOWN from the homestead, with
+                                            // no floating-origin rebase) whose
+                                            // f32 ulp is 4 m, so a delta whose
+                                            // true value is centimeters came
+                                            // out snapped to an axis-aligned
+                                            // 4 m lattice - and this one
+                                            // number feeds the octa map
+                                            // reprojection (light4), the
+                                            // resolve's prev_dpos, AND the
+                                            // motion gates. That lattice was
+                                            // the operator's cardinal-locked
+                                            // starburst at the feet, proven by
+                                            // the starburst-far probe vantage
+                                            // (far_frame_km), which reproduces
+                                            // the flown split on the rig. The
+                                            // subtraction and both rotations
+                                            // stay f64 (exact at these
+                                            // magnitudes); only the final
+                                            // small delta is cast to f32.
+                                            let rot64 = glam::DQuat::from_rotation_y(spin_f64);
+                                            let cam_l64 = glam::DVec3::new(
+                                                cam_p.x as f64,
+                                                cam_p.y as f64,
+                                                cam_p.z as f64,
+                                            );
+                                            let p_l = rot64.conjugate()
+                                                * (cam_l64 - render_off);
                                             let prev_l = state
                                                 .cloud_prev_cam_local
                                                 .replace(p_l);
                                             state.renderer.cloud_reproj_delta.set(
                                                 prev_l.map(|p| {
-                                                    let d_w = rotation * (p - p_l);
-                                                    [d_w.x, d_w.y, d_w.z]
+                                                    let d_w = rot64 * (p - p_l);
+                                                    [d_w.x as f32, d_w.y as f32, d_w.z as f32]
                                                 }),
                                             );
                                         }

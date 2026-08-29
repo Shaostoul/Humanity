@@ -800,6 +800,38 @@ pub(crate) fn capture_hires_screenshot(
 /// teleport_viewpoint` for the sunlit direction, rescaled to the requested
 /// altitude; `look_angles` for the aim) so scripted captures and the GUI
 /// tool can never drift apart.
+/// Far-frame repro knob (v0.1238): mimic a camera FLOWN here from the
+/// homestead instead of teleported. Flight accumulates the whole journey into
+/// the f32 `camera.position` (there is no floating-origin rebase; the camera
+/// stays in ship-local coords), so after a ~36,000 km flight the camera sits
+/// at x of about 3.6e7 m, where one f32 step (ulp) is 4 m, and every shader
+/// quantity derived from `camera.view_pos` or a mesh `world_position` inherits
+/// that axis-aligned quantization (the operator's cardinal-locked cloud
+/// starburst at the feet). A teleport parks the camera ~30 m from the origin,
+/// which is why the rig could never reproduce what the operator flies into.
+/// This knob re-splits the SAME absolute pose: `camera.position` takes the
+/// distance, `ship_world_pos` gives it back, and the split persists because
+/// the frame lock recomputes `ship_world_pos` by SUBTRACTING `cam_local`
+/// every frame (frame_lock_ship_pos). Permanent dev tooling: the probe rig's
+/// only way to see flown-state f32 artifacts without a 20-minute flight.
+fn apply_far_frame(state: &mut EngineState, v: &serde_json::Value) {
+    let Some(d_km) = v.get("far_frame_km").and_then(|a| a.as_f64()) else {
+        return;
+    };
+    let d = d_km * 1000.0;
+    state.ship_world_pos.x -= d;
+    state.camera.position.x += d as f32;
+    // The probe hold pins the LOCAL camera offset; re-pin the shifted one or
+    // the hold drags the camera straight back next frame.
+    if let Some((_, t)) = state.probe_hold.take() {
+        state.probe_hold = Some((state.camera.position, t));
+    }
+    log::info!(
+        "Camera request: far-frame split applied ({d_km:.0} km into camera.position; cam x = {:.0} m)",
+        state.camera.position.x
+    );
+}
+
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
     const DONE_PATH: &str = "debug/camera_done.json";
@@ -1127,6 +1159,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         // the probe off its altitude during the capture settle. Cleared
         // by real movement input.
         state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+        apply_far_frame(state, &v);
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(
             DONE_PATH,
@@ -1179,6 +1212,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // in engine::state. The frame-lock ride still carries the FRAME; this
     // pins the local offset inside it, which is where gravity integrates.
     state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+    apply_far_frame(state, &v);
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(
         DONE_PATH,

@@ -846,7 +846,13 @@ pub(crate) struct EngineState {
     /// baseline whose delta equals the content-relative camera motion -
     /// the world-frame relative position slides at orbital speed even for
     /// a parked camera (measured 1.3-2.1 km/frame) and smears the map.
-    pub(crate) cloud_prev_cam_local: Option<glam::Vec3>,
+    /// f64 (v0.1238): after a real flight the camera sits at ~3.6e7 m in the
+    /// ship-local frame (no floating-origin rebase), where one f32 ulp is 4 m.
+    /// The per-frame DELTA of this baseline is centimeters, so an f32 chain
+    /// quantized it to an axis-aligned 4 m lattice - the operator's cardinal
+    /// starburst at the feet. The subtraction and rotation stay f64; only the
+    /// final small delta is cast down.
+    pub(crate) cloud_prev_cam_local: Option<glam::DVec3>,
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,

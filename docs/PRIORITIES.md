@@ -1,22 +1,37 @@
 # HumanityOS: Priorities
 
-> **CLOUDS, state as of v0.1235 (2026-08-28 evening).**
+> **CLOUDS, state as of v0.1239 (2026-08-29).**
 >
-> **The starburst / balloon-at-the-feet: ROOT-CAUSED (v0.1237), and it was
-> never motion.** The operator's from-space sighting reproduced PARKED
-> (starburst-space vantage, mix=0.00 - pure far map). Bisect: history OFF made
-> it SHARPER; jitter CONSTANT left a crisp deterministic moire rosette. So:
-> aliasing that the temporal supersampler existed to integrate away and could
-> not, because (a) both paths' jitter hashes were quasi-periodic (uv*8192 and
-> pos*0.7182 through fract(x*0.1031) - ~5-texel and ~13-px cycles; a stratified
-> average of a biased sequence keeps the bias), and (b) the map never jittered
-> its DIRECTION at all - each texel point-sampled one fixed direction of its
-> solid angle forever. Fixed: PCG-family integer hash in both paths + sub-texel
-> direction jitter in the map pass. Faint residue remains and part of it is the
-> field's REAL east-west stagger anisotropy seen edge-on - do not chase it as
-> aliasing without re-running the parked bisect first. The two motion-gate fixes
-> (v0.1235 epipole zoom term, v0.1236 motion floor) were real blind spots and
-> stay, but they were never this artifact.
+> **The operator's starburst-at-the-feet: REPRODUCED AND ROOT-CAUSED (the
+> flown camera).** Why every fix "did nothing": the rig TELEPORTS (camera ~30 m
+> from the ship-frame origin), the operator FLIES, and with no floating-origin
+> rebase the whole journey accumulates in the f32 camera.position (~3.6e7 m,
+> ulp 4 m). The new ipc knob `far_frame_km` re-splits the same absolute pose
+> onto the rig (vantage `starburst-far` = starburst-repro + far_frame_km
+> 36000), and it reproduced the operator's artifact on the first try: murky
+> whole-frame veil + cardinal speckle cross at the nadir, while the teleported
+> twin rendered normal clouds. THE DOMINANT CAUSE was not even in the shaders:
+> `dist = render_off.length()` in the celestial draw loop measured the planet
+> from the SHIP-FRAME ORIGIN, not the camera - [CloudRegime] read px=280
+> mix=0.00 at 4.3 km altitude, i.e. the ORBITAL far-map cloud regime and a
+> starved planet LOD rendered from inside the cloud layer. Fixed: dist =
+> (render_off - camera.position).length() in f64; heals px, LOD level,
+> visual_scale floor, chunk activation, near_mix, and the atmosphere gate at
+> once. Two real f32-lattice sites fixed in the same pass: the cloud motion
+> delta (was f32 subtraction at 3.6e7 - fed light4, resolve prev_dpos, motion
+> gates; now f64 end to end via DVec3 cloud_prev_cam_local) and the resolve's
+> big-form reprojection (now small-form normalize(rd*t_w - prev_dpos)).
+> `starburst-far` is a STANDING vantage now - any flown-state regression shows
+> up on a teleporting rig. The architectural cure for the whole defect class
+> is a FLOATING-ORIGIN REBASE (periodically fold camera.position back into
+> ship_world_pos); that is the logged follow-up, not this increment.
+>
+> **The earlier map-path rosette (v0.1237) was real but separate:**
+> quasi-periodic jitter hashes + never-jittered map directions; fixed with a
+> PCG hash + sub-texel direction jitter. Faint residue is partly the field's
+> REAL east-west stagger anisotropy - re-run the parked bisect before chasing
+> it as aliasing. The motion-gate fixes (v0.1235 epipole term, v0.1236 motion
+> floor) stay, but they were never this artifact.
 >
 > **Swiss-cheese sheets: fixed.** The v0.1234 union scaled the field density by
 > sheet_w, pushing it under the visibility threshold at partial coverage - holes.
