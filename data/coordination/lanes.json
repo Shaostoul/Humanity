@@ -53,6 +53,30 @@
       ]
     },
     {
+      "id": "ocean-weather",
+      "label": "ABYSSAL adoption arc: ocean disaster events, lightning, waterspout, foam, spray, rain (carved out of engine while active)",
+      "owns": [
+        "src/terrain/ocean_events.rs",
+        "src/terrain/ocean_waves.rs",
+        "src/terrain/ocean_fft.rs",
+        "src/renderer/water.rs",
+        "src/renderer/lightning.rs",
+        "src/renderer/waterspout.rs",
+        "src/renderer/particles.rs",
+        "src/renderer/particles_gpu.rs",
+        "src/systems/weather.rs",
+        "src/systems/weather_events.rs",
+        "src/systems/disasters.rs",
+        "data/weather/",
+        "data/particles.ron",
+        "assets/shaders/particle_sim.wgsl",
+        "assets/shaders/particle.wgsl",
+        "docs/reference/abyssal-ocean-weather.md",
+        "docs/design/weather-water-roadmap.md"
+      ],
+      "_note": "Active 2026-08-28+, operator-approved ('Let's do all of it'). Claimed by the ABYSSAL-arc session (the one that authored docs/reference/abyssal-ocean-weather.md). These files are carved out of the engine lane while the arc runs. The cloud session keeps 40-clouds.wgsl / 41-cloud-bodies.wgsl / 45-cloud-temporal.wgsl and src/renderer/cloud_*.rs exclusively; rung 10 (cloud env probe in water reflections) is a crossover and gets scheduled with the cloud session, not around it. Water shader tails this lane must touch (00-bindings-vertex.wgsl, 20-surface-detail.wgsl, 90-fragment-main.wgsl) stay SHARED per the list below: small serial edits, re-read immediately before editing."
+    },
+    {
       "id": "film",
       "label": "Higgsfield festival intro film (movie-only session; does NOT push)",
       "owns": [

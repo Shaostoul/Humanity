@@ -32,6 +32,57 @@
 > rather than marbles; (3) only then relight (the smin normal groundwork from
 > v0.1232.2 is computed and unused).
 
+> **ACTIVE (parallel lane): THE ABYSSAL ADOPTION ARC (operator, 2026-08-28:
+> "Let's do all of it").** Full technical menu, constants and porting cautions:
+> `docs/reference/abyssal-ocean-weather.md` (commit 942f1921; source repo
+> github.com/Token-Gremlin/natural-disasters, MIT). This arc runs in the
+> `ocean-weather` lane (`data/coordination/lanes.json`, carved out of engine)
+> so it never collides with the cloud session's files (40/41/45-clouds.wgsl,
+> `src/renderer/cloud_*.rs`). Rungs, STRICT order, each verified before the
+> next; per-event tuning numbers go in `data/weather/events.ron`
+> (infinite-of-x), never hardcoded:
+>
+> 1. **Ocean event field core (CPU, f64)**: `src/terrain/ocean_events.rs` -
+>    the four analytic disaster fields (tsunami soliton with asymmetric
+>    shoaling + drawdown, rogue Gerstner group, Rankine vortex + swirl-coord
+>    rotation, hurricane eyewall ring + glassy eye) in event-local tangent
+>    frames, plus vec4 uniform packing and unit tests pinning every adopted
+>    constant (sech clamp 12, shoal compress 1.35, foam-shear cap 0.62, rogue
+>    ride-the-envelope rule, deep-water wavelength/speed pairing). No wiring.
+> 2. **WGSL twin + geometry**: event height into `water_disp_height`, slope/
+>    crest-foam/calm into the water shading; buoyancy twin includes events;
+>    lockstep test in the `ocean_waves.rs` L192-252 pattern. SHARED-FILE rung
+>    (00-bindings-vertex / 20-surface-detail / 90-fragment-main): small serial
+>    edits, re-read before editing. Verify: probe vantage with a pinned event.
+> 3. **Lifecycle + gameplay**: event params data-driven in
+>    `data/weather/events.ron`; spawn/ramp/decay through `weather_events.rs`;
+>    REGISTER `DisasterSystem` (written, never registered); damage + HUD; the
+>    float clamp rides the wall via the rung-2 twin.
+> 4. **Lightning**: CPU midpoint-displacement bolts (forks p=0.42, return
+>    strokes amp 0.62^i with flicker) + instanced ribbon draw; two strongest
+>    bolts flash sea/cloud/sky through shared light slots; thunderstorm event
+>    emits. (No weather audio exists engine-wide; thunder logged, not built.)
+> 5. **Waterspout / tornado funnel**: raymarched analytic funnel on the Vortex
+>    event core (rotating-frame detail noise, dual-HG forward phase).
+> 6. **Foam v2** in `ocean_fft.rs`: add the steepness criterion (Stokes H/L
+>    1/7 + leeward bias + crest gate - catches the spilling breakers the
+>    Jacobian misses), bubbles channel; re-verify the Monahan histogram.
+> 7. **Crest spray**: `particles_gpu` spawn-from-breaking (candidates roll
+>    against the FFT foam/crest field), forward-scatter puff shading.
+> 8. **Rain overhaul**: closed-form vertex-shader rain, sub-pixel streak
+>    energy conservation (vThin), fbm squall curtains, rain rings on water.
+> 9. **Water shading**: backlit crest SSS with the event-thinness gate,
+>    mss-to-roughness LOD, sun-disc-widened glint, wind-frame Langmuir foam.
+> 10. **Cloud env probe in water reflections** - CROSSOVER rung, touches cloud
+>     files; schedule WITH the cloud session when its current arc lands.
+> 11. **GPU compute FFT + horizontal chop** (the long-planned water-fft
+>     increment 4, using the 8-fields-in-4-complex-IFFTs layout as reference).
+>     Riskiest renderer change, deliberately last.
+>
+> Cloud cherry-picks (erosion bite curves, local-density powder alternative,
+> per-pixel-depth reprojection) belong to the CLOUD session's own plan, not
+> this arc - they are listed in the reference doc Tier 3 for it to read.
+
 > **CLOUD COVERAGE: RESOLVED (v0.1234).** Asked 0.95, delivered 1.00 from nadir;
 > `node scripts/cloud-coverage-metrics.mjs <sweep>` over `overcast-nadir-ultra`
 > PASSES. The winning mechanism was the SHEET UNION in cloud_carve: overcast is
