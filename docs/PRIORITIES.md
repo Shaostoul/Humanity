@@ -70,12 +70,17 @@
 >    {"ocean_event":kind, ocean_event_bearing, ocean_event_distance};
 >    probe-proven with close-range captures (tsunami ridge + drawdown,
 >    maelstrom bowl; hurricane confirms the pow-negative-base WGSL fix).
->    REMAINING (rung 2b, next): crest-foam seed + eye-calm suppression +
->    swirl-coord advection into the water SHADING (20-surface-detail /
->    90-fragment-main - shared tails, small serial edits). Note for 2b+3:
->    dev-pin amplitudes are clamped to the +-12 m patch band
->    (MAX_SEA_HEIGHT_M); full 34 m walls need the lifecycle to publish
->    dynamic patch bounds.
+>    SHADING DONE v0.1241.0 (rung 2b): tsunami breaking-lip foam
+>    (lacework-carved, face-biased), saturating vortex shear foam, rogue
+>    crest band, hurricane glassy-eye chop+foam suppression - all analytic
+>    at the fragment's planet-model position, no new varyings, buoyancy
+>    untouched. REMAINING (rung 2c): swirl-coord advection of the wave
+>    lookup - touches the HEIGHT path, so it needs the CPU twin + lockstep
+>    extension and the swirl clock (ocean_event row 12.w, reserved). Note
+>    for 2c+3: dev-pin amplitudes are clamped to the +-12 m patch band
+>    (MAX_SEA_HEIGHT_M); full 34 m walls + full-strength maelstrom foam
+>    (the 0.62 shear cap engages near strength 34) need the lifecycle to
+>    publish dynamic patch bounds.
 > 3. **Lifecycle + gameplay**: event params data-driven in
 >    `data/weather/events.ron`; spawn/ramp/decay through `weather_events.rs`;
 >    REGISTER `DisasterSystem` (written, never registered); damage + HUD; the

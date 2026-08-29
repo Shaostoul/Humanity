@@ -751,6 +751,10 @@
   {
    "date": "2026-08-29",
    "decision": "ABYSSAL arc rungs 1+2(geometry) SHIPPED (v0.1238.0 field core, v0.1240.0 WGSL twin + geometry + buoyancy + dev pin; probe-proven with close-range captures, panics=0 across 5 boots). Key decisions: (1) events live in event-local tangent frames in planet-model coordinates (spin-fixed, matches the water vertex frame); f32 downcast only at the uniform boundary; (2) uniform block appended at CameraUniforms TAIL offset 672 so all byte-offset pad pokes stay valid - offset pinned by a layout test; (3) event displacement bypasses the 2-8 km wave fade but keeps the shoal gate; (4) rogue buoyancy rides the envelope (0.8x), never the carrier, per ABYSSAL; (5) found + fixed a ported-code hazard: pow(negative, 2.0) in the hurricane ring is undefined in WGSL (fine under ANGLE/GLSL) - square manually; treat as a general WGSL porting rule. (6) Dev pins are clamped to the 12 m patch band; 34 m walls need rung-3 dynamic bounds. INCIDENT: two sessions probe-rigged concurrently and hijacked each other via the ownerless debug/ file-drop protocol - operator chip task_df81899e filed for a RIG_OWNER lockfile; sessions coordinated via cross-session messages and serialized (they shipped v0.1239.x starburst fixes between my rungs). Next: rung 2b (crest foam / eye calm / swirl into water shading), then rung 3 lifecycle from data/weather/events.ron + register DisasterSystem."
+  },
+  {
+   "date": "2026-08-29",
+   "decision": "ABYSSAL rung 2b SHIPPED (v0.1241.0 + .1 stamp): events reach the water shading - tsunami breaking-lip foam (face-biased, lacework-carved), saturating vortex shear foam, rogue crest band, hurricane glassy-eye suppression of chop+foam. Design choices: evaluated analytically per-fragment at p_local (no new varyings - the megashader VertexOutput is shared by every material and was deliberately not grown); event foam seeds BEFORE the lacework carve and is NOT gated by the 10 m whitecap footprint window (a tsunami lip is a 30m+ feature); visual-only, so buoyancy/twin untouched. Swirl advection split to rung 2c because it touches the height path (CPU twin + lockstep + the reserved row-12.w clock). Verified via disk-assembled shader on the v0.1240.1 exe (no rebuild needed for WGSL - the PRIORITIES workflow note holds), rig boot panics=0, captures show the breaking front; maelstrom foam correctly faint at dev strength 10 (0.62 cap engages near 34). Next: rung 2c swirl, then rung 3 lifecycle (events.ron + register DisasterSystem + dynamic patch bounds for full-scale events)."
   }
  ],
  "active_scopes_to_avoid": [
@@ -800,5 +804,6 @@
    "6. MORNING: session journal docs/history/2026-08-01.md, PRIORITIES sync, everything pushed + forge, morning report with before/after captures."
   ],
   "context_note": "Compaction may occur - this plan IS the handoff. Cluster-cards workflow running (wf_380e6842, task wbhlb5vg3). All vegetation history in recent_decisions 2026-07-31/08-01 entries. Stable exe v0.1087.1."
- }
+ },
+ "serialization_convention": "Write this file with JSON.stringify(state, null, 1) - one-space indent. Two sessions serializing with different indents re-churned 800-line diffs against each other (2026-08-29); match this or the diff noise returns."
 }
