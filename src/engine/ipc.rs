@@ -222,6 +222,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             sea.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
         };
     }
+    // Optional "ocean_event":"tsunami"|"rogue"|"maelstrom"|"hurricane"|"off"
+    // (ABYSSAL adoption rung 2): pin an analytic ocean disaster near the
+    // player so the rig can photograph a wall of water deterministically.
+    // Placement needs the planet-frame anchor, which lives in lib.rs's
+    // weather block - so only the request is recorded here.
+    if let Some(ev) = grab("ocean_event") {
+        let bearing = grab("ocean_event_bearing")
+            .and_then(|b| b.parse::<f64>().ok())
+            .unwrap_or(std::f64::consts::PI);
+        // Optional "ocean_event_distance" in meters (default 900; clamped so
+        // a rig cannot pin an event on top of the player or over the horizon).
+        let dist = grab("ocean_event_distance")
+            .and_then(|d| d.parse::<f64>().ok())
+            .unwrap_or(900.0)
+            .clamp(50.0, 5000.0);
+        state.ocean_event_pin_request = Some((ev, bearing, dist));
+    }
     // Optional "weather":"fog" (v0.1059): drive the live weather from the rig,
     // through the SAME DataStore slot the F11 panel writes, so a scripted
     // capture can show fog, a sandstorm or a storm. Without this the rig could

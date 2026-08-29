@@ -468,6 +468,12 @@ pub struct Renderer {
     /// storm waves never punch through the seabed, and the backstop shell's
     /// drop tracks it so a calm day keeps a tight backstop.
     pub sea_crest_m: f32,
+    /// Ocean disaster event uniforms (ABYSSAL adoption rung 2, v0.1239):
+    /// the 14-row block appended at CameraUniforms' tail (offset 672). All
+    /// zeros = dead calm (row 11 w is the shader's active flag). Filled each
+    /// frame by lib.rs from the live event pin/lifecycle; poked wholesale
+    /// after the full uniform write, like every other pad.
+    pub ocean_event_rows: [[f32; 4]; 14],
     /// Underwater extinction strength (v0.1054): 0 = unlimited visibility (the
     /// old behaviour), 1 = full physical seawater absorption. Driven by the
     /// Settings "Underwater clarity" slider, and zero unless the camera is
@@ -967,6 +973,7 @@ impl Renderer {
                 sun_color: [1.0, 0.95, 0.9, 0.0],
                 fill_direction: [-0.5, 0.3, -0.3, 0.6],
                 fill_color: [0.4, 0.5, 0.7, 0.0],
+                ocean_event: [[0.0; 4]; 14],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -1647,6 +1654,7 @@ impl Renderer {
             detail_distance: 1.0,
             sea_state: 0.35,
             sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
+            ocean_event_rows: [[0.0; 4]; 14],
             underwater_ext: 0.0,
             water_caster_mats: Vec::new(),
             cloud_temporal: None,
@@ -2922,6 +2930,16 @@ impl Renderer {
         // light4). The shader's shoal fade reads it, v0.1051.
         self.queue
             .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
+        // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
+        // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
+        // Written after the wholesale uniform write like every pad poke; all
+        // zeros when no event is live, and the shader's row-11 flag branch
+        // skips the field entirely in that case.
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            672,
+            bytemuck::cast_slice(&self.ocean_event_rows),
+        );
         // TRUE screen pixel angle in light5_cone_inner.z (offset 552) -
         // Wave B, environment program increment 9. The cloud march's
         // ray-cone footprint used a hardcoded ~1 mrad guess

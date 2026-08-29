@@ -757,6 +757,7 @@ impl StarRenderer {
             sun_color: [0.0; 4],
             fill_direction: [0.0; 4],
             fill_color: [0.0; 4],
+            ocean_event: [[0.0; 4]; 14],
         };
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniforms));
     }

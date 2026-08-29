@@ -68,6 +68,17 @@ pub struct CameraUniforms {
     pub fill_direction: [f32; 4],
     /// Fill light color: rgb, w = unused.
     pub fill_color: [f32; 4],
+    /// Ocean disaster events (ABYSSAL adoption rung 2, v0.1239): the analytic
+    /// tsunami/rogue/maelstrom/hurricane field uniforms. Rows 0..10 =
+    /// ocean_events::OceanEvents::to_uniform_vec4s (4 vortices, 2x2 solitons,
+    /// rogue a/b, hurricane); row 11 = event tangent-frame anchor in
+    /// planet-model meters, w = active flag; rows 12/13 = east/north basis
+    /// (12.w reserved for the swirl clock). Appended at the struct TAIL
+    /// (offset 672) so every earlier byte-offset pad poke in renderer/mod.rs
+    /// stays valid; the renderer pokes this block wholesale from
+    /// `Renderer::ocean_event_rows` after the full uniform write. CPU twin +
+    /// layout doc: src/terrain/ocean_events.rs (PinnedOceanEvents).
+    pub ocean_event: [[f32; 4]; 14],
 }
 
 // ── Camera mode enum ─────────────────────────────────────────
@@ -454,6 +465,9 @@ impl Camera {
             // Default fill: cool, from lower-left
             fill_direction: [-0.5, 0.3, -0.3, 0.6],
             fill_color: [0.4, 0.5, 0.7, 0.0],
+            // Ocean disaster events: dead calm until the renderer pokes the
+            // live rows (row 11 w = 0 means the shader skips the field).
+            ocean_event: [[0.0; 4]; 14],
         }
     }
 
@@ -496,6 +510,9 @@ impl Camera {
             // Default fill: cool, from lower-left
             fill_direction: [-0.5, 0.3, -0.3, 0.6],
             fill_color: [0.4, 0.5, 0.7, 0.0],
+            // Ocean disaster events: dead calm until the renderer pokes the
+            // live rows (row 11 w = 0 means the shader skips the field).
+            ocean_event: [[0.0; 4]; 14],
         }
     }
 
@@ -1244,6 +1261,23 @@ impl CameraController {
             pan = pan.normalize() * pan_speed * dt;
             camera.orbit_target += pan;
         }
+    }
+}
+
+#[cfg(test)]
+mod uniform_layout_tests {
+    use super::*;
+
+    /// The renderer pokes pads by BYTE OFFSET (renderer/mod.rs
+    /// render_celestial_onto), so the ocean_event block appended at the
+    /// struct tail must start exactly where those pokes end (fill_color ends
+    /// at 672) and the total size must grow by exactly 14 vec4s. If this
+    /// fails, a field was inserted mid-struct and every poke offset after it
+    /// is silently corrupt - fix the field order, never the offsets.
+    #[test]
+    fn ocean_event_block_sits_at_the_struct_tail() {
+        assert_eq!(std::mem::offset_of!(CameraUniforms, ocean_event), 672);
+        assert_eq!(std::mem::size_of::<CameraUniforms>(), 672 + 14 * 16);
     }
 }
 

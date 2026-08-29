@@ -59,6 +59,13 @@ struct CameraUniforms {
     fill_direction: vec4<f32>,
     // Fill color: rgb, w = unused
     fill_color: vec4<f32>,
+    // Ocean disaster events (ABYSSAL adoption rung 2, v0.1239). Rows 0..10 =
+    // 4 vortices / 2x2 solitons / rogue a+b / hurricane (see the CPU twin's
+    // layout doc, src/terrain/ocean_events.rs::to_uniform_vec4s); row 11 =
+    // event tangent-frame anchor in planet-model meters, w = active flag;
+    // rows 12/13 = east/north basis (12.w reserved for the swirl clock).
+    // Appended at the struct TAIL so every byte-offset pad poke stays valid.
+    ocean_event: array<vec4<f32>, 14>,
 };
 
 struct ObjectUniforms {
@@ -618,6 +625,92 @@ fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32
 }
 
 // One call for the active water model (trains or FFT cascades).
+// ── Ocean disaster events (ABYSSAL adoption rung 2, v0.1239) ──
+// Analytic tsunami / rogue / maelstrom / hurricane height fields layered on
+// top of the wave sea. CPU TWIN: src/terrain/ocean_events.rs - the drawn
+// height here must equal event_height_m exactly (buoyancy and the camera
+// ride it); every literal below is pinned by that file's
+// wgsl_twin_pins_the_adopted_constants test. Positions are projected into
+// the event tangent frame from planet-model p_m: the f32 subtraction against
+// the anchor quantizes at ~0.5 m, acceptable because every event feature is
+// 70 m or wider (same acceptability class as the analytic long swells; the
+// f32-at-planet-scale rule's coarse-data boundary).
+
+fn ocean_event_p2(p_m: vec3<f32>) -> vec2<f32> {
+    let rel = p_m - camera.ocean_event[11].xyz;
+    return vec2<f32>(dot(rel, camera.ocean_event[12].xyz), dot(rel, camera.ocean_event[13].xyz));
+}
+
+// sech with the shared argument clamp (SECH_ARG_CLAMP = 12): the clamp is
+// part of the profile, keep it identical to the CPU twin.
+fn ocean_event_sech(x: f32) -> f32 {
+    return 1.0 / cosh(clamp(x, -12.0, 12.0));
+}
+
+// Tsunami soliton: sech^2 with the LEADING half of the coordinate compressed
+// (the shoaled standing-up face) and a drawdown trough 1.6 widths ahead (the
+// receding-sea precursor). a = (dir.xy, crest_dist, amp), b = (width, steep,
+// lateral, reserved).
+fn ocean_event_soliton(p: vec2<f32>, a: vec4<f32>, b: vec4<f32>) -> f32 {
+    if (a.w <= 0.001) {
+        return 0.0;
+    }
+    let dir = a.xy;
+    let x = dot(p, dir) - a.z;
+    let w = max(b.x, 1.0);
+    let lateral = dot(p, vec2<f32>(-dir.y, dir.x));
+    let lat_env = exp(-lateral * lateral / (b.z * b.z + 1.0));
+    var xf = x;
+    if (x > 0.0) {
+        xf = x * (1.0 + b.y * 1.35);
+    }
+    let s = ocean_event_sech(xf / w);
+    let d = ocean_event_sech((x - w * 1.6) / (w * 1.1));
+    return a.w * (s * s - d * d * 0.16 * b.y) * lat_env;
+}
+
+// Vertical-only sum of every active event, mirroring the CPU twin's
+// event_height_m: vortex funnel depressions, both solitons, the rogue
+// group's full peaky carrier, and the hurricane eyewall ring minus its
+// glassy-eye depression. (The CPU BUOYANCY path differs in exactly one
+// documented way: it rides the rogue's envelope, never the carrier.)
+fn ocean_event_height(p: vec2<f32>) -> f32 {
+    var h = 0.0;
+    for (var i = 0u; i < 4u; i++) {
+        let v = camera.ocean_event[i];
+        if (v.w <= 0.0001) {
+            continue;
+        }
+        let x = (length(p - v.xy) + 1e-3) / max(v.z, 1.0);
+        h -= v.w / (1.0 + x * x * 2.2);
+    }
+    h += ocean_event_soliton(p, camera.ocean_event[4], camera.ocean_event[5]);
+    h += ocean_event_soliton(p, camera.ocean_event[6], camera.ocean_event[7]);
+    let ra = camera.ocean_event[8];
+    if (ra.w > 0.001) {
+        let rb = camera.ocean_event[9];
+        let d = p - ra.xy;
+        let r = max(ra.z, 1.0);
+        let env = exp(-dot(d, d) / (r * r));
+        let phase = dot(d, rb.xy) * (6.28318530718 / max(rb.z, 4.0)) + rb.w;
+        let g = (cos(phase) + cos(phase * 1.87 + 1.1) * 0.42 + cos(phase * 0.61 - 0.7) * 0.55)
+            / 1.97;
+        h += sign(g) * pow(abs(g), 0.72) * env * ra.w;
+    }
+    let hu = camera.ocean_event[10];
+    if (hu.w > 0.001) {
+        let x = (length(p - hu.xy) + 1e-3) / max(hu.z, 50.0);
+        // Squared manually, NOT pow(q, 2.0): q is negative inside the
+        // eyewall radius and WGSL pow with a negative base is undefined
+        // (NaN on many drivers). ABYSSAL's GLSL shipped the pow form and
+        // got away with it under ANGLE; we do not get to.
+        let q = (x - 1.25) * 1.4;
+        let ring = exp(-q * q);
+        h += ring * hu.w * 3.0 - exp(-x * x * 1.6) * hu.w * 0.4;
+    }
+    return h;
+}
+
 fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>, cell_m: f32) -> f32 {
     if (camera.light0_cone_inner.x > 0.5) {
         return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial, cell_m);
@@ -1022,6 +1115,16 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // whole patches on this non-subset lattice).
                     let cell_eff = mix(cell_m, 2.0 * cell_m, weld_w);
                     let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir, cell_eff);
+                    // Ocean disaster events (rung 2): added OUTSIDE the wave
+                    // fade - a tsunami must not die at the 2-8 km wave
+                    // displacement fade - but INSIDE the shoal gate so a
+                    // pinned wall still cannot stab through beach terrain
+                    // (surf run-up is lifecycle-rung work). The uniform
+                    // branch costs nothing when row 11's flag is 0.
+                    var event_h = 0.0;
+                    if (camera.ocean_event[11].w > 0.5) {
+                        event_h = ocean_event_height(ocean_event_p2(p_m));
+                    }
                     // NO wave-height morph here (v0.1044). Collapsing odd
                     // verts onto their parents' mean is textbook CDLOD,
                     // but this lattice is normalize(barycentric) per patch,
@@ -1034,7 +1137,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // off live). The waves are a continuous field sampled
                     // at different rates, so their cross-LOD mismatch is
                     // small; the CHORD SAG above is the real crack.
-                    disp = disp + h * fade * shoal;
+                    disp = disp + h * fade * shoal + event_h * shoal;
                 }
             }
             world_pos = vec4<f32>(world_pos.xyz + radial * disp, 1.0);

@@ -856,6 +856,19 @@ pub(crate) struct EngineState {
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,
+    /// Dev/showcase request for an ocean disaster event pin (ABYSSAL rung 2):
+    /// showcase_request {"ocean_event":"tsunami"|"rogue"|"maelstrom"|
+    /// "hurricane"|"off"}, optional "ocean_event_bearing" in radians in the
+    /// place_event_core east/north basis (default pi = west of the player,
+    /// facing the west-looking ocean vantages). Consumed by lib.rs's weather
+    /// block next frame (which has the planet-frame anchor the placement
+    /// needs) and cleared.
+    pub(crate) ocean_event_pin_request: Option<(String, f64, f64)>,
+    /// The live pinned ocean disaster events, in planet-model coordinates
+    /// (spin-fixed, like the water vertex frame). None = dead calm. Today
+    /// this is dev tooling; the rung-3 lifecycle will drive the same slot
+    /// from data/weather/events.ron.
+    pub(crate) ocean_event_pin: Option<crate::terrain::ocean_events::PinnedOceanEvents>,
     /// Dev/showcase pin for the cloud deck's effective coverage (None =
     /// live MODIS weather + event boost). Set via showcase_request
     /// {"cloud_cover":"0.75"|"auto"}. Exists because a cloud-verification

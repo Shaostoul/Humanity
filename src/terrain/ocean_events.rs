@@ -580,6 +580,134 @@ impl OceanEvents {
     }
 }
 
+// ------------------------------------------------------- frame + GPU bridge
+
+/// The event tangent frame: a local east-north basis on the planet sphere,
+/// anchored at the event site in PLANET-MODEL coordinates (the same frame the
+/// water vertex shader's `p_m = dir * r` lives in, so the anchor stays glued
+/// to the sea as the planet spins). All event math runs in this frame's 2D
+/// coordinates; the f32 downcast happens at the uniform boundary where
+/// magnitudes are anchor-relative.
+#[derive(Clone, Copy, Debug)]
+pub struct OceanEventFrame {
+    /// Anchor point in planet-model meters (on or near the sea surface).
+    pub anchor: DVec3,
+    /// Unit east basis (tangent, perpendicular to up).
+    pub east: DVec3,
+    /// Unit north basis (tangent, completes the right-handed set).
+    pub north: DVec3,
+}
+
+impl OceanEventFrame {
+    /// Build the tangent frame at a planet-model surface point. Pole-safe:
+    /// the reference axis flips when the anchor is nearly polar.
+    pub fn at(anchor: DVec3) -> Self {
+        let up = anchor.normalize_or_zero();
+        let reference =
+            if up.y.abs() > 0.99 { DVec3::new(1.0, 0.0, 0.0) } else { DVec3::new(0.0, 1.0, 0.0) };
+        let east = reference.cross(up).normalize_or_zero();
+        let north = up.cross(east);
+        Self { anchor, east, north }
+    }
+
+    /// Project a planet-model position into the frame's 2D event
+    /// coordinates. Do this in f64; the chord-vs-arc error is negligible at
+    /// event ranges (tens of km at most).
+    pub fn project(&self, p_planet: DVec3) -> DVec2 {
+        let rel = p_planet - self.anchor;
+        DVec2::new(rel.dot(self.east), rel.dot(self.north))
+    }
+}
+
+/// An event set bound to its tangent frame: what the engine holds while
+/// events are live (today the showcase dev pin; the rung-3 lifecycle will
+/// own the same type).
+#[derive(Clone, Copy, Debug)]
+pub struct PinnedOceanEvents {
+    pub events: OceanEvents,
+    pub frame: OceanEventFrame,
+}
+
+impl PinnedOceanEvents {
+    /// The camera-uniform block: rows 0..10 are `to_uniform_vec4s`, row 11 is
+    /// the frame anchor (planet-model meters) with w = active flag, rows
+    /// 12/13 are the east/north basis (w reserved: 12.w will carry the swirl
+    /// clock when the shading rung lands). The WGSL twin reads exactly this
+    /// layout from `camera.ocean_event`.
+    pub const UNIFORM_ROWS: usize = 14;
+
+    pub fn to_camera_rows(&self) -> [[f32; 4]; Self::UNIFORM_ROWS] {
+        let mut rows = [[0.0f32; 4]; Self::UNIFORM_ROWS];
+        rows[..11].copy_from_slice(&self.events.to_uniform_vec4s());
+        let a = self.frame.anchor;
+        rows[11] = [a.x as f32, a.y as f32, a.z as f32, 1.0];
+        let e = self.frame.east;
+        rows[12] = [e.x as f32, e.y as f32, e.z as f32, 0.0];
+        let n = self.frame.north;
+        rows[13] = [n.x as f32, n.y as f32, n.z as f32, 0.0];
+        rows
+    }
+
+    /// Worst-case |event height| for this set, for crest/bounds publishing.
+    pub fn max_abs_height_m(&self) -> f64 {
+        let mut m: f64 = 0.0;
+        for v in &self.events.vortices {
+            m = m.max(v.strength_m);
+        }
+        for s in &self.events.solitons {
+            m = m.max(s.amp_m);
+        }
+        m = m.max(self.events.rogue.amp_m);
+        // Eyewall ring peaks at RING_GAIN * intensity.
+        m = m.max(self.events.hurricane.intensity_m * HURRICANE_RING_GAIN);
+        m
+    }
+}
+
+/// Dev-pin event sets for the showcase/probe rig ({"ocean_event":"tsunami"}
+/// etc.) - permanent dev tooling, not game content (the rung-3 lifecycle
+/// reads real parameters from data/weather/events.ron). Values are ABYSSAL's
+/// demo vectors with amplitudes clamped to the water patches' +-12 m radial
+/// culling band (ocean_waves::MAX_SEA_HEIGHT_M); full-scale 34 m walls need
+/// the dynamic bounds that ship with the lifecycle rung. The event sits at
+/// the frame origin; `toward` should point from the event toward the viewer
+/// (in frame coordinates) so a soliton wall faces the camera.
+pub fn dev_pin_events(kind: &str, toward: DVec2) -> Option<OceanEvents> {
+    let dir = if toward.length_squared() > 1e-12 { toward.normalize() } else { DVec2::new(1.0, 0.0) };
+    let mut ev = OceanEvents::default();
+    match kind {
+        "tsunami" => {
+            ev.solitons[0] = Soliton {
+                dir,
+                crest_dist_m: 0.0,
+                amp_m: 10.0,
+                width_m: 150.0,
+                steep: 1.2,
+                lateral_m: 9000.0,
+            };
+        }
+        "rogue" => {
+            ev.rogue = RogueWave {
+                center: DVec2::ZERO,
+                radius_m: 240.0,
+                amp_m: 10.0,
+                dir,
+                wavelength_m: 420.0,
+                phase: 0.0,
+            };
+        }
+        "maelstrom" => {
+            ev.vortices[0] = Vortex { center: DVec2::ZERO, radius_m: 70.0, strength_m: 10.0 };
+        }
+        "hurricane" => {
+            // Ring gain 3x: intensity 3.5 keeps the eyewall ring near 10 m.
+            ev.hurricane = Hurricane { center: DVec2::ZERO, eye_m: 900.0, intensity_m: 3.5 };
+        }
+        _ => return None,
+    }
+    Some(ev)
+}
+
 // -------------------------------------------------------------------- tests
 //
 // The numeric vectors below are ABYSSAL's demo parameters, used purely as
@@ -774,6 +902,89 @@ mod tests {
         assert_eq!(m.crest, 0.0);
         assert_eq!(m.calm, 0.0);
         assert_eq!(ev.swirl_coords(p, 100.0), p);
+    }
+
+    #[test]
+    fn tangent_frame_projects_its_own_axes() {
+        // Frame at a mid-latitude point on an Earth-radius sphere.
+        let anchor = DVec3::new(3.2e6, 4.1e6, 3.4e6);
+        let f = OceanEventFrame::at(anchor);
+        // Basis sanity: unit, orthogonal, tangent.
+        assert!((f.east.length() - 1.0).abs() < 1e-12);
+        assert!((f.north.length() - 1.0).abs() < 1e-12);
+        assert!(f.east.dot(f.north).abs() < 1e-12);
+        assert!(f.east.dot(anchor.normalize()).abs() < 1e-12);
+        // A step along east projects to (step, 0); along north to (0, step).
+        let p = f.project(anchor + f.east * 137.0 + f.north * -41.0);
+        assert!((p.x - 137.0).abs() < 1e-9 && (p.y + 41.0).abs() < 1e-9, "{p:?}");
+        // Pole-safe: a polar anchor still yields a real basis.
+        let fp = OceanEventFrame::at(DVec3::new(0.0, 6.37e6, 0.0));
+        assert!((fp.east.length() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn dev_pins_fit_the_patch_band_and_face_the_viewer() {
+        for kind in ["tsunami", "rogue", "maelstrom", "hurricane"] {
+            let ev = dev_pin_events(kind, DVec2::new(0.0, 1.0)).expect(kind);
+            assert!(ev.any_active(), "{kind} inactive");
+            let pin = PinnedOceanEvents { events: ev, frame: OceanEventFrame::at(DVec3::new(0.0, 6.37e6, 0.0)) };
+            // Every dev pin stays inside the water patches' +-12 m radial
+            // culling band (ocean_waves::MAX_SEA_HEIGHT_M).
+            assert!(
+                pin.max_abs_height_m() <= crate::terrain::ocean_waves::MAX_SEA_HEIGHT_M as f64,
+                "{kind} exceeds the patch band: {}",
+                pin.max_abs_height_m()
+            );
+        }
+        assert!(dev_pin_events("nonsense", DVec2::ZERO).is_none());
+    }
+
+    #[test]
+    fn camera_rows_carry_frame_and_flag() {
+        let ev = dev_pin_events("tsunami", DVec2::new(1.0, 0.0)).unwrap();
+        let frame = OceanEventFrame::at(DVec3::new(0.0, 6.37e6, 0.0));
+        let pin = PinnedOceanEvents { events: ev, frame };
+        let rows = pin.to_camera_rows();
+        assert_eq!(rows[11][3], 1.0, "active flag");
+        assert!((rows[11][1] - 6.37e6).abs() < 1.0, "anchor y");
+        // Basis rows are unit vectors after the f32 downcast.
+        for r in [12, 13] {
+            let l = (rows[r][0] * rows[r][0] + rows[r][1] * rows[r][1] + rows[r][2] * rows[r][2])
+                .sqrt();
+            assert!((l - 1.0).abs() < 1e-5, "row {r} length {l}");
+        }
+        // Soliton A rides rows 4/5 with the demo vector.
+        assert_eq!(rows[4][3], 10.0);
+        assert_eq!(rows[5][0], 150.0);
+    }
+
+    /// The rung-2 WGSL twin lockstep guard, in the ocean_waves.rs pattern:
+    /// parse the vertex shader source and assert every adopted constant
+    /// appears in the ocean-event block, so a shader-side retune that
+    /// forgets this file fails the build immediately.
+    #[test]
+    fn wgsl_twin_pins_the_adopted_constants() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/shaders/pbr/00-bindings-vertex.wgsl");
+        let src = std::fs::read_to_string(path).expect("read 00-bindings-vertex.wgsl");
+        let start = src.find("fn ocean_event_p2").expect("ocean_event block missing from WGSL");
+        let end = src.find("fn water_disp_height").expect("water_disp_height anchor");
+        let block = &src[start..end];
+        for needle in [
+            // sech clamp (SECH_ARG_CLAMP)
+            "-12.0, 12.0",
+            // soliton: shoal compression, drawdown center/width/depth
+            "1.35", "* 1.6)", "* 1.1)", "0.16",
+            // vortex depression falloff + activity epsilons
+            "2.2", "0.0001", "0.001",
+            // rogue carrier modes, normalizer, sharpening
+            "1.87", "0.42", "0.61", "0.55", "1.97", "0.72",
+            // hurricane ring position/width/gain, eye calm/depression, floor
+            "1.25", "1.4", "3.0", "1.6)", "0.4", "50.0",
+        ] {
+            assert!(block.contains(needle), "WGSL ocean-event block lost constant {needle}");
+        }
+        // And the uniform bridge rows exist.
+        assert!(src.contains("ocean_event: array<vec4<f32>, 14>"), "uniform array missing");
     }
 
     #[test]

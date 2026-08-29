@@ -1886,6 +1886,8 @@ mod native_app {
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
                 sea_state_override: None,
+                ocean_event_pin_request: None,
+                ocean_event_pin: None,
                 cloud_cover_override: None,
                 cloud_type_override: None,
                 ocean_fft_wind: 8.0,
@@ -4619,6 +4621,25 @@ mod native_app {
                                             )
                                         }
                                             as f64;
+                                        // Ocean disaster events ride the same
+                                        // float (ABYSSAL rung 2): the RIDE
+                                        // height (rogue = envelope only, per
+                                        // the twin's documented rule), shoaled
+                                        // with the same live crest the
+                                        // shader's shoal fade reads.
+                                        let wave = if let Some(pin) =
+                                            state.ocean_event_pin.as_ref()
+                                        {
+                                            wave + pin
+                                                .events
+                                                .ride_height_m(pin.frame.project(p))
+                                                * crate::terrain::ocean_waves::shoal_factor_at(
+                                                    depth_m,
+                                                    state.renderer.sea_crest_m,
+                                                ) as f64
+                                        } else {
+                                            wave
+                                        };
                                         g = g.max(
                                             d.radius
                                                 + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64
@@ -5417,7 +5438,7 @@ mod native_app {
                         // Dev fly/travel (v0.791.x) is a cheat: while fly mode
                         // is on, the vacuum-outside-the-hull rule is suspended
                         // so sightseeing at Neptune doesn't suffocate/freeze
-                        // the operator. Turning fly mode off restores normal
+                        // steerable for the operator and close-range verifies. Turning fly mode off restores normal
                         // survival rules wherever you are.
                         let env = if state.controller.fly_mode {
                             crate::ecs::components::EnvironmentContext::default()
@@ -14723,6 +14744,65 @@ mod native_app {
                             state.renderer.sea_crest_m =
                                 crate::terrain::ocean_fft::crest_estimate_m(c.total_rms());
                         }
+                    }
+
+                    // Ocean disaster event pin (ABYSSAL adoption rung 2,
+                    // v0.1239): consume the showcase {"ocean_event":...}
+                    // request, build the pinned event in planet-model
+                    // coordinates (spin-fixed, the water vertex frame), and
+                    // feed the camera uniform rows + the live crest channel.
+                    // The rung-3 lifecycle will drive the same slot from
+                    // data/weather/events.ron.
+                    if let Some((req, bearing, dist_m)) = state.ocean_event_pin_request.take() {
+                        if req == "off" || req == "auto" {
+                            state.ocean_event_pin = None;
+                            log::info!("[OceanEvent] pin cleared");
+                        } else if state.frame_lock_body.is_some() {
+                            let anchor = state.frame_lock_anchor;
+                            // At the requested bearing + distance (defaults
+                            // west of the player, 900 m, matching the west-looking
+                            // ocean vantages): deterministic for the probe rig,
+                            // the operator.
+                            let core = crate::systems::weather_events::place_event_core(
+                                anchor, bearing, dist_m,
+                            );
+                            let frame =
+                                crate::terrain::ocean_events::OceanEventFrame::at(core);
+                            // The soliton's travel direction points from the
+                            // event toward the player, so its wall faces the
+                            // camera.
+                            let toward = frame.project(anchor);
+                            match crate::terrain::ocean_events::dev_pin_events(&req, toward) {
+                                Some(events) => {
+                                    state.ocean_event_pin = Some(
+                                        crate::terrain::ocean_events::PinnedOceanEvents {
+                                            events,
+                                            frame,
+                                        },
+                                    );
+                                    log::info!(
+                                        "[OceanEvent] pinned '{req}' {dist_m:.0} m from player"
+                                    );
+                                }
+                                None => log::warn!("[OceanEvent] unknown kind '{req}'"),
+                            }
+                        } else {
+                            log::warn!("[OceanEvent] pin '{req}' ignored: not on a body");
+                        }
+                    }
+                    match state.ocean_event_pin.as_ref() {
+                        Some(pin) => {
+                            state.renderer.ocean_event_rows = pin.to_camera_rows();
+                            // Fold the event into the live crest channel so
+                            // the shoal fade and the backstop drop widen with
+                            // it (drawn == sampled: the buoyancy twin shoals
+                            // with the same value).
+                            state.renderer.sea_crest_m = state
+                                .renderer
+                                .sea_crest_m
+                                .max(pin.max_abs_height_m() as f32);
+                        }
+                        None => state.renderer.ocean_event_rows = [[0.0; 4]; 14],
                     }
 
                     // Bridge the live home power readout (ElectricalSystem writes it via
