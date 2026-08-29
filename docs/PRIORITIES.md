@@ -2,15 +2,21 @@
 
 > **CLOUDS, state as of v0.1235 (2026-08-28 evening).**
 >
-> **Balloon-at-the-feet motion artifact: fixed in code, flight verdict pending.**
-> Both temporal paths judged motion by screen-space SLIDE only, which reads zero
-> at the epipole - the point being flown toward - so stale history smeared
-> radially around it (worst inside cloud, knotted under the feet in a descent).
-> The gates now also open on the ZOOM RATE: camera translation over the texel's
-> own content distance (near: prev_dpos vs march-dist target; far: light4
-> baseline vs g_march_first_t). NOT rig-verifiable - the rig captures parked
-> frames - so the verdict is the operator's next flight. Statics verified
-> unchanged; coverage gate still PASSES.
+> **The starburst / balloon-at-the-feet: ROOT-CAUSED (v0.1237), and it was
+> never motion.** The operator's from-space sighting reproduced PARKED
+> (starburst-space vantage, mix=0.00 - pure far map). Bisect: history OFF made
+> it SHARPER; jitter CONSTANT left a crisp deterministic moire rosette. So:
+> aliasing that the temporal supersampler existed to integrate away and could
+> not, because (a) both paths' jitter hashes were quasi-periodic (uv*8192 and
+> pos*0.7182 through fract(x*0.1031) - ~5-texel and ~13-px cycles; a stratified
+> average of a biased sequence keeps the bias), and (b) the map never jittered
+> its DIRECTION at all - each texel point-sampled one fixed direction of its
+> solid angle forever. Fixed: PCG-family integer hash in both paths + sub-texel
+> direction jitter in the map pass. Faint residue remains and part of it is the
+> field's REAL east-west stagger anisotropy seen edge-on - do not chase it as
+> aliasing without re-running the parked bisect first. The two motion-gate fixes
+> (v0.1235 epipole zoom term, v0.1236 motion floor) were real blind spots and
+> stay, but they were never this artifact.
 >
 > **Swiss-cheese sheets: fixed.** The v0.1234 union scaled the field density by
 > sheet_w, pushing it under the visibility threshold at partial coverage - holes.
