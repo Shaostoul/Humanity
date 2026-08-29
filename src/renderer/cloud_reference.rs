@@ -175,6 +175,26 @@ impl<'a> RefVolume<'a> {
 /// Everything the reference march needs about one scene. Positions are in
 /// PLANET-RADIUS units (surface at r = 1), which sidesteps the drawn-shell
 /// scaling entirely - only ratios enter the math.
+/// The five-octave PINNED weather field (cloud_weather_adv with bypass = 1:
+/// pure procedural, no MODIS term), as a free function so non-capture
+/// consumers can share the ONE current mirror. First outside consumer: the
+/// god-ray sun-ward cloud dimming (frame_lock::godray_weather_scale,
+/// v0.1243) - the stale three-octave clouds::cloud_weather must NOT be used
+/// for anything that has to match the rendered sky (its own doc says so).
+/// The drift-octave lockstep test that guards weather_pinned guards this
+/// body identically (weather_pinned delegates here).
+pub fn weather_pinned_field(dir: [f32; 3], t: f32, seed: f32, drift_ang: f32) -> f32 {
+    let da0 = cloud_rot_y(dir, drift_ang);
+    let da = v3_norm([da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]]);
+    let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
+    let macro_f = 0.40 * cloud_noise(da, 5.0, seed)
+        + 0.24 * cloud_noise(da, 13.0, seed + 19.0);
+    let meso_f = 0.20 * cloud_noise(db, 7.0, seed + 101.0)
+        + 0.12 * cloud_noise(da, 31.0, seed + 233.0)
+        + 0.08 * cloud_noise(db, 67.0, seed + 409.0);
+    smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, (macro_f + meso_f) / 1.04)
+}
+
 pub struct CloudRefCtx<'a> {
     pub shape: RefVolume<'a>,
     pub detail: RefVolume<'a>,
@@ -227,15 +247,7 @@ impl<'a> CloudRefCtx<'a> {
     /// The five-octave PINNED weather field (cloud_weather_adv with
     /// bypass = 1: pure procedural, no MODIS term).
     fn weather_pinned(&self, dir: [f32; 3], drift_ang: f32) -> f32 {
-        let da0 = cloud_rot_y(dir, drift_ang);
-        let da = v3_norm([da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]]);
-        let db = cloud_rot_x(dir, self.t * CLOUD_DRIFT_CROSS);
-        let macro_f = 0.40 * cloud_noise(da, 5.0, self.seed)
-            + 0.24 * cloud_noise(da, 13.0, self.seed + 19.0);
-        let meso_f = 0.20 * cloud_noise(db, 7.0, self.seed + 101.0)
-            + 0.12 * cloud_noise(da, 31.0, self.seed + 233.0)
-            + 0.08 * cloud_noise(db, 67.0, self.seed + 409.0);
-        smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, (macro_f + meso_f) / 1.04)
+        weather_pinned_field(dir, self.t, self.seed, drift_ang)
     }
 
     /// Mirrors `cloud_carve` (High tier - no clouds-v2 branch).

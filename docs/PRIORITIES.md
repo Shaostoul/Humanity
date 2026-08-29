@@ -61,8 +61,47 @@
 > computed and discarded - gate them on cs.v2 < 0.999 to reclaim 4 texture
 > taps per sample. Deferred from v0.1242 to keep that increment visual-only.
 >
-> **NEW top cloud item - map-only regime at low orbit clips cloud patches
-> (v0.1242 fade exposed it).** Evidence: marble-inertial capture, sweep
+> **v0.1243 (2026-08-29): blend-band streaks, roll misregistration, sun
+> bleed - fixed; two handoffs logged.** The 74.4 km radial streaks were the
+> crossfade band (mix=0.14): the near arm is ~5.5x above Nyquist for the
+> field its footprint cap targets at planetary slant (moire = radial
+> combing), AND the cloud ray basis ignored camera ROLL and mode
+> transitions (origin audit #19: forward()/right() vs the rendered
+> rolled_up view matrix - the whole cloud layer twisted about the
+> crosshair whenever the camera rolled; all three consumers now extract
+> the view-matrix rows). Crossfade lowered to 22..42 km. LONG-TERM
+> (better design, critic-endorsed): key the blend PER-PIXEL on the near
+> arm's own first-hit dist_km (MRT loc 1) instead of a global altitude
+> proxy - fixes down-look AND horizon cases and lets near rays abstain
+> (perf) in one move; needs a composite binding for march_dist (bind-
+> group discipline: count entries at EVERY create site). Sun-through-
+> clouds: god rays sample the SUNWARD deck crossing now (frame_lock::
+> sun_cloud_alpha - max of the pinned procedural field via cloud_
+> reference::weather_pinned_field and the live grid) and the type-17
+> disc/halo intensities scale by exp(-4a) per frame. STILL OPEN, handed
+> to the ABYSSAL rung-2b owner (their lane files): the ocean sun-
+> specular ignores clouds - multiply (1 - 0.9*ca) into sun_shadow_f at
+> 90-fragment-main.wgsl:1697 (type-12 glint, hardcoded 1.0), :1670
+> (old_glint), :478 and :746 (type-16), using the v0.898 ground-shadow
+> pattern at :1608-1617 but at the fragment-to-sun deck crossing
+> (r = sea radius * CLOUD_SHELL_SCALE). ALSO LOGGED (own increment):
+> the aboard-station frame family from the origin audit - celestial/
+> godray sun direction not hull-rotated (#17, lib.rs:17762 area), body/
+> cloud/atmo rotation spin-only (#18, lib.rs:8948), orbit rings world-
+> pinned (#27) - lighting rotates off the visible sun as the hull turns.
+>
+> **RE-SCOPED after v0.1243: map clipping mostly healed; one residual.**
+> The razor-wall clipping was the twisted ray basis (audit #19, fixed) -
+> the mismatched rays fell outside the map extent. AFTER the fix,
+> marble-inertial (sweep 20260829-071407) shows natural weather-field
+> edges everywhere except ONE small triangular cloud fragment with two
+> straight edges mid-frame - the signature of an octa-FOLD seam leak
+> (reflected/clipped content where map taps cross the octahedral fold
+> without proper wrap: Catmull-Rom taps or the sub-texel direction
+> jitter). Diagnose with a map-UV/seam visualization at that vantage
+> before tuning.
+>
+> **Old text for context (superseded):** Evidence: marble-inertial capture, sweep
 > 20260829-060201 - at 112 km with mix=0.00 (the new altitude fade), cloud
 > patches render coherent but end in hard straight edges, all facing the
 > same direction. The 12c extent controller's regime-1 window (asin(rt/c)

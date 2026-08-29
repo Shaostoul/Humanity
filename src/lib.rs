@@ -8963,6 +8963,16 @@ mod native_app {
                         state.renderer.cloud_map_resample.set(None);
                         state.renderer.cloud_mode_near = false;
                         state.renderer.cloud_near_mix = 0.0;
+                        // Stale-anchor audit #16 (v0.1243): sea_sphere was set
+                        // only while chunked ocean water actually drew, but
+                        // poked into the camera pads EVERY frame and consumed
+                        // by the always-on per-ray underwater extinction - so
+                        // flying away from Earth (or to an airless body) left
+                        // a phantom water sphere at the last-drawn render-
+                        // space position, tinting any ray that crossed it.
+                        // Cleared here with the other per-frame resets; the
+                        // ocean draw below re-sets it while it is live.
+                        state.renderer.sea_sphere = [0.0, 0.0, 0.0, 0.0];
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
                             // (planets, dwarfs, named belt bodies) + Earth +
@@ -11823,10 +11833,26 @@ mod native_app {
                                         // distance regime bug.
                                         let alt_km_mix = (cam_r_ratio as f32 - 1.0).max(0.0)
                                             * (d.radius / 1000.0) as f32;
+                                        // Band lowered 40..80 -> 22..42 km (v0.1243,
+                                        // blend forensics): the near arm has NO
+                                        // resolution advantage in regime 1 - its
+                                        // quarter-res grid is ~5.5x coarser than the
+                                        // map texels it is footprint-capped to
+                                        // resolve, so at long slant it is undersampled
+                                        // by construction and its moire over the
+                                        // cellular field printed as thin radial
+                                        // combing at 14 percent weight (the operator's
+                                        // 74.4 km streaks). Above ~25 km the proven
+                                        // map owns the view outright; the band also
+                                        // halves the range where BOTH whales run
+                                        // every frame. Long-term design (PRIORITIES):
+                                        // key the blend per-pixel on the near arm's
+                                        // own first-hit distance instead of a global
+                                        // altitude proxy.
                                         let near_mix = if temporal {
                                             (((px - 1600.0) / 400.0).clamp(0.0, 1.0))
                                                 * (1.0
-                                                    - ((alt_km_mix - 40.0) / 40.0)
+                                                    - ((alt_km_mix - 22.0) / 20.0)
                                                         .clamp(0.0, 1.0))
                                         } else {
                                             0.0
@@ -17725,6 +17751,39 @@ mod native_app {
                                     state.renderer.update_light_tiles(&lights, &vp, state.camera.effective_position(), screen, tiled);
                                 }
 
+                                // Sun disc/halo cloud occlusion (v0.1243, the
+                                // operator's "sun bleeding out the clouds as if
+                                // they don't exist"): the type-17 disc + corona
+                                // are drawn in the transparent pass BEFORE the
+                                // cloud composite, but they ACES-saturate to
+                                // near-white, so a bank at alpha 0.5-0.8 still
+                                // passed 20-50% white - greenscreen sun. Scale
+                                // their intensity by the transmittance along
+                                // the camera-to-sun ray through the drawn deck
+                                // (exp(-4a): a real bank kills the disc), from
+                                // the SAME sun_cloud_alpha the god-ray dim
+                                // uses, so shafts and glare always agree.
+                                {
+                                    let sca =
+                                        crate::engine::frame_lock::sun_cloud_alpha(state);
+                                    let t_disc = (-4.0 * sca).exp();
+                                    state.renderer.update_material_full(
+                                        state.sun_material,
+                                        [1.0, 0.96, 0.88, 1.0],
+                                        0.0,
+                                        1.0,
+                                        17.0,
+                                        30.0 * t_disc,
+                                    );
+                                    state.renderer.update_material_full(
+                                        state.sun_halo_material,
+                                        [1.0, 0.82, 0.55, 0.85 * (0.15_f32).max(t_disc)],
+                                        0.0,
+                                        1.0,
+                                        17.0,
+                                        2.2 * t_disc,
+                                    );
+                                }
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)
                                 // with a HUGE far plane, behind the interior, lit by the
                                 // REAL Sun direction. (v0.450 bodies, v0.451 lighting)

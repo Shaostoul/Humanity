@@ -2834,6 +2834,61 @@
       "hold_altitude": true
     },
     {
+      "id": "sun-behind-deck",
+      "desc": "Low over the ocean facing the sun with a heavy deck: the disc, corona, and god rays must dim behind cloud instead of bleeding through.",
+      "expect": "Where a cloud bank crosses the sun, the disc/halo glare and shafts are visibly attenuated - no full-strength white column through the bank ('poorly greenscreened' sun).",
+      "regressions": [
+        "no full-strength sun glare through an occluding cloud bank"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 0,
+        "lon": -30,
+        "altitude_km": 0.2,
+        "aim": "sun",
+        "time": 17.2
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "blend-85km",
+      "desc": "Down-look just ABOVE the near/map crossfade (mix=0.00): pure map. Discrimination rung A for the 74 km radial streaks.",
+      "expect": "Cellular deck, no radial streaks converging at the crosshair.",
+      "regressions": ["no radial streaks at the view centre"],
+      "camera": { "body": "earth", "lat": 24, "lon": 14, "altitude_km": 85, "look_offset_deg": 0, "time": 13.5, "far_frame_km": 36000 },
+      "showcase": { "cloud_quality": "ultra", "clouds": "1", "cloud_cover": "0.42", "cloud_type": "0.46", "weather": "clear" },
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "blend-74km",
+      "desc": "Down-look INSIDE the crossfade (mix~0.14, the operator's streak altitude): 14 percent near march over 86 percent map.",
+      "expect": "Same deck as blend-85km with no additional radial streaks. Streaks HERE but not at 85 km indict the crossfade (registration or the near arm's residue).",
+      "regressions": ["no radial streaks at the view centre"],
+      "camera": { "body": "earth", "lat": 24, "lon": 14, "altitude_km": 74.4, "look_offset_deg": 0, "time": 13.5, "far_frame_km": 36000 },
+      "showcase": { "cloud_quality": "ultra", "clouds": "1", "cloud_cover": "0.42", "cloud_type": "0.46", "weather": "clear" },
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "blend-45km",
+      "desc": "Down-look near the crossfade's NEAR end (mix~0.87): mostly near march.",
+      "expect": "Clean deck; whichever rung shows streaks localizes the mechanism.",
+      "regressions": ["no radial streaks at the view centre"],
+      "camera": { "body": "earth", "lat": 24, "lon": 14, "altitude_km": 45, "look_offset_deg": 0, "time": 13.5, "far_frame_km": 36000 },
+      "showcase": { "cloud_quality": "ultra", "clouds": "1", "cloud_cover": "0.42", "cloud_type": "0.46", "weather": "clear" },
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
       "id": "flower-nadir",
       "desc": "Parked at 9.8 km over a dense deck looking STRAIGHT DOWN - the operator's melted-flower condition. Co-rotating, so content is still: any radial flower here is STATIC banding in the fresh march, not temporal smear.",
       "expect": "Cloud deck from above with NO concentric rings or radial petals centred at the crosshair. Mip transitions, the constructed-body fade ring, and stride changeovers must not print as visible circles.",

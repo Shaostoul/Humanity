@@ -256,20 +256,95 @@ pub(crate) fn sun_occlusion_factor(state: &EngineState) -> f32 {
     vis
 }
 
-pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
-    let Some(grid) = state.weather_grid.as_ref() else {
-        return 1.0;
-    };
+/// Cloud alpha along the camera-to-sun ray, at the deck crossing: the max
+/// of the pinned procedural field (the CURRENT weather_pinned_field mirror)
+/// and the live MODIS grid cell there. 0.0 = clear path to the sun. Shared
+/// by the god-ray dim and the per-frame sun disc/halo intensity scale, so
+/// shafts and glare always agree about the same cloud bank (v0.1243, the
+/// operator's "sun bleeding out the clouds as if they don't exist").
+pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
     if state.frame_lock_body.as_deref() != Some("earth") {
-        return 1.0;
+        return 0.0;
     }
-    let dir0 = state.frame_lock_anchor.normalize_or_zero();
+    // ── SUN-WARD, not overhead (v0.1243, origin audit #20 / operator: "the
+    // sun seems to be bleeding out the clouds as if they don't exist") ──
+    // The old dim sampled the cloud cell at the camera's ZENITH: a low sun
+    // behind a horizon cloud bank with clear sky overhead kept the shafts at
+    // full strength through the bank - god rays are the one sun visual drawn
+    // AFTER the cloud composite, so nothing else could save them. The right
+    // cell is where the camera-to-sun ray crosses the drawn cloud shell.
+    let p = state.frame_lock_anchor; // camera in the unrotated planet frame, metres
+    if p.length_squared() < 0.5 {
+        return 0.0;
+    }
+    let cam_w = state.ship_world_pos
+        + glam::DVec3::new(
+            state.camera.position.x as f64,
+            state.camera.position.y as f64,
+            state.camera.position.z as f64,
+        );
+    let s_w = (state.sun_world_pos - cam_w).normalize_or_zero();
+    if s_w.length_squared() < 0.5 {
+        return 0.0;
+    }
+    // Rotate the sun direction into the same unrotated planet frame the
+    // anchor lives in (the anchor is re-captured with current_spin every
+    // frame, so the two agree).
+    let s_pf = glam::DQuat::from_rotation_y(-state.current_spin) * s_w;
+    let r_deck = state
+        .planet_defs
+        .get("earth")
+        .map(|d| d.radius as f64 * crate::renderer::clouds::CLOUD_SHELL_SCALE as f64)
+        .unwrap_or(0.0);
+    if r_deck <= 0.0 {
+        return 0.0;
+    }
+    // Ray-sphere from p toward the sun against the drawn cloud shell. Above
+    // the shell with the sun up there is no crossing - no cloud can occlude.
+    let b = p.dot(s_pf);
+    let disc = b * b - (p.length_squared() - r_deck * r_deck);
+    if disc <= 0.0 {
+        return 0.0;
+    }
+    let sq = disc.sqrt();
+    let t_hit = if -b - sq > 0.0 { -b - sq } else { -b + sq };
+    if t_hit <= 0.0 {
+        return 0.0;
+    }
+    let dir0 = (p + s_pf * t_hit).normalize_or_zero();
     if dir0.length_squared() < 0.5 {
-        return 1.0;
+        return 0.0;
     }
+
+    // ── Procedural term: the same five-octave pinned field the sky draws
+    // (weather_pinned_field is the CURRENT mirror; clouds::cloud_weather is
+    // the documented-stale one). Works with live weather OFF - the state the
+    // operator reported from.
+    let (seed, cov, clouds_on) = cloud_ground_params(state);
+    let proc_a = if clouds_on {
+        let adv_a = (state.cloud_advect + state.cloud_advect_decaying) as f32;
+        let dq = crate::renderer::clouds::cloud_rot_y(
+            [dir0.x as f32, dir0.y as f32, dir0.z as f32],
+            adv_a,
+        );
+        let field = crate::renderer::cloud_reference::weather_pinned_field(
+            dq,
+            state.start_time.elapsed().as_secs_f32(),
+            seed,
+            0.0,
+        );
+        crate::renderer::clouds::cloud_alpha_from_field(field, cov)
+    } else {
+        0.0
+    };
+
+    // ── Live-grid term (unchanged mapping, now at the sun-ward cell) ──
+    let Some(grid) = state.weather_grid.as_ref() else {
+        return proc_a;
+    };
     // v0.1032: mirror the shader's wind-advection rotation (cloud_rot_y
-    // by light1_cone_inner.x) so the overhead-dim reads the same cloud
-    // cell the sky actually draws above the camera.
+    // by light1_cone_inner.x) so the dim reads the same cloud cell the
+    // sky actually draws there.
     let adv = (state.cloud_advect + state.cloud_advect_decaying) as f64;
     let (c, s) = (adv.cos(), adv.sin());
     let dir = glam::DVec3::new(
@@ -288,13 +363,21 @@ pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
     let y = ((v * h as f64) as usize).min(h - 1);
     let idx = (y * w + x) * 2;
     let (Some(&r), Some(&g)) = (grid.get(idx), grid.get(idx + 1)) else {
-        return 1.0;
+        return proc_a;
     };
-    let frac = r as f32 / 255.0;
-    let valid = g as f32 / 255.0;
-    let t = ((frac - 0.35) / 0.55).clamp(0.0, 1.0);
+    // The thicker of the two verdicts wins: the grid knows live MODIS
+    // weather, the procedural field knows the pinned/drawn sky.
+    proc_a.max((r as f32 / 255.0) * (g as f32 / 255.0))
+}
+
+/// The god-ray strength scale from the sun-ward cloud alpha: the same
+/// smoothstep envelope the v0.897 overhead dim used, now fed by the cell the
+/// shafts actually shine through.
+pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
+    let a = sun_cloud_alpha(state);
+    let t = ((a - 0.35) / 0.55).clamp(0.0, 1.0);
     let env = t * t * (3.0 - 2.0 * t);
-    1.0 - 0.85 * env * valid
+    1.0 - 0.85 * env
 }
 
 /// Per-body environment snapshot (artificial-planet increment 4): publish

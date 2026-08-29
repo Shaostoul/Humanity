@@ -3125,9 +3125,20 @@ impl Renderer {
             // pointing INTO the planet - every under-deck sky pixel died
             // on the march's ground-occlusion gate (the magenta-sentinel
             // forensics, 2026-08-23).
-            let fwd = camera.forward();
-            let right = camera.right();
-            let up = right.cross(fwd).normalize();
+            // ROLL-AWARE basis (v0.1243, origin audit #19): forward()/right()
+            // ignore flight ROLL and camera-mode transition interpolation,
+            // both of which the rendered frame's view_matrix() applies
+            // (rolled_up). Every cloud ray built from the unrolled basis was
+            // rotated about the view axis relative to the scene it registers
+            // against - a misregistration radiating from the view centre
+            // whenever the camera rolls (the fly band the operator lives in).
+            // The view matrix's rotation rows ARE the camera axes: row0 =
+            // right, row1 = up, row2 = -forward. Identical to the old basis
+            // at zero roll outside transitions.
+            let vm = camera.view_matrix();
+            let fwd = -glam::Vec3::new(vm.row(2).x, vm.row(2).y, vm.row(2).z);
+            let right = glam::Vec3::new(vm.row(0).x, vm.row(0).y, vm.row(0).z);
+            let up = glam::Vec3::new(vm.row(1).x, vm.row(1).y, vm.row(1).z);
             let cur: [[f32; 3]; 3] = [
                 [fwd.x, fwd.y, fwd.z],
                 [right.x, right.y, right.z],
@@ -3786,9 +3797,14 @@ impl Renderer {
                         if cs.fresh.replace(false) {
                             frame.snap = true;
                         }
-                        let fwd = camera.forward();
-                        let right = camera.right();
-                        let up = right.cross(fwd).normalize();
+                        // Roll-aware basis (v0.1243, audit #19) - same
+                        // extraction as the march pads above; the three
+                        // consumers must agree or the resolve reprojects
+                        // against a twisted frame.
+                        let vm = camera.view_matrix();
+                        let fwd = -glam::Vec3::new(vm.row(2).x, vm.row(2).y, vm.row(2).z);
+                        let right = glam::Vec3::new(vm.row(0).x, vm.row(0).y, vm.row(0).z);
+                        let up = glam::Vec3::new(vm.row(1).x, vm.row(1).y, vm.row(1).z);
                         let eye = camera.effective_position();
                         self.cloud_resolve.render(
                             &self.device,
@@ -4143,9 +4159,12 @@ impl Renderer {
                 1.0,
             );
             let m = proj.to_cols_array_2d();
-            let fwd = camera.forward();
-            let right = camera.right();
-            let up = right.cross(fwd).normalize();
+            // Roll-aware basis (v0.1243, audit #19) - third of the three
+            // agreeing consumers (march pads, resolve, composite).
+            let vm = camera.view_matrix();
+            let fwd = -glam::Vec3::new(vm.row(2).x, vm.row(2).y, vm.row(2).z);
+            let right = glam::Vec3::new(vm.row(0).x, vm.row(0).y, vm.row(0).z);
+            let up = glam::Vec3::new(vm.row(1).x, vm.row(1).y, vm.row(1).z);
             let eye = camera.effective_position();
             // 12g: the composite crossfades the octa map with the half-res
             // SCREEN accumulation by cloud_near_mix. When the screen pair
