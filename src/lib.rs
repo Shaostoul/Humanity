@@ -11805,8 +11805,29 @@ mod native_app {
                                         // the planet more than fills the
                                         // screen (below roughly 1,000 km
                                         // altitude) and its grid is dense.
+                                        // Altitude fade on the near regime (v0.1242). The
+                                        // px threshold alone is not enough: after the
+                                        // v0.1239 camera-relative dist fix, px is correct
+                                        // (2443 at 112 km) so the near screen march ran
+                                        // through the WHOLE 100-1000 km blend band - a
+                                        // half-res full-screen march with up to 224 steps
+                                        // per ray at planetary slant ranges, ~200M field
+                                        // samples per frame. That is the operator's 5-8
+                                        // FPS at orbit. The octa map exists precisely for
+                                        // disc-range views (~6 km/texel ray concentration)
+                                        // and rendered every tested disc range correctly,
+                                        // so: near regime full below 40 km, handed back to
+                                        // the map by 80 km. alt_km derives from
+                                        // cam_r_ratio (camera-relative by construction),
+                                        // so this cannot reintroduce the px=280 origin-
+                                        // distance regime bug.
+                                        let alt_km_mix = (cam_r_ratio as f32 - 1.0).max(0.0)
+                                            * (d.radius / 1000.0) as f32;
                                         let near_mix = if temporal {
-                                            ((px - 1600.0) / 400.0).clamp(0.0, 1.0)
+                                            (((px - 1600.0) / 400.0).clamp(0.0, 1.0))
+                                                * (1.0
+                                                    - ((alt_km_mix - 40.0) / 40.0)
+                                                        .clamp(0.0, 1.0))
                                         } else {
                                             0.0
                                         };

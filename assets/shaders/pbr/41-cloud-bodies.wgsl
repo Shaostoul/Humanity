@@ -164,6 +164,37 @@ const CLOUD_V2_DISP2_M: f32 = 26.0;
 const CLOUD_V2_DISP_LODC: f32 = -6.90;
 const CLOUD_V2_DISP2_LODC: f32 = -8.76;
 
+// ── ONE-SIDED WORLEY EROSION (v0.1242, the sphere-atoms cure) ──
+//
+// Operator: "the clouds look more like atoms made of spheres than clouds of
+// varying shape." Root cause (fidelity audit 2026-08-29): the 2026-08-25
+// eyeball fix removed ALL density-space erosion from the built path - so the
+// only surface treatment left was the symmetric displacement above, and
+// symmetric zero-mean bumping cannot cut the deep one-sided notches
+// (entrainment holes) that break a ball silhouette. Real cumulus silhouettes
+// are carved CONCAVE at many scales; a smin sphere union is convex at one.
+//
+// This is the Nubis-class remap (Horizon Zero Dawn / Nubis3, FS2020: base
+// shape eroded at the density edge by high-frequency Worley) applied in the
+// DISTANCE domain, which is what keeps the eyeball fix intact: carving moves
+// the surface itself, so an edge-proximity term here cannot paint
+// iso-distance rings on a fixed surface the way the density-space bands did.
+// Inverted-Worley cell interiors bite deepest, so every notch is a concave
+// scallop; strength varies 0..1 across the surface, so edge width now runs
+// crisp-to-wispy instead of one universal 90 m airbrush ramp.
+// Frequency ladder: lobe radii run ~100-420 m; these two tiles put the four
+// baked Worley octaves across 20-160 m - between the fine displacement band
+// and the lobe scale, closing the curvature-spectrum gap that read as
+// "atoms".
+const CLOUD_V2_ERODE_TILE_KM: f32 = 1.30;
+const CLOUD_V2_ERODE2_TILE_KM: f32 = 0.35;
+const CLOUD_V2_ERODE_M: f32 = 55.0;
+const CLOUD_V2_ERODE2_M: f32 = 22.0;
+const CLOUD_V2_ERODE_REACH_M: f32 = 260.0;
+const CLOUD_V2_ERODE_FLOOR: f32 = 0.25;
+const CLOUD_V2_ERODE_LODC: f32 = -7.55;
+const CLOUD_V2_ERODE2_LODC: f32 = -9.45;
+
 // Deterministic hash on a 2D integer cell -> [0,1). Matches the CPU
 // model's avalanche family closely enough for placement; the shapes
 // themselves are locked by the CPU tests.
@@ -681,8 +712,33 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     let n2 = d2.r * 0.625 + d2.g * 0.25 + d2.b * 0.125;
     let disp_m = (n1 - 0.5) * 2.0 * CLOUD_V2_DISP_M
                + (n2 - 0.5) * 2.0 * CLOUD_V2_DISP2_M;
+    // One-sided Worley erosion (v0.1242, see the constants block): same
+    // post-reduction discipline as d1/d2 - pure function of world position
+    // at the frozen per-ray mip, so the view sample and all eight sun taps
+    // carve the SAME surface (the v0.1230 lesson), and it warps the seams
+    // between neighbouring clouds too.
+    let e1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+        p * (1.0 / (CLOUD_V2_ERODE_TILE_KM * g_cloud_upkm)),
+        clamp(g_v2_disp_lod - CLOUD_V2_ERODE_LODC, 0.0, 8.0));
+    let e2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+        p * (1.0 / (CLOUD_V2_ERODE2_TILE_KM * g_cloud_upkm)),
+        clamp(g_v2_disp_lod - CLOUD_V2_ERODE2_LODC, 0.0, 8.0));
+    let ew1 = e1.r * 0.625 + e1.g * 0.25 + e1.b * 0.125;
+    let ew2 = e2.r * 0.625 + e2.g * 0.25 + e2.b * 0.125;
+    // Height phase (the Nubis flip): wispy 1-w at the base, billowy w at the
+    // crown, transitioning over the lower third.
+    let hph = clamp(up_m / max(best_height_m, 1.0) * 3.0, 0.0, 1.0);
+    let ewm = ew1 * 0.72 + ew2 * 0.28;
+    let wor = mix(1.0 - ewm, ewm, hph);
+    // Edge-proximity strength: full carve at the surface, decaying to an
+    // interior floor. best is negative inside; legal in the DISTANCE domain
+    // (it moves the surface - it cannot ring a fixed one).
+    let edge_w = mix(CLOUD_V2_ERODE_FLOOR, 1.0,
+        clamp(1.0 + best / CLOUD_V2_ERODE_REACH_M, 0.0, 1.0));
+    // One-sided: erosion only ADDS distance (carves in), never inflates.
+    let erode_m = wor * edge_w * (CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4);
     let rind = CLOUD_V2_RIND_M;
-    let core = clamp(-(best - disp_m) / rind, 0.0, 1.0);
+    let core = clamp(-(best - disp_m + erode_m) / rind, 0.0, 1.0);
 
     // ── THE INTERIOR (v0.1231) ──
     //

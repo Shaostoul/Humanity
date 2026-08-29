@@ -435,9 +435,14 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // the interpolated NDC IS this target's per-pixel NDC step - no need
     // to know the resolution here.
     let fidx = camera.light7.w;
+    // PCG hash (v0.1242): the old hash21(pos * 0.7071) pair was the same
+    // structured-hash disease v0.1237 cured for the DEPTH jitter two lines
+    // down - a ~13 px quasi-period whose stratified average keeps the
+    // pattern, biasing the subpixel reconstruction the resolve integrates.
+    // Salted integer coords decorrelate the two axes properly.
     let px_hash = vec2<f32>(
-        hash21(in.pos.xy * 0.7071),
-        hash21(in.pos.yx * 1.3137),
+        pcg2d_hash(vec2<u32>(in.pos.xy)),
+        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0x9E37u, 0x79B9u)),
     );
     let j2 = fract(px_hash + vec2<f32>(0.7548777, 0.5698403) * fidx);
     let ndc_step = vec2<f32>(abs(dpdx(in.ndc.x)), abs(dpdy(in.ndc.y)));
@@ -462,7 +467,15 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // Continuous per-pixel lod dither (see g_lod_jitter's note in
     // 40-clouds.wgsl): +-0.5 on the trilinear lod - smooth, square-free,
     // cache-neutral.
-    g_lod_jitter = fract(hash21(in.pos.xy * 1.317) + fract(fidx * 0.618034)) - 0.5;
+    // PCG here too (v0.1242): the lod dither exists to dissolve integer-mip
+    // rings, but a patterned dither leaves the rings standing as banding -
+    // looking straight down, lodb is monotone in screen radius, so every mip
+    // boundary prints as a crosshair-centred circle (the operator's melted
+    // flower; flower-nadir vantage). Salt keeps it decorrelated from the
+    // depth jitter above.
+    g_lod_jitter = fract(
+        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u))
+        + fract(fidx * 0.618034)) - 0.5;
     // Footprint = one quarter-res pixel = 4x the screen pixel angle,
     // CAPPED at the octa map's texel angle (regime parity). At planetary
     // range the screen-driven footprint reaches mips 5-6, where the

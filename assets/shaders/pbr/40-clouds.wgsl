@@ -243,6 +243,9 @@ var<private> g_cloud_rt: f32 = CLOUD_RT;
 // worst inside the slab, which is exactly where the operator still saw
 // ghosting after the analytic cut.
 var<private> g_march_first_t: f32 = 0.0;
+// March iterations actually used by the last cloud_march_core call (dev
+// instrument: the flower-nadir ring forensics render this; costs one MOV).
+var<private> g_march_iters: f32 = 0.0;
 // The v2 constructed body's soft-rind width in METRES, frozen ONCE per
 // ray by cloud_march_core (2026-08-25, the operator's "rings extending
 // from their center... like eyeballs").
@@ -1719,7 +1722,15 @@ fn cloud_carve(
     // reasoning that says stop drawing detail once it is smaller than a
     // sample. Fading rather than cutting because a hard switch of body model
     // would pop.
-    if (material.params.y >= 2.5 && g_v2_allowed && lodb < CLOUD_V2_FADE_HI) {
+    // Fade coordinate carries the per-pixel lod dither (v0.1242): lodb is
+    // monotone in screen radius on a down-look, so the raw 0.1-lod handoff
+    // band printed as a hard crosshair-centred CIRCLE where built bodies
+    // swap to the noise body (one ring of the operator's melted flower,
+    // proven by the flower-nadir vantage). Dithered, the handoff becomes a
+    // sub-noise-floor speckle band. g_lod_jitter defaults to 0.0 on paths
+    // that never set it (Medium direct), which keeps the old exact edge.
+    let lodf = lodb + g_lod_jitter * 0.35;
+    if (material.params.y >= 2.5 && g_v2_allowed && lodf < CLOUD_V2_FADE_HI) {
         let tc_v2 = cloud_type_coord(normalize(p), t, seed);
         // THIN-GENUS BLEND (increment 6, the promised-but-missing half):
         // grape clusters cannot be wisps, so cirrus/altocumulus keep the
@@ -1727,7 +1738,7 @@ fn cloud_carve(
         // the convective range. Replaces the unconditional swap that
         // rendered thin high cloud as low grape clusters.
         let w_foot = 1.0
-            - smoothstep(CLOUD_V2_FADE_LO, CLOUD_V2_FADE_HI, lodb);
+            - smoothstep(CLOUD_V2_FADE_LO, CLOUD_V2_FADE_HI, lodf);
         let w_built = smoothstep(0.20, 0.30, tc_v2) * w_foot;
         v2_w = w_built;
         g_v2_w = w_built;
@@ -2662,6 +2673,7 @@ fn cloud_march_core(
         if (t_cur >= m1) {
             break;
         }
+        g_march_iters = f32(i + 1);
         // Footprint-proportional step with a VERTICAL ceiling (see
         // CLOUD_STEP_VERT_FRAC), an interior MFP ceiling (increment 10),
         // and a segment-density floor, clamped to what remains of the
@@ -2706,8 +2718,12 @@ fn cloud_march_core(
         // distance and the worst case is wasted work; stride more and clouds get
         // skipped, which is the bug being fixed.
         if (sdf_prev < 1.0e8) {
+            // Erosion amplitude included (v0.1242): the one-sided carve only
+            // deepens the surface, so the outer approach stays safe, but the
+            // refine/backtrack now hunts a boundary that can recede by the
+            // full carve depth - keep the margin conservative.
             let margin_m = CLOUD_V2_RIND_M + CLOUD_V2_DISP_M + CLOUD_V2_DISP2_M
-                + g_v2_warp_m;
+                + g_v2_warp_m + CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4;
             let safe_m = sdf_prev - margin_m;
             let to_draw = 0.001 * g_cloud_upkm;
             if (safe_m > 0.0) {
@@ -2720,7 +2736,23 @@ fn cloud_march_core(
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
         let tm = t_cur + dt * jitter;
-        t_cur = t_cur + dt;
+        // LADDER-PHASE JITTER (v0.1242, the melted-flower fix). Sampling
+        // inside the step is not enough: the step ENDPOINTS themselves were
+        // one deterministic comb anchored at m0 and shared by every ray, so
+        // the integer step COUNT is a staircase in screen radius - and on a
+        // flat deck every +-1 tread prints as a visible ring centred at the
+        // nadir (proven by the iteration-count diagnostic: its contours
+        // matched the operator's flower rings exactly; the rings survived
+        // both jitter-hash fixes because no per-sample jitter can move the
+        // comb). Advancing the FIRST step by the jittered fraction phase-
+        // shifts the entire comb per pixel/frame; the count boundary then
+        // dithers across a full step and the resolve's accumulation
+        // averages the treads away.
+        if (i == 0) {
+            t_cur = t_cur + dt * max(jitter, 1.0e-3);
+        } else {
+            t_cur = t_cur + dt;
+        }
 
         let p = ro + rd * tm;
         let dirp = normalize(p);

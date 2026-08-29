@@ -33,6 +33,46 @@
 > it as aliasing. The motion-gate fixes (v0.1235 epipole term, v0.1236 motion
 > floor) stay, but they were never this artifact.
 >
+> **v0.1242 (2026-08-29): the melted flower + sphere-atoms, both cured.**
+> Operator on v0.1241.1 still saw a crosshair-centred marble/flower (1.9-134
+> km, persisting at hover) and "atoms made of spheres". Critic-led workflow
+> refuted temporal feedback (hover co-rotates at every reported altitude;
+> the clip box is built from a history-free march buffer); the iteration-
+> count diagnostic proved the rings are STEP-COUNT ISOLINES - the march
+> jittered the sample inside each step but the step LADDER was one
+> deterministic comb anchored at m0, so the integer count staircases in
+> screen radius and each tread prints a ring on a flat deck. Fixed with
+> LADDER-PHASE jitter (first step advances by the jittered fraction) -
+> rings gone same-vantage (flower-nadir, now standing). Sphere-atoms:
+> the 2026-08-25 eyeball fix had stripped ALL surface erosion from built
+> clouds; restored as Nubis-class ONE-SIDED WORLEY EROSION in the DISTANCE
+> domain (moves the surface, cannot ring it; 20-160 m octaves from
+> cloud_detail_tex, height-phased, edge-proximity strength; stride margin
+> grown by the carve). Closeup verdict: carved fractal silhouettes, cost
+> neutral. Orbit FPS (operator 5-8): the honest px now runs the near march
+> at planetary slant ranges (~200M samples/frame); near_mix gains an
+> ALTITUDE FADE (full below 40 km, octa map owns above 80 km; derived from
+> cam_r_ratio so the px=280 origin-distance bug cannot return). Also:
+> px_hash + g_lod_jitter moved to PCG (last two hash21 users on this path)
+> and the CLOUD_V2_FADE_HI handoff dithered.
+>
+> **Cloud perf follow-up (small):** on fully-built samples (cs.v2 ~ 1) the
+> four density-space erosion band taps in 40-clouds.wgsl:1977-2052 are
+> computed and discarded - gate them on cs.v2 < 0.999 to reclaim 4 texture
+> taps per sample. Deferred from v0.1242 to keep that increment visual-only.
+>
+> **NEW top cloud item - map-only regime at low orbit clips cloud patches
+> (v0.1242 fade exposed it).** Evidence: marble-inertial capture, sweep
+> 20260829-060201 - at 112 km with mix=0.00 (the new altitude fade), cloud
+> patches render coherent but end in hard straight edges, all facing the
+> same direction. The 12c extent controller's regime-1 window (asin(rt/c)
+> + 4 deg + drift, ~92 deg at 112 km) SHOULD cover the disc, so the cut is
+> not obviously the cone rim - diagnose with a map-texel visualization
+> before tuning anything. This corner (map as SOLE renderer at 40-200 km)
+> was never exercised before: pre-v0.1239 the px bug gave it wrong extents,
+> post-v0.1239 the near march always covered it. The operator hovers in
+> exactly this band.
+>
 > **Swiss-cheese sheets: fixed.** The v0.1234 union scaled the field density by
 > sheet_w, pushing it under the visibility threshold at partial coverage - holes.
 > Now mix(built, max(built, body), sheet_w): the sheet keeps full density, the

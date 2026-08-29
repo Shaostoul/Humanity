@@ -2834,6 +2834,63 @@
       "hold_altitude": true
     },
     {
+      "id": "flower-nadir",
+      "desc": "Parked at 9.8 km over a dense deck looking STRAIGHT DOWN - the operator's melted-flower condition. Co-rotating, so content is still: any radial flower here is STATIC banding in the fresh march, not temporal smear.",
+      "expect": "Cloud deck from above with NO concentric rings or radial petals centred at the crosshair. Mip transitions, the constructed-body fade ring, and stride changeovers must not print as visible circles.",
+      "_why": "Operator v0.1241.1: giant melted marble/agate flower centred at the crosshair at 1.9-9.8 km, persisting while hovering. Critic verdict (4-agent workflow 2026-08-29): looking down, slab-entry distance and footprint are monotone in screen radius from the nadir, so every t-parameterized discrete transition prints as crosshair-centred rings - the lodb mip ladder, the CLOUD_V2_FADE_HI body-fade circle, and step-regime changeovers - amplified by two leftover quasi-periodic hash21 jitter users (px_hash, g_lod_jitter). Hover is co-rotating at these altitudes (content-relative delta ~0, blend band rides spin fully until 820 km), so the standing pattern cannot be reprojection feedback; it is in the march.",
+      "regressions": [
+        "no concentric rings or radial petals centred at the view centre"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 9.8,
+        "look_offset_deg": 0,
+        "time": 13.5,
+        "far_frame_km": 36000
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 14,
+      "hold_altitude": true
+    },
+    {
+      "id": "marble-inertial",
+      "desc": "Parked INERTIALLY at 112 km (above the co-rotate ceiling) looking straight down: the planet's 20-minute-day spin slides the cloud field ~33 km/s beneath a motionless camera, ~1 degree/frame of content parallax.",
+      "expect": "Clouds from low orbit with NO melted marble/agate smear and NO radial flower converging at the view centre. Honest cloud shapes, possibly noisier under motion, never smeared.",
+      "_why": "Operator v0.1241.1 screenshots: after fast flight, the cloud layer renders as giant melted marble/flower patterns centred at the crosshair that PERSIST while hovering, seen 1.9-134 km. Live instrument at their 112 km hover: px=2443 mix=1.00 (near regime, correct). Hypothesis: temporal history bilinearly re-smeared by huge per-frame content-relative parallax (inertial camera, spinning planet) with no validity cut, and the resolve's neighbourhood box-clip cannot reject history once the neighbourhood itself is smeared. This vantage reproduces the state with zero input: inertial park close to the deck. Pair capture bounds the churn.",
+      "regressions": [
+        "no melted marble/agate smear",
+        "no radial flower converging at the view centre"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 112,
+        "look_offset_deg": 0,
+        "time": 13.5,
+        "far_frame_km": 36000
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.42",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 30,
+      "captures": 2,
+      "pair_gap_s": 5,
+      "hold_altitude": true
+    },
+    {
       "id": "starburst-space",
       "desc": "Planet filling the frame from close space, heavy cover - the operator's from-space starburst condition.",
       "expect": "Cloud deck with NO axis-aligned smear bands or radial arms through the view centre.",
