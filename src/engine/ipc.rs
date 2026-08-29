@@ -832,6 +832,14 @@ pub(crate) fn capture_hires_screenshot(
 /// every frame (frame_lock_ship_pos). Permanent dev tooling: the probe rig's
 /// only way to see flown-state f32 artifacts without a 20-minute flight.
 fn apply_far_frame(state: &mut EngineState, v: &serde_json::Value) {
+    // Rig descent (v0.1245): {"descend_mps": N} makes the probe hold sink
+    // the pin N m/s down the local radial - sustained flight for the
+    // temporal cloud map's epipolar-smear forensics. Absent = 0 (parked),
+    // so every park resets it.
+    state.probe_descend_mps = v
+        .get("descend_mps")
+        .and_then(|a| a.as_f64())
+        .unwrap_or(0.0) as f32;
     let Some(d_km) = v.get("far_frame_km").and_then(|a| a.as_f64()) else {
         return;
     };

@@ -129,7 +129,16 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         // a visible tile. w > 8.5 is the CPU teleport sentinel: the
         // frame delta is so large that no history is valid, so cadence
         // is suspended and everything marches fresh.
-        let cam_near = dot(ro_in, ro_in) < 1.015;
+        // v0.1245: full-rate only while the MAP is what the player sees.
+        // Inside/under the deck the near screen arm owns the sky (per-pixel
+        // regime split) and the map is occluded - full-rate marching 16.7M
+        // hidden texels was most of the operator's 3 FPS in the layer, and
+        // the low FPS is itself what kept the accumulator unconverged
+        // ("the static of being inside the clouds is insanely bad"). The
+        // CPU pokes near_mix into light7_color.x; above 0.5 the near arm
+        // dominates and the map drops back to quarter cadence.
+        let cam_near = dot(ro_in, ro_in) < 1.015
+            && camera.light7_color.x < 0.5;
         let w = camera.light4.w;
         if (w > 0.5 && w < 8.5 && !cam_near) {
             let px = vec2<u32>(in.pos.xy);
@@ -338,6 +347,21 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // Residual parallax error also scales with shift - a floor keeps the
     // trail from persisting even where diff happens to be small.
     alpha = max(alpha, min(0.35, max(shift_tx - 1.0, 0.0) * 0.02));
+    // HARD VALIDITY CUT (v0.1245, the operator's radial starburst). Under
+    // SUSTAINED flight (FTL descent: km per frame, every frame) the history
+    // fetch is displaced many texels along the epipolar direction - radially
+    // about the motion epipole, which on a descent IS the nadir under the
+    // crosshair. An EMA of radially-displaced fetches paints radial fibres
+    // converging exactly where the operator is headed, at every altitude the
+    // map serves, and the floor above still kept 65 percent of that smear
+    // per step. Beyond ~6 texels of per-frame shift the fetch is advection,
+    // not reprojection: take the fresh march outright. Teleports were
+    // already guarded (single-frame spike, 15-degree cut); flight was not -
+    // which is why parked rig captures converged clean while every
+    // operator ARRIVAL repainted the smear.
+    if (shift_tx > 6.0) {
+        alpha = 1.0;
+    }
     // Zoom-driven floor, same reasoning as the near resolve (v0.1236): close
     // content under translation mis-reprojects too badly for history to be
     // worth keeping, however small the screen-space shift reads.

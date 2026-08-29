@@ -1880,6 +1880,7 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 probe_hold: None,
+                probe_descend_mps: 0.0,
                 cloud_ref_frame: None,
                 cloud_map_anchor: None,
                 cloud_map_reanchors: 0,
@@ -3570,6 +3571,42 @@ mod native_app {
                             // coordinates mis-frames the probe).
                             *pos = state.camera.position;
                         } else {
+                            // Rig descent (v0.1245): sustained downward
+                            // motion along the local radial, so a parked
+                            // probe can reproduce what FLIGHT does to the
+                            // temporal cloud map (a continuous epipolar
+                            // history displacement - the radial smear
+                            // converging at the nadir the operator sees on
+                            // every arrival, which single-frame teleports
+                            // can never paint).
+                            if state.probe_descend_mps > 0.0 {
+                                let a = state.frame_lock_anchor;
+                                if a.length_squared() > 0.5 {
+                                    let down_w = glam::DQuat::from_rotation_y(
+                                        state.current_spin,
+                                    ) * (-a.normalize());
+                                    let dm = state.probe_descend_mps * dt;
+                                    *pos += Vec3::new(
+                                        (down_w.x as f32) * dm,
+                                        (down_w.y as f32) * dm,
+                                        (down_w.z as f32) * dm,
+                                    );
+                                    // The ANCHOR must sink too: in the
+                                    // surface-owned bands (below the
+                                    // co-rotate ceiling) the frame lock
+                                    // derives ship_world_pos from the
+                                    // anchor MINUS cam_local, so a pin
+                                    // moved down alone is exactly
+                                    // compensated (the same property the
+                                    // far_frame split exploits) and the
+                                    // camera freezes. Where the anchor is
+                                    // re-captured per frame instead, this
+                                    // shrink is harmlessly overwritten.
+                                    let r = state.frame_lock_anchor.length();
+                                    state.frame_lock_anchor *=
+                                        ((r - dm as f64) / r).max(0.0);
+                                }
+                            }
                             state.camera.position = *pos;
                         }
                     }

@@ -3181,6 +3181,14 @@ impl Renderer {
                 snap: resolve_teleport,
             });
         }
+        // Near-regime arming mix in light7_color.x (offset 320; the whole
+        // light*_color block is legacy-unread, v0.1245): the octa pass
+        // gates its full-rate cadence on the map actually being the
+        // visible renderer - inside/under the deck the near arm owns the
+        // sky and full-rate marching the occluded map was most of the
+        // in-layer frame cost.
+        self.queue
+            .write_buffer(&self.camera_buffer, 320, bytemuck::bytes_of(&self.cloud_near_mix));
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));

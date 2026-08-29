@@ -815,6 +815,14 @@ pub(crate) struct EngineState {
     /// the position freezes; gravity drift during the grace is
     /// centimetres, the drift the pin stops is metres per settle.
     pub(crate) probe_hold: Option<(glam::Vec3, std::time::Instant)>,
+    /// Rig descent rate (m/s) applied to the probe hold's pinned position
+    /// each frame, straight down the local radial (v0.1245). Reproduces
+    /// SUSTAINED flight on a parked rig - the state that paints the map's
+    /// radial EMA smear (teleports spike the delta for one frame, which the
+    /// teleport guard eats; flight is a continuous epipolar displacement no
+    /// prior vantage could produce). Set via camera_request {"descend_mps":N},
+    /// cleared by movement input along with the hold itself.
+    pub(crate) probe_descend_mps: f32,
     /// The cloud shell's uniform state this frame, pre-serialized as JSON
     /// (environment program increment 10): everything the CPU reference
     /// march (renderer::cloud_reference) needs to re-march the EXACT scene

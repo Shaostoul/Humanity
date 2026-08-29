@@ -1,5 +1,32 @@
 # HumanityOS: Priorities
 
+> **v0.1245 (2026-08-29): flight-smear hard cut + occluded-map cadence gate
+> + rig descent knob. READ THE HONESTY NOTE.** The operator's radial
+> starburst converges at the MOTION EPIPOLE (they arrive by FTL flight; the
+> map history reprojects along the per-frame delta; sustained descent
+> displaces every fetch radially about the nadir, and the old floors kept
+> 65 percent of it per step). Fixed: hard per-texel history cut past 6
+> texels of shift (45-cloud-temporal octa path), map full-rate cadence only
+> while the map is the VISIBLE renderer (near_mix rides light7_color.x,
+> offset 320 - the in-layer 3 FPS was 16.7M occluded texels marching every
+> frame, and low FPS is itself why the accumulator stayed static), and
+> camera_request {"descend_mps":N} + the standing descent-live vantage
+> (sustained flight on the rig at last; note the frame-lock compensation:
+> the ANCHOR must sink with the pinned camera below the co-rotate ceiling).
+> HONESTY: the rig's achievable descent (~10 km/s effective) stays under
+> the cut's 6-texel threshold, so the A/B could not photograph the
+> operator's 30-100-texel regime - the cut shipped on mechanism + safety
+> (it only fires where reprojection is geometrically meaningless; parked
+> states verified untouched). IF THE OPERATOR STILL SEES FIBRES after
+> v0.1245: next suspects, in order - (a) the REGIME-2 full-sphere map
+> (inside the slab, extent = pi, anchor zenith: the antipode at the FEET
+> has the projection's true stretch singularity - the operator's "dome"
+> instinct; consider splitting regime 2 into two hemispheric windows or
+> anchoring at the horizon), (b) the near arm's resolve under 3 FPS
+> motion (same epipolar logic, cloud_resolve.wgsl has the shift_tx cut
+> already - verify its threshold), (c) capture their live run.log DURING
+> a sighting ([CloudRegime] + a new shift_tx histogram instrument).
+
 > **v0.1244 (2026-08-29, in verification): the per-pixel regime split - the
 > "missing tech" for the sheet-to-ballpit transition.** The operator's
 > persistent down-look starburst was the near march's footprint cap
