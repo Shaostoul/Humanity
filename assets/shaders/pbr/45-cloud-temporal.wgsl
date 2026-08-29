@@ -37,6 +37,27 @@ struct CloudOctaVsOut {
     @location(0) uv: vec2<f32>,
 };
 
+// Strong per-texel hash (v0.1237). The old jitter fed hash21 with uv * 8192,
+// which steps by exactly 2.0 per texel through a fract(x * 0.1031) - a
+// quasi-periodic sequence with a ~5-texel cycle, not noise. The stratified
+// march average of a BIASED sequence keeps the bias, and the bias is what the
+// operator saw: a deterministic moire rosette (radial petals + cardinal cross)
+// converging at the map anchor - at the view centre from space, at the feet
+// inside the layer. Proven by bisect: history OFF and jitter CONSTANT both
+// left the rosette standing, so it was never temporal smear - it is aliasing
+// the supersampler was supposed to remove and could not, because its sample
+// positions were not actually well distributed.
+fn pcg2d_hash(v_in: vec2<u32>) -> f32 {
+    var v = v_in * vec2<u32>(1664525u, 1013904223u);
+    v.x = v.x + v.y * 1664525u;
+    v.y = v.y + v.x * 1013904223u;
+    v = v ^ (v >> vec2<u32>(16u));
+    v.x = v.x + v.y * 1664525u;
+    v.y = v.y + v.x * 1013904223u;
+    v = v ^ (v >> vec2<u32>(16u));
+    return f32(v.x ^ v.y) * (1.0 / 4294967296.0);
+}
+
 @vertex
 fn vs_cloud_octa(@builtin(vertex_index) vi: u32) -> CloudOctaVsOut {
     // The classic single fullscreen triangle.
@@ -151,10 +172,25 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // its first-hit distance (g_march_first_t) is the exact parallax
     // distance for the content this texel shows, which the history
     // reprojection below needs.
+    let texel = vec2<u32>(clamp(in.uv, vec2<f32>(0.0), vec2<f32>(0.99999)) * 4096.0);
     let jitter = fract(
-        hash21(in.uv * 8192.0 + vec2<f32>(17.0, 39.0))
-            + fract(camera.sun_color.w * 11.0) * 0.618034,
+        pcg2d_hash(texel) + fract(camera.sun_color.w * 11.0) * 0.618034,
     );
+    // Sub-texel DIRECTION jitter (v0.1237): the anti-moire supersample. Each
+    // frame this texel marches a slightly different direction inside its own
+    // footprint, so over the EMA window the texel integrates its solid angle
+    // instead of point-sampling one fixed direction of a field with structure
+    // finer than the texel. Point-sampling is where the rosette was born; no
+    // jitter QUALITY could fix what was structurally a point sample.
+    let dj = vec2<f32>(
+        pcg2d_hash(texel + vec2<u32>(7919u, 104729u)),
+        pcg2d_hash(texel + vec2<u32>(15485863u, 32452843u)),
+    );
+    let uv_j = clamp(
+        in.uv + (dj + vec2<f32>(fract(camera.sun_color.w * 7.0) * 0.618034)
+            - vec2<f32>(1.0)) * (1.0 / 4096.0),
+        vec2<f32>(0.0), vec2<f32>(1.0));
+    let rd_wj = cloud_map_decode(uv_j, center);
     // Footprint for band-limited volume sampling: this pass's pixel is a
     // Lambert map texel; the footprint deliberately stays at the
     // 2048-map angular size (see cloud_pix_ang_map) so the 4096 texels
@@ -162,7 +198,7 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // paying finer march steps.
     var cur_s = vec4<f32>(0.0);
     if (do_march) {
-        cur_s = cloud_march_core(rd_w, center, shell_r, jitter, cloud_pix_ang_map());
+        cur_s = cloud_march_core(rd_wj, center, shell_r, jitter, cloud_pix_ang_map());
     }
     // TRANSLATION REPROJECTION (slice B, from the operator's "solitaire
     // artifact" report - radial streaks converging on the sub-camera
@@ -417,7 +453,12 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
 
     // Depth jitter: decorrelated per pixel, advanced per frame - the
     // resolve's deep accumulation is what integrates it now.
-    let jitter = fract(hash21(in.pos.xy * 0.7182) + fract(fidx * 0.618034));
+    // Same structured-hash disease as the octa pass had (v0.1237): pixel
+    // coords times 0.7182 through fract(x * 0.1031) cycles every ~13 px - a
+    // patterned jitter whose stratified average keeps the pattern. The inside-
+    // cloud starburst rode on it. Proper integer hash, same as the map pass.
+    let jitter = fract(
+        pcg2d_hash(vec2<u32>(in.pos.xy)) + fract(fidx * 0.618034));
     // Continuous per-pixel lod dither (see g_lod_jitter's note in
     // 40-clouds.wgsl): +-0.5 on the trilinear lod - smooth, square-free,
     // cache-neutral.

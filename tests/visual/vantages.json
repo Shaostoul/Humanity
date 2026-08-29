@@ -2804,6 +2804,27 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "starburst-space",
+      "desc": "Planet filling the frame from close space, heavy cover - the operator's from-space starburst condition.",
+      "expect": "Cloud deck with NO axis-aligned smear bands or radial arms through the view centre.",
+      "_why": "Operator on v0.1236.1, nearly parked (WALK gear, fly off): a cardinal cross of smeared cloud through the whole disc, centred at the crosshair, visible from space AND inside cloud, clouds only. At this distance the planet disc exceeds the 2000 px regime threshold, so the SCREEN temporal path renders the clouds here too - the same subsystem as inside the layer. One suspect for both sightings.",
+      "regressions": [
+        "no starburst or axis-aligned smear through the view centre"
+      ],
+      "camera": {
+        "body": "earth",
+        "altitude_km": 2500,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "weather": "clear"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {
