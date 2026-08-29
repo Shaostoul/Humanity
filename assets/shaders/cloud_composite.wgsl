@@ -269,9 +269,37 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (w_mix > 0.001) {
         let duv = vec2<f32>(in.uv.x, 1.0 - in.uv.y);
         let dd = vec2<f32>(textureDimensions(march_dist));
-        let tpx = vec2<i32>(clamp(duv * dd, vec2<f32>(0.0), dd - vec2<f32>(1.0)));
-        let d_km = textureLoad(march_dist, tpx, 0).r;
-        if (d_km > 0.001) {
+        // WEIGHT-BLENDED ownership key (v0.1246): a single textureLoad made
+        // w_px stair-step in 4-px blocks along every near/map content
+        // boundary. Load the 2x2 quarter texels around this pixel and
+        // bilinearly blend the computed WEIGHTS - never the distances
+        // (0 = "abstained" averaged with 33 km would read 16 km and
+        // falsely claim the pixel for the near arm).
+        let fpx = clamp(duv * dd - vec2<f32>(0.5), vec2<f32>(0.0), dd - vec2<f32>(1.0));
+        let base = vec2<i32>(floor(fpx));
+        let fr = fract(fpx);
+        var wd = 0.0;
+        var d_any = 0.0;
+        for (var dy = 0; dy <= 1; dy = dy + 1) {
+            for (var dx = 0; dx <= 1; dx = dx + 1) {
+                let p = clamp(
+                    base + vec2<i32>(dx, dy),
+                    vec2<i32>(0),
+                    vec2<i32>(dd) - vec2<i32>(1),
+                );
+                let d = textureLoad(march_dist, p, 0).r;
+                let w = select(
+                    0.0,
+                    1.0 - smoothstep(20.0, 32.0, d),
+                    d > 0.001,
+                );
+                let bw = mix(1.0 - fr.x, fr.x, f32(dx))
+                    * mix(1.0 - fr.y, fr.y, f32(dy));
+                wd = wd + w * bw;
+                d_any = max(d_any, d);
+            }
+        }
+        if (d_any > 0.001) {
             s_scr = textureSampleLevel(
                 cloud_screen, map_sampler, duv, 0.0);
             // The near arm claims a pixel only where it (a) hit content
@@ -281,7 +309,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             // would blank distant map banks behind clear foreground air -
             // horizon cloud walls would vanish at low altitude.
             let near_has = smoothstep(0.005, 0.03, s_scr.a);
-            w_px = w_mix * (1.0 - smoothstep(20.0, 32.0, d_km)) * near_has;
+            w_px = w_mix * wd * near_has;
         }
     }
     var s_map = vec4<f32>(0.0);

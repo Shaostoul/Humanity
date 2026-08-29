@@ -137,8 +137,27 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         // ("the static of being inside the clouds is insanely bad"). The
         // CPU pokes near_mix into light7_color.x; above 0.5 the near arm
         // dominates and the map drops back to quarter cadence.
-        let cam_near = dot(ro_in, ro_in) < 1.015
-            && camera.light7_color.x < 0.5;
+        // v0.1246 REGRESSION FIX: the v0.1245 near-owns gate starved the
+        // UNDER-DECK horizon band. Below the deck the per-pixel split hands
+        // near rays only ~32 km of mostly-horizontal slab - the horizon band
+        // is still the MAP's - yet near_mix reads 1.0 down there, so the
+        // gate dropped the one visible map region to quarter cadence: the
+        // operator's wall of static at the horizon and the stale-bright band
+        // at night. The occlusion argument is only valid INSIDE the slab
+        // (everything within near ownership); under the deck the map stays
+        // full rate as it always was.
+        let r2_in = dot(ro_in, ro_in);
+        // v0.1246 units fix: ro_in is in DRAWN-SHELL radii (divided by
+        // shell_r above); the slab base in that unit is slab_rb (planet
+        // radii, material.params2.x) times 1/shell_ratio (material.params.w).
+        // The previous literal 1.000314 was slab-base-squared in PLANET
+        // radii - ~16.8 km altitude in shell units, which made cam_near
+        // full-rate for the whole slab interior (the v0.1245 in-layer cost,
+        // masked at the time by the dispatch skip).
+        let rb_shell = material.params2.x * material.params.w;
+        let under_deck = r2_in < rb_shell * rb_shell;
+        let cam_near = r2_in < 1.015
+            && (under_deck || camera.light7_color.x < 0.5);
         let w = camera.light4.w;
         if (w > 0.5 && w < 8.5 && !cam_near) {
             let px = vec2<u32>(in.pos.xy);
@@ -195,8 +214,13 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
         pcg2d_hash(texel + vec2<u32>(7919u, 104729u)),
         pcg2d_hash(texel + vec2<u32>(15485863u, 32452843u)),
     );
+    // R2 pair (v0.1246): the old single golden scalar splatted on both uv
+    // axes made the temporal kernel RANK-1 - each texel time-averaged a
+    // LINE segment, not its 2-D solid angle: permanent per-texel bias
+    // noise + uniform diagonal micro-streaking. Decorrelated axes, same R2
+    // constants the screen path uses.
     let uv_j = clamp(
-        in.uv + (dj + vec2<f32>(fract(camera.sun_color.w * 7.0) * 0.618034)
+        in.uv + (dj + fract(camera.sun_color.w * 7.0 * vec2<f32>(0.7548777, 0.5698403))
             - vec2<f32>(1.0)) * (1.0 / 4096.0),
         vec2<f32>(0.0), vec2<f32>(1.0));
     let rd_wj = cloud_map_decode(uv_j, center);
@@ -288,7 +312,11 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // now keeps its OWN texel: stale for at most three frames, coherent,
     // and invisible next to a fresh march - never a hole.
     if (!do_march) {
-        if (teleported || !have_hist) {
+        // v0.1246: same coherence bound as the marching branch - past ~48
+        // texels of shift the reprojected fetch is advection, and iterating
+        // it every skipped frame was a fibre painter with NO cut at all.
+        // Keep the texel's own value instead (stale <= 3 frames, coherent).
+        if (teleported || !have_hist || shift_tx > 48.0) {
             return textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
         }
         return hist;
@@ -359,9 +387,22 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // already guarded (single-frame spike, 15-degree cut); flight was not -
     // which is why parked rig captures converged clean while every
     // operator ARRIVAL repainted the smear.
-    if (shift_tx > 6.0) {
+    // Threshold raised 6 -> 48 (v0.1246, the critic's sweep analysis): the
+    // planet-spin content sweep under an inertial camera shifts ~24 texels
+    // per frame at low FPS, and reprojection there is geometrically VALID
+    // (a coherent fetch N texels away). Cutting at 6 amputated accumulation
+    // in exactly that state - every frame became a raw jittered point
+    // sample, structurally re-enabling the anchor-centred rosette the
+    // supersampler exists to integrate away (the operator's persistent
+    // parked starburst). 48 still catches genuinely incoherent jumps well
+    // under the 15-degree guard (~430 texels).
+    if (shift_tx > 48.0) {
         alpha = 1.0;
     }
+    // Resume/sun-delta EMA floor boost (v0.1246): CPU-driven via
+    // light7_color.y - 1.0 on resume after a dispatch freeze (the map is
+    // stale; fading would replay it), scaled by sun movement otherwise.
+    alpha = max(alpha, camera.light7_color.y);
     // Zoom-driven floor, same reasoning as the near resolve (v0.1236): close
     // content under translation mis-reprojects too badly for history to be
     // worth keeping, however small the screen-space shift reads.

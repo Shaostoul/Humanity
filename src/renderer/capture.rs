@@ -102,6 +102,100 @@ impl Renderer {
     /// writing, the file's header is re-read and its dimensions must match
     /// `width` x `height` exactly, or this returns Err -- a capture that
     /// silently shipped a bad file must never report ok (project lesson).
+    /// Dump the octa cloud map's CURRENT ping to a PNG (dev forensics,
+    /// v0.1246). The map is 4096^2 RGBA16F premultiplied; the dump writes a
+    /// DOUBLE-WIDE image: left half = rgb (clamped), right half = alpha as
+    /// grayscale, so one file answers both "what content" and "what
+    /// coverage". This is the decisive instrument for the starburst
+    /// forensics: fibres present in THIS image = baked into the accumulated
+    /// content (temporal/march side); absent = display/sampling side.
+    pub fn dump_cloud_map_png(&self, path: &std::path::Path) -> Result<(u32, u32), String> {
+        fn f16_to_f32(bits: u16) -> f32 {
+            let s = (bits >> 15) & 1;
+            let e = ((bits >> 10) & 0x1f) as i32;
+            let m = (bits & 0x3ff) as f32;
+            let f = if e == 0 {
+                m * (-24f32).exp2()
+            } else if e == 31 {
+                if m == 0.0 { f32::INFINITY } else { f32::NAN }
+            } else {
+                (1.0 + m / 1024.0) * ((e - 15) as f32).exp2()
+            };
+            if s == 1 { -f } else { f }
+        }
+        let ct = self
+            .cloud_temporal
+            .as_ref()
+            .ok_or_else(|| "cloud temporal map not active".to_string())?;
+        let tex = ct.cur_texture();
+        let (w, h) = (tex.width(), tex.height());
+        let bytes_per_row = ((w * 8 + 255) / 256) * 256;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("cloud_map_readback"),
+            size: (bytes_per_row * h) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("cloud_map_dump_encoder"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(h),
+                },
+            },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+        self.queue.submit([encoder.finish()]);
+        let slice = buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        let _ = self.device.poll(wgpu::Maintain::Wait);
+        let data = slice.get_mapped_range();
+        let mut pixels = vec![0u8; (w * 2 * h * 4) as usize];
+        for row in 0..h {
+            let start = (row * bytes_per_row) as usize;
+            let row_bytes = &data[start..start + (w * 8) as usize];
+            for (x, px) in row_bytes.chunks_exact(8).enumerate() {
+                let r = f16_to_f32(u16::from_le_bytes([px[0], px[1]]));
+                let g = f16_to_f32(u16::from_le_bytes([px[2], px[3]]));
+                let b = f16_to_f32(u16::from_le_bytes([px[4], px[5]]));
+                let a = f16_to_f32(u16::from_le_bytes([px[6], px[7]]));
+                let li = ((row * w * 2 + x as u32) * 4) as usize;
+                pixels[li] = (r.clamp(0.0, 1.0) * 255.0) as u8;
+                pixels[li + 1] = (g.clamp(0.0, 1.0) * 255.0) as u8;
+                pixels[li + 2] = (b.clamp(0.0, 1.0) * 255.0) as u8;
+                pixels[li + 3] = 255;
+                let ri = ((row * w * 2 + w + x as u32) * 4) as usize;
+                let av = (a.clamp(0.0, 1.0) * 255.0) as u8;
+                pixels[ri] = av;
+                pixels[ri + 1] = av;
+                pixels[ri + 2] = av;
+                pixels[ri + 3] = 255;
+            }
+        }
+        drop(data);
+        buffer.unmap();
+        let img = image::RgbaImage::from_raw(w * 2, h, pixels)
+            .ok_or_else(|| "cloud map pixel buffer size mismatch".to_string())?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        img.save(path).map_err(|e| e.to_string())?;
+        Ok((w * 2, h))
+    }
+
     pub fn read_texture_to_png(
         &self,
         texture: &wgpu::Texture,

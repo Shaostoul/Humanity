@@ -857,6 +857,32 @@ fn apply_far_frame(state: &mut EngineState, v: &serde_json::Value) {
     );
 }
 
+/// Octa cloud-map dump (v0.1246 dev forensics): drop
+/// `debug/cloudmap_request.json` (any content) while the game runs and the
+/// CURRENT accumulated 4096^2 map is written to `debug/cloudmap_N.png` as a
+/// double-wide rgb|alpha panel, with `debug/cloudmap_done.json` reporting
+/// the path. The starburst discriminator: fibres in this file = content
+/// side; clean file = sampling/display side.
+pub(crate) fn poll_cloudmap_request(state: &mut EngineState) {
+    const REQUEST_PATH: &str = "debug/cloudmap_request.json";
+    const DONE_PATH: &str = "debug/cloudmap_done.json";
+    if !std::path::Path::new(REQUEST_PATH).exists() {
+        return;
+    }
+    let _ = std::fs::remove_file(REQUEST_PATH);
+    state.screenshot_counter += 1;
+    let out = format!("debug/cloudmap_{}.png", state.screenshot_counter);
+    let done = match state
+        .renderer
+        .dump_cloud_map_png(std::path::Path::new(&out))
+    {
+        Ok((w, h)) => serde_json::json!({"ok": true, "path": out, "w": w, "h": h}),
+        Err(e) => serde_json::json!({"ok": false, "error": e}),
+    };
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write(DONE_PATH, done.to_string());
+}
+
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
     const DONE_PATH: &str = "debug/camera_done.json";

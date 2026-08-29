@@ -72,14 +72,19 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let qpx = vec2<i32>(clamp(in.uv * qdim, vec2<f32>(0.0), qdim - vec2<f32>(1.0)));
     var m1 = vec4<f32>(0.0);
     var m2 = vec4<f32>(0.0);
+    // BILINEAR moments (v0.1246, the operator's blocky clouds): the old
+    // textureLoad taps made box_lo/box_hi piecewise-constant per quarter-res
+    // texel - ~12-screen-px plateaus - and wherever the clip or the motion
+    // floor is active (chronically, inside the layer at low FPS) those
+    // plateaus stamped straight into the output as the blocks. Sampling the
+    // same 3x3 window bilinearly at this pixel's own uv makes the box vary
+    // continuously per output pixel; 9 bilinear taps at quarter res is
+    // trivially cheap.
     for (var dy = -1; dy <= 1; dy = dy + 1) {
         for (var dx = -1; dx <= 1; dx = dx + 1) {
-            let p = clamp(
-                qpx + vec2<i32>(dx, dy),
-                vec2<i32>(0),
-                vec2<i32>(qdim) - vec2<i32>(1),
-            );
-            let s = textureLoad(march_color, p, 0);
+            let s = textureSampleLevel(
+                march_color, lin_sampler,
+                in.uv + vec2<f32>(f32(dx), f32(dy)) / qdim, 0.0);
             m1 = m1 + s;
             m2 = m2 + s * s;
         }

@@ -50,6 +50,7 @@ use super::{AlbedoBindGroup, Renderer};
 pub const CLOUD_OCTA_SIZE: u32 = 4096;
 
 pub struct CloudTemporal {
+    // (dev forensics accessor below needs the textures; fields stay private)
     _textures: [wgpu::Texture; 2],
     pub views: [wgpu::TextureView; 2],
     /// Full group-3 bind groups (colour + shadow variants) with map[i]'s
@@ -59,6 +60,16 @@ pub struct CloudTemporal {
     /// Index of the most recently WRITTEN map (interior mutability: the
     /// flip happens inside the &self render path).
     pub cur: std::cell::Cell<usize>,
+}
+
+impl CloudTemporal {
+    /// The most recently written octa map texture (dev forensics: the
+    /// cloudmap_request dump reads it back to a PNG so the accumulated map
+    /// CONTENT can be inspected directly - the discriminator between
+    /// "the starburst is baked into the map" and "it appears at sampling").
+    pub fn cur_texture(&self) -> &wgpu::Texture {
+        &self._textures[self.cur.get()]
+    }
 }
 
 /// The NEAR-regime screen buffers (12e march/resolve split): a

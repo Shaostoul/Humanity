@@ -854,6 +854,10 @@ pub(crate) struct EngineState {
     /// baseline whose delta equals the content-relative camera motion -
     /// the world-frame relative position slides at orbital speed even for
     /// a parked camera (measured 1.3-2.1 km/frame) and smears the map.
+    /// World sun direction at the cloud map's last content epoch (v0.1246
+    /// sun-delta invalidation - the map had NO time-of-day invalidation and
+    /// a 20-minute day guarantees stale lighting within minutes).
+    pub(crate) cloud_map_sun_epoch: glam::DVec3,
     /// f64 (v0.1238): after a real flight the camera sits at ~3.6e7 m in the
     /// ship-local frame (no floating-origin rebase), where one f32 ulp is 4 m.
     /// The per-frame DELTA of this baseline is centimeters, so an f32 chain

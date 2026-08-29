@@ -1,7 +1,34 @@
 # HumanityOS: Priorities
 
+> **v0.1246 (2026-08-29): the three-part conviction - frozen map, sentinel
+> death spiral, over-tight cut.** (1) The octa pass was CPU-skipped at
+> near_mix==1.0 (below ~30 km) while the per-pixel composite still showed
+> the map in the whole horizon band: the operator's night-bright band WAS
+> frozen daylight (proven: every lit march term is ~0 at night). Dispatch
+> now ORs regime 3; resume-after-freeze floors EMA to 1; sun-delta
+> invalidation exists at all now. (2) PARKED DOES NOT EXIST here: the
+> 20-minute day sweeps content 37 km/s past a world-frame hover (5.3
+> km/frame at 7 FPS); the LEVEL-triggered sentinel fired every frame
+> (cadence suspended -> 16.7M marches -> the 7 FPS itself, self-locking)
+> and the v0.1245 6-texel cut amputated accumulation at the sweep's 24
+> texels -> per-frame point-sample = the rosette repainted forever.
+> Sentinel now EDGE-triggered (spike vs level); cut raised to 48; the
+> cadence-skip branch (which advected with NO bound) gets the same cut.
+> Frame-locked parks measure [CloudReproj] 0.000 - why the rig was always
+> clean. (3) Resolve clip moments bilinear (12-px block plateaus);
+> composite key 2x2 weight-blended; under_deck units fixed (was 16.8 km,
+> not the slab base - masked by the dispatch skip); rank-1 octa temporal
+> jitter -> R2 pair. NEW INSTRUMENTS: debug/cloudmap_request.json dumps
+> the octa map itself (rgb|alpha double-wide PNG - the content-vs-
+> sampling discriminator), night-horizon standing vantage. DEFERRED:
+> grazing iteration-cap tail (obliquity-scaled refine floor at
+> 40-clouds.wgsl:2750), extent-rim fade (composite e.z hard cut -> smooth
+> + guard-ring march), composite Catmull-Rom has no mip at minification
+> (sparkle at orbit).
+
 > **v0.1245 (2026-08-29): flight-smear hard cut + occluded-map cadence gate
-> + rig descent knob. READ THE HONESTY NOTE.** The operator's radial
+> + rig descent knob. READ THE HONESTY NOTE (superseded by v0.1246 above -
+> the cut was over-tight and the sentinel analysis incomplete).** The operator's radial
 > starburst converges at the MOTION EPIPOLE (they arrive by FTL flight; the
 > map history reprojects along the per-frame delta; sustained descent
 > displaces every fetch radially about the nadir, and the old floors kept

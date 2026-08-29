@@ -2858,8 +2858,33 @@
         "cloud_type": "0.46",
         "weather": "clear"
       },
-      "settle_s": 10,
+      "settle_s": 95,
       "hold_altitude": false
+    },
+    {
+      "id": "night-horizon",
+      "desc": "Night, 6 m over the ocean, rain, looking at the horizon cloud band - the operator: bright white static despite it being night.",
+      "expect": "The horizon cloud band is DARK at night like everything else; the map refreshes (paired dumps differ) instead of replaying frozen daylight.",
+      "regressions": [
+        "no bright daylight cloud band at night"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 0,
+        "lon": -30,
+        "altitude_km": 0.006,
+        "look_offset_deg": 88,
+        "time": 1
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "0.46",
+        "weather": "rain"
+      },
+      "settle_s": 16,
+      "hold_altitude": true
     },
     {
       "id": "sun-behind-deck",

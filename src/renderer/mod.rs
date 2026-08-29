@@ -431,6 +431,27 @@ pub struct Renderer {
     /// Cell + take(): consumed once per celestial render, so the hi-res
     /// double render reprojects by zero on its second pass.
     pub cloud_reproj_delta: std::cell::Cell<Option<[f32; 3]>>,
+    /// v0.1246: dispatch the octa pass even at near_mix == 1.0 (the CPU gate
+    /// used to skip it entirely, freezing the map while the v0.1244
+    /// per-pixel composite still displayed it in every horizon-band pixel -
+    /// the operator's stale-daylight night band). Set by lib.rs when the
+    /// camera is UNDER the deck (12c regime 3).
+    pub cloud_octa_force: bool,
+    /// Frames since the octa pass last dispatched (resume-drop bookkeeping).
+    pub cloud_octa_idle: std::cell::Cell<u32>,
+    /// EMA alpha-floor boost handed to the octa pass via light7_color.y:
+    /// 1.0 on resume-after-idle (the map is stale - a fade would replay it),
+    /// decaying over a few dispatched frames; also driven by the sun having
+    /// moved since the map's content epoch (there was NO sun-delta
+    /// invalidation at all - a 20-minute day guarantees stale lighting).
+    pub cloud_octa_boost: std::cell::Cell<f32>,
+    /// Previous frame's squared reprojection delta, for the EDGE-TRIGGERED
+    /// teleport sentinel (v0.1246): the old LEVEL trigger fired every frame
+    /// under the planet-spin content sweep (37 km/s at a 20-minute day),
+    /// suspending cadence into a full-rate 16.7M-march death spiral that
+    /// was itself the operator's 7 FPS. A teleport is a delta SPIKE; a
+    /// sweep is a steady level the reprojection handles geometrically.
+    pub cloud_prev_delta2: std::cell::Cell<f32>,
     /// Octa-pass march cadence counter (quarter-rate marching over the
     /// 4096 map): increments per celestial render, phase = counter % 4.
     pub cloud_octa_phase: std::cell::Cell<u32>,
@@ -1644,6 +1665,10 @@ impl Renderer {
             cloud_map_cmax: -1.0,
             cloud_map_resample: std::cell::Cell::new(None),
             cloud_reproj_delta: std::cell::Cell::new(None),
+            cloud_octa_force: false,
+            cloud_octa_idle: std::cell::Cell::new(0),
+            cloud_octa_boost: std::cell::Cell::new(0.0),
+            cloud_prev_delta2: std::cell::Cell::new(0.0),
             cloud_octa_phase: std::cell::Cell::new(0),
             cloud_mode_near: false,
             cloud_near_mix: 0.0,
@@ -3077,7 +3102,19 @@ impl Renderer {
                             * (camera.fov_degrees.to_radians() * 0.5).tan()
                             / (self.config.height.max(1) as f32);
                         let thresh = 2.0 * texel_ang.max(screen_ang) * d_slab;
-                        d2 > thresh * thresh
+                        // EDGE-TRIGGERED (v0.1246): require the level AND a
+                        // spike vs last frame. Under the sustained planet-
+                        // spin content sweep (km-scale delta EVERY frame on
+                        // the 20-minute day) the old level trigger fired
+                        // continuously: cadence suspended, 16.7M marches per
+                        // frame, FPS pinned ~7 - and the low FPS made each
+                        // per-frame delta bigger, locking the spiral. A
+                        // sweep's reprojection is geometrically valid (a
+                        // coherent fetch N texels away); only a genuine JUMP
+                        // (teleport/re-park) invalidates history, and a jump
+                        // is a spike: delta far above the running level.
+                        let prev2 = self.cloud_prev_delta2.replace(d2);
+                        d2 > thresh * thresh && d2 > prev2 * 16.0 + 1.0
                     })
                     .unwrap_or(false);
                 if sentinel {
@@ -3658,10 +3695,38 @@ impl Renderer {
         // pass replaces it entirely (marching 16.7M map texels for a
         // full-screen planet was the near-planet lag, and the direction
         // cache is the ghost family).
+        // v0.1246: ALSO dispatch when under the deck (cloud_octa_force,
+        // 12c regime 3) - since the v0.1244 per-pixel split the composite
+        // gives the map full weight in the whole horizon band even at
+        // near_mix 1.0, and a skipped pass froze that band at whatever
+        // daylight it last held (the operator's bright-white night band and
+        // the wall of static). Inside the slab (regime 2) the skip stays:
+        // near ownership genuinely covers the sky there.
+        let octa_runs = self.cloud_near_mix < 1.0 || self.cloud_octa_force;
+        if octa_runs {
+            let idle = self.cloud_octa_idle.replace(0);
+            if idle >= 30 {
+                // Resume after a real freeze: the whole map is stale (wrong
+                // sun, wrong weather). A fade-in would REPLAY the stale
+                // content for seconds - boost the EMA floor to ~1 instead
+                // and decay over a few dispatched frames.
+                self.cloud_octa_boost.set(1.0);
+            }
+        } else {
+            self.cloud_octa_idle.set(self.cloud_octa_idle.get().saturating_add(1));
+        }
+        let boost = self.cloud_octa_boost.get();
+        if boost > 0.0 {
+            self.cloud_octa_boost.set((boost - 0.18).max(0.0));
+        }
+        // light7_color.y (offset 324; legacy-unread block): the octa pass
+        // applies this as an alpha floor for marching texels.
+        self.queue
+            .write_buffer(&self.camera_buffer, 324, bytemuck::bytes_of(&boost));
         if let (Some(ct), Some(mat_idx), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_temporal_mat,
-            self.cloud_near_mix < 1.0,
+            octa_runs,
         ) {
             if let (Some(i), Some(material)) = (
                 transparent.iter().position(|o| o.material == mat_idx),

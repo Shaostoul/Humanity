@@ -1886,6 +1886,7 @@ mod native_app {
                 cloud_map_reanchors: 0,
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
+                cloud_map_sun_epoch: glam::DVec3::ZERO,
                 sea_state_override: None,
                 ocean_event_pin_request: None,
                 ocean_event_pin: None,
@@ -12023,6 +12024,45 @@ mod native_app {
                                                 3
                                             };
                                             state.cloud_map_regime = regime;
+                                            // v0.1246: under the deck the
+                                            // octa pass must keep running
+                                            // (see mod.rs dispatch gate).
+                                            state.renderer.cloud_octa_force =
+                                                regime == 3;
+                                            // Sun-delta invalidation (none
+                                            // existed): when the sun moves
+                                            // > ~2 deg past the map content
+                                            // epoch, floor-boost the EMA so
+                                            // lighting cannot go stale on
+                                            // the 20-minute day.
+                                            {
+                                                let sun_now = state
+                                                    .sun_world_pos
+                                                    .normalize_or_zero();
+                                                let prev = state.cloud_map_sun_epoch;
+                                                if prev.length_squared() < 0.5 {
+                                                    state.cloud_map_sun_epoch = sun_now;
+                                                } else {
+                                                    let cosd = prev
+                                                        .dot(sun_now)
+                                                        .clamp(-1.0, 1.0);
+                                                    let deg = cosd.acos().to_degrees();
+                                                    if deg > 2.0 {
+                                                        let b = ((deg - 2.0) / 8.0)
+                                                            .clamp(0.0, 1.0)
+                                                            as f32;
+                                                        let cur = state
+                                                            .renderer
+                                                            .cloud_octa_boost
+                                                            .get();
+                                                        state
+                                                            .renderer
+                                                            .cloud_octa_boost
+                                                            .set(cur.max(0.3 + 0.5 * b));
+                                                        state.cloud_map_sun_epoch = sun_now;
+                                                    }
+                                                }
+                                            }
                                             let (ideal_a, ideal_th) = match regime {
                                                 // Above the deck: anchor at
                                                 // NADIR, extent = the shell
@@ -15430,6 +15470,7 @@ mod native_app {
                     // autopilot poll) and not in the GUI-action section, which
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
+                    crate::engine::ipc::poll_cloudmap_request(state);
 
                     // F6 location bookmark save (v0.890): runs here so
                     // current_spin + frame-lock state are fresh this frame.
