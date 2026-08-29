@@ -30,6 +30,11 @@ pub mod osm_region;
 /// lake beds under their surface sheets. The flight-sim vector-water-mask
 /// technique (v0.1149, water arc). Relay-safe, pure std + glam.
 pub mod water_carve;
+/// Analytic ocean disaster fields (tsunami, rogue wave, maelstrom,
+/// hurricane) - ABYSSAL adoption arc rung 1 (docs/reference/
+/// abyssal-ocean-weather.md). Pure math, relay-safe; the WGSL twin and the
+/// event lifecycle arrive at rungs 2-3.
+pub mod ocean_events;
 pub mod ocean_fft;
 pub mod ocean_mask;
 pub mod ocean_waves;
