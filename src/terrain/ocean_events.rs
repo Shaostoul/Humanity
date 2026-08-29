@@ -980,6 +980,9 @@ mod tests {
             "1.87", "0.42", "0.61", "0.55", "1.97", "0.72",
             // hurricane ring position/width/gain, eye calm/depression, floor
             "1.25", "1.4", "3.0", "1.6)", "0.4", "50.0",
+            // rung 2b shading twins: soliton breaking-lip band + face bias,
+            // vortex shear gain + saturation cap, rogue crest band
+            "0.80, 0.985", "mix(0.25, 1.0,", "0.022", "0.62)", "0.55, 1.0",
         ] {
             assert!(block.contains(needle), "WGSL ocean-event block lost constant {needle}");
         }

@@ -711,6 +711,72 @@ fn ocean_event_height(p: vec2<f32>) -> f32 {
     return h;
 }
 
+// Breaking-lip foam band of one soliton, on the crest and the forward face
+// only (a foamed shoulder reads as a painted slab). Mirrors the CPU twin's
+// Soliton::modifiers crest output.
+fn ocean_event_soliton_crest(p: vec2<f32>, a: vec4<f32>, b: vec4<f32>) -> f32 {
+    if (a.w <= 0.001) {
+        return 0.0;
+    }
+    let dir = a.xy;
+    let x = dot(p, dir) - a.z;
+    let w = max(b.x, 1.0);
+    let lateral = dot(p, vec2<f32>(-dir.y, dir.x));
+    let lat_env = exp(-lateral * lateral / (b.z * b.z + 1.0));
+    var xf = x;
+    if (x > 0.0) {
+        xf = x * (1.0 + b.y * 1.35);
+    }
+    let s = ocean_event_sech(xf / w);
+    let d = ocean_event_sech((x - w * 1.6) / (w * 1.1));
+    let prof = s * s - d * d * 0.16 * b.y;
+    let face_bias = mix(0.25, 1.0, smoothstep(-w * 0.35, w * 0.2, x));
+    return smoothstep(0.80, 0.985, prof) * lat_env * face_bias;
+}
+
+// Event foam seed + glassy-eye calm for the water SHADING (rung 2b): x =
+// crest in [0,~1] (vortex shear saturating at 0.62 - fully broken water
+// cannot get whiter - plus soliton breaking lips and the rogue's crest
+// band), y = the hurricane's eye calm in [0,1]. Mirrors the CPU twin's
+// OceanEvents::modifiers crest/calm outputs; visual-only, so buoyancy is
+// untouched.
+fn ocean_event_crest_calm(p: vec2<f32>) -> vec2<f32> {
+    var crest = 0.0;
+    for (var i = 0u; i < 4u; i++) {
+        let v = camera.ocean_event[i];
+        if (v.w <= 0.0001) {
+            continue;
+        }
+        let x = (length(p - v.xy) + 1e-3) / max(v.z, 1.0);
+        var vt = x;
+        if (x >= 1.0) {
+            vt = 1.0 / (x * x * 0.65 + 0.35);
+        }
+        crest += vt * exp(-x * x * 0.55) * min(v.w * 0.022, 0.62);
+    }
+    crest = max(crest, ocean_event_soliton_crest(p, camera.ocean_event[4], camera.ocean_event[5]));
+    crest = max(crest, ocean_event_soliton_crest(p, camera.ocean_event[6], camera.ocean_event[7]));
+    let ra = camera.ocean_event[8];
+    if (ra.w > 0.001) {
+        let rb = camera.ocean_event[9];
+        let d = p - ra.xy;
+        let r = max(ra.z, 1.0);
+        let env = exp(-dot(d, d) / (r * r));
+        let phase = dot(d, rb.xy) * (6.28318530718 / max(rb.z, 4.0)) + rb.w;
+        let g = (cos(phase) + cos(phase * 1.87 + 1.1) * 0.42 + cos(phase * 0.61 - 0.7) * 0.55)
+            / 1.97;
+        let peaky = sign(g) * pow(abs(g), 0.72);
+        crest = max(crest, smoothstep(0.55, 1.0, peaky) * env);
+    }
+    var calm = 0.0;
+    let hu = camera.ocean_event[10];
+    if (hu.w > 0.001) {
+        let x = (length(p - hu.xy) + 1e-3) / max(hu.z, 50.0);
+        calm = exp(-x * x * 1.6);
+    }
+    return vec2<f32>(clamp(crest, 0.0, 1.0), calm);
+}
+
 fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>, cell_m: f32) -> f32 {
     if (camera.light0_cone_inner.x > 0.5) {
         return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial, cell_m);

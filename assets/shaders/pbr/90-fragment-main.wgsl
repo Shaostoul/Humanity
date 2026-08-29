@@ -664,6 +664,20 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // correct hemisphere at any sea state.
         let gl = length(grad);
         grad = grad * (1.0 / (1.0 + 1.35 * gl)); // clamp strengthened with it
+        // Ocean disaster events (rung 2b): breaking-lip / shear foam seeds
+        // and the hurricane's glassy eye. Evaluated analytically at this
+        // fragment's planet-model position (same frame as the vertex event
+        // displacement); visual-only, buoyancy untouched. The eye calm
+        // flattens the chop shading toward mirror water, ABYSSAL's
+        // slope *= (1 - calm * 0.85).
+        var event_crest = 0.0;
+        var event_calm = 0.0;
+        if (camera.ocean_event[11].w > 0.5) {
+            let ecc = ocean_event_crest_calm(ocean_event_p2(p_local));
+            event_crest = ecc.x;
+            event_calm = ecc.y;
+            grad = grad * (1.0 - event_calm * 0.85);
+        }
         // Whitecaps: crest-masked from the texture's height channel (foam
         // rides actual wave tops now) plus the long-swell steepness term,
         // both sea-state gated. Same hard screen-space reach as before -
@@ -695,6 +709,13 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             * foam_reach
             * presence;
         }
+        // Event foam rides on top, ungated by foam_reach: a tsunami lip or
+        // a maelstrom's shear ring is a 30 m+ feature, visible far beyond
+        // the ~10 m whitecap footprint window. Seeded BEFORE the lacework
+        // so it inherits the strand carving, and the glassy eye suppresses
+        // whatever foam the sea state painted (ABYSSAL's calm * 0.9).
+        foam = max(foam, event_crest * presence);
+        foam = foam * (1.0 - event_calm * 0.9);
         // Foam LACEWORK (v0.1018, operator: "the foam texture is very
         // simple that it just kind of looks like white paper"): real foam
         // is strands and holes, not a solid sheet. A second wave-texture
