@@ -57,18 +57,25 @@
 > next; per-event tuning numbers go in `data/weather/events.ron`
 > (infinite-of-x), never hardcoded:
 >
-> 1. **Ocean event field core (CPU, f64)**: `src/terrain/ocean_events.rs` -
->    the four analytic disaster fields (tsunami soliton with asymmetric
->    shoaling + drawdown, rogue Gerstner group, Rankine vortex + swirl-coord
->    rotation, hurricane eyewall ring + glassy eye) in event-local tangent
->    frames, plus vec4 uniform packing and unit tests pinning every adopted
->    constant (sech clamp 12, shoal compress 1.35, foam-shear cap 0.62, rogue
->    ride-the-envelope rule, deep-water wavelength/speed pairing). No wiring.
-> 2. **WGSL twin + geometry**: event height into `water_disp_height`, slope/
->    crest-foam/calm into the water shading; buoyancy twin includes events;
->    lockstep test in the `ocean_waves.rs` L192-252 pattern. SHARED-FILE rung
->    (00-bindings-vertex / 20-surface-detail / 90-fragment-main): small serial
->    edits, re-read before editing. Verify: probe vantage with a pinned event.
+> 1. **DONE v0.1238.0 - Ocean event field core (CPU, f64)**:
+>    `src/terrain/ocean_events.rs` - the four analytic disaster fields
+>    (tsunami soliton with asymmetric shoaling + drawdown, rogue Gerstner
+>    group, Rankine vortex + swirl-coord rotation, hurricane eyewall ring +
+>    glassy eye) in event-local tangent frames, vec4 uniform packing, 18
+>    tests pinning every adopted constant.
+> 2. **GEOMETRY HALF DONE v0.1240.0 - WGSL twin + geometry**: event height
+>    displaces the drawn sea (CameraUniforms 14-row tail block at offset
+>    672, layout-test-pinned); buoyancy rides it (rogue = envelope only);
+>    WGSL constant-scanner lockstep test; dev pin showcase
+>    {"ocean_event":kind, ocean_event_bearing, ocean_event_distance};
+>    probe-proven with close-range captures (tsunami ridge + drawdown,
+>    maelstrom bowl; hurricane confirms the pow-negative-base WGSL fix).
+>    REMAINING (rung 2b, next): crest-foam seed + eye-calm suppression +
+>    swirl-coord advection into the water SHADING (20-surface-detail /
+>    90-fragment-main - shared tails, small serial edits). Note for 2b+3:
+>    dev-pin amplitudes are clamped to the +-12 m patch band
+>    (MAX_SEA_HEIGHT_M); full 34 m walls need the lifecycle to publish
+>    dynamic patch bounds.
 > 3. **Lifecycle + gameplay**: event params data-driven in
 >    `data/weather/events.ron`; spawn/ramp/decay through `weather_events.rs`;
 >    REGISTER `DisasterSystem` (written, never registered); damage + HUD; the
