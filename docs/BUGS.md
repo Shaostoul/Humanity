@@ -1025,3 +1025,47 @@ hours; the old behavior fails the Silverdale-noon cell by ~62 degrees.
 
 **Deliberately unfixed here:** the model has no axial tilt (eternal
 equinox; Season is decorative). Obliquity is its own future increment.
+
+## BUG-073: The flown-camera starburst - a rig that teleports cannot see what a player who flies sees (fixed v0.1239.0)
+
+**Symptom (operator, across v0.1235-v0.1237):** a cardinal-locked
+starburst/balloon converging at the feet, visible from inside the cloud
+layer and from space, clouds only, "cuts through clouds making them look
+flat." Three successive fixes (epipole motion gate, motion floor,
+unbiased supersampler) each dissolved a rig-visible artifact and left the
+operator's untouched: "Doesn't appear like you actually affected the
+thing at all."
+
+**Why the rig was blind:** the rig TELEPORTS - camera.position stays
+~30 m and the planet distance rides in the f64 ship_world_pos. The
+operator FLIES, and with no floating-origin rebase the whole ~36,000 km
+journey accumulates in the f32 camera.position (ulp 4 m). The two states
+render differently, and every fix was verified on the wrong one.
+
+**The repro:** ipc camera_request knob `far_frame_km` re-splits the same
+absolute pose (camera.position takes the distance, ship_world_pos gives
+it back; the frame lock preserves the split). Standing vantage
+`starburst-far` = starburst-repro + far_frame_km 36000. Red first try:
+murky whole-frame veil + cardinal speckle cross at the nadir.
+
+**Root causes (three, in dominance order):**
+1. `dist = render_off.length()` in the celestial draw loop - planet
+   distance measured from the SHIP-FRAME ORIGIN, not the camera.
+   [CloudRegime] read px=280 mix=0.00 at 4.3 km: the ORBITAL far-map
+   cloud regime + starved planet LOD rendered from inside the cloud
+   layer. Fixed: camera-relative in f64.
+2. The cloud motion delta computed in f32 at planet magnitudes -
+   centimeter true motion snapped to an axis-aligned lattice, feeding
+   map reprojection, resolve prev_dpos, and the motion gates (a parked
+   camera read phantom motion, so temporal history never converged).
+   Fixed: f64 end to end, only the final small delta cast down.
+3. cloud_resolve.wgsl reprojected via (cam + rd*t) - (cam + dpos),
+   rounding two small quantities through the huge camera position.
+   Fixed: small form normalize(rd*t_w - prev_dpos).
+
+**Lesson (the general rule):** verify on the STATE THE PLAYER ACTUALLY
+REACHES, not the state the rig constructs. Any dev shortcut that places
+the camera differently from how a player arrives there (teleport vs
+flight, fresh boot vs long session) can hide an entire defect class.
+starburst-far is the standing regression; the architectural cure for
+the class is a floating-origin rebase (PRIORITIES follow-up).
