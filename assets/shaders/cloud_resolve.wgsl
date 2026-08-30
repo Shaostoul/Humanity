@@ -248,5 +248,28 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let slide_hard = clamp(shift_tx / 8.0 - 0.25, 0.0, 1.0);
     let zoom_gate = smoothstep(0.005, 0.03, zoom_rel);
     alpha = max(alpha, max(zoom_gate, slide_hard) * 0.6);
-    return mix(hist_c, cur, alpha);
+
+    // ── VARIANCE-ADAPTIVE SPATIAL FILTER (v0.1252, the operator's
+    // "jitter / tv static ... worse as I get closer") ──
+    // Near clouds the temporal filter is CORRECTLY shallow: interior
+    // parallax under flight is not reprojectable by a single first-hit
+    // distance, so the floor above opens and each frame shows mostly the
+    // raw march - whose per-pixel jitter over a near-binary density field
+    // is coin-flip static no history exists to average. But the SPATIAL
+    // neighbourhood already holds the answer: the 3x3 mean mu is a smooth
+    // partial-coverage estimate of the same content. Where the
+    // neighbourhood is statistically NOISE (high sigma relative to its
+    // own level) and the blend is shallow (temporal depth unavailable),
+    // the current frame contributes mu instead of its own coin flip.
+    // Structured edges keep detail two ways: their sigma is contrast, not
+    // noise, only partially engaging the filter, and what mu costs there
+    // is one quarter-res texel of softness - against animated static,
+    // the trade the operator is explicitly asking for.
+    let lvl = mu.a + dot(mu.rgb, vec3<f32>(0.333));
+    let sig = sigma.a + dot(sigma.rgb, vec3<f32>(0.333));
+    let rel_sig = sig / max(lvl, 0.02);
+    let noise_w = smoothstep(0.15, 0.60, rel_sig);
+    let shallow = clamp((alpha - 0.12) / 0.5, 0.0, 1.0);
+    let cur_s = mix(cur, mu, noise_w * mix(0.35, 0.75, shallow));
+    return mix(hist_c, cur_s, alpha);
 }

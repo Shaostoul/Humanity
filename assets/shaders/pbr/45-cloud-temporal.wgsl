@@ -58,6 +58,22 @@ fn pcg2d_hash(v_in: vec2<u32>) -> f32 {
     return f32(v.x ^ v.y) * (1.0 / 4294967296.0);
 }
 
+// Interleaved gradient noise (Jimenez 2014) - the production dither for
+// exactly this pipeline (v0.1252, the operator's "jitter / tv static").
+// A PCG hash is WHITE noise: its error clumps at every frequency, so an
+// unconverged march (flight keeps the temporal filter shallow near
+// clouds - interior parallax is genuinely unreprojectable) reads as
+// salt-and-pepper static. IGN concentrates the error in the highest
+// spatial frequencies, which bilinear upsampling, the resolve's spatial
+// pass, and the eye all suppress - the same jitter budget becomes far
+// less visible while converging to the same average. The per-frame
+// advance (5.588238 * frame) walks the pattern so the stratified
+// average stays flat; distinct pixel-space salts decorrelate consumers.
+fn ign(px: vec2<f32>, f: f32) -> f32 {
+    let p = px + vec2<f32>(5.588238 * f);
+    return fract(52.9829189 * fract(0.06711056 * p.x + 0.00583715 * p.y));
+}
+
 @vertex
 fn vs_cloud_octa(@builtin(vertex_index) vi: u32) -> CloudOctaVsOut {
     // The classic single fullscreen triangle.
@@ -561,17 +577,25 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // coords times 0.7182 through fract(x * 0.1031) cycles every ~13 px - a
     // patterned jitter whose stratified average keeps the pattern. The inside-
     // cloud starburst rode on it. Proper integer hash, same as the map pass.
+    // WHITE noise (PCG), deliberately - the v0.1252 IGN experiment is
+    // REVERTED. IGN's error is spatially STRUCTURED (diagonal gradient
+    // ridges), and the resolve's variance-adaptive spatial filter cannot
+    // remove structure: the 3x3 mean of a weave is still a weave, and
+    // the shaded cloud faces came out printed with a halftone lattice
+    // (rig capture 20260830-204146). White noise is exactly what a
+    // local mean annihilates - the filter and the jitter must be
+    // spectrally matched. Keep any future dither experiment paired with
+    // that filter's kernel.
     let jitter = fract(
         pcg2d_hash(vec2<u32>(in.pos.xy)) + fract(fidx * 0.618034));
     // Continuous per-pixel lod dither (see g_lod_jitter's note in
     // 40-clouds.wgsl): +-0.5 on the trilinear lod - smooth, square-free,
-    // cache-neutral.
-    // PCG here too (v0.1242): the lod dither exists to dissolve integer-mip
-    // rings, but a patterned dither leaves the rings standing as banding -
-    // looking straight down, lodb is monotone in screen radius, so every mip
-    // boundary prints as a crosshair-centred circle (the operator's melted
-    // flower; flower-nadir vantage). Salt keeps it decorrelated from the
-    // depth jitter above.
+    // cache-neutral. PCG (v0.1242): the lod dither exists to dissolve
+    // integer-mip rings, and a patterned dither leaves the rings
+    // standing as banding - looking straight down, lodb is monotone in
+    // screen radius, so every mip boundary prints as a crosshair-centred
+    // circle (the operator's melted flower; flower-nadir vantage). Salt
+    // keeps it decorrelated from the depth jitter above.
     g_lod_jitter = fract(
         pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u))
         + fract(fidx * 0.618034)) - 0.5;
@@ -621,8 +645,29 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
             t_rep = select(-b + sq, -b - sq, -b - sq > 0.0);
         }
     }
+    // ── SCREEN-PATH CHANNEL BISECT (v0.1252; showcase {"map_diag":N}) ──
+    // The stipple forensics instrument, extended from the octa pass's
+    // v0.1249 edition to the one renderer that remains. Renders ONE raw
+    // ingredient of this pixel's march as grayscale so a capture can
+    // convict the carrier of pixel-scale grain:
+    //   1 = coverage alpha, UNLIT (grain here = the density field/its
+    //       thresholding); 2 = accumulated direct-sun luminance (grain =
+    //       sun taps / powder / cavity-on-direct); 3 = accumulated
+    //       ambient luminance (grain = ambient shaping). The resolve and
+    //       composite run unchanged - the diag converges like content.
+    let diag = camera.light7_color.z;
+    var cur_d = cur_s;
+    if (diag > 0.5 && diag < 1.5) {
+        cur_d = vec4<f32>(cur_s.a, cur_s.a, cur_s.a, 1.0);
+    } else if (diag < 2.5 && diag >= 1.5) {
+        let l2 = clamp(g_march_sun_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l2, l2, l2, 1.0);
+    } else if (diag < 3.5 && diag >= 2.5) {
+        let l3 = clamp(g_march_amb_acc * 4.0, 0.0, 1.0);
+        cur_d = vec4<f32>(l3, l3, l3, 1.0);
+    }
     var out: CloudMarchOut;
-    out.color = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
+    out.color = vec4<f32>(cur_d.rgb * cur_d.a, cur_d.a);
     out.dist_km = max(t_rep, 0.0) * 0.001;
     return out;
 }

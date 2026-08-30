@@ -3086,6 +3086,109 @@
         "weather": "clear"
       },
       "settle_s": 12
+    },
+    {
+      "id": "motion-closeup",
+      "desc": "Sinking 60 m/s through the cumulus field at ~2-3 km: the operator's actual complaint state - clouds seen close UNDER SUSTAINED MOTION, where interior parallax keeps the temporal blend shallow and the raw march grain shows.",
+      "expect": "Near cumulus stay coherent soft masses under motion - no salt-and-pepper static crawling on their surfaces. Softness beats animated grain here.",
+      "_why": "v0.1252: every parked vantage converges the resolve (blend alpha 0.07) and cannot exhibit the static the operator reports from flight. This vantage holds the shallow-blend state for the whole settle. Pair captures 2 s apart give a flicker metric.",
+      "regressions": [
+        "no salt-and-pepper static on near cloud surfaces under sustained motion"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 5,
+        "look_offset_deg": 60,
+        "time": 13.5,
+        "descend_mps": 300
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.42",
+        "cloud_type": "0.46",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "captures": 2,
+      "pair_gap_s": 2
+    },
+    {
+      "id": "speck-alpha",
+      "desc": "Channel bisect for the closeup stipple (v0.1252): cumulus-closeup pose with map_diag=1 (alpha channel, grayscale).",
+      "expect": "Grayscale alpha channel; grain here convicts this ingredient.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "map_diag": "1"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "speck-sun",
+      "desc": "Channel bisect for the closeup stipple (v0.1252): cumulus-closeup pose with map_diag=2 (sun channel, grayscale).",
+      "expect": "Grayscale sun channel; grain here convicts this ingredient.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "map_diag": "2"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
+    },
+    {
+      "id": "speck-amb",
+      "desc": "Channel bisect for the closeup stipple (v0.1252): cumulus-closeup pose with map_diag=3 (amb channel, grayscale).",
+      "expect": "Grayscale amb channel; grain here convicts this ingredient.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "map_diag": "3"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
     }
   ],
   "ladder": {

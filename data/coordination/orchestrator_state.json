@@ -820,6 +820,17 @@
     "assets/shaders/cloud_resolve.wgsl",
     "assets/shaders/cloud_composite.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-30",
+   "decision": "v0.1252: the stipple forensics arc. Shipped: variance-adaptive spatial filter in the resolve (noisy neighborhoods contribute their 3x3 mean when temporal depth is unavailable); ambient cavity AO damped to 0.35 (multiple scattering fills crevices); tau_vert from the pre-erosion carve envelope instead of post-erosion point density; screen-path channel bisect instrument (showcase map_diag 1/2/3 = alpha/sun/ambient grayscale) + 4 permanent vantages (motion-closeup, speck-alpha/sun/amb). IGN dither experiment REVERTED: its structured error survives the spatial mean as a halftone weave - jitter spectrum must match the filter kernel.",
+   "why": "Operator: clouds smooth-non-static wanted; grain worse when close. Bisect verdict: coverage alpha is SMOOTH (0.78 grain), direct sun carries the stipple (2.57), ambient moderate (1.39 -> 0.89 after the tau_vert fix). Mechanism: alpha saturates away fine density structure but lighting is linear in it; tau_vert consumers printed erosion detail into light. REMAINING carrier: direct-sun self-shadow spatial structure at the 22 m light-mfp scale (sigma 45/km) - real contrast that real clouds smooth via lateral multiple scattering; the coarse-entry backtrack already exists; needs the systematic treatment (multi-tap sun cone / lateral diffusion / response softening). Channel metrics moved; full-image improvement modest (2.71 -> 2.57 same-pose).",
+   "scope": [
+    "assets/shaders/cloud_resolve.wgsl",
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

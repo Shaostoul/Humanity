@@ -1,5 +1,27 @@
 # HumanityOS: Priorities
 
+> **v0.1252 (2026-08-30): the stipple forensics - alpha is innocent, the
+> LIGHTING carries the grain.** Operator (on v0.1251.1, confirming "way
+> better" overall): the close-cloud TV-static/sandblast remains the
+> target. NEW INSTRUMENT: the screen-path channel bisect (showcase
+> map_diag 1/2/3 renders coverage-alpha / direct-sun / ambient as
+> grayscale; vantages speck-alpha/sun/amb + motion-closeup). VERDICT:
+> alpha grain 0.78 (SMOOTH - the density field is not the carrier),
+> direct sun 2.57 (THE carrier), ambient 1.39. Mechanism: alpha
+> SATURATES away fine density structure, lighting is LINEAR in it.
+> Shipped: variance-adaptive spatial filter in the resolve; ambient
+> cavity AO damped (multiple scattering fills crevices); tau_vert from
+> the pre-erosion carve envelope (ambient channel 1.39 -> 0.89). IGN
+> dither REVERTED - structured error survives a mean filter as a
+> halftone weave; jitter spectrum must match the filter kernel.
+> REMAINING (the next increment, workflow-assisted): direct-sun
+> self-shadow structure at the 22 m light-mfp scale (sigma 45/km, the
+> per-pixel tau of the 2-tap sun ladder + the steep octave response) -
+> real contrast real clouds smooth via LATERAL multiple scattering.
+> Candidates: multi-tap sun cone at coarser lod, lateral diffusion term,
+> response softening, sigma-vs-octave rebalance. Full-image same-pose
+> grain 2.71 -> 2.57 so far; the operator wants a step change, not 5%.
+
 > **v0.1251 (2026-08-30): spin-aware reprojection + the static's true
 > mechanism.** Operator on the v0.1249 exe: clouds "uncanny valley low
 > detail... like TV static", atmosphere lower-detail than the surface.

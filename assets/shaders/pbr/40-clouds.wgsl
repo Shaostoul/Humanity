@@ -1468,6 +1468,18 @@ struct CloudSample {
 // the same invocation - copy first).
 var<private> g_cloud_bandtop: f32 = 1.0;
 var<private> g_cloud_pouch: f32 = 0.0;
+// The PRE-EROSION carve envelope at the last cloud_carve call (v0.1252).
+// The shading site's vertical-column optical depth (tau_vert) is a
+// COARSE physical quantity - a column average over the whole band above
+// the sample - and estimating it from the post-erosion POINT density
+// printed every fine erosion detail straight into the lighting: the
+// bisect (speck-alpha 0.78 vs speck-sun 2.57 grain) proved alpha hides
+// the fine structure (it saturates) while the diffusion floor, ambient
+// attenuation and ground bounce - all tau_vert consumers - keep its
+// full contrast per pixel. That was the operator's "sandblasted"
+// stipple. The carve is the smooth interior envelope: the right
+// estimator for a column quantity.
+var<private> g_cloud_carve: f32 = 0.0;
 // How much of this sample is the CONSTRUCTED body rather than the noise body.
 // Published on the same side-channel as g_cloud_pouch because the shading site
 // needs it and the CloudSample it lives on is not in scope there.
@@ -1969,6 +1981,7 @@ fn cloud_carve(
         sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0), 0.0, v2_w);
     g_cloud_bandtop = h_hi_eff;
     g_cloud_pouch = pouch;
+    g_cloud_carve = carve;
     return CloudSample(carve, ps, h, crown, lwp, pouch, v2_w);
 }
 
@@ -2832,6 +2845,7 @@ fn cloud_march_core(
         let s_v2_ny = g_v2_ny;
         let s_v2_seam = g_v2_seam;
         let s_btop = g_cloud_bandtop;
+        let s_carve = g_cloud_carve;
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
         // whole optical depth at ONE deep, dark sample - skipping the
@@ -2902,7 +2916,12 @@ fn cloud_march_core(
         // double-counted obliquity (~1.5x too dark at mid sun) and read
         // relief kilometres sideways from where the eye sees it.
         let slab_h_d = g_cloud_rt - g_cloud_rb;
-        let tau_vert = sigma_v * dens * max(s_btop - h, 0.0) * slab_h_d;
+        // v0.1252: column depth from the smooth carve ENVELOPE, not the
+        // post-erosion point density (see g_cloud_carve's note - this is
+        // the sandblast-stipple fix; magnitude stays right because the
+        // carve IS the interior density the erosion ratio renormalizes
+        // against).
+        let tau_vert = sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d;
         let direct = cloud_scatter_energy(tau, cos_vs, tau_vert) * pw;
 
         // Ambient skylight (clouds depth increment): height across the slab
@@ -2998,11 +3017,26 @@ fn cloud_march_core(
         // two-tone split above). Ambient magnitude rides the sun's
         // luminance so total energy matches the old single-hue form.
         let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5);
+        // ── SMOOTH AMBIENT (v0.1252, the operator's "sandblasted" grain) ──
+        // The cavity noise (dc.y, puff-frequency) used to hit the AMBIENT
+        // at full strength while direct took half - backwards physically.
+        // Ambient skylight arriving inside a cloud is the most heavily
+        // multiple-scattered light there is: fine crevices are FILLED IN
+        // (that fill is why real cumulus read soft and luminous), and
+        // real ambient occlusion operates at LOBE scale, not noise scale.
+        // Per-sample cavity noise multiplying the ambient painted frozen
+        // salt-and-pepper over every converged surface - static no
+        // temporal filter could remove, because it is in the signal.
+        // Ambient keeps the coarse relief terms (crown, pouch) and 35%
+        // of the cavity; direct keeps its full half-strength cavity (the
+        // sunlit cauliflower texture is real).
+        let ao_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35)
+            * crown_shade * pouch_shade;
         let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
 
         let c_i = material.base_color.rgb
             * (sun_energy * (direct_lit * day)
-                + amb_col * (sun_lum * ao * day)
+                + amb_col * (sun_lum * ao_amb * day)
                 + vec3<f32>(CLOUD_NIGHT_FLOOR));
         acc = acc + c_i * (trans * a_i);
         acc_w = acc_w + trans * a_i;
@@ -3011,7 +3045,7 @@ fn cloud_march_core(
         g_march_sun_acc = g_march_sun_acc
             + dot(sun_energy * (direct_lit * day), lum_w) * (trans * a_i);
         g_march_amb_acc = g_march_amb_acc
-            + dot(amb_col * (sun_lum * ao * day), lum_w) * (trans * a_i);
+            + dot(amb_col * (sun_lum * ao_amb * day), lum_w) * (trans * a_i);
         acc_d = acc_d + tm * (trans * a_i);
         trans = trans * (1.0 - a_i);
         // 0.005, not 0.02 (increment 10): with resolved density gradients
