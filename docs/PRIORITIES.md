@@ -1,5 +1,27 @@
 # HumanityOS: Priorities
 
+> **v0.1251 (2026-08-30): spin-aware reprojection + the static's true
+> mechanism.** Operator on the v0.1249 exe: clouds "uncanny valley low
+> detail... like TV static", atmosphere lower-detail than the surface.
+> Both reads were RIGHT. (1) The resolve's motion floor read the planet's
+> spin sweep as camera motion (the planet-local delta folds spin into
+> translation) and pinned alpha at 0.6+ for every non-co-rotating camera,
+> effectively switching the temporal filter OFF - the whole-disc static
+> IS the raw jittered march. Now the resolve gets the motion SPLIT
+> exactly (f64 CPU chain): content rotation as a rigid spin rotation
+> applied per pixel to the hit point + the RAW camera translation; the
+> alpha floor keys on reprojection RELIABILITY (real zoom, or slides
+> past ~8 texels/frame) instead of raw slide. (2) The cloud layer
+> literally renders at fraction-res vs full-res terrain - the composite
+> now reconstructs the half-res buffer with Catmull-Rom (same 9-tap the
+> map arm used). Identity-fallback preserves old math when the split is
+> unavailable. Rig: no regressions across 5 vantages, panics=0, FPS
+> flat-to-up (space 19.9). NEXT FIDELITY ITEM (operator's "uncanny"
+> verbalized): cumulus interiors read as granular salt-and-pepper
+> stipple, not coherent cauliflower lobes - the fine erosion bands carve
+> micro-cavities at their noise floor; needs a fidelity-expert pass on
+> erosion coherence (NOT a sampling bug; unchanged by this increment).
+
 > **v0.1250 (2026-08-30): ONE RENDERER - the octa map retired.** The
 > operator refuted the v0.1249 rosette kill on their machine (third failed
 > kill claim on this artifact: v0.1237, v0.1245+, v0.1249 - every rig

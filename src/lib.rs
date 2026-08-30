@@ -1886,6 +1886,7 @@ mod native_app {
                 cloud_map_reanchors: 0,
                 cloud_map_regime: 0,
                 cloud_prev_cam_local: None,
+                cloud_prev_spin: None,
                 cloud_map_sun_epoch: glam::DVec3::ZERO,
                 sea_state_override: None,
                 ocean_event_pin_request: None,
@@ -12167,6 +12168,65 @@ mod native_app {
                                                     let d_w = rot64 * (p - p_l);
                                                     [d_w.x as f32, d_w.y as f32, d_w.z as f32]
                                                 }),
+                                            );
+                                            // ── SPIN-AWARE resolve motion (v0.1251) ──
+                                            // The planet-local delta above folds the
+                                            // spin sweep into an equivalent camera
+                                            // TRANSLATION - first-order correct at
+                                            // the view centre, increasingly wrong
+                                            // toward the limb, and it makes every
+                                            // non-co-rotating camera read as "moving",
+                                            // which the resolve's motion floor turned
+                                            // into raw march static (the operator's
+                                            // "TV static" from space). The resolve now
+                                            // gets the motion SPLIT exactly: the
+                                            // content rotation as a rigid rotation
+                                            // about the spin axis (applied per pixel
+                                            // to the hit point) plus the RAW camera
+                                            // translation. All f64 until the final
+                                            // small casts (the v0.1238 lattice
+                                            // lesson).
+                                            let prev_spin =
+                                                state.cloud_prev_spin.replace(spin_f64);
+                                            state.renderer.cloud_resolve_motion.set(
+                                                match (prev_l, prev_spin) {
+                                                    (Some(p), Some(s_prev)) => {
+                                                        let dphi = spin_f64 - s_prev;
+                                                        let m = glam::DQuat::from_rotation_y(
+                                                            -dphi,
+                                                        );
+                                                        let e_cur = cam_l64 - render_off;
+                                                        let e_prev =
+                                                            glam::DQuat::from_rotation_y(
+                                                                s_prev,
+                                                            ) * p;
+                                                        let dpos = e_prev - e_cur;
+                                                        let s_off = m * e_cur - e_cur;
+                                                        let mx = m * glam::DVec3::X;
+                                                        let my = m * glam::DVec3::Y;
+                                                        let mz = m * glam::DVec3::Z;
+                                                        Some(
+                                                            crate::renderer::cloud_resolve::CloudResolveMotion {
+                                                                cols: [
+                                                                    [mx.x as f32, mx.y as f32, mx.z as f32],
+                                                                    [my.x as f32, my.y as f32, my.z as f32],
+                                                                    [mz.x as f32, mz.y as f32, mz.z as f32],
+                                                                ],
+                                                                spin_off: [
+                                                                    s_off.x as f32,
+                                                                    s_off.y as f32,
+                                                                    s_off.z as f32,
+                                                                ],
+                                                                dpos_raw: [
+                                                                    dpos.x as f32,
+                                                                    dpos.y as f32,
+                                                                    dpos.z as f32,
+                                                                ],
+                                                            },
+                                                        )
+                                                    }
+                                                    _ => None,
+                                                },
                                             );
                                         }
                                         // Fullscreen composite frame (Wave D

@@ -145,6 +145,39 @@ fn map_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
     return max(result, vec4<f32>(0.0));
 }
 
+// Catmull-Rom over the half-res screen accumulation (v0.1251). The
+// operator: the clouds read "lower detail than the surface" - and they
+// literally were: terrain renders full-res while the cloud layer is a
+// half-res buffer that bilinear upsampling then smears further. The
+// same 9-tap reconstruction the map arm already used recovers visibly
+// more of the resolution the resolve actually holds.
+fn screen_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
+    let res = vec2<f32>(textureDimensions(cloud_screen));
+    let sample_pos = uv * res;
+    let tex_pos1 = floor(sample_pos - 0.5) + 0.5;
+    let f = sample_pos - tex_pos1;
+    let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    let w3 = f * f * (-0.5 + 0.5 * f);
+    let w12 = w1 + w2;
+    let offset12 = w2 / w12;
+    let tp0 = (tex_pos1 - 1.0) / res;
+    let tp3 = (tex_pos1 + 2.0) / res;
+    let tp12 = (tex_pos1 + offset12) / res;
+    var result = vec4<f32>(0.0);
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp0.x, tp0.y), 0.0) * w0.x * w0.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp12.x, tp0.y), 0.0) * w12.x * w0.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp3.x, tp0.y), 0.0) * w3.x * w0.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp0.x, tp12.y), 0.0) * w0.x * w12.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp12.x, tp12.y), 0.0) * w12.x * w12.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp3.x, tp12.y), 0.0) * w3.x * w12.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp0.x, tp3.y), 0.0) * w0.x * w3.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp12.x, tp3.y), 0.0) * w12.x * w3.y;
+    result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp3.x, tp3.y), 0.0) * w3.x * w3.y;
+    return max(result, vec4<f32>(0.0));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Pixel ray. This pass's uv comes straight from NDC (y UP - unlike a
@@ -280,8 +313,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             }
         }
         if (d_any > 0.001) {
-            s_scr = textureSampleLevel(
-                cloud_screen, map_sampler, duv, 0.0);
+            s_scr = screen_catmull_rom(duv);
             w_px = w_mix;
         }
     }

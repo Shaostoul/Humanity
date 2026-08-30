@@ -475,6 +475,9 @@ pub struct Renderer {
     /// Camera state for the 12e resolve pass, stashed at the pad-poke
     /// site each frame so march + octa + resolve all see one motion.
     cloud_resolve_frame: std::cell::Cell<cloud_resolve::CloudResolveFrame>,
+    /// Exact spin-aware motion split for the resolve (v0.1251), set by
+    /// lib.rs each armed frame (f64 chain); taken at staging time.
+    pub cloud_resolve_motion: std::cell::Cell<Option<cloud_resolve::CloudResolveMotion>>,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1679,6 +1682,7 @@ impl Renderer {
             cloud_screen: None,
             cloud_prev_basis: std::cell::Cell::new(None),
             cloud_resolve_frame: std::cell::Cell::new(Default::default()),
+            cloud_resolve_motion: std::cell::Cell::new(None),
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -3220,6 +3224,7 @@ impl Renderer {
                 prev_dpos: [delta_pads[0], delta_pads[1], delta_pads[2]],
                 prev_basis: prev,
                 snap: resolve_teleport,
+                motion: self.cloud_resolve_motion.take(),
             });
         }
         // Near-regime arming mix in light7_color.x (offset 320; the whole

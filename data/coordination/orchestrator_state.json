@@ -807,6 +807,19 @@
     "assets/shaders/cloud_composite.wgsl",
     "tests/visual/vantages.json (starburst-space settle 70->12 revert)"
    ]
+  },
+  {
+   "date": "2026-08-30",
+   "decision": "v0.1251: spin-aware resolve reprojection (motion split rotation+translation, f64 CPU) + reliability-keyed alpha floor + Catmull-Rom screen upsample in the composite.",
+   "why": "Operator (on v0.1249 exe): clouds uncanny low detail / TV static / atmosphere lower-res than terrain. Root causes: the resolve motion floor read the folded spin sweep as camera motion and disabled temporal accumulation for any non-co-rotating camera (static = raw jittered march); and the cloud layer renders at fraction resolution vs full-res terrain with bilinear upsampling. Identity fallback keeps old math when split unavailable. Rig verified 5 vantages, panics=0, FPS flat-to-up. Known open fidelity item: granular cumulus interiors (field erosion coherence, not sampling).",
+   "scope": [
+    "src/lib.rs",
+    "src/engine/state.rs",
+    "src/renderer/mod.rs",
+    "src/renderer/cloud_resolve.rs",
+    "assets/shaders/cloud_resolve.wgsl",
+    "assets/shaders/cloud_composite.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

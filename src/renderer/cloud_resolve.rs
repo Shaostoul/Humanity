@@ -23,12 +23,35 @@ use wgpu::util::DeviceExt;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CloudResolveFrame {
     /// prev_camera_pos - current_camera_pos, render frame (the same
-    /// planet-local-derived delta the octa pads carry).
+    /// planet-local-derived delta the octa pads carry). FALLBACK when
+    /// `motion` is None - the spin sweep folded in as translation.
     pub prev_dpos: [f32; 3],
     /// Previous frame's camera basis (forward, right, up).
     pub prev_basis: [[f32; 3]; 3],
     /// Drop history entirely this frame (teleport / regime entry).
     pub snap: bool,
+    /// Exact spin-aware motion split (v0.1251): content rotation +
+    /// RAW camera translation, computed f64 in lib.rs. When present it
+    /// replaces the folded prev_dpos in the reprojection.
+    pub motion: Option<CloudResolveMotion>,
+}
+
+/// The per-frame content-motion split for the resolve's reprojection
+/// (v0.1251). A planet-fixed content point p satisfies
+/// p_prev = C + M * (p - C), where M is the frame-to-frame spin rotation
+/// R_y(-(spin_cur - spin_prev)); the shader evaluates
+/// d_prev = M*(rd*t_w) + spin_off - dpos_raw with spin_off = M*e - e
+/// (e = camera - center, f64 on the CPU: catastrophic cancellation at
+/// planet magnitudes) and dpos_raw = prev_cam - cam (raw translation,
+/// f64 planet-local chain - the v0.1238 lattice lesson).
+#[derive(Clone, Copy, Debug)]
+pub struct CloudResolveMotion {
+    /// Columns of M (render frame): M*q = cols[0]*q.x + cols[1]*q.y + cols[2]*q.z.
+    pub cols: [[f32; 3]; 3],
+    /// M*e - e, render frame (metres).
+    pub spin_off: [f32; 3],
+    /// prev_cam - cam, render frame (metres), WITHOUT the spin fold.
+    pub dpos_raw: [f32; 3],
 }
 
 #[repr(C)]
@@ -42,6 +65,12 @@ struct CloudResolveUniforms {
     prev_fwd: [f32; 4],
     prev_right: [f32; 4],
     prev_up: [f32; 4],
+    // v0.1251 spin-aware reprojection: xyz = column i of the content
+    // rotation M, w = spin_off component i. Identity + zero when the
+    // motion split is unavailable (first frame / no planet).
+    spin_c0: [f32; 4],
+    spin_c1: [f32; 4],
+    spin_c2: [f32; 4],
 }
 
 /// Base accumulation alpha: ~14-frame effective depth (0.12 -> 0.07,
@@ -117,6 +146,9 @@ impl CloudResolvePass {
                 prev_fwd: [0.0; 4],
                 prev_right: [0.0; 4],
                 prev_up: [0.0; 4],
+                spin_c0: [1.0, 0.0, 0.0, 0.0],
+                spin_c1: [0.0, 1.0, 0.0, 0.0],
+                spin_c2: [0.0, 0.0, 1.0, 0.0],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -184,6 +216,23 @@ impl CloudResolvePass {
         timestamp_writes: Option<wgpu::RenderPassTimestampWrites>,
     ) {
         let b = frame.prev_basis;
+        // Spin-aware split when available (v0.1251): raw camera delta +
+        // content rotation columns; otherwise the folded delta with an
+        // identity rotation (bit-identical to the old math).
+        let (dpos, c0, c1, c2) = match frame.motion {
+            Some(m) => (
+                m.dpos_raw,
+                [m.cols[0][0], m.cols[0][1], m.cols[0][2], m.spin_off[0]],
+                [m.cols[1][0], m.cols[1][1], m.cols[1][2], m.spin_off[1]],
+                [m.cols[2][0], m.cols[2][1], m.cols[2][2], m.spin_off[2]],
+            ),
+            None => (
+                frame.prev_dpos,
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+            ),
+        };
         let u = CloudResolveUniforms {
             cam_pos: [cam_pos[0], cam_pos[1], cam_pos[2], tan_half_fov],
             cam_fwd: [cam_fwd[0], cam_fwd[1], cam_fwd[2], aspect],
@@ -194,15 +243,13 @@ impl CloudResolvePass {
                 cam_up[2],
                 if frame.snap { 1.0 } else { 0.0 },
             ],
-            prev_dpos: [
-                frame.prev_dpos[0],
-                frame.prev_dpos[1],
-                frame.prev_dpos[2],
-                RESOLVE_CLIP_GAMMA,
-            ],
+            prev_dpos: [dpos[0], dpos[1], dpos[2], RESOLVE_CLIP_GAMMA],
             prev_fwd: [b[0][0], b[0][1], b[0][2], 0.0],
             prev_right: [b[1][0], b[1][1], b[1][2], 0.0],
             prev_up: [b[2][0], b[2][1], b[2][2], 0.0],
+            spin_c0: c0,
+            spin_c1: c1,
+            spin_c2: c2,
         };
         queue.write_buffer(&self.param_buffer, 0, bytemuck::bytes_of(&u));
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

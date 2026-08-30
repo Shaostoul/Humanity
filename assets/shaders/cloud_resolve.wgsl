@@ -30,10 +30,21 @@ struct CloudResolveUniforms {
     cam_right: vec4<f32>, // xyz; w = base accumulation alpha
     cam_up: vec4<f32>,    // xyz; w = snap flag (1 = drop history entirely)
     // Previous camera: eye offset (prev - cur, render frame) + basis.
-    prev_dpos: vec4<f32>, // xyz = prev_pos - cam_pos, w = clip gamma
+    prev_dpos: vec4<f32>, // xyz = prev_pos - cam_pos (RAW camera delta when
+                          // the spin split is live), w = clip gamma
     prev_fwd: vec4<f32>,  // xyz
     prev_right: vec4<f32>,// xyz
     prev_up: vec4<f32>,   // xyz
+    // ── Spin-aware content reprojection (v0.1251) ──
+    // Planet-fixed content rotates: p_prev = C + M*(p - C), M = the
+    // frame-to-frame spin rotation. xyz = column i of M; w = component i
+    // of spin_off = M*e - e (e = cam - C, computed f64 on the CPU -
+    // planet-magnitude cancellation must not touch f32). Identity + zero
+    // when the split is unavailable, which makes the math below collapse
+    // to the old translation-only form exactly.
+    spin_c0: vec4<f32>,
+    spin_c1: vec4<f32>,
+    spin_c2: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> u: CloudResolveUniforms;
@@ -125,7 +136,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         // The rig never saw it because a teleport keeps camera.position ~30 m
         // (exact); the starburst-far vantage (far_frame_km) reproduces the
         // flown state and proved this red before the fix.
-        let d_prev = normalize(rd * t_w - u.prev_dpos.xyz);
+        // Rotate the hit point by the content's own frame-to-frame spin
+        // (v0.1251), then subtract the raw camera delta. The old form
+        // folded the spin into prev_dpos as a translation - first-order
+        // correct at the view centre, wrong toward the limb, and it made
+        // every non-co-rotating camera read as "moving" (see the floor
+        // note below).
+        let q = rd * t_w;
+        let q_prev = u.spin_c0.xyz * q.x + u.spin_c1.xyz * q.y
+            + u.spin_c2.xyz * q.z
+            + vec3<f32>(u.spin_c0.w, u.spin_c1.w, u.spin_c2.w);
+        let d_prev = normalize(q_prev - u.prev_dpos.xyz);
         let z = dot(d_prev, u.prev_fwd.xyz);
         if (z > 1.0e-4) {
             let nx = dot(d_prev, u.prev_right.xyz) / (z * tanf * aspect);
@@ -212,6 +233,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // that wrongly-fetched history still won. The operator's starburst
     // survived the gate because the gate opened a door nothing walked
     // through. Under real motion the fresh march must simply WIN.
-    alpha = max(alpha, motion * 0.6);
+    // ── THE FLOOR KEYS ON REPROJECTION RELIABILITY, NOT RAW SLIDE (v0.1251) ──
+    //
+    // With the spin folded into prev_dpos as translation, any camera not
+    // co-rotating with the planet read 1-5 texels of perpetual slide, the
+    // floor pinned alpha at 0.6+, and the resolve was effectively OFF -
+    // the operator's "TV static" over the whole disc from space, and the
+    // "uncanny low detail" against the full-res terrain (an unconverged
+    // estimator IS lower resolution). A coherent slide is exactly what
+    // the reprojection handles - now spin-exact across the whole view -
+    // so modest slides keep deep accumulation and only two things force
+    // fresh: real zoom (parallax error the translation-form cannot fix)
+    // and extreme slides where iterated bilinear rewarping degrades.
+    let slide_hard = clamp(shift_tx / 8.0 - 0.25, 0.0, 1.0);
+    let zoom_gate = smoothstep(0.005, 0.03, zoom_rel);
+    alpha = max(alpha, max(zoom_gate, slide_hard) * 0.6);
     return mix(hist_c, cur, alpha);
 }
