@@ -841,6 +841,16 @@
     "assets/shaders/pbr/41-cloud-bodies.wgsl",
     "docs/PRIORITIES.md"
    ]
+  },
+  {
+   "date": "2026-08-30",
+   "decision": "v0.1252.3: three targeted static fixes. (1) Catmull-Rom neighborhood clamp in the composite - CR negative lobes were SHARPENING unconverged march noise into full-screen black/white dots during fast flight. (2) Absolute-sigma engagement for the resolve spatial filter - the relative-only gate under-engaged on bright decks (lvl ~1.3 divided a screaming sigma 0.3 to rel 0.23, filter off). (3) CLOUD_V2_INT_LODC -7.9 -> -9.56: the interior-turbulence lod constant matched NO derivation while every sibling follows log2(tile/256) within 0.1 - that one field sampled 3.2x finer than the footprint = view-path aliasing = the operator dark-cloud edge sparkle and down-look pinholes.",
+   "why": "Operator on v0.1252.2: mixture of better and worse; static persistent far and close; the decisive clue - static present EVEN WHEN CLOUDS ARE DARK (dusk silhouettes with orange sparkle rims) = the carrier is ALPHA at edges, not lighting. Remaining fenced bosses: (a) small-disc low resolution from deep space (quarter-res march gives a 150 px disc ~37 samples across - needs dynamic march resolution keyed on disc size), (b) the field erosion coherence rebuild (binary pinholes vs soft translucent gap edges).",
+   "scope": [
+    "assets/shaders/cloud_composite.wgsl",
+    "assets/shaders/cloud_resolve.wgsl",
+    "assets/shaders/pbr/41-cloud-bodies.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

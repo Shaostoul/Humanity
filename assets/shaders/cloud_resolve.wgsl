@@ -268,7 +268,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let lvl = mu.a + dot(mu.rgb, vec3<f32>(0.333));
     let sig = sigma.a + dot(sigma.rgb, vec3<f32>(0.333));
     let rel_sig = sig / max(lvl, 0.02);
-    let noise_w = smoothstep(0.15, 0.60, rel_sig);
+    // ABSOLUTE-sigma engagement too (v0.1252.3, the operator's
+    // low-orbit pepper): the relative test alone under-engages exactly
+    // where speckle is loudest - on a BRIGHT deck, lvl ~1.3 divides a
+    // visually screaming sigma of 0.3 down to rel_sig ~0.23 and the
+    // filter stayed off. Speckle visibility on screen scales with
+    // absolute contrast, so a second gate on raw sigma catches the
+    // bright-field case; the relative gate still owns dim content.
+    let noise_w = max(
+        smoothstep(0.15, 0.60, rel_sig),
+        smoothstep(0.10, 0.30, sig));
     let shallow = clamp((alpha - 0.12) / 0.5, 0.0, 1.0);
     let cur_s = mix(cur, mu, noise_w * mix(0.35, 0.75, shallow));
     return mix(hist_c, cur_s, alpha);

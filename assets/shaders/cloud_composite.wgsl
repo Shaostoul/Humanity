@@ -175,7 +175,30 @@ fn screen_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
     result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp0.x, tp3.y), 0.0) * w0.x * w3.y;
     result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp12.x, tp3.y), 0.0) * w12.x * w3.y;
     result += textureSampleLevel(cloud_screen, map_sampler, vec2<f32>(tp3.x, tp3.y), 0.0) * w3.x * w3.y;
-    return max(result, vec4<f32>(0.0));
+    // NEIGHBOURHOOD CLAMP (v0.1252.3, the operator's low-orbit
+    // salt-and-pepper): Catmull-Rom's negative lobes SHARPEN whatever
+    // they are given - converged cloud detail, but equally the raw
+    // march's unconverged speckle during fast flight, where each noisy
+    // half-res texel gets rung with overshoot into a full-screen black
+    // or white dot. Clamping the reconstruction to the min/max of the
+    // 2x2 texels it interpolates keeps the sharpness on real edges
+    // (their extrema are genuine) and makes noise reconstruction no
+    // worse than bilinear. The standard companion of CR resampling.
+    let dims = vec2<i32>(textureDimensions(cloud_screen));
+    let ip = vec2<i32>(tex_pos1);
+    var mn = vec4<f32>(1.0e9);
+    var mx = vec4<f32>(-1.0e9);
+    for (var dy = 0; dy <= 1; dy = dy + 1) {
+        for (var dx = 0; dx <= 1; dx = dx + 1) {
+            let s = textureLoad(
+                cloud_screen,
+                clamp(ip + vec2<i32>(dx, dy), vec2<i32>(0), dims - vec2<i32>(1)),
+                0);
+            mn = min(mn, s);
+            mx = max(mx, s);
+        }
+    }
+    return clamp(result, max(mn, vec4<f32>(0.0)), mx);
 }
 
 @fragment

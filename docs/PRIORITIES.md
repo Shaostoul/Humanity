@@ -1,5 +1,28 @@
 # HumanityOS: Priorities
 
+> **v0.1252.3 (2026-08-30): the dark-cloud clue - the alpha-edge alias
+> found by derivation audit.** Operator on v0.1252.2: "static always
+> present, even when the clouds are dark" (dusk silhouettes, orange
+> sparkle rims). Lighting-independent grain = the carrier is ALPHA at
+> edges. Three fixes: (1) CR NEIGHBOURHOOD CLAMP in the composite - the
+> v0.1251 Catmull-Rom's negative lobes were SHARPENING unconverged
+> march noise into full-screen dots during fast flight (the operator's
+> low-orbit pepper); clamped to the 2x2 texel min/max, standard
+> practice. (2) ABSOLUTE-sigma gate on the resolve spatial filter - the
+> relative-only test under-engaged on bright decks. (3) THE BIG ONE:
+> CLOUD_V2_INT_LODC -7.9 -> -9.56. Every v2 tap's lod constant follows
+> log2(tile/256) within 0.1 mip EXCEPT the interior turbulence, which
+> matched no derivation and sampled 3.2x finer than the footprint -
+> view-path aliasing wherever alpha does not saturate: silhouette
+> sparkle, thin skirts, down-look pinholes. TWO FENCED BOSSES REMAIN
+> (the honest residuals): (a) SMALL-DISC RESOLUTION - the quarter-res
+> march gives a 150 px planet disc ~37 cloud samples across (the one
+> thing the retired octa map did better); needs dynamic march
+> resolution keyed on shell screen coverage. (b) EROSION COHERENCE -
+> gaps/gap-edges in the field are near-binary at meter scale where real
+> cloud edges are translucent over tens of meters; the field-character
+> rebuild (with the Nubis3 summed-density light grid as its companion).
+
 > **v0.1252.2 (2026-08-30): the sun-profile cutover - reference-grade
 > light-march smoothing, workflow-designed.** A 3-agent workflow
 > (mechanism audit + reference survey + fix design) turned the bisect

@@ -85,7 +85,15 @@ const CLOUD_V2_RIND_M: f32 = 90.0;
 const CLOUD_V2_BASE_FRAC: f32 = 0.30;
 // Turbulent interior: tile size in km and how far it swings the density.
 const CLOUD_V2_INT_TILE_KM: f32 = 0.34;
-const CLOUD_V2_INT_LODC: f32 = -7.9;
+// -9.56 = log2(0.34 / 256), the SAME derivation every sibling LODC
+// follows (v0.1252.3, the operator's dark-cloud edge sparkle). The old
+// -7.9 matched no derivation and made this ONE field sample 3.2x finer
+// than the footprint - ~4 m content under an 11 m pixel at the closeup
+// - which is textbook aliasing on the VIEW path: per-pixel density
+// noise wherever alpha does not saturate (silhouettes, thin skirts,
+// holes). Interior structure saturates inside bodies, so the interior
+// LOOK barely changes; the sparkle rims were the alias, not content.
+const CLOUD_V2_INT_LODC: f32 = -9.56;
 const CLOUD_V2_TURB_AMP: f32 = 0.42;
 // How far a cloud may sit from its cell centre, as a fraction of the cell,
 // so the field is not a visible lattice.
