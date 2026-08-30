@@ -437,6 +437,9 @@ pub struct Renderer {
     /// the operator's stale-daylight night band). Set by lib.rs when the
     /// camera is UNDER the deck (12c regime 3).
     pub cloud_octa_force: bool,
+    /// Rosette-bisect channel (0 = off; showcase map_diag) - poked into
+    /// light7_color.z for the octa pass's EMA-bypassed diagnostic render.
+    pub cloud_map_diag: f32,
     /// Frames since the octa pass last dispatched (resume-drop bookkeeping).
     pub cloud_octa_idle: std::cell::Cell<u32>,
     /// EMA alpha-floor boost handed to the octa pass via light7_color.y:
@@ -1666,6 +1669,7 @@ impl Renderer {
             cloud_map_resample: std::cell::Cell::new(None),
             cloud_reproj_delta: std::cell::Cell::new(None),
             cloud_octa_force: false,
+            cloud_map_diag: 0.0,
             cloud_octa_idle: std::cell::Cell::new(0),
             cloud_octa_boost: std::cell::Cell::new(0.0),
             cloud_prev_delta2: std::cell::Cell::new(0.0),
@@ -3723,6 +3727,10 @@ impl Renderer {
         // applies this as an alpha floor for marching texels.
         self.queue
             .write_buffer(&self.camera_buffer, 324, bytemuck::bytes_of(&boost));
+        // light7_color.z (offset 328): the rosette-bisect diagnostic channel
+        // (v0.1249; showcase map_diag - EMA-bypassed raw-quantity render).
+        self.queue
+            .write_buffer(&self.camera_buffer, 328, bytemuck::bytes_of(&self.cloud_map_diag));
         if let (Some(ct), Some(mat_idx), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_temporal_mat,

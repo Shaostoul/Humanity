@@ -215,6 +215,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // Optional "sea":"0.8" pins the ocean sea state (0 = glassy calm,
     // 0.5 = ripples, 1 = storm chop + breaking crests) for dev shots;
     // "sea":"auto" returns control to the game weather's wind.
+    // Rosette-bisect diagnostic (v0.1249): {"map_diag":"1|2|3|0"} renders a
+    // raw march channel into the octa map with the EMA bypassed (1 = first
+    // hit t, 2 = direct-sun luminance, 3 = ambient luminance; 0 = normal).
+    // Pair with debug/cloudmap_request.json dumps. Dev forensics, permanent.
+    if let Some(d) = grab("map_diag").and_then(|t| t.parse::<f32>().ok()) {
+        state.renderer.cloud_map_diag = d;
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None

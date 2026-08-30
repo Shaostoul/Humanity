@@ -219,9 +219,21 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // LINE segment, not its 2-D solid angle: permanent per-texel bias
     // noise + uniform diagonal micro-streaking. Decorrelated axes, same R2
     // constants the screen path uses.
+    // AMPLITUDE 0.4 (v0.1249, the rosette's true author found by the
+    // channel bisect): direction jitter is a DIRECTION-SPACE FILTER, and
+    // filtering directions over a THICK slab shears depth structure
+    // radially about the anchor - a +-0.8-texel angular wobble swings the
+    // far end of a 200 km grazing chord by kilometres while the near end
+    // barely moves, and the EMA averages that into radial streaks. Terms
+    // that vary along the ray smear hardest: the AMBIENT channel (height +
+    // cavity dependent) carried the operator's petal rosette loud and
+    // clear in the bisect dump while the column-uniform DIRECT channel was
+    // clean. 0.4 keeps enough sub-texel coverage to hold the v0.1237
+    // moire down (the PCG hash carries most of that fix) while cutting
+    // the depth shear by more than half.
     let uv_j = clamp(
         in.uv + (dj + fract(camera.sun_color.w * 7.0 * vec2<f32>(0.7548777, 0.5698403))
-            - vec2<f32>(1.0)) * (1.0 / 4096.0),
+            - vec2<f32>(1.0)) * (0.4 / 4096.0),
         vec2<f32>(0.0), vec2<f32>(1.0));
     let rd_wj = cloud_map_decode(uv_j, center);
     // Footprint for band-limited volume sampling: this pass's pixel is a
@@ -331,6 +343,24 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // toward BLACK (the dark fringe/pepper on every edge). Premultiplied
     // storage makes both the EMA and the bilinear filter linear in the
     // right space; the composite divides by alpha to return to straight.
+    // Rosette-bisect diagnostic (v0.1249, camera.light7_color.z via the
+    // showcase map_diag pin): render ONE channel of the march into the map
+    // with the EMA bypassed, so a dump shows the raw per-texel quantity.
+    // 1 = first-hit t (geometry), 2 = direct-sun luminance, 3 = ambient
+    // luminance. Whichever carries the anchor-centred petals is the biased
+    // term. Zero-cost when the pin is 0 (uniform branch).
+    let map_diag = camera.light7_color.z;
+    if (map_diag > 0.5) {
+        var dv = 0.0;
+        if (map_diag < 1.5) {
+            dv = fract(g_march_first_t * 20.0);
+        } else if (map_diag < 2.5) {
+            dv = g_march_sun_acc * 2.0;
+        } else {
+            dv = g_march_amb_acc * 4.0;
+        }
+        cur_s = vec4<f32>(vec3<f32>(dv), 1.0);
+    }
     let cur = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
     // EMA, DEEP and nearly flat (the v0.1159 lesson, from the operator's
     // "tiny dots became big dots"): the first cut raised the blend
@@ -411,6 +441,10 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
     // frame, or a teleport-scale reprojection): start from the fresh
     // march instead of EMA-ing toward zero or smearing stale content.
     if (!have_hist || teleported) {
+        alpha = 1.0;
+    }
+    // Diagnostic mode bypasses the EMA entirely (see map_diag above).
+    if (map_diag > 0.5) {
         alpha = 1.0;
     }
     return mix(hist, cur, alpha);

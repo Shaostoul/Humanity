@@ -3064,7 +3064,7 @@
         "cloud_cover": "0.9",
         "weather": "clear"
       },
-      "settle_s": 14
+      "settle_s": 70
     }
   ],
   "ladder": {

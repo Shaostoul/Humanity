@@ -246,6 +246,14 @@ var<private> g_march_first_t: f32 = 0.0;
 // March iterations actually used by the last cloud_march_core call (dev
 // instrument: the flower-nadir ring forensics render this; costs one MOV).
 var<private> g_march_iters: f32 = 0.0;
+// Rosette-bisect channels (v0.1249 forensics): luminance of the DIRECT-sun
+// and AMBIENT contributions of the last march, accumulated with the same
+// transmittance weights as the radiance. The octa pass renders one of them
+// (or first-hit t) into the map with the EMA bypassed when the map_diag
+// showcase pin is set - whichever channel carries the anchor-centred petals
+// is the biased term.
+var<private> g_march_sun_acc: f32 = 0.0;
+var<private> g_march_amb_acc: f32 = 0.0;
 // Maximum march range in KM for the next cloud_march_core call (v0.1244,
 // the per-pixel regime split). The NEAR screen path sets this to its
 // ownership range: content entering the slab beyond it is the octa map's
@@ -2458,6 +2466,8 @@ fn cloud_march_core(
     pix_ang: f32,
 ) -> vec4<f32> {
     g_march_first_t = 0.0;
+    g_march_sun_acc = 0.0;
+    g_march_amb_acc = 0.0;
     // (g_lod_jitter is set by the CALLING fragment entry, block-coherent
     // - see the note at its declaration. The Medium direct path never
     // sets it and keeps plain trilinear.)
@@ -2996,6 +3006,12 @@ fn cloud_march_core(
                 + vec3<f32>(CLOUD_NIGHT_FLOOR));
         acc = acc + c_i * (trans * a_i);
         acc_w = acc_w + trans * a_i;
+        // Rosette-bisect channels (v0.1249): same weights as acc.
+        let lum_w = vec3<f32>(0.2126, 0.7152, 0.0722);
+        g_march_sun_acc = g_march_sun_acc
+            + dot(sun_energy * (direct_lit * day), lum_w) * (trans * a_i);
+        g_march_amb_acc = g_march_amb_acc
+            + dot(amb_col * (sun_lum * ao * day), lum_w) * (trans * a_i);
         acc_d = acc_d + tm * (trans * a_i);
         trans = trans * (1.0 - a_i);
         // 0.005, not 0.02 (increment 10): with resolved density gradients
