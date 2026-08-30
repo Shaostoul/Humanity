@@ -298,6 +298,27 @@ var<private> g_v2_allowed: bool = false;
 // 41-cloud-bodies.wgsl for what went wrong when it did not.
 var<private> g_v2_disp_lod: f32 = 0.0;
 
+// Sun-PROFILE flag (v0.1252.2, the sandblast bisect + 3-agent audit). The
+// speck-sun channel convicted the direct term (Laplacian 2.57-3.54 vs
+// alpha 0.78), and the mechanism audit convicted its dominant source:
+// mid-ladder sun taps multiply POINT samples of the built body's
+// sub-MFP fields (interior turbulence +-42% at ~4 m content via the
+// frozen g_v2_disp_lod, the fine displacement octave, Worley erosion)
+// by 200-400 m segments - delta_tau 1.5-4 rms between adjacent pixels,
+// 2-5x direct swings through the exp octaves. Real clouds launder
+// structure below one light mean-free-path (~22 m at 45/km) via
+// LATERAL multiple scattering, and every production renderer therefore
+// feeds the sun march a LOWER-frequency density than the eye ray (HZD
+// 2015 "cheap" light samples; Nubis3 profile-based light volume, first
+// two taps per-pixel only). When this flag is 1, cv2_cloud_sdf
+// substitutes each sub-MFP field's MEAN (0.5 for the FBMs - which
+// zeroes the fine displacement and makes the interior factor exactly
+// 1.0) - the mip-infinity limit, IDENTICAL for every tap, so the
+// per-tap-lod eyeball-ring class (v0.1230) cannot return. Coarse
+// relief (the lobe SDF, the 2 km displacement octave) stays: lobes
+// still self-shadow. Detail erodes alpha, never deep sun transmittance.
+var<private> g_sun_profile: f32 = 0.0;
+
 // Signed distance in METRES from the last constructed-body evaluation to the
 // lobe cluster surface. Large positive = nothing near. Stays at this sentinel
 // on tiers that do not build bodies, which is how the march knows not to
@@ -451,6 +472,18 @@ const CLOUD_LIGHT_NEAR_KM: f32 = 0.03;
 // error +0.9% on the isolation harness (2.4 x 8 measured the same mean
 // but coarser coverage; the extra taps buy the long-shadow range back).
 const CLOUD_LIGHT_RATIO: f32 = 1.9;
+// Lateral cone fraction of the sun ladder (v0.1252.2, sandblast bisect,
+// the HZD-2015 light cone). Each pixel's sun ladder is an independent
+// 1D transect, so even perfectly band-limited taps carry a rung-
+// invariant floor of delta_tau = ext_km * pixel_pitch per rung at full
+// per-pixel contrast - structure real clouds launder via lateral
+// multiple scattering at the ~22 m MFP scale. Offsetting each far tap
+// inside a cone (radius = K * distance along the light ray, golden-
+// angle spiral, phase advanced per frame by the lod jitter) turns the
+// line integral into an area integral the resolve's accumulation
+// converges - transmittance arriving at a point HAS diffused laterally,
+// so the area average is the physically right object, not a blur.
+const CLOUD_SUN_CONE_K: f32 = 0.12;
 // (The old CLOUD_LIGHT_SIGMA_MULT view/shadow sigma split retired in
 // phase 3: it existed because the view sigma was artificially low for
 // alpha feathering; with a physical per-family medium both the view and
@@ -729,6 +762,19 @@ const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
 // measured ambient-only mud (direct+multiscatter was ~0 across an entire
 // 0.95-coverage frame). Weight of that floor in scatter energy.
 const CLOUD_MS_DIFFUSE: f32 = 0.14;
+// Relaxed-Beer clamp weight on the direct octave sum (v0.1252.2, the
+// sandblast bisect - Nubis 2017's max(exp(-tau), 0.7*exp(-0.25*tau))).
+// When v0.1252 moved tau_vert to the carve envelope the sun-channel
+// grain ROSE: the (accidentally noisy) diffusion floor had been
+// propping up deep-shadow luminance, and with a lower floor the
+// exp-octave grain became a larger share of a smaller direct term. The
+// 4-octave ladder's 2nd/3rd octaves still leave dln(e)/dtau ~ -0.30 at
+// tau 2-6; the clamp puts a floor with slope -0.25 under tau ~4-20, so
+// a delta_tau ripple there produces at most 0.25x the contrast plain
+// Beer would - the cheapest stand-in for lateral multiple scattering
+// filling self-shadow crevices. Phase at quarter-g (the relaxed light
+// is nearly diffused). Tune DOWN if deep-shadow faces read washed.
+const CLOUD_SUN_RELAX: f32 = 0.7;
 // Beer-powder strength: thin media darken (little in-scattering) -- the
 // classic dark-translucent-edge cue. Raised 0.75 -> 0.92 to kill a bright
 // RIM the orbital marble showed: thin cloud skirts over dark ocean were
@@ -1478,7 +1524,10 @@ var<private> g_cloud_pouch: f32 = 0.0;
 // attenuation and ground bounce - all tau_vert consumers - keep its
 // full contrast per pixel. That was the operator's "sandblasted"
 // stipple. The carve is the smooth interior envelope: the right
-// estimator for a column quantity.
+// estimator for a column quantity. v0.1252.2: this now stores the
+// CELL-FREE envelope (carve_env) - the cumulus cell-split tap is 20.8 m
+// voxels at ~mip 0 up close, pixel-scale grain the column estimate must
+// not carry either.
 var<private> g_cloud_carve: f32 = 0.0;
 // How much of this sample is the CONSTRUCTED body rather than the noise body.
 // Published on the same side-channel as g_cloud_pouch because the shading site
@@ -1880,6 +1929,12 @@ fn cloud_carve(
     // threshold between cells, splitting big masses into discrete cumuli.
     // Distance-faded like the puff band so orbit never pays or changes.
     var cell_g = 0.481;
+    // v0.1252.2: the cell term is captured separately so the tau_vert
+    // ENVELOPE below can exclude it (its 20.8 m voxels sample at ~mip 0
+    // up close - genuinely pixel-scale - and through the hinge slope it
+    // was the bulk of the ambient channel's residual grain). Density and
+    // alpha keep the full carve.
+    var cell_term = 0.0;
     if (cell_amt > 0.01) {
         let c = textureSampleLevel(
             cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
@@ -1890,7 +1945,8 @@ fn cloud_carve(
         // (mean - c.g) raises the threshold in the gaps between cells and
         // lowers it slightly at the cores, zero-mean by construction.
         // 0.481 = the baked g-channel mean (bake_stats probe).
-        thr = thr + CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c.g);
+        cell_term = CLOUD_CELL_SPLIT * cell_amt * reg.fine * (0.481 - c.g);
+        thr = thr + cell_term;
         cell_g = c.g;
     }
     // Nubis-form carve (phase 3, fidelity finding 1): the old fixed
@@ -1938,6 +1994,25 @@ fn cloud_carve(
     // lost it).
     let carve = clamp(
         hinge * sw / max(CLOUD_BODY_TOP - thr, 1.0e-3), 0.0, 1.0) * env;
+    // v0.1252.2: a second, CELL-FREE hinge for the tau_vert envelope (see
+    // g_cloud_carve's note). The cell split is a COVERAGE mechanism
+    // (where cloud exists); the vertical column-depth estimate feeding
+    // the two-stream diffusion floor is physically a smooth profile
+    // quantity, and the cell tap's 20.8 m voxels put pixel-scale grain
+    // into it. Pure ALU - no extra texture tap.
+    let thr_env = thr - cell_term;
+    let zc_e = (body - thr_env) / sw;
+    var hinge_e: f32;
+    if (zc_e <= -1.0) {
+        hinge_e = 0.0;
+    } else if (zc_e < 1.0) {
+        let ue = zc_e + 1.0;
+        hinge_e = 0.25 * ue * ue;
+    } else {
+        hinge_e = zc_e;
+    }
+    let carve_env = clamp(
+        hinge_e * sw / max(CLOUD_BODY_TOP - thr_env, 1.0e-3), 0.0, 1.0) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
     // up; how close this sample is to that crown drives the valley-shade /
@@ -1981,7 +2056,7 @@ fn cloud_carve(
         sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0), 0.0, v2_w);
     g_cloud_bandtop = h_hi_eff;
     g_cloud_pouch = pouch;
-    g_cloud_carve = carve;
+    g_cloud_carve = carve_env;
     return CloudSample(carve, ps, h, crown, lwp, pouch, v2_w);
 }
 
@@ -2191,14 +2266,33 @@ fn cloud_sun_tau(
     var tau = 0.0;
     var dist = 0.0;
     var step_d = g_light_near;
+    // Cone basis perpendicular to the sun ray (v0.1252.2; see
+    // CLOUD_SUN_CONE_K). Any stable pair works - the spiral covers the
+    // disc.
+    var cu = cross(sun_local, vec3<f32>(0.0, 1.0, 0.0));
+    if (dot(cu, cu) < 1.0e-6) {
+        cu = cross(sun_local, vec3<f32>(1.0, 0.0, 0.0));
+    }
+    cu = normalize(cu);
+    let cv = cross(sun_local, cu);
     for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
-        // Geometric ladder: the segment IS the step, positions run
-        // ~0.9 / 2.5 / 5.5 / 11 / 21 / 38 / 69 / 125 km (see
+        // Geometric ladder: the segment IS the step (see
         // CLOUD_LIGHT_NEAR_KM / RATIO above).
         dist = dist + step_d;
         let seg = step_d;
         step_d = step_d * CLOUD_LIGHT_RATIO;
-        let lp = p + sun_local * dist;
+        var lp = p + sun_local * dist;
+        // First two taps stay ON-AXIS: the entry rind is the surface the
+        // eye sees and must self-shadow exactly (the sun-profile split).
+        // Farther taps spiral inside the cone; the g_lod_jitter phase is
+        // per-pixel + frame-advanced on the temporal path (0 on the
+        // Medium direct path, where the fixed spiral still buys the
+        // lateral average without needing an integrator).
+        if (i >= 2) {
+            let ang = 2.3999632 * f32(i) + g_lod_jitter * 6.2831853;
+            lp = lp + (cu * cos(ang) + cv * sin(ang))
+                * (dist * CLOUD_SUN_CONE_K);
+        }
         // Band-limit each tap by ITS OWN step length too (phase 5): the
         // far taps stride tens of km and should integrate the mean field
         // at that scale, not point-sample full-frequency noise. Never
@@ -2211,6 +2305,13 @@ fn cloud_sun_tau(
         // the converged reference reads 1-10. Bimodal tau (0 in gaps,
         // absurd in bodies) WAS the 18.9x per-texel energy coin flip. The
         // CPU twin measured the fix: -90% -> -1% ladder error at 12 taps.
+        // FIRST TWO taps keep the fully detailed body so the sunlit
+        // entry rind keeps its cauliflower self-shadow; every farther
+        // tap reads the PROFILE body (sub-MFP fields at their means -
+        // see g_sun_profile). Mean substitution preserves mean tau, so
+        // this cannot re-create the increment-10 mask-not-density
+        // bimodal bug.
+        g_sun_profile = select(1.0, 0.0, i < 2);
         let dens = cloud_density_hi(
             lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lod_t).x;
@@ -2223,6 +2324,9 @@ fn cloud_sun_tau(
             break;
         }
     }
+    // Flag hygiene: cloud_sun_tau's single exit. A leak would make the
+    // EYE see the profile body - visible as lost close-up texture.
+    g_sun_profile = 0.0;
     return tau;
 }
 
@@ -2268,6 +2372,13 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32, tau_diff: f32) -> f32 {
         a_n = a_n * 0.5;
         g_n = g_n * 0.5;
     }
+    // Relaxed-Beer contrast floor (v0.1252.2; see CLOUD_SUN_RELAX).
+    let ph_wide = mix(
+        cloud_hg(cos_vs, CLOUD_HG_BACK * 0.25),
+        cloud_hg(cos_vs, CLOUD_HG_FWD * 0.25),
+        CLOUD_HG_FWD_WEIGHT,
+    );
+    e = max(e, CLOUD_SUN_RELAX * ph_wide * exp(-0.25 * tau));
     let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau_diff);
     return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs);
 }

@@ -705,11 +705,18 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     let d1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
         p * (1.0 / (CLOUD_V2_DISP_TILE_KM * g_cloud_upkm)),
         clamp(g_v2_disp_lod - CLOUD_V2_DISP_LODC, 0.0, 8.0));
-    let d2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-        p * (1.0 / (CLOUD_V2_DISP2_TILE_KM * g_cloud_upkm)),
-        clamp(g_v2_disp_lod - CLOUD_V2_DISP2_LODC, 0.0, 8.0));
     let n1 = d1.r * 0.625 + d1.g * 0.25 + d1.b * 0.125;
-    let n2 = d2.r * 0.625 + d2.g * 0.25 + d2.b * 0.125;
+    // Sun-profile mode (v0.1252.2, see g_sun_profile in 40-clouds.wgsl):
+    // the fine displacement octave is zero-mean and sub-MFP - far sun
+    // taps read its mean (0.5 -> zero displacement) and skip the fetch.
+    // The COARSE d1 octave stays: lobes still self-shadow.
+    var n2 = 0.5;
+    if (g_sun_profile < 0.5) {
+        let d2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            p * (1.0 / (CLOUD_V2_DISP2_TILE_KM * g_cloud_upkm)),
+            clamp(g_v2_disp_lod - CLOUD_V2_DISP2_LODC, 0.0, 8.0));
+        n2 = d2.r * 0.625 + d2.g * 0.25 + d2.b * 0.125;
+    }
     let disp_m = (n1 - 0.5) * 2.0 * CLOUD_V2_DISP_M
                + (n2 - 0.5) * 2.0 * CLOUD_V2_DISP2_M;
     // One-sided Worley erosion (v0.1242, see the constants block): same
@@ -717,18 +724,25 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // at the frozen per-ray mip, so the view sample and all eight sun taps
     // carve the SAME surface (the v0.1230 lesson), and it warps the seams
     // between neighbouring clouds too.
-    let e1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-        p * (1.0 / (CLOUD_V2_ERODE_TILE_KM * g_cloud_upkm)),
-        clamp(g_v2_disp_lod - CLOUD_V2_ERODE_LODC, 0.0, 8.0));
-    let e2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-        p * (1.0 / (CLOUD_V2_ERODE2_TILE_KM * g_cloud_upkm)),
-        clamp(g_v2_disp_lod - CLOUD_V2_ERODE2_LODC, 0.0, 8.0));
-    let ew1 = e1.r * 0.625 + e1.g * 0.25 + e1.b * 0.125;
-    let ew2 = e2.r * 0.625 + e2.g * 0.25 + e2.b * 0.125;
+    // Sun-profile mode: the Worley erosion FBM's mean is 0.5, and
+    // mix(1 - 0.5, 0.5, hph) = 0.5 exactly, so the mean carve depth
+    // (and the shadow silhouette's mean) is preserved with both
+    // fetches skipped.
+    var ewm = 0.5;
+    if (g_sun_profile < 0.5) {
+        let e1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            p * (1.0 / (CLOUD_V2_ERODE_TILE_KM * g_cloud_upkm)),
+            clamp(g_v2_disp_lod - CLOUD_V2_ERODE_LODC, 0.0, 8.0));
+        let e2 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            p * (1.0 / (CLOUD_V2_ERODE2_TILE_KM * g_cloud_upkm)),
+            clamp(g_v2_disp_lod - CLOUD_V2_ERODE2_LODC, 0.0, 8.0));
+        let ew1 = e1.r * 0.625 + e1.g * 0.25 + e1.b * 0.125;
+        let ew2 = e2.r * 0.625 + e2.g * 0.25 + e2.b * 0.125;
+        ewm = ew1 * 0.72 + ew2 * 0.28;
+    }
     // Height phase (the Nubis flip): wispy 1-w at the base, billowy w at the
     // crown, transitioning over the lower third.
     let hph = clamp(up_m / max(best_height_m, 1.0) * 3.0, 0.0, 1.0);
-    let ewm = ew1 * 0.72 + ew2 * 0.28;
     let wor = mix(1.0 - ewm, ewm, hph);
     // Edge-proximity strength: full carve at the surface, decaying to an
     // interior floor. best is negative inside; legal in the DISTANCE domain
@@ -766,10 +780,18 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     //    depth instead of a painted-on surface.
     let hf = clamp(up_m / max(best_height_m, 1.0), 0.0, 1.0);
     let adiabatic = smoothstep(0.0, 0.30, hf) * (1.0 - smoothstep(0.68, 1.0, hf));
-    let t1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-        p * (1.0 / (CLOUD_V2_INT_TILE_KM * g_cloud_upkm)),
-        clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
-    let turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
+    // Sun-profile mode: turb's mean 0.5 makes the interior factor
+    // exactly 1.0 - the sun sees the pure adiabatic profile (Nubis3's
+    // "dimensional profile" verbatim). This field was the audit's #1
+    // variance source: +-42% at ~4 m content, point-sampled by 200-400 m
+    // sun segments.
+    var turb = 0.5;
+    if (g_sun_profile < 0.5) {
+        let t1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            p * (1.0 / (CLOUD_V2_INT_TILE_KM * g_cloud_upkm)),
+            clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
+        turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
+    }
     let interior = mix(CLOUD_V2_BASE_FRAC, 1.0, adiabatic)
         * mix(1.0 - CLOUD_V2_TURB_AMP, 1.0 + CLOUD_V2_TURB_AMP, turb);
     return clamp(core * interior, 0.0, 1.0);

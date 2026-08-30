@@ -1,5 +1,34 @@
 # HumanityOS: Priorities
 
+> **v0.1252.2 (2026-08-30): the sun-profile cutover - reference-grade
+> light-march smoothing, workflow-designed.** A 3-agent workflow
+> (mechanism audit + reference survey + fix design) turned the bisect
+> verdict into four landed changes, all shader-only: (1) SUN-PROFILE
+> MODE - far sun taps (i>=2) read the constructed body with its sub-MFP
+> fields at their means (interior turbulence, fine displacement, Worley
+> erosion skipped; g_sun_profile flag) - the audit's #1 carrier was the
+> interior turbulence field (~4 m content via the frozen g_v2_disp_lod)
+> point-sampled by 200-400 m segments, delta_tau 1.5-4 rms = the direct
+> coin flip; Nubis3's first-two-taps-per-pixel rule verbatim, and a
+> perf win (4 fetches saved per far tap). (2) CELL-FREE tau_vert
+> envelope (second ALU-only hinge; the 20.8 m cell voxels were the
+> ambient residual). (3) HZD LIGHT CONE - far taps spiral laterally
+> (K=0.12 of distance, golden angle, frame-advanced phase): the line
+> integral becomes the area integral lateral scattering physically
+> performs. (4) NUBIS-2017 RELAXED-BEER floor (0.7*ph_wide*exp(-0.25
+> tau)) - deep-shadow contrast capped at 0.25x plain Beer; the one
+> LOOK-affecting change (shadow faces lift 2-4x at tau 6-16; tune
+> CLOUD_SUN_RELAX down if washed). MEASUREMENT CAVEAT discovered: the
+> weather field phase is BOOT-DEPENDENT, so cross-sweep crop metrics
+> are content-confounded; only within-boot channel ratios are valid
+> (sun/alpha ratio 3.31 -> ~1.6-2.4 across states). RIG WANT (logged):
+> a weather-phase pin for deterministic content across boots.
+> RESIDUAL + ENDGAME: the irreducible ladder floor scales with ext_km *
+> pixel_pitch; if the operator's eyes still read static, the fenced
+> architectural answer is the Nubis3 amortized summed-density light
+> grid (256x256x32, 8-frame amortization, first-two-taps-per-pixel;
+> ~40% march cost SAVINGS + long-range inter-cloud shadows).
+
 > **v0.1252 (2026-08-30): the stipple forensics - alpha is innocent, the
 > LIGHTING carries the grain.** Operator (on v0.1251.1, confirming "way
 > better" overall): the close-cloud TV-static/sandblast remains the

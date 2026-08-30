@@ -831,6 +831,16 @@
     "assets/shaders/pbr/45-cloud-temporal.wgsl",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-08-30",
+   "decision": "v0.1252.2: the sun-profile cutover, workflow-designed (3-agent: mechanism audit + reference survey + fix design, 480k tokens). Four shader-only changes: sun-profile mode (far sun taps read sub-MFP fields at their means - g_sun_profile flag in 40/41), cell-free tau_vert envelope, HZD lateral light cone (CLOUD_SUN_CONE_K 0.12), Nubis-2017 relaxed-Beer floor (CLOUD_SUN_RELAX 0.7, the one look-affecting change).",
+   "why": "The audit convicted the constructed-body interior turbulence (~4 m content via frozen g_v2_disp_lod) point-sampled by 200-400 m sun segments as the dominant stipple carrier - the band-limit law structurally bypassed for that field. Reference survey (Nubis/HZD/Frostbite/Nubis3, sources in the workflow output): every production renderer feeds the sun march LOWER-frequency density than the eye ray. Measurement caveat discovered: weather-field phase is boot-dependent - cross-sweep crop metrics are content-confounded, only within-boot channel ratios valid (sun/alpha 3.31 -> ~1.6-2.4). Rig want: weather-phase pin. Endgame if still static: Nubis3 amortized summed-density light grid (fenced).",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "assets/shaders/pbr/41-cloud-bodies.wgsl",
+    "docs/PRIORITIES.md"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
