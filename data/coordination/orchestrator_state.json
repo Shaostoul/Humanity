@@ -795,6 +795,18 @@
    "date": "2026-08-30",
    "decision": "v0.1249: THE ROSETTE ROOT-CAUSED AND KILLED - direction-jitter depth shear; channel bisect instrument permanent",
    "why": "The map_diag channel bisect (showcase pin 1/2/3 renders first-hit-t / direct-sun / ambient luminance into the map with the EMA bypassed) convicted the AMBIENT term: dark radial petals converging at the anchor, loud and clear, while the column-uniform direct channel was clean. MECHANISM: the v0.1237 sub-texel DIRECTION jitter is a direction-space filter, and filtering directions over a THICK slab shears depth structure radially about the anchor (a +-0.8-texel angular wobble swings the far end of a 200 km grazing chord by kilometres while the near end barely moves; the EMA averages the sweep into radial streaks; ray-varying terms - ambient with its height/cavity dependence - smear hardest). The jitter added in v0.1237 to kill the ALIASING rosette painted the SMEARING rosette. FIX: amplitude 1.0 -> 0.4 texel (the PCG hash carries most of the anti-moire duty). VERIFIED IN CONTENT: the same from-space dump that showed petals dominating now shows uniform cellular deck with a few-texel residual at the anchor; on-screen the disc reads natural. Residuals noted: faint central asterisk (anchor-point texels), a transitional checker crescent at re-anchor rims (mid-refresh capture), the faint diagonal dot-grid of the golden advance. All three small; log-only for now."
+  },
+  {
+   "date": "2026-08-30",
+   "decision": "ONE RENDERER (v0.1250): the octa cloud map is retired as a runtime renderer. near_mix pinned 1.0 whenever temporal; octa_runs pinned false (texture stays zero-initialized); the screen march 32 km ownership leash removed; the composite distance-ramp ownership key and near_has claim gate removed (near arm owns every pixel it touched, map backdrop is empty).",
+   "why": "Operator refuted the v0.1249 rosette kill with 5 screenshots on their machine: rosette intact from orbit AND at 117-135 km, checkerboard intact, hurricane-eye ownership circle at 2.6 km, DARK gray-blue daytime sky under the deck (stale/aerial map content backdropped over the whole sky by the v0.1248 near-over-map change), plus a flight-wobble report. Three consecutive failed kill claims (v0.1237, v0.1245+, v0.1249) all patched the same architecture. Every view the operator has praised is the per-pixel near march; every artifact class they hate is the map or one of its seams. Perf case: at disc views the map re-marched ~1M texels/frame (quarter cadence of 16.7M), the same budget as a half-res screen march spent on pixels actually visible. Veil risk at disc ranges is acknowledged (the round-3 white-continent note) but the compact-support carve hinge has since made clear footprints exactly clear at coarse mips; disc-range quality is being judged on the probe ladder, not assumed.",
+   "scope": [
+    "src/lib.rs",
+    "src/renderer/mod.rs",
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "assets/shaders/cloud_composite.wgsl",
+    "tests/visual/vantages.json (starburst-space settle 70->12 revert)"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
@@ -824,7 +836,7 @@
   "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
  ],
  "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
- "last_updated": "2026-08-25",
+ "last_updated": "2026-08-30",
  "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
  "overnight_plan_2026_08_01": {
   "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

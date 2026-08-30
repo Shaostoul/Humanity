@@ -3699,14 +3699,13 @@ impl Renderer {
         // pass replaces it entirely (marching 16.7M map texels for a
         // full-screen planet was the near-planet lag, and the direction
         // cache is the ghost family).
-        // v0.1246: ALSO dispatch when under the deck (cloud_octa_force,
-        // 12c regime 3) - since the v0.1244 per-pixel split the composite
-        // gives the map full weight in the whole horizon band even at
-        // near_mix 1.0, and a skipped pass froze that band at whatever
-        // daylight it last held (the operator's bright-white night band and
-        // the wall of static). Inside the slab (regime 2) the skip stays:
-        // near ownership genuinely covers the sky there.
-        let octa_runs = self.cloud_near_mix < 1.0 || self.cloud_octa_force;
+        // ONE RENDERER (v0.1250): the octa map is DORMANT - the per-pixel
+        // screen march owns the whole sky at every altitude (see the
+        // near_mix note in lib.rs). The pass machinery stays in the tree
+        // for reference but never dispatches; its texture remains
+        // zero-initialized, so the composite's map backdrop contributes
+        // nothing.
+        let octa_runs = false;
         if octa_runs {
             let idle = self.cloud_octa_idle.replace(0);
             if idle >= 30 {

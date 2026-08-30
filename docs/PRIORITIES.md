@@ -1,5 +1,30 @@
 # HumanityOS: Priorities
 
+> **v0.1250 (2026-08-30): ONE RENDERER - the octa map retired.** The
+> operator refuted the v0.1249 rosette kill on their machine (third failed
+> kill claim on this artifact: v0.1237, v0.1245+, v0.1249 - every rig
+> verification passed under rig conditions and failed under theirs), plus
+> new damage: DARK gray-blue daytime sky under the deck (the v0.1248
+> near-over-map change backdropped stale/aerial map content over the WHOLE
+> sky), the hurricane-eye ownership circle at 2.6 km, and a flight-wobble
+> report (no flight code changed in 20 releases - the deck swims at 4-5
+> FPS and since v0.1243 correctly rolls with attitude; verify, don't
+> dismiss). ARCHITECTURE VERDICT: every view the operator has praised is
+> the per-pixel near march; every artifact class they hate is the map or
+> one of its seams; at disc views the map re-marched ~1M texels/frame -
+> the same budget as a half-res screen march spent mostly off-screen. SO:
+> near_mix pinned 1.0 (lib.rs), octa_runs pinned false (mod.rs, texture
+> stays zeroed), the 32 km screen-march ownership leash removed
+> (45-cloud-temporal), the composite's distance-ramp key + near_has gate
+> removed (near owns every pixel it touched; empty map backdrop = no-op
+> OVER). Map machinery kept dormant in-tree. RISK held to the ladder: the
+> round-3 white-veil note said the screen march integrates sub-grid
+> structure to featureless white at disc ranges - but the compact-support
+> carve hinge has since made clear footprints exactly clear at coarse
+> mips; judged on captures, not assumed. Next if veil confirmed:
+> fractional-coverage extinction at coarse footprints (the flight-sim
+> technique), NOT a map revival.
+
 > **v0.1248 (2026-08-30): NEAR-OVER-MAP + the two-field diagnosis.** The
 > operator's 8-shot ladder pinned the disease: the near arm and the map
 > render DIFFERENT skies, and the composite's mix() REPLACED map content

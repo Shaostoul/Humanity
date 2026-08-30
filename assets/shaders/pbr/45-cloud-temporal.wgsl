@@ -589,27 +589,24 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // was the white there.)
     // Screen march (the near regime): constructed bodies allowed.
     g_v2_allowed = true;
-    // OWNERSHIP RANGE (v0.1244, per-pixel regime split): this ray renders
-    // only content entering the slab within ~34 km; beyond that it abstains
-    // (cloud_march_core returns clear before stepping) and the composite's
-    // distance key hands the pixel to the octa map. This is what dissolves
-    // the altitude crossfade band: the handoff happens per CONTENT, and the
-    // near whale stops paying for planetary-slant marches it cannot resolve.
-    g_march_max_km = 32.0;
+    // ONE RENDERER (v0.1250): the ownership leash is GONE. This march is
+    // the only cloud renderer at every altitude (the octa map is dormant -
+    // see lib.rs near_mix), so it renders ALL content its ray crosses; the
+    // footprint-proportional stride keeps far content cheap (a few coarse
+    // steps at range).
     // FOOTPRINT = the near grid's OWN Nyquist (v0.1244). The old cap
     // min(screen*4, map_texel) forced this quarter-res march to resolve the
     // field ~5x finer than its sampling grid at long slant - undersampling
     // moire over the cellular deck, printing as thin radial combing on a
     // down look (the operator's persistent starburst; named in the 2026-08-29
-    // blend forensics and untouched until now). Fine detail at long range is
-    // the map's job by the ownership range above; this path anti-aliases to
-    // the rate it actually samples at. (The map-texel cap's original job -
-    // stopping the white veil at ORBITAL ranges - is moot here: those rays
-    // abstain entirely now.)
+    // blend forensics and untouched until now). This path anti-aliases to
+    // the rate it actually samples at, at every range - the compact-support
+    // carve hinge keeps clear-sky footprints clear at coarse mips (the old
+    // white-veil class), and the disc-range look is judged on the probe
+    // ladder.
     let cur_s = cloud_march_core(
         rd_w, center, shell_r, jitter,
         cloud_pix_ang_screen() * 4.0);
-    g_march_max_km = 1.0e9;
 
     // First-hit distance for the resolve's reprojection; analytic
     // shell-top hit when the march saw no cloud (clear-sky pixels still

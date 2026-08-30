@@ -3064,7 +3064,28 @@
         "cloud_cover": "0.9",
         "weather": "clear"
       },
-      "settle_s": 70
+      "settle_s": 12
+    },
+    {
+      "id": "space-structure-mid",
+      "desc": "Planet disc from close space at MODERATE cover (0.55) - does the deck show real gap/bank structure, or does sub-grid coverage integrate to a featureless veil?",
+      "expect": "Distinct cloud banks with dark ocean gaps between them; cellular structure at continental scale. NOT a uniform semi-white wash over the whole disc.",
+      "_why": "One-renderer cutover (v0.1250): the screen march now renders disc ranges the octa map used to own. The round-3 white-veil note said the march integrates sub-grid structure to featureless white out here; the compact-support carve hinge should keep clear footprints clear. Pinned 0.9 cover cannot distinguish veil from genuine overcast - this vantage can.",
+      "regressions": [
+        "visible gaps/banks at moderate cover from disc range (no whole-disc white veil)"
+      ],
+      "camera": {
+        "body": "earth",
+        "altitude_km": 2500,
+        "time": 12.02
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "weather": "clear"
+      },
+      "settle_s": 12
     }
   ],
   "ladder": {
