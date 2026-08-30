@@ -1,5 +1,26 @@
 # HumanityOS: Priorities
 
+> **v0.1248 (2026-08-30): NEAR-OVER-MAP + the two-field diagnosis.** The
+> operator's 8-shot ladder pinned the disease: the near arm and the map
+> render DIFFERENT skies, and the composite's mix() REPLACED map content
+> wherever near claimed - every stitch line was an artifact (blue halos
+> punching to raw sky at thin near edges, a clear hole under the camera
+> ringed by map deck, inverted blobs on the ceiling). Composite is now
+> premultiplied NEAR-OVER-MAP: the map is the backdrop everywhere, near
+> refines on top, thin near reveals map never sky; cost = bounded double
+> density where both drew the same cloud. The v0.1247 sun-drift floor is
+> REMOVED (it perpetually re-noised the map = the surviving checkerboard;
+> the diff-driven alpha already handles lighting change; resume-drop
+> kept). NEW OPERATOR-CONFIRMED FACTS: the ROSETTE is visible from DEEP
+> SPACE instantly (map CONTENT bias, not temporal - reproduce: from-space
+> park + cloudmap dump, no flight needed); the gravity-well handoff SNAPS
+> the view basis (ship well -> Earth well, camera transition bug - OWN
+> ITEM); surfacing from underwater visibly changes the sky (the
+> resume-drop after underwater octa idle - correct but visible).
+> ENDGAME (dedicated increment, discuss with operator): ONE cloud
+> representation with continuous LOD - the near arm as REFINEMENT of the
+> map's field rather than a second field; every seam class dies at once.
+
 > **v0.1247 hotfix (2026-08-30): dump crash + checker quilt; the rosette
 > hunt's state.** The v0.1246 cloudmap dump panicked the operator's live
 > session (octa textures lacked COPY_SRC; the first fix hit the wrong

@@ -313,13 +313,29 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
     var s_map = vec4<f32>(0.0);
-    if (w_px < 0.999) {
+    {
         let e = map_encode(rd);
         if (e.z <= 1.02) {
             s_map = map_catmull_rom(e.xy);
         }
     }
-    let s = mix(s_map, s_scr, w_px);
+    // NEAR-OVER-MAP (v0.1248). The old mix() REPLACED map content wherever
+    // the near arm claimed a pixel - and the two arms render the same sky
+    // at different footprints, so every disagreement became a stitch
+    // artifact: blue halos around near clouds (thin near edges punched
+    // through the map's overcast to raw sky), a literal clear hole under
+    // the camera ringed by map deck (near renders sparser than the map),
+    // dark "inverted" blobs against the map ceiling. The map is now the
+    // BACKDROP everywhere and the near arm composites OVER it
+    // (premultiplied): where near content is opaque it wins outright,
+    // where it is thin the map shows through - never raw sky, never a
+    // hole. The cost is bounded double-density where both arms drew the
+    // same cloud, which reads as slightly thicker cloud, not as a seam.
+    let near_w = w_px;
+    let s = vec4<f32>(
+        s_scr.rgb * near_w + s_map.rgb * (1.0 - s_scr.a * near_w),
+        s_scr.a * near_w + s_map.a * (1.0 - s_scr.a * near_w),
+    );
     if (s.a <= 0.003) {
         discard;
     }

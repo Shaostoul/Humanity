@@ -12029,58 +12029,13 @@ mod native_app {
                                             // (see mod.rs dispatch gate).
                                             state.renderer.cloud_octa_force =
                                                 regime == 3;
-                                            // Sun-delta invalidation (none
-                                            // existed): when the sun moves
-                                            // > ~2 deg past the map content
-                                            // epoch, floor-boost the EMA so
-                                            // lighting cannot go stale on
-                                            // the 20-minute day.
-                                            // CONTINUOUS, GENTLE (v0.1247).
-                                            // The first cut fired a 0.3-0.8
-                                            // alpha pulse every ~7 s (2 deg
-                                            // at the 20-minute day's 0.3
-                                            // deg/s) - the map never
-                                            // converged deeper than one
-                                            // pulse interval and the
-                                            // marching-vs-skipped age split
-                                            // showed as a pulsing CHECKER
-                                            // quilt (operator screenshot,
-                                            // v0.1246.1). Lighting drift on
-                                            // a fast day needs a small
-                                            // STEADY floor proportional to
-                                            // the drift rate, never epochs.
-                                            {
-                                                let sun_now = state
-                                                    .sun_world_pos
-                                                    .normalize_or_zero();
-                                                let prev = state.cloud_map_sun_epoch;
-                                                if prev.length_squared() < 0.5 {
-                                                    state.cloud_map_sun_epoch = sun_now;
-                                                } else {
-                                                    let cosd = prev
-                                                        .dot(sun_now)
-                                                        .clamp(-1.0, 1.0);
-                                                    let deg = cosd.acos().to_degrees();
-                                                    let b = ((deg as f32) / 45.0)
-                                                        .clamp(0.0, 0.25);
-                                                    let cur = state
-                                                        .renderer
-                                                        .cloud_octa_boost
-                                                        .get();
-                                                    state
-                                                        .renderer
-                                                        .cloud_octa_boost
-                                                        .set(cur.max(b));
-                                                    // Epoch tracks continuously
-                                                    // (exponential-ish): pull
-                                                    // toward the current sun so
-                                                    // the measured drift stays
-                                                    // the RECENT drift.
-                                                    state.cloud_map_sun_epoch =
-                                                        (prev * 0.9 + sun_now * 0.1)
-                                                            .normalize_or_zero();
-                                                }
-                                            }
+                                            // Sun-drift EMA boost REMOVED (v0.1248): the diff-driven
+                                            // adaptive alpha already reacts to lighting
+                                            // change; an extra floor on a 20-minute day
+                                            // perpetually re-noised the map - the
+                                            // operator's persistent checkerboard. The
+                                            // resume-drop (dispatch freeze recovery)
+                                            // stays; it handles the real staleness case.
                                             let (ideal_a, ideal_th) = match regime {
                                                 // Above the deck: anchor at
                                                 // NADIR, extent = the shell
