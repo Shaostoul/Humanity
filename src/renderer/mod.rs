@@ -4067,6 +4067,23 @@ impl Renderer {
         // depth, before the transparent pass blends the atmosphere dome
         // over it. Inside the atmosphere the dome is the sky BEHIND the
         // deck, so the composite stays after the transparent pass below.
+        // [CloudGate] 1 Hz probe (v0.1247 forensics).
+        {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static LAST: AtomicU64 = AtomicU64::new(0);
+            let s_now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            if s_now != LAST.swap(s_now, Ordering::Relaxed) {
+                log::info!(
+                    "[CloudGate] frame_some={} atmo_over={:?} tmat={}",
+                    self.cloud_composite_frame.is_some(),
+                    self.cloud_composite_frame.as_ref().map(|f| f.atmo_over),
+                    self.cloud_temporal_mat.is_some(),
+                );
+            }
+        }
         if self
             .cloud_composite_frame
             .as_ref()
@@ -4220,6 +4237,26 @@ impl Renderer {
         view: &wgpu::TextureView,
         camera: &Camera,
     ) {
+        // [CloudPasses] 1 Hz probe (v0.1247 forensics): the ground truth of
+        // whether this compositor actually runs, and with what inputs.
+        {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static LAST: AtomicU64 = AtomicU64::new(0);
+            let s_now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            if s_now != LAST.swap(s_now, Ordering::Relaxed) {
+                log::info!(
+                    "[CloudPasses] invoked; ct={} frame={} tmat={} near_pair={} mix={:.2}",
+                    self.cloud_temporal.is_some(),
+                    self.cloud_composite_frame.is_some(),
+                    self.cloud_temporal_mat.is_some(),
+                    self.cloud_screen.is_some() && self.cloud_mode_near,
+                    self.cloud_near_mix,
+                );
+            }
+        }
         if let (Some(ct), Some(frame), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_composite_frame.as_ref(),

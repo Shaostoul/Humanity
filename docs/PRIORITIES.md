@@ -1,5 +1,27 @@
 # HumanityOS: Priorities
 
+> **v0.1247 hotfix (2026-08-30): dump crash + checker quilt; the rosette
+> hunt's state.** The v0.1246 cloudmap dump panicked the operator's live
+> session (octa textures lacked COPY_SRC; the first fix hit the wrong
+> create site - mod.rs/lib.rs pristine regions are CRLF, edited regions
+> LF: use the Edit tool there and grep-verify every instrument after
+> writing). The v0.1246 sun-delta invalidation pulsed alpha every ~7 s on
+> the 20-minute day = the diagonal checker quilt; now a continuous floor
+> capped 0.25. TWO DIAGNOSTIC CYCLES WERE PHANTOMS: "the compositor never
+> runs" (the probe had never survived to disk) and "the map is empty"
+> (the rig park had silently collapsed from 112 km to 0.3 km before the
+> dump - an OLD latent probe-hold drift over 40-60 s, exposed by settle
+> 75; suspect the sweep autopilot holding a stale travel target - OWN RIG
+> BUG, diagnose before any long-settle forensics). With a held park the
+> map dump shows healthy full-disc content; [CloudArm]/[CloudGate]/
+> [CloudPasses] 1 Hz instruments are permanent. THE ROSETTE (operator's
+> persistent nadir starburst, present at [CloudReproj] 0.000): map
+> machinery proven healthy end to end; next discriminator is OPERATOR-
+> SIDE - drop debug/cloudmap_request.json while the rosette is on screen
+> (safe as of v0.1247); fibres in the dump = content bias (march-side
+> hunt: the octa jitter kernel / footprint at the anchor), clean dump =
+> sampling side (composite Catmull-Rom / decode).
+
 > **v0.1246 (2026-08-29): the three-part conviction - frozen map, sentinel
 > death spiral, over-tight cut.** (1) The octa pass was CPU-skipped at
 > near_mix==1.0 (below ~30 km) while the per-pixel composite still showed

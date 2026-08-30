@@ -128,8 +128,13 @@ impl Renderer {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format,
+                // COPY_SRC (v0.1247): the cloudmap/screen dev dumps read
+                // these back with copy_texture_to_buffer - without the flag
+                // the first live dump PANICKED the operator's session (wgpu
+                // usage validation). Never ship an instrument untested.
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
                 view_formats: &[],
             });
             let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
@@ -191,8 +196,14 @@ impl Renderer {
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: wgpu::TextureFormat::Rgba16Float,
+                    // COPY_SRC (v0.1247): the cloudmap dev dump reads THESE
+                    // textures back (Cloud Octa Map A/B). The first fix put
+                    // the flag on the other create site in this file and the
+                    // rig reproduced the operator's live-session panic
+                    // verbatim - the dump target is here.
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                        | wgpu::TextureUsages::TEXTURE_BINDING,
+                        | wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_SRC,
                     view_formats: &[],
                 });
                 let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
