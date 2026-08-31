@@ -905,6 +905,15 @@
     "src/renderer/mod.rs",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1254.0: FROZEN JITTERS + the gray-sun gate. (1) All three screen-path stochastic terms (subpixel ray, depth, lod dither) frozen to STATIC per-pixel hashes - the fidx frame-advance terms deleted. (2) sun_cloud_alpha intersects the DENSITY band top (composite frame planet_r*rt, ~12 km) instead of the drawn shell (~51 km); drawn-shell fallback when unarmed.",
+   "why": "THE OPERATOR RAN THE DECISIVE EXPERIMENT with the live cloud_temporal toggle: temporal on/off changed only soft-vs-sharp static, and LOW quality (direct shell path, one smooth unjittered sample per pixel) is the only clean tier - proving the static is IN THE INPUT (frame-advancing white noise), not something accumulation can remove; NMS/Elite/Helldivers sample smoothly. Frozen jitters keep the spatial ring-dissolving dither but make parked frames pixel-identical: no fizz, no film-grain crawl, no blinking. The gray sun: operator reported the sun permanently darker gray after surfacing from under the deck - the sunward dim crossed the drawn shell at cells whose 2D coverage read cloud even when the camera was visually above every cloud (6-51 km window). Shipped WITHOUT a rig sweep: the operator game was running (one-GPU rule) and they are actively verifying live.",
+   "scope": [
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "src/engine/frame_lock.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

@@ -555,11 +555,26 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // down - a ~13 px quasi-period whose stratified average keeps the
     // pattern, biasing the subpixel reconstruction the resolve integrates.
     // Salted integer coords decorrelate the two axes properly.
-    let px_hash = vec2<f32>(
+    // ── FROZEN JITTERS (v0.1253.2, the operator's own experiment) ──
+    // The cloud_temporal live bisect settled the architecture question:
+    // temporal ON vs OFF changed only "soft static vs sharp static",
+    // and LOW quality (the direct shell path - one smooth unjittered
+    // sample per screen pixel) is the only clean tier. The noise was
+    // never something the accumulator could remove, because the noise
+    // is IN THE INPUT: three frame-advancing white-noise jitters
+    // re-rolled every frame. Production cloud renderers the operator
+    // compared against (No Man's Sky, Elite, Helldivers) sample
+    // smoothly and let AA do mild cleanup - they do not scatter fresh
+    // noise per frame and hope. All three jitters are now FROZEN to
+    // static per-pixel patterns: spatial dither survives (it still
+    // breaks banding/rings), but a parked frame is pixel-identical to
+    // the last - no fizz, no film-grain crawl, no blinking clouds. The
+    // fidx advance terms are deliberately gone; do not reintroduce a
+    // frame term without re-running the operator's on/off experiment.
+    let j2 = vec2<f32>(
         pcg2d_hash(vec2<u32>(in.pos.xy)),
         pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0x9E37u, 0x79B9u)),
     );
-    let j2 = fract(px_hash + vec2<f32>(0.7548777, 0.5698403) * fidx);
     let ndc_step = vec2<f32>(abs(dpdx(in.ndc.x)), abs(dpdy(in.ndc.y)));
     let ndc_j = in.ndc + (j2 - vec2<f32>(0.5)) * ndc_step;
 
@@ -586,19 +601,16 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // local mean annihilates - the filter and the jitter must be
     // spectrally matched. Keep any future dither experiment paired with
     // that filter's kernel.
-    let jitter = fract(
-        pcg2d_hash(vec2<u32>(in.pos.xy)) + fract(fidx * 0.618034));
-    // Continuous per-pixel lod dither (see g_lod_jitter's note in
-    // 40-clouds.wgsl): +-0.5 on the trilinear lod - smooth, square-free,
-    // cache-neutral. PCG (v0.1242): the lod dither exists to dissolve
-    // integer-mip rings, and a patterned dither leaves the rings
-    // standing as banding - looking straight down, lodb is monotone in
-    // screen radius, so every mip boundary prints as a crosshair-centred
-    // circle (the operator's melted flower; flower-nadir vantage). Salt
-    // keeps it decorrelated from the depth jitter above.
-    g_lod_jitter = fract(
-        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u))
-        + fract(fidx * 0.618034)) - 0.5;
+    // FROZEN depth jitter (see the note above): static per-pixel, still
+    // decorrelates the step comb spatially so the ladder rings stay
+    // dissolved, but never re-rolls.
+    let jitter = pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u));
+    // FROZEN lod dither: same ring-dissolving job (lodb is monotone in
+    // screen radius on a down look; a spatial dither breaks the mip
+    // circles), zero temporal churn. Salted to stay decorrelated from
+    // the depth jitter.
+    g_lod_jitter = pcg2d_hash(
+        vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u)) - 0.5;
     // Footprint = one quarter-res pixel = 4x the screen pixel angle,
     // CAPPED at the octa map's texel angle (regime parity). At planetary
     // range the screen-driven footprint reaches mips 5-6, where the

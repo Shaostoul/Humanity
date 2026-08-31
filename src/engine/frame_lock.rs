@@ -291,11 +291,24 @@ pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
     // anchor lives in (the anchor is re-captured with current_spin every
     // frame, so the two agree).
     let s_pf = glam::DQuat::from_rotation_y(-state.current_spin) * s_w;
-    let r_deck = state
-        .planet_defs
-        .get("earth")
-        .map(|d| d.radius as f64 * crate::renderer::clouds::CLOUD_SHELL_SCALE as f64)
-        .unwrap_or(0.0);
+    // v0.1254: intersect the DENSITY BAND TOP, not the drawn shell. The
+    // drawn shell tops ~51 km while the density band tops ~12 km;
+    // between them the camera is visually above every cloud, yet the
+    // sunward ray still "crossed the shell" at a cell whose 2D coverage
+    // read cloud - the operator's permanently gray sun after surfacing
+    // (stuck from ~6 km all the way to 51 km). The composite frame
+    // carries the exact band-top ratio the march itself uses; when it
+    // is not armed (low quality / far away), the drawn shell stays as
+    // the conservative fallback.
+    let r_deck = if let Some(f) = state.renderer.cloud_composite_frame.as_ref() {
+        f.planet_r as f64 * f.rt as f64
+    } else {
+        state
+            .planet_defs
+            .get("earth")
+            .map(|d| d.radius as f64 * crate::renderer::clouds::CLOUD_SHELL_SCALE as f64)
+            .unwrap_or(0.0)
+    };
     if r_deck <= 0.0 {
         return 0.0;
     }

@@ -1,5 +1,31 @@
 # HumanityOS: Priorities
 
+> **v0.1254.0 (2026-08-31): THE OPERATOR'S EXPERIMENT SETTLES IT -
+> frozen jitters + the gray-sun gate.** The operator ran the
+> cloud_temporal live toggle and delivered the decisive result:
+> temporal on/off changes only SOFT static vs SHARP static, and LOW
+> quality (the direct shell path - one smooth unjittered sample per
+> screen pixel) is the ONLY clean tier. Verdict: the TV static was IN
+> THE INPUT all along - three frame-advancing white-noise jitters
+> (subpixel ray, depth, lod dither) re-rolled every frame on a
+> quarter-res grid, which no accumulator can average under motion and
+> which reference titles (NMS, Elite, Helldivers) simply do not do.
+> SHIPPED: all three jitters FROZEN to static per-pixel hashes -
+> spatial dither survives (rings stay dissolved; flower-nadir guards),
+> but a parked frame is now pixel-identical to the last: no fizz, no
+> film-grain crawl, no blinking clouds. DO NOT reintroduce a frame
+> term without re-running the on/off experiment. ALSO: the permanent
+> gray sun after surfacing = sun_cloud_alpha crossing the DRAWN shell
+> (~51 km) instead of the density band top (~12 km) - a cloud 10 km
+> below the sightline dimmed the disc anywhere in the 6-51 km window;
+> now gated on the composite frame's own band top. Shipped without a
+> rig sweep (operator game running, one-GPU rule; operator verifying
+> live). WATCH: any banding/ring return at nadir (the frozen dither
+> keeps spatial decorrelation, but the temporal averaging of residual
+> pattern is gone); the low-orbit swap ("voxel clouds disappear and
+> swap to the shader cover on approach" - the operator's handoff
+> observation, needs its own look).
+
 > **v0.1252.8 (2026-08-31): MERGED-CAP CONSTRUCTION - change 4 landed,
 > the arc's numbers.** The structural half of the field-coherence
 > rebuild: r_hi 0.44*width, r_lo 0.11 (bounded by r_hi - flat genera
