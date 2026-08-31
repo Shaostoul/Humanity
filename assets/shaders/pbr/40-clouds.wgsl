@@ -2890,19 +2890,25 @@ fn cloud_march_core(
             }
             dt = min(dt, m1 - t_cur);
         }
-        // ── BUDGET-AWARE STRIDE (v0.1252.4): never truncate the segment ──
-        // The iteration cap used to simply END the march mid-segment, and
-        // WHERE it ended is a function of slant angle - which on a down
-        // look is a function of screen radius from the sub-camera point.
-        // The truncation bias therefore converged (once the resolve's
-        // rest-gamma fix let the EMA converge at all) into a faint radial
-        // pattern locked to the aim point - the operator's "the rosette
-        // stays in my cursor as the planet turns" (the grazing
-        // iteration-cap tail, long on the books). When iterations run
-        // low, the stride grows to cover what remains of the segment: a
-        // coarse tail is a soft error, an unsampled tail is a structured
-        // one.
-        dt = max(dt, (m1 - t_cur) / max(f32(CLOUD_STEP_ITER_CAP - i), 1.0));
+        // ── FINAL-STEP TAIL INTEGRATION (v0.1252.5) ──
+        // The iteration cap used to END the march mid-segment, and WHERE
+        // it ended is a function of slant angle - screen radius from the
+        // aim point - so the truncation bias converged into a faint
+        // cursor-locked radial pattern (the grazing iteration-cap tail).
+        // The v0.1252.4 cure was WORSE than the disease: an every-step
+        // budget stride `max(dt, remaining/iters_left)` forced
+        // kilometre strides from the FIRST sample whenever the slab exit
+        // was far (always, inside the deck), overriding the MFP/SDF
+        // refinement - coarse near-steps are exactly the mechanism of
+        // the v0.1241 melted flower, and the operator's night captures
+        // showed it back in force. REVERTED. The correct O(1) form:
+        // only the LAST budgeted step stretches to cover whatever tail
+        // remains - one coarse sample (its footprint self-selects a
+        // deep mip via `foot = max(.., dt * 0.25)`) instead of an
+        // unsampled tail, and the near sampling is untouched.
+        if (i == CLOUD_STEP_ITER_CAP - 1) {
+            dt = m1 - t_cur;
+        }
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
         let tm = t_cur + dt * jitter;

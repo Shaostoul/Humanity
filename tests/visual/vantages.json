@@ -3189,6 +3189,31 @@
       },
       "settle_s": 10,
       "hold_altitude": true
+    },
+    {
+      "id": "night-flower",
+      "desc": "Inside the deck at 5.7 km, rain, just after sunset - the operator v0.1252.4 worst capture: a giant dark melted-agate flower radiating from the cursor.",
+      "expect": "Dim overcast interior with NO giant radial flower/petal structure converging at the view centre. Dark, soft, unstructured.",
+      "_why": "The v0.1252.4 every-step budget stride forced km strides from the first sample whenever the slab exit was far (always, inside the deck), overriding MFP/SDF refinement - coarse near-steps are the melted-flower mechanism. Fixed v0.1252.5 (final-step tail integration). This vantage guards the night/inside-deck state that daytime vantages never covered.",
+      "regressions": [
+        "no radial flower/petal structure at the view centre at night inside the deck"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 5.7,
+        "look_offset_deg": 40,
+        "time": 17.8
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "0.46",
+        "weather": "rain"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {

@@ -1,5 +1,26 @@
 # HumanityOS: Priorities
 
+> **v0.1252.5 (2026-08-31): the budget stride reverted - it re-created
+> the melted flower at night.** Operator night captures on v0.1252.4:
+> giant dark melted-agate flower inside the deck at 2-7 FPS. The
+> v0.1252.4 every-step budget stride was the creator: with the slab
+> exit hundreds of km away (always, inside the deck),
+> max(dt, remaining/left) forced KM strides from the FIRST sample,
+> overriding the MFP/SDF refinement - and coarse near-steps are the
+> v0.1241 melted-flower mechanism verbatim. REPLACED with final-step
+> tail integration: only iteration 224 stretches to cover the
+> remaining segment as ONE coarse sample (footprint self-selects a
+> deep mip); near sampling untouched; truncation bias still bounded.
+> NEW permanent vantage night-flower (5.7 km, rain, post-sunset)
+> guards the night/inside-deck state no daytime vantage covered - the
+> fix capture there: black, soft, structureless, 21 FPS. LESSON (for
+> the incident book): a budget clamp must NEVER touch near samples;
+> and every march change needs a NIGHT + inside-deck verification, not
+> just the daytime ladder. OPEN from the operator's report: the
+> grazing-sun TWINKLE (bright spots return when raising height or
+> nearing the sun - direct-channel, sun-angle-dependent, watch after
+> this fix); the faint 198 km night tail rosette.
+
 > **v0.1252.4 (2026-08-31): the rest-state fixes - four symptoms, four
 > mechanisms, all closed.** Operator on v0.1252.3, the most diagnostic
 > report of the arc: (a) faint rosette LOCKED TO THE CURSOR while the

@@ -860,6 +860,15 @@
     "assets/shaders/cloud_resolve.wgsl",
     "assets/shaders/pbr/40-clouds.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1252.5: the budget stride REVERTED and replaced with final-step tail integration (only iteration 224 stretches to cover the remaining segment as one coarse sample). New permanent vantage night-flower (5.7 km, rain, post-sunset) guards the night/inside-deck state.",
+   "why": "The operator night captures showed the v0.1252.4 every-step budget stride re-created the giant melted-agate flower at 2-7 FPS: with the slab exit hundreds of km away (always, inside the deck), max(dt, remaining/left) forced km strides from the FIRST sample, overriding MFP/SDF refinement - coarse near-steps are the melted-flower mechanism. The rig night-flower capture after the fix: black, soft, structureless, 21 FPS. Lesson: a budget clamp must never touch the near samples; open items - the sunset grazing-sun twinkle (direct-channel, sun-angle-dependent), night-time faint tail rosette at 198 km (watch on next operator flight).",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
