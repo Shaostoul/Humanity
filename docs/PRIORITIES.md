@@ -1,5 +1,26 @@
 # HumanityOS: Priorities
 
+> **v0.1252.7 (2026-08-31): THE ORCHARD ROWS - the starburst-at-the-
+> feet ROOT CAUSE, found and fixed.** The operator's oldest complaint
+> ("the starburst at my feet", persisting through the map retirement,
+> the reprojection rewrite, and the whole lighting overhaul) is the
+> cloud PLACEMENT LATTICE seen from above: straight rows of clouds on
+> the 1.1 km brick grid project as SPOKES THROUGH THE NADIR (the
+> orchard-from-a-drone effect) - view-locked at any altitude, stronger
+> with height, content-side so no renderer change could touch it.
+> Photographed on the rig at 41 km midday (rows converging at the
+> crosshair), killed with CLOUD_V2_ROW_WANDER 0.28 (per-row smooth
+> sine, wavelength ~9 cells, random phase per row - no straight line
+> of centres in any direction; adjacent clouds shift together so the
+> v0.1232 clumping-cost lesson holds; y-only, inside the 3x3 search
+> budget). Checked-innocent on the way: godray behind-camera guard,
+> the three ray builders' tanf/aspect/ndc consistency, the water
+> sky-mirror. OPERATOR-VERIFY next flight: the down-look at altitude
+> that always showed the starburst. Remaining queue unchanged:
+> merged-cap construction (change 4, fenced, spec in the v0.1252.6
+> block), small-disc dynamic march resolution, terminator vantage for
+> the low-sun check, the sunset grazing twinkle.
+
 > **v0.1252.6 (2026-08-31): THE DOT LATTICE named and half-killed - the
 > field-coherence shading wave.** The bisect instrument photographed
 > the truth: the direct-sun channel over cumulus is a LATTICE OF

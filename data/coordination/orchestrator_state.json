@@ -878,6 +878,14 @@
     "assets/shaders/pbr/40-clouds.wgsl",
     "assets/shaders/pbr/41-cloud-bodies.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1252.7: THE ORCHARD ROWS - the starburst-at-the-feet root cause found and fixed. The cloud placement lattice (1.1 km brick grid, jitter only +-0.19 cell) read from above projects its straight rows as SPOKES THROUGH THE NADIR (the orchard-from-a-drone effect) - view-locked at any altitude, stronger with height, surviving every renderer change because it lives in the CONTENT. Photographed on the rig at 41 km midday (rows converging at the crosshair), then killed with CLOUD_V2_ROW_WANDER=0.28: each row bends along a smooth per-row sine (wavelength ~9 cells, random phase per row) so no straight line of cloud centres exists in any direction. Adjacent clouds shift together (no clumping - the v0.1232 137ms lesson respected); budget 0.47 offset + 0.95 radius = 1.42 < the 3x3 search 1.5-cell bound (y-only; x has no headroom past the stagger). Shader-only; the CPU twin does not mirror placement.",
+   "why": "Operator hypothesis: the star effect at the feet is something screen-space, warping the clouds, preventing a consistent real look. Half right and decisive: it IS a projection phenomenon - of regular content through the camera. Checked innocent on the way: the godray behind-camera guard (clip.w<=0 skip correct), the three ray builders (march/resolve/composite tanf/aspect/ndc conventions agree), the water sky-mirror (reflects only the analytic sky). Post-fix rig capture at the same 41 km vantage: irregular natural scatter, no spokes.",
+   "scope": [
+    "assets/shaders/pbr/41-cloud-bodies.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

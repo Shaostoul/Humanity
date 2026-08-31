@@ -127,6 +127,24 @@ const CLOUD_V2_TURB_AMP: f32 = 0.42;
 // previously still argued for the reverted 0.9 - the lobe-lattice
 // audit, 2026-08-31, flagged the drift.)
 const CLOUD_V2_JITTER: f32 = 0.38;
+// ── ROW WANDER (v0.1252.7, THE ORCHARD ROWS - the operator's starburst
+// at the feet, finally photographed) ── The brick stagger breaks
+// COLUMNS, but every ROW is still a perfectly straight line of clouds
+// at constant y - and from above, straight lines passing near the
+// sub-camera point project as spokes THROUGH THE NADIR, like orchard
+// rows under a drone. At 41 km a frame spans ~70 cells and the rig
+// photographed the rows converging at the crosshair: THAT is the
+// view-locked "starburst at my feet" that survived every renderer
+// change, because it lives in the CONTENT's regularity, not the
+// renderer. Each row now bends along a smooth per-row sine (wavelength
+// ~9 cells, random phase per row): no straight line of centres exists
+// in any direction. Adjacent clouds in a row shift TOGETHER (the wave
+// is smooth), so intra-row spacing is preserved and the v0.1232
+// clumping-march-cost lesson (137.7 vs 59.8 ms) is respected. Budget:
+// |jy| 0.19 + wander 0.28 = 0.47 offset + 0.95 max radius = 1.42 <
+// the 3x3 search's 1.5-cell bound (x has no such headroom - the
+// stagger already spends it - which is why the wander is y-only).
+const CLOUD_V2_ROW_WANDER: f32 = 0.28;
 
 // ── HOW MUCH OF ITS OWN ENVELOPE A CLUSTER ACTUALLY COVERS (v0.1233) ──
 //
@@ -628,8 +646,14 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // to catch the eye along, which is what a lattice actually reads as.
             // Same trick masonry uses, for the same reason.
             let stagger = select(0.0, 0.5, (i32(cj) & 1) == 1);
+            // Per-row smooth sine wander (see CLOUD_V2_ROW_WANDER):
+            // phase from the ROW index only, so the whole row bends as
+            // one coherent wave.
+            let jy_w = CLOUD_V2_ROW_WANDER
+                * sin(ci * 0.71
+                    + cv2_hash(vec2<f32>(cj, 7.0), 23.0) * 6.2831853);
             let dx_cells = (ci + 0.5 + jx + stagger) - cx;
-            let dy_cells = (cj + 0.5 + jy) - cy;
+            let dy_cells = (cj + 0.5 + jy + jy_w) - cy;
             // Cell-space offset -> metres on the ground.
             let m_per_cell = cell_km * 1000.0;
             let ox = -dx_cells * m_per_cell;

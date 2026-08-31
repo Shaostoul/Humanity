@@ -3225,11 +3225,11 @@
       ],
       "camera": {
         "body": "earth",
-        "lat": 0.05,
-        "lon": -30,
-        "altitude_km": 2.3,
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 41,
         "look_offset_deg": 0,
-        "time": 15
+        "time": 13.5
       },
       "showcase": {
         "cloud_quality": "ultra",
@@ -3238,7 +3238,7 @@
         "cloud_type": "0.46",
         "weather": "clear"
       },
-      "settle_s": 40
+      "settle_s": 30
     },
     {
       "id": "flower-inside-high",
@@ -3250,11 +3250,11 @@
       ],
       "camera": {
         "body": "earth",
-        "lat": 0.05,
-        "lon": -30,
-        "altitude_km": 2.3,
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 41,
         "look_offset_deg": 0,
-        "time": 15
+        "time": 13.5
       },
       "showcase": {
         "cloud_quality": "high",
@@ -3263,7 +3263,7 @@
         "cloud_type": "0.46",
         "weather": "clear"
       },
-      "settle_s": 40
+      "settle_s": 30
     },
     {
       "id": "flower-inside-alpha",
@@ -3275,11 +3275,11 @@
       ],
       "camera": {
         "body": "earth",
-        "lat": 0.05,
-        "lon": -30,
-        "altitude_km": 2.3,
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 41,
         "look_offset_deg": 0,
-        "time": 15
+        "time": 13.5
       },
       "showcase": {
         "cloud_quality": "ultra",
@@ -3289,7 +3289,7 @@
         "weather": "clear",
         "map_diag": "1"
       },
-      "settle_s": 40
+      "settle_s": 30
     },
     {
       "id": "flower-inside-sun",
@@ -3301,11 +3301,11 @@
       ],
       "camera": {
         "body": "earth",
-        "lat": 0.05,
-        "lon": -30,
-        "altitude_km": 2.3,
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 41,
         "look_offset_deg": 0,
-        "time": 15
+        "time": 13.5
       },
       "showcase": {
         "cloud_quality": "ultra",
@@ -3315,7 +3315,7 @@
         "weather": "clear",
         "map_diag": "2"
       },
-      "settle_s": 40
+      "settle_s": 30
     }
   ],
   "ladder": {
