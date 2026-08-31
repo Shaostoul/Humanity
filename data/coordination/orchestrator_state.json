@@ -914,6 +914,14 @@
     "assets/shaders/pbr/45-cloud-temporal.wgsl",
     "src/engine/frame_lock.rs"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1254.2: THE FADE BAND WAS THE WARP. CLOUD_V2_FADE_LO/HI 1.9/2.0 -> 3.9/4.0 (handoff radius 4x farther). Rig bisect chain: crescent clouds reproduced over the Sahara at 2 km; SDF-leap-off left them standing (leap innocent, restored); fade-off dissolved them into solid masses at identical FPS (convicted). The v2-to-noise representation morph is distance-keyed and its band INTERFERES: mid-fade = eaten centers/crescents (the operator remaining rosette-warp), far end = the noise sheet collapsing into discrete v2 specks on approach (the operator sheet-to-snowflakes complaint). At 4.0 the morph happens where a cloud subtends ~a pixel: invisible by scale separation. Verified: crescent vantage solid at 15 FPS; space-structure-mid granular banks at 17 FPS; closeup + blend-45km unchanged.",
+   "why": "Operator on v0.1254.1 (huge improvement confirmed): two remaining asks - the sheet devolving into snowflakes on approach, and the rosette warping a fixed-distance cloud with an eaten center. One root cause. WATCH: the far-range coverage calibration across the now-distant handoff (noise-sheet apparent cover vs v2 ground cover) - if the sheet-to-granular transition still reads as a density pop from orbit approach, the occupancy growth cap calibration is the follow-up.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

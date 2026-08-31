@@ -1,5 +1,28 @@
 # HumanityOS: Priorities
 
+> **v0.1254.2 (2026-08-31): THE FADE BAND WAS THE WARP - crescents +
+> sheet-to-snowflakes, one root.** Operator on v0.1254.1 ("huge
+> improvement!"): two remaining asks - the white sheet devolving into
+> snowflake specks on approach, and the residual "rosette" warping a
+> FIXED-distance cloud (eaten centers, C-shapes). Rig bisect chain:
+> crescents reproduced over the Sahara at 2 km; SDF-leap-off left them
+> STANDING (leap innocent, restored); fade-off dissolved them into
+> solid masses at identical FPS (CONVICTED). The v2-to-noise
+> representation handoff is distance-keyed and its band interferes:
+> mid-fade = crescents, far end = the noise sheet collapsing into
+> discrete v2 clouds. SHIPPED: CLOUD_V2_FADE_LO/HI 1.9/2.0 -> 3.9/4.0
+> - the whole flying band is pure constructed bodies and the morph
+> happens where a cloud subtends ~a pixel (invisible by scale
+> separation). NOT infinity: at orbital footprints sub-footprint lobes
+> would point-sample as speckle; the carve-hinge noise body stays the
+> correct coarse representation. Verified: crescent vantage solid at
+> 15 FPS; space disc granular banks at 17 FPS. WATCH: far-range
+> coverage calibration across the now-distant handoff (occupancy
+> growth cap) if an approach still reads a density pop; the
+> low-alt/orbit handoff observation from the operator ("voxel clouds
+> swap to shader cover") should now also be re-judged - it was this
+> same band.
+
 > **v0.1254.0 (2026-08-31): THE OPERATOR'S EXPERIMENT SETTLES IT -
 > frozen jitters + the gray-sun gate.** The operator ran the
 > cloud_temporal live toggle and delivered the decisive result:

@@ -130,8 +130,25 @@ const CLOUD_SILVER_GAIN: f32 = 0.3;
 // So the fade cannot ship until the two bodies agree on brightness at the
 // handover. That is the actual next task here - matching them, then reopening
 // this window - not tuning these two numbers.
-const CLOUD_V2_FADE_LO: f32 = 1.9;
-const CLOUD_V2_FADE_HI: f32 = 2.0;
+// ── THE FADE BAND WAS THE WARP (v0.1255, operator + rig bisect) ──
+// The v2-to-noise representation handoff is DISTANCE-keyed (footprint
+// lod), and inside its band the two bodies INTERFERE: the operator's
+// crescent clouds with eaten centres ("the rosette causing a cloud to
+// disappear in the center... nothing should be changing about how it
+// looks but it still is"), and at the far end the noise body's
+// sheet-like coverage collapsing into discrete v2 specks on approach
+// ("immersion breaking to go from a white sheet to almost no cloud
+// cover"). Rig-proven: leap-off left the crescents standing; fade-out
+// dissolved them into solid masses at identical FPS. Pushed 1.9/2.0 ->
+// 3.9/4.0 (a 4x farther handoff radius): the operator's whole flying
+// band is pure constructed bodies, and the morph now happens where a
+// cloud subtends ~a pixel, so the representation change is invisible
+// by scale separation. NOT pushed to infinity: at true orbital
+// footprints sub-footprint lobes would point-sample as speckle - the
+// noise body (carve-hinge band-limited) remains the correct coarse
+// representation.
+const CLOUD_V2_FADE_LO: f32 = 3.9;
+const CLOUD_V2_FADE_HI: f32 = 4.0;
 // How dark a fully down-facing cloud surface goes, and how much the crevices
 // between buds darken. Both act on the constructed path only.
 const CLOUD_V2_SKY_FLOOR: f32 = 0.80;
