@@ -869,6 +869,15 @@
     "assets/shaders/pbr/40-clouds.wgsl",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1252.6: THE FIELD-COHERENCE SHADING WAVE (workflow-designed, changes 1+2+3+5 of 5). (1) CLOUD_V2_SUN_SMOOTH_M=260: in sun-profile mode the SDF density ramp widens 90->260 m and the domain warp is stripped from sun taps - the sun marches the envelope at the radiative-smoothing scale (Marshak 1995, 200-400 m lateral photon transport). (2) cav_dir_w mix(0.5,0.12,s_v2_w): cavity bite on direct compressed to <=1.15x on the built path. (3) ring_off smoothstep(0,0.5,v2_w): hybrid-band crown/pouch neutralizer saturates at half the body crossfade. (5) CLOUD_V2_JITTER stale comment fixed. MEASURED: full closeup image grain 2.59 -> 1.01 (61% - the largest single improvement of the arc; all prior fixes combined were ~5%); speck-sun 1.58 -> 1.12 (near the alpha floor). The central cumulus renders as a solid luminous mass for the first time.",
+   "why": "The lobe-coherence workflow (3 agents, 435k tokens) quantified the dot lattice: per-lobe cap-vs-crevice contrast 4.7-11x in the direct channel vs physical 1.1-1.35x below 300 m; the sun-tau term carries 85-95%; the v0.1252.4 profile-all change had made the sun see the BARE lobe cluster. CHANGE 4 REMAINS FENCED (merged-cap construction: r_hi 0.44, sep 0.45-0.62, relative smin floor, re-measured fill table + CPU-twin mirror + tests - atomic, biggest blast radius). Residuals: shaded-side speckle until change 4; slight peak-white flattening (tune SUN_SMOOTH_M toward 200 or cav_dir_w toward 0.2 if the operator reads it washed); low-sun whole-cloud shadowing needs a terminator vantage check. Full acceptance protocol G1-G6 in the workflow output (tasks/w84w6pbni.output).",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "assets/shaders/pbr/41-cloud-bodies.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

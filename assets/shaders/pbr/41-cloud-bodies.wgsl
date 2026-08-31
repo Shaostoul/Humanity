@@ -79,6 +79,24 @@ const CLOUD_V2_WARP_LODC: f32 = -5.2;
 // Rind over which density falls to zero at the surface, in metres. The
 // erosion bands chew into this, so it must be wide enough to have room.
 const CLOUD_V2_RIND_M: f32 = 90.0;
+// ── SUN-SMOOTHING SCALE (field-coherence rebuild, 2026-08-31) ──
+// Radiative smoothing (Marshak et al. 1995; the Landsat 200-400 m scale
+// break): multiple scattering transports photons ~250-400 m LATERALLY
+// inside a cumulus, so real cloud-top luminance carries no structure
+// finer than that - yet the sun ladder read the 90 m rind and each
+// lobe's cap at full per-lobe contrast, printing one 2-8 px bright dot
+// per lobe (the channel-bisect photograph, v0.1252 stipple forensics:
+// the direct-sun channel IS a dot lattice, one dot per constructed
+// lobe; measured cap-vs-crevice contrast 4.7-11x against a physical
+// 1.1-1.35x). In profile mode the sun now marches the smin ENVELOPE
+// with its density ramp widened to this scale: a lobe cap and the
+// crevice 100 m beside it see nearly the same transmittance, exactly
+// as in a real deck, while turret- and whole-cloud shadows (> 400 m)
+// survive because SDF differences at that scale exceed the ramp. The
+// EYE path keeps the 90 m rind untouched: silhouettes are never
+// smoothed, only sunlight transport is - the Nubis3 light-volume
+// discipline taken to its physical scale.
+const CLOUD_V2_SUN_SMOOTH_M: f32 = 260.0;
 // Interior structure (v0.1231). Density at the condensation base as a
 // fraction of the adiabatic peak: a real cumulus base is thin and ragged,
 // which is why you can often see through the bottom edge of one.
@@ -95,22 +113,19 @@ const CLOUD_V2_INT_TILE_KM: f32 = 0.34;
 // LOOK barely changes; the sparkle rims were the alias, not content.
 const CLOUD_V2_INT_LODC: f32 = -9.56;
 const CLOUD_V2_TURB_AMP: f32 = 0.42;
-// How far a cloud may sit from its cell centre, as a fraction of the cell,
-// so the field is not a visible lattice.
+// How far a cloud may sit from its cell centre, as a fraction of the cell.
 //
-// Raised from 0.38 to 0.9 in v0.1232, and the reason is a lesson: the
-// LATTICE WAS EXPOSED BY FIXING SOMETHING ELSE. Cloud widths used to be a
-// uniform draw, so clouds were typically comparable to their own cell and
-// the regular spacing was hidden by the clouds overlapping each other. The
-// v0.1230 power-law sizes made most clouds much smaller than their cell, and
-// a field of small objects each sitting near the centre of a regular grid
-// reads instantly as a grid - which is what the operator saw the moment the
-// size distribution became correct.
-//
-// 0.9 means +-0.45 cells, so a cloud centre stays inside its own cell and the
-// 3x3 neighbourhood search still finds every cloud whose envelope reaches the
-// sample. Going to or past 1.0 would let a centre leave its cell and the
-// search would start missing clouds from the far side.
+// HISTORY, in order: raised 0.38 -> 0.9 in v0.1232 when the power-law
+// sizes exposed the lattice (small clouds near regular grid centres read
+// instantly as a grid), then REVERTED to 0.38 in the same arc because
+// the row stagger (the brick offset) breaks the lattice reading for
+// free while high jitter let neighbouring clouds clump - and a ray
+// through clumped material refines far more steps (measured 137.7 ms vs
+// 59.8 ms on the same frame). 0.38 = +-0.19 cells: enough wobble to
+// kill residual regularity on top of the stagger, cheap to march, and
+// the 3x3 neighbourhood search always finds every cloud. (This comment
+// previously still argued for the reverted 0.9 - the lobe-lattice
+// audit, 2026-08-31, flagged the drift.)
 const CLOUD_V2_JITTER: f32 = 0.38;
 
 // ── HOW MUCH OF ITS OWN ENVELOPE A CLUSTER ACTUALLY COVERS (v0.1233) ──
@@ -420,11 +435,19 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // surface, and the most recognisable cue the whole constructed path has.
     // Warping it would buy nothing and would bend the one thing that is right.
     let warp_tile_m = max(mean_r * CLOUD_V2_WARP_TILE_R, 1.0);
-    let wn = textureSampleLevel(
-        cloud_detail_tex, cloud_tile_sampler,
-        local_m / warp_tile_m,
-        clamp(g_v2_disp_lod - CLOUD_V2_WARP_LODC, 0.0, 8.0),
-    ).rgb;
+    // Sun-profile mode (v0.1252.6, see CLOUD_V2_SUN_SMOOTH_M): the
+    // domain warp folds surfaces at +-0.42*mean_r (+-27 m on humilis) -
+    // sub-smoothing-scale, so the sun must not see it (same rule as the
+    // d2/erosion/turbulence means, v0.1252.4). wn = 0.5 is the FBM
+    // mean: zero displacement, and the fetch is saved on every sun tap.
+    var wn = vec3<f32>(0.5);
+    if (g_sun_profile < 0.5) {
+        wn = textureSampleLevel(
+            cloud_detail_tex, cloud_tile_sampler,
+            local_m / warp_tile_m,
+            clamp(g_v2_disp_lod - CLOUD_V2_WARP_LODC, 0.0, 8.0),
+        ).rgb;
+    }
     let warp_amp_m = mean_r * CLOUD_V2_WARP_FRAC;
     g_v2_warp_m = warp_amp_m;
     let warped = local_m + (wn - vec3<f32>(0.5)) * 2.0 * warp_amp_m;
@@ -759,7 +782,12 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
         clamp(1.0 + best / CLOUD_V2_ERODE_REACH_M, 0.0, 1.0));
     // One-sided: erosion only ADDS distance (carves in), never inflates.
     let erode_m = wor * edge_w * (CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4);
-    let rind = CLOUD_V2_RIND_M;
+    // Profile mode widens the ramp to the photon-transport scale (see
+    // CLOUD_V2_SUN_SMOOTH_M). The flag is set once per ladder and
+    // shared by every tap (single-exit hygiene in cloud_sun_tau), so
+    // the per-tap-rind eyeball-ring class (v0.1230) cannot return.
+    let rind = select(CLOUD_V2_RIND_M, CLOUD_V2_SUN_SMOOTH_M,
+        g_sun_profile > 0.5);
     let core = clamp(-(best - disp_m + erode_m) / rind, 0.0, 1.0);
 
     // ── THE INTERIOR (v0.1231) ──

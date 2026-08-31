@@ -1,5 +1,35 @@
 # HumanityOS: Priorities
 
+> **v0.1252.6 (2026-08-31): THE DOT LATTICE named and half-killed - the
+> field-coherence shading wave.** The bisect instrument photographed
+> the truth: the direct-sun channel over cumulus is a LATTICE OF
+> DISCRETE DOTS, one per constructed-body lobe - per-lobe cap-vs-
+> crevice contrast 4.7-11x where physics allows 1.1-1.35x below the
+> ~300 m radiative-smoothing scale (Marshak 1995). THAT is the
+> operator's "TV static"/"sandblast"/"atoms of spheres" across 15
+> releases, and near the nadir it composes into the melted flower. A
+> 3-agent workflow audited the chain (sun-tau carries 85-95%; the
+> v0.1252.4 profile-all change had the sun marching the BARE lobe
+> cluster) and designed 5 ordered changes. SHIPPED (1,2,3,5): sun
+> marches the envelope with a 260 m ramp (CLOUD_V2_SUN_SMOOTH_M) + no
+> warp in profile mode; cavity-on-direct compressed to 1.15x on the
+> built path (cav_dir_w); hybrid-band ring neutralizer (ring_off);
+> stale jitter comment fixed. MEASURED: full closeup grain 2.59 ->
+> 1.01 (61%, the largest single improvement of the arc; everything
+> before combined was ~5%); the central cumulus renders as a solid
+> luminous mass for the first time. FENCED NEXT (change 4, atomic):
+> MERGED-CAP CONSTRUCTION - r_hi 0.34->0.44*width, sep 0.45-0.62,
+> RELATIVE smin floor 0.5*mean_r (cap 340 m), fill table RE-MEASURED
+> via the projection harness (never estimated), CPU-twin mirror in
+> src/renderer/cloud_primitives.rs + lib tests IN THE SAME COMMIT,
+> CLOUD_BODY_TOP p99 re-checked. Full acceptance protocol G1-G6 (incl.
+> the connected-bright-components contiguity metric and the
+> anti-cardboard joint gate) in the workflow output:
+> %TEMP%/claude tasks/w84w6pbni.output. TUNING KNOBS if the operator
+> reads peak whites as washed: SUN_SMOOTH_M toward 200, cav_dir_w 0.12
+> toward 0.2. WATCH: low-sun whole-cloud shadowing (add a terminator
+> vantage); shaded-side speckle persists until change 4.
+
 > **v0.1252.5 (2026-08-31): the budget stride reverted - it re-created
 > the melted flower at night.** Operator night captures on v0.1252.4:
 > giant dark melted-agate flower inside the deck at 2-7 FPS. The

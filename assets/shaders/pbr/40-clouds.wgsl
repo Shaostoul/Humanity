@@ -2028,8 +2028,20 @@ fn cloud_carve(
     // is a valid relief cue for the FRACTAL body, where `body` is not a
     // radial coordinate; on a distance field it is meaningless, so it
     // fades out with the constructed weight.
+    // Neutralizer saturates at HALF the body crossfade (field-coherence
+    // rebuild, 2026-08-31). w_built spans tc 0.20-0.30 while the arch
+    // table starts building at tc 0.25, so a third of the fair-weather
+    // population renders at v2_w in (0.5, 1) - where crown and pouch
+    // are functions of a value that is MOSTLY a distance field, and
+    // they partially re-printed the iso-distance rings the 2026-08-25
+    // eyeball fix removed at v2_w = 1 (up to ~1.35x of ringed contrast,
+    // per the lobe-lattice audit). The ring-carrying terms must die
+    // FASTER than the body mixes: fully neutral by v2_w = 0.5, so no
+    // cloud ever shows a majority-built body under fractal-path ring
+    // shading. The crossfade itself is untouched.
+    let ring_off = smoothstep(0.0, 0.5, v2_w);
     let crown = mix(
-        clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0), 1.0, v2_w);
+        clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0), 1.0, ring_off);
     // ── 12f underside relief (fidelity consult 2026-08-23) ──
     // LWP field: cloud fraction 1.0 never meant water path uniform. Real
     // marine boundary-layer decks carry optical-thickness inhomogeneity
@@ -2053,7 +2065,8 @@ fn cloud_carve(
     // on the constructed path is a radial coordinate. Faded out with the
     // constructed weight (0 = no pouch darkening).
     let pouch = mix(clamp(
-        sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0), 0.0, v2_w);
+        sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0),
+        0.0, ring_off);
     g_cloud_bandtop = h_hi_eff;
     g_cloud_pouch = pouch;
     g_cloud_carve = carve_env;
@@ -3151,7 +3164,22 @@ fn cloud_march_core(
         // Direct carries the SUN's colour; ambient carries the SKY's (the
         // two-tone split above). Ambient magnitude rides the sun's
         // luminance so total energy matches the old single-hue form.
-        let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5);
+        // ── RADIATIVE-SMOOTHING CLAMP on direct (field-coherence
+        // rebuild, 2026-08-31) ── the cavity field (dc.y, puff noise)
+        // is sub-smoothing-scale structure in the sun channel, and real
+        // cloud-top radiance carries at most ~1.1-1.35x local contrast
+        // below ~300 m (Marshak 1995; the lobe-lattice audit measured
+        // ours at 5-11x cap-vs-crevice - the dot lattice). The BUILT
+        // path compresses cavity's bite on DIRECT from the 1.43x full
+        // swing to <= ~1.15x; the noise path keeps its calibrated
+        // half-strength (its look was tuned around it, and its body is
+        // not a distance field). Ambient keeps its 0.35 cavity: the
+        // bisect convicted the sun channel, not ambient. Envelope-scale
+        // terms (tau_vert, pouch, day) keep their FULL range - the
+        // clamp is scale-gated, never global, or the deck goes
+        // cardboard (the v0.1241 melted-blob rejection cuts both ways).
+        let cav_dir_w = mix(0.5, 0.12, s_v2_w);
+        let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), cav_dir_w);
         // ── SMOOTH AMBIENT (v0.1252, the operator's "sandblasted" grain) ──
         // The cavity noise (dc.y, puff-frequency) used to hit the AMBIENT
         // at full strength while direct took half - backwards physically.
