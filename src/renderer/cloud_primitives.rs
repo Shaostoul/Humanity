@@ -175,8 +175,17 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
     // cap a flat genus (stratocumulus, aspect 0.12) draws lobes of
     // 0.34 * width against a deck only 0.12 * width tall, which both
     // looks wrong and inverts the placement clamp below.
-    let r_hi = (width * 0.34).min(height * 0.9).max(width * 0.07);
-    let r_lo = width * 0.05;
+    // Merged-cap construction (v0.1252.8, field-coherence change 4) -
+    // LOCKSTEP with cv2_cloud_sdf in 41-cloud-bodies.wgsl: bigger
+    // cores, bigger smallest children (the 2-8 px dot population the
+    // bisect photographed was the r_lo-class caps), tighter budding, a
+    // relative blend floor. (This mirror previously carried r_lo 0.05
+    // vs the shader's 0.06 - a pre-existing drift, unified at 0.11.)
+    let r_hi = (width * 0.44).min(height * 0.9).max(width * 0.07);
+    // Bounded by r_hi: flat genera (stratocumulus aspect ~0.12) height-cap
+    // r_hi below 0.11*width, and an inverted pareto clamp panics here /
+    // silently saturates in WGSL.
+    let r_lo = (width * 0.11).min(r_hi);
 
     // ── GRAPE-CLUSTER CONSTRUCTION ──
     // The first cut spread body lobes flat across the base plane, and it
@@ -213,7 +222,7 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
         let up = lerp(up_lo, 1.0, hash01(s, 47));
         let horiz = (1.0 - up * up).max(0.0).sqrt();
         let dir = Vec3::new(ang.cos() * horiz, up, ang.sin() * horiz);
-        let sep = (parent.radius + r) * lerp(0.55, 0.78, hash01(s, 49));
+        let sep = (parent.radius + r) * lerp(0.45, 0.62, hash01(s, 49));
         let mut c = parent.center + dir * sep;
         // ENVELOPE CLAMP on centre PLUS radius (increment 6): the whole
         // lobe surface stays inside the width/2 cylinder and below the
@@ -241,7 +250,10 @@ pub fn build_cloud(arch: &CloudArchetype, seed: u64) -> CloudInstance {
         lobes,
         width_m: width,
         height_m: height,
-        blend_m: mean_r * arch.blend,
+        // Relative blend floor + clamp (v0.1252.8) - LOCKSTEP with the
+        // WGSL `k` in cv2_cloud_sdf (this mirror previously carried no
+        // clamp at all, another pre-existing drift).
+        blend_m: (mean_r * arch.blend).max(mean_r * 0.5).clamp(144.0, 340.0),
         base_flatness: arch.base_flatness,
     };
 }
@@ -327,6 +339,62 @@ mod tests {
             "cumulonimbus",
         ] {
             assert!(t.by_name(want).is_some(), "missing archetype {want}");
+        }
+    }
+
+    /// THE PROJECTION HARNESS (v0.1252.8, merged-cap construction).
+    /// Measures each genus's PROJECTED FILL: the fraction of ground
+    /// columns inside the cloud's own width/2 footprint that contain
+    /// any cloud (sdf < 0 at some height). cv2_fill_frac in
+    /// 41-cloud-bodies.wgsl must carry THESE numbers, never estimates -
+    /// the occupancy law divides by them, so a guessed fill over- or
+    /// under-places clouds across the whole sky. Run with:
+    ///   cargo test --features native --lib projected_fill -- --nocapture
+    /// and paste the printed values into cv2_fill_frac after any change
+    /// to the lobe construction.
+    #[test]
+    fn projected_fill_fraction_report() {
+        let t = table();
+        for name in [
+            "cumulus_humilis",
+            "cumulus_congestus",
+            "stratocumulus",
+            "cumulonimbus",
+        ] {
+            let a = t.by_name(name).unwrap();
+            let mut fills = Vec::new();
+            for seed in 0..24u64 {
+                let c = build_cloud(a, 1000 + seed * 7919);
+                let r_foot = c.width_m * 0.5;
+                let (_, hi) = c.bounds();
+                let n = 48;
+                let (mut covered, mut inside) = (0u32, 0u32);
+                for iy in 0..n {
+                    for ix in 0..n {
+                        let x = (ix as f32 / (n - 1) as f32 - 0.5) * c.width_m;
+                        let z = (iy as f32 / (n - 1) as f32 - 0.5) * c.width_m;
+                        if x * x + z * z > r_foot * r_foot {
+                            continue;
+                        }
+                        inside += 1;
+                        let steps = 24;
+                        for iz in 0..steps {
+                            let y = hi.y * (iz as f32 + 0.5) / steps as f32;
+                            if c.sdf(Vec3::new(x, y, z)) < 0.0 {
+                                covered += 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+                fills.push(covered as f32 / inside.max(1) as f32);
+            }
+            let mean = fills.iter().sum::<f32>() / fills.len() as f32;
+            println!("projected fill {name}: {mean:.3}");
+            assert!(
+                (0.15..=1.0).contains(&mean),
+                "{name} fill {mean} outside sanity band"
+            );
         }
     }
 

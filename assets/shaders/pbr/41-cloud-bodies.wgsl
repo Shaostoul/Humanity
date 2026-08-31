@@ -173,7 +173,13 @@ const CLOUD_V2_ROW_WANDER: f32 = 0.28;
 // the one whose whole job is broken SHEETS - was the sparsest thing in the
 // sky. Its lobe budget goes to the cap.
 fn cv2_fill_frac(idx: i32) -> f32 {
-    var t = array<f32, 4>(0.687, 0.594, 0.235, 0.550);
+    // MEASURED by the projection harness (cloud_primitives.rs
+    // projected_fill_fraction_report, 24 clouds per genus, v0.1252.8
+    // merged-cap construction) - `cargo test --features native --lib
+    // projected_fill -- --nocapture` and paste, never estimate: the
+    // occupancy law divides by these, so a guessed fill over- or
+    // under-places clouds across the whole sky.
+    var t = array<f32, 4>(0.807, 0.810, 0.381, 0.849);
     return t[clamp(idx, 0, 3)];
 }
 
@@ -364,8 +370,27 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     let height = width * arch.aspect;
     // A lobe can never be taller than the cloud it builds - without this
     // a flat genus draws lobes bigger than its own deck depth.
-    let r_hi = max(min(width * 0.34, height * 0.9), width * 0.07);
-    let r_lo = width * 0.06;
+    // ── MERGED-CAP CONSTRUCTION (v0.1252.8, field-coherence change 4) ──
+    // Observed cumulus turrets are 1-2 km across with 200-600 m cores
+    // and they TOUCH (dual-Doppler measurements): a real cumulus top is
+    // a CLOSED cauliflower surface, projected fill ~0.85-1.0 of its own
+    // envelope. Ours measured ~0.69, and the 150-500 m inter-cap gaps
+    // sat exactly in the dot-visible band - the 2-8 px dot population
+    // the channel bisect photographed IS the small Pareto children
+    // (r_lo-class, 15-30 m caps: literal pixel dust at 2-4 km, the
+    // operator's "cotton ball whose fine details look like TV static").
+    // So: bigger cores (0.34 -> 0.44), bigger smallest children (0.06
+    // -> 0.11 - the minimum cap rises above the dust scale), tighter
+    // budding, and a RELATIVE smin floor so every cloud's own top fuses
+    // shut. Sub-lobe cauliflower is the erosion/warp/displacement
+    // octaves' job - silhouette detail, not more lobes. Gaps belong
+    // BETWEEN clouds (the occupancy law), never inside one. LOCKSTEP:
+    // src/renderer/cloud_primitives.rs mirrors these in the same
+    // commit; cv2_fill_frac below re-measured by its harness.
+    let r_hi = max(min(width * 0.44, height * 0.9), width * 0.07);
+    // Bounded by r_hi: flat genera height-cap r_hi below 0.11*width and
+    // an inverted pareto clamp silently saturates (the CPU twin panics).
+    let r_lo = min(width * 0.11, r_hi);
 
     // ── GRAPE-CLUSTER CONSTRUCTION ──
     // The first cut spread the body lobes flat across the base plane and
@@ -405,7 +430,10 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
         let dir = vec3<f32>(cos(ang) * horiz, up, sin(ang) * horiz);
         // Separation: close enough that the smooth union merges them
         // into one body rather than leaving a string of beads.
-        let sep = (parent.w + r) * mix(0.55, 0.78, cv2_hash(vec2<f32>(seed, fi), 49.0));
+        // Tightened 0.55-0.78 -> 0.45-0.62 (v0.1252.8): caps overlap
+        // instead of stringing beads; protrusion past the parent stays
+        // (billow relief) but the through-gaps between siblings close.
+        let sep = (parent.w + r) * mix(0.45, 0.62, cv2_hash(vec2<f32>(seed, fi), 49.0));
         var c = parent.xyz + dir * sep;
         // ENVELOPE CLAMP on centre PLUS radius (increment 6): the whole
         // lobe SURFACE stays inside the width/2 cylinder and under the
@@ -440,7 +468,13 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // the lobe size, and on grown or naturally-huge clouds it reached ~500 m,
     // at which point the union stops reading as merged puffs and starts
     // reading as melted wax. 300 m merges generously without liquefying.
-    let k = clamp(mean_r * arch.blend, CLOUD_V2_RIND_M * 1.6, 300.0);
+    // RELATIVE floor at half the mean lobe radius (v0.1252.8; was an
+    // absolute 144 m floor which over-filled sub-50 m seams and
+    // under-filled 300 m ones): the union closes at every cloud size.
+    // Upper cap 340 m keeps the v0.1234 melted-wax lesson - fused
+    // puffs, never liquid.
+    let k = clamp(max(mean_r * arch.blend, mean_r * 0.5),
+        CLOUD_V2_RIND_M * 1.6, 340.0);
 
     // ── DOMAIN WARP (see CLOUD_V2_WARP_FRAC) ──
     // Bend the space the cluster is measured in, so the union can fold and

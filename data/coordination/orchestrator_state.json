@@ -886,6 +886,15 @@
    "scope": [
     "assets/shaders/pbr/41-cloud-bodies.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1252.8: MERGED-CAP CONSTRUCTION (field-coherence change 4, the atomic structural wave). r_hi 0.34 -> 0.44 width, r_lo 0.06 -> 0.11 (bounded by r_hi - flat genera inverted the pareto clamp, CPU twin caught it as a panic), sep 0.55-0.78 -> 0.45-0.62, smin k gains a RELATIVE floor 0.5*mean_r (clamp 144..340). CPU twin mirrored in the same commit (also unified two PRE-EXISTING drifts: twin r_lo was 0.05 vs shader 0.06; twin blend_m had no clamp at all). NEW projection harness (projected_fill_fraction_report, 24 clouds x 4 genera) measures fills; cv2_fill_frac now carries MEASURED numbers: 0.807/0.810/0.381/0.849 (was 0.687/0.594/0.235/0.550). All 8 twin tests green.",
+   "why": "MEASURED on the bisect: speck-sun 1.12 -> 0.36 (below the old alpha floor 0.78); full closeup grain 1.01 -> 0.69. ARC TOTALS: closeup 2.71 -> 0.69 (75 percent), sun channel 2.57 -> 0.36 (86 percent). Geometry: fused continuous masses, no melted-wax look, FPS 15 at closeup. RESIDUAL (the last named carrier): dark speckle on cloud faces = view-path fine texture + remaining shading terms - next instrument round is a view-path texture bisect (showcase pins disabling erosion bands one at a time).",
+   "scope": [
+    "assets/shaders/pbr/41-cloud-bodies.wgsl",
+    "src/renderer/cloud_primitives.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

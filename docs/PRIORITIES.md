@@ -1,5 +1,26 @@
 # HumanityOS: Priorities
 
+> **v0.1252.8 (2026-08-31): MERGED-CAP CONSTRUCTION - change 4 landed,
+> the arc's numbers.** The structural half of the field-coherence
+> rebuild: r_hi 0.44*width, r_lo 0.11 (bounded by r_hi - flat genera
+> inverted the pareto clamp, the CPU twin caught it as a panic where
+> WGSL would have silently saturated), budding 0.45-0.62, relative
+> smin floor 0.5*mean_r (cap 340 m). CPU twin mirrored SAME COMMIT,
+> unifying two pre-existing drifts (twin r_lo 0.05 vs shader 0.06;
+> twin blend_m unclamped). NEW PERMANENT HARNESS:
+> projected_fill_fraction_report in cloud_primitives.rs (24 clouds x 4
+> genera) - cv2_fill_frac now carries MEASURED fills 0.807/0.810/
+> 0.381/0.849; re-run + re-paste after ANY lobe-construction change.
+> MEASURED: speck-sun 1.12 -> 0.36 (below the pre-arc alpha floor);
+> closeup 1.01 -> 0.69. ARC TOTALS (one night): closeup grain 2.71 ->
+> 0.69 (-75%), sun channel 2.57 -> 0.36 (-86%), plus the orchard-rows
+> root cause and the dot-lattice diagnosis. RESIDUAL, the last named
+> carrier: dark speckle on cloud faces = view-path fine texture +
+> remaining shading terms; next instrument round = a VIEW-PATH TEXTURE
+> BISECT (showcase pins disabling erosion bands one at a time, same
+> map_diag pattern). Then: small-disc dynamic march resolution;
+> terminator vantage; sunset grazing twinkle re-check.
+
 > **v0.1252.7 (2026-08-31): THE ORCHARD ROWS - the starburst-at-the-
 > feet ROOT CAUSE, found and fixed.** The operator's oldest complaint
 > ("the starburst at my feet", persisting through the map retirement,
