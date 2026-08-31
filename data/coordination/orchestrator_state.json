@@ -922,6 +922,16 @@
    "scope": [
     "assets/shaders/pbr/40-clouds.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1254.3: THE NAKED-COMB FORENSICS + the operator dither toggle. Rig chain with dither stripped: 17 km down-look CLEAN (no comb rings - the moire theory dead); flower-nadir 9.8 km overcast = THE PURE AGATE (giant smooth mip-ring arcs, the melted flower photographed naked); fine rind refine 0.5->0.2 did NOT move the arcs (not step aliasing). VERDICT: the agate = mip-chain response drift of the tiled noise fields (the lod dither original prey); the dithers were grinding arcs into speckle - the static-vs-agate trade IS the whole disease. Also: the remaining view-locked radial impression at discrete-cloud scenes = perspective foreshortening of a too-uniform planar blob field (uniform size + single base altitude) - not a renderer bug; the cure is field variety (the operator own stretching ask). SHIPPED: showcase {cloud_dither:0/1} live toggle (pad 332) - dither off = smooth cotton interiors + agate on sheets; default = dithered (stable grain on sheets). The taste is the operator until the calibration lands.",
+   "why": "Operator: static static + spherical small clouds + rosette warping. Every renderer mechanism now eliminated by experiment; two named residuals remain: (1) mip-response drift (the agate) - needs the field-calibration increment (bake-side variance renorm / carve-width table recalibration / world-anchored blue noise as candidates); (2) field uniformity (the perspective rush) - needs the shape-variety increment (size spread, altitude variation, wind stretch). Design workflow launched for both.",
+   "scope": [
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "src/engine/ipc.rs",
+    "src/renderer/mod.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

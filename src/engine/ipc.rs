@@ -233,6 +233,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_temporal") {
         state.renderer.cloud_temporal_off = t == "0";
     }
+    // {"cloud_dither":"0"} disables the frozen spatial dither (depth
+    // jitter + lod dither) LIVE: smooth cotton interiors, but agate
+    // mip-ring arcs on uniform overcast sheets. "1" restores the
+    // dithered default (stable fine grain on sheets). The operator's
+    // taste toggle until the mip-response calibration lands.
+    if let Some(t) = grab("cloud_dither") {
+        state.renderer.cloud_dither_off = t == "0";
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None

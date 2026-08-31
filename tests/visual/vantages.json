@@ -3227,8 +3227,8 @@
         "body": "earth",
         "lat": 24,
         "lon": 14,
-        "altitude_km": 2.2,
-        "look_offset_deg": 60,
+        "altitude_km": 17.1,
+        "look_offset_deg": 0,
         "time": 14.3
       },
       "showcase": {

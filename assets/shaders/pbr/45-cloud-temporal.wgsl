@@ -604,13 +604,26 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // FROZEN depth jitter (see the note above): static per-pixel, still
     // decorrelates the step comb spatially so the ladder rings stay
     // dissolved, but never re-rolls.
-    let jitter = pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u));
+    // OPERATOR TOGGLE (v0.1254.3; showcase {"cloud_dither":"0"} via pad
+    // light7_color.w): the naked-comb forensics photographed the true
+    // trade - frozen dither = stable fine grain on overcast sheets;
+    // dither OFF = smooth cotton interiors but agate mip-ring arcs on
+    // uniform sheets (the melted-flower's actual body, mip-chain
+    // response drift of the tiled fields - the design target of the
+    // field-calibration increment). Until that lands, the choice is
+    // taste, so it is the operator's, live.
+    let dither_on = camera.light7_color.w < 0.5;
+    let jitter = select(0.5,
+        pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u)),
+        dither_on);
     // FROZEN lod dither: same ring-dissolving job (lodb is monotone in
     // screen radius on a down look; a spatial dither breaks the mip
     // circles), zero temporal churn. Salted to stay decorrelated from
     // the depth jitter.
-    g_lod_jitter = pcg2d_hash(
-        vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u)) - 0.5;
+    g_lod_jitter = select(0.0,
+        pcg2d_hash(
+            vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u)) - 0.5,
+        dither_on);
     // Footprint = one quarter-res pixel = 4x the screen pixel angle,
     // CAPPED at the octa map's texel angle (regime parity). At planetary
     // range the screen-driven footprint reaches mips 5-6, where the

@@ -481,6 +481,10 @@ pub struct Renderer {
     /// Dev bisect (showcase {"cloud_temporal":"0"}): force the resolve's
     /// snap path every frame - raw march, no temporal accumulation.
     pub cloud_temporal_off: bool,
+    /// Operator taste toggle (showcase {"cloud_dither":"0"}): disable the
+    /// frozen spatial dither - smooth interiors, agate arcs on sheets.
+    /// Written to pad light7_color.w (offset 332).
+    pub cloud_dither_off: bool,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1687,6 +1691,7 @@ impl Renderer {
             cloud_resolve_frame: std::cell::Cell::new(Default::default()),
             cloud_resolve_motion: std::cell::Cell::new(None),
             cloud_temporal_off: false,
+            cloud_dither_off: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -3739,6 +3744,11 @@ impl Renderer {
         // (v0.1249; showcase map_diag - EMA-bypassed raw-quantity render).
         self.queue
             .write_buffer(&self.camera_buffer, 328, bytemuck::bytes_of(&self.cloud_map_diag));
+        // light7_color.w (offset 332): the operator's dither taste toggle
+        // (v0.1254.3; showcase cloud_dither - 1.0 = dither OFF).
+        let dith = if self.cloud_dither_off { 1.0f32 } else { 0.0f32 };
+        self.queue
+            .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
         if let (Some(ct), Some(mat_idx), true) = (
             self.cloud_temporal.as_ref(),
             self.cloud_temporal_mat,
