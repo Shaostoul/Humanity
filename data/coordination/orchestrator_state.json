@@ -851,6 +851,15 @@
     "assets/shaders/cloud_resolve.wgsl",
     "assets/shaders/pbr/41-cloud-bodies.wgsl"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1252.4: the rest-state fixes. (1) MOTION-ADAPTIVE clip gamma - the variance clip widens to 3 sigma at rest (ghosts require motion; clamping converged history into each frame noisy box was re-injecting noise as a slow random walk = the operator 1900s-film dust crawl + small clouds blinking in/out, the inverted worse-when-parked symptom). (2) Sustained-zoom alpha escalation to 0.95 (the view-locked faint rosette = radial history stretch limit cycle about the approach epipole at alpha 0.6). (3) Sun-profile for ALL taps (the detailed first-two taps let single-pixel full-sun through dark faces = white sparkle on shadowed masses); speck-sun grain 2.57 -> 1.58, near the alpha floor. (4) BUDGET-AWARE STRIDE - the march grows its stride when iterations run low instead of truncating the segment; the truncation boundary was a function of slant = screen radius from the aim point, converging into the faint cursor-locked rosette (the grazing iteration-cap tail, closed).",
+   "why": "Operator on v0.1252.3: faint rosette locked to cursor while the planet turns; film-dust static + blinking clouds ONLY when parked (moving = clean). Each symptom mapped to one mechanism. flower-nadir now renders its down-look with NO rings/petals/fibers; panics=0 across 8 vantage boots.",
+   "scope": [
+    "assets/shaders/cloud_resolve.wgsl",
+    "assets/shaders/pbr/40-clouds.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
@@ -880,7 +889,7 @@
   "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
  ],
  "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
- "last_updated": "2026-08-30",
+ "last_updated": "2026-08-31",
  "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
  "overnight_plan_2026_08_01": {
   "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",

@@ -2305,13 +2305,18 @@ fn cloud_sun_tau(
         // the converged reference reads 1-10. Bimodal tau (0 in gaps,
         // absurd in bodies) WAS the 18.9x per-texel energy coin flip. The
         // CPU twin measured the fix: -90% -> -1% ladder error at 12 taps.
-        // FIRST TWO taps keep the fully detailed body so the sunlit
-        // entry rind keeps its cauliflower self-shadow; every farther
-        // tap reads the PROFILE body (sub-MFP fields at their means -
-        // see g_sun_profile). Mean substitution preserves mean tau, so
-        // this cannot re-create the increment-10 mask-not-density
-        // bimodal bug.
-        g_sun_profile = select(1.0, 0.0, i < 2);
+        // ALL taps read the PROFILE body (v0.1252.4; sub-MFP fields at
+        // their means - see g_sun_profile). The v0.1252.2 cut kept the
+        // first two taps fully detailed for rind self-shadow, and the
+        // operator's next capture showed the residual: WHITE sparkle on
+        // shadowed faces - single pixels where a detailed near tap's
+        // erosion gap let full sun through a dark face. The lobe-scale
+        // SDF (which the profile keeps) still self-shadows; the sub-MFP
+        // texture on the first 120 m of sun path rendered as per-pixel
+        // noise, not as texture, at this sampling rate. Mean
+        // substitution preserves mean tau (the increment-10 bimodal bug
+        // cannot return).
+        g_sun_profile = 1.0;
         let dens = cloud_density_hi(
             lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lod_t).x;
@@ -2885,6 +2890,19 @@ fn cloud_march_core(
             }
             dt = min(dt, m1 - t_cur);
         }
+        // ── BUDGET-AWARE STRIDE (v0.1252.4): never truncate the segment ──
+        // The iteration cap used to simply END the march mid-segment, and
+        // WHERE it ended is a function of slant angle - which on a down
+        // look is a function of screen radius from the sub-camera point.
+        // The truncation bias therefore converged (once the resolve's
+        // rest-gamma fix let the EMA converge at all) into a faint radial
+        // pattern locked to the aim point - the operator's "the rosette
+        // stays in my cursor as the planet turns" (the grazing
+        // iteration-cap tail, long on the books). When iterations run
+        // low, the stride grows to cover what remains of the segment: a
+        // coarse tail is a soft error, an unsampled tail is a structured
+        // one.
+        dt = max(dt, (m1 - t_cur) / max(f32(CLOUD_STEP_ITER_CAP - i), 1.0));
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
         let tm = t_cur + dt * jitter;

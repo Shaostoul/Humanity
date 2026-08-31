@@ -102,9 +102,9 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
     let mu = m1 / 9.0;
     let sigma = sqrt(max(m2 / 9.0 - mu * mu, vec4<f32>(0.0)));
+    // The clip box is built AFTER motion is measured (v0.1252.4) - see
+    // the MOTION-ADAPTIVE GAMMA note below.
     let gamma = max(u.prev_dpos.w, 0.25);
-    let box_lo = mu - sigma * gamma;
-    let box_hi = mu + sigma * gamma;
 
     // Reproject this pixel's content point into the previous frame via
     // the march's own first-hit distance (km in R16F).
@@ -166,6 +166,33 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         return cur;
     }
 
+    // Motion is measured BEFORE the clip now (v0.1252.4) - the box
+    // width depends on it.
+    let zoom_rel = length(u.prev_dpos.xyz) / max(t_w, 1.0);
+    let motion = max(
+        clamp(shift_tx - 0.75, 0.0, 1.0),
+        smoothstep(0.005, 0.03, zoom_rel),
+    );
+
+    // ── MOTION-ADAPTIVE CLIP GAMMA (v0.1252.4, the operator's "1900s
+    // film dust ... clouds blinking in and out ... static strong only
+    // when NOT moving") ──
+    // The inverted symptom (parked worse than moving) is the variance
+    // clip's fingerprint: parked, the blend is deep and SHOULD converge,
+    // but clamping converged history into a box built from each frame's
+    // NOISY march re-injects that noise as a slow random walk - the
+    // film-dust crawl - and a small cloud spanning a few quarter-res
+    // texels blinks entirely in and out as the jittered march hits or
+    // misses it. The clip exists to kill GHOSTS, and ghosts require
+    // MOTION: at rest nothing moved, so the box widens to 3 sigma (deep
+    // convergence, blink averaged away); under motion it tightens to the
+    // ghost-killing 1 sigma. The gamma constant's own comment predicted
+    // this exact symptom ("raise toward 1.5 if converged detail visibly
+    // flickers").
+    let gamma_eff = mix(3.0, gamma, motion);
+    let box_lo = mu - sigma * gamma_eff;
+    let box_hi = mu + sigma * gamma_eff;
+
     // THE CLIP: history the current neighbourhood cannot corroborate is
     // snapped into the plausible box - a one-frame ghost death that a
     // blend constant could never provide.
@@ -213,11 +240,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // translation, t_w this texel's content distance - their ratio is the
     // zoom rate, and 3 percent closer per frame is unambiguous flight however
     // little the texel slid.
-    let zoom_rel = length(u.prev_dpos.xyz) / max(t_w, 1.0);
-    let motion = max(
-        clamp(shift_tx - 0.75, 0.0, 1.0),
-        smoothstep(0.005, 0.03, zoom_rel),
-    );
+    // (zoom_rel and motion are computed above the clip now.)
     var alpha = clamp(
         base + smoothstep(0.08, 0.45, diff) * mix(0.05, 0.5, motion),
         base,
@@ -248,6 +271,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let slide_hard = clamp(shift_tx / 8.0 - 0.25, 0.0, 1.0);
     let zoom_gate = smoothstep(0.005, 0.03, zoom_rel);
     alpha = max(alpha, max(zoom_gate, slide_hard) * 0.6);
+    // ── SUSTAINED-ZOOM ESCALATION (v0.1252.4, the operator's faint
+    // rosette that "stays in my cursor as the planet turns") ──
+    // A view-locked radial pattern is made in SCREEN space, and the one
+    // radial-about-the-crosshair process left is this reprojection under
+    // approach: history stretches radially around the motion epipole
+    // (the crosshair) every frame, and at alpha 0.6 the surviving 40%
+    // forms a STANDING radial smear - a limit cycle that neither
+    // converges nor dies. Under strong sustained zoom the fresh march
+    // must win nearly outright: the floor continues rising toward 0.95
+    // as zoom_rel climbs past the 0.03 saturation of the base gate.
+    alpha = max(alpha, smoothstep(0.03, 0.15, zoom_rel) * 0.95);
 
     // ── VARIANCE-ADAPTIVE SPATIAL FILTER (v0.1252, the operator's
     // "jitter / tv static ... worse as I get closer") ──

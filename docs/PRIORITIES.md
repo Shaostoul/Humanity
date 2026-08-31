@@ -1,5 +1,28 @@
 # HumanityOS: Priorities
 
+> **v0.1252.4 (2026-08-31): the rest-state fixes - four symptoms, four
+> mechanisms, all closed.** Operator on v0.1252.3, the most diagnostic
+> report of the arc: (a) faint rosette LOCKED TO THE CURSOR while the
+> planet turns; (b) "1900s film dust" crawl + clouds BLINKING in/out
+> ONLY when parked; (c) moving = clean (the inversion!); (d) white
+> sparkle on shadowed faces. Mechanisms: (a) = TWO stacked causes, both
+> closed - the radial history-stretch limit cycle about the approach
+> epipole (fix: sustained-zoom alpha escalation to 0.95) AND the
+> iteration-cap truncation boundary, a function of slant = screen
+> radius from the aim point (fix: BUDGET-AWARE STRIDE - when
+> iterations run low the stride grows to cover the segment instead of
+> truncating; the grazing iteration-cap tail is CLOSED). (b)+(c) = the
+> variance clip's fingerprint: parked, deep blend converges but
+> clamping history into each frame's noisy box re-injects noise as a
+> slow random walk; ghosts require motion, so gamma now widens to 3
+> sigma at rest, tightening to 1 under motion (fix: MOTION-ADAPTIVE
+> CLIP GAMMA). (d) = the detailed first-two sun taps letting
+> single-pixel full sun through dark faces (fix: sun-profile for ALL
+> taps; speck-sun grain 2.57 -> 1.58, near the alpha floor).
+> flower-nadir's down-look now renders with NO rings/petals/fibers -
+> first time in the arc. Remaining fenced bosses unchanged: small-disc
+> dynamic march resolution; erosion coherence + Nubis3 light grid.
+
 > **v0.1252.3 (2026-08-30): the dark-cloud clue - the alpha-edge alias
 > found by derivation audit.** Operator on v0.1252.2: "static always
 > present, even when the clouds are dark" (dusk silhouettes, orange
