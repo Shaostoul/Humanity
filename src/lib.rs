@@ -2146,6 +2146,14 @@ mod native_app {
                                 !state.gui_state.show_weather_panel;
                             return;
                         }
+                        // F10 (v0.1254.4, operator request): the cloud dev
+                        // panel - GUI buttons for the bisect toggles that
+                        // previously required showcase file drops.
+                        if key == KeyCode::F10 && pressed {
+                            state.gui_state.show_cloud_dev_panel =
+                                !state.gui_state.show_cloud_dev_panel;
+                            return;
+                        }
                         // F6 (v0.890): save a LOCATION BOOKMARK - the exact
                         // camera placement + aim, appended to
                         // debug/bookmarks.json. Restored by name via
@@ -18441,6 +18449,21 @@ mod native_app {
                                     &state.theme,
                                     &mut state.gui_state,
                                 );
+                                // F10 cloud dev panel (v0.1254.4): mirror the
+                                // panel state into the SAME renderer flags the
+                                // showcase pins drive, every frame - buttons
+                                // and file drops can never disagree.
+                                crate::gui::pages::cloud_dev::draw(
+                                    ctx,
+                                    &state.theme,
+                                    &mut state.gui_state,
+                                );
+                                state.renderer.cloud_dither_off =
+                                    state.gui_state.cloud_dev_dither_off;
+                                state.renderer.cloud_temporal_off =
+                                    state.gui_state.cloud_dev_temporal_off;
+                                state.renderer.cloud_map_diag =
+                                    state.gui_state.cloud_dev_map_diag as f32;
                                 // Time scrubber (v0.1224). Drained every frame
                                 // regardless of the weather-changed flag: the two
                                 // live in one panel but are independent channels,

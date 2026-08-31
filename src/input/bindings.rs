@@ -160,6 +160,7 @@ pub const FIXED_BINDS: &[(&str, &str)] = &[
     ("F4", "System overlay (RAM, uptime)"),
     ("F6", "Save location bookmark (dev)"),
     ("F9", "Dev flight on / off (cheats)"),
+    ("F10", "Cloud dev panel (dev)"),
     ("F11", "Weather panel"),
     ("F12", "Debug console"),
     ("Alt (hold)", "Free the cursor while in-world"),

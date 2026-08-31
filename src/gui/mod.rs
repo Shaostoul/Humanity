@@ -3407,6 +3407,15 @@ pub struct GuiState {
     /// F11 live weather panel (v0.1050). Permanent operator tooling: the
     /// ocean's character is wind-driven, so this is how the sea gets reviewed.
     pub show_weather_panel: bool,
+    /// F10 cloud dev panel (v0.1254.4, operator request): GUI buttons for
+    /// the cloud bisect toggles that previously needed showcase file drops.
+    pub show_cloud_dev_panel: bool,
+    /// Panel state mirrored into the renderer flags by lib.rs each frame -
+    /// the SAME flags the showcase pins set, so file drops and buttons agree.
+    pub cloud_dev_dither_off: bool,
+    pub cloud_dev_temporal_off: bool,
+    /// Bisect channel: 0 off, 1 coverage alpha, 2 direct sun, 3 ambient.
+    pub cloud_dev_map_diag: i32,
     /// True while the panel is driving the weather (random rolls suspended).
     pub weather_manual: bool,
     pub weather_pick_condition: crate::systems::weather::WeatherCondition,
@@ -5233,6 +5242,10 @@ impl Default for GuiState {
             help_panel_pinned: false,
             show_perf_overlay: false,
             show_weather_panel: false,
+            show_cloud_dev_panel: false,
+            cloud_dev_dither_off: false,
+            cloud_dev_temporal_off: false,
+            cloud_dev_map_diag: 0,
             weather_manual: false,
             weather_pick_condition: crate::systems::weather::WeatherCondition::Clear,
             weather_pick_intensity: 0.0,

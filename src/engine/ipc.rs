@@ -219,19 +219,21 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // raw march channel into the octa map with the EMA bypassed (1 = first
     // hit t, 2 = direct-sun luminance, 3 = ambient luminance; 0 = normal).
     // Pair with debug/cloudmap_request.json dumps. Dev forensics, permanent.
+    // The cloud dev toggles write the GUI-STATE fields (v0.1254.4): the
+    // F10 panel edits the same fields and lib.rs mirrors them into the
+    // renderer every frame - one source of truth, so buttons and file
+    // drops can never disagree.
     if let Some(d) = grab("map_diag").and_then(|t| t.parse::<f32>().ok()) {
-        state.renderer.cloud_map_diag = d;
+        state.gui_state.cloud_dev_map_diag = d as i32;
     }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.
     // The operator's own bisect request (2026-08-31, the gray striping
-    // that "warps the clouds like a black hole"): if the striping
-    // survives with temporal off it lives in the march/content; if it
-    // vanishes, the temporal chain is convicted. Works LIVE on a running
+    // that "warps the clouds like a black hole"). Works LIVE on a running
     // instance via debug/showcase_request.json. Dev forensics, permanent.
     if let Some(t) = grab("cloud_temporal") {
-        state.renderer.cloud_temporal_off = t == "0";
+        state.gui_state.cloud_dev_temporal_off = t == "0";
     }
     // {"cloud_dither":"0"} disables the frozen spatial dither (depth
     // jitter + lod dither) LIVE: smooth cotton interiors, but agate
@@ -239,7 +241,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // dithered default (stable fine grain on sheets). The operator's
     // taste toggle until the mip-response calibration lands.
     if let Some(t) = grab("cloud_dither") {
-        state.renderer.cloud_dither_off = t == "0";
+        state.gui_state.cloud_dev_dither_off = t == "0";
     }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {

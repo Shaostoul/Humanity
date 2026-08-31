@@ -311,7 +311,7 @@ mod tests {
         // Every dev hotkey the raw winit handler owns is DESCRIBED here, since
         // this list is the only place a player can discover them (v0.1109
         // added F9 = dev flight; the file header says to keep them in sync).
-        for key in ["F1 (hold)", "F2", "F6", "F9", "F11", "F12"] {
+        for key in ["F1 (hold)", "F2", "F6", "F9", "F10", "F11", "F12"] {
             assert!(
                 world.binds.iter().any(|b| b.keys == key),
                 "the World keymap does not mention {key}; the F1 overlay is the \

@@ -1,5 +1,30 @@
 # HumanityOS: Priorities
 
+> **v0.1254.4 (2026-08-31): the F10 cloud dev panel + THE MEASURED
+> CALIBRATION BLUEPRINT.** F10 now opens a Cloud Dev panel (GUI-first:
+> dither toggle, temporal toggle, bisect-channel selector) driving the
+> SAME gui_state fields the showcase pins write - one source of truth.
+> THE WORKFLOW MEASURED THE AGATE (it ran coverage_vs_mip +
+> carve_consistency live): areal coverage is mip-INVARIANT at overcast
+> thresholds - the arcs are carve RESPONSE drift (residual DOUBLING
+> per rung from mip 3; up to ~15% relative near threshold) + the
+> trilinear inter-mip sigma dip (5-13%, what the lod dither grinds
+> into static). EIGHT uncompensated taps enumerated - the CELL tap
+> (5 mips deep, feeds LWP luminance) is the prime agate candidate; the
+> weather-map mips have NO renorm at all; the sun-march taps ride the
+> whole uncompensated chain deepest. NEXT INCREMENT (Blueprint 1, the
+> agate cure): replace the linear per-mip renorm in cloud_noise.rs
+> renormalize_level with per-mip HISTOGRAM MATCHING (256-bin CDF LUT
+> onto level 0) - drift-free at EVERY threshold by construction and
+> cheaper than the current renorm; then re-fit the carve width table
+> with the harness; acceptance = flower-nadir with dither OFF shows NO
+> arcs, and both dithers retire. THEN Blueprint 2 (the cotton-ball
+> cure): field variety - size spread, base-altitude scatter, wind
+> stretch/streets (kills the perspective rush + the operator's
+> "spherical cotton balls"). Full blueprints:
+> %TEMP% claude tasks/w8911qxqs.output. Edge translucency ("100%
+> transparent or opaque at edges") rides the same calibration.
+
 > **v0.1254.2 (2026-08-31): THE FADE BAND WAS THE WARP - crescents +
 > sheet-to-snowflakes, one root.** Operator on v0.1254.1 ("huge
 > improvement!"): two remaining asks - the white sheet devolving into

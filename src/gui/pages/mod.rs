@@ -12,6 +12,7 @@ pub mod construction;
 pub mod keymap;
 pub mod diagnostics;
 pub mod weather_panel;
+pub mod cloud_dev;
 pub mod placeholder;
 pub mod tasks;
 pub mod privacy;

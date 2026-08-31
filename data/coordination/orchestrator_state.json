@@ -932,6 +932,20 @@
     "src/engine/ipc.rs",
     "src/renderer/mod.rs"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1254.4: THE F10 CLOUD DEV PANEL (operator request, GUI-first norm). New src/gui/pages/cloud_dev.rs: F10 toggles the panel with checkboxes for spatial dither + temporal accumulation and a bisect-channel selector (Off/Coverage/Sun/Ambient). ONE SOURCE OF TRUTH: the showcase pins (cloud_dither/cloud_temporal/map_diag) now write the SAME gui_state fields the panel edits; lib.rs mirrors them into the renderer flags every frame - buttons and file drops can never disagree. F10 registered in bindings.rs + the keymap page list.",
+   "why": "Operator: the showcase file vanished (it was consumed - correct but invisible) - put these in a presently nonexistent F10 menu, GUI buttons for everything. ALSO the field-calibration workflow returned with MEASURED drift tables (it ran the coverage_vs_mip + carve_consistency harnesses live): areal coverage mip-INVARIANT at overcast thresholds but carve RESPONSE residual doubling per rung from mip 3 (up to ~15 percent relative near threshold); eight uncompensated taps enumerated (cell tap 5 mips deep + LWP luminance stepping = prime agate candidate; lofi composite; erosion remaps; weather-map mips with NO renorm; sun-march taps; CLOUD_BODY_TOP fixed p99); the trilinear inter-mip sigma dip (5-13 percent) = what the lod dither grinds into static. BLUEPRINT 1 (next increment): replace the linear per-mip renorm in cloud_noise.rs renormalize_level with per-mip HISTOGRAM MATCHING (256-bin CDF LUT onto level 0) - drift-free for every threshold by construction, CHEAPER than the current renorm; then re-fit the width table with the harness. Full output: tasks/w8911qxqs.output.",
+   "scope": [
+    "src/gui/pages/cloud_dev.rs",
+    "src/gui/mod.rs",
+    "src/gui/pages/mod.rs",
+    "src/lib.rs",
+    "src/engine/ipc.rs",
+    "src/input/bindings.rs",
+    "src/gui/pages/keymap.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
