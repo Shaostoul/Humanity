@@ -895,6 +895,16 @@
     "assets/shaders/pbr/41-cloud-bodies.wgsl",
     "src/renderer/cloud_primitives.rs"
    ]
+  },
+  {
+   "date": "2026-08-31",
+   "decision": "v0.1253.0: the cloud_temporal live bisect toggle - showcase {cloud_temporal:0} forces the resolve snap path every frame (raw march, no history/clip/reprojection); 1 restores. Works on a RUNNING instance via debug/showcase_request.json. New standing vantage closeup-notemporal. Rig-verified: raw march renders, structure intact.",
+   "why": "Operator request verbatim: can we disable the temporal effect, just see how things are without it - after reporting gray striping that warps the clouds like a black hole across the whole layer on v0.1252.8. The toggle is the discriminator: striping surviving temporal-off = march/content side; vanishing = temporal chain convicted. Also checked: the resolve spin axis matches the shell rotation (both pure render-frame Y of spin_f64) - the tilted-axis warp theory is dead.",
+   "scope": [
+    "src/engine/ipc.rs",
+    "src/renderer/mod.rs",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

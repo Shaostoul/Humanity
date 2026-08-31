@@ -222,6 +222,17 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(d) = grab("map_diag").and_then(|t| t.parse::<f32>().ok()) {
         state.renderer.cloud_map_diag = d;
     }
+    // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
+    // OUTRIGHT (every frame runs the snap path: raw march + spatial
+    // filter only, no history, no clip, no reprojection); "1" restores.
+    // The operator's own bisect request (2026-08-31, the gray striping
+    // that "warps the clouds like a black hole"): if the striping
+    // survives with temporal off it lives in the march/content; if it
+    // vanishes, the temporal chain is convicted. Works LIVE on a running
+    // instance via debug/showcase_request.json. Dev forensics, permanent.
+    if let Some(t) = grab("cloud_temporal") {
+        state.renderer.cloud_temporal_off = t == "0";
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None
