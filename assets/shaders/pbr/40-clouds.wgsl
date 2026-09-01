@@ -685,6 +685,12 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // fitted values are the previous chain's table shifted one rung deeper,
 // exactly what a chain with one extra level ahead of it should produce.
 // The 0.02 cap from the coverage adjudication still applies at the fit.
+// REFITTED v0.1259 by carve_consistency_widths_are_fitted after the bake
+// moved to per-mip HISTOGRAM MATCHING. The widths DROP because they are
+// no longer compensating a distribution mismatch the renormalization
+// left behind - matched distributions need no threshold correction, so
+// what remains is only the genuine sub-footprint spread of the soft
+// hinge. Re-run the harness and paste again after ANY bake change.
 const CLOUD_CARVE_W0: f32 = 0.005;
 const CLOUD_CARVE_W1: f32 = 0.005;
 const CLOUD_CARVE_W2: f32 = 0.010;

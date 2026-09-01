@@ -3418,6 +3418,8 @@ pub struct GuiState {
     pub cloud_dev_map_diag: i32,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
+    /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
+    pub cloud_dev_shape_off: bool,
     /// True while the panel is driving the weather (random rolls suspended).
     pub weather_manual: bool,
     pub weather_pick_condition: crate::systems::weather::WeatherCondition,
@@ -5249,6 +5251,7 @@ impl Default for GuiState {
             cloud_dev_temporal_off: false,
             cloud_dev_map_diag: 0,
             cloud_dev_res_div: 4,
+            cloud_dev_shape_off: false,
             weather_manual: false,
             weather_pick_condition: crate::systems::weather::WeatherCondition::Clear,
             weather_pick_intensity: 0.0,

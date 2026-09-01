@@ -492,6 +492,9 @@ pub struct Renderer {
     /// is the "solid pixels" look and the binary opaque/clear edges.
     /// 2 = half, 1 = full. The accumulation pair follows at half this.
     pub cloud_res_div: u32,
+    /// F10 A/B: disable the per-cloud shape frame (squash + wind stretch),
+    /// rendering the old isotropic ball cluster. Pad light7_color.w bit 1.
+    pub cloud_shape_off: bool,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1700,6 +1703,7 @@ impl Renderer {
             cloud_temporal_off: false,
             cloud_dither_off: false,
             cloud_res_div: 4,
+            cloud_shape_off: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -3754,7 +3758,9 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 328, bytemuck::bytes_of(&self.cloud_map_diag));
         // light7_color.w (offset 332): the operator's dither taste toggle
         // (v0.1254.3; showcase cloud_dither - 1.0 = dither OFF).
-        let dith = if self.cloud_dither_off { 1.0f32 } else { 0.0f32 };
+        // Bit 0 (1.0) = dither off, bit 1 (2.0) = shape frame off.
+        let dith = (if self.cloud_dither_off { 1.0f32 } else { 0.0 })
+            + (if self.cloud_shape_off { 2.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
         if let (Some(ct), Some(mat_idx), true) = (

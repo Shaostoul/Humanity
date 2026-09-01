@@ -986,6 +986,21 @@
    "scope": [
     "assets/shaders/pbr/40-clouds.wgsl"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1259.0: BLUEPRINT 1 TESTED AND REFUTED (a real negative result, recorded in the shader so nobody retries it), plus the F10 shape-frame A/B toggle. Implemented per-mip CDF histogram matching in cloud_noise.rs renormalize_level (replacing the linear mean/sigma gain) exactly as the workflow designed it, then re-ran BOTH harnesses. Measured: coverage drift got WORSE at every meaningful level - mips 1-6 went +27/37/37/56/47/74% against the linear form 18/28/27/35/34/53%, and the degenerate 1-voxel level flipped -100% to +304%. The carve width harness then refit the table DOWN (0.005/0.005/0.005/0.005/0.005/0.01/0.02/0.005/0.005) and passed its own gate, but re-measuring coverage showed no recovery. REASON, now understood and written into the width-table comment: matching the GLOBAL distribution does not make a mip agree LOCALLY with the area-averaged truth, because thresholding a smoothed field is not the same as smoothing a thresholded field. The lever must be the CONSUMPTION side - the soft-hinge width fitted against COVERAGE rather than the mean, which is exactly what the standing note in clouds.rs coverage_vs_mip already says. Bake and width table reverted; carve_consistency gate green.",
+   "why": "Operator: \"Let us proceed with all the fixes until I can test them. Do not forget we have the F10 dev menu to toggle things on/off.\" SHIPPED FOR TESTING: an F10 \"Cloud shape frame\" checkbox (plus showcase {cloud_shape:0}) that renders the pre-v0.1256 isotropic ball cluster, so the squash/wind-stretch work can be A/B compared live instead of from memory. The pad light7_color.w is now a BIT FIELD (bit 0 dither off, bit 1 shape off) and the dither test was corrected to read bit 0 only - otherwise disabling the shape frame would have silently disabled the dither too.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "assets/shaders/pbr/41-cloud-bodies.wgsl",
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "src/renderer/mod.rs",
+    "src/gui/mod.rs",
+    "src/gui/pages/cloud_dev.rs",
+    "src/lib.rs",
+    "src/engine/ipc.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

@@ -248,6 +248,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(r) = grab("cloud_res").and_then(|t| t.parse::<u32>().ok()) {
         state.gui_state.cloud_dev_res_div = r.clamp(1, 4);
     }
+    // {"cloud_shape":"0"} renders the pre-v0.1256 isotropic ball cluster.
+    if let Some(t) = grab("cloud_shape") {
+        state.gui_state.cloud_dev_shape_off = t == "0";
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None

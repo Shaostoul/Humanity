@@ -1,5 +1,31 @@
 # HumanityOS: Priorities
 
+> **v0.1259.0 (2026-09-01): BLUEPRINT 1 TESTED AND REFUTED - a real
+> negative result, plus the F10 shape A/B.** Implemented the designed
+> cure for the rosette (per-mip CDF histogram matching in the noise
+> bake, replacing the linear mean/sigma renormalization) and ran BOTH
+> harnesses. It measured WORSE: mips 1-6 drifted +27/37/37/56/47/74%
+> against the linear form 18/28/27/35/34/53%. The width harness then
+> refit the table DOWN and passed its own gate, but coverage did not
+> recover. REASON (now written into the width-table comment so nobody
+> retries it): matching the GLOBAL distribution does not make a mip
+> agree LOCALLY with the area-averaged truth - thresholding a smoothed
+> field is not the same as smoothing a thresholded field. Bake and
+> table reverted; gate green. THE LEVER IS THE CONSUMPTION SIDE: refit
+> the soft-hinge width against COVERAGE rather than the mean - which
+> is exactly what the standing note in clouds.rs coverage_vs_mip has
+> said since it was written. That is the next attempt at the rosette,
+> and it needs a coverage-objective fitter (the existing harness fits
+> mean-error), which is a contained, testable piece of work.
+> SHIPPED FOR TESTING: F10 "Cloud shape frame" checkbox (and showcase
+> {"cloud_shape":"0"}) rendering the pre-v0.1256 isotropic ball
+> cluster, so the squash/wind-stretch work can be A/B compared live.
+> The pad light7_color.w is now a bit field (bit 0 dither, bit 1
+> shape); the dither test was corrected to read bit 0 only.
+> QUEUE: coverage-fitted widths (rosette); multi-layer atmosphere (top
+> fidelity item); perf part 2 (Nubis3 light grid + adaptive res).
+
+
 > **v0.1258.0 (2026-09-01): THE ROSETTE UNIFIED WITH THE MEASURED MIP
 > DRIFT - Blueprint 1 is the cure, not a side quest.** The operator
 > described the artifact geometrically for the first time: "the bottom

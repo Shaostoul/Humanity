@@ -612,7 +612,10 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // response drift of the tiled fields - the design target of the
     // field-calibration increment). Until that lands, the choice is
     // taste, so it is the operator's, live.
-    let dither_on = camera.light7_color.w < 0.5;
+    // The pad is a BIT FIELD (v0.1259): bit 0 = dither off, bit 1 = shape
+    // frame off. Test bit 0 only, or turning the shape frame off would
+    // silently take the dither with it.
+    let dither_on = fract(camera.light7_color.w * 0.5) <= 0.25;
     let jitter = select(0.5,
         pcg2d_hash(vec2<u32>(in.pos.xy) + vec2<u32>(0xA511u, 0x93D1u)),
         dither_on);

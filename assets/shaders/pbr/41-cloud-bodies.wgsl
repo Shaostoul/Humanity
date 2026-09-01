@@ -763,24 +763,31 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             let sx = mix(CLOUD_V2_WIND_STRETCH_LO,
                 CLOUD_V2_WIND_STRETCH_HI, hst);
             let sz = 1.0 / max(sx * sy, 1.0e-3);
+            // F10 A/B (v0.1259): shape frame off = the old isotropic
+            // ball cluster, so the operator can flip the squash/stretch
+            // against it live instead of comparing from memory.
+            let shape_on = camera.light7_color.w < 1.5;
+            let sx_e = select(1.0, sx, shape_on);
+            let sy_e = select(1.0, sy, shape_on);
+            let sz_e = select(1.0, sz, shape_on);
             // The reject radius must cover the STRETCHED envelope or a
             // wind-drawn cloud gets clipped at the cell test.
-            let smax = max(sx, sz);
+            let smax = max(sx_e, sz_e);
             let br = arch_g.width_m * 0.5 * smax + CLOUD_V2_RIND_M;
             if (ox * ox + oy * oy > br * br) {
                 continue;
             }
-            if (up_m > height_m * sy + br) {
+            if (up_m > height_m * sy_e + br) {
                 continue;
             }
             // Rotate into the wind frame, then divide by the axes.
             let wu = ox * cwx + oy * cwy;
             let wv = -ox * cwy + oy * cwx;
-            let local_m = vec3<f32>(wu / sx, up_m / sy, wv / sz);
+            let local_m = vec3<f32>(wu / sx_e, up_m / sy_e, wv / sz_e);
             // Back to metres, conservatively: the smallest axis is the
             // most the frame can have shrunk a real distance, so scaling
             // by it keeps the SDF a valid lower bound for the leap.
-            let s_lo = min(sx, min(sy, sz));
+            let s_lo = min(sx_e, min(sy_e, sz_e));
             let d_cell = cv2_cloud_sdf(local_m, seed, arch_g) * s_lo;
             if (d_cell < best) {
                 best = d_cell;

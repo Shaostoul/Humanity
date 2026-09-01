@@ -65,6 +65,18 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
 
+            let mut shape_on = !state.cloud_dev_shape_off;
+            if ui
+                .checkbox(
+                    &mut shape_on,
+                    "Cloud shape frame (off = old round balls, for comparison)",
+                )
+                .changed()
+            {
+                state.cloud_dev_shape_off = !shape_on;
+                changed = true;
+            }
+
             ui.add_space(theme.spacing_sm);
             ui.label(
                 RichText::new("Cloud resolution")
