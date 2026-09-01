@@ -1,5 +1,29 @@
 # HumanityOS: Priorities
 
+> **v0.1260.0 (2026-09-01): the retired map was still being composited
+> - the operator diagnosed it blind.** They asked "is there another
+> shader or texture affecting cloud shaders that is not supposed to be?"
+> There was exactly one: the octa direction map stopped DISPATCHING in
+> v0.1250 but cloud_composite.wgsl kept BINDING its texture and
+> blending it under every cloud pixel as the near-over-map backdrop. A
+> render target that is never written is not a guaranteed-zero source
+> across backends and driver paths, and whatever it held went into the
+> final cloud colour - a plausible source of the "clouds disappear in
+> weird splotches" report. The backdrop term is now literally zero.
+> ALSO: the v0.1258 trapezoid was a NO-OP - dens_prev is advanced one
+> line above where it was read, so it averaged a value with itself.
+> Fixed (capture before advance); with it actually working the
+> coverage-alpha grain went 2.04 -> 1.86, and the 1.91 previously
+> credited to it was noise. LESSON for the next march edit: dens_prev /
+> sdf_prev are advanced BEFORE the shading block, so anything wanting
+> the previous step must capture it first.
+> FOLLOW-UP available if splotches persist: the composite still binds
+> cloud_map and keeps map_catmull_rom; removing the binding and the
+> whole map arm (plus the octa textures and their pass) is a clean
+> deletion now that ONE RENDERER is settled, and would also free the
+> 4096^2 RGBA16F pair.
+
+
 > **v0.1259.0 (2026-09-01): BLUEPRINT 1 TESTED AND REFUTED - a real
 > negative result, plus the F10 shape A/B.** Implemented the designed
 > cure for the rosette (per-mip CDF histogram matching in the noise

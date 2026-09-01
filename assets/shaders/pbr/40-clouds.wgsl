@@ -3051,6 +3051,12 @@ fn cloud_march_core(
             sdf_prev = g_v2_sdf_m;
             continue;
         }
+        // Capture the PREVIOUS step's density before dens_prev is
+        // advanced - the v0.1258 trapezoid read dens_prev AFTER this
+        // assignment, so it averaged a value with itself and was a
+        // no-op (which is why it measured a 6% move: noise). The
+        // integral needs the far endpoint, so it has to be taken here.
+        let dens_last = dens_prev;
         dens_prev = dens;
         sdf_prev = g_v2_sdf_m;
         if (dens <= 0.001) {
@@ -3073,7 +3079,7 @@ fn cloud_march_core(
         // nothing. It also softens the first step into a cloud (where
         // dens_prev is the clear air outside), which is exactly the
         // binary opaque-or-clear edge the operator has been reporting.
-        let dens_i = 0.5 * (dens + dens_prev);
+        let dens_i = 0.5 * (dens + dens_last);
         let a_i = 1.0 - exp(-sigma_v * dens_i * dt);
         if (first_t < 0.0) {
             first_t = tm;

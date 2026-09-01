@@ -1001,6 +1001,15 @@
     "src/lib.rs",
     "src/engine/ipc.rs"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1260.0: TWO REAL BUGS, one of them the operator diagnosed blind. (1) THE RETIRED OCTA MAP WAS STILL BEING COMPOSITED. It stopped dispatching in v0.1250 (ONE RENDERER) but cloud_composite.wgsl kept BINDING its texture and blending it under every cloud pixel as the NEAR-OVER-MAP backdrop. A render target that is never written is not a guaranteed-zero source across backends/driver paths, and whatever it held was going into the final cloud colour. The operator asked, without seeing the code: \"Is there another shader or texture that is affecting cloud shaders that is not supposed to be affecting them?\" - there was, exactly one, and this is it. The backdrop term is now literally zero rather than a hopefully-zero sample. (2) THE v0.1258 TRAPEZOID WAS A NO-OP: dens_prev is advanced one line ABOVE where the trapezoid read it, so it averaged a value with itself. The previous step density is now captured before the advance; with it actually working, speck-alpha 2.04 -> 1.86 (the 1.91 measured for the no-op version was noise, as suspected).",
+   "why": "Operator on v0.1259.1: \"we are looking better! However there is some weird overlay for either my camera or a shader attached to my space instead of its parent object... causes clouds to just outright disappear in weird splotches.\" Their instinct pointed straight at a foreign texture in the cloud path and they were right. Rig: renders clean, 62.8 ms, panics=0.",
+   "scope": [
+    "assets/shaders/cloud_composite.wgsl",
+    "assets/shaders/pbr/40-clouds.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

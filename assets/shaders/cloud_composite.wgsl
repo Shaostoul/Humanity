@@ -340,13 +340,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             w_px = w_mix;
         }
     }
-    var s_map = vec4<f32>(0.0);
-    {
-        let e = map_encode(rd);
-        if (e.z <= 1.02) {
-            s_map = map_catmull_rom(e.xy);
-        }
-    }
+    // ── THE RETIRED MAP IS NO LONGER SAMPLED (v0.1260) ──
+    // The octa direction map stopped dispatching in v0.1250 (ONE
+    // RENDERER), but this pass kept BINDING its texture and blending it
+    // under every cloud pixel as the backdrop. A render target that is
+    // never written is not a guaranteed-zero source across backends and
+    // driver paths, and whatever it held was being composited into the
+    // final cloud colour - the operator, exactly: "Is there another
+    // shader or texture that's affecting cloud shaders that's not
+    // supposed to be affecting them?" There was: this one. The near
+    // march is the only cloud renderer, so the backdrop term is gone
+    // outright rather than multiplied by a hopefully-zero sample. The
+    // binding and map_catmull_rom stay for now so the pass layout is
+    // untouched; the SAMPLE is what mattered.
+    let s_map = vec4<f32>(0.0);
     // NEAR-OVER-MAP (v0.1248). The old mix() REPLACED map content wherever
     // the near arm claimed a pixel - and the two arms render the same sky
     // at different footprints, so every disagreement became a stitch
