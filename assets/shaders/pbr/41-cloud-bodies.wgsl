@@ -439,13 +439,25 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     // crown_bias (flat stratocumulus buds sideways, congestus buds
     // straight up), at a separation that keeps the pair merged.
     let n_lobes = clamp(arch.lobes, 1, CLOUD_V2_LOBES);
+    // ── COARSE CLUSTER FOR THE SUN (v0.1257, the sub-1-FPS report) ──
+    // Sun taps outnumber view samples 12 to 1, and each one was building
+    // and unioning the FULL lobe cluster - then having its result
+    // smoothed by the 260 m sun rind, which throws that detail away by
+    // design (CLOUD_V2_SUN_SMOOTH_M: the sun physically cannot see
+    // structure below the radiative-smoothing scale). Building detail in
+    // order to discard it is the most expensive no-op in the renderer.
+    // Lobes are placed largest-first - core, then a Pareto-decreasing
+    // bud chain - so truncating the sun's view to the first few gives
+    // exactly the coarse envelope it is entitled to, at a third of the
+    // cost. The EYE keeps every lobe: silhouettes are never coarsened.
+    let n_lobes_eff = select(n_lobes, min(n_lobes, 6), g_sun_profile > 0.5);
     var lc: array<vec4<f32>, 20>; // xyz = centre (m), w = radius (m)
     let r0 = r_hi * mix(0.7, 1.0, cv2_hash(vec2<f32>(seed, 0.0), 31.0));
     // Core lobe: its surface respects the height cap too - flat genera
     // draw r0 comparable to their whole deck depth.
     lc[0] = vec4<f32>(0.0, min(r0, max(height - r0, r0 * arch.base_flat)), 0.0, r0);
     var mean_r = r0;
-    for (var i = 1; i < n_lobes; i = i + 1) {
+    for (var i = 1; i < n_lobes_eff; i = i + 1) {
         let fi = f32(i);
         // Pick a parent among the lobes placed so far. Later lobes
         // prefer recent (higher, smaller) parents, which grows a turret
@@ -488,7 +500,7 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
         lc[i] = vec4<f32>(c, r);
         mean_r = mean_r + r;
     }
-    mean_r = mean_r / f32(n_lobes);
+    mean_r = mean_r / f32(n_lobes_eff);
 
     // Evaluate the smooth union of the cluster. The blend radius never
     // drops below the rind (increment 6): a 90 m rind thresholded by a
@@ -571,7 +583,7 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     let d0l = length(d0v);
     var nrm = select(vec3<f32>(0.0, 1.0, 0.0), d0v / max(d0l, 1.0e-4), d0l > 1.0e-4);
     var seam = 0.0;
-    for (var i = 1; i < n_lobes; i = i + 1) {
+    for (var i = 1; i < n_lobes_eff; i = i + 1) {
         let dv = warped - lc[i].xyz;
         let dl = max(length(dv), 1.0e-4);
         let ds = dl - lc[i].w;

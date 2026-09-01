@@ -2327,6 +2327,23 @@ fn cloud_sun_tau(
         // far taps stride tens of km and should integrate the mean field
         // at that scale, not point-sample full-frequency noise. Never
         // finer than the view sample's footprint.
+        // ── SLAB SKIP (v0.1257, the operator's sub-1-FPS report) ──
+        // The sun ladder is geometric and reaches ~125 km by its last
+        // rung, while the cloud band is ~12 km thick. Every tap beyond
+        // the band was paying a FULL constructed-cluster evaluation
+        // (a 3x3 cell search plus a 20-lobe build, the single most
+        // expensive call in the renderer) to be told there is no cloud
+        // in empty stratosphere. The view march never had this problem
+        // because it clips its own segment to the slab; the sun ladder
+        // has no such clip. Skipping - not breaking, because a low sun
+        // leaves and re-enters the band along a shallow chord - costs
+        // one length() and removes the majority of sun-tap work at
+        // every altitude. Physically exact: density outside the band
+        // is zero by construction, so nothing is approximated away.
+        let lr_t = length(lp);
+        if (lr_t < g_cloud_rb || lr_t > g_cloud_rt) {
+            continue;
+        }
         let lod_t = max(lodb, log2(max(seg / g_cloud_upkm, 1.0e-4)));
         // ALL taps on the REAL eroded density (increment 10, the dots'
         // deepest root): the old body-only far taps returned ~1 across the

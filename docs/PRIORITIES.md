@@ -1,5 +1,36 @@
 # HumanityOS: Priorities
 
+> **v0.1257.0 (2026-09-01): cloud cost pass part 1, and the ATMOSPHERIC
+> LAYERS answer.** Operator at sub-1 FPS on max settings. The sun
+> ladder outnumbers view samples 12:1 and was doing two kinds of pure
+> waste, both now removed: (1) SLAB SKIP - the geometric ladder reaches
+> ~125 km while the cloud band is ~12 km, so far taps paid a FULL
+> cluster evaluation (3x3 search + 20-lobe build) to learn there is no
+> cloud in empty stratosphere (the view march clips to the slab; the
+> sun ladder never did). Skip, not break - a low sun re-enters along a
+> shallow chord. Physically exact. (2) COARSE SUN CLUSTER - sun taps
+> built all 20 lobes and then had the result smoothed by the 260 m sun
+> rind, which discards that detail BY DESIGN; lobes are placed
+> largest-first so the sun now unions the first 6 only. The eye keeps
+> all 20 - silhouettes are never coarsened. MEASURED: closeup 74.5 ->
+> 59.7 ms (-20%), full res 256 -> 184.5 ms (-28%), look unchanged.
+> NEXT ON PERF (part 2, still needed - this is not enough): the Nubis3
+> amortized summed-density light grid, already scoped in the v0.1252.2
+> workflow output at ~40% march savings plus long-range inter-cloud
+> shadows; then adaptive march resolution keyed on shell screen
+> coverage (full res is cheap from space, brutal inside the deck).
+> THE OPERATOR ASKED whether real ATMOSPHERIC LAYERS would help the
+> clouds. YES, and it is now the TOP FIDELITY ITEM above further
+> single-deck polish: a sky of isolated puffs at ONE altitude cannot
+> read as a real sky however good each puff is. Real skies are almost
+> always multi-layer - low cumulus/stratocumulus, mid altocumulus and
+> altostratus, high cirrus - and the layering (different heights,
+> different characters, different lighting, one seen THROUGH another)
+> is most of what the eye uses to judge a sky. The genus archetypes
+> already exist; what is missing is independent DECKS at their own
+> altitudes rather than one band that picks a genus.
+
+
 > **v0.1256.0 (2026-09-01): THE PRIMITIVE WAS A BALL - per-cloud shape
 > frame.** Operator: "How can we make these clouds incredibly less
 > spherical... still just giant cotton balls of slightly varying

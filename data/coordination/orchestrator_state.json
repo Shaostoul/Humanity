@@ -969,6 +969,15 @@
    "scope": [
     "assets/shaders/pbr/41-cloud-bodies.wgsl"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1257.0: cloud march cost pass, part 1 - two waste eliminations in the sun ladder (which outnumbers view samples 12:1 and is the dominant cost). (1) SLAB SKIP: the geometric sun ladder reaches ~125 km while the cloud band is ~12 km thick, so far taps were paying a FULL constructed-cluster evaluation (3x3 cell search + 20-lobe build) to be told there is no cloud in empty stratosphere; the view march clips its segment to the slab, the sun ladder never did. Skip (not break - a low sun re-enters along a shallow chord). Physically exact. (2) COARSE SUN CLUSTER: sun taps built all 20 lobes and then had the result smoothed by the 260 m sun rind, which discards that detail BY DESIGN (CLOUD_V2_SUN_SMOOTH_M - the sun cannot see below the radiative-smoothing scale). Lobes are placed largest-first, so the sun now unions only the first 6; the eye keeps all 20, silhouettes uncoarsened. MEASURED: closeup 74.5 -> 59.7 ms (-20%), full-res 256 -> 184.5 ms (-28%). Look verified unchanged on the rig.",
+   "why": "Operator on v0.1256.1: \"We need to figure out how to improve performance now. I am getting below 1 FPS with current max settings.\" Also asked whether adding real ATMOSPHERIC LAYERS would help the clouds - it would, and it is now the top fidelity item: a single deck of isolated puffs at one altitude cannot read as a sky no matter how good each puff is; real skies are almost always multi-layer (low cumulus/stratocumulus, mid altocumulus/altostratus, high cirrus) and the layering is most of what the eye uses to judge a sky. Still reads as cotton balls per the operator, though \"way better\" ones.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "assets/shaders/pbr/41-cloud-bodies.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
