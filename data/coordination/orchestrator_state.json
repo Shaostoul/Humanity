@@ -1064,6 +1064,15 @@
     "assets/shaders/pbr/40-clouds.wgsl",
     "src/renderer/clouds.rs"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1266.0: the ambient residue - crown/pouch relief compressed in the AMBIENT term, and tau_vert ELIMINATED by measurement. Operator on v0.1265.1: \"The rosette lives but it is almost gone\", with three faint residues, one of them \"from high orbit... much more pronounced in the ambient light setting\", on the full SHEET rather than the voxel clouds. (1) ELIMINATION FIRST: new carve_magnitude_fit measured the per-mip carve MAGNITUDE (the quantity tau_vert is built from) at gains 0.997-1.010 - already mip-invariant to 1%, because the v0.1265 signed-threshold fit corrected magnitude as a side effect. So tau_vert is NOT the ambient carrier and needs no gain table; recorded so nobody builds one. (2) THE CARRIER: crown_shade and pouch_shade are functions of body, a MIPPED texture sample, so they inherit the view footprint - and on a down-look the footprint is monotone in the angle from the nadir. On the CONSTRUCTED path they are already neutralised (ring_off, v0.1252.6); on the NOISE path they run at full strength, which is exactly where the operator still sees it. Ambient now takes 35% of each (mix(1.0, term, 0.35)); DIRECT keeps them at full strength, since the sun path no longer reads the view footprint at all after v0.1264. Physically the compression is right regardless: ambient skylight inside a cloud is the most heavily multiple-scattered light there is and cannot carry sharp relief.",
+   "why": "Same principle that caught the sun bug: does a photon arriving here care where the camera is? Rig: 3 vantages, panics=0, FPS unchanged or better (60.4 / 48 / 59.2 ms), 53 cloud tests green. FOUR radial mechanisms now addressed across the arc: placement lattice (v0.1252.7), coverage/mip drift (v0.1263 + v0.1265), view-dependent sun transmittance (v0.1264), view-dependent ambient relief (this).",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "src/renderer/clouds.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

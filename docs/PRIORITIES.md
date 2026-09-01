@@ -1,5 +1,35 @@
 # HumanityOS: Priorities
 
+> **v0.1266.0 (2026-09-01): the ambient residue - and tau_vert
+> ELIMINATED by measurement.** Operator on v0.1265.1: "The rosette
+> lives but it is almost gone", with three faint residues - one "from
+> high orbit... much more pronounced in the ambient light setting", on
+> the full SHEET rather than the voxel clouds. ELIMINATION FIRST: a new
+> carve_magnitude_fit measured the per-mip carve MAGNITUDE (what
+> tau_vert is built from) at gains 0.997-1.010 - already mip-invariant
+> to 1%, because the v0.1265 signed-threshold fit corrected magnitude
+> as a side effect. tau_vert is NOT the carrier and needs no gain
+> table; recorded so nobody builds one. THE CARRIER: crown_shade and
+> pouch_shade are functions of body, a MIPPED sample, so they inherit
+> the view footprint - and on the CONSTRUCTED path they are already
+> neutralised (ring_off, v0.1252.6) while on the NOISE path they run
+> full strength, exactly where the residue shows. Ambient now takes 35%
+> of each; DIRECT keeps them fully, since the sun path no longer reads
+> the view footprint at all after v0.1264.
+> FOUR RADIAL MECHANISMS ADDRESSED ACROSS THIS ARC: the placement
+> lattice projecting as orchard rows (v0.1252.7), coverage/mip drift
+> (v0.1263 + v0.1265, ladder +53% -> scattered +-8%), view-dependent
+> sun transmittance (v0.1264), and view-dependent ambient relief
+> (this). The governing test, which caught the last two: DOES A PHOTON
+> ARRIVING HERE CARE WHERE THE CAMERA IS? Anywhere the answer is no and
+> the code says yes is another rosette.
+> STILL OPEN, in priority order: PERFORMANCE part 2 (Nubis3 amortized
+> light grid ~40% + adaptive march resolution - full res is still
+> sub-10 FPS); MULTI-LAYER ATMOSPHERE (the top fidelity item - a sky of
+> one deck cannot read as a real sky); field variety V2 (size span,
+> base scatter) for the cotton-ball shapes.
+
+
 > **v0.1265.0 (2026-09-01): THE CARVE HINGE SPLIT - mip drift is now
 > essentially GONE.** The operator localised the residual exactly: "the
 > rosette is weakest now against the voxel clouds but still very

@@ -1574,6 +1574,78 @@ mod coverage_vs_mip {
     /// shipped threshold range. Run it and paste the printed table into
     /// CLOUD_CARVE_W0..W8 in 40-clouds.wgsl.
     /// Run: cargo test --release --features native --lib coverage_width_fit -- --ignored --nocapture
+    /// ── THE CARVE MAGNITUDE FIT (v0.1266) ──
+    ///
+    /// The coverage fit (coverage_width_fit) makes the THRESHOLD
+    /// mip-invariant: P(body > thr) no longer drifts. It says nothing
+    /// about the carve's MAGNITUDE, and tau_vert - the vertical column
+    /// depth that drives the ambient shaper, the diffusion floor and the
+    /// ground bounce - is built from that magnitude. So ambient still
+    /// carried a mip-dependent term, and the mip is set by the view
+    /// footprint, which on a down-look is monotone in the angle from the
+    /// nadir. The operator's last three residues include exactly this:
+    /// "from high orbit... much more pronounced in the ambient light
+    /// setting".
+    ///
+    /// This fits a per-mip GAIN restoring the mean carve magnitude to the
+    /// level-0 truth. Paste into CLOUD_CARVE_G0..G8.
+    /// Run: cargo test --release --features native --lib carve_magnitude_fit -- --ignored --nocapture
+    #[test]
+    #[ignore = "heavy (generates the 384^3 volume + mip chain); diagnostic"]
+    fn carve_magnitude_fit() {
+        let thrs = [0.398f32, 0.550, 0.702];
+        let sw = [0.005f32; 9];
+        let toff = [
+            0.005f32, 0.005, 0.0075, 0.0075, 0.0075, 0.0075, 0.0025, -0.0125,
+            -0.0125,
+        ];
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let base = cloud_noise::generate_shape(threads);
+        let chain = cloud_noise::mip_chain(base, cloud_noise::SHAPE_SIZE);
+        // The shipped compact-support hinge, in the shader's own form.
+        let hinge = |body: f32, thr: f32, w: f32, t: f32| -> f32 {
+            let zc = (body - (thr + t)) / w;
+            let h = if zc <= -1.0 {
+                0.0
+            } else if zc < 1.0 {
+                let u = zc + 1.0;
+                0.25 * u * u
+            } else {
+                zc
+            };
+            (h * w / (0.79f32 - (thr + t)).max(1.0e-3)).clamp(0.0, 1.0)
+        };
+        let mean_carve = |level: &[u8], li: usize| -> f32 {
+            let mut s = 0.0f64;
+            let mut n = 0u64;
+            for px in level.chunks_exact(4) {
+                let b = px[0] as f32 / 255.0;
+                for thr in thrs.iter() {
+                    s += hinge(b, *thr, sw[li], toff[li]) as f64;
+                }
+                n += thrs.len() as u64;
+            }
+            (s / n.max(1) as f64) as f32
+        };
+        let truth = mean_carve(&chain[0], 0);
+        let mut gains = vec![1.0f32; chain.len()];
+        for (l, level) in chain.iter().enumerate().skip(1) {
+            let m = mean_carve(level, l);
+            gains[l] = if m > 1.0e-6 { truth / m } else { 1.0 };
+        }
+        println!("level-0 mean carve: {truth:.5}");
+        println!("PASTE CLOUD_CARVE_G0..G8: {gains:?}");
+        for g in gains.iter() {
+            assert!(
+                *g > 0.2 && *g < 5.0,
+                "carve gain {g} outside a sane band - the hinge model and                  the shader must have drifted apart"
+            );
+        }
+    }
+
+
     #[test]
     #[ignore = "heavy (generates the 384^3 volume + mip chain); diagnostic"]
     fn coverage_width_fit() {

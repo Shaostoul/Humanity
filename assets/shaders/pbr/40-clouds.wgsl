@@ -3328,8 +3328,34 @@ fn cloud_march_core(
         // Ambient keeps the coarse relief terms (crown, pouch) and 35%
         // of the cavity; direct keeps its full half-strength cavity (the
         // sunlit cauliflower texture is real).
+        // ── AMBIENT MUST NOT CARRY MIP-DEPENDENT RELIEF (v0.1266) ──
+        // crown_shade and pouch_shade are functions of `body`, which is a
+        // MIPPED texture sample - so they inherit the view footprint, and
+        // on a down-look the footprint is monotone in the angle from the
+        // nadir. On the CONSTRUCTED path they are already neutralised
+        // (ring_off, v0.1252.6); on the NOISE path they run at full
+        // strength - which is precisely where the operator still sees the
+        // last residue: "from high orbit... much more pronounced in the
+        // ambient light setting", on the full sheet rather than the voxel
+        // clouds.
+        //
+        // Physically the compression is right anyway, and this is the same
+        // argument that damped the cavity above: ambient skylight inside a
+        // cloud is the most heavily multiple-scattered light there is, so
+        // it cannot carry sharp relief structure. Direct keeps crown and
+        // pouch at full strength - the sunlit relief cue is real and is
+        // not view-dependent in the same way, because the sun path no
+        // longer reads the view footprint at all (v0.1264).
+        //
+        // NOT a global flattening: 0.35 keeps a third of the relief, so
+        // undersides and crowns still read, and the ELIMINATION that led
+        // here is recorded too - the carve MAGNITUDE was measured
+        // mip-invariant to 1% (carve_magnitude_fit), so tau_vert is not
+        // the carrier and needs no gain table.
+        let crown_amb = mix(1.0, crown_shade, 0.35);
+        let pouch_amb = mix(1.0, pouch_shade, 0.35);
         let ao_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35)
-            * crown_shade * pouch_shade;
+            * crown_amb * pouch_amb;
         let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
 
         let c_i = material.base_color.rgb
