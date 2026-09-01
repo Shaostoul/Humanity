@@ -1,5 +1,67 @@
 # HumanityOS: Priorities
 
+> **v0.1268.0 (2026-09-01): THE ROSETTE IS ANCHORED TO STRAIGHT DOWN,
+> NOT TO THE CAMERA.** This corrects the heuristic printed further down
+> this file and the target of the last five fixes. Aim the camera 40
+> degrees OFF nadir and the pinch stays at the NADIR point, well below
+> the crosshair; at 70 degrees it leaves the frame entirely; at 0
+> degrees it sits exactly on the crosshair. Every operator screenshot
+> in this arc was a down-look, where nadir and crosshair COINCIDE, so
+> "view-anchored" and "vertical-anchored" were indistinguishable in the
+> evidence. The test to apply from now on is therefore NOT only "does a
+> photon arriving here care where the camera is" but also, and for this
+> artifact chiefly, **"does it care which way is DOWN?"**
+>
+> STRUCTURAL CAUSE (found, not yet fixed): `cloud_weather_adv(dir, ...)`
+> takes only a DIRECTION, so the coverage field is 2D extruded
+> vertically through the whole 1-12 km deck. Along a ray pointing
+> straight down, `dirp` is CONSTANT for every sample, so the entire
+> column returns ONE coverage value; oblique rays sweep many values and
+> average. Variation along a ray falls to exactly zero at the local
+> vertical: a nadir-anchored singularity by construction. It explains
+> every symptom at once, including the ones that defeated the
+> view-dependence fixes: strongest inside the deck, faint from orbit at
+> the sub-camera point, present in coverage alpha, unmoved by anything
+> keyed on the camera. Realistic-first candidate is real altitude
+> structure in the coverage field (wind shear veering the lookup with
+> height, as Nubis/Decima do), but MEASURE FIRST: the finest weather
+> octave is ~600 km against an 11 km deck, so physically-scaled shear
+> may be far too small to decorrelate the column, and a bigger-than-real
+> shear would visibly smear the deck.
+>
+> **THE RIG WAS NOT DETERMINISTIC, so distrust this whole arc.** The
+> cloud advection clock is app-start-relative, so every boot dropped the
+> field somewhere new: the SAME build and SAME vantage differed in 20%
+> of pixels by more than 40 levels between two runs. Every cross-run
+> before/after here compared two cloud FIELDS, not two builds. Fixed
+> (`cloud_clock_pin`, showcase `cloud_clock`, F10 "Freeze cloud
+> drift"): cross-run difference 34.2 -> 4.1 mean levels. Worse, the
+> `pinch-inside` vantage added at v0.1267 rendered an EMPTY DUSK SCENE
+> with no clouds in it, and the v0.1267 fix was declared verified
+> against it - the `feedback_checks_that_cannot_fail` class, again. And
+> at exact nadir the camera roll is degenerate, so consecutive captures
+> silently rotate the scene; measurement vantages now use a tilted aim.
+>
+> DEAD, do not re-open: the 224-step iteration cap (rebuilt step-count
+> channel reads ~22 steps of 224, flat noise, no ring). PARTIAL FIX
+> SHIPPED: the chord is gone from the detail scale entirely (per-sample
+> now, beside `g_v2_disp_lod`); one run, clock pinned, old 23.64 -> new
+> 19.11 against a coverage reference of 18.68 and a 0.7 noise floor.
+> v0.1267 had only CAPPED that term, which bounded the sweep and added a
+> transition ring where the cap engaged. Live A/B kept behind the F10
+> "Old chord detail scale" box. Also measured: old + temporal OFF reads
+> 19.31, i.e. **the temporal accumulator is a matched filter for
+> anything anchored in screen or vertical space** - it averages ~25
+> frames per direction, so it sharpens a weak standing bias into a
+> visible pattern. That is why the artifact always looked far stronger
+> than its per-frame magnitude.
+>
+> NEW INSTRUMENTS (permanent): `map_diag` 4 = march step count, 5 =
+> step comb, both with F10 buttons; `scripts/cloud-spoke-metric.js`
+> (radial-sliver metric - needs a same-run control, noise floor ~0.7);
+> vantages `nadir-anchor-40`, `nadir-anchor-70`, `steps-inside`,
+> `foot-chord-ab`.
+
 > **v0.1267.0 (2026-09-01): THE CHORD NO LONGER SETS THE DETAIL SCALE -
 > the inside-the-layer pinch.** Operator: "It still exists very
 > strongly while inside the cloud layer... I do not understand why it

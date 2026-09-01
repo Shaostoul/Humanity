@@ -372,8 +372,12 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
             dv = fract(g_march_first_t * 20.0);
         } else if (map_diag < 2.5) {
             dv = g_march_sun_acc * 2.0;
-        } else {
+        } else if (map_diag < 3.5) {
             dv = g_march_amb_acc * 4.0;
+        } else if (map_diag < 4.5) {
+            dv = g_march_iters / f32(CLOUD_STEP_ITER_CAP);
+        } else {
+            dv = fract(g_march_iters * 0.125);
         }
         cur_s = vec4<f32>(vec3<f32>(dv), 1.0);
     }
@@ -700,6 +704,23 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     } else if (diag < 3.5 && diag >= 2.5) {
         let l3 = clamp(g_march_amb_acc * 4.0, 0.0, 1.0);
         cur_d = vec4<f32>(l3, l3, l3, 1.0);
+    } else if (diag < 4.5 && diag >= 3.5) {
+        // ── MARCH STEP COUNT (v0.1268) ──
+        // Rebuilt instrument. The v0.1242 comment in 40-clouds.wgsl records
+        // that an iteration-count diagnostic once existed and that its
+        // contours matched the flower rings the operator was seeing - then it was
+        // deleted along with the fix it justified, so five later rosette
+        // hunts had to re-derive the same question by argument. It is a
+        // permanent channel now. White = this ray spent the whole 224-step
+        // budget, which means its tail was integrated in ONE giant step.
+        let l4 = clamp(g_march_iters / f32(CLOUD_STEP_ITER_CAP), 0.0, 1.0);
+        cur_d = vec4<f32>(l4, l4, l4, 1.0);
+    } else if (diag >= 4.5) {
+        // Same count as a sawtooth: every 8 steps prints a contour band, so
+        // the step-count STAIRCASE in screen radius is visible directly
+        // rather than inferred from a smooth ramp.
+        let l5 = fract(g_march_iters * 0.125);
+        cur_d = vec4<f32>(l5, l5, l5, 1.0);
     }
     var out: CloudMarchOut;
     out.color = vec4<f32>(cur_d.rgb * cur_d.a, cur_d.a);

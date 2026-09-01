@@ -440,6 +440,17 @@ pub struct Renderer {
     /// Rosette-bisect channel (0 = off; showcase map_diag) - poked into
     /// light7_color.z for the octa pass's EMA-bypassed diagnostic render.
     pub cloud_map_diag: f32,
+    /// Freeze the cloud advection clock at this many seconds (negative =
+    /// live). Dev/measurement only.
+    ///
+    /// The clock is app-start-relative, so every probe-rig boot dropped the
+    /// cloud field somewhere new: the SAME build and SAME vantage captured
+    /// twice differed in 20% of pixels by more than 40 levels (measured
+    /// 2026-09-01). Every cross-run A/B in the rosette arc was therefore
+    /// comparing two different cloud fields rather than two builds, which
+    /// is why fixes kept "measuring" as improvements and then failed in
+    /// flight. Pinning this makes a capture a function of the build alone.
+    pub cloud_clock_pin: f32,
     /// Frames since the octa pass last dispatched (resume-drop bookkeeping).
     pub cloud_octa_idle: std::cell::Cell<u32>,
     /// EMA alpha-floor boost handed to the octa pass via light7_color.y:
@@ -495,6 +506,11 @@ pub struct Renderer {
     /// F10 A/B: disable the per-cloud shape frame (squash + wind stretch),
     /// rendering the old isotropic ball cluster. Pad light7_color.w bit 1.
     pub cloud_shape_off: bool,
+    /// Restore the pre-v0.1268 detail scale: freeze the body scale once per
+    /// ray from the slab CHORD (a function of viewing angle) instead of
+    /// tracking each sample own footprint. Comparison switch only - it turns
+    /// the sun-channel rosette back on, which is the point of having it.
+    pub cloud_chord_foot: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1693,6 +1709,7 @@ impl Renderer {
             cloud_reproj_delta: std::cell::Cell::new(None),
             cloud_octa_force: false,
             cloud_map_diag: 0.0,
+            cloud_clock_pin: -1.0,
             cloud_octa_idle: std::cell::Cell::new(0),
             cloud_octa_boost: std::cell::Cell::new(0.0),
             cloud_prev_delta2: std::cell::Cell::new(0.0),
@@ -1707,6 +1724,7 @@ impl Renderer {
             cloud_dither_off: false,
             cloud_res_div: 4,
             cloud_shape_off: false,
+            cloud_chord_foot: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -2940,7 +2958,11 @@ impl Renderer {
         // no-layout-churn rule as the type-14 material packing). Offset 636 =
         // sun_color (624) + 12 bytes to its w component. Written before the
         // sun poke below so both land in this pass's uniform snapshot.
-        self.queue.write_buffer(&self.camera_buffer, 636, bytemuck::bytes_of(&time_s));
+        // Dev clock pin (see cloud_clock_pin): substituted here and at the
+        // sun_color write below, the two places the CLOUD clock is published.
+        // The wave clock on the light camera buffer is left live.
+        let cloud_t = if self.cloud_clock_pin >= 0.0 { self.cloud_clock_pin } else { time_s };
+        self.queue.write_buffer(&self.camera_buffer, 636, bytemuck::bytes_of(&cloud_t));
         // Cloud-ground-shadow params in the light_count yzw pads (offsets
         // 592 + 4/8/12; documented unused in CameraUniforms).
         let cs = [
@@ -3330,7 +3352,7 @@ impl Renderer {
             // and the fill light (v0.1052). Golden hour now reaches
             // everything this pass draws.
             let scol = self.cur_sun.1;
-            let sc = [scol[0], scol[1], scol[2], time_s];
+            let sc = [scol[0], scol[1], scol[2], cloud_t];
             self.queue.write_buffer(&self.camera_buffer, 608, bytemuck::cast_slice(&sd));
             self.queue.write_buffer(&self.camera_buffer, 624, bytemuck::cast_slice(&sc));
         }
@@ -3756,7 +3778,8 @@ impl Renderer {
         // (v0.1254.3; showcase cloud_dither - 1.0 = dither OFF).
         // Bit 0 (1.0) = dither off, bit 1 (2.0) = shape frame off.
         let dith = (if self.cloud_dither_off { 1.0f32 } else { 0.0 })
-            + (if self.cloud_shape_off { 2.0f32 } else { 0.0 });
+            + (if self.cloud_shape_off { 2.0f32 } else { 0.0 })
+            + (if self.cloud_chord_foot { 4.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

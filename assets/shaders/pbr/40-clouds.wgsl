@@ -448,13 +448,6 @@ const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
 // march - the sampling law must not smuggle it in). 1/48 = the old
 // full-budget density as a per-ray floor.
 const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
-// How much of the slab chord may influence the per-ray detail scale, in
-// KM (v0.1267). Beyond a few km of chord the extra length says nothing
-// about where the ray's visible cloud surface is - it only encodes how
-// obliquely the ray crosses the slab, which is a function of the
-// viewing angle and therefore paints a radial gradient. 4 km is the
-// scale of the cloud bodies themselves.
-const CLOUD_FOOT_CHORD_CAP: f32 = 4.0;
 // INTERIOR mean-free-path refinement (increment 10): once the march is
 // INSIDE cloud (previous sample's density above the gate), the step may
 // not exceed TAU_MAX optical depths - cumulus (45/km) refines to ~22 m,
@@ -2874,8 +2867,33 @@ fn cloud_march_core(
     // orders of magnitude there, which is why the artifact was always
     // strongest inside. The per-RAY freeze itself is preserved: the eye
     // and all its sun taps still shade one surface (the v0.1234 rule).
-    let seg_foot = min(seg_step, CLOUD_FOOT_CHORD_CAP * g_cloud_upkm);
-    g_v2_foot_m = (m0 + seg_foot * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+    // ── THE CHORD IS GONE FROM THE DETAIL SCALE ENTIRELY (v0.1268) ──
+    // v0.1267 CAPPED the chord contribution instead of removing it, which
+    // bounded the angular sweep but did not end it: from nadir out to the
+    // angle where the cap engages the footprint still grew smoothly with
+    // viewing angle, and AT the cap it stopped - a bowl with a rim, both
+    // centred on the view axis. Measured in the rig at the operator state
+    // (3.4 km inside the deck, down-look): the COVERAGE channel is clean
+    // and round while the DIRECT SUN channel carries the radial slivers.
+    // That split is the proof of where the term acts - the view density
+    // call already takes its mip per sample from lodb (an honest
+    // camera-to-sample distance), so only the frozen value the eight sun
+    // taps read still carried the chord.
+    //
+    // This is now just a seed for anything sampled before the first march
+    // step; the loop overwrites it per sample from that sample own
+    // footprint, right beside g_v2_disp_lod, so the sun taps shade the
+    // surface the eye sees at THAT sample (the v0.1234 rule, kept) with
+    // no angular term at all.
+    // Bit 2 of the dev pad restores the old chord-frozen scale so ONE run
+    // can capture both sides (the rig cannot A/B across builds honestly -
+    // see cloud_clock_pin).
+    let chord_foot = camera.light7_color.w >= 3.5;
+    g_v2_foot_m = select(
+        m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
+        (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
+        chord_foot,
+    );
     // Same freeze for the displacement mip, in the same units as `lodb`
     // (log2 of the footprint in km). The rind was frozen back in v0.1213 for
     // exactly this reason and the displacement was left behind.
@@ -3101,6 +3119,15 @@ fn cloud_march_core(
         // the view density call, preserves exactly that - the sun march that
         // follows reuses the value - while giving near clouds near detail.
         g_v2_disp_lod = lodb;
+        // The sun taps read g_v2_foot_m for the body rind. Set it from THIS
+        // sample footprint, exactly as disp_lod is, so the eye and its eight
+        // sun taps share one body scale that depends on distance to the
+        // surface and nothing else (v0.1268; was frozen from the ray chord,
+        // which is a function of viewing angle - the rosette in the sun
+        // channel).
+        if (!chord_foot) {
+            g_v2_foot_m = foot / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+        }
         let wlod = max(log2(max(foot / g_cloud_upkm / 27.8, 1.0)), 0.0);
         let weather_a = clamp(
             cloud_alpha_from_field(

@@ -3519,6 +3519,121 @@
         "cloud_dither": "0"
       },
       "settle_s": 14
+    },
+    {
+      "id": "nadir-anchor-40",
+      "desc": "3.4 km inside the deck, aimed 40 deg OFF nadir, direct-sun channel, clock pinned. The experiment that reframed the rosette arc (2026-09-01): with the aim tilted, the view axis and the local vertical separate, and the pinch follows STRAIGHT DOWN, not the crosshair. Every operator screenshot was a down-look, where the two coincide.",
+      "expect": "The radial fan sits well BELOW the crosshair, at the nadir point - never centred on the crosshair.",
+      "regressions": [
+        "pinch must not track the view axis",
+        "no fan at the crosshair"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 40,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "map_diag": "2"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "nadir-anchor-70",
+      "desc": "Same camera aimed 70 deg off nadir, which puts the nadir point off the bottom of the frame. The negative half of the anchor experiment.",
+      "expect": "Clean cloud field with NO radial fan anywhere in frame.",
+      "regressions": [
+        "no radial fan when nadir is out of frame"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 70,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "map_diag": "2"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "steps-inside",
+      "desc": "March STEP COUNT channel, 3.4 km inside the deck. Instrument vantage: the 224-step iteration cap was a rosette suspect and this measured it dead (mean ~22 steps of 224, flat noise, no ring).",
+      "expect": "Flat noise. A ring at fixed screen radius would mean rays crossing the step cap.",
+      "regressions": [
+        "no ring or spoke in the step-count field"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 12,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "map_diag": "4"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "foot-chord-ab",
+      "desc": "Direct-sun channel with the OLD chord-frozen detail scale forced on (cloud_chord_foot=1). Pair with nadir-anchor-40: this is the state the v0.1268 fix removed, kept so the change stays measurable.",
+      "expect": "Measurably more radial energy than the same shot with cloud_chord_foot=0.",
+      "regressions": [],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 12,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "1",
+        "cloud_temporal": "1",
+        "map_diag": "2"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {

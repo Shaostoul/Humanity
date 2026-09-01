@@ -77,6 +77,36 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
 
+            // Clock pin (v0.1268). Not a look control - a MEASUREMENT one.
+            // The cloud clock is app-start-relative, so two rig runs of one
+            // build rendered different cloud fields (20% of pixels differing
+            // by >40 levels). Freezing it makes a capture a function of the
+            // build alone, which is what an A/B needs to mean anything.
+            let mut frozen = state.cloud_dev_clock_pin >= 0.0;
+            if ui
+                .checkbox(&mut frozen, "Freeze cloud drift (for before/after comparisons)")
+                .changed()
+            {
+                state.cloud_dev_clock_pin = if frozen { 120.0 } else { -1.0 };
+                changed = true;
+            }
+
+            // The v0.1268 rosette fix, as a live A/B (operator directive:
+            // "we have the F10 dev menu to toggle things on/off"). ON here
+            // restores the OLD behaviour, so the rosette should come BACK -
+            // that is how you tell the fix is doing something.
+            let mut chord = state.cloud_dev_chord_foot;
+            if ui
+                .checkbox(
+                    &mut chord,
+                    "Old chord detail scale (on = pre-v0.1268, sun rosette returns)",
+                )
+                .changed()
+            {
+                state.cloud_dev_chord_foot = chord;
+                changed = true;
+            }
+
             ui.add_space(theme.spacing_sm);
             ui.label(
                 RichText::new("Cloud resolution")
@@ -152,8 +182,19 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .color(theme.text_secondary()),
             );
             ui.add_space(theme.spacing_sm);
-            let names = ["Off", "Coverage alpha", "Direct sun", "Ambient"];
-            let mut pick = state.cloud_dev_map_diag.clamp(0, 3);
+            // "March steps" / "Step comb" (v0.1268): the iteration-count
+            // instrument, rebuilt. A ring at a fixed screen radius in a
+            // channel that has NOTHING to do with lighting or density can
+            // only come from the march schedule itself.
+            let names = [
+                "Off",
+                "Coverage alpha",
+                "Direct sun",
+                "Ambient",
+                "March steps",
+                "Step comb",
+            ];
+            let mut pick = state.cloud_dev_map_diag.clamp(0, 5);
             ui.horizontal(|ui| {
                 for (i, name) in names.iter().enumerate() {
                     if ui.selectable_label(pick == i as i32, *name).clicked() {
@@ -164,6 +205,15 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             if pick != state.cloud_dev_map_diag {
                 state.cloud_dev_map_diag = pick;
                 changed = true;
+            }
+            if pick >= 4 {
+                ui.label(
+                    RichText::new(
+                        "Black = few steps, white = this ray spent the whole                          224-step budget and integrated its remaining tail in                          ONE giant sample. Step comb bands every 8 steps.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
             }
         });
     if !open {

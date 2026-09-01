@@ -766,7 +766,11 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // F10 A/B (v0.1259): shape frame off = the old isotropic
             // ball cluster, so the operator can flip the squash/stretch
             // against it live instead of comparing from memory.
-            let shape_on = camera.light7_color.w < 1.5;
+            // Bit 1 of the dev pad. Tested as a BIT, not as "< 1.5": once a
+            // third flag took bit 2 the magnitude test silently turned the
+            // shape frame off whenever that flag was set. Same collision that
+            // caught the dither test earlier in this arc.
+            let shape_on = fract(camera.light7_color.w * 0.25) < 0.5;
             let sx_e = select(1.0, sx, shape_on);
             let sy_e = select(1.0, sy, shape_on);
             let sz_e = select(1.0, sz, shape_on);

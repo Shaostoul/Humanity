@@ -226,6 +226,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(d) = grab("map_diag").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_map_diag = d as i32;
     }
+    // {"cloud_clock":"120"} freezes the cloud advection clock at that many
+    // seconds; "-1" returns it live. The clock is app-start-relative, so
+    // without this two runs of the same vantage render DIFFERENT cloud
+    // fields and no cross-build A/B means anything (measured 2026-09-01:
+    // 20% of pixels differed by >40 levels between two runs of one build).
+    if let Some(c) = grab("cloud_clock").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_clock_pin = c;
+    }
+    // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
+    // detail scale, so one run can capture both sides of that change.
+    if let Some(t) = grab("cloud_chord_foot") {
+        state.gui_state.cloud_dev_chord_foot = t == "1";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

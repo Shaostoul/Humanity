@@ -3416,6 +3416,11 @@ pub struct GuiState {
     pub cloud_dev_temporal_off: bool,
     /// Bisect channel: 0 off, 1 coverage alpha, 2 direct sun, 3 ambient.
     pub cloud_dev_map_diag: i32,
+    /// Cloud advection clock pin in seconds (negative = live). Makes a rig
+    /// capture a function of the build alone; see Renderer::cloud_clock_pin.
+    pub cloud_dev_clock_pin: f32,
+    /// Comparison switch: put the chord back in the detail scale (v0.1268).
+    pub cloud_dev_chord_foot: bool,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5252,6 +5257,8 @@ impl Default for GuiState {
             cloud_dev_dither_off: false,
             cloud_dev_temporal_off: false,
             cloud_dev_map_diag: 0,
+            cloud_dev_clock_pin: -1.0,
+            cloud_dev_chord_foot: false,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,
