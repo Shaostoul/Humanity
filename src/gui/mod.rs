@@ -3423,6 +3423,8 @@ pub struct GuiState {
     pub cloud_dev_chord_foot: bool,
     /// Shape fields at a fixed world level of detail (v0.1269 test).
     pub cloud_dev_world_shape_lod: bool,
+    /// Disable the mip ring cure (default false - the cure runs).
+    pub cloud_dev_ring_cure_off: bool,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5262,6 +5264,7 @@ impl Default for GuiState {
             cloud_dev_clock_pin: -1.0,
             cloud_dev_chord_foot: false,
             cloud_dev_world_shape_lod: false,
+            cloud_dev_ring_cure_off: true,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

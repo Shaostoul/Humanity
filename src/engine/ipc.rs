@@ -244,6 +244,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_world_shape") {
         state.gui_state.cloud_dev_world_shape_lod = t == "1";
     }
+    // {"cloud_ring_cure":"0"} disables the mip ring cure. It defaults ON
+    // and is deliberately NOT tied to cloud_dither any more.
+    if let Some(t) = grab("cloud_ring_cure") {
+        state.gui_state.cloud_dev_ring_cure_off = t == "0";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

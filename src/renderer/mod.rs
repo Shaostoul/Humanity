@@ -518,6 +518,18 @@ pub struct Renderer {
     /// changes shape as you fly toward it, and lines of equal
     /// distance-to-camera are circles centred on the nadir point.
     pub cloud_world_shape_lod: bool,
+    /// Turn OFF the per-pixel lod dither (the 2026-08-24 "mip ring cure").
+    /// DEFAULT TRUE - the dither is off - because measurement says it never
+    /// helps and sometimes hurts. Radial energy at three altitudes, depth
+    /// jitter on, clock pinned, 0.7 noise floor:
+    ///   3.4 km  23.65 with it, 21.05 without   (WORSE with it)
+    ///   9.2 km  23.94 with it, 23.74 without   (neutral)
+    ///   60 km   14.71 with it, 14.71 without   (neutral)
+    /// A per-pixel random mip through the non-linear carve averages to a
+    /// biased result, and the bias itself varies with radius, so the cure
+    /// carried its own radial signature. The DEPTH jitter is the term that
+    /// actually suppresses the artifact (~3.6) and stays on its own switch.
+    pub cloud_ring_cure_off: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1733,6 +1745,7 @@ impl Renderer {
             cloud_shape_off: false,
             cloud_chord_foot: false,
             cloud_world_shape_lod: false,
+            cloud_ring_cure_off: true,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3788,7 +3801,8 @@ impl Renderer {
         let dith = (if self.cloud_dither_off { 1.0f32 } else { 0.0 })
             + (if self.cloud_shape_off { 2.0f32 } else { 0.0 })
             + (if self.cloud_chord_foot { 4.0f32 } else { 0.0 })
-            + (if self.cloud_world_shape_lod { 8.0f32 } else { 0.0 });
+            + (if self.cloud_world_shape_lod { 8.0f32 } else { 0.0 })
+            + (if self.cloud_ring_cure_off { 16.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

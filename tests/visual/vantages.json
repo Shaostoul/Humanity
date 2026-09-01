@@ -3695,6 +3695,67 @@
         "map_diag": "0"
       },
       "settle_s": 14
+    },
+    {
+      "id": "jitter-factorial-34km",
+      "desc": "3.4 km inside the deck, direct-sun channel, clock pinned, weather cloudy. Settles the jitter factorial (v0.1270). The per-pixel MIP dither never improved the radial artifact in any state tested (3.4 km clear 23.65 with it vs 21.05 without; 9.2 km 23.94 vs 23.74; 60 km 14.71 vs 14.71) so its default is now OFF. The DEPTH jitter is a separate switch and its effect is SCENE-DEPENDENT - it helps strongly at 9.2 km clear (23.9 vs 27.4) and mildly hurts here under cloudy (17.4 vs 16.0) - so its default is unchanged and it must not be tuned from one vantage.",
+      "expect": "Radial energy near 17.4 in this configuration. Compare against depth-jitter-load-bearing, which differs only in the depth jitter.",
+      "regressions": [
+        "mip dither must not be re-enabled by default",
+        "depth jitter must stay on"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 12,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "cloudy",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "1",
+        "map_diag": "2",
+        "cloud_ring_cure": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "depth-jitter-load-bearing",
+      "desc": "Same camera and sky with the DEPTH jitter off. Paired with jitter-factorial-34km so the depth jitter is always measured rather than assumed: it is the term that carries the artifact suppression at 9.2 km clear, and the one the operator had switched off in every screenshot of this arc because it shared a checkbox with the mip dither.",
+      "expect": "Radial energy near 16.0 here. The sign of this difference FLIPS at 9.2 km clear, which is the point: do not tune the depth jitter from a single state.",
+      "regressions": [],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 3.4,
+        "look_offset_deg": 12,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "cloudy",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "map_diag": "2",
+        "cloud_ring_cure": "0"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {

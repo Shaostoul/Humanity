@@ -627,10 +627,23 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // screen radius on a down look; a spatial dither breaks the mip
     // circles), zero temporal churn. Salted to stay decorrelated from
     // the depth jitter.
+    // ── THE RING CURE IS NOT A LOOK PREFERENCE (v0.1270) ──
+    // This used to ride on dither_on, so ONE checkbox drove two unrelated
+    // jobs: the depth jitter (a look trade - it buys smoothness and costs
+    // agate arcs on overcast) and this, the 2026-08-24 cure for mip circles.
+    // The operator turned the dither off to kill what they called TV static,
+    // which silently switched the ring cure off too and brought the radial
+    // artifact back at full strength. Measured at 9.2 km with the clock
+    // pinned: direct-sun radial energy 23.97 with the cure on, 28.11 with it
+    // off, against a 0.7 noise floor - the largest single effect found in the
+    // whole rosette arc. So the two now have separate switches and this one
+    // defaults ON. It is frozen per pixel (no temporal churn), so it costs
+    // fixed grain, never the moving static.
+    let ring_cure_on = fract(camera.light7_color.w * 0.03125) < 0.5;
     g_lod_jitter = select(0.0,
         pcg2d_hash(
             vec2<u32>(in.pos.xy) + vec2<u32>(0x51EDu, 0xB5C9u)) - 0.5,
-        dither_on);
+        ring_cure_on);
     // Footprint = one quarter-res pixel = 4x the screen pixel angle,
     // CAPPED at the octa map's texel angle (regime parity). At planetary
     // range the screen-driven footprint reaches mips 5-6, where the

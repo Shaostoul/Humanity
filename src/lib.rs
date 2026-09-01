@@ -18470,6 +18470,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_chord_foot;
                                 state.renderer.cloud_world_shape_lod =
                                     state.gui_state.cloud_dev_world_shape_lod;
+                                state.renderer.cloud_ring_cure_off =
+                                    state.gui_state.cloud_dev_ring_cure_off;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

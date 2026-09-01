@@ -2897,7 +2897,7 @@ fn cloud_march_core(
     // "w >= 3.5") break the moment a higher bit is added - that already
     // caught the shape-frame flag once this arc.
     let chord_foot = fract(camera.light7_color.w * 0.125) >= 0.5;
-    let world_shape_lod = camera.light7_color.w >= 7.5;
+    let world_shape_lod = fract(camera.light7_color.w * 0.0625) >= 0.5;
     g_v2_foot_m = select(
         m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
         (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,

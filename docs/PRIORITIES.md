@@ -1,5 +1,56 @@
 # HumanityOS: Priorities
 
+> **v0.1270.0 (2026-09-01): ONE CHECKBOX WAS DRIVING TWO UNRELATED JOBS.**
+> This is why the "TV static versus rosette" tension existed at all. The F10
+> "Spatial dither" box set `dither_on`, which gated BOTH the depth jitter
+> (where inside its step each sample is taken) AND `g_lod_jitter`, the
+> 2026-08-24 per-pixel mip dither added to cure concentric mip rings. Its own
+> comment says it: *"the mip ladder crosses integer levels at fixed radii
+> around the camera... print those crossings as CONCENTRIC RINGS"*, and
+> *"lodb is monotone in screen radius on a down look"*. The operator had that
+> box OFF in every screenshot of this arc, to kill the static - which silently
+> disabled the depth jitter too. So every screenshot they sent was the
+> worst-case configuration while the rig ran the best case, which is also why
+> my captures never looked as bad as theirs. Now two switches.
+>
+> FACTORIAL (one sweep each, 9.2 km, clock pinned, 0.7 noise floor):
+> depth ON + mip ON 23.94; depth ON + mip OFF 23.74; depth OFF + mip ON 27.36;
+> depth OFF + mip OFF 27.43. **The depth jitter carries all of it; the mip
+> dither carries none.**
+>
+> The mip dither NEVER helped in any state tested and once hurt (3.4 km clear
+> 23.65 with it vs 21.05 without; 9.2 km 23.94 vs 23.74; 60 km 14.71 vs 14.71),
+> so **its default is now OFF**: a per-pixel random mip through the non-linear
+> carve averages to a biased result whose bias itself varies with radius, so
+> the ring cure carried its own radial signature. The DEPTH jitter default is
+> UNCHANGED, because its effect is SCENE-DEPENDENT - it helps strongly at
+> 9.2 km clear and mildly hurts at 3.4 km cloudy (17.44 vs 16.02). Do not tune
+> it from a single vantage. Guards: `jitter-factorial-34km` and
+> `depth-jitter-load-bearing`.
+>
+> **The 6-agent shape-lod audit cleared every shape field as the carrier**, and
+> its adversarial half earned its keep. The mapper rated the surface
+> displacement octaves "dominant"; the magnitude refuter replicated the noise
+> bake in JS and MEASURED adjacent mips to be highly correlated (rho 0.96 to
+> 0.998), not decorrelated as the mapper assumed - so a mip crossing moves the
+> surface 1 to 3 m, not 29 m, against clouds 85 to 760 m across. That confirms
+> the empirical negative from the F10 world-anchored-shape A/B independently.
+> Domain warp, erosion and the march step schedule were each refuted 2-0; the
+> rind and carve hinge came back clean.
+>
+> Two durable facts from it: the sun path never fetches the domain warp at all
+> (`g_sun_profile = 1.0` on every sun tap forces `wn` to the FBM mean), so the
+> warp cannot be the direct-sun carrier; and the in-flight comment attributing
+> the near-field ramp to `CLOUD_V2_INT_LODC` = -9.56 names the WRONG constant -
+> that is the interior turbulence tap, while the fine displacement is
+> `CLOUD_V2_DISP2_LODC` = -8.76.
+>
+> METHOD NOTE, the fourth measurement hazard in this arc: showcase pins are
+> STICKY across vantages in one sweep. A measurement vantage must set every
+> pin it depends on - including `cloud_cover` and `weather` - or it silently
+> inherits whatever ran before it. Comparisons WITHIN one sweep stay valid
+> (all cells inherit the same thing); comparisons ACROSS sweeps do not.
+
 > **v0.1269.0 (2026-09-01): THE PROBE RIG WAS FALLING.** The operator caught
 > it from a single HUD word: every rig capture reads `WALK x1 [F9 to fly]`
 > while their own session reads `FLY x1M - hover, no gravity`. The movement

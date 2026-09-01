@@ -46,7 +46,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             if ui
                 .checkbox(
                     &mut dither_on,
-                    "Spatial dither (off = smoother clouds, agate arcs on overcast)",
+                    "Depth dither (off = smoother clouds, agate arcs on overcast)",
                 )
                 .changed()
             {
@@ -99,6 +99,22 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // flew closer to it, and lines of equal distance-to-camera are
             // circles centred on the nadir - which is exactly where the
             // artifact sits.
+            // The mip ring cure (v0.1270). Split out of the depth-dither box,
+            // which used to switch both. Measured at 9.2 km, clock pinned:
+            // direct-sun radial energy 23.97 with the cure on, 28.11 with it
+            // off, against a 0.7 noise floor.
+            let mut cure = !state.cloud_dev_ring_cure_off;
+            if ui
+                .checkbox(
+                    &mut cure,
+                    "Per-pixel mip dither (default OFF: measured never better, worse inside the deck)",
+                )
+                .changed()
+            {
+                state.cloud_dev_ring_cure_off = !cure;
+                changed = true;
+            }
+
             let mut wsl = state.cloud_dev_world_shape_lod;
             if ui
                 .checkbox(
