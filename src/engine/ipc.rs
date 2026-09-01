@@ -252,6 +252,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_shape") {
         state.gui_state.cloud_dev_shape_off = t == "0";
     }
+    // {"cloud_discard":"1"} paints the composite's discard reasons.
+    if let Some(t) = grab("cloud_discard") {
+        state.gui_state.cloud_dev_discard_diag = t == "1";
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None

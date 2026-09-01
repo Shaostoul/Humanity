@@ -1,5 +1,28 @@
 # HumanityOS: Priorities
 
+> **v0.1262.0 (2026-09-01): the DISCARD-REASON BISECT, and the
+> composite is exonerated.** Every path in the cloud composite that
+> kills a pixel used to do it with a bare discard, so a region of
+> missing cloud looked identical whichever of SIX reasons removed it.
+> Each now paints its own colour under F10 "Discard reasons" (showcase
+> {"cloud_discard":"1"}): blue = ray missed the shell, purple = segment
+> behind camera, orange = empty slab segment, RED = analytic
+> planet-horizon cull, GREEN = scene depth (terrain in front of the
+> cloud), grey = the march found no cloud. FIRST VERDICT at the
+> cumulus-closeup vantage: every killed pixel is GREY - not one red,
+> green, blue or orange. The geometric culls never fire. So the
+> composite does not remove clouds; where cloud is missing, the MARCH
+> produced no coverage. Combined with v0.1261 (map deleted outright),
+> both of the leading splotch suspects are now eliminated by
+> measurement and the hunt moves to the march/field.
+> THE OPERATOR NOW HOLDS THE TOOL: flip the toggle while a splotch is
+> on screen and the colour names its cause instantly - the right shape
+> of deliverable, since their exact state has never reproduced on the
+> rig. If it paints GREY there too, the field/march is confirmed and
+> the next instrument is a march-side channel (first-hit distance,
+> iteration count, transmittance) rather than another suspect.
+
+
 > **v0.1261.0 (2026-09-01): THE OCTA MAP IS FULLY DELETED.** Operator,
 > after v0.1260 stopped sampling it: "Let's go for the full delete. I
 > still see the effect." Removed end to end - the composite binding,

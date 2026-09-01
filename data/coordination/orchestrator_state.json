@@ -1021,6 +1021,21 @@
     "src/renderer/cloud_temporal.rs",
     "src/renderer/mod.rs"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1262.0: THE DISCARD-REASON BISECT - every path in the composite that kills a cloud pixel now paints its own colour instead of discarding (F10 \"Discard reasons\", showcase {cloud_discard:1}). Six paths instrumented: blue = ray missed the shell, purple = segment behind camera, orange = empty slab segment, RED = analytic planet-horizon cull, GREEN = scene depth (terrain in front of the cloud), grey = the march found no cloud. The flag rides cam_up.w, the slot the octa map extent vacated in v0.1261.",
+   "why": "Operator still saw the splotches after the map was fully deleted, so the map is definitively exonerated and the next suspects were the composite own discard paths - none of which had EVER been instrumented; a region of missing cloud looked identical whichever of six reasons removed it. FIRST VERDICT at the cumulus-closeup vantage: every killed pixel is GREY. No red, no green, no blue, no orange - the geometric culls (planet horizon, scene depth, shell miss, empty segment) never fire there at all. So the composite does not remove clouds; where clouds are missing, the MARCH genuinely produced no coverage. That relocates the splotch hunt to the march/field. The operator now has the tool in-game: flip it while the splotch is on screen and the colour names the cause instantly - which is the right shape of deliverable, since their exact state has never been reproducible on the rig.",
+   "scope": [
+    "assets/shaders/cloud_composite.wgsl",
+    "src/renderer/cloud_composite.rs",
+    "src/renderer/mod.rs",
+    "src/gui/mod.rs",
+    "src/gui/pages/cloud_dev.rs",
+    "src/lib.rs",
+    "src/engine/ipc.rs",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

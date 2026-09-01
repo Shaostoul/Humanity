@@ -495,6 +495,9 @@ pub struct Renderer {
     /// F10 A/B: disable the per-cloud shape frame (squash + wind stretch),
     /// rendering the old isotropic ball cluster. Pad light7_color.w bit 1.
     pub cloud_shape_off: bool,
+    /// F10 bisect: paint WHY each pixel's cloud was discarded by the
+    /// composite instead of discarding it (v0.1262).
+    pub cloud_discard_diag: bool,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1704,6 +1707,7 @@ impl Renderer {
             cloud_dither_off: false,
             cloud_res_div: 4,
             cloud_shape_off: false,
+            cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
@@ -4282,6 +4286,7 @@ impl Renderer {
                 screen_view,
                 dist_view,
                 near_mix,
+                if self.cloud_discard_diag { 1.0 } else { 0.0 },
                 [eye.x, eye.y, eye.z],
                 [fwd.x, fwd.y, fwd.z],
                 [right.x, right.y, right.z],

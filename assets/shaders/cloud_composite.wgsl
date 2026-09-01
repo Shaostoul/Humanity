@@ -121,6 +121,22 @@ fn screen_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
     return clamp(result, max(mn, vec4<f32>(0.0)), mx);
 }
 
+// ── DISCARD-REASON BISECT (v0.1262) ──
+// Every path in this pass that kills a cloud pixel does it with a bare
+// `discard`, so a region of missing cloud looks identical whichever
+// reason removed it - and the operator has been reporting clouds that
+// "outright disappear in weird splotches" through several rounds of
+// suspects. With u.cam_up.w set (F10: Discard reasons) each exit paints
+// its own colour instead of discarding, so the SHAPE of the missing
+// region names its own cause on screen:
+//   blue   - the ray never reached the cloud shell
+//   purple - the whole segment is behind the camera
+//   orange - the slab segment is empty (base carve)
+//   RED    - analytic planet-horizon cull
+//   GREEN  - scene depth: terrain in front of the cloud segment
+//   grey   - the march simply found no cloud there (normal clear sky)
+// The slot is the octa map extent that died with the map in v0.1261.
+fn dbg_on() -> bool { return u.cam_up.w > 0.5; }
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // Pixel ray. This pass's uv comes straight from NDC (y UP - unlike a
@@ -144,12 +160,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let perp = ro + rd * tca;
     let d2 = dot(perp, perp);
     if (d2 >= rt * rt) {
+        if (dbg_on()) { return vec4<f32>(0.10, 0.20, 0.70, 1.0); }
         discard;
     }
     let thc_t = sqrt(rt * rt - d2);
     var m0 = max(tca - thc_t, 0.0);
     var m1 = tca + thc_t;
     if (m1 <= 0.0) {
+        if (dbg_on()) { return vec4<f32>(0.55, 0.15, 0.75, 1.0); }
         discard;
     }
     if (d2 < rb * rb) {
@@ -163,6 +181,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         }
     }
     if (m1 <= m0) {
+        if (dbg_on()) { return vec4<f32>(0.95, 0.55, 0.10, 1.0); }
         discard;
     }
     // Analytic planet occlusion: a segment fully behind the globe is gone
@@ -171,7 +190,8 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (d2 < 1.0) {
         let t_surf = tca - sqrt(1.0 - d2);
         if (t_surf > 0.0 && t_surf < m0) {
-            discard;
+            if (dbg_on()) { return vec4<f32>(0.95, 0.10, 0.10, 1.0); }
+        discard;
         }
     }
 
@@ -185,6 +205,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let along = max(dot(rd, normalize(u.cam_fwd.xyz)), 1.0e-3);
     let scene_t = view_dist / along / pr; // planet units along this ray
     if (scene_t <= m0) {
+        if (dbg_on()) { return vec4<f32>(0.10, 0.90, 0.25, 1.0); }
         discard; // terrain in front of the whole cloud segment
     }
     // Terrain inside the segment: attenuate by the fraction of the
@@ -292,6 +313,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         s_scr.a * near_w + s_map.a * (1.0 - s_scr.a * near_w),
     );
     if (s.a <= 0.003) {
+        if (dbg_on()) { return vec4<f32>(0.45, 0.45, 0.45, 1.0); }
         discard;
     }
 

@@ -18468,6 +18468,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =
                                     state.gui_state.cloud_dev_shape_off;
+                                state.renderer.cloud_discard_diag =
+                                    state.gui_state.cloud_dev_discard_diag;
                                 // Time scrubber (v0.1224). Drained every frame
                                 // regardless of the weather-changed flag: the two
                                 // live in one panel but are independent channels,

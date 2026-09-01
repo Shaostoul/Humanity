@@ -225,6 +225,7 @@ impl CloudCompositePass {
         screen_view: &wgpu::TextureView,
         dist_view: &wgpu::TextureView,
         near_mix: f32,
+        discard_diag: f32,
         cam_pos: [f32; 3],
         cam_fwd: [f32; 3],
         cam_right: [f32; 3],
@@ -242,7 +243,11 @@ impl CloudCompositePass {
             // direction-indexed octa map (0) with the half-res SCREEN
             // accumulation sampled at the fragment's own uv (1).
             cam_right: [cam_right[0], cam_right[1], cam_right[2], near_mix],
-            cam_up: [cam_up[0], cam_up[1], cam_up[2], frame.cmax],
+            // cam_up.w USED to carry the octa map's extent (cmax). The map
+            // is gone (v0.1261), so the slot now carries the DISCARD-REASON
+            // diagnostic flag: 0 = normal, 1 = paint why each pixel's cloud
+            // was killed instead of discarding it.
+            cam_up: [cam_up[0], cam_up[1], cam_up[2], discard_diag],
             center: [frame.center[0], frame.center[1], frame.center[2], frame.planet_r],
             basis_x: [frame.basis[0][0], frame.basis[0][1], frame.basis[0][2], frame.rb],
             basis_y: [frame.basis[1][0], frame.basis[1][1], frame.basis[1][2], frame.rt],
