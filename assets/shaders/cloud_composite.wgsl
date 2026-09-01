@@ -41,7 +41,6 @@ struct CloudCompositeUniforms {
 
 @group(0) @binding(0) var scene_depth: texture_depth_2d;
 @group(0) @binding(1) var<uniform> u: CloudCompositeUniforms;
-@group(0) @binding(2) var cloud_map: texture_2d<f32>;
 @group(0) @binding(3) var map_sampler: sampler;
 // 12g: the NEAR screen-pass accumulation, crossfaded with the octa map
 // by u.cam_right.w (0 = pure map, 1 = pure screen).
@@ -64,85 +63,6 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VsOut {
     out.pos = vec4<f32>(x, y, 0.0, 1.0);
     out.uv = vec2<f32>(x, y) * 0.5 + vec2<f32>(0.5);
     return out;
-}
-
-// Planet-local <-> world via the uniform's basis columns.
-fn to_local(v: vec3<f32>) -> vec3<f32> {
-    return vec3<f32>(
-        dot(v, u.basis_x.xyz),
-        dot(v, u.basis_y.xyz),
-        dot(v, u.basis_z.xyz),
-    );
-}
-
-fn to_world(v: vec3<f32>) -> vec3<f32> {
-    return u.basis_x.xyz * v.x + u.basis_y.xyz * v.y + u.basis_z.xyz * v.z;
-}
-
-// LOCKSTEP mirror of 40-clouds.wgsl cloud_map_up/cloud_map_tangents/
-// cloud_map_encode (the planet-fixed snapped basis).
-fn map_basis() -> mat3x3<f32> {
-    // CPU-hysteresis anchor (Wave D fix 2) - LOCKSTEP with cloud_map_up in
-    // 40-clouds.wgsl, which decodes the same anchor from camera pads.
-    let a_l = normalize(vec3<f32>(u.basis_z.w, u.proj.z, u.proj.w));
-    let up = normalize(to_world(a_l));
-    let axis = normalize(u.basis_y.xyz);
-    var t1 = cross(up, axis);
-    if (dot(t1, t1) < 1.0e-6) {
-        t1 = cross(up, normalize(u.basis_x.xyz));
-    }
-    t1 = normalize(t1);
-    let t2 = cross(up, t1);
-    return mat3x3<f32>(t1, up, t2);
-}
-
-// 12c extent encode - LOCKSTEP with cloud_map_encode_at in 40-clouds.wgsl.
-// Returns xy = uv, z = RAW r^2: z > 1 means the direction lies outside
-// the map's extent (no data - the caller discards; the CPU controller's
-// 4 deg margin means a slab-hitting ray should never land there).
-fn map_encode(d: vec3<f32>) -> vec3<f32> {
-    let b = map_basis();
-    let l = vec3<f32>(dot(d, b[0]), dot(d, b[1]), dot(d, b[2]));
-    let k = clamp(1.0 - u.cam_up.w, 1.0e-3, 2.0);
-    let r2 = (1.0 - l.y) / k;
-    let xz_len = max(length(l.xz), 1.0e-6);
-    let p = (l.xz / xz_len) * sqrt(clamp(r2, 0.0, 1.0));
-    return vec3<f32>(p * 0.5 + vec2<f32>(0.5), r2);
-}
-
-// Catmull-Rom bicubic over the 2048^2 map (operator: "in what ways can we
-// increase the resolution of the cloud layer?" - first answer: stop
-// throwing away the resolution we have). Bilinear over a premultiplied
-// RGBA16F map is a tent filter; at the composite's magnification it reads
-// as soft blocky mush. Catmull-Rom reconstructs the same texels visibly
-// sharper. 9 bilinear taps on a fullscreen pass is cheap; the max() guard
-// clips the filter's small negative undershoot (premultiplied data must
-// stay non-negative).
-fn map_catmull_rom(uv: vec2<f32>) -> vec4<f32> {
-    let res = vec2<f32>(4096.0, 4096.0);
-    let sample_pos = uv * res;
-    let tex_pos1 = floor(sample_pos - 0.5) + 0.5;
-    let f = sample_pos - tex_pos1;
-    let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
-    let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
-    let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
-    let w3 = f * f * (-0.5 + 0.5 * f);
-    let w12 = w1 + w2;
-    let offset12 = w2 / w12;
-    let tp0 = (tex_pos1 - 1.0) / res;
-    let tp3 = (tex_pos1 + 2.0) / res;
-    let tp12 = (tex_pos1 + offset12) / res;
-    var result = vec4<f32>(0.0);
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp0.y), 0.0) * w0.x * w0.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp0.y), 0.0) * w12.x * w0.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp0.y), 0.0) * w3.x * w0.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp12.y), 0.0) * w0.x * w12.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp12.y), 0.0) * w12.x * w12.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp12.y), 0.0) * w3.x * w12.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp0.x, tp3.y), 0.0) * w0.x * w3.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp12.x, tp3.y), 0.0) * w12.x * w3.y;
-    result += textureSampleLevel(cloud_map, map_sampler, vec2<f32>(tp3.x, tp3.y), 0.0) * w3.x * w3.y;
-    return max(result, vec4<f32>(0.0));
 }
 
 // Catmull-Rom over the half-res screen accumulation (v0.1251). The

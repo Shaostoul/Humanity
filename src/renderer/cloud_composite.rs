@@ -105,16 +105,6 @@ impl CloudCompositePass {
                         count: None,
                     },
                     wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
                         binding: 3,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
@@ -230,7 +220,6 @@ impl CloudCompositePass {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         depth_view: &wgpu::TextureView,
-        map_view: &wgpu::TextureView,
         view: &wgpu::TextureView,
         frame: &CloudCompositeFrame,
         screen_view: &wgpu::TextureView,
@@ -272,10 +261,6 @@ impl CloudCompositePass {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: self.param_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(map_view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,

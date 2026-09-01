@@ -1010,6 +1010,17 @@
     "assets/shaders/cloud_composite.wgsl",
     "assets/shaders/pbr/40-clouds.wgsl"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1261.0: THE OCTA MAP IS FULLY DELETED (operator: \"Let us go for the full delete. I still see the effect.\"). Removed end to end: (1) the composite bind-group texture + its layout entry + the WGSL @binding(2) declaration and every map helper (map_basis, map_encode, map_catmull_rom, to_local, to_world) - the s_map arm is gone, not zeroed; (2) the composite is now GATED ON THE SCREEN PAIR instead of the octa pair, which is why the map could not simply be deleted before (the composite refused to run without it) and which also removes the dummy map-view fallback; (3) set_cloud_temporal no longer ALLOCATES the 4096^2 RGBA16F ping-pong pair or its bind groups (~256 MB of VRAM freed) - it only records the material index; (4) the Cloud Octa Temporal Pass dispatch and its idle/boost bookkeeping are deleted from render_celestial_onto. Both feature sets compile; rig 3 vantages, panics=0, FPS unchanged or better (closeup 60.8 ms, 45 km 82.5, space 53.2).",
+   "why": "Operator still saw the disappear-in-splotches artifact after v0.1260 stopped SAMPLING the retired map, so the whole subsystem goes: a never-written render target is not a guaranteed-zero source on every backend/driver, and the only way to be certain something contributes nothing is for it not to exist. This also retires the last remnant of the two-renderer architecture (ONE RENDERER, v0.1250).",
+   "scope": [
+    "assets/shaders/cloud_composite.wgsl",
+    "src/renderer/cloud_composite.rs",
+    "src/renderer/cloud_temporal.rs",
+    "src/renderer/mod.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

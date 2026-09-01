@@ -1,5 +1,27 @@
 # HumanityOS: Priorities
 
+> **v0.1261.0 (2026-09-01): THE OCTA MAP IS FULLY DELETED.** Operator,
+> after v0.1260 stopped sampling it: "Let's go for the full delete. I
+> still see the effect." Removed end to end - the composite binding,
+> its layout entry, the WGSL declaration and every map helper
+> (map_basis / map_encode / map_catmull_rom / to_local / to_world); the
+> composite is now GATED ON THE SCREEN PAIR (it used to be gated on the
+> octa pair, which is exactly why the map could not simply be deleted -
+> the composite refused to run without it); set_cloud_temporal no
+> longer allocates the 4096^2 RGBA16F ping-pong pair or its bind groups
+> (~256 MB VRAM freed); and the Cloud Octa Temporal Pass dispatch plus
+> its idle/boost bookkeeping are gone from render_celestial_onto. Both
+> feature sets compile, 53 cloud tests green, rig 3 vantages panics=0,
+> FPS unchanged or better. This retires the last remnant of the
+> two-renderer architecture begun in v0.1250.
+> IF THE SPLOTCHES SURVIVE THIS, the map is definitively exonerated and
+> the next suspects are the composite's own discard paths - the scene-
+> depth occlusion test (terrain LOD patch depth in front of the cloud
+> segment) and the analytic planet-occlusion discard - both of which
+> can kill whole regions of cloud and neither of which has been
+> instrumented yet. A discard-reason bisect channel is the tool.
+
+
 > **v0.1260.0 (2026-09-01): the retired map was still being composited
 > - the operator diagnosed it blind.** They asked "is there another
 > shader or texture affecting cloud shaders that is not supposed to be?"

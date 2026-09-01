@@ -195,48 +195,20 @@ impl Renderer {
     /// Turn the temporal cloud path on (Some(cloud material index)) or off
     /// for this frame, creating the maps on first use. Called by lib.rs
     /// right after the cloud material update each frame.
+    /// Record which material carries the cloud shell this frame.
+    ///
+    /// ── THE OCTA MAP IS FULLY DELETED (v0.1261) ──
+    /// This used to allocate a 4096^2 RGBA16F PING-PONG PAIR (256 MB) for
+    /// the direction-indexed cloud map, plus its ping-pong bind groups.
+    /// The map stopped dispatching in v0.1250 (ONE RENDERER: the per-pixel
+    /// screen march owns the whole sky), and v0.1260 stopped compositing
+    /// its texture - which the operator had diagnosed from the outside as
+    /// "another texture affecting the clouds that is not supposed to be".
+    /// It still saw the effect afterwards, so the whole subsystem goes:
+    /// no allocation, no pass, no binding. A never-written render target
+    /// is not a guaranteed-zero source on every backend, and the only way
+    /// to be certain it contributes nothing is for it not to exist.
     pub fn set_cloud_temporal(&mut self, mat: Option<usize>) {
         self.cloud_temporal_mat = mat;
-        if mat.is_some() && self.cloud_temporal.is_none() {
-            let mk = |label: &str| {
-                let tex = self.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some(label),
-                    size: wgpu::Extent3d {
-                        width: CLOUD_OCTA_SIZE,
-                        height: CLOUD_OCTA_SIZE,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba16Float,
-                    // COPY_SRC (v0.1247): the cloudmap dev dump reads THESE
-                    // textures back (Cloud Octa Map A/B). The first fix put
-                    // the flag on the other create site in this file and the
-                    // rig reproduced the operator's live-session panic
-                    // verbatim - the dump target is here.
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                        | wgpu::TextureUsages::TEXTURE_BINDING
-                        | wgpu::TextureUsages::COPY_SRC,
-                    view_formats: &[],
-                });
-                let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
-                (tex, view)
-            };
-            let (t0, v0) = mk("Cloud Octa Map A");
-            let (t1, v1) = mk("Cloud Octa Map B");
-            let g0 = self.build_albedo_group_from_view(&v0, &self.albedo_sampler);
-            let g1 = self.build_albedo_group_from_view(&v1, &self.albedo_sampler);
-            self.cloud_temporal = Some(CloudTemporal {
-                _textures: [t0, t1],
-                views: [v0, v1],
-                groups: [g0, g1],
-                cur: std::cell::Cell::new(0),
-            });
-            log::info!(
-                "Cloud temporal accumulation ON: {0}x{0} octa map pair",
-                CLOUD_OCTA_SIZE
-            );
-        }
     }
 }

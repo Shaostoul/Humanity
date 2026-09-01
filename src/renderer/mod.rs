@@ -3731,19 +3731,11 @@ impl Renderer {
         // for reference but never dispatches; its texture remains
         // zero-initialized, so the composite's map backdrop contributes
         // nothing.
-        let octa_runs = false;
-        if octa_runs {
-            let idle = self.cloud_octa_idle.replace(0);
-            if idle >= 30 {
-                // Resume after a real freeze: the whole map is stale (wrong
-                // sun, wrong weather). A fade-in would REPLAY the stale
-                // content for seconds - boost the EMA floor to ~1 instead
-                // and decay over a few dispatched frames.
-                self.cloud_octa_boost.set(1.0);
-            }
-        } else {
-            self.cloud_octa_idle.set(self.cloud_octa_idle.get().saturating_add(1));
-        }
+        // ── THE OCTA PASS IS DELETED (v0.1261) ──
+        // It stopped dispatching in v0.1250 and its texture stopped being
+        // composited in v0.1260; the operator still saw the artifact, so
+        // the subsystem is gone entirely - no pass, no allocation, no
+        // binding. Nothing that never runs can contribute to a pixel.
         let boost = self.cloud_octa_boost.get();
         if boost > 0.0 {
             self.cloud_octa_boost.set((boost - 0.18).max(0.0));
@@ -3763,52 +3755,6 @@ impl Renderer {
             + (if self.cloud_shape_off { 2.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
-        if let (Some(ct), Some(mat_idx), true) = (
-            self.cloud_temporal.as_ref(),
-            self.cloud_temporal_mat,
-            octa_runs,
-        ) {
-            if let (Some(i), Some(material)) = (
-                transparent.iter().position(|o| o.material == mat_idx),
-                self.materials.get(mat_idx),
-            ) {
-                let slot = objects.len() + i;
-                if slot < MAX_OBJECTS {
-                    // The main pass's shared upload runs later; stage the
-                    // object uniforms now so the octa pass sees them.
-                    self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
-                    let read = ct.cur.get();
-                    let write = 1 - read;
-                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("Cloud Octa Temporal Pass"),
-                        timestamp_writes: self.pass_timer("gpu.cloud_octa"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &ct.views[write],
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        ..Default::default()
-                    });
-                    pass.set_pipeline(&self.pipeline.cloud_octa_pipeline);
-                    pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                    let uniform_align = 256_u64;
-                    pass.set_bind_group(
-                        1,
-                        &self.object_bind_group,
-                        &[(uniform_align as u32) * (slot as u32)],
-                    );
-                    pass.set_bind_group(2, &material.bind_group, &[]);
-                    pass.set_bind_group(3, &ct.groups[read].colour, &[]);
-                    pass.draw(0..3, 0..1);
-                    drop(pass);
-                    ct.cur.set(write);
-                }
-            }
-        }
 
         // ── 12e NEAR march + resolve ── two passes replace 12d's single
         // cadence+history hybrid (whose one blend constant could not both
@@ -4297,8 +4243,12 @@ impl Renderer {
                 );
             }
         }
-        if let (Some(ct), Some(frame), true) = (
-            self.cloud_temporal.as_ref(),
+        // v0.1261: gated on the SCREEN pair, which is the only cloud
+        // renderer since v0.1250. It used to be gated on the octa map's
+        // existence, which is exactly why the retired map could not just
+        // be deleted - the composite refused to run without it.
+        if let (Some(cs), Some(frame), true) = (
+            self.cloud_screen.as_ref(),
             self.cloud_composite_frame.as_ref(),
             self.cloud_temporal_mat.is_some(),
         ) {
@@ -4316,28 +4266,17 @@ impl Renderer {
             let right = glam::Vec3::new(vm.row(0).x, vm.row(0).y, vm.row(0).z);
             let up = glam::Vec3::new(vm.row(1).x, vm.row(1).y, vm.row(1).z);
             let eye = camera.effective_position();
-            // 12g: the composite crossfades the octa map with the half-res
-            // SCREEN accumulation by cloud_near_mix. When the screen pair
-            // does not exist yet (first near frame races
-            // ensure_cloud_screen) the octa map stands in at weight 0.
-            // v0.1244: the dist view rides along for the per-pixel regime
-            // key. When the screen pair does not exist the map view stands
-            // in as a dummy (near_mix 0 means the shader never reads it).
-            let (screen_view, dist_view, near_mix) =
-                match (self.cloud_mode_near, self.cloud_screen.as_ref()) {
-                    (true, Some(cs)) => (
-                        &cs.views[cs.cur.get()],
-                        &cs.dist_view,
-                        self.cloud_near_mix,
-                    ),
-                    _ => (&ct.views[ct.cur.get()], &ct.views[ct.cur.get()], 0.0),
-                };
+            // The screen accumulation IS the cloud image (v0.1261); the
+            // old crossfade weight survives only as the arming ramp.
+            let screen_view = &cs.views[cs.cur.get()];
+            let dist_view = &cs.dist_view;
+            let near_mix =
+                if self.cloud_mode_near { self.cloud_near_mix } else { 0.0 };
             self.cloud_composite.render(
                 &self.device,
                 &self.queue,
                 encoder,
                 &self.depth_view,
-                &ct.views[ct.cur.get()],
                 view,
                 frame,
                 screen_view,
