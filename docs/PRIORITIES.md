@@ -1,5 +1,32 @@
 # HumanityOS: Priorities
 
+> **v0.1256.0 (2026-09-01): THE PRIMITIVE WAS A BALL - per-cloud shape
+> frame.** Operator: "How can we make these clouds incredibly less
+> spherical... still just giant cotton balls of slightly varying
+> shape." Root cause, finally named: every lobe is length(p-c)-r, a
+> literal SPHERE. Domain warp, displacement, erosion and the smooth
+> union all DECORATE a round object - which is why twenty fidelity
+> increments never cured the cotton-ball reading. cloud_v2_body now
+> transforms the QUERY POINT into a per-cloud shape frame before the
+> cluster SDF: rotate into a wind direction shared across 8-cell
+> patches (free cloud STREETS), divide by shape axes (vertical squash
+> 0.42-0.88 from genus aspect, along-wind stretch 1.0-1.5, cross-wind
+> the reciprocal so the three multiply to 1 - volume and areal
+> coverage untouched), then scale the distance back by the smallest
+> axis so it stays a conservative bound for the march leap. Placement
+> AND lobes live in the frame, so a cloud stretches as one object, not
+> a string of stretched beads. Cost measured near-zero (12 vs 13.3
+> FPS). LOCKSTEP by design: applied in the FIELD, never inside
+> cv2_cloud_sdf, so the CPU twin and its 8 tests stay exactly valid.
+> NEXT, in order: (1) PERFORMANCE - at full res the march IS the frame
+> budget (4-5 FPS); a cost pass (step-count ceiling, empty-space
+> skipping, adaptive res) is what makes Half/Full usable, and it is
+> now the top item. (2) Coverage continuity across the pre-volumetric
+> to volumetric handoff. (3) Blueprint 1 (bake histogram matching) -
+> still the one MEASURED suspect left for the rosette. (4) Blueprint 2
+> remainder: size-span widening (V2) and the giants tier.
+
+
 > **v0.1255.0 (2026-09-01): CLOUD RESOLUTION IS A SETTING - the operator
 > question answered, and it was the biggest untried lever.** Yes: the
 > cloud layer really is lower resolution than the surface. The march has

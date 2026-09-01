@@ -961,6 +961,14 @@
     "src/engine/ipc.rs",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1256.0: THE PRIMITIVE WAS A BALL - per-cloud shape frame. Every lobe was length(p-c)-r, a literal sphere; displacement/erosion/smooth-union only decorate a round object, which is why 20 fidelity increments never cured \"cotton balls\". cloud_v2_body now transforms the QUERY POINT into a per-cloud shape frame before cv2_cloud_sdf: rotate into a wind direction shared across 8-cell patches (streets), divide by axes (vertical squash 0.42-0.88 mapped from genus aspect x per-cloud variation, along-wind stretch 1.0-1.5, cross-wind = the reciprocal so the three axes multiply to 1 and VOLUME/areal coverage are untouched), then scale the returned distance by the smallest axis so it stays a conservative bound for the march SDF leap. Reject radius inflated by the stretch; envelope arithmetic checked against the 3x3 search bound (990 < 1100 at humilis max). Placement and lobes both live in the frame, so a cloud stretches as ONE object, not a string of stretched beads.",
+   "why": "Operator on v0.1255.1: \"How can we make these clouds incredibly less spherical... still just giant cotton balls of slightly varying shape.\" Root cause is the primitive itself. LOCKSTEP: deliberately applied in the FIELD function, not inside cv2_cloud_sdf, so the CPU twin (cloud_primitives.rs) mirrors the cluster builder unchanged and all 8 of its tests stay valid. Rig: clouds render visibly flattened and wind-drawn, 12 FPS vs 13.3 baseline (near-free). ALSO from this round: full cloud resolution fixed the low-res planet from distance (operator confirmed). OPEN: performance (4-5 FPS at full res - the march is the whole frame budget, a cost pass is the next named item); pre-volumetric to volumetric coverage continuity; the rosette (every renderer mechanism cleared; mip-response drift/Blueprint 1 remains the one measured suspect).",
+   "scope": [
+    "assets/shaders/pbr/41-cloud-bodies.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

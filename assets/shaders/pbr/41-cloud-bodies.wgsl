@@ -97,6 +97,43 @@ const CLOUD_V2_RIND_M: f32 = 90.0;
 // smoothed, only sunlight transport is - the Nubis3 light-volume
 // discipline taken to its physical scale.
 const CLOUD_V2_SUN_SMOOTH_M: f32 = 260.0;
+
+// ── THE PRIMITIVE WAS A BALL (v0.1256, the operator's deepest read:
+// "How can we make these clouds incredibly less spherical... still just
+// giant cotton balls of slightly varying shape") ──
+// Every lobe is length(p - c) - r: a SPHERE. Displacement, erosion and
+// the smooth union all decorate that, but a union of balls reads as
+// balls - which is why every fidelity increment so far has been a
+// decoration on a fundamentally round object. Real cumulus are nothing
+// like isotropic: a fair-weather cloud is markedly WIDER THAN TALL (the
+// condensation level caps the base, the inversion caps the top, so
+// growth goes sideways), and the whole cell is drawn out ALONG THE WIND.
+//
+// The cure costs nothing per sample: transform the QUERY POINT into a
+// per-cloud shape frame (rotate into the wind, then divide by the shape
+// axes) before the cluster SDF, and scale the returned distance back by
+// the smallest axis so it stays a conservative bound for the march's
+// empty-space leap. Placement and lobes both live in that frame, so the
+// cloud stretches as ONE object - lobe spacing included - instead of
+// becoming a string of stretched beads. VOLUME IS PRESERVED: the three
+// axes multiply to exactly 1, so areal coverage and the occupancy law
+// do not move.
+//
+// LOCKSTEP NOTE: this rides in cloud_v2_body (the FIELD), deliberately
+// NOT inside cv2_cloud_sdf - the CPU twin (cloud_primitives.rs) mirrors
+// the cluster BUILDER, so keeping the transform outside it leaves the
+// twin's shape statistics and every one of its tests exactly valid.
+const CLOUD_V2_SQUASH_LO: f32 = 0.42;
+const CLOUD_V2_SQUASH_HI: f32 = 0.88;
+// Along-wind stretch. Bounded at 1.5 deliberately: the 3x3 neighbourhood
+// search gives a cloud centre 1.5 cells of reach, and 0.5*width*1.5 plus
+// the rind must stay inside it (checked at humilis 1200 m: 990 < 1100).
+const CLOUD_V2_WIND_STRETCH_LO: f32 = 1.00;
+const CLOUD_V2_WIND_STRETCH_HI: f32 = 1.50;
+// How many cells share one wind direction. Neighbours that agree are
+// what makes cloud STREETS - the strongest organisation a real
+// down-look sky has, and free here: the same hash at a coarser grid.
+const CLOUD_V2_WIND_PATCH_CELLS: f32 = 8.0;
 // Interior structure (v0.1231). Density at the condensation base as a
 // fraction of the adiabatic peak: a real cumulus base is thin and ragged,
 // which is why you can often see through the bottom edge of one.
@@ -697,15 +734,42 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // plus the rind suffices - the old 0.62 factor let clamped
             // lobes truncate at the reject edge.
             let height_m = arch_g.width_m * arch_g.aspect;
-            let br = arch_g.width_m * 0.5 + CLOUD_V2_RIND_M;
+            // ── PER-CLOUD SHAPE FRAME (v0.1256; see CLOUD_V2_SQUASH_LO) ──
+            // Wind direction is shared across a patch of cells so
+            // neighbours line up into streets; the squash and stretch are
+            // per cloud, so no two are the same shape.
+            let wcell = floor(vec2<f32>(ci, cj) / CLOUD_V2_WIND_PATCH_CELLS);
+            let wang = cv2_hash(wcell, 83.0) * 6.2831853;
+            let cwx = cos(wang);
+            let cwy = sin(wang);
+            let hsq = cv2_hash(cell, 71.0);
+            let hst = cv2_hash(cell, 73.0);
+            // Flat genera squash hardest; towering ones stay near round.
+            let asp01 = clamp(arch_g.aspect / 1.4, 0.0, 1.0);
+            let sy = mix(CLOUD_V2_SQUASH_LO, CLOUD_V2_SQUASH_HI, asp01)
+                * mix(0.88, 1.12, hsq);
+            let sx = mix(CLOUD_V2_WIND_STRETCH_LO,
+                CLOUD_V2_WIND_STRETCH_HI, hst);
+            let sz = 1.0 / max(sx * sy, 1.0e-3);
+            // The reject radius must cover the STRETCHED envelope or a
+            // wind-drawn cloud gets clipped at the cell test.
+            let smax = max(sx, sz);
+            let br = arch_g.width_m * 0.5 * smax + CLOUD_V2_RIND_M;
             if (ox * ox + oy * oy > br * br) {
                 continue;
             }
-            if (up_m > height_m + br) {
+            if (up_m > height_m * sy + br) {
                 continue;
             }
-            let local_m = vec3<f32>(ox, up_m, oy);
-            let d_cell = cv2_cloud_sdf(local_m, seed, arch_g);
+            // Rotate into the wind frame, then divide by the axes.
+            let wu = ox * cwx + oy * cwy;
+            let wv = -ox * cwy + oy * cwx;
+            let local_m = vec3<f32>(wu / sx, up_m / sy, wv / sz);
+            // Back to metres, conservatively: the smallest axis is the
+            // most the frame can have shrunk a real distance, so scaling
+            // by it keeps the SDF a valid lower bound for the leap.
+            let s_lo = min(sx, min(sy, sz));
+            let d_cell = cv2_cloud_sdf(local_m, seed, arch_g) * s_lo;
             if (d_cell < best) {
                 best = d_cell;
                 // Remember the WINNING cloud's own height, so the interior
