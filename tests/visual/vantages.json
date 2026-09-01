@@ -3494,6 +3494,31 @@
         "cloud_dither": "0"
       },
       "settle_s": 14
+    },
+    {
+      "id": "pinch-inside",
+      "desc": "5.9 km INSIDE the cloud layer, down-look - the operator v0.1266.1 capture: an enormous black/white pinwheel converging at the crosshair. Inside the deck m0 collapses to ~0 so the slab CHORD is the whole detail-scale term.",
+      "expect": "Cloud interior with NO radial pinwheel converging at the view centre.",
+      "regressions": [
+        "no radial pinch inside the cloud layer"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 5.9,
+        "look_offset_deg": 0,
+        "time": 16.3
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_dither": "0"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {

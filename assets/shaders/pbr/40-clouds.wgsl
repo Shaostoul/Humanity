@@ -448,6 +448,13 @@ const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
 // march - the sampling law must not smuggle it in). 1/48 = the old
 // full-budget density as a per-ray floor.
 const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
+// How much of the slab chord may influence the per-ray detail scale, in
+// KM (v0.1267). Beyond a few km of chord the extra length says nothing
+// about where the ray's visible cloud surface is - it only encodes how
+// obliquely the ray crosses the slab, which is a function of the
+// viewing angle and therefore paints a radial gradient. 4 km is the
+// scale of the cloud bodies themselves.
+const CLOUD_FOOT_CHORD_CAP: f32 = 4.0;
 // INTERIOR mean-free-path refinement (increment 10): once the march is
 // INSIDE cloud (previous sample's density above the gate), the step may
 // not exceed TAU_MAX optical depths - cumulus (45/km) refines to ~22 m,
@@ -2846,7 +2853,29 @@ fn cloud_march_core(
     // seg_step is the UNCLIPPED top-shell chord, continuous in d2 and therefore
     // across the tangent. The march still stops at the clipped m1; only the
     // detail scale is taken from the continuous one.
-    g_v2_foot_m = (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+    // ── THE CHORD MUST NOT SET THE DETAIL SCALE (v0.1267) ──
+    // This froze the per-ray footprint at the segment MIDPOINT, and the
+    // comment above admits what that costs: "the surface DETAIL of every
+    // cloud on the ray changes by 1.34 mip levels along one screen row.
+    // Coarser above where the segment is long, finer below where it is
+    // short." That IS a radial gradient - and INSIDE the deck it is the
+    // whole term, because m0 collapses to ~0 in every direction while
+    // the chord runs from a few km straight down to hundreds of km near
+    // the horizon. The operator: "It still exists very strongly while
+    // inside the cloud layer... I don't understand why it keeps pinching
+    // at the bottom." This is why.
+    //
+    // The chord tells you how much SLAB the ray crosses; it does not
+    // tell you where the visible surface is, which is what the detail
+    // scale should track. Capping its contribution at a cloud-scale
+    // distance keeps the useful part (a nearby surface is resolved
+    // finely) and drops the part that only encodes the viewing angle.
+    // OUTSIDE the deck this changes almost nothing - m0 dominates by
+    // orders of magnitude there, which is why the artifact was always
+    // strongest inside. The per-RAY freeze itself is preserved: the eye
+    // and all its sun taps still shade one surface (the v0.1234 rule).
+    let seg_foot = min(seg_step, CLOUD_FOOT_CHORD_CAP * g_cloud_upkm);
+    g_v2_foot_m = (m0 + seg_foot * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0;
     // Same freeze for the displacement mip, in the same units as `lodb`
     // (log2 of the footprint in km). The rind was frozen back in v0.1213 for
     // exactly this reason and the displacement was left behind.

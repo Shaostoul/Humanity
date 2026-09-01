@@ -1,5 +1,35 @@
 # HumanityOS: Priorities
 
+> **v0.1267.0 (2026-09-01): THE CHORD NO LONGER SETS THE DETAIL SCALE -
+> the inside-the-layer pinch.** Operator: "It still exists very
+> strongly while inside the cloud layer... I do not understand why it
+> keeps pinching at the bottom." The answer was already written in the
+> codebase, four releases before anyone connected it to the rosette:
+> g_v2_foot_m (the per-ray footprint that freezes the constructed
+> body's displacement / erosion / warp mip) was taken at the SEGMENT
+> MIDPOINT, and its own comment admits "the surface DETAIL of every
+> cloud on the ray changes by 1.34 mip levels along one screen row.
+> Coarser above where the segment is long, finer below where it is
+> short." That is a radial gradient - and INSIDE the deck it is the
+> WHOLE term, because m0 collapses to ~0 in every direction while the
+> chord runs from a few km straight down to hundreds near the horizon.
+> FIXED: the chord's contribution is capped at CLOUD_FOOT_CHORD_CAP =
+> 4 km (cloud-body scale). The useful part survives; the part that only
+> encodes viewing ANGLE is dropped. Outside the deck this changes
+> almost nothing (m0 dominates), which is exactly why the artifact was
+> always worst inside. The per-RAY freeze is preserved so the eye and
+> its sun taps still shade one surface (the v0.1234 rule).
+> FIVE RADIAL MECHANISMS ADDRESSED: placement lattice (v0.1252.7),
+> coverage/mip drift (v0.1263 + v0.1265), view-dependent sun
+> transmittance (v0.1264), view-dependent ambient relief (v0.1266),
+> chord-driven detail scale (this). GOVERNING TEST, which caught the
+> last three: does a photon arriving here care where the camera is?
+> A LESSON WORTH KEEPING: three of the five were already DOCUMENTED in
+> code comments as known scale-dependencies - written honestly, and
+> never connected to the artifact they were causing. When an artifact
+> resists, grep the comments for admissions before adding suspects.
+
+
 > **v0.1266.0 (2026-09-01): the ambient residue - and tau_vert
 > ELIMINATED by measurement.** Operator on v0.1265.1: "The rosette
 > lives but it is almost gone", with three faint residues - one "from
