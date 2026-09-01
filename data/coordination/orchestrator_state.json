@@ -1046,6 +1046,15 @@
     "src/renderer/clouds.rs",
     "src/gui/pages/cloud_dev.rs"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1264.0: SUN TRANSMITTANCE NO LONGER DEPENDS ON THE CAMERA - the second rosette, and a genuine physics bug. cloud_sun_tau computed each tap mip as max(lodb, log2(seg)): the sun tap was FLOORED BY THE VIEW FOOTPRINT. Sunlight arriving at a point in a cloud does not care where the camera is, but lodb does - on a down-look the footprint is monotone in the angle from the nadir, so the sun transmittance at a FIXED world point changed with the viewer screen angle. That is a radial lighting gradient centred on the view axis, by construction. Replaced with a view-INDEPENDENT band limit: the tap own segment length, floored by the 260 m radiative-smoothing scale (the same constant the profile body uses - below it multiple scattering means the sun physically cannot carry structure). tau is now a pure function of world position and sun direction, and cost is still capped the way the lodb floor capped it.",
+   "why": "THE OPERATOR SEPARATED THE TWO ROSETTES with one capture set: at 2.7 km under a thick deck their COVERAGE ALPHA channel is uniformly white - saturated, no pattern at all - while DIRECT SUN and AMBIENT show an enormous radial flower. Coverage saturates and hides its own drift; the lighting does not. So there are TWO radial mechanisms: the coverage/mip drift (largely flattened in v0.1263 - ladder +53% -> +7%) and this view-dependent sun tau. Also confirmed from their discard-bisect capture: RED (planet-horizon cull) fills everything below the horizon when under the deck, which is correct behaviour for downward rays, not a bug. Rig: 3 regression vantages panics=0, FPS unchanged (60.7 / 82.4 / 53.1 ms), 53 cloud tests green.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

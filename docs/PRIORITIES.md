@@ -1,5 +1,32 @@
 # HumanityOS: Priorities
 
+> **v0.1264.0 (2026-09-01): THE SECOND ROSETTE - sun transmittance no
+> longer depends on the camera.** The operator separated the two
+> mechanisms with one capture set: at 2.7 km under a thick deck their
+> COVERAGE ALPHA is uniformly white (saturated, no pattern) while
+> DIRECT SUN and AMBIENT show an enormous radial flower. Coverage
+> saturates and hides its drift; the lighting does not. THE BUG:
+> cloud_sun_tau computed each tap mip as max(lodb, log2(seg)) - the sun
+> tap FLOORED BY THE VIEW FOOTPRINT. Sunlight arriving at a point in a
+> cloud does not care where the camera is, but lodb does, and on a
+> down-look it is monotone in the angle from the nadir. So sun
+> transmittance at a FIXED world point changed with the viewer screen
+> angle: a radial lighting gradient centred on the view axis, by
+> construction. FIXED with a view-independent band limit - the tap own
+> segment length, floored by the 260 m radiative-smoothing scale - so
+> tau is a pure function of world position and sun direction, with cost
+> still capped.
+> TWO RADIAL MECHANISMS NOW ADDRESSED: coverage/mip drift (v0.1263,
+> ladder +53% -> +7%) and this. ALSO CONFIRMED from their discard
+> bisect: RED filling everything below the horizon under the deck is
+> CORRECT (downward rays are genuinely behind the planet), not a bug.
+> NEXT if a radial residue survives: audit every remaining term in the
+> lighting chain for lodb dependence the same way - tau_vert, the
+> ambient shaper and the powder gate all read view-derived quantities,
+> and the same question applies to each: does a photon arriving here
+> care where the camera is?
+
+
 > **v0.1263.0 (2026-09-01): THE ROSETTE MECHANISM CONFIRMED, AND
 > LARGELY CORRECTED - carve widths refitted against COVERAGE.**
 > Operator: "Ambient shows rosette. Direct sun shows rosette. Coverage

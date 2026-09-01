@@ -2350,7 +2350,32 @@ fn cloud_sun_tau(
         if (lr_t < g_cloud_rb || lr_t > g_cloud_rt) {
             continue;
         }
-        let lod_t = max(lodb, log2(max(seg / g_cloud_upkm, 1.0e-4)));
+        // ── SUN TAU MUST NOT DEPEND ON THE CAMERA (v0.1264) ──
+        // This was max(lodb, log2(seg)) - the sun tap's mip FLOORED BY THE
+        // VIEW FOOTPRINT. Sunlight arriving at a point in a cloud does not
+        // care where the camera is, but lodb does: on a down-look the
+        // footprint is monotone in the angle from the nadir, so the sun's
+        // transmittance at a FIXED world point changed with the viewer's
+        // screen angle - a radial lighting gradient centred on the view
+        // axis, by construction.
+        //
+        // The operator photographed exactly this and it is what separated
+        // the two rosettes: at 2.7 km under a thick deck their COVERAGE
+        // channel is uniformly white (saturated, no pattern at all) while
+        // DIRECT SUN and AMBIENT show an enormous radial flower. Coverage
+        // saturates and hides its own drift; the lighting does not.
+        //
+        // The band limit a sun tap is entitled to is its OWN segment
+        // length, floored by the radiative-smoothing scale (260 m - the
+        // scale below which multiple scattering means the sun physically
+        // cannot carry structure, the same constant the profile body
+        // uses). Both are world-space quantities, so tau is now a pure
+        // function of position and sun direction. It also caps cost the
+        // way the lodb floor used to, without the view dependence.
+        let lod_t = max(
+            log2(max(seg / g_cloud_upkm, 1.0e-4)),
+            log2(0.26),
+        );
         // ALL taps on the REAL eroded density (increment 10, the dots'
         // deepest root): the old body-only far taps returned ~1 across the
         // whole carved envelope - a MASK, not a density - which at

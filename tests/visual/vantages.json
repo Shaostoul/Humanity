@@ -3468,6 +3468,32 @@
         "map_diag": "1"
       },
       "settle_s": 14
+    },
+    {
+      "id": "sunflower-27",
+      "desc": "2.7 km under a thick deck, down-look, DIRECT SUN channel - the operator v0.1263.1 capture: coverage alpha uniformly white while direct sun shows an enormous radial flower.",
+      "expect": "Direct-sun luminance varying with the cloud field only - NO radial petal structure converging at the view centre.",
+      "regressions": [
+        "no radial flower in the direct-sun channel under a deck"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.7,
+        "look_offset_deg": 0,
+        "time": 15.8
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "map_diag": "2",
+        "cloud_dither": "0"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {
