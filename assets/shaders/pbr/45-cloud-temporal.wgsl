@@ -653,9 +653,16 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     // carve hinge keeps clear-sky footprints clear at coarse mips (the old
     // white-veil class), and the disc-range look is judged on the probe
     // ladder.
+    // FOOTPRINT = this march grid's OWN angular pixel size, computed from
+    // the rasterizer instead of assumed (v0.1255): ndc_step.y is 2/march_rows
+    // by construction, so ndc_step.y * tanf IS the march pixel's angular
+    // width. At the historical quarter-res this equals the old
+    // cloud_pix_ang_screen() * 4.0 exactly, and it now TRACKS the cloud
+    // resolution setting automatically - raising the resolution actually
+    // buys finer field detail instead of just a sharper upsample.
     let cur_s = cloud_march_core(
         rd_w, center, shell_r, jitter,
-        cloud_pix_ang_screen() * 4.0);
+        ndc_step.y * tanf);
 
     // First-hit distance for the resolve's reprojection; analytic
     // shell-top hit when the march saw no cloud (clear-sky pixels still

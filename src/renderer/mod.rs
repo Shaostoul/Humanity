@@ -485,6 +485,13 @@ pub struct Renderer {
     /// frozen spatial dither - smooth interiors, agate arcs on sheets.
     /// Written to pad light7_color.w (offset 332).
     pub cloud_dither_off: bool,
+    /// Cloud march resolution divisor (v0.1255, operator: "it seems like
+    /// the cloud layer is lower resolution than the surface layer, would
+    /// upping the resolution help?"). It IS lower: 4 = the historical
+    /// quarter-res march - one cloud sample per 4x4 screen pixels, which
+    /// is the "solid pixels" look and the binary opaque/clear edges.
+    /// 2 = half, 1 = full. The accumulation pair follows at half this.
+    pub cloud_res_div: u32,
     /// Cloud shell frame for the fullscreen depth-aware composite (Wave D
     /// slice 1b) - set by lib.rs at the cloud material fill site whenever
     /// the temporal map is armed; None disables the pass.
@@ -1692,6 +1699,7 @@ impl Renderer {
             cloud_resolve_motion: std::cell::Cell::new(None),
             cloud_temporal_off: false,
             cloud_dither_off: false,
+            cloud_res_div: 4,
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,

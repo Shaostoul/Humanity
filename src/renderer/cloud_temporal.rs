@@ -93,6 +93,8 @@ pub struct CloudScreen {
     /// drop the (zeroed) history outright instead of fading in from
     /// black over ~1/alpha frames.
     pub fresh: std::cell::Cell<bool>,
+    /// The march divisor these buffers were built for (v0.1255).
+    pub div: u32,
 }
 
 impl Renderer {
@@ -100,14 +102,23 @@ impl Renderer {
     /// resolution (12e: quarter-res march pair + half-res accumulation
     /// pair). Called by lib.rs when the near cloud mode is active.
     pub fn ensure_cloud_screen(&mut self) {
+        // v0.1255: the march resolution is a live setting (4 = the
+        // historical quarter res, 2 = half, 1 = full). The accumulation
+        // pair runs at half the march divisor so the resolve keeps its
+        // supersampling headroom at every setting. div is part of the
+        // identity test because divisors 2 and 1 SHARE an accumulation
+        // size - comparing size alone would silently keep a stale march
+        // texture at the old resolution.
+        let div = self.cloud_res_div.clamp(1, 4);
+        let adiv = (div / 2).max(1);
         let want = (
-            (self.config.width / 2).max(8),
-            (self.config.height / 2).max(8),
+            (self.config.width / adiv).max(8),
+            (self.config.height / adiv).max(8),
         );
         if self
             .cloud_screen
             .as_ref()
-            .map(|s| s.size == want)
+            .map(|s| s.size == want && s.div == div)
             .unwrap_or(false)
         {
             return;
@@ -148,8 +159,10 @@ impl Renderer {
             &self.device, "Cloud Screen B", want.0, want.1,
             wgpu::TextureFormat::Rgba16Float,
         );
-        // Quarter res = half of the half-res accumulation pair.
-        let (qw, qh) = ((want.0 / 2).max(8), (want.1 / 2).max(8));
+        let (qw, qh) = (
+            (self.config.width / div).max(8),
+            (self.config.height / div).max(8),
+        );
         let (mt, mv) = mk(
             &self.device, "Cloud March Color", qw, qh,
             wgpu::TextureFormat::Rgba16Float,
@@ -166,6 +179,7 @@ impl Renderer {
             groups: [g0, g1],
             cur: std::cell::Cell::new(0),
             size: want,
+            div,
             _march_tex: mt,
             march_view: mv,
             _dist_tex: dt,

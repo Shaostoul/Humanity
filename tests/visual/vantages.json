@@ -3227,18 +3227,20 @@
         "body": "earth",
         "lat": 24,
         "lon": 14,
-        "altitude_km": 17.1,
-        "look_offset_deg": 0,
-        "time": 14.3
+        "altitude_km": 94.1,
+        "look_offset_deg": 25,
+        "time": 16.4
       },
       "showcase": {
         "cloud_quality": "ultra",
         "clouds": "1",
-        "cloud_cover": "0.42",
+        "cloud_cover": "0.9",
         "cloud_type": "0.46",
-        "weather": "clear"
+        "weather": "rain",
+        "cloud_dither": "0",
+        "map_diag": "2"
       },
-      "settle_s": 20
+      "settle_s": 16
     },
     {
       "id": "flower-inside-high",
@@ -3338,6 +3340,81 @@
         "cloud_type": "0.46",
         "weather": "clear",
         "cloud_temporal": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "res-quarter",
+      "desc": "cumulus-closeup at cloud march resolution divisor 4 (4 quarter / 2 half / 1 full) - the operator resolution question, measured.",
+      "expect": "Lower divisor = sharper cloud edges, less blocky \"solid pixel\" look, lower FPS.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "res-half",
+      "desc": "cumulus-closeup at cloud march resolution divisor 2 (4 quarter / 2 half / 1 full) - the operator resolution question, measured.",
+      "expect": "Lower divisor = sharper cloud edges, less blocky \"solid pixel\" look, lower FPS.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "res-full",
+      "desc": "cumulus-closeup at cloud march resolution divisor 1 (4 quarter / 2 half / 1 full) - the operator resolution question, measured.",
+      "expect": "Lower divisor = sharper cloud edges, less blocky \"solid pixel\" look, lower FPS.",
+      "_why": "This is the operator's loudest and longest-running complaint - \"up close they are still an obvious ball pit\", \"each ball is made of millions of tiny balls\", \"it looks more like a ball pit than clouds that are merged together\". Every other cloud vantage looks at the deck from a distance where the primitive cannot be judged, which is exactly how a sphere-shaped density field survived so many reviews.",
+      "_pair_note": "Runs with cumulus-closeup-high. High uses the noise body, Ultra the constructed one; the pair is what tells apart \"the bodies improved\" from \"the whole sky changed\".",
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "1"
       },
       "settle_s": 12,
       "hold_altitude": true

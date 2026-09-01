@@ -243,6 +243,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_dither") {
         state.gui_state.cloud_dev_dither_off = t == "0";
     }
+    // {"cloud_res":"4|2|1"} sets the cloud march resolution divisor
+    // (4 = quarter, the historical default; 1 = full screen resolution).
+    if let Some(r) = grab("cloud_res").and_then(|t| t.parse::<u32>().ok()) {
+        state.gui_state.cloud_dev_res_div = r.clamp(1, 4);
+    }
     if let Some(sea) = grab("sea") {
         state.sea_state_override = if sea == "auto" {
             None

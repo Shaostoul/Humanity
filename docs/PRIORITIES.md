@@ -1,5 +1,31 @@
 # HumanityOS: Priorities
 
+> **v0.1255.0 (2026-09-01): CLOUD RESOLUTION IS A SETTING - the operator
+> question answered, and it was the biggest untried lever.** Yes: the
+> cloud layer really is lower resolution than the surface. The march has
+> always run at a QUARTER of screen resolution (one cloud sample per 4x4
+> screen pixels) while terrain renders full-res beside it - that IS the
+> "solid pixels" look and the "100% transparent or opaque" edges. New
+> cloud_res_div (4 quarter / 2 half / 1 full) in the F10 panel and via
+> showcase {"cloud_res"}. The march footprint now derives from
+> ndc_step.y * tanf (its own rasterized Nyquist rate) instead of a
+> hardcoded *4.0: bit-identical at quarter res, and it makes a
+> resolution raise buy real FIELD DETAIL rather than a sharper upsample.
+> MEASURED at the closeup vantage: 13.3 / 6.3 / 2.0 FPS for quarter /
+> half / full; half renders visible cauliflower turret structure where
+> quarter renders blobs. HALF IS THE SWEET SPOT pending a perf pass.
+> ALSO SETTLED: the sun-cone spiral is INNOCENT of the rosette - polar
+> decomposition of the direct-sun bisect, cone ON vs OFF, is identical
+> within content noise (ring 10.77 vs 10.01, spoke 13.73 vs 13.50). The
+> rosette is STILL UNCAUGHT after clearing every renderer mechanism;
+> the measured mip-response drift (Blueprint 1, histogram matching) is
+> the remaining named suspect and the next increment. THEN Blueprint 2
+> (field variety) for the cotton-ball shapes. PERF NOTE for the
+> resolution work: at 13 FPS quarter-res the march is already the frame
+> budget - a cost pass (step-count cap, empty-space skipping) would let
+> half res be the default.
+
+
 > **v0.1254.4 (2026-08-31): the F10 cloud dev panel + THE MEASURED
 > CALIBRATION BLUEPRINT.** F10 now opens a Cloud Dev panel (GUI-first:
 > dither toggle, temporal toggle, bisect-channel selector) driving the

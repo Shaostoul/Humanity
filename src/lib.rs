@@ -18464,6 +18464,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_temporal_off;
                                 state.renderer.cloud_map_diag =
                                     state.gui_state.cloud_dev_map_diag as f32;
+                                state.renderer.cloud_res_div =
+                                    state.gui_state.cloud_dev_res_div;
                                 // Time scrubber (v0.1224). Drained every frame
                                 // regardless of the weather-changed flag: the two
                                 // live in one panel but are independent channels,

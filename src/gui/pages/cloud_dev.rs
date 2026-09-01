@@ -67,6 +67,45 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
 
             ui.add_space(theme.spacing_sm);
             ui.label(
+                RichText::new("Cloud resolution")
+                    .strong()
+                    .color(theme.accent()),
+            );
+            // The operator, v0.1254.4: "It seems like the cloud layer is
+            // lower resolution than the surface layer, would upping the
+            // resolution of the cloud layer help at all?" It IS lower -
+            // the march has always run at a QUARTER of screen resolution
+            // (one cloud sample per 4x4 screen pixels), which is exactly
+            // the "solid pixels" look and the binary opaque-or-clear
+            // edges. Terrain renders full-res beside it. Raising this
+            // costs frames roughly with the pixel count, so it is a
+            // slider for their machine to answer, not a guess for mine.
+            ui.label(
+                RichText::new(
+                    "The cloud march runs BELOW screen resolution - this is \
+                     why cloud edges read as blocky pixels next to full-res \
+                     terrain. Higher costs frames roughly with pixel count.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+            );
+            let res_opts: [(u32, &str); 3] =
+                [(4, "Quarter"), (2, "Half"), (1, "Full")];
+            let mut res = state.cloud_dev_res_div.clamp(1, 4);
+            ui.horizontal(|ui| {
+                for (div, name) in res_opts {
+                    if ui.selectable_label(res == div, name).clicked() {
+                        res = div;
+                    }
+                }
+            });
+            if res != state.cloud_dev_res_div {
+                state.cloud_dev_res_div = res;
+                changed = true;
+            }
+
+            ui.add_space(theme.spacing_sm);
+            ui.label(
                 RichText::new("Bisect channel (grayscale forensics)")
                     .strong()
                     .color(theme.accent()),

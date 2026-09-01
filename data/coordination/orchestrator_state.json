@@ -946,6 +946,21 @@
     "src/input/bindings.rs",
     "src/gui/pages/keymap.rs"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1255.0: CLOUD RESOLUTION IS A SETTING (operator question answered: yes, the cloud layer really is lower resolution than the surface). The march has always run at a QUARTER of screen resolution - one cloud sample per 4x4 screen pixels, which IS the solid-pixels look and the binary opaque/clear edges. New cloud_res_div (4 quarter / 2 half / 1 full) in the F10 panel + showcase {cloud_res}. The march footprint now computes from ndc_step.y * tanf (its OWN rasterized Nyquist rate) instead of a hardcoded *4.0 - bit-identical at quarter res, and it means raising the resolution buys real field detail, not just a sharper upsample. Buffers proven scaling in the log: 640x346 -> 1280x693 -> 2560x1387. MEASURED cost at the closeup vantage: 13.3 / 6.3 / 2.0 FPS. Half res renders visibly real cauliflower turret structure where quarter renders blobs.",
+   "why": "Operator on v0.1254.4: adjusting every F10 setting did not touch the rosette; clouds still look like solid pixels; \"would upping the resolution of the cloud layer help at all? What have we not tried adjusting yet?\" - resolution was the untried lever and it is the largest single look change of the arc. ALSO SETTLED THIS ROUND: the sun-cone spiral is INNOCENT (polar decomposition of the direct-sun bisect, cone ON vs OFF: ringSD 10.77 vs 10.01, spokeSD 13.73 vs 13.50 - identical within content noise). The rosette remains uncaught; every renderer mechanism tested so far is cleared, and the measured mip-response drift (Blueprint 1) is the remaining named suspect.",
+   "scope": [
+    "src/renderer/mod.rs",
+    "src/renderer/cloud_temporal.rs",
+    "assets/shaders/pbr/45-cloud-temporal.wgsl",
+    "src/gui/pages/cloud_dev.rs",
+    "src/gui/mod.rs",
+    "src/lib.rs",
+    "src/engine/ipc.rs",
+    "tests/visual/vantages.json"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
@@ -975,7 +990,7 @@
   "Trees have no materialised identity, so they cannot be felled. The key (cell_x, cell_y, item_index) already exists structurally; a sparse delta store is the shape."
  ],
  "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
- "last_updated": "2026-08-31",
+ "last_updated": "2026-09-01",
  "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
  "overnight_plan_2026_08_01": {
   "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
