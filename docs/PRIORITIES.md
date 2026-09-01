@@ -1,5 +1,34 @@
 # HumanityOS: Priorities
 
+> **v0.1265.0 (2026-09-01): THE CARVE HINGE SPLIT - mip drift is now
+> essentially GONE.** The operator localised the residual exactly: "the
+> rosette is weakest now against the voxel clouds but still very
+> present in the SHADER clouds". The constructed (voxel) bodies take
+> coverage from an SDF with NO mip dependence; the noise (shader) body
+> coverage IS a thresholded mip - so the residual had to be the drift.
+> THE BLOCKER, now removed: the hinge had ONE per-mip number doing two
+> jobs - the half-width (a SOFTNESS, used as a DIVISOR, necessarily
+> positive) which also doubled as the threshold shift. The coverage fit
+> wants NEGATIVE shifts at mips 2-5, a divisor cannot go negative, and
+> so v0.1263 was clamped at its floor with 36% of the correction out of
+> reach. CLOUD_CARVE_T0..T8 is now a SIGNED threshold offset applied as
+> (body - (thr + T)) / sw, softness uniform, T carrying every shift.
+> MEASURED, mips 1-6: +18/28/27/35/34/53% (monotone CLIMB) before the
+> arc -> +18/18/18/14/14/7% after v0.1263 -> NOW +1/+1/0/-4/+4/-8%.
+> Scattered noise about zero instead of a climb, and scattered error
+> cannot form a coherent radial gradient. Total coverage error 0.947 ->
+> 0.408: the full unconstrained target.
+> THE THREE RADIAL MECHANISMS FOUND IN THIS ARC, all now addressed:
+> (1) coverage/mip drift (v0.1263 + this), (2) view-dependent sun
+> transmittance (v0.1264 - sun tau was floored by the VIEW footprint),
+> (3) the placement lattice projecting as orchard rows (v0.1252.7).
+> IF A RESIDUE REMAINS: continue the view-dependence audit - tau_vert,
+> the ambient shaper and the powder gate all read view-derived
+> quantities, and the test is one line: does a photon arriving here
+> care where the camera is? Anywhere the answer is no and the code says
+> yes is another rosette.
+
+
 > **v0.1264.0 (2026-09-01): THE SECOND ROSETTE - sun transmittance no
 > longer depends on the camera.** The operator separated the two
 > mechanisms with one capture set: at 2.7 km under a thick deck their

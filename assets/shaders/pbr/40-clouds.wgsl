@@ -698,8 +698,49 @@ const CLOUD_CARVE_W3: f32 = 0.0050;
 const CLOUD_CARVE_W4: f32 = 0.0050;
 const CLOUD_CARVE_W5: f32 = 0.0050;
 const CLOUD_CARVE_W6: f32 = 0.0050;
-const CLOUD_CARVE_W7: f32 = 0.0175;
+const CLOUD_CARVE_W7: f32 = 0.0050;
 const CLOUD_CARVE_W8: f32 = 0.0050;
+
+// ── SIGNED THRESHOLD OFFSET, SEPARATE FROM THE SOFTNESS (v0.1265) ──
+// The carve hinge had ONE per-mip number doing two jobs: it is the
+// hinge's half-width (a SOFTNESS, and a divisor, so necessarily
+// positive) and it doubles as a threshold shift, since coverage is
+// about P(body > thr - w). The coverage fit wants NEGATIVE shifts at
+// mips 2-5 - the mip distributions sit slightly high, not low - and a
+// divisor cannot go negative, so the fit was clamped at its floor and
+// left 36% of the achievable correction on the table (total coverage
+// error 0.643 legal vs 0.408 unconstrained).
+//
+// Splitting the roles frees it: W stays the positive softness, T is a
+// SIGNED threshold offset. The operator's evidence for why this
+// matters: the residual rosette is strongest in the SHADER (noise
+// path) clouds and weakest in the VOXEL (constructed) ones - and the
+// constructed body takes its coverage from an SDF with no mip
+// dependence at all, while the noise body's coverage IS a thresholded
+// mip. The remaining radial gradient is this drift.
+// Fitted by coverage_width_fit; re-run and paste after any bake change.
+const CLOUD_CARVE_T0: f32 = 0.0050;
+const CLOUD_CARVE_T1: f32 = 0.0050;
+const CLOUD_CARVE_T2: f32 = 0.0075;
+const CLOUD_CARVE_T3: f32 = 0.0075;
+const CLOUD_CARVE_T4: f32 = 0.0075;
+const CLOUD_CARVE_T5: f32 = 0.0075;
+const CLOUD_CARVE_T6: f32 = 0.0025;
+const CLOUD_CARVE_T7: f32 = -0.0125;
+const CLOUD_CARVE_T8: f32 = -0.0125;
+
+fn cloud_carve_thr_off(lod: f32) -> f32 {
+    var t: array<f32, 9> = array<f32, 9>(
+        CLOUD_CARVE_T0, CLOUD_CARVE_T1, CLOUD_CARVE_T2, CLOUD_CARVE_T3,
+        CLOUD_CARVE_T4, CLOUD_CARVE_T5, CLOUD_CARVE_T6, CLOUD_CARVE_T7,
+        CLOUD_CARVE_T8,
+    );
+    let l = clamp(lod, 0.0, 8.0);
+    let i = i32(floor(l));
+    let f = l - floor(l);
+    let i1 = min(i + 1, 8);
+    return mix(t[i], t[i1], f);
+}
 
 fn cloud_carve_width(lod: f32) -> f32 {
     var w: array<f32, 9> = array<f32, 9>(
@@ -1985,8 +2026,13 @@ fn cloud_carve(
     // mip 0 the width is ~0 and this IS the old hard ramp; deep mips
     // return partial coverage instead of all-or-nothing, which is what
     // stops silhouettes reshaping as the mip blend moves with distance.
-    let sw = cloud_carve_width(cloud_lod(lodb, CLOUD_LODC_SHAPE));
-    let zc = (body - thr) / sw;
+    let lod_shape = cloud_lod(lodb, CLOUD_LODC_SHAPE);
+    let sw = cloud_carve_width(lod_shape);
+    // The signed per-mip threshold offset (see CLOUD_CARVE_T0): coverage
+    // is P(body > thr + T - sw), so T corrects the mip's distribution
+    // shift in the direction the fit actually wants, while sw keeps its
+    // own job as the hinge softness.
+    let zc = (body - (thr + cloud_carve_thr_off(lod_shape))) / sw;
     // COMPACT-SUPPORT hinge (coverage-vs-footprint increment): the old
     // Gaussian-tail hinge 0.5*(z + sqrt(z^2 + 2/pi)) never returns zero,
     // and its ~1/|z| tail times an 11 km slab path integrated into a

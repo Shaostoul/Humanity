@@ -1607,13 +1607,13 @@ mod coverage_vs_mip {
             let mut best_e = f32::MAX;
             // Sweep both signs: a level whose distribution narrows needs a
             // POSITIVE width, one that widens needs a negative one.
-            // SHADER-LEGAL RANGE ONLY: the width is the hinge
-            // half-width and appears as a DIVISOR in the carve, so it must
-            // stay positive. The unconstrained fit wants small NEGATIVE
-            // values at mips 2-5, which is the fit saying the shipped
-            // widths push the threshold too far down; the best it can do
-            // legally is the floor.
-            for step in 2i32..=20 {
+            // FULL SIGNED RANGE (v0.1265): the hinge now carries a
+            // separate signed threshold offset T alongside the positive
+            // softness W, so the fit is no longer clamped at a floor. The
+            // printed value is the EFFECTIVE shift; convert to the shader
+            // constant with T = SW_FIXED - w (coverage is
+            // P(body > thr + T - sw)).
+            for step in -80i32..=80 {
                 let w = step as f32 * 0.0025;
                 let mut e = 0.0f32;
                 for (ti, thr) in thrs.iter().enumerate() {
@@ -1628,7 +1628,13 @@ mod coverage_vs_mip {
             fitted[l] = best_w;
             errs[l] = best_e;
         }
-        println!("coverage-fitted widths: {:?}", fitted);
+        println!("coverage-fitted effective shifts: {:?}", fitted);
+        // Convert to shader constants: the softness stays at the level-0
+        // value and T carries the rest of the shift.
+        const SW_FIXED: f32 = 0.005;
+        let t_consts: Vec<f32> =
+            fitted.iter().map(|w| SW_FIXED - *w).collect();
+        println!("PASTE CLOUD_CARVE_T0..T8: {t_consts:?}");
         println!("residual mean |dCoverage|: {:?}", errs);
         // The fit must actually reduce coverage error against the shipped
         // mean-fitted table, or the objective swap bought nothing.
@@ -1658,9 +1664,18 @@ mod coverage_vs_mip {
         // diagnostic reported the ladder of a width table that was no
         // longer shipping. A harness that does not track what ships is a
         // harness that lies; re-paste this with the WGSL constants.
-        let widths = [
-            0.005f32, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.0175, 0.005,
+        // MIRROR of the shipped WGSL tables. Since v0.1265 the hinge
+        // carries TWO per-mip numbers: CLOUD_CARVE_W (the positive
+        // softness) and CLOUD_CARVE_T (a SIGNED threshold offset).
+        // Coverage is P(body > thr + T - W), so the effective shift this
+        // harness needs is W - T. Re-paste both after any bake change.
+        let sw = [0.005f32; 9];
+        let toff = [
+            0.005f32, 0.005, 0.0075, 0.0075, 0.0075, 0.0075, 0.0025, -0.0125,
+            -0.0125,
         ];
+        let widths: Vec<f32> =
+            sw.iter().zip(toff.iter()).map(|(w, t)| w - t).collect();
         // thr = mix(COV_LO 0.854, COV_HI 0.347, wa): wa 1.0 -> 0.347 (the
         // pinned-coverage case), wa 0.9 -> 0.398 (MODIS-saturated), wa
         // 0.6 -> 0.550, wa 0.3 -> 0.702.

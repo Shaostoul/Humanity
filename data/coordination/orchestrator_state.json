@@ -1055,6 +1055,15 @@
     "assets/shaders/pbr/40-clouds.wgsl",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1265.0: THE CARVE HINGE SPLIT - softness and signed threshold offset separated, and the mip drift is now essentially GONE. The hinge had ONE per-mip number doing two jobs: the half-width (a SOFTNESS, used as a DIVISOR, necessarily positive) which also doubled as the threshold shift, since coverage is P(body > thr - w). The coverage fit wants NEGATIVE shifts at mips 2-5 (those mip distributions sit slightly HIGH), a divisor cannot go negative, so the v0.1263 fit was clamped at its floor and left 36% of the achievable correction unreachable (0.643 legal vs 0.408 unconstrained). Added CLOUD_CARVE_T0..T8, a SIGNED per-mip threshold offset, applied as (body - (thr + T)) / sw; refit in the new parameterization; softness held uniform at 0.005 (the value the fit assumes) and T carries every shift. Degenerate 1-voxel level 8 held equal to level 7 rather than taking its arbitrary +0.1125. MEASURED ladder, mips 1-6: was +18/28/27/35/34/53% (a monotone CLIMB) before the arc, +18/18/18/14/14/7% after v0.1263, and NOW +1/+1/0/-4/+4/-8% - scattered noise about zero rather than a climb, and scattered error cannot form a coherent radial gradient. Total coverage error 0.947 -> 0.408, the full unconstrained target.",
+   "why": "The operator localised the residual precisely: \"the rosette is weakest now against the voxel clouds but it is still very present in the SHADER clouds\", plus \"when I move, the rosette moves and which clouds are hidden moves to predictable spots in reference to the centre of the rosette\". The constructed (voxel) bodies take their coverage from an SDF with NO mip dependence; the noise (shader) body coverage IS a thresholded mip. That is exactly the residual drift this fixes. Also synced the ladder harness to mirror BOTH tables (it now computes the effective shift as W - T) - it had already been caught once holding a stale copy. Rig: 4 regression vantages, panics=0, FPS unchanged (60 / 82.4 / 51.2 / 58.9 ms), 53 cloud tests green.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "src/renderer/clouds.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
