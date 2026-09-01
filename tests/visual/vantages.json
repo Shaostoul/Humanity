@@ -3443,6 +3443,31 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "spider-135",
+      "desc": "135 km down-look over broken cloud - the operator v0.1262.1 coverage-alpha capture showing a radial spider converging at the crosshair.",
+      "expect": "Scattered cloud with NO radial spoke structure centred on the view axis.",
+      "regressions": [
+        "no radial spider at the view centre from high altitude"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 135,
+        "look_offset_deg": 0,
+        "time": 13.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.42",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "map_diag": "1"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {

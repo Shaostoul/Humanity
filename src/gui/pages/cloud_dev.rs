@@ -131,6 +131,27 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .size(theme.font_size_small)
                 .color(theme.text_secondary()),
             );
+            // The discard-reason bisect (v0.1262). This checkbox was
+            // MISSED when the feature shipped - the plumbing landed but the
+            // edit script aborted before the UI insert, so the operator had
+            // the flag with no way to reach it. GUI-first means the button
+            // ships in the same commit as the flag, every time.
+            let mut dsc = state.cloud_dev_discard_diag;
+            if ui
+                .checkbox(&mut dsc, "Discard reasons (why a pixel's cloud was killed)")
+                .changed()
+            {
+                state.cloud_dev_discard_diag = dsc;
+                changed = true;
+            }
+            ui.label(
+                RichText::new(
+                    "grey = the march found no cloud, GREEN = terrain in                      front, RED = planet horizon cull, blue = ray missed                      the shell, purple = behind camera, orange = empty slab.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_sm);
             let names = ["Off", "Coverage alpha", "Direct sun", "Ambient"];
             let mut pick = state.cloud_dev_map_diag.clamp(0, 3);
             ui.horizontal(|ui| {

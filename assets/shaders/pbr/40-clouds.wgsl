@@ -691,15 +691,15 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // left behind - matched distributions need no threshold correction, so
 // what remains is only the genuine sub-footprint spread of the soft
 // hinge. Re-run the harness and paste again after ANY bake change.
-const CLOUD_CARVE_W0: f32 = 0.005;
-const CLOUD_CARVE_W1: f32 = 0.005;
-const CLOUD_CARVE_W2: f32 = 0.010;
-const CLOUD_CARVE_W3: f32 = 0.010;
-const CLOUD_CARVE_W4: f32 = 0.015;
-const CLOUD_CARVE_W5: f32 = 0.015;
-const CLOUD_CARVE_W6: f32 = 0.020;
-const CLOUD_CARVE_W7: f32 = 0.020;
-const CLOUD_CARVE_W8: f32 = 0.020;
+const CLOUD_CARVE_W0: f32 = 0.0050;
+const CLOUD_CARVE_W1: f32 = 0.0050;
+const CLOUD_CARVE_W2: f32 = 0.0050;
+const CLOUD_CARVE_W3: f32 = 0.0050;
+const CLOUD_CARVE_W4: f32 = 0.0050;
+const CLOUD_CARVE_W5: f32 = 0.0050;
+const CLOUD_CARVE_W6: f32 = 0.0050;
+const CLOUD_CARVE_W7: f32 = 0.0175;
+const CLOUD_CARVE_W8: f32 = 0.0050;
 
 fn cloud_carve_width(lod: f32) -> f32 {
     var w: array<f32, 9> = array<f32, 9>(

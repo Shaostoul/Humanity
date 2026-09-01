@@ -1036,6 +1036,16 @@
     "src/engine/ipc.rs",
     "tests/visual/vantages.json"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1263.0: THE ROSETTE MECHANISM CONFIRMED AND LARGELY CORRECTED - carve widths refitted against COVERAGE. (1) CONFIRMATION: pinning the mip to a constant collapsed coverage from a full cloud field to almost nothing - coverage is enormously mip-sensitive, and the mip a sample takes is set by its footprint, which on a down-look is monotone in the angle from the nadir. Coverage that changes with mip therefore paints a radial gradient centred on the view axis. That is the rosette, and the operator confirmed it appears in ALL THREE bisect channels including COVERAGE ALPHA, which rules lighting out entirely. (2) NEW FITTER coverage_width_fit: sweeps the carve width per level minimizing absolute COVERAGE error vs the level-0 truth (the shipped fitter minimizes the error in the MEAN of E[relu], a different objective - which is how it passed its own gate while coverage drifted +53%). Unconstrained it wants small NEGATIVE widths (total error 0.947 -> 0.408); the width is a DIVISOR in the hinge so it must stay positive, and the best legal table gives 0.947 -> 0.643. (3) MEASURED RESULT on the ladder: mips 1-6 drift went from +18/28/27/35/34/53% (a monotone CLIMB) to +18/18/18/14/14/7% (nearly FLAT). A constant offset cannot paint a radial gradient; only a climbing one can. flower-nadir - the vantage that has shown agate mip rings for the whole arc - now renders flat and unstructured. (4) FIXED A LYING HARNESS: coverage_across_the_mip_ladder held its own STALE COPY of the width table, so it reported the ladder of a table that was no longer shipping - which is why earlier width changes appeared to do nothing. (5) Shipped the F10 \"Discard reasons\" checkbox that was MISSED in v0.1262 (the plumbing landed, the edit script aborted before the UI insert - the operator had the flag with no way to reach it).",
+   "why": "Operator: \"Ambient shows rosette. Direct sun shows rosette. Coverage alpha shows it. Absolutely no settings in the F10 menu touch the rosette.\" All three channels showing it is what localised this to coverage rather than lighting, and the mip-pin test then proved the sensitivity outright.",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl",
+    "src/renderer/clouds.rs",
+    "src/gui/pages/cloud_dev.rs"
+   ]
   }
  ],
  "active_scopes_to_avoid": [

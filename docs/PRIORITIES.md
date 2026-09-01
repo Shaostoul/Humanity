@@ -1,5 +1,38 @@
 # HumanityOS: Priorities
 
+> **v0.1263.0 (2026-09-01): THE ROSETTE MECHANISM CONFIRMED, AND
+> LARGELY CORRECTED - carve widths refitted against COVERAGE.**
+> Operator: "Ambient shows rosette. Direct sun shows rosette. Coverage
+> alpha shows it." All three channels is what localised it to COVERAGE
+> rather than lighting. Then the decisive test: PINNING THE MIP to a
+> constant collapsed coverage from a full cloud field to almost
+> nothing - coverage is enormously mip-sensitive, and the mip a sample
+> takes is set by its footprint, which on a down-look is monotone in
+> the angle from the nadir. Coverage that changes with mip paints a
+> radial gradient centred on the view axis. THAT IS THE ROSETTE.
+> THE FIX: a new fitter (coverage_width_fit) sweeps the carve width per
+> level minimizing absolute COVERAGE error against the level-0 truth -
+> the objective the standing note asked for since it was written. The
+> shipped fitter minimizes the MEAN of E[relu], which is how it could
+> pass its own gate while coverage drifted +53%. MEASURED: mips 1-6
+> went from +18/28/27/35/34/53% (a monotone CLIMB) to
+> +18/18/18/14/14/7% (nearly FLAT). A constant offset cannot paint a
+> radial gradient; only a climbing one can. flower-nadir - the vantage
+> that has shown agate mip rings for this entire arc - now renders
+> flat and unstructured.
+> ALSO: the width is a DIVISOR in the hinge, so it must stay positive;
+> the unconstrained fit wants small NEGATIVE widths (0.947 -> 0.408 vs
+> the legal 0.643), which is the remaining headroom and would need the
+> hinge reformulated to take a signed threshold shift separately from
+> its softness. AND: coverage_across_the_mip_ladder held a STALE COPY
+> of the width table, so it reported the ladder of a table that was no
+> longer shipping - which is why earlier width edits appeared inert. A
+> harness that does not track what ships is a harness that lies.
+> AND: the F10 "Discard reasons" checkbox missed in v0.1262 now ships
+> (the plumbing landed but the edit script aborted before the UI
+> insert - GUI-first means the button ships in the same commit).
+
+
 > **v0.1262.0 (2026-09-01): the DISCARD-REASON BISECT, and the
 > composite is exonerated.** Every path in the cloud composite that
 > kills a pixel used to do it with a bare discard, so a region of

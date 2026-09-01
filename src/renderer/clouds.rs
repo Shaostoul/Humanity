@@ -1548,12 +1548,118 @@ mod coverage_vs_mip {
     /// composite; a swinging curve = coverage is not mip-conserved and
     /// the carve widths need refitting against COVERAGE, not mean.
     /// Run: cargo test --release --features native --lib coverage_vs_mip -- --ignored --nocapture
+    /// ── THE COVERAGE-OBJECTIVE WIDTH FIT (v0.1263) ──
+    ///
+    /// The standing note above has said since it was written that if the
+    /// coverage curve swings, "the carve widths need refitting against
+    /// COVERAGE, not mean". The shipped fitter
+    /// (carve_consistency_widths_are_fitted) minimizes the error in the
+    /// MEAN of E[relu(body - thr)], which is a different objective and is
+    /// why it can pass its own gate while areal coverage still drifts
+    /// +53% across the ladder.
+    ///
+    /// Why coverage is the objective that matters: at physical extinction
+    /// any carve above ~0.01 renders opaque through a km-scale slab, so
+    /// what the eye sees at a given mip is P(body_L > thr - W_L) - a
+    /// COVERAGE question, not a mean-density one. And the mip a sample
+    /// takes is set by its footprint, which on a down-look is monotone in
+    /// the angle from the nadir: coverage that changes with mip therefore
+    /// paints a radial gradient centred on the view axis. That is the
+    /// operator's rosette, and pinning the mip (2026-09-01) collapsed
+    /// coverage from a full field of cloud to almost nothing - the
+    /// sensitivity is not subtle.
+    ///
+    /// This fit sweeps W per level and picks the one minimizing absolute
+    /// coverage error against the level-0 truth, averaged over the
+    /// shipped threshold range. Run it and paste the printed table into
+    /// CLOUD_CARVE_W0..W8 in 40-clouds.wgsl.
+    /// Run: cargo test --release --features native --lib coverage_width_fit -- --ignored --nocapture
+    #[test]
+    #[ignore = "heavy (generates the 384^3 volume + mip chain); diagnostic"]
+    fn coverage_width_fit() {
+        let thrs = [0.347f32, 0.398, 0.550, 0.702];
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        let base = cloud_noise::generate_shape(threads);
+        let chain = cloud_noise::mip_chain(base, cloud_noise::SHAPE_SIZE);
+        // Level-0 truth: hard carve, no width.
+        let cover_at = |level: &[u8], thr: f32, w: f32| -> f32 {
+            let mut c = 0u64;
+            let mut n = 0u64;
+            for px in level.chunks_exact(4) {
+                if px[0] as f32 / 255.0 > thr - w {
+                    c += 1;
+                }
+                n += 1;
+            }
+            c as f32 / n.max(1) as f32
+        };
+        let truth: Vec<f32> =
+            thrs.iter().map(|t| cover_at(&chain[0], *t, 0.0)).collect();
+        let mut fitted = vec![0.0f32; chain.len()];
+        let mut errs = vec![0.0f32; chain.len()];
+        for (l, level) in chain.iter().enumerate() {
+            if l == 0 {
+                continue;
+            }
+            let mut best_w = 0.0f32;
+            let mut best_e = f32::MAX;
+            // Sweep both signs: a level whose distribution narrows needs a
+            // POSITIVE width, one that widens needs a negative one.
+            // SHADER-LEGAL RANGE ONLY: the width is the hinge
+            // half-width and appears as a DIVISOR in the carve, so it must
+            // stay positive. The unconstrained fit wants small NEGATIVE
+            // values at mips 2-5, which is the fit saying the shipped
+            // widths push the threshold too far down; the best it can do
+            // legally is the floor.
+            for step in 2i32..=20 {
+                let w = step as f32 * 0.0025;
+                let mut e = 0.0f32;
+                for (ti, thr) in thrs.iter().enumerate() {
+                    e += (cover_at(level, *thr, w) - truth[ti]).abs();
+                }
+                e /= thrs.len() as f32;
+                if e < best_e {
+                    best_e = e;
+                    best_w = w;
+                }
+            }
+            fitted[l] = best_w;
+            errs[l] = best_e;
+        }
+        println!("coverage-fitted widths: {:?}", fitted);
+        println!("residual mean |dCoverage|: {:?}", errs);
+        // The fit must actually reduce coverage error against the shipped
+        // mean-fitted table, or the objective swap bought nothing.
+        let shipped = [0.005f32, 0.005, 0.010, 0.010, 0.015, 0.015, 0.020, 0.020, 0.020];
+        let mut e_ship = 0.0f32;
+        let mut e_fit = 0.0f32;
+        for (l, level) in chain.iter().enumerate().skip(1) {
+            for (ti, thr) in thrs.iter().enumerate() {
+                e_ship += (cover_at(level, *thr, shipped[l.min(8)]) - truth[ti]).abs();
+                e_fit += (cover_at(level, *thr, fitted[l]) - truth[ti]).abs();
+            }
+        }
+        println!("total coverage error: shipped {e_ship:.4} -> fitted {e_fit:.4}");
+        assert!(
+            e_fit <= e_ship,
+            "the coverage fit must not be worse than the shipped table"
+        );
+    }
+
+
     #[test]
     #[ignore = "heavy (generates the 384^3 volume + mip chain); diagnostic"]
     fn coverage_across_the_mip_ladder() {
         // The shipped WGSL width table (40-clouds.wgsl CLOUD_CARVE_W0..W8).
+        // MIRROR of CLOUD_CARVE_W0..W8 in 40-clouds.wgsl. This array was
+        // a STALE COPY - it kept the pre-v0.1263 mean-fitted table, so the
+        // diagnostic reported the ladder of a width table that was no
+        // longer shipping. A harness that does not track what ships is a
+        // harness that lies; re-paste this with the WGSL constants.
         let widths = [
-            0.005f32, 0.005, 0.010, 0.010, 0.015, 0.015, 0.020, 0.020, 0.020,
+            0.005f32, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.0175, 0.005,
         ];
         // thr = mix(COV_LO 0.854, COV_HI 0.347, wa): wa 1.0 -> 0.347 (the
         // pinned-coverage case), wa 0.9 -> 0.398 (MODIS-saturated), wa
