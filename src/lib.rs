@@ -18468,6 +18468,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_clock_pin;
                                 state.renderer.cloud_chord_foot =
                                     state.gui_state.cloud_dev_chord_foot;
+                                state.renderer.cloud_world_shape_lod =
+                                    state.gui_state.cloud_dev_world_shape_lod;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

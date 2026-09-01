@@ -1,5 +1,54 @@
 # HumanityOS: Priorities
 
+> **v0.1269.0 (2026-09-01): THE PROBE RIG WAS FALLING.** The operator caught
+> it from a single HUD word: every rig capture reads `WALK x1 [F9 to fly]`
+> while their own session reads `FLY x1M - hover, no gravity`. The movement
+> PHYSICS reads `gui_state.dev_hover` (`MoveMode::from_dev_flight(dev_hover)`),
+> but `camera_request` set only `dev_fly_mode` + `controller.fly_mode` at all
+> three placement sites, so the model stayed in Walk: gravity pulled, the
+> ground clamped, and a camera placed at altitude SANK during its settle.
+> Measured drift: 5.9 km requested captured at 5.7; 3.4 requested captured at
+> 3.2. Every altitude-sensitive vantage in the cloud arc was shot below its
+> requested altitude, and cloud artifacts here are altitude-sensitive BY
+> DEFINITION (the deck spans 1-12 km and the whole question is where the
+> camera sits inside it). Fixed at all three sites; verified 9.2 km holds and
+> ground vantages still sit on the surface. Guard: `altitude-hold-check`.
+>
+> **That is the THIRD measurement-validity defect in two days** - the empty
+> vantage, the non-deterministic advection clock, and now the falling camera.
+> Together they explain the shape of this entire arc: fixes that measured well
+> and then failed in flight. Before trusting ANY visual verdict from the rig,
+> confirm the capture is of the state you asked for.
+>
+> **Shape-lod hypothesis: TESTED, NOT CONFIRMED (honest negative).**
+> `g_v2_disp_lod` is assigned per sample from `lodb` = log2 of a
+> camera-distance footprint, which violates the invariant written directly
+> above its own declaration ("Displacement is SHAPE, so every evaluation that
+> reaches a given point in the world must agree on it"). Since lines of equal
+> distance-to-camera project to circles centred on the nadir, camera-anchored
+> shape detail would paint exactly the observed artifact, and the fine
+> displacement octave (`CLOUD_V2_INT_LODC` = -9.56) ramps across roughly
+> 1.7 km to 425 km - the near field - at a mip per doubling. Built the test
+> behind dev pad bit 3 (F10 "World-anchored cloud shape"). Result at 9.2 km,
+> clock pinned: spoke 23.90 camera-anchored vs 23.48 world-anchored, inside
+> the 0.7 noise floor; step-comb frames visually near-identical. The invariant
+> IS violated and is worth fixing on principle, but it is NOT the carrier of
+> this artifact. Toggle kept, default off.
+>
+> Also hardened the dev pad bit tests: `chord_foot` was `w >= 3.5`, a
+> magnitude test a fourth bit would have silently broken - the same collision
+> that already caught the shape-frame flag earlier in this arc.
+>
+> STILL OPEN: the artifact is anchored to the local vertical (see the v0.1268
+> block below for that proof). Leading unexamined suspects, in order: the step
+> schedule's `dt_vert`, which divides by `r_rate = abs(dot(normalize(p), rd))`
+> - the ray's verticality - and so varies sampling density by up to 20x from
+> nadir to horizon; and the DECK DEPTH, since several regime bands span 4-6 km
+> of vertical extent (`t_h_lo`/`t_h_hi` against a 1-12 km slab) where real
+> cumulus is under 1 km thick, so looking down from inside it is looking down a
+> deep well of cloud rather than at a sheet. The second is the operator's own
+> multi-layer-atmosphere suggestion arriving from a different direction.
+
 > **v0.1268.0 (2026-09-01): THE ROSETTE IS ANCHORED TO STRAIGHT DOWN,
 > NOT TO THE CAMERA.** This corrects the heuristic printed further down
 > this file and the target of the last five fixes. Aim the camera 40

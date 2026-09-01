@@ -511,6 +511,13 @@ pub struct Renderer {
     /// tracking each sample own footprint. Comparison switch only - it turns
     /// the sun-channel rosette back on, which is the point of having it.
     pub cloud_chord_foot: bool,
+    /// Evaluate the SHAPE-defining cloud fields (domain warp, displacement
+    /// octaves) at a fixed WORLD level of detail instead of one chosen from
+    /// camera distance. The invariant is already written above
+    /// g_v2_disp_lod in 40-clouds.wgsl and the code violates it: a cloud
+    /// changes shape as you fly toward it, and lines of equal
+    /// distance-to-camera are circles centred on the nadir point.
+    pub cloud_world_shape_lod: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1725,6 +1732,7 @@ impl Renderer {
             cloud_res_div: 4,
             cloud_shape_off: false,
             cloud_chord_foot: false,
+            cloud_world_shape_lod: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3779,7 +3787,8 @@ impl Renderer {
         // Bit 0 (1.0) = dither off, bit 1 (2.0) = shape frame off.
         let dith = (if self.cloud_dither_off { 1.0f32 } else { 0.0 })
             + (if self.cloud_shape_off { 2.0f32 } else { 0.0 })
-            + (if self.cloud_chord_foot { 4.0f32 } else { 0.0 });
+            + (if self.cloud_chord_foot { 4.0f32 } else { 0.0 })
+            + (if self.cloud_world_shape_lod { 8.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

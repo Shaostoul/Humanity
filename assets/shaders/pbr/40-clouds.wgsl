@@ -448,6 +448,11 @@ const CLOUD_STEP_VERT_FRAC: f32 = 0.08;
 // march - the sampling law must not smuggle it in). 1/48 = the old
 // full-budget density as a per-ray floor.
 const CLOUD_STEP_SEG_FRAC: f32 = 0.020833;
+// Fixed WORLD level of detail for shape-defining fields, as log2 of a
+// footprint in km: -7.0 is about 8 m of world detail. Every evaluation that
+// reaches a world point agrees on it regardless of camera distance, which is
+// the invariant the g_v2_disp_lod comment already demands.
+const CLOUD_V2_SHAPE_LOD_WORLD: f32 = -7.0;
 // INTERIOR mean-free-path refinement (increment 10): once the march is
 // INSIDE cloud (previous sample's density above the gate), the step may
 // not exceed TAU_MAX optical depths - cumulus (45/km) refines to ~22 m,
@@ -2888,7 +2893,11 @@ fn cloud_march_core(
     // Bit 2 of the dev pad restores the old chord-frozen scale so ONE run
     // can capture both sides (the rig cannot A/B across builds honestly -
     // see cloud_clock_pin).
-    let chord_foot = camera.light7_color.w >= 3.5;
+    // Dev pad bits, each tested as a BIT. Magnitude tests ("w < 1.5",
+    // "w >= 3.5") break the moment a higher bit is added - that already
+    // caught the shape-frame flag once this arc.
+    let chord_foot = fract(camera.light7_color.w * 0.125) >= 0.5;
+    let world_shape_lod = camera.light7_color.w >= 7.5;
     g_v2_foot_m = select(
         m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
         (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
@@ -3118,7 +3127,24 @@ fn cloud_march_core(
         // eye sees; setting it here, from this sample's own footprint, before
         // the view density call, preserves exactly that - the sun march that
         // follows reuses the value - while giving near clouds near detail.
-        g_v2_disp_lod = lodb;
+        // ── SHAPE LOD: WORLD-ANCHORED OR CAMERA-ANCHORED (v0.1269 test) ──
+        // The comment on g_v2_disp_lod states the invariant plainly:
+        // "Displacement is SHAPE, so every evaluation that reaches a given
+        // point in the world must agree on it." Assigning it from lodb
+        // VIOLATES that - lodb is log2 of the footprint, and the footprint is
+        // camera distance times the pixel angle. So a cloud is shaped
+        // differently depending on how far away you are standing.
+        //
+        // That is a nadir-anchored artifact by geometry: looking at a shell,
+        // lines of equal distance-to-camera project to circles centred on the
+        // point straight below the camera. The fine displacement octave rides
+        // CLOUD_V2_INT_LODC = -9.56, whose mip ramp spans roughly 1.7 km to
+        // 425 km - precisely the near field - gaining a level per doubling of
+        // distance. Clouds at the nadir are nearest, so they get the most
+        // shape detail, and it thins with angle. Operator, flying it: "the
+        // further the clouds get from my feet the more normal the clouds look.
+        // The closer we get to my feet the worse the warping effect becomes."
+        g_v2_disp_lod = select(lodb, CLOUD_V2_SHAPE_LOD_WORLD, world_shape_lod);
         // The sun taps read g_v2_foot_m for the body rind. Set it from THIS
         // sample footprint, exactly as disp_lod is, so the eye and its eight
         // sun taps share one body scale that depends on distance to the

@@ -239,6 +239,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_chord_foot") {
         state.gui_state.cloud_dev_chord_foot = t == "1";
     }
+    // {"cloud_world_shape":"1"} evaluates the shape fields at a fixed
+    // world level of detail instead of one keyed on camera distance.
+    if let Some(t) = grab("cloud_world_shape") {
+        state.gui_state.cloud_dev_world_shape_lod = t == "1";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.
@@ -1021,6 +1026,16 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.camera.pitch = pitch;
         state.gui_state.dev_fly_mode = true;
         state.controller.fly_mode = true;
+        // GRAVITY OFF, exactly as F9 does it (v0.1269, operator catch). The
+        // PHYSICS reads gui_state.dev_hover - MoveMode::from_dev_flight(dev_hover)
+        // in lib.rs - not dev_fly_mode, so setting only the two flags above left
+        // the movement model in Walk: gravity pulled and the ground clamped, and
+        // a camera placed at altitude SANK during the settle. Every probe-rig
+        // capture in the cloud arc was taken below its requested altitude (5.9 km
+        // requested, 5.7 captured; 3.4 requested, 3.2 captured) and every rig HUD
+        // read WALK. surface_vr is zeroed so no inherited fall velocity carries in.
+        state.gui_state.dev_hover = true;
+        state.surface_vr = 0.0;
         state.gui_state.dev_travel_away = false;
         state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
         let _ = std::fs::create_dir_all("debug");
@@ -1243,6 +1258,16 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.camera.pitch = pitch;
         state.gui_state.dev_fly_mode = true;
         state.controller.fly_mode = true;
+        // GRAVITY OFF, exactly as F9 does it (v0.1269, operator catch). The
+        // PHYSICS reads gui_state.dev_hover - MoveMode::from_dev_flight(dev_hover)
+        // in lib.rs - not dev_fly_mode, so setting only the two flags above left
+        // the movement model in Walk: gravity pulled and the ground clamped, and
+        // a camera placed at altitude SANK during the settle. Every probe-rig
+        // capture in the cloud arc was taken below its requested altitude (5.9 km
+        // requested, 5.7 captured; 3.4 requested, 3.2 captured) and every rig HUD
+        // read WALK. surface_vr is zeroed so no inherited fall velocity carries in.
+        state.gui_state.dev_hover = true;
+        state.surface_vr = 0.0;
         state.gui_state.dev_travel_away = true;
         {
             let spin = state.current_spin;
@@ -1297,6 +1322,16 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     state.camera.pitch = pitch;
     state.gui_state.dev_fly_mode = true;
     state.controller.fly_mode = true;
+    // GRAVITY OFF, exactly as F9 does it (v0.1269, operator catch). The
+    // PHYSICS reads gui_state.dev_hover - MoveMode::from_dev_flight(dev_hover)
+    // in lib.rs - not dev_fly_mode, so setting only the two flags above left
+    // the movement model in Walk: gravity pulled and the ground clamped, and
+    // a camera placed at altitude SANK during the settle. Every probe-rig
+    // capture in the cloud arc was taken below its requested altitude (5.9 km
+    // requested, 5.7 captured; 3.4 requested, 3.2 captured) and every rig HUD
+    // read WALK. surface_vr is zeroed so no inherited fall velocity carries in.
+    state.gui_state.dev_hover = true;
+    state.surface_vr = 0.0;
     state.gui_state.dev_travel_away = true;
     // Frame-lock (v0.819): ride this body's rotating/orbiting frame so its
     // surface holds still instead of spinning past at tens of km/s. Capture

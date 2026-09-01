@@ -95,6 +95,22 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // "we have the F10 dev menu to toggle things on/off"). ON here
             // restores the OLD behaviour, so the rosette should come BACK -
             // that is how you tell the fix is doing something.
+            // The v0.1269 test. A cloud must not change SHAPE because you
+            // flew closer to it, and lines of equal distance-to-camera are
+            // circles centred on the nadir - which is exactly where the
+            // artifact sits.
+            let mut wsl = state.cloud_dev_world_shape_lod;
+            if ui
+                .checkbox(
+                    &mut wsl,
+                    "World-anchored cloud shape (shape detail stops following camera distance)",
+                )
+                .changed()
+            {
+                state.cloud_dev_world_shape_lod = wsl;
+                changed = true;
+            }
+
             let mut chord = state.cloud_dev_chord_foot;
             if ui
                 .checkbox(

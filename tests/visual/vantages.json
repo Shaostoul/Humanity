@@ -3634,6 +3634,67 @@
         "map_diag": "2"
       },
       "settle_s": 14
+    },
+    {
+      "id": "operator-nadir-comb",
+      "desc": "9.2 km, straight down, step-comb channel with discard reasons on - a replication of the operator v0.1268.1 capture that showed radial contour structure across the whole frame. Altitude only HOLDS here since the v0.1269 gravity fix; before it the rig sank during settle.",
+      "expect": "Cloud lobes seen from above. Radial elongation toward the nadir is partly real perspective through a deep deck; what must NOT appear is sharp thin slivers converging to a point.",
+      "regressions": [
+        "no sharp radial slivers at the nadir point"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 9.2,
+        "look_offset_deg": 0,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "map_diag": "5",
+        "cloud_discard": "1"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "altitude-hold-check",
+      "desc": "Rig correctness guard (v0.1269, operator catch): the camera must still be at 9.2 km when the capture is taken. camera_request used to set dev_fly_mode without gui_state.dev_hover, and the PHYSICS reads dev_hover - so the movement model stayed in Walk, gravity pulled, and every capture in the cloud arc was taken below its requested altitude.",
+      "expect": "HUD reads Alt: 9.2 km, not something lower.",
+      "regressions": [
+        "camera must not sink between placement and capture"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 9.2,
+        "look_offset_deg": 12,
+        "time": 10.28
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_dither": "1",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "map_diag": "0"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {
