@@ -3050,7 +3050,25 @@ fn cloud_march_core(
         if (dens <= 0.001) {
             continue;
         }
-        let a_i = 1.0 - exp(-sigma_v * dens * dt);
+        // ── TRAPEZOID OVER THE STEP (v0.1258, the operator's third
+        // layer: "one layer lower that just renders as static on the
+        // cloud surface") ──
+        // The opacity of a step was a POINT sample of density times the
+        // step length. At physical extinction (45/km) a 45 m step is
+        // tau 2 - so whether one pixel's jittered sample lands just
+        // inside or just outside the density ramp is the difference
+        // between opaque and clear, and adjacent pixels disagree at
+        // random. That coin flip IS the static on the surface, and it
+        // is why the coverage-alpha channel measured GRAINIER than
+        // either lighting channel (2.04 vs 0.36).
+        // The step is an INTEGRAL, not a sample, and we already hold
+        // both endpoints: the trapezoid is the exact integral of a
+        // linear ramp, halves the estimator's variance, and costs
+        // nothing. It also softens the first step into a cloud (where
+        // dens_prev is the clear air outside), which is exactly the
+        // binary opaque-or-clear edge the operator has been reporting.
+        let dens_i = 0.5 * (dens + dens_prev);
+        let a_i = 1.0 - exp(-sigma_v * dens_i * dt);
         if (first_t < 0.0) {
             first_t = tm;
         }

@@ -1,5 +1,34 @@
 # HumanityOS: Priorities
 
+> **v0.1258.0 (2026-09-01): THE ROSETTE UNIFIED WITH THE MEASURED MIP
+> DRIFT - Blueprint 1 is the cure, not a side quest.** The operator
+> described the artifact geometrically for the first time: "the bottom
+> 45 degree cone beneath my feet is scrunching the clouds together...
+> at a distance the textures look proper fluffy, closer to my feet they
+> warp inwards", plus "the static is concentrated at the CENTER of the
+> clouds". THE UNIFICATION: both quantities that set the march sampling
+> scale are monotone in the angle from the NADIR - r_rate (radial dot
+> ray) drives dt_vert, and foot = tm * pix_ang drives lodb/mip. Step
+> size AND detail mip therefore vary radially about the feet BY
+> CONSTRUCTION. The v0.1252.4 workflow already MEASURED that the
+> rendered result is not invariant to that scale (carve response
+> residual doubling per rung from mip 3, ~15% relative near threshold,
+> eight uncompensated taps). Appearance varying with a quantity that
+> varies radially about the crosshair IS the rosette. So BLUEPRINT 1
+> (per-mip histogram matching in cloud_noise.rs renormalize_level, then
+> refit the carve width table from the harness) is the direct cure for
+> the oldest complaint in the arc and is now THE next increment.
+> SHIPPED this round: trapezoid step integration (the exact integral of
+> a linear ramp over the step, using the endpoint density already held;
+> halves estimator variance, free; speck-alpha 2.04 -> 1.91).
+> ELIMINATED WITH NUMBERS: fine near-surface refine (-25% grain but
+> +64% cost, rejected as a trade); the fine erosion band (2.13 vs 2.04,
+> not the carrier); surface-centred sampling (2.39, worse - the
+> deterministic comb returns); interior turbulence 0.42->0.15 (1.99,
+> noise). Queue after Blueprint 1: multi-layer atmosphere (the top
+> FIDELITY item), perf part 2 (Nubis3 light grid + adaptive march res).
+
+
 > **v0.1257.0 (2026-09-01): cloud cost pass part 1, and the ATMOSPHERIC
 > LAYERS answer.** Operator at sub-1 FPS on max settings. The sun
 > ladder outnumbers view samples 12:1 and was doing two kinds of pure

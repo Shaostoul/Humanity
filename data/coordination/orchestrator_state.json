@@ -978,6 +978,14 @@
     "assets/shaders/pbr/40-clouds.wgsl",
     "assets/shaders/pbr/41-cloud-bodies.wgsl"
    ]
+  },
+  {
+   "date": "2026-09-01",
+   "decision": "v0.1258.0: trapezoid step integration + THE ROSETTE UNIFIED WITH THE MEASURED MIP DRIFT. Shipped: the march integrates each step as a trapezoid over its two endpoint densities (dens_prev is already held) instead of a point sample times the step length - the exact integral of a linear ramp, halves the estimator variance, free, and softens the first step into a cloud (the binary opaque-or-clear edge). speck-alpha 2.04 -> 1.91 at unchanged cost.",
+   "why": "Operator described the artifact geometrically for the first time: \"the bottom 45 degree cone beneath my feet is scrunching the clouds together... at a distance the textures look proper fluffy, closer to my feet they warp inwards\", plus \"the static is concentrated at the CENTER of the clouds\". THE UNIFICATION: both quantities that set the march sampling scale are monotone in the angle from the NADIR - r_rate (dot of the radial with the ray) drives dt_vert, and foot = tm * pix_ang drives lodb/mip. So step size AND detail mip vary radially about the feet by construction. The v0.1252.4 workflow MEASURED that the rendered result is NOT invariant to that scale (carve response residual doubling per rung from mip 3, up to ~15 percent relative near threshold, eight uncompensated taps). Appearance varying with a quantity that varies radially about the crosshair IS the rosette/warp/scrunch. Blueprint 1 (per-mip histogram matching in the bake + width-table refit) is therefore the DIRECT cure for the operator oldest complaint, not a side quest. FOUR SUSPECTS ELIMINATED WITH NUMBERS this round: fine near-surface refine (-25% grain but +64% cost - rejected as a trade), fine erosion band ERODE2 zeroed (2.13 vs 2.04 - not the carrier), surface-centred sampling (2.39 - worse, the deterministic comb returns), interior turbulence 0.42->0.15 (1.99 - noise).",
+   "scope": [
+    "assets/shaders/pbr/40-clouds.wgsl"
+   ]
   }
  ],
  "active_scopes_to_avoid": [
