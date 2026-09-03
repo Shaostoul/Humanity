@@ -548,6 +548,8 @@ pub struct Renderer {
     pub cloud_warp_bl: bool,
     /// Dev pad bit 10: carve normaliser floor (design item 2A, v0.1273).
     pub cloud_norm_floor: bool,
+    /// Dev pad bit 9: isotropic near step + bounded far angle term (v0.1274).
+    pub cloud_iso_step: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1772,6 +1774,7 @@ impl Renderer {
             cloud_est: true,
             cloud_warp_bl: true,
             cloud_norm_floor: false,
+            cloud_iso_step: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3841,7 +3844,8 @@ impl Renderer {
             + (if self.cloud_wide_edge { 64.0f32 } else { 0.0 })
             + (if self.cloud_est { 128.0f32 } else { 0.0 })
             + (if self.cloud_warp_bl { 256.0f32 } else { 0.0 })
-            + (if self.cloud_norm_floor { 1024.0f32 } else { 0.0 });
+            + (if self.cloud_norm_floor { 1024.0f32 } else { 0.0 })
+            + (if self.cloud_iso_step { 512.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

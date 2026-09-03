@@ -282,6 +282,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_norm_floor") {
         state.gui_state.cloud_dev_norm_floor = t == "1";
     }
+    // {"cloud_iso_step":"1"}: isotropic near step + bounded far angle term.
+    if let Some(t) = grab("cloud_iso_step") {
+        state.gui_state.cloud_dev_iso_step = t == "1";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

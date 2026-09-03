@@ -2986,6 +2986,23 @@ fn cloud_march_core(
     // Bit 8: band-limit the domain warp to its own tile (see
     // 41-cloud-bodies.wgsl) and refine at surfaces to rind/4.
     let warp_bl = fract(camera.light7_color.w * 0.001953125) >= 0.5;
+    // ── ISOTROPIC NEAR STEP + BOUNDED FAR ANGLE TERM (v0.1274, bit 9) ──
+    // Design items 1B + 1C. Inside 27 km the step carries NO term in the
+    // angle to the local vertical except distance itself: dt = clamp(cone,
+    // 30 m, slab_h * VERT_FRAC). The seg/16 near floor and the seg/48 chord
+    // floor are gone on this path - the winking they were added for was
+    // the stride lag the sample-anchored march removed, and the chord
+    // floor was a 48-sample cost floor that guaranteed nothing (for an
+    // in-deck down-look seg_step is the through-planet chord, so it never
+    // bound). Beyond 27 km an angle term is unavoidable: an orbital nadir
+    // ray needs <= 928 m radial steps while a limb ray with a 780 km slab
+    // chord needs >= 4 km to fit the iteration cap, so the far ceiling is
+    // 928 m / max(r_rate, 0.1) - a 10x range instead of the shipped 20x,
+    // the reference family (sample count varies ~2x with angle) - blended
+    // in over 27-54 km. Inside the deck t > 27 km exists only on rays
+    // more than 81 deg from vertical, the horizon band, never a ring
+    // about the nadir.
+    let iso_step = fract(camera.light7_color.w * 0.0009765625) >= 0.5;
     g_v2_foot_m = select(
         m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
         (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
@@ -3072,7 +3089,7 @@ fn cloud_march_core(
             max(seg * (1.0 / 16.0), 30.0 * g_cloud_upkm * 0.001)),
         // uniform: a fixed 30 m floor; the cone term owns the near field
         30.0 * g_cloud_upkm * 0.001,
-        uniform_step);
+        uniform_step || iso_step);
     // Per-ray physical extinction (phase 3): per-family sigma converted to
     // drawn units. Replaces the global CLOUD_HI_SIGMA_KM.
     let sigma_v = reg.ext_km / g_cloud_upkm;
@@ -3207,6 +3224,27 @@ fn cloud_march_core(
         // remains - one coarse sample (its footprint self-selects a
         // deep mip via `foot = max(.., dt * 0.25)`) instead of an
         // unsampled tail, and the near sampling is untouched.
+        if (iso_step) {
+            let t_km = t_cur / max(g_cloud_upkm, 1.0e-9);
+            let far = smoothstep(27.0, 54.0, t_km);
+            let ceil_near = slab_h * CLOUD_STEP_VERT_FRAC;
+            let ceil_far = ceil_near / max(r_rate, 0.1);
+            let dt_ceil = mix(ceil_near, ceil_far, far);
+            let near_floor = 30.0 * g_cloud_upkm * 0.001;
+            var dt_iso = clamp(t_cur * pix_ang * CLOUD_STEP_CONE_K, near_floor, dt_ceil);
+            // Keep the interior MFP ceiling, the skirt floor and the SDF
+            // refine/stride: they are geometry- and density-driven, not
+            // angle-driven, and 1A depends on them.
+            dt = min(min(dt, dt_iso), m1 - t_cur);
+            if (sdf_prev < 1.0e8) {
+                let margin_i = CLOUD_V2_RIND_M + CLOUD_V2_DISP_M + CLOUD_V2_DISP2_M
+                    + g_v2_warp_m + CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4;
+                let safe_i = sdf_prev - margin_i;
+                if (safe_i > 0.0) {
+                    dt = max(dt, min(safe_i * 0.001 * g_cloud_upkm, m1 - t_cur));
+                }
+            }
+        }
         if (fixed_step) {
             dt = min(fixed_dt, m1 - t_cur);
         }

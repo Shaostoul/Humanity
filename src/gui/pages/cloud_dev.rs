@@ -137,6 +137,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_warp_bl = wbl;
                 changed = true;
             }
+            let mut iso = state.cloud_dev_iso_step;
+            if ui
+                .checkbox(&mut iso, "Isotropic near step (no verticality or chord term inside 27 km)")
+                .changed()
+            {
+                state.cloud_dev_iso_step = iso;
+                changed = true;
+            }
             let mut nfl = state.cloud_dev_norm_floor;
             if ui
                 .checkbox(&mut nfl, "Carve normaliser floor (low-coverage stencil becomes a 450 m ramp)")
