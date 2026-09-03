@@ -18486,6 +18486,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_est;
                                 state.renderer.cloud_warp_bl =
                                     state.gui_state.cloud_dev_warp_bl;
+                                state.renderer.cloud_norm_floor =
+                                    state.gui_state.cloud_dev_norm_floor;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

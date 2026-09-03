@@ -137,6 +137,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_warp_bl = wbl;
                 changed = true;
             }
+            let mut nfl = state.cloud_dev_norm_floor;
+            if ui
+                .checkbox(&mut nfl, "Carve normaliser floor (low-coverage stencil becomes a 450 m ramp)")
+                .changed()
+            {
+                state.cloud_dev_norm_floor = nfl;
+                changed = true;
+            }
             let mut ustep = state.cloud_dev_uniform_step;
             if ui
                 .checkbox(&mut ustep, "Uniform march step (distance-only; no verticality term)")

@@ -783,6 +783,15 @@ const CLOUD_COV_LO: f32 = 0.854;
 // in cores. Normalizing the carve against the real body top keeps that
 // contract without retuning four erosion bands.
 const CLOUD_BODY_TOP: f32 = 0.79;
+// Floor on the carve normaliser (design item 2A, v0.1273, dev pad bit 10).
+// max(CLOUD_BODY_TOP - thr, 1e-3) collapses to a 1e-3 STENCIL whenever
+// thr + T > 0.79 (weather alpha below ~0.13): measured rise 25 m (p10 12 m),
+// the only genuine cliff on the tiled-noise path. 0.05 body units is a
+// ramp of about 450 m at the cell gradient. The hinge zero crossing
+// P(body > thr + T - sw) is untouched, so the fitted CLOUD_CARVE_W/T
+// tables and coverage_width_fit stay valid; only the slope above it is
+// bounded. Look change confined to the low-coverage residual-breaks regime.
+const CLOUD_CARVE_NORM_FLOOR: f32 = 0.05;
 // Coverage threshold for the CONSTRUCTED body. Near zero on purpose:
 // the per-cell occupancy law in 41-cloud-bodies.wgsl already applies
 // coverage, so this only has to keep clear air clear. Raising it
@@ -2104,8 +2113,10 @@ fn cloud_carve(
     // post-erosion 0.000 on every sky ray at pinned coverage 1.0; the
     // constant's own comment documents this contract but the code had
     // lost it).
+    let norm_floor = select(1.0e-3, CLOUD_CARVE_NORM_FLOOR,
+        fract(camera.light7_color.w * 0.00048828125) >= 0.5);
     let carve = clamp(
-        hinge * sw / max(CLOUD_BODY_TOP - thr, 1.0e-3), 0.0, 1.0) * env;
+        hinge * sw / max(CLOUD_BODY_TOP - thr, norm_floor), 0.0, 1.0) * env;
     // v0.1252.2: a second, CELL-FREE hinge for the tau_vert envelope (see
     // g_cloud_carve's note). The cell split is a COVERAGE mechanism
     // (where cloud exists); the vertical column-depth estimate feeding
@@ -2124,7 +2135,7 @@ fn cloud_carve(
         hinge_e = zc_e;
     }
     let carve_env = clamp(
-        hinge_e * sw / max(CLOUD_BODY_TOP - thr_env, 1.0e-3), 0.0, 1.0) * env;
+        hinge_e * sw / max(CLOUD_BODY_TOP - thr_env, norm_floor), 0.0, 1.0) * env;
     // Crown proximity: the rise threshold means this column's own top sits
     // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
     // up; how close this sample is to that crown drives the valley-shade /

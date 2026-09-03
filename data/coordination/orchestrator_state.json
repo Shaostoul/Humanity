@@ -1142,6 +1142,11 @@
       "date": "2026-09-01",
       "decision": "v0.1272: THE SHARP PREDICTION HELD. Depth-jitter factorial at 9.2 km, direct-sun channel, clock pinned, warp band-limit on: old march dither OFF 33.09 / ON 31.16 (gap 1.9, outside the 0.7 floor); sample-anchored march dither OFF 35.17 / ON 35.23 (gap 0.06). The jitter was averaging exactly the endpoint biases 1A removes, so the depth dither is no longer load-bearing: the operator can turn it OFF (their complaint: it hides detail behind static) without the rosette worsening. Operator-view composite at 9.2 km: old = every cloud filled with dark pepper and speckled rims; new = solid white bodies with soft rims and NO pepper - and the radial fan is now MORE legible because the noise that hid it is gone. DEFAULTS FLIPPED ON for bits 7 and 8 (est, warp_bl); the bits stay as old-behaviour instruments per the chord_foot pattern. The rosette remains a separate open carrier (see the gate entry).",
       "why": "A prediction written before the measurement, with a numeric threshold, came true; that is the standard this arc should have held to from the start."
+    },
+    {
+      "date": "2026-09-01",
+      "decision": "v0.1272.1 frame-time cost of the sample-anchored march + warp band-limit, measured on the standing vantages in the verification sweep (same rig, same settings, before/after the default flip): cumulus-closeup-ultra 13.3 -> 10.9 fps (-18%), nadir-anchor-40 18.9 -> 15.6 fps (-17%), flower-nadir 17.1 -> 16.2 fps (-5%), sahara-noon-ground unchanged. Inside the design budget of +15-25% frame time at Ultra on silhouette rays. If it needs recovering, the design lever is the refine step (rind/4 = 22 m -> rind/3 = 30 m), not the bisection. Also built 2A, the carve normaliser floor (bit 10, F10 Carve normaliser floor, default OFF pending a low-coverage vantage check): max(CLOUD_BODY_TOP - thr, 1e-3) collapsed to a 1e-3 stencil when weather alpha fell below ~0.13, the only genuine cliff on the tiled-noise path; the floor bounds the slope above the hinge zero crossing without touching the fitted width tables.",
+      "why": "Cost gets recorded beside benefit, or the next session re-measures it."
     }
   ],
   "active_scopes_to_avoid": [
