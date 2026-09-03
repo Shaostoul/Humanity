@@ -696,6 +696,8 @@ fn cloud_lod(lodb: f32, site_c: f32) -> f32 {
 // left behind - matched distributions need no threshold correction, so
 // what remains is only the genuine sub-footprint spread of the soft
 // hinge. Re-run the harness and paste again after ANY bake change.
+// Wide-edge experiment multiplier on the hinge width (dev pad bit 6).
+const CLOUD_EDGE_WIDE_MUL: f32 = 20.0;
 const CLOUD_CARVE_W0: f32 = 0.0050;
 const CLOUD_CARVE_W1: f32 = 0.0050;
 const CLOUD_CARVE_W2: f32 = 0.0050;
@@ -2032,12 +2034,42 @@ fn cloud_carve(
     // return partial coverage instead of all-or-nothing, which is what
     // stops silhouettes reshaping as the mip blend moves with distance.
     let lod_shape = cloud_lod(lodb, CLOUD_LODC_SHAPE);
-    let sw = cloud_carve_width(lod_shape);
+    // Bit 6 (v0.1271 experiment): WIDE EDGE - the density transition at a
+    // silhouette becomes a ramp CLOUD_EDGE_WIDE_MUL times the fitted hinge
+    // width, with the threshold shifted so the OUTER boundary stays where
+    // it was (the ramp extends inward). Real cloud edges are radiatively
+    // smoothed over ~250-400 m (Marshak 1995); a hinge of 0.005 noise units
+    // is metres wide and every march step that straddles it is a coin flip.
+    let wide_edge = fract(camera.light7_color.w * 0.0078125) >= 0.5;
+    let sw0 = cloud_carve_width(lod_shape);
+    // Runtime multiplier in light6_color.x (offset 304; zero-filled by the
+    // celestial pass and read by no shader - light5_cone_inner.y/.z looked
+    // free in a stale mod.rs comment but carry underwater extinction and
+    // pix_ang). F10 slider / showcase cloud_edge_mul; the constant is the
+    // fallback when the pad is 0.
+    let edge_mul = select(CLOUD_EDGE_WIDE_MUL, camera.light6_color.x,
+        camera.light6_color.x > 0.0);
+    // ASYMMETRIC (v0.1271 round 2): the first cut widened the hinge on BOTH
+    // sides with the threshold shifted to hold the outer boundary, which
+    // meant full density needed body > thr + 2*sw and at x60 the interior
+    // never saturated - the clouds thinned until the coverage alpha killed
+    // them, and the metric drop was mostly missing edges. Real cloud edges
+    // are a dense core with a wispy, low-density fringe OUTSIDE it, so the
+    // ramp widens outward only: the inner side keeps the fitted sw0 and
+    // saturates exactly where it did, the outer side stretches by edge_mul.
+    // Round 3: CENTERED symmetric widening. Round 1 shifted the threshold to
+    // hold the outer boundary and starved the interior; round 2 widened
+    // only the outer side and changed nothing. A ramp centred on the
+    // threshold keeps the mean coverage (P(body > thr)) to first order
+    // while both the boundary and the saturation move by sw/2 - the
+    // soft-remap shape production renderers use.
+    let sw = select(sw0, sw0 * edge_mul, wide_edge);
+    let thr_shift = 0.0;
     // The signed per-mip threshold offset (see CLOUD_CARVE_T0): coverage
     // is P(body > thr + T - sw), so T corrects the mip's distribution
     // shift in the direction the fit actually wants, while sw keeps its
     // own job as the hinge softness.
-    let zc = (body - (thr + cloud_carve_thr_off(lod_shape))) / sw;
+    let zc = (body - (thr + cloud_carve_thr_off(lod_shape) + thr_shift)) / sw;
     // COMPACT-SUPPORT hinge (coverage-vs-footprint increment): the old
     // Gaussian-tail hinge 0.5*(z + sqrt(z^2 + 2/pi)) never returns zero,
     // and its ~1/|z| tail times an 11 km slab path integrated into a
@@ -2898,6 +2930,21 @@ fn cloud_march_core(
     // caught the shape-frame flag once this arc.
     let chord_foot = fract(camera.light7_color.w * 0.125) >= 0.5;
     let world_shape_lod = fract(camera.light7_color.w * 0.0625) >= 0.5;
+    // Bit 5 (v0.1271 experiment): UNIFORM STEP - the march step depends on
+    // distance from the camera only, never on the angle between the ray
+    // and the local vertical. The step-count diagnostic prints a pinwheel
+    // about nadir because dt_vert divides by the ray verticality and
+    // dt_seg scales with the slab chord; with a cliff-like density edge the
+    // estimator MEAN depends on step spacing, so the converged image
+    // inherits that pinwheel and no look setting can remove it.
+    let uniform_step = fract(camera.light7_color.w * 0.015625) >= 0.5;
+    // Fixed step in METRES (light6_color.z, showcase cloud_step_m; 0 = off).
+    // The distance-only law above is still nadir-anchored on a down-look
+    // (distance to the deck varies with angle from nadir), so the honest
+    // test of estimator bias is a step that is the same everywhere.
+    let fixed_step_m = camera.light6_color.z;
+    let fixed_step = uniform_step && fixed_step_m > 0.0;
+    let fixed_dt = fixed_step_m * 0.001 * g_cloud_upkm;
     g_v2_foot_m = select(
         m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
         (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
@@ -2979,8 +3026,12 @@ fn cloud_march_core(
     // limb rays) keep their old step and their old cost; only the short
     // segments - small isolated clouds and silhouette skirts, exactly where
     // the operator sees the problem - get refined.
-    let step_near = min(slab_h * CLOUD_STEP_BAND_FRAC,
-        max(seg * (1.0 / 16.0), 30.0 * g_cloud_upkm * 0.001));
+    let step_near = select(
+        min(slab_h * CLOUD_STEP_BAND_FRAC,
+            max(seg * (1.0 / 16.0), 30.0 * g_cloud_upkm * 0.001)),
+        // uniform: a fixed 30 m floor; the cone term owns the near field
+        30.0 * g_cloud_upkm * 0.001,
+        uniform_step);
     // Per-ray physical extinction (phase 3): per-family sigma converted to
     // drawn units. Replaces the global CLOUD_HI_SIGMA_KM.
     let sigma_v = reg.ext_km / g_cloud_upkm;
@@ -3019,9 +3070,9 @@ fn cloud_march_core(
         let r_rate = abs(dot(normalize(p_cur), rd));
         let dt_vert = max(
             step_near,
-            slab_h * CLOUD_STEP_VERT_FRAC / max(r_rate, 0.05),
+            slab_h * CLOUD_STEP_VERT_FRAC / select(max(r_rate, 0.05), 1.0, uniform_step),
         );
-            let dt_seg = max(step_near, seg_step * CLOUD_STEP_SEG_FRAC);
+            let dt_seg = select(max(step_near, seg_step * CLOUD_STEP_SEG_FRAC), 1.0e9, uniform_step);
         var dt = min(
             min(
                 max(step_near, t_cur * pix_ang * CLOUD_STEP_CONE_K),
@@ -3086,6 +3137,9 @@ fn cloud_march_core(
         // remains - one coarse sample (its footprint self-selects a
         // deep mip via `foot = max(.., dt * 0.25)`) instead of an
         // unsampled tail, and the near sampling is untouched.
+        if (fixed_step) {
+            dt = min(fixed_dt, m1 - t_cur);
+        }
         if (i == CLOUD_STEP_ITER_CAP - 1) {
             dt = m1 - t_cur;
         }

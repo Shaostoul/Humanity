@@ -1,0 +1,1 @@
+const sharp=require("sharp");(async()=>{const {data,info}=await sharp(process.argv[2]).greyscale().raw().toBuffer({resolveWithObject:true});const W=info.width,H=info.height;let s=0,n=0,c=0;for(let y=Math.floor(H*0.2);y<H*0.8;y+=2)for(let x=Math.floor(W*0.2);x<W*0.8;x+=2){const l=data[y*W+x];s+=l;n++;if(l>235)c++;}console.log((s/n).toFixed(1)+" "+(100*c/n).toFixed(1));})();

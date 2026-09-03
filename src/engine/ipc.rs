@@ -249,6 +249,27 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_ring_cure") {
         state.gui_state.cloud_dev_ring_cure_off = t == "0";
     }
+    // {"cloud_uniform_step":"1"} / {"cloud_wide_edge":"1"}: the v0.1271
+    // estimator experiments (distance-only step; radiative-width edge).
+    if let Some(t) = grab("cloud_uniform_step") {
+        state.gui_state.cloud_dev_uniform_step = t == "1";
+    }
+    if let Some(t) = grab("cloud_wide_edge") {
+        state.gui_state.cloud_dev_wide_edge = t == "1";
+    }
+    // {"cloud_edge_mul":"40"} / {"cloud_rind_wide":"600"}: runtime values
+    // for the wide-edge experiment (0 = shader constants).
+    if let Some(m) = grab("cloud_edge_mul").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_edge_mul = m;
+    }
+    if let Some(m) = grab("cloud_rind_wide").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_rind_wide_m = m;
+    }
+    // {"cloud_step_m":"60"}: fixed march step in metres (needs
+    // cloud_uniform_step=1); 0 = off. The estimator-bias test.
+    if let Some(m) = grab("cloud_step_m").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_step_m = m;
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

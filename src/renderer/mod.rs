@@ -530,6 +530,18 @@ pub struct Renderer {
     /// carried its own radial signature. The DEPTH jitter is the term that
     /// actually suppresses the artifact (~3.6) and stays on its own switch.
     pub cloud_ring_cure_off: bool,
+    /// Experiment (dev pad bit 5): march step depends on camera distance only,
+    /// never on the angle to the local vertical.
+    pub cloud_uniform_step: bool,
+    /// Experiment (dev pad bit 6): density edge widened to the radiative
+    /// smoothing scale (~300 m) on both cloud paths.
+    pub cloud_wide_edge: bool,
+    /// Runtime edge-width multiplier on the carve hinge (0 = shader constant).
+    pub cloud_edge_mul: f32,
+    /// Runtime wide rind in metres for the constructed bodies (0 = constant).
+    pub cloud_rind_wide_m: f32,
+    /// Fixed march step in metres for the estimator test (0 = off).
+    pub cloud_step_m: f32,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1746,6 +1758,11 @@ impl Renderer {
             cloud_chord_foot: false,
             cloud_world_shape_lod: false,
             cloud_ring_cure_off: true,
+            cloud_uniform_step: false,
+            cloud_wide_edge: false,
+            cloud_edge_mul: 0.0,
+            cloud_rind_wide_m: 0.0,
+            cloud_step_m: 0.0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3031,6 +3048,14 @@ impl Renderer {
         // light4). The shader's shoal fade reads it, v0.1051.
         self.queue
             .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
+        // Cloud edge-width knobs in light6_color.xy (offset 304). NOT the
+        // light5 pads: the comment above calling them unused is stale -
+        // 548 is underwater_ext and 552 is pix_ang, both written per frame
+        // further down. light6_color is zero-filled by celestial_uniforms
+        // and read by no shader. The v0.1271 wide-edge experiment needs a
+        // runtime slider, not a rebuild per value.
+        self.queue.write_buffer(
+            &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m]));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all
@@ -3802,7 +3827,9 @@ impl Renderer {
             + (if self.cloud_shape_off { 2.0f32 } else { 0.0 })
             + (if self.cloud_chord_foot { 4.0f32 } else { 0.0 })
             + (if self.cloud_world_shape_lod { 8.0f32 } else { 0.0 })
-            + (if self.cloud_ring_cure_off { 16.0f32 } else { 0.0 });
+            + (if self.cloud_ring_cure_off { 16.0f32 } else { 0.0 })
+            + (if self.cloud_uniform_step { 32.0f32 } else { 0.0 })
+            + (if self.cloud_wide_edge { 64.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

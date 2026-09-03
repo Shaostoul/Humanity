@@ -3425,6 +3425,16 @@ pub struct GuiState {
     pub cloud_dev_world_shape_lod: bool,
     /// Disable the mip ring cure (default false - the cure runs).
     pub cloud_dev_ring_cure_off: bool,
+    /// Experiment: distance-only march step (v0.1271).
+    pub cloud_dev_uniform_step: bool,
+    /// Experiment: wide density edge (v0.1271).
+    pub cloud_dev_wide_edge: bool,
+    /// Edge-width multiplier (0 = shader default), v0.1271.
+    pub cloud_dev_edge_mul: f32,
+    /// Wide rind metres (0 = shader default), v0.1271.
+    pub cloud_dev_rind_wide_m: f32,
+    /// Fixed march step metres (0 = off), v0.1271.
+    pub cloud_dev_step_m: f32,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5265,6 +5275,11 @@ impl Default for GuiState {
             cloud_dev_chord_foot: false,
             cloud_dev_world_shape_lod: false,
             cloud_dev_ring_cure_off: true,
+            cloud_dev_uniform_step: false,
+            cloud_dev_wide_edge: false,
+            cloud_dev_edge_mul: 0.0,
+            cloud_dev_rind_wide_m: 0.0,
+            cloud_dev_step_m: 0.0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

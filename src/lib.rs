@@ -18472,6 +18472,16 @@ mod native_app {
                                     state.gui_state.cloud_dev_world_shape_lod;
                                 state.renderer.cloud_ring_cure_off =
                                     state.gui_state.cloud_dev_ring_cure_off;
+                                state.renderer.cloud_uniform_step =
+                                    state.gui_state.cloud_dev_uniform_step;
+                                state.renderer.cloud_wide_edge =
+                                    state.gui_state.cloud_dev_wide_edge;
+                                state.renderer.cloud_edge_mul =
+                                    state.gui_state.cloud_dev_edge_mul;
+                                state.renderer.cloud_rind_wide_m =
+                                    state.gui_state.cloud_dev_rind_wide_m;
+                                state.renderer.cloud_step_m =
+                                    state.gui_state.cloud_dev_step_m;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

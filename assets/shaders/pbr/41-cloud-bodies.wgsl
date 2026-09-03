@@ -79,6 +79,10 @@ const CLOUD_V2_WARP_LODC: f32 = -5.2;
 // Rind over which density falls to zero at the surface, in metres. The
 // erosion bands chew into this, so it must be wide enough to have room.
 const CLOUD_V2_RIND_M: f32 = 90.0;
+// Wide-edge experiment rind, metres (radiative smoothing scale).
+const CLOUD_V2_RIND_WIDE_M: f32 = 300.0;
+// Peak density of the outer skirt (fraction of full), wide-edge experiment.
+const CLOUD_V2_SKIRT_DENS: f32 = 0.35;
 // ── SUN-SMOOTHING SCALE (field-coherence rebuild, 2026-08-31) ──
 // Radiative smoothing (Marshak et al. 1995; the Landsat 200-400 m scale
 // break): multiple scattering transports photons ~250-400 m LATERALLY
@@ -931,9 +935,22 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // CLOUD_V2_SUN_SMOOTH_M). The flag is set once per ladder and
     // shared by every tap (single-exit hygiene in cloud_sun_tau), so
     // the per-tap-rind eyeball-ring class (v0.1230) cannot return.
-    let rind = select(CLOUD_V2_RIND_M, CLOUD_V2_SUN_SMOOTH_M,
+    let rind0 = select(CLOUD_V2_RIND_M, CLOUD_V2_SUN_SMOOTH_M,
         g_sun_profile > 0.5);
-    let core = clamp(-(best - disp_m + erode_m) / rind, 0.0, 1.0);
+    // Wide-edge experiment (dev pad bit 6, see CLOUD_EDGE_WIDE_MUL in
+    // 40-clouds.wgsl): the constructed body ramp widens to the radiative
+    // smoothing scale. Outer boundary unchanged; the ramp extends inward.
+    let wide_edge = fract(camera.light7_color.w * 0.0078125) >= 0.5;
+    let rind_wide = select(CLOUD_V2_RIND_WIDE_M, camera.light6_color.y,
+        camera.light6_color.y > 0.0);
+    // Asymmetric here too (v0.1271 round 2): the dense core keeps the fitted
+    // rind and saturates where it did; a low-density SKIRT extends outward
+    // over rind_wide metres, the wispy fringe real cumulus has outside the
+    // dense boundary. Widening the rind itself thinned the interior.
+    let d_m = best - disp_m + erode_m;
+    let core0 = clamp(-d_m / rind0, 0.0, 1.0);
+    let skirt = CLOUD_V2_SKIRT_DENS * clamp(1.0 - d_m / rind_wide, 0.0, 1.0);
+    let core = select(core0, max(core0, skirt), wide_edge);
 
     // ── THE INTERIOR (v0.1231) ──
     //

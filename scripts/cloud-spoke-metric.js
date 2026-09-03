@@ -16,7 +16,11 @@
 //
 // Repeat-capture noise floor is about 0.7, so treat smaller gaps as nothing.
 const sharp = require('sharp');
-const CX = 1280, CY = 690, R0 = 30, R1 = 320, NA = 720;
+// Centre defaults to the screen centre. Pass CX/CY/R1 via env to aim at the
+// NADIR pixel on a tilted look: y_nadir = 720 + 720*tan(look_offset_deg) at
+// 90 deg FOV / 1440 rows (758 at 3 deg, 873 at 12 deg, 1324 at 40 deg).
+const CX = +(process.env.CX || 1280), CY = +(process.env.CY || 690),
+      R0 = 30, R1 = +(process.env.R1 || 320), NA = 720;
 
 async function profile(file) {
   const { data, info } = await sharp(file).greyscale().raw()

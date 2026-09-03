@@ -115,6 +115,57 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
 
+            // The v0.1271 estimator experiments. Thesis: the density edge is a
+            // cliff a few metres wide sampled with steps of tens to hundreds of
+            // metres, so every edge sample is a coin flip (the glitter) and the
+            // converged mean depends on step spacing, which is a function of
+            // the angle to the local vertical (the rosette). Two levers.
+            let mut ustep = state.cloud_dev_uniform_step;
+            if ui
+                .checkbox(&mut ustep, "Uniform march step (distance-only; no verticality term)")
+                .changed()
+            {
+                state.cloud_dev_uniform_step = ustep;
+                changed = true;
+            }
+            if state.cloud_dev_uniform_step {
+                let mut sm = state.cloud_dev_step_m;
+                if ui
+                    .add(egui::Slider::new(&mut sm, 0.0..=600.0).text("fixed step m (0 = off)"))
+                    .changed()
+                {
+                    state.cloud_dev_step_m = sm;
+                    changed = true;
+                }
+            }
+            let mut wedge = state.cloud_dev_wide_edge;
+            if ui
+                .checkbox(&mut wedge, "Wide cloud edge (~300 m ramp, radiative smoothing scale)")
+                .changed()
+            {
+                state.cloud_dev_wide_edge = wedge;
+                changed = true;
+            }
+
+            if state.cloud_dev_wide_edge {
+                let mut m = if state.cloud_dev_edge_mul > 0.0 { state.cloud_dev_edge_mul } else { 20.0 };
+                if ui
+                    .add(egui::Slider::new(&mut m, 1.0..=200.0).text("edge width x (hinge)"))
+                    .changed()
+                {
+                    state.cloud_dev_edge_mul = m;
+                    changed = true;
+                }
+                let mut r = if state.cloud_dev_rind_wide_m > 0.0 { state.cloud_dev_rind_wide_m } else { 300.0 };
+                if ui
+                    .add(egui::Slider::new(&mut r, 90.0..=1500.0).text("body rind m"))
+                    .changed()
+                {
+                    state.cloud_dev_rind_wide_m = r;
+                    changed = true;
+                }
+            }
+
             let mut wsl = state.cloud_dev_world_shape_lod;
             if ui
                 .checkbox(
