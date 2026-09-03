@@ -542,6 +542,10 @@ pub struct Renderer {
     pub cloud_rind_wide_m: f32,
     /// Fixed march step in metres for the estimator test (0 = off).
     pub cloud_step_m: f32,
+    /// Dev pad bit 7: the sample-anchored march (v0.1272).
+    pub cloud_est: bool,
+    /// Dev pad bit 8: warp band-limited to its own tile + rind/4 refine.
+    pub cloud_warp_bl: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1763,6 +1767,8 @@ impl Renderer {
             cloud_edge_mul: 0.0,
             cloud_rind_wide_m: 0.0,
             cloud_step_m: 0.0,
+            cloud_est: true,
+            cloud_warp_bl: true,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3829,7 +3835,9 @@ impl Renderer {
             + (if self.cloud_world_shape_lod { 8.0f32 } else { 0.0 })
             + (if self.cloud_ring_cure_off { 16.0f32 } else { 0.0 })
             + (if self.cloud_uniform_step { 32.0f32 } else { 0.0 })
-            + (if self.cloud_wide_edge { 64.0f32 } else { 0.0 });
+            + (if self.cloud_wide_edge { 64.0f32 } else { 0.0 })
+            + (if self.cloud_est { 128.0f32 } else { 0.0 })
+            + (if self.cloud_warp_bl { 256.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

@@ -263,6 +263,12 @@ var<private> g_march_first_t: f32 = 0.0;
 // March iterations actually used by the last cloud_march_core call (dev
 // instrument: the flower-nadir ring forensics render this; costs one MOV).
 var<private> g_march_iters: f32 = 0.0;
+// Depth of the first ACCEPTED sample below the last clear one, in metres
+// (map_diag 6). The v0.1271 twin predicts a 0-600 m per-pixel hash on the
+// shipped march (first accepted sample 311 +- 280 m deep at 1.5 km) and a
+// flat <= 30 m field once the march is sample-anchored. It is the gate that
+// cannot pass by setup: it must read RED on the old march first.
+var<private> g_march_first_depth_m: f32 = 0.0;
 // Rosette-bisect channels (v0.1249 forensics): luminance of the DIRECT-sun
 // and AMBIENT contributions of the last march, accumulated with the same
 // transmittance weights as the radiance. The octa pass renders one of them
@@ -2945,6 +2951,30 @@ fn cloud_march_core(
     let fixed_step_m = camera.light6_color.z;
     let fixed_step = uniform_step && fixed_step_m > 0.0;
     let fixed_dt = fixed_step_m * 0.001 * g_cloud_upkm;
+    // ── THE SAMPLE-ANCHORED MARCH (v0.1272, dev pad bit 7) ──
+    // The v0.1271 assessment (1-D twins of this loop) found the shipped
+    // march biased to FIRST order in the step h: the march position t_cur
+    // and the sample position tm were two different variables, and every
+    // endpoint rule mixed them - the SDF stride was measured at tm and
+    // spent from t_cur (overshoot up to a full step, first accepted sample
+    // 311 +- 280 m deep, 39-76% of 400 m clouds missed at 1.5-6 km), the
+    // coarse-entry backtrack rewound to the step start not the last clear
+    // sample, the entry trapezoid ran against dens_last = 0, the first-step
+    // rewind landed behind the eye, and the exit half-step was dropped.
+    // Inside the deck h = seg/16 = 188 m / cos(theta), so each of those is a
+    // nadir pinwheel in the MEAN, and the frozen per-pixel jitter makes each
+    // a static coin flip: the rosette, the glittering edges and the dark
+    // pepper inside bright bodies are one cause. With est on, the state IS
+    // the last sample: the next sample is t_cur + dt, the stride is
+    // measured and spent from the same point, entry is localised by a
+    // 2-tap bisection instead of a rewind, the eye-inside-cloud case is
+    // primed with one tap at m0, and the trapezoid integrates exactly
+    // between consecutive samples. Twin: bias -0.43 -> -0.02, sd 0.25 ->
+    // 0.087, identical across approach distances.
+    let est = fract(camera.light7_color.w * 0.00390625) >= 0.5;
+    // Bit 8: band-limit the domain warp to its own tile (see
+    // 41-cloud-bodies.wgsl) and refine at surfaces to rind/4.
+    let warp_bl = fract(camera.light7_color.w * 0.001953125) >= 0.5;
     g_v2_foot_m = select(
         m0 * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
         (m0 + seg_step * 0.5) * pix_ang / max(g_cloud_upkm, 1.0e-9) * 1000.0,
@@ -3057,6 +3087,29 @@ fn cloud_march_core(
     // Follows the same one-step lag as dens_prev: the step has to commit
     // before the new sample is known, and the jitter decorrelates the lag.
     var sdf_prev = 1.0e9;
+    // Sample-anchored bookkeeping: the last sample position (the trapezoid
+    // integrates from it) and the last CLEAR sample (the entry depth).
+    var t_last = m0;
+    var t_last_clear = m0;
+    g_march_first_depth_m = 0.0;
+    if (est && m0 <= 1.0e-6) {
+        // The eye is inside the slab: one tap AT the eye primes the state so
+        // the first step is already MFP-refined and no entry ever fires at
+        // t = 0 - the behind-the-eye integration the operator sees as the
+        // rosette being strongest inside clouds.
+        let p0 = ro;
+        let dirp0 = normalize(p0);
+        let foot0 = max(step_near * 0.25, 1.0e-6);
+        let lodb0 = log2(max(foot0 / g_cloud_upkm, 1.0e-4));
+        g_v2_disp_lod = select(lodb0, CLOUD_V2_SHAPE_LOD_WORLD, world_shape_lod);
+        let wlod0 = max(log2(max(foot0 / g_cloud_upkm / 27.8, 1.0)), 0.0);
+        let wa0 = clamp(
+            cloud_alpha_from_field(
+                cloud_weather_adv(dirp0, t, seed, wind_ang, wlod0), coverage)
+                + reg.cover_bias, 0.0, 1.0);
+        dens_prev = cloud_density_hi(p0, t, seed, wa0, reg, 1.0, 1.0, 1.0, lodb0).x;
+        sdf_prev = g_v2_sdf_m;
+    }
     for (var i = 0; i < CLOUD_STEP_ITER_CAP; i = i + 1) {
         if (t_cur >= m1) {
             break;
@@ -3083,6 +3136,12 @@ fn cloud_march_core(
         if (dens_prev > CLOUD_STEP_INTERIOR_GATE) {
             let dt_mfp = CLOUD_STEP_TAU_MAX / (sigma_v * dens_prev);
             dt = min(dt, max(dt_mfp, slab_h * 0.002));
+        }
+        // Skirt floor (est): dt_mfp = 0.75/(sigma*dens) is 167 m at dens 0.1
+        // and 333 m at 0.05 - it refines cores and abandons exactly the
+        // skirt the eye sees. Hold the step to 0.5% of the slab there.
+        if (est && dens_prev > CLOUD_STEP_INTERIOR_GATE && dens_prev < 0.3) {
+            dt = min(dt, slab_h * 0.005);
         }
         // ── SDF-GUIDED STEP (v0.1230): stride the gaps, refine at surfaces ──
         //
@@ -3117,7 +3176,7 @@ fn cloud_march_core(
             if (safe_m > 0.0) {
                 dt = max(dt, safe_m * to_draw);
             } else {
-                dt = min(dt, CLOUD_V2_RIND_M * 0.5 * to_draw);
+                dt = min(dt, CLOUD_V2_RIND_M * select(0.5, 0.25, est || warp_bl) * to_draw);
             }
             dt = min(dt, m1 - t_cur);
         }
@@ -3145,7 +3204,13 @@ fn cloud_march_core(
         }
         // The jitter places the sample inside its own step - same
         // decorrelation role it had in the exp-spaced form.
-        let tm = t_cur + dt * jitter;
+        // est: the sample IS the march state. The ladder-phase jitter stays
+        // on the first step only; every later sample sits exactly dt after
+        // the previous one, so the trapezoid interval is exact.
+        var tm = t_cur + dt * jitter;
+        if (est) {
+            tm = t_cur + dt * select(1.0, max(jitter, 1.0e-3), i == 0);
+        }
         // LADDER-PHASE JITTER (v0.1242, the melted-flower fix). Sampling
         // inside the step is not enough: the step ENDPOINTS themselves were
         // one deterministic comb anchored at m0 and shared by every ray, so
@@ -3158,11 +3223,15 @@ fn cloud_march_core(
         // shifts the entire comb per pixel/frame; the count boundary then
         // dithers across a full step and the resolve's accumulation
         // averages the treads away.
-        if (i == 0) {
+        if (est) {
+            t_cur = tm;
+        } else if (i == 0) {
             t_cur = t_cur + dt * max(jitter, 1.0e-3);
         } else {
             t_cur = t_cur + dt;
         }
+        let seg_len = tm - t_last;
+        t_last = tm;
 
         let p = ro + rd * tm;
         let dirp = normalize(p);
@@ -3249,7 +3318,41 @@ fn cloud_march_core(
         // march read 45% darker than it). Nubis-style fix: reject the
         // coarse step, back up, and re-march the span at MFP resolution
         // (dens_prev primes the interior refinement above).
-        if (dens > CLOUD_STEP_INTERIOR_GATE
+        if (est && dens > CLOUD_STEP_INTERIOR_GATE
+            && dens_prev <= CLOUD_STEP_INTERIOR_GATE && seg_len > 2.0 * step_near)
+        {
+            // ENTRY LOCALISATION (est): two bisection taps on [last clear
+            // sample, this sample] find the crossing to within seg_len/4,
+            // then the march restarts FROM the crossing at the MFP step. No
+            // rewind, so nothing is integrated behind the last clear sample
+            // and no sunlit front is lost. Localisation error h/4 -> mean
+            // bias <= h/24 (8-22 m, under the 22 m sunlit skin at 45/km).
+            var lo = t_last_clear;
+            var hi = tm;
+            var dens_hi = dens;
+            for (var b = 0; b < 2; b = b + 1) {
+                let mid = 0.5 * (lo + hi);
+                let pm = ro + rd * mid;
+                let dm = cloud_density_hi(
+                    pm, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb).x;
+                if (dm > CLOUD_STEP_INTERIOR_GATE) {
+                    hi = mid;
+                    dens_hi = dm;
+                } else {
+                    lo = mid;
+                }
+            }
+            t_cur = hi;
+            t_last = hi;
+            dens_prev = dens_hi;
+            sdf_prev = g_v2_sdf_m;
+            if (first_t < 0.0) {
+                first_t = hi;
+                g_march_first_depth_m = (hi - t_last_clear) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+            }
+            continue;
+        }
+        if (!est && dens > CLOUD_STEP_INTERIOR_GATE
             && dens_prev <= CLOUD_STEP_INTERIOR_GATE
             && sigma_v * dens * dt > CLOUD_STEP_TAU_MAX)
         {
@@ -3266,7 +3369,12 @@ fn cloud_march_core(
         let dens_last = dens_prev;
         dens_prev = dens;
         sdf_prev = g_v2_sdf_m;
-        if (dens <= 0.001) {
+        if (dens <= CLOUD_STEP_INTERIOR_GATE) {
+            t_last_clear = tm;
+        }
+        // est credits the EXIT half-step: the skip moved below the
+        // trapezoid and tests the whole interval, not this endpoint.
+        if (!est && dens <= 0.001) {
             continue;
         }
         // ── TRAPEZOID OVER THE STEP (v0.1258, the operator's third
@@ -3287,9 +3395,13 @@ fn cloud_march_core(
         // dens_prev is the clear air outside), which is exactly the
         // binary opaque-or-clear edge the operator has been reporting.
         let dens_i = 0.5 * (dens + dens_last);
-        let a_i = 1.0 - exp(-sigma_v * dens_i * dt);
+        if (est && dens_i <= 0.001) {
+            continue;
+        }
+        let a_i = 1.0 - exp(-sigma_v * dens_i * select(dt, seg_len, est));
         if (first_t < 0.0) {
             first_t = tm;
+            g_march_first_depth_m = (tm - t_last_clear) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
         }
 
         // Day/night from the sample's own sphere normal (soft terminator).

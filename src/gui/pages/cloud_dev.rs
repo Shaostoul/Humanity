@@ -120,6 +120,23 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // metres, so every edge sample is a coin flip (the glitter) and the
             // converged mean depends on step spacing, which is a function of
             // the angle to the local vertical (the rosette). Two levers.
+            // v0.1272: the two fixes the estimator assessment designed.
+            let mut estb = state.cloud_dev_est;
+            if ui
+                .checkbox(&mut estb, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)")
+                .changed()
+            {
+                state.cloud_dev_est = estb;
+                changed = true;
+            }
+            let mut wbl = state.cloud_dev_warp_bl;
+            if ui
+                .checkbox(&mut wbl, "Warp band-limited to its own tile (default ON since v0.1272; off = 3-20 m silhouette hash)")
+                .changed()
+            {
+                state.cloud_dev_warp_bl = wbl;
+                changed = true;
+            }
             let mut ustep = state.cloud_dev_uniform_step;
             if ui
                 .checkbox(&mut ustep, "Uniform march step (distance-only; no verticality term)")
@@ -276,8 +293,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 "Ambient",
                 "March steps",
                 "Step comb",
+                "Entry depth",
             ];
-            let mut pick = state.cloud_dev_map_diag.clamp(0, 5);
+            let mut pick = state.cloud_dev_map_diag.clamp(0, 6);
             ui.horizontal(|ui| {
                 for (i, name) in names.iter().enumerate() {
                     if ui.selectable_label(pick == i as i32, *name).clicked() {

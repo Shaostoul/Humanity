@@ -18482,6 +18482,10 @@ mod native_app {
                                     state.gui_state.cloud_dev_rind_wide_m;
                                 state.renderer.cloud_step_m =
                                     state.gui_state.cloud_dev_step_m;
+                                state.renderer.cloud_est =
+                                    state.gui_state.cloud_dev_est;
+                                state.renderer.cloud_warp_bl =
+                                    state.gui_state.cloud_dev_warp_bl;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

@@ -550,7 +550,18 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
         wn = textureSampleLevel(
             cloud_detail_tex, cloud_tile_sampler,
             local_m / warp_tile_m,
-            clamp(g_v2_disp_lod - CLOUD_V2_WARP_LODC, 0.0, 8.0),
+            // Bit 8 (v0.1272): the warp band-limited to ITS OWN tile, like
+            // every sibling constant (log2(tile_km / 256)). CLOUD_V2_WARP_LODC
+            // = -5.2 encodes a 6.96 km tile, but the warp tile is 1.7*mean_r
+            // = 0.19-1.4 km (honest -10.4 / -9.2 / -7.6), so the warp ran at
+            // mip 0 for every sample inside ~20 km and the eye silhouette
+            // was a 3-20 m inside/outside hash (measured ramp 9 m against the
+            // 90 m rind) sampled at 23-45 m - while the sun path skips the
+            // warp and sees a 62 m ramp on a smooth envelope. Eye and sun
+            // disagreeing at every silhouette is sparkle.
+            clamp(g_v2_disp_lod - select(CLOUD_V2_WARP_LODC,
+                log2(max(warp_tile_m * 1.0e-3 / 256.0, 1.0e-9)),
+                fract(camera.light7_color.w * 0.001953125) >= 0.5), 0.0, 8.0),
         ).rgb;
     }
     let warp_amp_m = mean_r * CLOUD_V2_WARP_FRAC;

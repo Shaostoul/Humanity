@@ -270,6 +270,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(m) = grab("cloud_step_m").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_step_m = m;
     }
+    // {"cloud_est":"1"}: the sample-anchored march; {"cloud_warp_bl":"1"}:
+    // warp band-limited to its own tile + rind/4 refine (v0.1272).
+    if let Some(t) = grab("cloud_est") {
+        state.gui_state.cloud_dev_est = t == "1";
+    }
+    if let Some(t) = grab("cloud_warp_bl") {
+        state.gui_state.cloud_dev_warp_bl = t == "1";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

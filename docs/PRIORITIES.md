@@ -1,5 +1,46 @@
 # HumanityOS: Priorities
 
+> **v0.1272.0 (2026-09-01): THE SAMPLE-ANCHORED MARCH. Glitter, dark pepper
+> and winking clouds were ONE estimator bug; it is fixed and ON by default.**
+> The v0.1271 assessment (7 agents, 1-D twins of the shipped loop) found the
+> march biased to FIRST order in the step h: the march position `t_cur` and
+> the sample position `tm` were two different variables and every endpoint
+> rule mixed them (SDF stride measured at one, spent from the other; entry
+> backtrack to the wrong point; entry trapezoid against zero; first-step
+> rewind behind the eye; exit half-step dropped). Inside the deck h = seg/16
+> = 188 m / cos(theta), so each bias was a nadir pinwheel in the MEAN and the
+> frozen per-pixel jitter made each a static coin flip. Fix (dev pad bit 7,
+> F10 "Sample-anchored march"): the sample IS the state, 2-tap bisection
+> entry localisation, priming tap at the eye, skirt floor, exit credited,
+> refine at rind/4. Plus bit 8: the domain warp band-limited to its own tile
+> (`CLOUD_V2_WARP_LODC` = -5.2 encoded a 6.96 km tile; the warp tile is
+> 0.19-1.4 km, so every silhouette was a 3-20 m inside/outside hash).
+>
+> GATES (written before the sweep; one run, clock pinned, 9.2 km cloudy):
+> real-render grain 5.05 -> 1.76 (-65%); coverage grain -45% / -65% with the
+> warp fix; direct-sun grain -61% / -73%; direct-sun luminance UP (110 -> 125,
+> the sunlit rind integrated again); cloud fraction UP (6.0 -> 11.0%: missed
+> clouds return). The new `map_diag 6` entry-depth channel read RED first on
+> the old march (grain 15.4, a per-pixel 0-600 m hash filling every cloud,
+> the twin said 311 +- 280 m) and near-flat on the new one. SHARP PREDICTION
+> HELD: the depth-jitter factorial collapses from a 1.9 gap to 0.06 with the
+> fix, so the depth dither is no longer load-bearing and can be left OFF.
+>
+> **The rosette is NOT this.** Radial energy did not fall (it rose with the
+> extra cloud content; the metric is content-weighted). Per the design, a
+> spoke that holds after the estimator fix means the residual radial
+> structure is not the step law. Next suspects, in order: the sun ladder
+> first tap (~0.9 km), the resolve rest blend, and the 2D-extruded coverage
+> field seen from within (dirp is constant along a nadir ray). With the
+> noise gone the fan is now MORE legible in the operator view, which is the
+> right state to hunt it in.
+>
+> Still to do from the design: 1B+1C isotropic near step + bounded far angle
+> term (bit 9), 2A normaliser floor (bit 10); delete bits 5/6 (both null).
+> Tooling: `scripts/cloud-twin/` (the twins, permanent),
+> `scripts/cloud-gate-metrics.js` (all gate metrics in one process),
+> `scripts/cloud-fraction.js` (cloud loss beside every number).
+
 > **v0.1270.0 (2026-09-01): ONE CHECKBOX WAS DRIVING TWO UNRELATED JOBS.**
 > This is why the "TV static versus rosette" tension existed at all. The F10
 > "Spatial dither" box set `dither_on`, which gated BOTH the depth jitter

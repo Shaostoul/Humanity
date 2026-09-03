@@ -376,8 +376,10 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
             dv = g_march_amb_acc * 4.0;
         } else if (map_diag < 4.5) {
             dv = g_march_iters / f32(CLOUD_STEP_ITER_CAP);
-        } else {
+        } else if (map_diag < 5.5) {
             dv = fract(g_march_iters * 0.125);
+        } else {
+            dv = clamp(g_march_first_depth_m / 600.0, 0.0, 1.0);
         }
         cur_s = vec4<f32>(vec3<f32>(dv), 1.0);
     }
@@ -728,6 +730,14 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
         // budget, which means its tail was integrated in ONE giant step.
         let l4 = clamp(g_march_iters / f32(CLOUD_STEP_ITER_CAP), 0.0, 1.0);
         cur_d = vec4<f32>(l4, l4, l4, 1.0);
+    } else if (diag >= 5.5) {
+        // ── ENTRY DEPTH (v0.1272) ──
+        // How far below the last clear sample the first accepted sample
+        // landed, 0-600 m -> black-white. The old march: a per-pixel hash
+        // (311 +- 280 m at 1.5 km, the twin). The sample-anchored march:
+        // flat, <= 30 m. Prove it red on the old march before believing green.
+        let l6 = clamp(g_march_first_depth_m / 600.0, 0.0, 1.0);
+        cur_d = vec4<f32>(l6, l6, l6, 1.0);
     } else if (diag >= 4.5) {
         // Same count as a sawtooth: every 8 steps prints a contour band, so
         // the step-count STAIRCASE in screen radius is visible directly
