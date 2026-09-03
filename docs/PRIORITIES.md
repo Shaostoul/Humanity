@@ -1,5 +1,33 @@
 # HumanityOS: Priorities
 
+> **v0.1275 (2026-09-03): THE ROSETTE NAMED, INCREMENT 1 BUILT, AND THE
+> RIG CAN NO LONGER FIND THE DRAMATIC FAN.** The residual hunt (3 mappers,
+> 6 refuters, design; wf_7b894dc6-a02) cleared the sun ladder (alpha never
+> reads tau) and the temporal resolve (a parked camera accumulates the march
+> plus a uniform blur) and named the carrier: every coverage-defining field
+> has a horizontal correlation length larger than the regime band height
+> (finest shape Worley cell 5.6 km; cumulus band 5.2 km), so masses are
+> vertical-walled prisms whose walls converge at the nadir. Correct
+> perspective of an unphysical field; three physics reviewers called it a
+> defect. Built from its design: ladder side-channel hygiene (unconditional),
+> the `cloud_shear` lean pin (F10 slider), `scripts/cloud-radial-coherence.js`
+> (the spoke metric cannot see elongation; this can - validated, peak 72 px
+> from the predicted nadir pixel), a thin-deck toggle (null by construction
+> at Ultra: constructed-body height is width x aspect, not the band).
+>
+> MEASURED: the nadir coherence tracks body height (congestus +0.20,
+> stratocumulus none), temporal-off is identical, and the lean changed the
+> field but did NOT move the coherence peak. At the operator horizon-look
+> and steep-look states on the CURRENT build the sun and ambient channels
+> show solid bodies, no fan, no slivers; the archived v0.1270.1 exe at
+> identical pins shows the bullseye rings and 1.4-2.5x the grain, but also no
+> dramatic fan. So the rig does not reproduce the photographed fan on either
+> build at any vantage tried, while the rings and pepper the operator
+> photographed are gone. NEXT: the operator flies v0.1275.1. If a fan
+> remains, capture its EXACT camera (HUD altitude and heading into a
+> camera_request) rather than guessing vantages. Increment 2 (regime-matched
+> deck thickness, bounded per-family lean, height-varying warp) waits on that.
+
 > **v0.1273-v0.1274 (2026-09-03): the assessment design is fully executed.**
 > 2A (carve normaliser floor, bit 10) built; null at a 9.2 km clear sky
 > (grain 1.85 vs 1.86, identical coverage) because the stencil regime
