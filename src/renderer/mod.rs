@@ -542,6 +542,9 @@ pub struct Renderer {
     pub cloud_rind_wide_m: f32,
     /// Fixed march step in metres for the estimator test (0 = off).
     pub cloud_step_m: f32,
+    /// Uniform eastward lean, metres per metre of height above the deck
+    /// base (light6_color.w). 0 = off. The prism-wall discriminator.
+    pub cloud_shear: f32,
     /// Dev pad bit 7: the sample-anchored march (v0.1272).
     pub cloud_est: bool,
     /// Dev pad bit 8: warp band-limited to its own tile + rind/4 refine.
@@ -550,6 +553,8 @@ pub struct Renderer {
     pub cloud_norm_floor: bool,
     /// Dev pad bit 9: isotropic near step + bounded far angle term (v0.1274).
     pub cloud_iso_step: bool,
+    /// Dev pad bit 11: thin-deck experiment (band height x0.3).
+    pub cloud_thin_deck: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1771,10 +1776,12 @@ impl Renderer {
             cloud_edge_mul: 0.0,
             cloud_rind_wide_m: 0.0,
             cloud_step_m: 0.0,
+            cloud_shear: 0.0,
             cloud_est: true,
             cloud_warp_bl: true,
             cloud_norm_floor: false,
             cloud_iso_step: false,
+            cloud_thin_deck: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3067,7 +3074,7 @@ impl Renderer {
         // and read by no shader. The v0.1271 wide-edge experiment needs a
         // runtime slider, not a rebuild per value.
         self.queue.write_buffer(
-            &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m]));
+            &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m, self.cloud_shear]));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all
@@ -3845,7 +3852,8 @@ impl Renderer {
             + (if self.cloud_est { 128.0f32 } else { 0.0 })
             + (if self.cloud_warp_bl { 256.0f32 } else { 0.0 })
             + (if self.cloud_norm_floor { 1024.0f32 } else { 0.0 })
-            + (if self.cloud_iso_step { 512.0f32 } else { 0.0 });
+            + (if self.cloud_iso_step { 512.0f32 } else { 0.0 })
+            + (if self.cloud_thin_deck { 2048.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

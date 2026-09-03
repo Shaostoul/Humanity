@@ -3435,6 +3435,8 @@ pub struct GuiState {
     pub cloud_dev_rind_wide_m: f32,
     /// Fixed march step metres (0 = off), v0.1271.
     pub cloud_dev_step_m: f32,
+    /// Uniform eastward lean (v0.1275), 0 = off.
+    pub cloud_dev_shear: f32,
     /// Sample-anchored march (v0.1272).
     pub cloud_dev_est: bool,
     /// Warp band-limit + rind/4 refine (v0.1272).
@@ -3443,6 +3445,8 @@ pub struct GuiState {
     pub cloud_dev_norm_floor: bool,
     /// Isotropic near step (v0.1274).
     pub cloud_dev_iso_step: bool,
+    /// Thin-deck experiment (v0.1275).
+    pub cloud_dev_thin_deck: bool,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5288,10 +5292,12 @@ impl Default for GuiState {
             cloud_dev_edge_mul: 0.0,
             cloud_dev_rind_wide_m: 0.0,
             cloud_dev_step_m: 0.0,
+            cloud_dev_shear: 0.0,
             cloud_dev_est: true,
             cloud_dev_warp_bl: true,
             cloud_dev_norm_floor: false,
             cloud_dev_iso_step: false,
+            cloud_dev_thin_deck: false,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

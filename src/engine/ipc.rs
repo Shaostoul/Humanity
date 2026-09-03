@@ -270,6 +270,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(m) = grab("cloud_step_m").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_step_m = m;
     }
+    // {"cloud_shear":"0.577"}: uniform eastward lean, metres per metre of
+    // height above the deck base (the prism-wall discriminator); 0 = off.
+    if let Some(m) = grab("cloud_shear").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_shear = m;
+    }
     // {"cloud_est":"1"}: the sample-anchored march; {"cloud_warp_bl":"1"}:
     // warp band-limited to its own tile + rind/4 refine (v0.1272).
     if let Some(t) = grab("cloud_est") {
@@ -285,6 +290,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"cloud_iso_step":"1"}: isotropic near step + bounded far angle term.
     if let Some(t) = grab("cloud_iso_step") {
         state.gui_state.cloud_dev_iso_step = t == "1";
+    }
+    // {"cloud_thin_deck":"1"}: band height x0.3 (the prism-wall test).
+    if let Some(t) = grab("cloud_thin_deck") {
+        state.gui_state.cloud_dev_thin_deck = t == "1";
     }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial

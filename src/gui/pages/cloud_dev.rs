@@ -137,6 +137,24 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_warp_bl = wbl;
                 changed = true;
             }
+            // The lean (v0.1275): if the fan is the prism walls, its
+            // convergence point moves off straight-down as this rises.
+            let mut sh = state.cloud_dev_shear;
+            if ui
+                .add(egui::Slider::new(&mut sh, 0.0..=1.0).text("cloud lean (m per m of height; 0 = off)"))
+                .changed()
+            {
+                state.cloud_dev_shear = sh;
+                changed = true;
+            }
+            let mut thin = state.cloud_dev_thin_deck;
+            if ui
+                .checkbox(&mut thin, "Thin deck (band height x0.3: the prism-wall test for the rosette)")
+                .changed()
+            {
+                state.cloud_dev_thin_deck = thin;
+                changed = true;
+            }
             let mut iso = state.cloud_dev_iso_step;
             if ui
                 .checkbox(&mut iso, "Isotropic near step (no verticality or chord term inside 27 km)")

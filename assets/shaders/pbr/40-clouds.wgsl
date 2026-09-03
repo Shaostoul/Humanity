@@ -810,6 +810,9 @@ const CLOUD_COV_HI: f32 = 0.347;
 // light march shares cloud_carve, so inter-dome valleys catch real shadow
 // from above. Shader-only tuning (texture-sampling path; not mirrorable).
 const CLOUD_TOP_RISE: f32 = 0.45;
+// Thin-deck experiment scale on the regime band height (dev pad bit 11).
+// 0.3 takes the cumulus band from 5.2 km to 1.6 km, altocumulus 4.7 -> 1.4.
+const CLOUD_THIN_DECK_SCALE: f32 = 0.3;
 // Base-height field (clouds depth increment): the symmetric partner of
 // CLOUD_TOP_RISE that was always missing. Without it every column's BASE
 // sat on one shared iso-surface - a dead-level plane the light march could
@@ -1794,6 +1797,23 @@ fn cloud_carve(
 ) -> CloudSample {
     let r = length(p);
     let h = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+    // ── THE LEAN (v0.1275, design 1b; showcase cloud_shear, F10 slider) ──
+    // The residual hunt named the rosette as correct perspective of
+    // vertical-walled prisms: every coverage field has a horizontal
+    // correlation length larger than the band height, so masses are
+    // prisms whose walls run the full band and converge at the nadir.
+    // This is the discriminating experiment and a rung of the real fix
+    // (wind shear leans a column with height): a uniform eastward lean of
+    // light6_color.w metres per metre of height above the base. If the
+    // fan is the walls, its convergence point moves off the nadir by
+    // about f*tan(atan(shear)) toward local west. Applied HERE, once, so
+    // the view samples, the bisection taps, the priming tap and every
+    // sun-ladder tap (which re-enters this function) lean identically.
+    // 0 = off; the weather tap stays on the unleaned direction (its
+    // octaves are 95-1274 km, the lean is metres).
+    let lean_s = camera.light6_color.w;
+    let e_hat = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), p / max(r, 1.0e-6)));
+    let p_l = p + e_hat * (lean_s * max(r - g_cloud_rb, 0.0));
     // Early-out against the MAXIMALLY tower-extended band (the widest this
     // regime can occupy): the true tower amount needs the shape texture,
     // which we must not pay for in clear sky.
@@ -1808,7 +1828,7 @@ fn cloud_carve(
     // the single solid-body CLOUD_DRIFT_ZONAL, which was 127 m/s at the
     // equator for every family at every altitude.
     let omega_c = cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, h));
-    let ps0 = cloud_rot_y(p, t * omega_c);
+    let ps0 = cloud_rot_y(p_l, t * omega_c);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
     let s = textureSampleLevel(
         cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
@@ -1829,6 +1849,10 @@ fn cloud_carve(
     // proportion to this weight (see each use below).
     var v2_w = 0.0;
     g_v2_w = 0.0;
+    // Hygiene (v0.1275, design 1a): the stride reads g_v2_sdf_m through
+    // sdf_prev; reset it with g_v2_w so an out-of-band or coarse view
+    // sample can never inherit a sun-ladder tap SDF.
+    g_v2_sdf_m = 1.0e9;
     // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
     // CONSTRUCTED primitives instead of the noise field. This is the
     // Nubis wiring the survey found universal: noise ERODES a body, it
@@ -1904,7 +1928,7 @@ fn cloud_carve(
         let w_built = smoothstep(0.20, 0.30, tc_v2) * w_foot;
         v2_w = w_built;
         g_v2_w = w_built;
-        let built = cloud_v2_body(p, wa, tc_v2, lodb);
+        let built = cloud_v2_body(p_l, wa, tc_v2, lodb);
         // ── SHEET UNION (v0.1234) ──
         //
         // Operator: "the volume of cloud in the grid coordinate still doesn't
@@ -1951,7 +1975,16 @@ fn cloud_carve(
     // family band, at every coverage. The light march shares this
     // function, so tower shadows stay consistent.
     let tower = smoothstep(0.62, 0.92, lofi);
-    let h_hi_eff = min(reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo), 1.0);
+    // THIN DECK experiment (v0.1275, dev pad bit 11): the band height scaled
+    // by CLOUD_THIN_DECK_SCALE toward physical thickness. The residual hunt
+    // named the rosette as perspective of vertical-walled prisms - coverage
+    // fields with horizontal correlation (5.6 km finest) larger than the band
+    // height (cumulus 5.2 km) - and a thin deck is the direct test: walls
+    // 3x shorter should print a fan 3x weaker at the nadir.
+    let thin_deck = fract(camera.light7_color.w * 0.000244140625) >= 0.5;
+    let h_span = select(reg.h_hi - reg.h_lo, (reg.h_hi - reg.h_lo) * CLOUD_THIN_DECK_SCALE, thin_deck);
+    let h_hi_thin = reg.h_lo + h_span;
+    let h_hi_eff = min(h_hi_thin + tower * 0.8 * h_span, 1.0);
     let env = cloud_height_band(h, reg.h_lo, h_hi_eff);
     if (env <= 0.002) {
         return CloudSample(0.0, ps, h, 0.0, 1.0, 0.0, 0.0);
@@ -3199,7 +3232,10 @@ fn cloud_march_core(
             // full carve depth - keep the margin conservative.
             let margin_m = CLOUD_V2_RIND_M + CLOUD_V2_DISP_M + CLOUD_V2_DISP2_M
                 + g_v2_warp_m + CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4;
-            let safe_m = sdf_prev - margin_m;
+            // A lean is not an isometry: the SDF is measured in the leaned
+            // domain, so the clear-air stride is bounded by 1/sqrt(1+s^2).
+            let lean_k = inverseSqrt(1.0 + camera.light6_color.w * camera.light6_color.w);
+            let safe_m = sdf_prev * lean_k - margin_m;
             let to_draw = 0.001 * g_cloud_upkm;
             if (safe_m > 0.0) {
                 dt = max(dt, safe_m * to_draw);
@@ -3359,6 +3395,10 @@ fn cloud_march_core(
         let s_v2_seam = g_v2_seam;
         let s_btop = g_cloud_bandtop;
         let s_carve = g_cloud_carve;
+        // Hygiene (v0.1275, design 1a): the sun ladder re-enters the body
+        // and overwrites g_v2_warp_m with its 6-lobe value; the NEXT
+        // iteration reads it in margin_m. Restore the eye value after.
+        let s_warp = g_v2_warp_m;
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
         // whole optical depth at ONE deep, dark sample - skipping the
@@ -3463,6 +3503,7 @@ fn cloud_march_core(
         let tau = cloud_sun_tau(
             p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lodb);
+        g_v2_warp_m = s_warp;
         // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
         // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
         // 12.5x darkening. Measured on the operator capture, that put

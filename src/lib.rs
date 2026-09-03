@@ -18482,6 +18482,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_rind_wide_m;
                                 state.renderer.cloud_step_m =
                                     state.gui_state.cloud_dev_step_m;
+                                state.renderer.cloud_shear =
+                                    state.gui_state.cloud_dev_shear;
                                 state.renderer.cloud_est =
                                     state.gui_state.cloud_dev_est;
                                 state.renderer.cloud_warp_bl =
@@ -18490,6 +18492,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_norm_floor;
                                 state.renderer.cloud_iso_step =
                                     state.gui_state.cloud_dev_iso_step;
+                                state.renderer.cloud_thin_deck =
+                                    state.gui_state.cloud_dev_thin_deck;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =
