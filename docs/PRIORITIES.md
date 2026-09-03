@@ -1,5 +1,22 @@
 # HumanityOS: Priorities
 
+> **v0.1273-v0.1274 (2026-09-03): the assessment design is fully executed.**
+> 2A (carve normaliser floor, bit 10) built; null at a 9.2 km clear sky
+> (grain 1.85 vs 1.86, identical coverage) because the stencil regime
+> (weather alpha below ~0.13) is not present there; default OFF until a
+> low-alpha vantage exhibits it. 1B+1C (isotropic near step + bounded far
+> angle term, bit 9) built and verified clean at 3.4 / 9.2 / 60 km: coverage
+> and sun channels unchanged within noise, cloud fraction within one point,
+> the step-count chord sweep gone (12.3 -> 8.4 at 9.2 km), at 8-10% frame
+> time in the near field. Default OFF: no visible gain, real cost, and
+> performance is the top open item. Both are instruments now. Second
+> confirmation that the step law is not the residual rosette carrier. The
+> residual hunt (sun ladder first tap, resolve rest blend, 2D-extruded
+> coverage field) is running as workflow wf_7b894dc6-a02. Rig rule learned:
+> keep sweep batches under about six captures at slow altitudes (an
+> 18-capture run blew the 10-minute tool ceiling and lost everything);
+> metrics in one process (`scripts/cloud-iso-metrics.js`).
+
 > **v0.1272.0 (2026-09-01): THE SAMPLE-ANCHORED MARCH. Glitter, dark pepper
 > and winking clouds were ONE estimator bug; it is fixed and ON by default.**
 > The v0.1271 assessment (7 agents, 1-D twins of the shipped loop) found the
