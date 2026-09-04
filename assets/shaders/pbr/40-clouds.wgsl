@@ -1849,10 +1849,13 @@ fn cloud_carve(
     // proportion to this weight (see each use below).
     var v2_w = 0.0;
     g_v2_w = 0.0;
-    // Hygiene (v0.1275, design 1a): the stride reads g_v2_sdf_m through
-    // sdf_prev; reset it with g_v2_w so an out-of-band or coarse view
-    // sample can never inherit a sun-ladder tap SDF.
-    g_v2_sdf_m = 1.0e9;
+    // NOT reset here (v0.1276.2). The v0.1275 hygiene reset g_v2_sdf_m to
+    // the no-SDF sentinel at every carve, so any sample where the body is
+    // skipped - clear air, exactly where the stride matters - disabled the
+    // clear-air stride and grazing rays took hundreds of base steps (the
+    // nadir-anchor-40 vantage fell from 15.6 to 4-5 fps with the OLD march
+    // too, so it was not the bisection). The ladder-tap leak the reset was
+    // for is closed by saving and restoring g_v2_sdf_m around the ladder.
     // ── CLOUDS V2 (Ultra tier, material.params.y >= 2.5) ── the body
     // CONSTRUCTED primitives instead of the noise field. This is the
     // Nubis wiring the survey found universal: noise ERODES a body, it
@@ -3399,6 +3402,7 @@ fn cloud_march_core(
         // and overwrites g_v2_warp_m with its 6-lobe value; the NEXT
         // iteration reads it in margin_m. Restore the eye value after.
         let s_warp = g_v2_warp_m;
+        let s_sdf = g_v2_sdf_m;
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
         // whole optical depth at ONE deep, dark sample - skipping the
@@ -3434,7 +3438,13 @@ fn cloud_march_core(
             // gone). Five taps put the crossing within seg_len/32, under the
             // 22 m sunlit skin, and stop early once the bracket is 30 m.
             let stop_w = 30.0 * 0.001 * g_cloud_upkm;
-            for (var b = 0; b < 5; b = b + 1) {
+            // Budget (v0.1276.2): five taps for the FIRST entry on the ray,
+            // which sets the visible surface, two for entries behind it
+            // (already attenuated, their comb error proportionally less
+            // visible). Grazing rays through scattered cumulus cross many
+            // entries; five taps on each cost 4x frame time at look-40.
+            let n_bis = select(2, 5, first_t < 0.0);
+            for (var b = 0; b < n_bis; b = b + 1) {
                 if (hi - lo < stop_w) {
                     break;
                 }
@@ -3522,6 +3532,7 @@ fn cloud_march_core(
             p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lodb);
         g_v2_warp_m = s_warp;
+        g_v2_sdf_m = s_sdf;
         // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
         // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
         // 12.5x darkening. Measured on the operator capture, that put

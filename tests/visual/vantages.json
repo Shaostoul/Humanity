@@ -3522,7 +3522,7 @@
     },
     {
       "id": "nadir-anchor-40",
-      "desc": "3.4 km inside the deck, aimed 40 deg OFF nadir, direct-sun channel, clock pinned. The experiment that reframed the rosette arc (2026-09-01): with the aim tilted, the view axis and the local vertical separate, and the pinch follows STRAIGHT DOWN, not the crosshair. Every operator screenshot was a down-look, where the two coincide.",
+      "desc": "3.4 km inside the deck, aimed 40 deg OFF nadir, direct-sun channel, clock pinned. The experiment that reframed the rosette arc (2026-09-01): with the aim tilted, the view axis and the local vertical separate, and the pinch follows STRAIGHT DOWN, not the crosshair. Every operator screenshot was a down-look, where the two coincide. Cover, type and weather PINNED since v0.1277: unpinned, its cloud amount was whatever the previous vantage left, which read as a 4x frame-time regression that did not exist.",
       "expect": "The radial fan sits well BELOW the crosshair, at the nadir point - never centred on the crosshair.",
       "regressions": [
         "pinch must not track the view axis",
@@ -3546,7 +3546,9 @@
         "cloud_clock": "120",
         "cloud_chord_foot": "0",
         "cloud_temporal": "1",
-        "map_diag": "2"
+        "map_diag": "2",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46"
       },
       "settle_s": 14
     },
@@ -3575,7 +3577,9 @@
         "cloud_clock": "120",
         "cloud_chord_foot": "0",
         "cloud_temporal": "1",
-        "map_diag": "2"
+        "map_diag": "2",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46"
       },
       "settle_s": 14
     },
