@@ -1,5 +1,35 @@
 # HumanityOS: Priorities
 
+> **v0.1276-v0.1277 (2026-09-04): THE CONTOUR PINWHEEL, REPRODUCED AND
+> KILLED.** The operator captured a full-frame topographic contour pinwheel
+> in the real render at 26.4 km over a rain overcast. Reproduced on the rig
+> at that exact state: the first standing RED vantage this arc has had for
+> the fan (`rain-26km-nadir`, `rain-26km-nadir-full`). Not a regression
+> (v0.1271.1 shows the same bands under noise), not the iteration cap (0% at
+> 224), not the resolve. With the depth dither ON the bands dissolve into
+> exactly the per-pixel static the operator disabled the dither to escape:
+> the bands and the static were ONE defect in two disguises, a deck-top
+> entry whose depth below the surface is the march comb phase. Root cause:
+> the v0.1272 entry bisection was gated on `seg_len > 2*step_near`, and
+> step_near is capped at 4.5% of the slab (522 m) while the cone step at
+> 14-21 km is 500-700 m, so the bisection NEVER FIRED at altitude - a guard
+> added for cost that the design never asked for. Now gated on the
+> bisection stop width, five taps with a 30 m stop for the first entry on a
+> ray and two for entries behind it. Red vantage, full res, dither off:
+> grain 17.8 -> 3.1, bands gone; what remains at the nadir is the soft
+> radial elongation of the deck holes - the prism-wall content geometry.
+>
+> Also: the v0.1275 `g_v2_sdf_m` reset at every carve is REMOVED (it turned
+> the no-SDF sentinel on for every body-skipped sample, i.e. clear air, and
+> killed the clear-air stride); the ladder leak is closed by saving and
+> restoring the value around the sun ladder instead. And a frame-time scare
+> (nadir-anchor-40 at 3.7-5.4 fps against a remembered 15.6) was the
+> sticky-pin hazard confounding FPS: with cover, type and weather pinned,
+> v0.1272.1 and the current build both read 3.9 fps. Both anchor vantages
+> now pin them. The 58 km "texture" look is the volumetric deck itself (a
+> scattered field at 58 km is a speckle sheet); what is real there is that
+> cloud tops read flat white from altitude, a fidelity item, not a handoff.
+
 > **v0.1275 (2026-09-03): THE ROSETTE NAMED, INCREMENT 1 BUILT, AND THE
 > RIG CAN NO LONGER FIND THE DRAMATIC FAN.** The residual hunt (3 mappers,
 > 6 refuters, design; wf_7b894dc6-a02) cleared the sun ladder (alpha never
