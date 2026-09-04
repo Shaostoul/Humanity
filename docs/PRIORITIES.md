@@ -1,5 +1,43 @@
 # HumanityOS: Priorities
 
+> **v0.1278-v0.1279 (2026-09-04): THE ROSETTE IS LAYER GEOMETRY. PROVEN WITH A
+> SYNTHETIC FIELD.** The operator saved F6 bookmark bm-12 at the rosette
+> (1.63 km, straight down, clear, mid-Pacific); the rig reproduces it
+> pixel-exact (`operator-bm12`). At that camera every remaining hypothesis was
+> a null, one sweep each, clock pinned: wall wander 0.5-5 km, sharp base,
+> interior relief fade, coarse deep sun ladder, every density component off
+> one at a time. From 5 km above the location is a solid overcast; a 3 km
+> sideways move gives the same style of picture; extinction x3 makes it 97%
+> opaque and DARKER; the direct-sun channel alone reads +0.99. Then the
+> operator asked whether a wrong transform could be it, and the SYNTHETIC
+> CHECKER (bit 21, F10) answered: density replaced by a known 0.5 km
+> checkerboard filling 1.0-1.6 km renders as a perspective-correct grid from
+> 3 km above and as THE ROSETTE from bm-12 - one see-through cell below,
+> opaque elsewhere, lattice lines as radial slivers. **The projection is
+> correct.** From just inside the top of a 600 m-thick layer of km-scale
+> features you can only see through it straight down and along channels
+> aligned with your sight line: geometry, not a bug, and it cannot be
+> removed. Standing vantages `checker-bm12` / `checker-bm12-above` guard the
+> projection.
+>
+> **What is wrong is the LOOK of that geometry, and that is the next work:**
+> (1) inside cloud the walls must be fog-white from diffuse multiple
+> scattering, not dark shaded petals - the single-scatter sun ladder resolves
+> nearby lobe shadows through the eye, and raising extinction darkens instead
+> of whitening; (2) gaps must not be km-long straight canyons between 5 km
+> cells - real cumulus fields have 1-3 km cells with turbulent 100-500 m
+> walls, so aligned channels close within a few hundred metres. Two fidelity
+> increments (Nubis-class light volume / multi-octave scattering; field cell
+> and wall scales matched to real cumulus), designed next.
+>
+> Instruments shipped, all default off: density component bisect (bits
+> 13-17), sharp base (18), interior relief fade (19), coarse deep ladder
+> (20), synthetic checker (21); knobs `cloud_hv_km`, `cloud_sigma_mul`,
+> `cloud_shear`. Rig notes: the bookmark restore answers once per boot (use
+> the lat/lon equivalent); full res inside a deck times out the camera
+> request; `just build-game` purges archived exes beyond five, so capture an
+> old-build baseline while it exists.
+
 > **v0.1276-v0.1277 (2026-09-04): THE CONTOUR PINWHEEL, REPRODUCED AND
 > KILLED.** The operator captured a full-frame topographic contour pinwheel
 > in the real render at 26.4 km over a rain overcast. Reproduced on the rig
