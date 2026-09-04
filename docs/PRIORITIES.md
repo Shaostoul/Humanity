@@ -1,5 +1,23 @@
 # HumanityOS: Priorities
 
+> **v0.1281 (2026-09-04): increment B 2.1 built, null at Ultra; the pad is
+> full.** The three-octave measure-preserving domain warp on the noise path
+> (24 km / 0.8 km, 3 km / 120 m, 0.6 km / 30 m; cell split following the
+> walls) is behind bit 23 (F10 "Field walls"), the LAST exactly representable
+> f32 bit: the next flag needs a `bitcast<u32>` pad or the one-hot bisect bits
+> 13-17 folded into an index. Measured with the in-cloud light on: bm-12
+> 57.8 -> 58.3, coherence and coverage unchanged, rain and closeup unchanged,
+> ~10% fps. Same structural reason as the wall-wander null: at Ultra the field
+> the eye sees at bm-12 is the CONSTRUCTED bodies, which the noise-path warp
+> does not touch. NEXT, in order, all on the built path: (1) interior
+> density / skirt sharpness of the bodies (the model deck is optically half a
+> real one; a top must be opaque within tens of metres) - the change that
+> should move the interior-brightness gate; (2) design 2.2: Poisson occupancy
+> with a 2- and 6-cell organisation multiplier, an isotropic placement warp
+> replacing the row stagger, DISP2 26 -> 45 m, ERODE2 22 -> 32 m, a 150 m
+> DISP3 octave; (3) the noise-path warp judged at High quality on its own
+> vantage. Then re-measure the in-cloud light at gain 1 and flip it on.
+
 > **v0.1280 (2026-09-04): THE IN-CLOUD LIGHT, BUILT AND MEASURED; THE
 > LIMITER IS THE MODEL DECK OPTICAL THICKNESS.** The design (fidelity
 > reference + code audit + refuters) put numbers on the target: at 45/km the
