@@ -555,6 +555,8 @@ pub struct Renderer {
     pub cloud_iso_step: bool,
     /// Dev pad bit 11: thin-deck experiment (band height x0.3).
     pub cloud_thin_deck: bool,
+    /// Dev pad bit 12: height-varying domain warp on the noise body (design 2c).
+    pub cloud_hv_warp: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1782,6 +1784,7 @@ impl Renderer {
             cloud_norm_floor: false,
             cloud_iso_step: false,
             cloud_thin_deck: false,
+            cloud_hv_warp: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3853,7 +3856,8 @@ impl Renderer {
             + (if self.cloud_warp_bl { 256.0f32 } else { 0.0 })
             + (if self.cloud_norm_floor { 1024.0f32 } else { 0.0 })
             + (if self.cloud_iso_step { 512.0f32 } else { 0.0 })
-            + (if self.cloud_thin_deck { 2048.0f32 } else { 0.0 });
+            + (if self.cloud_thin_deck { 2048.0f32 } else { 0.0 })
+            + (if self.cloud_hv_warp { 4096.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

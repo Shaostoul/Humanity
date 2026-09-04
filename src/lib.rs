@@ -18494,6 +18494,8 @@ mod native_app {
                                     state.gui_state.cloud_dev_iso_step;
                                 state.renderer.cloud_thin_deck =
                                     state.gui_state.cloud_dev_thin_deck;
+                                state.renderer.cloud_hv_warp =
+                                    state.gui_state.cloud_dev_hv_warp;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

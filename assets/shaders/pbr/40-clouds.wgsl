@@ -592,6 +592,8 @@ const CLOUD_PUFF_AO: f32 = 0.60;
 // offset dropped by exactly 1.0.)
 const CLOUD_LODC_SHAPE: f32 = -0.521;
 const CLOUD_LODC_CELL: f32 = -5.585;
+// Height-varying warp amplitude, km (design 2c, dev pad bit 12).
+const CLOUD_HV_WARP_KM: f32 = 0.5;
 const CLOUD_LODC_DETAIL: f32 = -1.259;
 const CLOUD_LODC_PUFF: f32 = -2.480;
 const CLOUD_LODC_FRAY: f32 = 1.479;
@@ -1830,8 +1832,33 @@ fn cloud_carve(
     let omega_c = cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, h));
     let ps0 = cloud_rot_y(p_l, t * omega_c);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
+    // ── HEIGHT-VARYING DOMAIN WARP (v0.1278, design 2c, dev pad bit 12) ──
+    // The residual hunt named the rosette: every coverage field has a
+    // horizontal correlation length (finest shape Worley cell 5.6 km) far
+    // larger than the band height, so the shape tap below is effectively
+    // 2D and every cloud is a vertical-walled prism; from inside the deck
+    // the walls and the clear corridors between them converge at the
+    // nadir as a flower (the operator v0.1277.1 storm capture: the
+    // cumulonimbus band spans the whole slab, walls 11 km tall). Warping
+    // the SHAPE coordinate with the cell tap - the same 3D texture at the
+    // 8 km tile, 1.33 km Worley cells, which DOES vary with height - makes
+    // a coarse-cell wall wander +-CLOUD_HV_WARP_KM per 1.3 km of height:
+    // silhouettes become curves and no edge extrapolates to one point. A
+    // stationary field marginal is invariant under a domain warp, so the
+    // coverage window stays calibrated. Faded out as the footprint passes
+    // 0.5-2 km so the far field keeps its statistics. One extra tap.
+    let hv_warp = fract(camera.light7_color.w * 0.0001220703125) >= 0.5;
+    var ps_s = ps;
+    if (hv_warp) {
+        let cw = textureSampleLevel(
+            cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
+            cloud_lod(lodb, CLOUD_LODC_CELL)).rgb;
+        let hv_fade = 1.0 - smoothstep(-1.0, 1.0, lodb);
+        let a_w = CLOUD_HV_WARP_KM * g_cloud_upkm * hv_fade;
+        ps_s = ps + (cw - vec3<f32>(0.5)) * 2.0 * a_w;
+    }
     let s = textureSampleLevel(
-        cloud_shape_tex, cloud_tile_sampler, ps * g_shape_freq,
+        cloud_shape_tex, cloud_tile_sampler, ps_s * g_shape_freq,
         cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     // SINGLE construction (increment 10b): the bake's R channel IS the

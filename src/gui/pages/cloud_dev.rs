@@ -147,6 +147,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_shear = sh;
                 changed = true;
             }
+            let mut hvw = state.cloud_dev_hv_warp;
+            if ui
+                .checkbox(&mut hvw, "Height-varying cloud walls (the prism-wall fix: walls wander with altitude)")
+                .changed()
+            {
+                state.cloud_dev_hv_warp = hvw;
+                changed = true;
+            }
             let mut thin = state.cloud_dev_thin_deck;
             if ui
                 .checkbox(&mut thin, "Thin deck (band height x0.3: the prism-wall test for the rosette)")

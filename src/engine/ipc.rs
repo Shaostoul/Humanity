@@ -295,6 +295,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_thin_deck") {
         state.gui_state.cloud_dev_thin_deck = t == "1";
     }
+    // {"cloud_hv_warp":"1"}: height-varying domain warp on the noise body.
+    if let Some(t) = grab("cloud_hv_warp") {
+        state.gui_state.cloud_dev_hv_warp = t == "1";
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.
