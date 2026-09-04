@@ -332,6 +332,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_checker") {
         state.gui_state.cloud_dev_checker = t == "1";
     }
+    // {"cloud_ms":"1"}: increment A, the in-cloud light; {"cloud_ms_gain":"1.5"}.
+    if let Some(t) = grab("cloud_ms") {
+        state.gui_state.cloud_dev_ms = t == "1";
+    }
+    if let Some(m) = grab("cloud_ms_gain").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_ms_gain = m;
+    }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial
     // filter only, no history, no clip, no reprojection); "1" restores.

@@ -378,8 +378,10 @@ fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
             dv = g_march_iters / f32(CLOUD_STEP_ITER_CAP);
         } else if (map_diag < 5.5) {
             dv = fract(g_march_iters * 0.125);
-        } else {
+        } else if (map_diag < 6.5) {
             dv = clamp(g_march_first_depth_m / 600.0, 0.0, 1.0);
+        } else {
+            dv = clamp(g_march_prof_acc, 0.0, 1.0);
         }
         cur_s = vec4<f32>(vec3<f32>(dv), 1.0);
     }
@@ -730,6 +732,10 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
         // budget, which means its tail was integrated in ONE giant step.
         let l4 = clamp(g_march_iters / f32(CLOUD_STEP_ITER_CAP), 0.0, 1.0);
         cur_d = vec4<f32>(l4, l4, l4, 1.0);
+    } else if (diag >= 7.5) {
+        // ── BURIAL PROFILE (v0.1280) ── where the in-cloud light engages.
+        let l8 = clamp(g_march_prof_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l8, l8, l8, 1.0);
     } else if (diag >= 5.5) {
         // ── ENTRY DEPTH (v0.1272) ──
         // How far below the last clear sample the first accepted sample

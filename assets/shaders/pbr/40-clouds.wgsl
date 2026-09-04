@@ -350,6 +350,26 @@ var<private> g_sun_profile: f32 = 0.0;
 // on tiers that do not build bodies, which is how the march knows not to
 // steer by it.
 var<private> g_v2_sdf_m: f32 = 1.0e9;
+// ── INCREMENT A globals (v0.1280, the in-cloud light) ──
+// Sun optical depth over the first two ladder rungs only (87 m on-axis):
+// the local burial cue.
+var<private> g_sun_tau01: f32 = 0.0;
+// Slant column optical depth handed to the ladder by the caller (A2): a
+// buried sample takes this instead of rungs 2-11.
+var<private> g_sun_tau_col: f32 = 0.0;
+// Burial profile of the current view sample, 0 at the surface, 1 deep.
+var<private> g_ms_prof: f32 = 0.0;
+// Increment A on (dev pad bit 22).
+var<private> g_ms_on: f32 = 0.0;
+// map_diag 8: the burial profile accumulated with the same trans*a_i weights
+// as the colour, so it reads as what the pixel SEES.
+var<private> g_march_prof_acc: f32 = 0.0;
+// Local column top (band fraction) from the crown estimator, so the column
+// above a sample is the CLOUD's own top, not the regime band top 4 km up.
+var<private> g_cloud_coltop: f32 = 1.0;
+// Built path: the winning cloud top height and the sample height, metres.
+var<private> g_v2_top_m: f32 = 0.0;
+var<private> g_v2_up_m: f32 = 0.0;
 
 // Peak domain-warp displacement in metres for the last body evaluated. The
 // warp bends the space the distance field is measured in, so it is exactly
@@ -2269,6 +2289,9 @@ fn cloud_carve(
         sqrt(max(body - thr_base, 0.0) / max(bd_wt, 1.0e-3)), 0.0, 1.0),
         0.0, ring_off);
     g_cloud_bandtop = h_hi_eff;
+    // Increment A: the column's OWN top, from the crown the carve already
+    // solves for (u_crown = how far up this column reaches, band fractions).
+    g_cloud_coltop = reg.h_lo + clamp(u_crown, 0.0, 1.0) * (h_hi_eff - reg.h_lo);
     g_cloud_pouch = pouch;
     g_cloud_carve = carve_env;
     return CloudSample(carve, ps, h, crown, lwp, pouch, v2_w);
@@ -2491,6 +2514,7 @@ fn cloud_sun_tau(
     }
     cu = normalize(cu);
     let cv = cross(sun_local, cu);
+    var w_split = 0.0;
     for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
         // Deep-sample coarse ladder (v0.1279 experiment, dev pad bit 20):
         // when the VIEW sample is already deep (g_deep_sample set by the
@@ -2587,6 +2611,25 @@ fn cloud_sun_tau(
             lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lod_t).x;
         tau = tau + sigma * dens * seg;
+        // ── INCREMENT A2: DEPTH-SPLIT LADDER (v0.1280) ──
+        // The reference: at 45/km the transport mean free path is 148 m,
+        // so 150 m inside the medium the radiance field is already near
+        // isotropic and no lobe 400-1500 m away can cast a visible shadow.
+        // A sample buried under rungs 0-1 (87 m on-axis) takes the slant
+        // column for the rest instead of resolving its neighbours with
+        // rungs 2-11 - which is exactly what printed the lobes around an
+        // eye inside the cloud as radial petals.
+        if (i == 1) {
+            g_sun_tau01 = tau;
+            if (g_ms_on > 0.5) {
+                let w_deep = smoothstep(1.5, 4.0, tau);
+                if (w_deep >= 0.999) {
+                    tau = max(tau, g_sun_tau_col);
+                    break;
+                }
+                w_split = w_deep;
+            }
+        }
         // v0.911 (perf audit #3): once the sun path is this optically deep
         // every scatter octave is effectively zero - later taps cannot
         // change the pixel. Cap raised again with physical extinction
@@ -2598,6 +2641,9 @@ fn cloud_sun_tau(
     // Flag hygiene: cloud_sun_tau's single exit. A leak would make the
     // EYE see the profile body - visible as lost close-up texture.
     g_sun_profile = 0.0;
+    if (w_split > 0.0) {
+        tau = mix(tau, max(g_sun_tau01, g_sun_tau_col), w_split);
+    }
     return tau;
 }
 
@@ -2633,11 +2679,13 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32, tau_diff: f32) -> f32 {
     var a_n = 1.0;
     var g_n = 1.0;
     for (var n = 0; n < 4; n = n + 1) {
-        let ph = mix(
+        let ph_dir = mix(
             cloud_hg(cos_vs, CLOUD_HG_BACK * g_n),
             cloud_hg(cos_vs, CLOUD_HG_FWD * g_n),
             CLOUD_HG_FWD_WEIGHT,
         );
+        // Increment A3: the octaves go isotropic with burial.
+        let ph = mix(ph_dir, 1.0, g_ms_prof * g_ms_on);
         e = e + c_n * ph * exp(-tau * a_n);
         c_n = c_n * 0.5;
         a_n = a_n * 0.5;
@@ -2651,7 +2699,29 @@ fn cloud_scatter_energy(tau: f32, cos_vs: f32, tau_diff: f32) -> f32 {
     );
     e = max(e, CLOUD_SUN_RELAX * ph_wide * exp(-0.25 * tau));
     let t_diff = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau_diff);
-    return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs);
+    // Increment A3 replaces this transmittance-only floor with a real
+    // in-scattered source (cloud_ms_source); off when A is on.
+    return e + CLOUD_MS_DIFFUSE * t_diff * (1.0 + 0.13 * cos_vs) * (1.0 - g_ms_on);
+}
+
+// ── INCREMENT A3: THE IN-SCATTERED SOURCE (v0.1280) ──
+// Eddington two-stream, conservative (omega0 = 1: a droplet is a near-perfect
+// scatterer, so more extinction means MORE light returned, never less - the
+// shipped floor fell with extinction because it was a transmittance),
+// delta-scaled with the repo's own T form. tau_above / tau_below are the
+// local column optical depths, x the fractional depth, c = dot(-rd, up)
+// (+1 when the light travels up toward an eye above), mu_s the sun cosine.
+// E_WHITE = 1/pi: a sunlit white Lambertian surface in the shader's relative
+// scatter units. Numbers at tau_tot 27 (600 m at 45/km): top third looking
+// down 0.17 (143/255 after ACES), looking up 0.29, mid-deck 0.10, the base
+// from below 0.10. At x3 extinction it RISES 38%.
+fn cloud_ms_source(tau_above: f32, tau_below: f32, c: f32, mu_s: f32, prof: f32) -> f32 {
+    let tau_tot = tau_above + tau_below;
+    let tt = 1.0 / (1.0 + 0.75 * (1.0 - CLOUD_HG_FWD) * tau_tot);
+    let x = tau_above / max(tau_tot, 1.0e-3);
+    let e_white = 0.3183;
+    return e_white * max(mu_s, 0.0) * prof
+        * max(0.5 * (1.0 + (1.0 - tt) * (1.0 - 2.0 * x)) - 0.75 * tt * c, 0.0);
 }
 
 // Direction<->uv mapping for the temporal cloud map (phase 4): a LAMBERT
@@ -3594,6 +3664,19 @@ fn cloud_march_core(
         // Day/night from the sample's own sphere normal (soft terminator).
         let ndl = dot(dirp, sun_local);
         let day = smoothstep(-0.05, 0.3, ndl);
+        // ── INCREMENT A1: BURIAL (v0.1280) ── world-space, camera-independent.
+        // The column above and below this sample, from the cloud's OWN top
+        // (g_cloud_coltop) and the band base, at the envelope density; on the
+        // built path also the signed distance inside the body.
+        let h_a1 = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+        let slab_a1 = g_cloud_rt - g_cloud_rb;
+        let col_above = max(g_cloud_coltop - h_a1, 0.0) * slab_a1;
+        let col_below = max(h_a1 - reg.h_lo, 0.0) * slab_a1;
+        let tau_above = sigma_v * s_carve * col_above;
+        let tau_below = sigma_v * s_carve * col_below;
+        let tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
+        g_sun_tau_col = tau_above / max(ndl, 0.15);
+        g_ms_on = select(0.0, 1.0, fract(camera.light7_color.w * 0.000000238418579101562 * 0.5) >= 0.5);
 
         // Light march toward the sun + Beer-powder edge darkening. The
         // first two taps see the same eroded density this view sample does
@@ -3642,8 +3725,30 @@ fn cloud_march_core(
         // the sandblast-stipple fix; magnitude stays right because the
         // carve IS the interior density the erosion ratio renormalizes
         // against).
-        let tau_vert = sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d;
-        let direct = cloud_scatter_energy(tau, cos_vs, tau_vert) * pw;
+        // Increment A: the column above the sample is the cloud's own column
+        // (tau_above), not the regime band top 4 km up - the 10x overstatement
+        // that made every ambient term FALL with extinction.
+        let tau_vert = select(
+            sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d,
+            tau_above, g_ms_on > 0.5);
+        // A1 burial profile: 0 at the surface, 1 one transport MFP in.
+        // Burial is the column AROUND the sample (above and below at the
+        // envelope density), or the depth inside a built body. NOT the sun
+        // rung tau: in a thin-skirted top the first 87 m toward the sun are
+        // nearly clear while the sample sits hundreds of metres inside the
+        // medium, and the first cut gated the source off exactly there
+        // (bm-12 masked mean 45 -> 51 instead of the predicted 135+).
+        let tau_col = min(tau_above, tau_below);
+        let tau_min = max(tau_col, tau_built * s_v2_w);
+        let prof = smoothstep(1.0, 4.0, tau_min) * g_ms_on;
+        g_ms_prof = prof;
+        // A4: powder is a rind effect.
+        let pw_a = mix(pw, 1.0, prof);
+        // A3: the in-scattered source. c = +1 when the eye looks DOWN at
+        // this sample (light travelling up), mu_s the sun cosine.
+        let ms_gain = select(1.0, camera.light5_color.z, camera.light5_color.z > 0.0);
+        let e_ms = cloud_ms_source(tau_above, tau_below, dot(-rd, dirp), ndl, prof) * ms_gain;
+        let direct = cloud_scatter_energy(tau, cos_vs, tau_vert) * pw_a + e_ms;
 
         // Ambient skylight (clouds depth increment): height across the slab
         // picks the base value (tops see the sky dome), then the VERTICAL
@@ -3686,10 +3791,13 @@ fn cloud_march_core(
         // columns read as open sky (round-2 gate4: 33k false-sky
         // pixels). 0.55 keeps the blue TENDENCY (thick = bluer than
         // warm) without cloud impersonating sky.
-        let sky_hue = mix(vec3<f32>(1.0), sky_aer / sky_peak, 0.55);
-        let amb_col = sky_hue * amb_h
+        // Increment A4: blue is a 150-300 m surface phenomenon; deep interior
+        // is achromatic and lit by the solar diffuse field (e_ms), so the sky
+        // and bounce ambient fade with burial.
+        let sky_hue = mix(mix(vec3<f32>(1.0), sky_aer / sky_peak, 0.55), vec3<f32>(1.0), prof);
+        let amb_col = (sky_hue * amb_h
             + vec3<f32>(0.98, 0.94, 0.88)
-                * (CLOUD_AMB_BOUNCE * (1.0 - h) * bounce_t);
+                * (CLOUD_AMB_BOUNCE * (1.0 - h) * bounce_t)) * (1.0 - prof);
 
         // Crevice occlusion (v0.1011): the puff cavity field darkens the
         // sample - lobes shade individually even though the light march
@@ -3721,8 +3829,12 @@ fn cloud_march_core(
         // scattering and carry no lobe-relief shading; without this, an eye
         // INSIDE a body sees the lobes around it painted as dark petals that
         // converge at the nadir.
-        let relief_w = select(1.0, trans,
+        var relief_w = select(1.0, trans,
             fract(camera.light7_color.w * 0.00000095367431640625) >= 0.5);
+        // Increment A4: relief is gated by BURIAL (world-space), never by
+        // eye transmittance - the bit-19 null showed the load-bearing
+        // samples sit at trans ~1 by construction.
+        relief_w = mix(relief_w, 1.0 - prof, g_ms_on);
         ao = mix(1.0, ao, relief_w);
         // ── SHADE ON THE REAL SURFACE: GROUNDWORK ONLY (v0.1233) ──
         //
@@ -3819,6 +3931,7 @@ fn cloud_march_core(
         g_march_amb_acc = g_march_amb_acc
             + dot(amb_col * (sun_lum * ao_amb * day), lum_w) * (trans * a_i);
         acc_d = acc_d + tm * (trans * a_i);
+        g_march_prof_acc = g_march_prof_acc + prof * (trans * a_i);
         trans = trans * (1.0 - a_i);
         // 0.005, not 0.02 (increment 10): with resolved density gradients
         // the last 1.5% of transmittance carries visible skirt light.
@@ -3839,7 +3952,9 @@ fn cloud_march_core(
     // dim toward heavy grey while translucent wisps keep full brightness.
     // Rides body_total (the ray's own opacity), so one deck can show a
     // bright thin skirt around a dark dense core.
-    radiance = radiance * (1.0 - 0.32 * smoothstep(0.72, 0.98, body_total));
+    // Increment A4: the v0.909 opacity darkening is a transmittance-era
+    // proxy for an interior that now has its own source; off when A is on.
+    radiance = radiance * mix(1.0 - 0.32 * smoothstep(0.72, 0.98, body_total), 1.0, g_ms_on);
 
     // Aerial perspective at the cloud's OWN depth (phase 3, fidelity
     // finding 5): the engine's shared aerial integral, evaluated at the

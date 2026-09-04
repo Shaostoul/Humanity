@@ -664,6 +664,7 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
 
     var best = 1.0e9;
     var best_height_m = 1.0;
+    var best_top_m = 1.0;
     // Check the 3x3 neighbourhood so a wide cloud reaches across cells.
     for (var dj = -1; dj <= 1; dj = dj + 1) {
         for (var di = -1; di <= 1; di = di + 1) {
@@ -814,6 +815,7 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
                 // profile below is expressed as a fraction of the cloud the
                 // sample is actually inside rather than of the whole slab.
                 best_height_m = height_m;
+                best_top_m = height_m * sy_e;
             }
         }
     }
@@ -823,6 +825,9 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     // outside stepped by a fixed hop that knew nothing about where the surface
     // was. See the SDF-guided step in 40-clouds.wgsl.
     g_v2_sdf_m = best;
+    // Increment A1: the winning cloud top and this sample's height, metres.
+    g_v2_top_m = best_top_m;
+    g_v2_up_m = up_m;
     if (best >= 0.0) {
         return 0.0;
     }

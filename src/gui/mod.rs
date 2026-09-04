@@ -3467,6 +3467,10 @@ pub struct GuiState {
     pub cloud_dev_deep_rung: bool,
     /// Synthetic checker density (v0.1279): the projection test.
     pub cloud_dev_checker: bool,
+    /// Increment A: the in-cloud light (v0.1280).
+    pub cloud_dev_ms: bool,
+    /// Gain on the in-scattered source, 0 = default.
+    pub cloud_dev_ms_gain: f32,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5330,6 +5334,8 @@ impl Default for GuiState {
             cloud_dev_relief_fade: false,
             cloud_dev_deep_rung: false,
             cloud_dev_checker: false,
+            cloud_dev_ms: false,
+            cloud_dev_ms_gain: 0.0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

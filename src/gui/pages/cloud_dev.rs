@@ -120,6 +120,28 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // metres, so every edge sample is a coin flip (the glitter) and the
             // converged mean depends on step spacing, which is a function of
             // the angle to the local vertical (the rosette). Two levers.
+            // v0.1280: increment A, the in-cloud light. Inside a cloud at noon
+            // the eye should see bright fog-white: the interior was ~10x too
+            // dark because every ambient term was a transmittance and the sun
+            // ladder resolved the shadows of the lobes around the eye.
+            let mut msb = state.cloud_dev_ms;
+            if ui
+                .checkbox(&mut msb, "In-cloud light (Eddington source; fog-white interiors; no lobe shadows through the eye)")
+                .changed()
+            {
+                state.cloud_dev_ms = msb;
+                changed = true;
+            }
+            if state.cloud_dev_ms {
+                let mut g = if state.cloud_dev_ms_gain > 0.0 { state.cloud_dev_ms_gain } else { 1.0 };
+                if ui
+                    .add(egui::Slider::new(&mut g, 0.2..=3.0).text("in-scatter gain"))
+                    .changed()
+                {
+                    state.cloud_dev_ms_gain = g;
+                    changed = true;
+                }
+            }
             // v0.1272: the two fixes the estimator assessment designed.
             let mut estb = state.cloud_dev_est;
             if ui
@@ -371,8 +393,9 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 "March steps",
                 "Step comb",
                 "Entry depth",
+                "Burial",
             ];
-            let mut pick = state.cloud_dev_map_diag.clamp(0, 6);
+            let mut pick = state.cloud_dev_map_diag.clamp(0, 8);
             ui.horizontal(|ui| {
                 for (i, name) in names.iter().enumerate() {
                     if ui.selectable_label(pick == i as i32, *name).clicked() {

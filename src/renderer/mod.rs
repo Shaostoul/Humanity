@@ -575,6 +575,11 @@ pub struct Renderer {
     pub cloud_deep_rung: bool,
     /// Dev pad bit 21: synthetic checker density (the projection test).
     pub cloud_checker: bool,
+    /// Dev pad bit 22: increment A, the in-cloud light (Eddington source,
+    /// depth-split sun ladder, rind-only relief and hue).
+    pub cloud_ms: bool,
+    /// Gain on the in-scattered source (light5_color.z); 0 = 1.0.
+    pub cloud_ms_gain: f32,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1814,6 +1819,8 @@ impl Renderer {
             cloud_relief_fade: false,
             cloud_deep_rung: false,
             cloud_checker: false,
+            cloud_ms: false,
+            cloud_ms_gain: 0.0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3108,7 +3115,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m, self.cloud_shear]));
         // light5_color.x (offset 288; zero readers, zero-filled): hv-warp amplitude km.
-        self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul]));
+        self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul, self.cloud_ms_gain]));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all
@@ -3897,7 +3904,8 @@ impl Renderer {
             + (if self.cloud_sharp_base { 262144.0f32 } else { 0.0 })
             + (if self.cloud_relief_fade { 524288.0f32 } else { 0.0 })
             + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })
-            + (if self.cloud_checker { 2097152.0f32 } else { 0.0 });
+            + (if self.cloud_checker { 2097152.0f32 } else { 0.0 })
+            + (if self.cloud_ms { 4194304.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 
