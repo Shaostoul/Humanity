@@ -1,5 +1,41 @@
 # HumanityOS: Priorities
 
+> **v0.1280 (2026-09-04): THE IN-CLOUD LIGHT, BUILT AND MEASURED; THE
+> LIMITER IS THE MODEL DECK OPTICAL THICKNESS.** The design (fidelity
+> reference + code audit + refuters) put numbers on the target: at 45/km the
+> transport mean free path is 148 m, Koschmieder visibility 87 m, so 99% of an
+> in-cloud pixel comes from the nearest 100 m and the inside of a sunlit
+> cumulus at noon is fog-white, 170-210 of 255 after the tonemap. The shipped
+> interior read 48 because every "multiple scattering" term was a
+> transmittance with no return path (an interior that DARKENED with more
+> extinction), the diffuse floor used the regime band top 4 km up as its
+> column, and the sun ladder resolved neighbouring lobes for deep samples.
+> Built behind bit 22 (F10 "In-cloud light", `cloud_ms`, gain `cloud_ms_gain`):
+> burial from the local column, depth-split ladder, Eddington two-stream
+> source, rind-only relief/hue/powder/opacity-darkening; `map_diag 8` =
+> burial; `scripts/cloud-ab-metrics.js`.
+>
+> MEASURED at the operator bm-12 camera: burial reads 1.0 wherever the eye
+> looks (the light engages), extinction x3 now BRIGHTENS (58 -> 61; was 45 ->
+> 29), the interior goes achromatic (B/R 1.08 -> 0.92), but the masked mean
+> reached 58 against 135+; gain 2.5 lands at 101, linear, so physics needs
+> ~3x. That factor IS the optical thickness: the model column at envelope
+> density ~0.5 is tau 13 over 600 m where real cumulus is 27, and at tau 27
+> the same formula gives 143/255 by itself. The light model is right in form;
+> its input is the model's thin interior - the same thinness that lets the
+> eye see 600 m into a skirt and the ocean through slivers. DEFAULT OFF until
+> the interior gate is met by physics. Retired: the direct-channel RED gate
+> (that channel is weighted by eye transmittance and carries the radial
+> geometry whatever the lighting does).
+>
+> NEXT, in order: (1) a saturating interior density remap (density -> 1
+> inside the core, coverage-preserving: the Nubis remap shape) measured at
+> bm-12 by the same gates, then A re-measured at gain 1 and flipped on;
+> (2) increment B field work from the design: measure-preserving domain
+> warps at 24 km / 3 km / 0.6 km on the noise path, Poisson occupancy and an
+> isotropic placement warp on the built path, convective base sharpness per
+> family, and the stratocumulus genus rule for continuous decks.
+
 > **v0.1278-v0.1279 (2026-09-04): THE ROSETTE IS LAYER GEOMETRY. PROVEN WITH A
 > SYNTHETIC FIELD.** The operator saved F6 bookmark bm-12 at the rosette
 > (1.63 km, straight down, clear, mid-Pacific); the rig reproduces it
