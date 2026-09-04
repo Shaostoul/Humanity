@@ -3407,8 +3407,15 @@ fn cloud_march_core(
         // march read 45% darker than it). Nubis-style fix: reject the
         // coarse step, back up, and re-march the span at MFP resolution
         // (dens_prev primes the interior refinement above).
+        // The guard is on the bisection STOP width, not on step_near
+        // (v0.1276): step_near is capped at 4.5% of the slab (522 m), so at
+        // 26 km the 500-700 m cone step never exceeded 2*step_near and the
+        // bisection NEVER FIRED - the entry fell through to the trapezoid,
+        // whose depth below a flat cloud top is the comb phase, printing
+        // concentric contour bands about the nadir on a rain overcast.
         if (est && dens > CLOUD_STEP_INTERIOR_GATE
-            && dens_prev <= CLOUD_STEP_INTERIOR_GATE && seg_len > 2.0 * step_near)
+            && dens_prev <= CLOUD_STEP_INTERIOR_GATE
+            && seg_len > 4.0 * (30.0 * 0.001 * g_cloud_upkm))
         {
             // ENTRY LOCALISATION (est): two bisection taps on [last clear
             // sample, this sample] find the crossing to within seg_len/4,
@@ -3419,7 +3426,18 @@ fn cloud_march_core(
             var lo = t_last_clear;
             var hi = tm;
             var dens_hi = dens;
-            for (var b = 0; b < 2; b = b + 1) {
+            // Five bisections (v0.1276; was two). Two left the crossing within
+            // seg_len/4 - 175-350 m at 26 km - and on a flat cloud top that
+            // error, taken modulo the step comb, printed CONCENTRIC CONTOUR
+            // BANDS about the nadir (the v0.1242 flower-ring class, exposed
+            // by a rain overcast from altitude once the estimator noise was
+            // gone). Five taps put the crossing within seg_len/32, under the
+            // 22 m sunlit skin, and stop early once the bracket is 30 m.
+            let stop_w = 30.0 * 0.001 * g_cloud_upkm;
+            for (var b = 0; b < 5; b = b + 1) {
+                if (hi - lo < stop_w) {
+                    break;
+                }
                 let mid = 0.5 * (lo + hi);
                 let pm = ro + rd * mid;
                 let dm = cloud_density_hi(

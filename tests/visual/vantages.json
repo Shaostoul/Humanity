@@ -3756,6 +3756,87 @@
         "cloud_ring_cure": "0"
       },
       "settle_s": 14
+    },
+    {
+      "id": "rain-26km-nadir",
+      "desc": "26.4 km over a rain overcast, 12 deg off nadir, half res, depth dither OFF - the operator v0.1275.1 capture: a full-frame topographic contour pinwheel in the real render. The first standing RED vantage for the fan. Cause (v0.1276): the est entry bisection never fired at this range (guard on 2*step_near), so the deck-top entry depth was the march comb phase.",
+      "expect": "A smooth overcast with dark holes; NO concentric contour bands about the nadir. Grain under 8 at full res.",
+      "regressions": [
+        "no topographic contour bands about the nadir",
+        "no dependence of the deck top on the depth dither"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 26.4,
+        "look_offset_deg": 12,
+        "time": 11.4
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "rain",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_shear": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_res": "2"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "rain-26km-nadir-full",
+      "desc": "Same at full resolution, where the bands were sharpest (grain 17.8 before, 6.6 after).",
+      "expect": "As rain-26km-nadir.",
+      "regressions": [
+        "no topographic contour bands about the nadir"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 26.4,
+        "look_offset_deg": 12,
+        "time": 11.4
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "rain",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_shear": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_res": "1"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {
