@@ -18484,6 +18484,10 @@ mod native_app {
                                     state.gui_state.cloud_dev_step_m;
                                 state.renderer.cloud_shear =
                                     state.gui_state.cloud_dev_shear;
+                                state.renderer.cloud_hv_km =
+                                    state.gui_state.cloud_dev_hv_km;
+                                state.renderer.cloud_sigma_mul =
+                                    state.gui_state.cloud_dev_sigma_mul;
                                 state.renderer.cloud_est =
                                     state.gui_state.cloud_dev_est;
                                 state.renderer.cloud_warp_bl =
@@ -18496,6 +18500,15 @@ mod native_app {
                                     state.gui_state.cloud_dev_thin_deck;
                                 state.renderer.cloud_hv_warp =
                                     state.gui_state.cloud_dev_hv_warp;
+                                state.renderer.cloud_no_detail = state.gui_state.cloud_dev_no_detail;
+                                state.renderer.cloud_no_puff = state.gui_state.cloud_dev_no_puff;
+                                state.renderer.cloud_no_cell = state.gui_state.cloud_dev_no_cell;
+                                state.renderer.cloud_no_fray = state.gui_state.cloud_dev_no_fray;
+                                state.renderer.cloud_no_bdrop = state.gui_state.cloud_dev_no_bdrop;
+                                state.renderer.cloud_sharp_base = state.gui_state.cloud_dev_sharp_base;
+                                state.renderer.cloud_relief_fade = state.gui_state.cloud_dev_relief_fade;
+                                state.renderer.cloud_deep_rung = state.gui_state.cloud_dev_deep_rung;
+                                state.renderer.cloud_checker = state.gui_state.cloud_dev_checker;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
                                 state.renderer.cloud_shape_off =

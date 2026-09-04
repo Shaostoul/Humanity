@@ -275,6 +275,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(m) = grab("cloud_shear").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_shear = m;
     }
+    // {"cloud_hv_km":"2.0"}: height-varying warp amplitude in km (0 = default).
+    if let Some(m) = grab("cloud_hv_km").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_hv_km = m;
+    }
+    // {"cloud_sigma_mul":"3"}: extinction multiplier (0 = off).
+    if let Some(m) = grab("cloud_sigma_mul").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_sigma_mul = m;
+    }
     // {"cloud_est":"1"}: the sample-anchored march; {"cloud_warp_bl":"1"}:
     // warp band-limited to its own tile + rind/4 refine (v0.1272).
     if let Some(t) = grab("cloud_est") {
@@ -298,6 +306,31 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"cloud_hv_warp":"1"}: height-varying domain warp on the noise body.
     if let Some(t) = grab("cloud_hv_warp") {
         state.gui_state.cloud_dev_hv_warp = t == "1";
+    }
+    // Component bisect (v0.1279): {"cloud_no_detail":"1"} etc. turn ONE
+    // noise-path density term off.
+    if let Some(t) = grab("cloud_no_detail") { state.gui_state.cloud_dev_no_detail = t == "1"; }
+    if let Some(t) = grab("cloud_no_puff") { state.gui_state.cloud_dev_no_puff = t == "1"; }
+    if let Some(t) = grab("cloud_no_cell") { state.gui_state.cloud_dev_no_cell = t == "1"; }
+    if let Some(t) = grab("cloud_no_fray") { state.gui_state.cloud_dev_no_fray = t == "1"; }
+    if let Some(t) = grab("cloud_no_bdrop") {
+        state.gui_state.cloud_dev_no_bdrop = t == "1";
+    }
+    // {"cloud_sharp_base":"1"}: base envelope 0.5% of the band instead of 3%.
+    if let Some(t) = grab("cloud_sharp_base") {
+        state.gui_state.cloud_dev_sharp_base = t == "1";
+    }
+    // {"cloud_relief_fade":"1"}: relief AO weighted by eye transmittance.
+    if let Some(t) = grab("cloud_relief_fade") {
+        state.gui_state.cloud_dev_relief_fade = t == "1";
+    }
+    // {"cloud_deep_rung":"1"}: skip the first three sun rungs for deep samples.
+    if let Some(t) = grab("cloud_deep_rung") {
+        state.gui_state.cloud_dev_deep_rung = t == "1";
+    }
+    // {"cloud_checker":"1"}: synthetic 0.5 km checker density, the projection test.
+    if let Some(t) = grab("cloud_checker") {
+        state.gui_state.cloud_dev_checker = t == "1";
     }
     // {"cloud_temporal":"0"} disables the resolve's temporal accumulation
     // OUTRIGHT (every frame runs the snap path: raw march + spatial

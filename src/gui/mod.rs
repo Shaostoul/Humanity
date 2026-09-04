@@ -3437,6 +3437,10 @@ pub struct GuiState {
     pub cloud_dev_step_m: f32,
     /// Uniform eastward lean (v0.1275), 0 = off.
     pub cloud_dev_shear: f32,
+    /// Height-varying warp amplitude km (v0.1279), 0 = default.
+    pub cloud_dev_hv_km: f32,
+    /// Extinction multiplier (v0.1279), 0 = off.
+    pub cloud_dev_sigma_mul: f32,
     /// Sample-anchored march (v0.1272).
     pub cloud_dev_est: bool,
     /// Warp band-limit + rind/4 refine (v0.1272).
@@ -3449,6 +3453,20 @@ pub struct GuiState {
     pub cloud_dev_thin_deck: bool,
     /// Height-varying warp (v0.1278).
     pub cloud_dev_hv_warp: bool,
+    /// Component bisect (v0.1279).
+    pub cloud_dev_no_detail: bool,
+    pub cloud_dev_no_puff: bool,
+    pub cloud_dev_no_cell: bool,
+    pub cloud_dev_no_fray: bool,
+    pub cloud_dev_no_bdrop: bool,
+    /// Sharp cloud base (v0.1279).
+    pub cloud_dev_sharp_base: bool,
+    /// Interior relief fade (v0.1279).
+    pub cloud_dev_relief_fade: bool,
+    /// Coarse sun ladder for deep samples (v0.1279).
+    pub cloud_dev_deep_rung: bool,
+    /// Synthetic checker density (v0.1279): the projection test.
+    pub cloud_dev_checker: bool,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5295,12 +5313,23 @@ impl Default for GuiState {
             cloud_dev_rind_wide_m: 0.0,
             cloud_dev_step_m: 0.0,
             cloud_dev_shear: 0.0,
+            cloud_dev_hv_km: 0.0,
+            cloud_dev_sigma_mul: 0.0,
             cloud_dev_est: true,
             cloud_dev_warp_bl: true,
             cloud_dev_norm_floor: false,
             cloud_dev_iso_step: false,
             cloud_dev_thin_deck: false,
             cloud_dev_hv_warp: false,
+            cloud_dev_no_detail: false,
+            cloud_dev_no_puff: false,
+            cloud_dev_no_cell: false,
+            cloud_dev_no_fray: false,
+            cloud_dev_no_bdrop: false,
+            cloud_dev_sharp_base: false,
+            cloud_dev_relief_fade: false,
+            cloud_dev_deep_rung: false,
+            cloud_dev_checker: false,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

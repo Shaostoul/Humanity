@@ -545,6 +545,10 @@ pub struct Renderer {
     /// Uniform eastward lean, metres per metre of height above the deck
     /// base (light6_color.w). 0 = off. The prism-wall discriminator.
     pub cloud_shear: f32,
+    /// Height-varying warp amplitude in km (light5_color.x); 0 = shader constant.
+    pub cloud_hv_km: f32,
+    /// Extinction multiplier (light5_color.y); 0 = off. The transparency test.
+    pub cloud_sigma_mul: f32,
     /// Dev pad bit 7: the sample-anchored march (v0.1272).
     pub cloud_est: bool,
     /// Dev pad bit 8: warp band-limited to its own tile + rind/4 refine.
@@ -557,6 +561,20 @@ pub struct Renderer {
     pub cloud_thin_deck: bool,
     /// Dev pad bit 12: height-varying domain warp on the noise body (design 2c).
     pub cloud_hv_warp: bool,
+    /// Component bisect (v0.1279), dev pad bits 13-17: one density term off.
+    pub cloud_no_detail: bool,
+    pub cloud_no_puff: bool,
+    pub cloud_no_cell: bool,
+    pub cloud_no_fray: bool,
+    pub cloud_no_bdrop: bool,
+    /// Dev pad bit 18: sharp cloud base (0.5% of the band instead of 3%).
+    pub cloud_sharp_base: bool,
+    /// Dev pad bit 19: interior relief fade (relief weighted by eye transmittance).
+    pub cloud_relief_fade: bool,
+    /// Dev pad bit 20: coarse sun ladder for deep view samples.
+    pub cloud_deep_rung: bool,
+    /// Dev pad bit 21: synthetic checker density (the projection test).
+    pub cloud_checker: bool,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1779,12 +1797,23 @@ impl Renderer {
             cloud_rind_wide_m: 0.0,
             cloud_step_m: 0.0,
             cloud_shear: 0.0,
+            cloud_hv_km: 0.0,
+            cloud_sigma_mul: 0.0,
             cloud_est: true,
             cloud_warp_bl: true,
             cloud_norm_floor: false,
             cloud_iso_step: false,
             cloud_thin_deck: false,
             cloud_hv_warp: false,
+            cloud_no_detail: false,
+            cloud_no_puff: false,
+            cloud_no_cell: false,
+            cloud_no_fray: false,
+            cloud_no_bdrop: false,
+            cloud_sharp_base: false,
+            cloud_relief_fade: false,
+            cloud_deep_rung: false,
+            cloud_checker: false,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3078,6 +3107,8 @@ impl Renderer {
         // runtime slider, not a rebuild per value.
         self.queue.write_buffer(
             &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m, self.cloud_shear]));
+        // light5_color.x (offset 288; zero readers, zero-filled): hv-warp amplitude km.
+        self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul]));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all
@@ -3857,7 +3888,16 @@ impl Renderer {
             + (if self.cloud_norm_floor { 1024.0f32 } else { 0.0 })
             + (if self.cloud_iso_step { 512.0f32 } else { 0.0 })
             + (if self.cloud_thin_deck { 2048.0f32 } else { 0.0 })
-            + (if self.cloud_hv_warp { 4096.0f32 } else { 0.0 });
+            + (if self.cloud_hv_warp { 4096.0f32 } else { 0.0 })
+            + (if self.cloud_no_detail { 8192.0f32 } else { 0.0 })
+            + (if self.cloud_no_puff { 16384.0f32 } else { 0.0 })
+            + (if self.cloud_no_cell { 32768.0f32 } else { 0.0 })
+            + (if self.cloud_no_fray { 65536.0f32 } else { 0.0 })
+            + (if self.cloud_no_bdrop { 131072.0f32 } else { 0.0 })
+            + (if self.cloud_sharp_base { 262144.0f32 } else { 0.0 })
+            + (if self.cloud_relief_fade { 524288.0f32 } else { 0.0 })
+            + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })
+            + (if self.cloud_checker { 2097152.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

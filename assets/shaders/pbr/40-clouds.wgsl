@@ -269,6 +269,9 @@ var<private> g_march_iters: f32 = 0.0;
 // flat <= 30 m field once the march is sample-anchored. It is the gate that
 // cannot pass by setup: it must read RED on the old march first.
 var<private> g_march_first_depth_m: f32 = 0.0;
+// 1.0 when the current view sample sits behind more than one optical depth
+// of cloud from the eye (bit 20 experiment: coarse sun ladder deep inside).
+var<private> g_deep_sample: f32 = 0.0;
 // Rosette-bisect channels (v0.1249 forensics): luminance of the DIRECT-sun
 // and AMBIENT contributions of the last march, accumulated with the same
 // transmittance weights as the radiance. The octa pass renders one of them
@@ -1764,7 +1767,12 @@ fn cloud_regime(tc: f32) -> CloudRegime {
 // bottom of a tower-extended cumulus band over 3.4 km, which is most of why
 // the from-below deck floated at 4-8 km as a veil (fidelity finding 2).
 fn cloud_height_band(h: f32, h_lo: f32, h_hi: f32) -> f32 {
-    let a = mix(h_lo, h_hi, 0.03);
+    // Bit 18 (v0.1279 experiment): a SHARP base. 3% of the band is 150-330 m
+    // of soft underside; the lifting condensation level is opaque within
+    // tens of metres. 0.5% is 26-55 m.
+    let base_frac = select(0.03, 0.005,
+        fract(camera.light7_color.w * 0.0000019073486328125) >= 0.5);
+    let a = mix(h_lo, h_hi, base_frac);
     let b = mix(h_lo, h_hi, 0.62);
     return smoothstep(h_lo, a, h) * (1.0 - smoothstep(b, h_hi, h));
 }
@@ -1854,7 +1862,12 @@ fn cloud_carve(
             cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
             cloud_lod(lodb, CLOUD_LODC_CELL)).rgb;
         let hv_fade = 1.0 - smoothstep(-1.0, 1.0, lodb);
-        let a_w = CLOUD_HV_WARP_KM * g_cloud_upkm * hv_fade;
+        // Amplitude from light5_color.x when set (showcase cloud_hv_km, F10
+        // slider); the constant is the fallback. At the operator bm-12 camera
+        // 0.5 km was a null: the sight lines through km-scale gaps need the
+        // walls to wander by more than the gap width over the visible height.
+        let hv_km = select(CLOUD_HV_WARP_KM, camera.light5_color.x, camera.light5_color.x > 0.0);
+        let a_w = hv_km * g_cloud_upkm * hv_fade;
         ps_s = ps + (cw - vec3<f32>(0.5)) * 2.0 * a_w;
     }
     let s = textureSampleLevel(
@@ -2070,7 +2083,8 @@ fn cloud_carve(
     let shape_w = 1.0 - v2_w;
     var thr = thr_base
         + shape_w * CLOUD_TOP_RISE * u_band * u_band
-        + shape_w * CLOUD_BASE_DROP * reg.base_drop * v_band * v_band * (1.0 - lofi);
+        + shape_w * CLOUD_BASE_DROP * reg.base_drop * v_band * v_band * (1.0 - lofi)
+            * select(1.0, 0.0, fract(camera.light7_color.w * 0.000003814697265625) >= 0.5);
     // Cumulus-scale cell split (phase 3, fidelity finding 4): the shape
     // volume's finest feature is ~11 km, and erosion can only nibble a
     // blob's edges - nothing could ever make a 1-2 km cloud. A second tap
@@ -2246,7 +2260,8 @@ fn cloud_carve(
     // weakly supported columns' bases; solving body = thr_base +
     // BASE_DROP*wt*v^2 for v gives how far DOWN this column's own base
     // reaches (v_base >= 1: hangs at the very slab floor = a pouch).
-    let bd_wt = CLOUD_BASE_DROP * reg.base_drop * (1.0 - lofi);
+    let bd_wt = CLOUD_BASE_DROP * reg.base_drop * (1.0 - lofi)
+        * select(1.0, 0.0, fract(camera.light7_color.w * 0.000003814697265625) >= 0.5);
     // Same iso-distance defect as crown above: pouch is f(body), which
     // on the constructed path is a radial coordinate. Faded out with the
     // constructed weight (0 = no pouch darkening).
@@ -2296,7 +2311,9 @@ fn cloud_density_hi(
         cloud_detail_tex, cloud_tile_sampler, cs.ps * g_fray_freq,
         cloud_lod(lodb, CLOUD_LODC_FRAY));
     let frfbm = fr.r * 0.625 + fr.g * 0.25 + fr.b * 0.125;
-    let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base));
+    // Bit 16 of the dev pad: fray erosion off (component bisect, v0.1279).
+    let fray_on = select(1.0, 0.0, fract(camera.light7_color.w * 0.00000762939453125) >= 0.5);
+    let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base)) * fray_on;
     base = clamp(cloud_remap(base, erode_c, 1.0, 0.0, 1.0), 0.0, 1.0);
     // FILAMENT streaking: the ridged-Perlin channel (detail alpha) frays flat
     // sheets into thin branching streaks. Weighted by the regime (cirrus high,
@@ -2475,6 +2492,14 @@ fn cloud_sun_tau(
     cu = normalize(cu);
     let cv = cross(sun_local, cu);
     for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
+        // Deep-sample coarse ladder (v0.1279 experiment, dev pad bit 20):
+        // when the VIEW sample is already deep (g_deep_sample set by the
+        // march from the eye transmittance), the first three rungs are
+        // skipped so nearby lobe shadows do not print through the eye.
+        if (g_deep_sample > 0.5 && i < 3
+            && fract(camera.light7_color.w * 0.000000476837158203125) >= 0.5) {
+            continue;
+        }
         // Geometric ladder: the segment IS the step (see
         // CLOUD_LIGHT_NEAR_KM / RATIO above).
         dist = dist + step_d;
@@ -3155,7 +3180,10 @@ fn cloud_march_core(
         uniform_step || iso_step);
     // Per-ray physical extinction (phase 3): per-family sigma converted to
     // drawn units. Replaces the global CLOUD_HI_SIGMA_KM.
-    let sigma_v = reg.ext_km / g_cloud_upkm;
+    // Dev knob (v0.1279): extinction multiplier in light5_color.y (showcase
+    // cloud_sigma_mul, F10 slider); 0 = off. The transparency test at bm-12.
+    let sigma_mul = select(1.0, camera.light5_color.y, camera.light5_color.y > 0.0);
+    let sigma_v = (reg.ext_km / g_cloud_upkm) * sigma_mul;
     var trans = 1.0;
     var acc = vec3<f32>(0.0);
     var acc_w = 0.0;
@@ -3410,13 +3438,28 @@ fn cloud_march_core(
         // matching its footprint (Wave B), and the soft carve keeps
         // threshold statistics honest across mips, so far samples read the
         // band's mean erosion instead of nothing at all.
-        let detail_amt = 1.0;
-        let puff_amt = 1.0;
-        let cell_amt = 1.0;
+        // ── NOISE-PATH COMPONENT BISECT (v0.1279, dev pad bits 13-15) ──
+        // The bm-12 rosette is in the density field itself (present in
+        // coverage alpha, at every volumetric tier, under every march and
+        // resolve toggle). One term off at a time.
+        let detail_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.00006103515625) >= 0.5);
+        let puff_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.000030517578125) >= 0.5);
+        let cell_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.0000152587890625) >= 0.5);
         // (foot/lodb hoisted above the weather tap - increment 11b.)
         let dc = cloud_density_hi(
             p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
-        let dens = dc.x;
+        var dens = dc.x;
+        // ── SYNTHETIC CHECKER (dev pad bit 21) ── a known world-space field.
+        if (fract(camera.light7_color.w * 0.000000238418579101562) >= 0.5) {
+            let alt_m = (length(p) - g_cloud_rb) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+            let lat_r = asin(clamp(dirp.y, -1.0, 1.0));
+            let lon_r = atan2(-dirp.z, dirp.x);
+            let u = floor(lat_r * 6371.0 / 0.5);
+            let vv = floor(lon_r * cos(lat_r) * 6371.0 / 0.5);
+            let odd = fract((u + vv) * 0.5) > 0.25;
+            let in_slab = alt_m > 0.0 && alt_m < 600.0;
+            dens = select(0.0, 1.0, odd && in_slab);
+        }
         // 12f: copy the view sample's side-channel NOW - the sun march
         // below re-enters cloud_carve and overwrites these globals.
         let s_pouch = g_cloud_pouch;
@@ -3555,6 +3598,7 @@ fn cloud_march_core(
         // Light march toward the sun + Beer-powder edge darkening. The
         // first two taps see the same eroded density this view sample does
         // (clouds depth increment), so lobes self-shadow.
+        g_deep_sample = select(0.0, 1.0, trans < 0.5);
         let tau = cloud_sun_tau(
             p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lodb);
@@ -3670,6 +3714,16 @@ fn cloud_march_core(
             1.0 - (h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
         let pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
         var ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade * pouch_shade;
+        // ── INTERIOR RELIEF FADE (v0.1279 experiment, dev pad bit 19) ──
+        // Relief is a surface phenomenon. `trans` here is the transmittance
+        // from the eye to THIS sample: 1 at the visible surface, ~0 one
+        // optical depth in. Deep samples are lit by diffuse multiple
+        // scattering and carry no lobe-relief shading; without this, an eye
+        // INSIDE a body sees the lobes around it painted as dark petals that
+        // converge at the nadir.
+        let relief_w = select(1.0, trans,
+            fract(camera.light7_color.w * 0.00000095367431640625) >= 0.5);
+        ao = mix(1.0, ao, relief_w);
         // ── SHADE ON THE REAL SURFACE: GROUNDWORK ONLY (v0.1233) ──
         //
         // The normal and seam ARE computed now (41-cloud-bodies.wgsl) and cost
@@ -3746,9 +3800,9 @@ fn cloud_march_core(
         // here is recorded too - the carve MAGNITUDE was measured
         // mip-invariant to 1% (carve_magnitude_fit), so tau_vert is not
         // the carrier and needs no gain table.
-        let crown_amb = mix(1.0, crown_shade, 0.35);
-        let pouch_amb = mix(1.0, pouch_shade, 0.35);
-        let ao_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35)
+        let crown_amb = mix(1.0, crown_shade, 0.35 * relief_w);
+        let pouch_amb = mix(1.0, pouch_shade, 0.35 * relief_w);
+        let ao_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35 * relief_w)
             * crown_amb * pouch_amb;
         let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
 

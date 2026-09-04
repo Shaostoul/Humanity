@@ -147,12 +147,47 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_shear = sh;
                 changed = true;
             }
+            // Component bisect (v0.1279): one density term off at a time.
+            ui.label(RichText::new("Density component bisect (each turns ONE term off)").size(theme.font_size_small).color(theme.text_secondary()));
+            for (label, flag) in [
+                ("detail erosion off", &mut state.cloud_dev_no_detail),
+                ("puff erosion off", &mut state.cloud_dev_no_puff),
+                ("cell split off", &mut state.cloud_dev_no_cell),
+                ("fray off", &mut state.cloud_dev_no_fray),
+                ("base drop off", &mut state.cloud_dev_no_bdrop),
+                ("sharp base (0.5% of band, not 3%)", &mut state.cloud_dev_sharp_base),
+                ("interior relief fade (no lobe shading deep inside cloud)", &mut state.cloud_dev_relief_fade),
+                ("coarse sun ladder deep inside (skip rungs under 200 m)", &mut state.cloud_dev_deep_rung),
+                ("SYNTHETIC CHECKER density (projection test: must render as a grid)", &mut state.cloud_dev_checker),
+            ] {
+                if ui.checkbox(flag, label).changed() {
+                    changed = true;
+                }
+            }
             let mut hvw = state.cloud_dev_hv_warp;
             if ui
                 .checkbox(&mut hvw, "Height-varying cloud walls (the prism-wall fix: walls wander with altitude)")
                 .changed()
             {
                 state.cloud_dev_hv_warp = hvw;
+                changed = true;
+            }
+            if state.cloud_dev_hv_warp {
+                let mut hk = if state.cloud_dev_hv_km > 0.0 { state.cloud_dev_hv_km } else { 0.5 };
+                if ui
+                    .add(egui::Slider::new(&mut hk, 0.1..=5.0).text("wall wander km per 1.3 km of height"))
+                    .changed()
+                {
+                    state.cloud_dev_hv_km = hk;
+                    changed = true;
+                }
+            }
+            let mut sm = state.cloud_dev_sigma_mul;
+            if ui
+                .add(egui::Slider::new(&mut sm, 0.0..=10.0).text("extinction x (0 = off; the transparency test)"))
+                .changed()
+            {
+                state.cloud_dev_sigma_mul = sm;
                 changed = true;
             }
             let mut thin = state.cloud_dev_thin_deck;

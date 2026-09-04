@@ -3841,6 +3841,131 @@
         "cloud_res": "1"
       },
       "settle_s": 14
+    },
+    {
+      "id": "operator-bm12",
+      "desc": "The operator bm-12 (F6, 2026-09-04): lat -11.09 lon -153.95 mid-Pacific, 1.63 km, straight down (look 2), clear, noon for legibility. Reproduces the rosette pixel-exact: radial slivers of ocean through the deck converging at the nadir, inner-bin coherence +0.92/+0.86/+0.97. Every renderer-side toggle is a null here; it is the field (vertical-walled km-scale gaps seen from inside the layer).",
+      "expect": "When fixed: gaps seen from inside the layer read as irregular openings, not radial slivers; inner-bin coherence well under +0.5.",
+      "regressions": [
+        "no radial slivers converging at the nadir from inside the layer"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "checker-bm12",
+      "desc": "The projection test at the operator bm-12 camera: density replaced by a 0.5 km lat/lon checkerboard filling 1.0-1.6 km (dev pad bit 21). Renders as the rosette from here and as a correct grid from 3 km above - the proof that the projection is right and the rosette is layer geometry.",
+      "expect": "One see-through cell below the camera, opaque elsewhere, lattice lines as radial slivers. From checker-bm12-above a regular perspective grid.",
+      "regressions": [
+        "a projection change must keep the from-above grid regular"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "1",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_checker": "1"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "checker-bm12-above",
+      "desc": "Same checker from 3 km above: must be a perspective-correct grid.",
+      "expect": "Regular grid of 0.5 km cells, perspective-correct.",
+      "regressions": [
+        "grid must stay regular"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 3,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "1",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_checker": "1"
+      },
+      "settle_s": 14
     }
   ],
   "ladder": {
