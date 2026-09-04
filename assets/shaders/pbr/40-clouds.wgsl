@@ -1890,8 +1890,31 @@ fn cloud_carve(
         let a_w = hv_km * g_cloud_upkm * hv_fade;
         ps_s = ps + (cw - vec3<f32>(0.5)) * 2.0 * a_w;
     }
+    // ── INCREMENT B 2.1: THREE-OCTAVE DOMAIN WARP (v0.1281, dev pad bit 23) ──
+    // Measure-preserving: the field marginal is invariant under a smooth
+    // domain warp, so coverage holds without a refit. W_org bends the
+    // 5.6-45 km facets into sinuous walls (a straight corridor pinches shut
+    // every ~1.5 km), W_wall is the 100-500 m turbulence band, W_fine the
+    // 10-100 m band the eye resolves from inside. The sun path keeps W_org
+    // (it moves mass) and takes the fine octaves at their means, the same
+    // discipline as the built path.
+    let field_on = fract(camera.light7_color.w * 0.000000059604644775390625) >= 0.5;
+    var ps_b = ps_s;
+    if (field_on) {
+        let w_org = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            ps / (24.0 * g_cloud_upkm), cloud_lod(lodb, -3.42)).rgb;
+        ps_b = ps_b + (w_org - vec3<f32>(0.5)) * 2.0 * (0.8 * g_cloud_upkm);
+        if (g_sun_profile < 0.5) {
+            let w_wall = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+                ps / (3.0 * g_cloud_upkm), cloud_lod(lodb, -6.42)).rgb;
+            let w_fine = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+                ps / (0.6 * g_cloud_upkm), cloud_lod(lodb, -8.74)).rgb;
+            ps_b = ps_b + (w_wall - vec3<f32>(0.5)) * 2.0 * (0.12 * g_cloud_upkm)
+                + (w_fine - vec3<f32>(0.5)) * 2.0 * (0.03 * g_cloud_upkm);
+        }
+    }
     let s = textureSampleLevel(
-        cloud_shape_tex, cloud_tile_sampler, ps_s * g_shape_freq,
+        cloud_shape_tex, cloud_tile_sampler, ps_b * g_shape_freq,
         cloud_lod(lodb, CLOUD_LODC_SHAPE));
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     // SINGLE construction (increment 10b): the bake's R channel IS the
@@ -2119,8 +2142,9 @@ fn cloud_carve(
     // alpha keep the full carve.
     var cell_term = 0.0;
     if (cell_amt > 0.01) {
+        // The cell split follows the warped walls (increment B 2.1).
         let c = textureSampleLevel(
-            cloud_shape_tex, cloud_tile_sampler, ps * g_cell_freq,
+            cloud_shape_tex, cloud_tile_sampler, select(ps, ps_b, field_on) * g_cell_freq,
             cloud_lod(lodb, CLOUD_LODC_CELL));
         // CENTERED at the bake's g-channel mean (increment 11): the split
         // is always on now (its distance fade is deleted), so it must

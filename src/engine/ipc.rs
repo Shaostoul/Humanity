@@ -336,6 +336,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_ms") {
         state.gui_state.cloud_dev_ms = t == "1";
     }
+    // {"cloud_field":"1"}: increment B 2.1, the three-octave domain warp.
+    if let Some(t) = grab("cloud_field") {
+        state.gui_state.cloud_dev_field = t == "1";
+    }
     if let Some(m) = grab("cloud_ms_gain").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_ms_gain = m;
     }

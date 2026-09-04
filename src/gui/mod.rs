@@ -3469,6 +3469,8 @@ pub struct GuiState {
     pub cloud_dev_checker: bool,
     /// Increment A: the in-cloud light (v0.1280).
     pub cloud_dev_ms: bool,
+    /// Increment B 2.1: the three-octave domain warp (v0.1281).
+    pub cloud_dev_field: bool,
     /// Gain on the in-scattered source, 0 = default.
     pub cloud_dev_ms_gain: f32,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
@@ -5335,6 +5337,7 @@ impl Default for GuiState {
             cloud_dev_deep_rung: false,
             cloud_dev_checker: false,
             cloud_dev_ms: false,
+            cloud_dev_field: false,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,

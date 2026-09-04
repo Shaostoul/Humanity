@@ -142,6 +142,14 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     changed = true;
                 }
             }
+            let mut fld = state.cloud_dev_field;
+            if ui
+                .checkbox(&mut fld, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)")
+                .changed()
+            {
+                state.cloud_dev_field = fld;
+                changed = true;
+            }
             // v0.1272: the two fixes the estimator assessment designed.
             let mut estb = state.cloud_dev_est;
             if ui

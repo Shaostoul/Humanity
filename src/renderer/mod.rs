@@ -578,6 +578,9 @@ pub struct Renderer {
     /// Dev pad bit 22: increment A, the in-cloud light (Eddington source,
     /// depth-split sun ladder, rind-only relief and hue).
     pub cloud_ms: bool,
+    /// Dev pad bit 23 (the last exact f32 bit): increment B 2.1, the
+    /// three-octave domain warp on the noise path.
+    pub cloud_field: bool,
     /// Gain on the in-scattered source (light5_color.z); 0 = 1.0.
     pub cloud_ms_gain: f32,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
@@ -1820,6 +1823,7 @@ impl Renderer {
             cloud_deep_rung: false,
             cloud_checker: false,
             cloud_ms: false,
+            cloud_field: false,
             cloud_ms_gain: 0.0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
@@ -3905,7 +3909,8 @@ impl Renderer {
             + (if self.cloud_relief_fade { 524288.0f32 } else { 0.0 })
             + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })
             + (if self.cloud_checker { 2097152.0f32 } else { 0.0 })
-            + (if self.cloud_ms { 4194304.0f32 } else { 0.0 });
+            + (if self.cloud_ms { 4194304.0f32 } else { 0.0 })
+            + (if self.cloud_field { 8388608.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
 

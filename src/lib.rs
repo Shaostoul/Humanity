@@ -18510,6 +18510,7 @@ mod native_app {
                                 state.renderer.cloud_deep_rung = state.gui_state.cloud_dev_deep_rung;
                                 state.renderer.cloud_checker = state.gui_state.cloud_dev_checker;
                                 state.renderer.cloud_ms = state.gui_state.cloud_dev_ms;
+                                state.renderer.cloud_field = state.gui_state.cloud_dev_field;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;
