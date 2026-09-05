@@ -1,5 +1,62 @@
 # HumanityOS: Priorities
 
+> **v0.1285 (2026-09-05): PERF DAY 0 DONE; the passes are measured.** The
+> rig now copies `debug/frame_costs.json` beside every vantage capture when
+> the sweep env carries `HUMANITY_FRAME_COSTS=1`, and
+> `scripts/cloud-costs-table.js` tabulates `gpu.cloud_screen`,
+> `gpu.celestial` and `cpu.patch_build` per vantage. Every gate below reads
+> those, never the manifest fps. Day-0 table (2560x1387, clouds half, clock
+> pinned):
+>
+> ```
+> id                          frame_ms   gpu.cloud_screen gpu.cloud_resolve     gpu.celestial         gpu.scene   cpu.patch_build   timing
+> tmp-P-bm12-high                 45.1               4.13              0.16             36.45              0.23              5.03   timestamps
+> tmp-P-bm12-off                  39.2               0.00              0.00             35.50              0.23              5.26   timestamps
+> tmp-P-bm12-ultra               329.6             211.30              0.30             30.63              0.24              7.74   timestamps
+> tmp-P-cu-high                   56.5               2.14              0.13             33.41              0.24             11.09   timestamps
+> tmp-P-cu-off                    51.3               0.00              0.00             31.91              0.23              9.05   timestamps
+> tmp-P-cu-ultra                 178.2             145.91              0.29             29.19              0.24             13.94   timestamps
+> tmp-P-na40-high                 54.9               1.82              0.16             38.95              0.25              9.03   timestamps
+> tmp-P-na40-off                  40.7               0.00              0.00             38.51              0.23              8.97   timestamps
+> tmp-P-na40-ultra               336.1             217.68              0.30             39.16              0.24              8.64   timestamps
+> tmp-P-orbit-high                76.1              13.38              0.19             35.87              0.24             10.70   timestamps
+> tmp-P-orbit-off                 74.5               0.00              0.00             34.41              0.24             10.67   timestamps
+> tmp-P-orbit-ultra              387.7             363.43              0.30             19.62              0.25             10.74   timestamps
+> tmp-P-rain-high                 47.9               9.81              0.29             35.87              0.24              9.43   timestamps
+> tmp-P-rain-off                  46.1               0.00              0.00             36.15              0.24             10.73   timestamps
+> tmp-P-rain-ultra                76.7              46.11              0.33             26.74              0.23              9.92   timestamps
+> tmp-P-sctop-high                67.0               9.09              0.31             36.87              0.25              5.38   timestamps
+> tmp-P-sctop-off                 53.4               0.00              0.00             35.40              0.23              6.05   timestamps
+> tmp-P-sctop-ultra               85.4              24.10              0.29             35.82              0.24              5.19   timestamps
+> ```
+>
+> Read it as: at Ultra the cloud march (`gpu.cloud_screen`) is 211 ms inside a
+> deck, 146 at the closeup, 46 over the 26 km overcast, 24 at the deck top,
+> while High is 2 to 10 ms in the same places: the constructed bodies times the
+> sun ladder ARE the frame, as the panel said. `gpu.celestial` (the planet:
+> terrain, ocean, atmosphere) is 30 to 37 ms in every situation, the floor the
+> cloud arc cannot pass and the number the planet arc will open with.
+>
+> Also shipped: the bit-exact dead-tap trim (`cloud_density_hi` skips the
+> fray and detail taps at `cs.v2 == 1.0`, and the puff tap on the sun-profile
+> path; `cloud_density_light` deleted; before/after pixel diff in-deck mean
+> 1.31, above-deck 0.41, under the rig repeat floor of about 4;
+> `scripts/cloud-diff.js` is the gate); the cloud resolution persisted
+> (`cloud_res_div` in config, default quarter, the F10 choice survives a
+> restart, so play and rig agree); the removed carve-saturation knob's
+> leftover Rust plumbing gone (bits 16-17 genuinely free). CAUTION learned:
+> the closeup before/after pair came out rotated (look 62, unpinned heading),
+> so bit-exact gates at oblique looks are blocked until the heading pin
+> lands (NEXT item 4 of the v0.1284 block); and a patch script that only
+> throws on a missing anchor can print success while a hunk silently fails
+> to apply; every removal now ends with a post-condition grep.
+>
+> NEXT: increment 1 of the perf plan, the sun-shadow cache, gated on the
+> table above (`gpu.cloud_screen` down 40% or more in-deck, forced A/B masked
+> mean within 3%, no halo at opaque/clear voxel boundaries, no ring at window
+> edges, prove red first with a hard window switch). Design and the rest of
+> the ladder: the v0.1284 block below.
+
 > **v0.1284 (2026-09-05): THE PERFORMANCE PLAN (panel wf_de1c02dc) and the
 > rosette panel's verdict.** The frame is per-STEP cost, not per-pixel and not
 > the far field: every cloud step pays one eye density plus up to 12 sun-ladder

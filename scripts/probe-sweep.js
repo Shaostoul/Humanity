@@ -827,6 +827,11 @@ async function main() {
         } else {
           rec.ok = true;
           log(`  captured ${destName}  (${rec.fps} fps / ${rec.frame_ms} ms, ${rec.capture_w}x${rec.capture_h})`);
+          // Per-vantage GPU pass costs (present when the sweep env carries
+          // HUMANITY_FRAME_COSTS=1): the perf arc gates read gpu.cloud_screen
+          // from these, not the manifest fps (2026-09-05, perf day 0).
+          const fcv = path.join(RIG, "debug", "frame_costs.json");
+          if (fs.existsSync(fcv)) fs.copyFileSync(fcv, path.join(OUT, `${v.id}-costs.json`));
         }
       } catch (e) {
         rec.error = String(e.message || e);

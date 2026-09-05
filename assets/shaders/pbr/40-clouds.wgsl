@@ -2374,9 +2374,17 @@ fn cloud_density_hi(
 ) -> vec3<f32> {
     let cs = cloud_carve(p, t, seed, weather_a, reg, cell_amt, lodb);
     var base = cs.carve;
+    // DEAD-TAP TRIM (v0.1285, perf day 0): the fray and detail taps only
+    // erode base, base only feeds dens_fractal, and dens_fractal is mixed
+    // with the built density by cs.v2 - at exactly 1.0 (a fully constructed
+    // sample) their result is multiplied by zero. Skipping them there is
+    // bit-exact: two of four taps saved on such eye samples and, on the
+    // sun-profile path (density only, cavity unused), three of four.
+    let built_only = cs.v2 >= 1.0;
     if (base <= 0.003) {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
+    if (!built_only) {
     // COARSE fray (always on -> orbit wispiness): erode edges with the detail
     // volume's Worley FBM sampled at a LOW world frequency (~88 km features,
     // supra-pixel from orbit so no stipple), in the same stretched domain so
@@ -2398,6 +2406,7 @@ fn cloud_density_hi(
     if (base <= 0.003) {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
+    }
     // Both near-camera erosion bands sample the drifted-but-UNSTRETCHED
     // domain (v0.1013.x, completing the v0.1012 puff fix): cs.ps carries the
     // regime's east-west stretch (up to 3.4x), which at erosion frequencies
@@ -2412,7 +2421,7 @@ fn cloud_density_hi(
     // FINE cauliflower (near only): high-frequency Worley erosion, phase
     // flipping with height (wispy bases, billowy tops). Fades out with
     // distance so orbit stays smooth -- the standard Nubis distance trick.
-    if (detail_amt > 0.01) {
+    if (detail_amt > 0.01 && !built_only) {
         let d = textureSampleLevel(
             cloud_detail_tex, cloud_tile_sampler, pu0 * g_detail_freq,
             cloud_lod(lodb, CLOUD_LODC_DETAIL));
@@ -2439,7 +2448,7 @@ fn cloud_density_hi(
     // same wispy-base / billowy-top height phase as the fine band. Only
     // near the camera (puff_amt fades by ~290 km).
     var cavity = 0.0;
-    if (puff_amt > 0.01 && base > 0.003) {
+    if (puff_amt > 0.01 && base > 0.003 && !(built_only && g_sun_profile > 0.5)) {
         // Unstretched domain (v0.1012.x fix; pu0 hoisted above since the
         // fine band now shares it).
         let pu = textureSampleLevel(
@@ -2505,24 +2514,8 @@ fn cloud_density_hi(
         mix(dens_fractal, dens_built, cs.v2), cavity, cs.crown);
 }
 
-// The LIGHT-march density: carved body only (no fray/detail taps -- edges err
-// slightly thick, which reads as soft shadow and halves the texture cost).
-// Phase 3: the interior is FULL density (physical extinction does the rest);
-// only the outer skirt feathers.
-fn cloud_density_light(
-    p: vec3<f32>,
-    t: f32,
-    seed: f32,
-    weather_a: f32,
-    reg: CloudRegime,
-    lodb: f32,
-) -> f32 {
-    let cs = cloud_carve(p, t, seed, weather_a, reg, 0.0, lodb);
-    // 12f: same solidity-gated LWP scaling as the view density - shadows
-    // must read the same water the eye does.
-    let lwp_eff = mix(1.0, cs.lwp, smoothstep(0.10, 0.35, cs.carve));
-    return smoothstep(0.0, 0.12, cs.carve) * lwp_eff;
-}
+// (cloud_density_light, the never-called light-march density, was deleted in
+// v0.1285: the sun ladder uses cloud_density_hi with the profile flag.)
 
 // Optical depth toward the sun from a sample point: CLOUD_HI_LIGHT_SAMPLES
 // taps with geometrically widening spacing (dense near the point for

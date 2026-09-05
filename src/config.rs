@@ -558,6 +558,12 @@ pub struct AppConfig {
     /// coherent pattern at every altitude. Turn on to match real Earth.
     #[serde(default)]
     pub live_weather: bool,
+    /// Cloud march resolution divisor (v0.1285): 1 = full, 2 = half,
+    /// 4 = quarter. Was GuiState-only and reset to quarter every boot, so
+    /// the operator's half-res play state and the rig's default differed by
+    /// 4x in cloud cost. Persisted so play and rig agree.
+    #[serde(default = "default_cloud_res_div")]
+    pub cloud_res_div: u32,
     /// Track the orbital home station (in-world ring + label; Cosmos page
     /// toggle, v0.885/persisted v0.886).
     #[serde(default = "default_true")]
@@ -921,6 +927,9 @@ pub fn pretty_ptt_key_name(name: &str) -> String {
     }
     name.to_string()
 }
+fn default_cloud_res_div() -> u32 {
+    4
+}
 
 fn default_voice_gain() -> f32 { 1.0 }
 // CapsLock as the default push-to-talk key (operator choice). Stored as the
@@ -1256,6 +1265,7 @@ impl AppConfig {
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
+            cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
             track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
@@ -1461,6 +1471,9 @@ impl AppConfig {
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
+        // The cloud resolution rides GuiState directly (the F10 page and the
+        // renderer read cloud_dev_res_div); the config is its persistence.
+        state.cloud_dev_res_div = self.cloud_res_div.clamp(1, 4);
         state.settings.track_station = self.track_station;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
