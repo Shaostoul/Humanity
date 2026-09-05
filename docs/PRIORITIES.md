@@ -1,5 +1,36 @@
 # HumanityOS: Priorities
 
+> **v0.1289 (2026-09-05): the operator's testing loop, made to point at the
+> same switch and the same settings.** After v0.1288 the operator reported
+> "clouds are looking better from all angles" and "still a bit rough and
+> kinda look like spheres", and asked for a marker on the exact F10 switch
+> under test and for their settings to be the real Ultra. Shipped: (1)
+> `data/gui/dev_tests.json` names the F10 rows under test; the Cloud dev
+> panel lists them in red at the top and paints a red TEST tag beside each
+> named row, re-read live (the chat names the same label in bold); (2)
+> Settings > Graphics > Presets with "Ultra (reference)" (what the rig
+> measures: cloud march at half res, constructed bodies, every feature at
+> physical strength) and "Extreme" (every slider at its limit) from
+> `data/gui/graphics_presets.json`; the rig's `--operator-config` flag is the
+> other half of the sync; (3) `just snapshot cloud_dev` renders the F10 panel
+> headlessly. Their screenshot had **Field walls** on (the v0.1281 null
+> instrument, about 10%) and WALK mode at 0.3 km among cumulus, the
+> closeup-class case where the caches break even.
+>
+> MEASURED AT THE OPERATOR'S LIVE SETTINGS (rig --operator-config, v0.1288, half res, real GPU timestamps; ms): bm-12 inside: frame 191, cloud march 25, planet pass (gpu.celestial: terrain + ocean + atmosphere) 99; bm-12 4.6 km: frame 189, cloud 17, planet 107; cumulus closeup: frame 140, cloud 44, planet 25; 0.4 km among cumulus looking across (the operator's screenshot case): frame 175, cloud 55, planet 79. At their settings (ssao 0.96, godrays 0.98, planet_lod_px 4, terrain_split_px 2, terrain_patch_budget 12288, sun shadows, FFT ocean) the planet pass is 80 to 107 ms against 30 to 37 at the rig defaults, and the clouds are 13 to 30 percent of the frame. The sub-10 fps is now the planet pass, not the clouds; the planet arc is the bigger lever from here, and every frame-level claim must be measured with --operator-config (the rig defaults understate the planet pass 3x).
+>
+> NEXT, in order:
+> 1. **Increment 4, the far rung** (design panel wf_92c5b89f in flight):
+>    the orbit speckles, a per-cell prefiltered profile chosen by footprint,
+>    the Low sheet redrawn from it.
+> 2. **The look**: "still kinda look like spheres" is the design-A geometry
+>    increment (dome cores with wide contact discs, `dome_sink` per genus,
+>    caps budding on the dome, blue-noise placement, 3D erosion on the built
+>    path); its discriminating experiment `hum-top-30m` first.
+> 3. **The per-cell cluster table** (the closeup's break-even), then
+>    increment 5 (operator-gated quarter march), then cloud layering, then
+>    the planet pass arc (`gpu.celestial` 30 to 37 ms everywhere).
+
 > **v0.1288 (2026-09-05): PERF INCREMENT 2, step economy, and THE DEFAULTS FLIP:
 > the sun-shadow cache, the body cluster cache and the step economy are ON by
 > default (F10 toggles kept for A/B); the sun cache's far fallback is the

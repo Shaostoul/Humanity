@@ -1110,6 +1110,15 @@ First-person, third-person, orbit/free with smooth transitions.
 PBR-lite rendering with depth buffer, materials, instanced rendering.
 - Native: `src/renderer/mod.rs`, `src/renderer/pipeline.rs`
 
+### Cloud dev panel (F10) with data-driven test markers (v0.1289)
+Live cloud-renderer switches (every probe-rig pin: caches, step economy, bisect channels, resolution). `data/gui/dev_tests.json` names the rows the operator is being asked to test; the panel lists them at the top and paints a red TEST tag beside each named row, re-read live while the panel is open, so the chat and the panel name the same switch.
+- Native: `src/gui/pages/cloud_dev.rs` (`dev_tests`, `test_mark`), `src/gui/ui_snapshots.rs` (`snapshot_cloud_dev`)
+- Data: `data/gui/dev_tests.json`
+
+### Graphics presets: Ultra (reference) and Extreme (v0.1289)
+Settings > Graphics > Presets applies a named preset from data. "Ultra (reference)" is what the probe rig measures and what every performance number in PRIORITIES means by Ultra (cloud march at half resolution, constructed bodies, every surface and lighting feature at its physical strength); "Extreme" is every slider at its limit (full-resolution cloud march, 4x the reference). Unknown keys are logged and skipped so the file can grow ahead of the code.
+- Native: `src/gui/pages/settings.rs` (`graphics_presets`, `apply_graphics_preset`)
+- Data: `data/gui/graphics_presets.json`
 ### PBR Shader with Emissive (v0.90.0)
 PBR material pipeline supports emissive strength via params.w.
 - Shaders: `assets/shaders/pbr_simple.wgsl`

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "_comment": "What the operator is being asked to test in the F10 Cloud dev panel right now. The panel paints a red TEST tag beside every row whose label starts with 'label' and lists these at the top. Edit this file (it is read live while the panel is open); the chat names the same labels in bold. Remove an entry when its question is answered.",
+  "tests": [
+    {
+      "label": "Sun shadow cache",
+      "note": "Default on since v0.1288. Inside any deck: untick, compare the look and the FPS, retick. Expected: same look within a couple of levels, about 3x faster."
+    },
+    {
+      "label": "Body cluster cache",
+      "note": "Default on since v0.1288. Same test as the sun cache. Weak spot: looking across a cumulus field from below, where it roughly breaks even."
+    },
+    {
+      "label": "step economy",
+      "note": "Default 1.0 since v0.1288. Drag to 0 anywhere far from the deck (orbit, high altitude): the clouds should look the same and the FPS drop."
+    },
+    {
+      "label": "Field walls",
+      "note": "Leave OFF. A null instrument from v0.1281 that costs about 10 percent."
+    }
+  ]
+}

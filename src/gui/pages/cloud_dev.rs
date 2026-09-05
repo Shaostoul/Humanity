@@ -16,6 +16,58 @@ use crate::gui::GuiState;
 
 /// Draw the panel. Returns true when the operator changed something, so the
 /// caller (lib.rs) re-publishes the flags to the renderer.
+/// One "please test this" request for the F10 panel, from
+/// data/gui/dev_tests.json. `label` is a PREFIX of the row's label text;
+/// `note` says what to do and what to expect.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct DevTest {
+    pub label: String,
+    #[serde(default)]
+    pub note: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct DevTestsFile {
+    #[serde(default)]
+    tests: Vec<DevTest>,
+}
+
+/// The current test requests, re-read when the file changes (it is edited
+/// by the AI during a session, so the panel must follow it live). A missing
+/// or malformed file means "nothing to test", never a crash.
+pub fn dev_tests() -> Vec<DevTest> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::SystemTime;
+    static CACHE: OnceLock<Mutex<(Option<SystemTime>, Vec<DevTest>)>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new((None, Vec::new())));
+    let path = "data/gui/dev_tests.json";
+    let mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+    if let Ok(mut c) = cache.lock() {
+        if c.0 == mtime && mtime.is_some() {
+            return c.1.clone();
+        }
+        let tests = std::fs::read_to_string(path)
+            .ok()
+            .and_then(|t| serde_json::from_str::<DevTestsFile>(&t).ok())
+            .map(|f| f.tests)
+            .unwrap_or_default();
+        *c = (mtime, tests.clone());
+        return tests;
+    }
+    Vec::new()
+}
+
+/// Paint a red TEST tag before a row whose label matches a test request, so
+/// the operator can find the exact switch the chat named.
+pub fn test_mark(ui: &mut egui::Ui, theme: &Theme, label: &str, tests: &[DevTest]) {
+    if let Some(t) = tests.iter().find(|t| !t.label.is_empty() && label.starts_with(t.label.as_str())) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("TEST").strong().color(theme.danger()));
+            ui.label(RichText::new(t.note.as_str()).size(theme.font_size_small).color(theme.danger()));
+        });
+    }
+}
+
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
     if !state.show_cloud_dev_panel {
         return false;
@@ -38,11 +90,26 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 .color(theme.text_secondary()),
             );
             ui.add_space(theme.spacing_sm);
+            // NEEDS TESTING (data/gui/dev_tests.json): the operator asked for a
+            // marker on exactly the switches the chat names, so the list is
+            // data the AI edits during a session and the panel follows live.
+            let tests = dev_tests();
+            if !tests.is_empty() {
+                ui.label(RichText::new("NEEDS TESTING").strong().color(theme.danger()));
+                for t in &tests {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(t.label.as_str()).strong().color(theme.danger()));
+                        ui.label(RichText::new(t.note.as_str()).size(theme.font_size_small).color(theme.text_secondary()));
+                    });
+                }
+                ui.add_space(theme.spacing_sm);
+            }
 
             ui.label(RichText::new("Look").strong().color(theme.accent()));
             // Dither: the static-vs-agate trade, the operator's live choice
             // until the mip-response calibration retires both (v0.1254.3).
             let mut dither_on = !state.cloud_dev_dither_off;
+            test_mark(ui, theme, "Depth dither (off = smoother clouds, agate arcs on overcast)", &tests);
             if ui
                 .checkbox(
                     &mut dither_on,
@@ -54,6 +121,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut temporal_on = !state.cloud_dev_temporal_off;
+            test_mark(ui, theme, "Temporal accumulation (off = raw march, sharp per-frame noise)", &tests);
             if ui
                 .checkbox(
                     &mut temporal_on,
@@ -66,6 +134,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
 
             let mut shape_on = !state.cloud_dev_shape_off;
+            test_mark(ui, theme, "Cloud shape frame (off = old round balls, for comparison)", &tests);
             if ui
                 .checkbox(
                     &mut shape_on,
@@ -83,6 +152,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // by >40 levels). Freezing it makes a capture a function of the
             // build alone, which is what an A/B needs to mean anything.
             let mut frozen = state.cloud_dev_clock_pin >= 0.0;
+            test_mark(ui, theme, "Freeze cloud drift (for before/after comparisons)", &tests);
             if ui
                 .checkbox(&mut frozen, "Freeze cloud drift (for before/after comparisons)")
                 .changed()
@@ -104,6 +174,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // direct-sun radial energy 23.97 with the cure on, 28.11 with it
             // off, against a 0.7 noise floor.
             let mut cure = !state.cloud_dev_ring_cure_off;
+            test_mark(ui, theme, "Per-pixel mip dither (default OFF: measured never better, worse inside the deck)", &tests);
             if ui
                 .checkbox(
                     &mut cure,
@@ -125,6 +196,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // dark because every ambient term was a transmittance and the sun
             // ladder resolved the shadows of the lobes around the eye.
             let mut msb = state.cloud_dev_ms;
+            test_mark(ui, theme, "In-cloud light (Eddington source; fog-white interiors; no lobe shadows through the eye)", &tests);
             if ui
                 .checkbox(&mut msb, "In-cloud light (Eddington source; fog-white interiors; no lobe shadows through the eye)")
                 .changed()
@@ -134,6 +206,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             if state.cloud_dev_ms {
                 let mut g = if state.cloud_dev_ms_gain > 0.0 { state.cloud_dev_ms_gain } else { 1.0 };
+                test_mark(ui, theme, "in-scatter gain", &tests);
                 if ui
                     .add(egui::Slider::new(&mut g, 0.2..=3.0).text("in-scatter gain"))
                     .changed()
@@ -148,6 +221,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // peaking at the top, opaque within tens of metres, and the
             // in-cloud light fed the body's own column.
             let mut sat = state.cloud_dev_int_sat;
+            test_mark(ui, theme, "interior saturation (built bodies)", &tests);
             if ui
                 .add(egui::Slider::new(&mut sat, 0.0..=1.0).text("interior saturation (built bodies)"))
                 .changed()
@@ -160,6 +234,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // Perf increment 2 (v0.1288): far rays stop taking 22 m steps and
             // opaque rays relax their step; 0 = off, 1 = full.
             let mut eco = state.cloud_dev_step_eco;
+            test_mark(ui, theme, "step economy (footprint floors + deep relaxation)", &tests);
             if ui
                 .add(egui::Slider::new(&mut eco, 0.0..=1.0).text("step economy (footprint floors + deep relaxation)"))
                 .changed()
@@ -168,6 +243,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut bc = state.cloud_dev_body_cache;
+            test_mark(ui, theme, "Body cluster cache (per ray; off = rebuild the lobes at every sample, for A/B)", &tests);
             if ui
                 .checkbox(&mut bc, "Body cluster cache (per ray; off = rebuild the lobes at every sample, for A/B)")
                 .changed()
@@ -176,6 +252,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut fld = state.cloud_dev_field;
+            test_mark(ui, theme, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)", &tests);
             if ui
                 .checkbox(&mut fld, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)")
                 .changed()
@@ -191,6 +268,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // the frame time does. The "Sun source" bisect channel below
             // paints which window each pixel read from.
             let mut lcb = state.cloud_dev_light;
+            test_mark(ui, theme, "Sun shadow cache (off = 12-rung ladder per pixel, for A/B)", &tests);
             if ui
                 .checkbox(&mut lcb, "Sun shadow cache (off = 12-rung ladder per pixel, for A/B)")
                 .changed()
@@ -200,6 +278,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             // v0.1272: the two fixes the estimator assessment designed.
             let mut estb = state.cloud_dev_est;
+            test_mark(ui, theme, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)", &tests);
             if ui
                 .checkbox(&mut estb, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)")
                 .changed()
@@ -208,6 +287,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut wbl = state.cloud_dev_warp_bl;
+            test_mark(ui, theme, "Warp band-limited to its own tile (default ON since v0.1272; off = 3-20 m silhouette hash)", &tests);
             if ui
                 .checkbox(&mut wbl, "Warp band-limited to its own tile (default ON since v0.1272; off = 3-20 m silhouette hash)")
                 .changed()
@@ -218,6 +298,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // The lean (v0.1275): if the fan is the prism walls, its
             // convergence point moves off straight-down as this rises.
             let mut sh = state.cloud_dev_shear;
+            test_mark(ui, theme, "cloud lean (m per m of height; 0 = off)", &tests);
             if ui
                 .add(egui::Slider::new(&mut sh, 0.0..=1.0).text("cloud lean (m per m of height; 0 = off)"))
                 .changed()
@@ -243,6 +324,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 }
             }
             let mut hvw = state.cloud_dev_hv_warp;
+            test_mark(ui, theme, "Height-varying cloud walls (the prism-wall fix: walls wander with altitude)", &tests);
             if ui
                 .checkbox(&mut hvw, "Height-varying cloud walls (the prism-wall fix: walls wander with altitude)")
                 .changed()
@@ -252,6 +334,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             if state.cloud_dev_hv_warp {
                 let mut hk = if state.cloud_dev_hv_km > 0.0 { state.cloud_dev_hv_km } else { 0.5 };
+                test_mark(ui, theme, "wall wander km per 1.3 km of height", &tests);
                 if ui
                     .add(egui::Slider::new(&mut hk, 0.1..=5.0).text("wall wander km per 1.3 km of height"))
                     .changed()
@@ -261,6 +344,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 }
             }
             let mut sm = state.cloud_dev_sigma_mul;
+            test_mark(ui, theme, "extinction x (0 = off; the transparency test)", &tests);
             if ui
                 .add(egui::Slider::new(&mut sm, 0.0..=10.0).text("extinction x (0 = off; the transparency test)"))
                 .changed()
@@ -269,6 +353,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut thin = state.cloud_dev_thin_deck;
+            test_mark(ui, theme, "Thin deck (band height x0.3: the prism-wall test for the rosette)", &tests);
             if ui
                 .checkbox(&mut thin, "Thin deck (band height x0.3: the prism-wall test for the rosette)")
                 .changed()
@@ -277,6 +362,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut iso = state.cloud_dev_iso_step;
+            test_mark(ui, theme, "Isotropic near step (no verticality or chord term inside 27 km)", &tests);
             if ui
                 .checkbox(&mut iso, "Isotropic near step (no verticality or chord term inside 27 km)")
                 .changed()
@@ -285,6 +371,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut nfl = state.cloud_dev_norm_floor;
+            test_mark(ui, theme, "Carve normaliser floor (low-coverage stencil becomes a 450 m ramp)", &tests);
             if ui
                 .checkbox(&mut nfl, "Carve normaliser floor (low-coverage stencil becomes a 450 m ramp)")
                 .changed()
@@ -293,6 +380,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 changed = true;
             }
             let mut ustep = state.cloud_dev_uniform_step;
+            test_mark(ui, theme, "Uniform march step (distance-only; no verticality term)", &tests);
             if ui
                 .checkbox(&mut ustep, "Uniform march step (distance-only; no verticality term)")
                 .changed()
@@ -302,6 +390,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             if state.cloud_dev_uniform_step {
                 let mut sm = state.cloud_dev_step_m;
+                test_mark(ui, theme, "fixed step m (0 = off)", &tests);
                 if ui
                     .add(egui::Slider::new(&mut sm, 0.0..=600.0).text("fixed step m (0 = off)"))
                     .changed()
@@ -311,6 +400,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 }
             }
             let mut wedge = state.cloud_dev_wide_edge;
+            test_mark(ui, theme, "Wide cloud edge (~300 m ramp, radiative smoothing scale)", &tests);
             if ui
                 .checkbox(&mut wedge, "Wide cloud edge (~300 m ramp, radiative smoothing scale)")
                 .changed()
@@ -321,6 +411,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
 
             if state.cloud_dev_wide_edge {
                 let mut m = if state.cloud_dev_edge_mul > 0.0 { state.cloud_dev_edge_mul } else { 20.0 };
+                test_mark(ui, theme, "edge width x (hinge)", &tests);
                 if ui
                     .add(egui::Slider::new(&mut m, 1.0..=200.0).text("edge width x (hinge)"))
                     .changed()
@@ -329,6 +420,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     changed = true;
                 }
                 let mut r = if state.cloud_dev_rind_wide_m > 0.0 { state.cloud_dev_rind_wide_m } else { 300.0 };
+                test_mark(ui, theme, "body rind m", &tests);
                 if ui
                     .add(egui::Slider::new(&mut r, 90.0..=1500.0).text("body rind m"))
                     .changed()
@@ -339,6 +431,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
 
             let mut wsl = state.cloud_dev_world_shape_lod;
+            test_mark(ui, theme, "World-anchored cloud shape (shape detail stops following camera distance)", &tests);
             if ui
                 .checkbox(
                     &mut wsl,
@@ -351,6 +444,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
 
             let mut chord = state.cloud_dev_chord_foot;
+            test_mark(ui, theme, "Old chord detail scale (on = pre-v0.1268, sun rosette returns)", &tests);
             if ui
                 .checkbox(
                     &mut chord,
@@ -425,6 +519,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // the flag with no way to reach it. GUI-first means the button
             // ships in the same commit as the flag, every time.
             let mut dsc = state.cloud_dev_discard_diag;
+            test_mark(ui, theme, "Discard reasons (why a pixel's cloud was killed)", &tests);
             if ui
                 .checkbox(&mut dsc, "Discard reasons (why a pixel's cloud was killed)")
                 .changed()

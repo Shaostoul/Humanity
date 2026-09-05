@@ -737,6 +737,18 @@ fn settings_panel(
 }
 
 #[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_cloud_dev() {
+    // The F10 Cloud dev panel with its NEEDS TESTING list and per-row TEST
+    // tags (v0.1289, data/gui/dev_tests.json). 1400 tall: the panel is a
+    // long single column of switches.
+    render_page_png("cloud_dev", 420, 1400, |ctx, theme, state| {
+        state.show_cloud_dev_panel = true;
+        crate::gui::pages::cloud_dev::draw(ctx, theme, state);
+    });
+}
+
+#[test]
     #[ignore = "GPU snapshot; run via `just snapshots`"]
     fn snapshot_controls_settings() {
     // 1900 tall (2026-08-12): the Controls section grew the full rebindable

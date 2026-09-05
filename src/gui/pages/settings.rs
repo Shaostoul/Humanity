@@ -2440,6 +2440,88 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
     });
 }
 
+/// One graphics preset from data/gui/graphics_presets.json.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct GraphicsPreset {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub values: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+struct GraphicsPresetsFile {
+    #[serde(default)]
+    presets: Vec<GraphicsPreset>,
+}
+
+/// The presets, read from disk each call (a click, not a frame).
+pub fn graphics_presets() -> Vec<GraphicsPreset> {
+    std::fs::read_to_string("data/gui/graphics_presets.json")
+        .ok()
+        .and_then(|t| serde_json::from_str::<GraphicsPresetsFile>(&t).ok())
+        .map(|f| f.presets)
+        .unwrap_or_default()
+}
+
+/// Apply a preset's values to the live settings. Keys are SettingsState
+/// field names; an unknown key is logged and skipped so the data file can
+/// name a setting before the code learns it. Marks the settings dirty so
+/// the usual save path persists them (cloud_res_div rides GuiState).
+pub fn apply_graphics_preset(state: &mut GuiState, p: &GraphicsPreset) {
+    let f = |v: &serde_json::Value| v.as_f64().map(|x| x as f32);
+    let b = |v: &serde_json::Value| v.as_bool();
+    for (k, v) in &p.values {
+        let s = &mut state.settings;
+        let ok = match k.as_str() {
+            "cloud_quality" => { if let Some(x) = v.as_str() { s.cloud_quality = x.to_string(); true } else { false } }
+            "cloud_res_div" => { if let Some(x) = v.as_u64() { state.cloud_dev_res_div = (x as u32).clamp(1, 4); true } else { false } }
+            "planet_detail" => { if let Some(x) = b(v) { s.planet_detail = x; true } else { false } }
+            "planet_chunked" => { if let Some(x) = b(v) { s.planet_chunked = x; true } else { false } }
+            "planet_surface_detail" => { if let Some(x) = b(v) { s.planet_surface_detail = x; true } else { false } }
+            "terrain_lod_fade" => { if let Some(x) = b(v) { s.terrain_lod_fade = x; true } else { false } }
+            "planet_atmo_scatter" => { if let Some(x) = b(v) { s.planet_atmo_scatter = x; true } else { false } }
+            "planet_clouds" => { if let Some(x) = b(v) { s.planet_clouds = x; true } else { false } }
+            "live_weather" => { if let Some(x) = b(v) { s.live_weather = x; true } else { false } }
+            "sun_shadows" => { if let Some(x) = b(v) { s.sun_shadows = x; true } else { false } }
+            "water_fft" => { if let Some(x) = b(v) { s.water_fft = x; true } else { false } }
+            "gpu_particles" => { if let Some(x) = b(v) { s.gpu_particles = x; true } else { false } }
+            "sky_constellations" => { if let Some(x) = b(v) { s.sky_constellations = x; true } else { false } }
+            "sky_milkyway_glow" => { if let Some(x) = b(v) { s.sky_milkyway_glow = x; true } else { false } }
+            "sky_star_halos" => { if let Some(x) = b(v) { s.sky_star_halos = x; true } else { false } }
+            "planet_lod_px" => { if let Some(x) = f(v) { s.planet_lod_px = x; true } else { false } }
+            "terrain_split_px" => { if let Some(x) = f(v) { s.terrain_split_px = x; true } else { false } }
+            "terrain_patch_budget" => { if let Some(x) = f(v) { s.terrain_patch_budget = x; true } else { false } }
+            "terrain_detail_distance" => { if let Some(x) = f(v) { s.terrain_detail_distance = x; true } else { false } }
+            "terrain_builds_per_frame" => { if let Some(x) = f(v) { s.terrain_builds_per_frame = x; true } else { false } }
+            "tree_model_distance" => { if let Some(x) = f(v) { s.tree_model_distance = x; true } else { false } }
+            "near_tree_budget" => { if let Some(x) = f(v) { s.near_tree_budget = x; true } else { false } }
+            "grass_far_m" => { if let Some(x) = f(v) { s.grass_far_m = x; true } else { false } }
+            "grass_harvest_cap" => { if let Some(x) = f(v) { s.grass_harvest_cap = x; true } else { false } }
+            "tree_density" => { if let Some(x) = f(v) { s.tree_density = x; true } else { false } }
+            "grass_density" => { if let Some(x) = f(v) { s.grass_density = x; true } else { false } }
+            "grass_detail" => { if let Some(x) = f(v) { s.grass_detail = x; true } else { false } }
+            "veg_tree_card_m" => { if let Some(x) = f(v) { s.veg_tree_card_m = x; true } else { false } }
+            "water_detail_depth" => { if let Some(x) = f(v) { s.water_detail_depth = x; true } else { false } }
+            "shadow_strength" => { if let Some(x) = f(v) { s.shadow_strength = x; true } else { false } }
+            "aerial_strength" => { if let Some(x) = f(v) { s.aerial_strength = x; true } else { false } }
+            "godray_intensity" => { if let Some(x) = f(v) { s.godray_intensity = x; true } else { false } }
+            "ssao_strength" => { if let Some(x) = f(v) { s.ssao_strength = x; true } else { false } }
+            "planet_max_subdiv" => { if let Some(x) = f(v) { s.planet_max_subdiv = x; true } else { false } }
+            "sky_milkyway_intensity" => { if let Some(x) = f(v) { s.sky_milkyway_intensity = x; true } else { false } }
+            "render_distance" => { if let Some(x) = f(v) { s.render_distance = x; true } else { false } }
+            _ => false,
+        };
+        if !ok {
+            log::warn!("[GraphicsPreset] {}: key {} not applied (unknown or wrong type)", p.id, k);
+        }
+    }
+    state.settings_dirty = true;
+    log::info!("[GraphicsPreset] applied {}", p.id);
+}
+
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
     // The section accent drives every subsection header below, so the whole
@@ -2461,6 +2543,19 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         });
         widgets::setting_hint(ui, theme, hint, "Windowed fullscreen keeps the title bar + taskbar. Borderless drops the title bar. Exclusive is true fullscreen.");
+        // Graphics presets (v0.1289, data/gui/graphics_presets.json). "Ultra
+        // (reference)" is what the probe rig measures and what every
+        // performance number in PRIORITIES means by Ultra, so an operator on
+        // it sees what the rig sees; "Extreme" is every slider at its limit.
+        ui.label(RichText::new("Presets").color(theme.text_secondary()).strong());
+        ui.horizontal_wrapped(|ui| {
+            for p in graphics_presets() {
+                if ui.button(p.name.as_str()).on_hover_text(p.note.as_str()).clicked() {
+                    apply_graphics_preset(state, &p);
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, "Ultra (reference) = the settings every measured number assumes; Extreme = the ceiling (full-resolution cloud march, 4x the reference cost).");
         if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
             state.settings_dirty = true;
         }
