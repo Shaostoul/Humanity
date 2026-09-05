@@ -529,6 +529,15 @@ mod native_app {
             || state.gui_state.in_world_modal_open()
             // Dead = the death screen is up; its Respawn button needs the cursor.
             || state.gui_state.player_death_cause.is_some();
+        // Mirror the derived cursor state into GuiState BEFORE the early
+        // return below, so the copy is refreshed every call (the early
+        // return only skips the winit work). The F10 sidebar reads it to
+        // decide whether its collapse tab may be drawn at all: a
+        // click-sensing strip must not exist while the cursor is grabbed,
+        // because the hidden Confined cursor drifts to the window edge on a
+        // long turn and the next fire click would land on the strip
+        // (2026-09-05 critic finding on U1). GUI code never writes this.
+        state.gui_state.cursor_free = want_free;
         if want_free == state.cursor_free {
             return;
         }

@@ -69,7 +69,52 @@ pub fn test_mark(ui: &mut egui::Ui, theme: &Theme, label: &str, tests: &[DevTest
 /// Width of the collapse tab that lives on the panel's RIGHT edge (and is
 /// all that remains of the panel when collapsed). Slim on purpose: the
 /// operator asked for a strip they can click instead of pressing F10.
-const TAB_W: f32 = 18.0;
+/// 22 rather than 18 (critic, 2026-09-05): the body panel's resize handle
+/// senses drags 5 px either side of the panel edge, so the tab's leftmost
+/// 5 px double as a resize grip; the extra width keeps a centred click
+/// clear of it.
+const TAB_W: f32 = 22.0;
+
+/// What a click on the edge tab asked for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TabAction {
+    /// Nothing clicked this frame.
+    None,
+    /// The strip itself: collapse an expanded sidebar, expand a collapsed one.
+    Toggle,
+    /// The small cross under the arrow: close the sidebar entirely (the
+    /// mouse equivalent of F10 on an expanded sidebar). Added because the
+    /// Window era had a title-bar close box and the first sidebar cut had
+    /// no way to close it from the UI at all (critic, 2026-09-05).
+    Close,
+}
+
+/// A slider row WITHOUT egui's click-to-type number box. egui's Slider
+/// draws its value as a DragValue, and clicking that box takes keyboard
+/// FOCUS; egui-winit then reports every key event as consumed while any
+/// widget has focus, and lib.rs stops forwarding keys to the game on
+/// consumed events. In a panel built to be clicked while flying, that meant
+/// one stray click on a "1.000" box killed WASD AND swallowed the key
+/// RELEASE, so the player drifted with nothing held (critic, 2026-09-05).
+/// The value is shown as a plain label instead: same row shape (slider,
+/// number, caption), nothing here can take focus. Returns true on change.
+fn dev_slider(
+    ui: &mut egui::Ui,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    label: &str,
+) -> bool {
+    ui.horizontal(|ui| {
+        let changed = ui
+            .add(egui::Slider::new(value, range).show_value(false))
+            .changed();
+        // Three decimals, the same precision egui's own box showed.
+        ui.label(RichText::new(format!("{value:.3}")).monospace());
+        ui.label(label);
+        changed
+    })
+    .inner
+}
 /// Default sidebar width. About 420 px shows the longest checkbox labels on
 /// one or two lines; the edge is draggable if the operator wants more.
 const DEFAULT_W: f32 = 420.0;
@@ -78,9 +123,18 @@ const DEFAULT_W: f32 = 420.0;
 /// painted with a left arrow when the panel is open (click = collapse) and a
 /// right arrow when it is collapsed (click = expand). Arrow GLYPHS are banned
 /// in UI text (they render as tofu, see icon_glyph_lint), so the arrow is
-/// painted with the widgets::icons helpers. Returns the click response.
-fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bool) -> egui::Response {
+/// painted with the widgets::icons helpers. Below the arrow sits a small
+/// painted cross that CLOSES the sidebar outright (its own hit rect,
+/// registered after the strip so it wins the overlap). Returns what was
+/// clicked.
+fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bool) -> TabAction {
     let resp = ui.interact(rect, ui.id().with("cloud_dev_collapse_tab"), egui::Sense::click());
+    // The close cross: a TAB_W square two icon-heights below the arrow.
+    let close_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.center().x, rect.top() + 24.0 + TAB_W * 2.0),
+        egui::vec2(TAB_W, TAB_W),
+    );
+    let close = ui.interact(close_rect, ui.id().with("cloud_dev_close"), egui::Sense::click());
     // Tertiary normally so the strip stands out from the panel's dark ground
     // (a bg_secondary strip vanished into it in the first snapshot); accent
     // on hover so the click target is unmistakable.
@@ -110,11 +164,31 @@ fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bo
     } else {
         crate::gui::widgets::icons::paint_arrow_right(painter, icon, color);
     }
-    resp.on_hover_text(if expanded {
-        "Collapse the Cloud dev sidebar (F10 also closes it)"
+    // The close cross: two diagonals inside a square inset from the strip
+    // edges, danger-coloured on hover so it reads as "close", not "collapse".
+    let x_color = if close.hovered() { theme.danger() } else { theme.text_secondary() };
+    let x = close_rect.shrink(6.0);
+    let x_stroke = egui::Stroke::new(1.5, x_color);
+    painter.line_segment([x.left_top(), x.right_bottom()], x_stroke);
+    painter.line_segment([x.right_top(), x.left_bottom()], x_stroke);
+    // on_hover_text consumes the response, so read what we need first.
+    let (close_clicked, close_hovered) = (close.clicked(), close.hovered());
+    close.on_hover_text("Close the Cloud dev sidebar (F10 reopens it)");
+    let resp = resp.on_hover_text(if expanded {
+        "Collapse the Cloud dev sidebar to this tab (the cross below closes it, F10 closes it too)"
     } else {
-        "Expand the Cloud dev sidebar (F10 also opens it)"
-    })
+        "Expand the Cloud dev sidebar (F10 also expands it)"
+    });
+    if close_clicked {
+        TabAction::Close
+    } else if resp.clicked() && !close_hovered {
+        // The cross is registered after the strip so it wins the hit test;
+        // the hovered() guard is belt and braces against the two firing
+        // together on one press.
+        TabAction::Toggle
+    } else {
+        TabAction::None
+    }
 }
 
 /// Draw the panel. Returns true when the operator changed something, so the
@@ -136,6 +210,21 @@ fn collapse_tab(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, expanded: bo
 /// The cursor is freed while the body is expanded (see
 /// GuiState::cloud_dev_sidebar_expanded and lib.rs reconcile_cursor), so
 /// the operator no longer has to hold Alt to click anything here.
+///
+/// The tab is only drawn while the cursor is FREE (expanded, or collapsed
+/// on a menu page / with Alt held): while the cursor is grabbed the hidden
+/// pointer drifts to the window edge on a long turn, and a click-sensing
+/// strip there would eat the operator's next fire click and pop the
+/// sidebar open (critic finding, 2026-09-05). F10 expands a collapsed
+/// sidebar for exactly that reason, so nothing becomes unreachable.
+///
+/// Intentional, do not "fix": this is the LAST panel drawn in the frame
+/// (after the page CentralPanel in lib.rs), and egui's CentralPanel does
+/// not shrink the frame's available rect, so with a GuiPage open the
+/// sidebar OVERLAYS that page's left edge instead of pushing it right.
+/// Moving this call earlier in the frame would shift every page's layout
+/// whenever the dev sidebar is open; overlaying is the right trade for a
+/// dev tool the operator uses in the world, not on the menu pages.
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
     if !state.show_cloud_dev_panel {
         return false;
@@ -187,18 +276,28 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
     }
     // The tab: its own panel id, so the body's remembered width is never
     // overwritten by the tab's, and it exists in both states (flush right
-    // of the body when expanded, alone at the screen edge when collapsed).
-    egui::SidePanel::left("cloud_dev_tab")
-        .frame(frame)
-        .exact_width(TAB_W)
-        .resizable(false)
-        .show_separator_line(false)
-        .show(ctx, |ui| {
-            let rect = ui.max_rect();
-            if collapse_tab(ui, theme, rect, expanded).clicked() {
-                state.cloud_dev_collapsed = expanded;
-            }
-        });
+    // of the body when expanded, alone at the screen edge when collapsed),
+    // EXCEPT while the cursor is grabbed: then no click target may exist at
+    // the screen edge (see the doc comment above; `state.cursor_free` is
+    // the mirror lib.rs reconcile_cursor keeps for exactly this question).
+    // Expanded implies free, the `||` just makes that explicit.
+    if expanded || state.cursor_free {
+        egui::SidePanel::left("cloud_dev_tab")
+            .frame(frame)
+            .exact_width(TAB_W)
+            .resizable(false)
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                let rect = ui.max_rect();
+                match collapse_tab(ui, theme, rect, expanded) {
+                    TabAction::Toggle => state.cloud_dev_collapsed = expanded,
+                    // Same as F10 on an expanded sidebar: the cursor re-grabs
+                    // through reconcile_cursor once the expanded term drops.
+                    TabAction::Close => state.show_cloud_dev_panel = false,
+                    TabAction::None => {}
+                }
+            });
+    }
     changed
 }
 
@@ -334,10 +433,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_ms {
         let mut g = if state.cloud_dev_ms_gain > 0.0 { state.cloud_dev_ms_gain } else { 1.0 };
         test_mark(ui, theme, "in-scatter gain", &tests);
-        if ui
-            .add(egui::Slider::new(&mut g, 0.2..=3.0).text("in-scatter gain"))
-            .changed()
-        {
+        if dev_slider(ui, &mut g, 0.2..=3.0, "in-scatter gain") {
             state.cloud_dev_ms_gain = g;
             changed = true;
         }
@@ -349,10 +445,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // in-cloud light fed the body's own column.
     let mut sat = state.cloud_dev_int_sat;
     test_mark(ui, theme, "interior saturation (built bodies)", &tests);
-    if ui
-        .add(egui::Slider::new(&mut sat, 0.0..=1.0).text("interior saturation (built bodies)"))
-        .changed()
-    {
+    if dev_slider(ui, &mut sat, 0.0..=1.0, "interior saturation (built bodies)") {
         state.cloud_dev_int_sat = sat;
         changed = true;
     }
@@ -362,10 +455,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // opaque rays relax their step; 0 = off, 1 = full.
     let mut eco = state.cloud_dev_step_eco;
     test_mark(ui, theme, "step economy (footprint floors + deep relaxation)", &tests);
-    if ui
-        .add(egui::Slider::new(&mut eco, 0.0..=1.0).text("step economy (footprint floors + deep relaxation)"))
-        .changed()
-    {
+    if dev_slider(ui, &mut eco, 0.0..=1.0, "step economy (footprint floors + deep relaxation)") {
         state.cloud_dev_step_eco = eco;
         changed = true;
     }
@@ -426,10 +516,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // convergence point moves off straight-down as this rises.
     let mut sh = state.cloud_dev_shear;
     test_mark(ui, theme, "cloud lean (m per m of height; 0 = off)", &tests);
-    if ui
-        .add(egui::Slider::new(&mut sh, 0.0..=1.0).text("cloud lean (m per m of height; 0 = off)"))
-        .changed()
-    {
+    if dev_slider(ui, &mut sh, 0.0..=1.0, "cloud lean (m per m of height; 0 = off)") {
         state.cloud_dev_shear = sh;
         changed = true;
     }
@@ -462,20 +549,14 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_hv_warp {
         let mut hk = if state.cloud_dev_hv_km > 0.0 { state.cloud_dev_hv_km } else { 0.5 };
         test_mark(ui, theme, "wall wander km per 1.3 km of height", &tests);
-        if ui
-            .add(egui::Slider::new(&mut hk, 0.1..=5.0).text("wall wander km per 1.3 km of height"))
-            .changed()
-        {
+        if dev_slider(ui, &mut hk, 0.1..=5.0, "wall wander km per 1.3 km of height") {
             state.cloud_dev_hv_km = hk;
             changed = true;
         }
     }
     let mut sm = state.cloud_dev_sigma_mul;
     test_mark(ui, theme, "extinction x (0 = off; the transparency test)", &tests);
-    if ui
-        .add(egui::Slider::new(&mut sm, 0.0..=10.0).text("extinction x (0 = off; the transparency test)"))
-        .changed()
-    {
+    if dev_slider(ui, &mut sm, 0.0..=10.0, "extinction x (0 = off; the transparency test)") {
         state.cloud_dev_sigma_mul = sm;
         changed = true;
     }
@@ -518,10 +599,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_uniform_step {
         let mut sm = state.cloud_dev_step_m;
         test_mark(ui, theme, "fixed step m (0 = off)", &tests);
-        if ui
-            .add(egui::Slider::new(&mut sm, 0.0..=600.0).text("fixed step m (0 = off)"))
-            .changed()
-        {
+        if dev_slider(ui, &mut sm, 0.0..=600.0, "fixed step m (0 = off)") {
             state.cloud_dev_step_m = sm;
             changed = true;
         }
@@ -539,19 +617,13 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     if state.cloud_dev_wide_edge {
         let mut m = if state.cloud_dev_edge_mul > 0.0 { state.cloud_dev_edge_mul } else { 20.0 };
         test_mark(ui, theme, "edge width x (hinge)", &tests);
-        if ui
-            .add(egui::Slider::new(&mut m, 1.0..=200.0).text("edge width x (hinge)"))
-            .changed()
-        {
+        if dev_slider(ui, &mut m, 1.0..=200.0, "edge width x (hinge)") {
             state.cloud_dev_edge_mul = m;
             changed = true;
         }
         let mut r = if state.cloud_dev_rind_wide_m > 0.0 { state.cloud_dev_rind_wide_m } else { 300.0 };
         test_mark(ui, theme, "body rind m", &tests);
-        if ui
-            .add(egui::Slider::new(&mut r, 90.0..=1500.0).text("body rind m"))
-            .changed()
-        {
+        if dev_slider(ui, &mut r, 90.0..=1500.0, "body rind m") {
             state.cloud_dev_rind_wide_m = r;
             changed = true;
         }

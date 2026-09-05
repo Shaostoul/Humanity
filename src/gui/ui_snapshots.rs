@@ -762,6 +762,11 @@ fn snapshot_cloud_dev_collapsed() {
     render_page_png("cloud_dev_collapsed", 320, 240, |ctx, theme, state| {
         state.show_cloud_dev_panel = true;
         state.cloud_dev_collapsed = true;
+        // The tab is only drawn while the cursor is free (a grabbed cursor
+        // must find no click target at the screen edge); the headless
+        // harness has no cursor, so say it is free, as it would be on a
+        // menu page or with Alt held.
+        state.cursor_free = true;
         crate::gui::pages::cloud_dev::draw(ctx, theme, state);
     });
 }
