@@ -46,7 +46,7 @@ function sobel(g) {
 }
 function coherence(sb, cx, cy) {
   const { gx, gy, W, H } = sb; const cx4 = cx / 4, cy4 = cy / 4;
-  const num = BINS.map(() => 0), den = BINS.map(() => 0);
+  const num = BINS.map(() => 0), den = BINS.map(() => 0), cnt = BINS.map(() => 0);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
     const i = y * W + x; const m = Math.hypot(gx[i], gy[i]); if (m < 24 * 4) continue;
     const r4 = Math.hypot(x - cx4, y - cy4); const r = r4 * 4;
@@ -58,11 +58,20 @@ function coherence(sb, cx, cy) {
     // edge tangent is perpendicular to the gradient; radial from centre
     const tang = Math.atan2(gx[i], -gy[i]); const rad = Math.atan2(y - cy4, x - cx4);
     const psi = tang - rad;
-    num[b] += m * Math.cos(2 * psi); den[b] += m;
+    num[b] += m * Math.cos(2 * psi); den[b] += m; cnt[b]++;
   }
-  return BINS.map((_, k) => den[k] > 0 ? num[k] / den[k] : 0);
+  // A bin with no strong edges is EMPTY, not coherent: a uniform fog frame
+  // must not read as a cured rosette (2026-09-05, the vacuous 0.00 lesson).
+  return BINS.map((_, k) => ({ A: den[k] > 0 ? num[k] / den[k] : NaN, n: cnt[k] }));
 }
-function fmt(A) { return A.map(v => (v >= 0 ? "+" : "") + v.toFixed(2)).join(" "); }
+function fmt(A) {
+  return A.map(r => {
+    const v = typeof r === "number" ? r : r.A, n = typeof r === "number" ? null : r.n;
+    if (Number.isNaN(v)) return " empty".padEnd(12);
+    const core = (v >= 0 ? "+" : "") + v.toFixed(2);
+    return (n === null ? core : core + "(" + n + ")").padEnd(12);
+  }).join(" ");
+}
 function slivers(img, cx, cy) {
   // components of alpha > 128 on the 4x grid; PCA per component
   const g = down4(img); const { d, W, H } = g; const lab = new Int32Array(W * H).fill(-1); let n = 0;

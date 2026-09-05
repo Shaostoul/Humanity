@@ -1192,7 +1192,11 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     let seed = material.params.x;
     let coverage = material.base_color.a;
 
-    let field = cloud_field(dir, t, seed);
+    // v0.1284: the SAME field the ground shadow and the volumetric tiers use
+    // (blended live+procedural weather), not the older purely procedural
+    // cloud_field - from orbit the two patterns differed and the ground own
+    // darkening showed through the translucent sheet as hard-edged patches.
+    let field = cloud_weather(dir, t, seed);
     let body = cloud_alpha_from_field(field, coverage);
     if (body <= 0.002) {
         // Clear sky at this fragment: fully transparent, skip the lighting.
@@ -1220,7 +1224,7 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
     let tang = sun_local - dir * dot(sun_local, dir);
     let sdir = normalize(dir + tang * CLOUD_SHADOW_STEP);
-    let field_sun = cloud_field(sdir, t, seed);
+    let field_sun = cloud_weather(sdir, t, seed);
     let shade = 1.0
         - CLOUD_SHADOW_STRENGTH
             * clamp((field_sun - field) * CLOUD_SHADOW_SHARP, 0.0, 1.0);
@@ -1272,7 +1276,10 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
     let low_haze = cloud_low_cam_haze(world_position, cam_inside, center, shell_r);
-    return vec4<f32>(mapped, body * density * limb * low_haze * CLOUD_MAX_ALPHA);
+    // Dense cores approach opaque (a real deck from orbit hides the ground);
+    // thin cloud keeps the CLOUD_MAX_ALPHA cap.
+    let cap = mix(CLOUD_MAX_ALPHA, 0.97, t_core);
+    return vec4<f32>(mapped, body * density * limb * low_haze * cap);
 }
 
 // Increment-2 raymarch: real thickness, parallax, and volumetric
@@ -1845,10 +1852,12 @@ fn cloud_carve(
     // correlation length larger than the band height, so masses are
     // prisms whose walls run the full band and converge at the nadir.
     // This is the discriminating experiment and a rung of the real fix
-    // (wind shear leans a column with height): a uniform eastward lean of
-    // light6_color.w metres per metre of height above the base. If the
-    // fan is the walls, its convergence point moves off the nadir by
-    // about f*tan(atan(shear)) toward local west. Applied HERE, once, so
+    // (wind shear leans a column with height): the SAMPLE coordinate is
+    // displaced toward local east (e_hat = up x dir) by light6_color.w
+    // metres per metre of height above the base, so the drawn columns lean
+    // toward local WEST with height. If the fan is the walls, its
+    // convergence point moves off the nadir by about f*tan(atan(shear))
+    // toward local west. Applied HERE, once, so
     // the view samples, the bisection taps, the priming tap and every
     // sun-ladder tap (which re-enters this function) lean identically.
     // 0 = off; the weather tap stays on the unleaned direction (its
@@ -1869,7 +1878,14 @@ fn cloud_carve(
     // tower's top genuinely outruns its base (wind-shear skew). Replaces
     // the single solid-body CLOUD_DRIFT_ZONAL, which was 127 m/s at the
     // equator for every family at every altitude.
-    let omega_c = cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, h));
+    // v0.1284: the column drifts as a whole at the BAND-MEAN wind. The
+    // height-dependent rate that was here (mix(wind_lo, wind_hi, h)) made
+    // base and top drift apart by (wind_hi - wind_lo) * t: about 35 m/s for
+    // a cumulonimbus family, so 126 km after one hour over an 11 km band, a
+    // tilt near 85 degrees that grew for the whole session and that the rig
+    // at its 120 s clock pin could never see. Real shear tilts a cloud by a
+    // bounded amount (the lean above); a field does not accumulate it.
+    let omega_c = cloud_wind_omega(mix(reg.wind_lo, reg.wind_hi, 0.5));
     let ps0 = cloud_rot_y(p_l, t * omega_c);
     let ps = cloud_stretch_domain(ps0, normalize(p), reg.stretch);
     // ── HEIGHT-VARYING DOMAIN WARP (v0.1278, design 2c, dev pad bit 12) ──

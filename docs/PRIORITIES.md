@@ -1,5 +1,93 @@
 # HumanityOS: Priorities
 
+> **v0.1284 (2026-09-05): THE PERFORMANCE PLAN (panel wf_de1c02dc) and the
+> rosette panel's verdict.** The frame is per-STEP cost, not per-pixel and not
+> the far field: every cloud step pays one eye density plus up to 12 sun-ladder
+> densities, and at Ultra each of those rebuilds the constructed cluster (3x3
+> cells, up to 20 lobes), so the ladder is 80-88% of all density work in every
+> situation. Same-boot tier ladder at bm-12: Ultra 180-226 ms, High 47, Low 41
+> (the 41 ms floor is terrain, ocean, SSAO, shadows, god rays). Half res costs
+> 4x quarter, and the cloud resolution is NOT persisted (`cloud_dev_res_div`
+> resets to quarter every boot; the operator plays at half by hand; the rig
+> defaults to quarter). From orbit, yes, 96% of pixels march cloud 300+ km
+> away with 22-58 m interior step floors, but that is about a third of an
+> orbit frame, not the in-deck 5x. The v0.1244 near/far split died of six seam
+> classes intrinsic to a second camera-anchored history renderer stitched by
+> pixel ownership; a correct far field is the same density at a coarser
+> footprint chosen per sample like a mip, planet-fixed, no history, blended in
+> transmittance. Predicted (2560x1387, Ultra, half): in-deck 180-226 ms to
+> 95-110 after increment 1 and 55-70 after the plan; the operator's 3.7 km
+> in-cloud 143 to 75-85 to 50-60; 26 km overcast 57-73 to 40-45 to 35-40;
+> orbit 42 to 30-35 to 25-30 (then terrain and CPU bound). Every share is a
+> manifest subtraction until Day 0 measures pass times: treat as 2x slop.
+>
+> ALSO SHIPPED: the noise-path wind shear no longer grows with the session
+> clock (base and top of a column drifted apart at (wind_hi - wind_lo) * t,
+> an 85 degree tilt after an hour that the 120 s rig pin never saw; the
+> column now drifts at the band-mean wind, shear stays with the bounded
+> lean); the Low sheet draws `cloud_weather` with 97% cores (reads as a
+> satellite view from orbit); `clouds.rs` `cloud_noise` mirrors the GPU
+> lattice (KAT-guarded; the stale triplanar mirror hid BUG-074 from every CPU
+> twin); `cloud-radial-coherence.js` prints edge counts and "empty" (the
+> post-fix bm-12 0.00 was vacuous; the non-vacuous proof is rain-26km-nadir
+> +0.58/+0.43/+0.27 to -0.04/-0.05/+0.03).
+>
+> NEXT, in order (the performance arc, operator priority):
+> 0. **Day 0.** (a) A rig sweep with `HUMANITY_FRAME_COSTS=1` so
+>    `debug/frame_costs.json` gives `gpu.cloud_screen` per vantage at half res
+>    on High and Ultra: operator-bm12, sc-top-3p0km, rain-26km-nadir,
+>    cumulus-closeup-ultra, nadir-anchor-40, an 873 km park, each with a
+>    clouds-off twin; every later gate is written against those numbers.
+>    (b) The bit-exact dead-tap trim: skip the fray and detail taps on the eye
+>    path when `cs.v2 >= 0.999` (they feed a term multiplied by 1 - v2), skip
+>    fray/detail/puff/cell on sun-profile evaluations (`cloud_sun_tau` reads
+>    only `.x`), delete the uncalled `cloud_density_light`. Gate: the diff
+>    channel renders black. (c) Persist the cloud resolution as a settings
+>    field so play and rig agree.
+> 1. **The sun-shadow cache.** Sun optical depth becomes a planet-fixed cached
+>    quantity in nested 3D windows around the camera, baked by the same rung
+>    ladder on the profile density (a bake pass replacing the dead
+>    `fs_cloud_octa` in 45-cloud-temporal.wgsl), read with one tap per
+>    sample; each pixel keeps rungs 0 and 1 on-axis (30 m, 57 m); the analytic
+>    column beyond the windows; dev pad bit 16; the family lookup stays local.
+>    Gates: forced A/B masked mean within 3% at the standing vantages,
+>    `gpu.cloud_screen` down 40% or more in-deck, no halo at opaque/clear
+>    voxel boundaries, no ring at window edges (prove red first by forcing a
+>    hard window switch).
+> 2. **Step economy** in `cloud_march_core`: interior clamps floored at half
+>    the sample footprint (145 m at 100 km, 1.2 km at 873 km, continuous),
+>    transmittance-budget relaxation and exit under 1/512, plus the BUILT-path
+>    saturating interior remap (the noise-path one was null). Gates: March
+>    steps down 30% in-deck, horizon band off the 224 cap, masked mean within
+>    3%, no contour bands.
+> 3. **Body cost per eye step**: a per-ray current-cell lobe cache in
+>    `cloud_v2_body`; if not enough, a per-cell cluster table storing the SDF
+>    with both rinds derived from it. Gate: bit-exact diff, 25% off at bm-12.
+> 4. **The far rung inside the march**: per-cell prefiltered density-by-height
+>    profile chosen by the same footprint `lodb` as every mip, planet-fixed,
+>    no history, transmittance-blended; a 2D profile map for orbit and the
+>    Low sheet; `g_march_max_km` at most a level selector. Gates: forced-level
+>    A/B within 2%, a 60 km to 3 km descent ladder monotone with silhouette
+>    IoU over 0.97, no ring in the diff radial profile, orbit
+>    `gpu.cloud_screen` down 50%.
+> 5. **Operator-gated, default off**: a deterministic 4-phase interleaved
+>    quarter march reconstructed to half (about 85 ms at half res); the
+>    operator's own parked on/off test decides it.
+>
+> PARKED BEHIND THE PERF ARC (rosette panel wf_47184b56): the field plan,
+> design A geometry half (dome cores with wide contact discs, `dome_sink` per
+> genus, caps budding on the dome, blue-noise placement, 3D erosion; increment
+> C folded into its interior profile), preceded by its discriminating
+> experiment `hum-top-30m` (lat 24 lon 14, 1.35 km, type 0.33 cover 0.35, ms 1,
+> map_diag 0 and 1): coherence with real edges within 0.15 of the controls
+> means the extruded walls are look work; over +0.5 means a second carrier and
+> the geometry increment becomes correctness work run beside the perf arc.
+> Also open: a deterministic straight cut through the Low sheet from orbit
+> (rig 20260905-011952, absent at High, not temporal, cause unknown); the
+> first-capture-after-boot render state (rig discards it; cause open); the
+> rig heading pin; the in-cloud light default flip at `sc-inside-top`; the
+> visual-sweep re-judge of every unpinned down-look spec.
+
 > **v0.1283 (2026-09-05): rosette CONFIRMED GONE by the operator; PERFORMANCE
 > is the next priority.** Operator, on v0.1282.1: "I finally didn't see the
 > rosette! Well done!" and then: "even at half resolution I'm crawling FPS

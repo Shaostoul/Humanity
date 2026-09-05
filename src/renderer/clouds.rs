@@ -346,23 +346,44 @@ pub fn cloud_rot_x(v: [f32; 3], a: f32) -> [f32; 3] {
     [v[0], c * v[1] - s * v[2], c * v[2] + s * v[1]]
 }
 
-/// Mirrors `cloud_noise`: triplanar blend of the 2D value noise onto the
-/// sphere. `dir` must be a unit vector (the squared components are the
-/// blend weights and only sum to 1 on the unit sphere).
+/// Mirrors the WGSL `hash13` (40-clouds.wgsl) in f32, operation for
+/// operation, so the lattice below lands on the GPU's values.
+pub fn hash13(p: [f32; 3]) -> f32 {
+    let mut qx = (p[0] * 0.1031).fract_pos();
+    let mut qy = (p[1] * 0.1031).fract_pos();
+    let mut qz = (p[2] * 0.1031).fract_pos();
+    // dot(q, q.zyx + 31.32)
+    let d = qx * (qz + 31.32) + qy * (qy + 31.32) + qz * (qx + 31.32);
+    qx += d;
+    qy += d;
+    qz += d;
+    ((qx + qy) * qz).fract_pos()
+}
+
+/// WGSL `fract` semantics (x - floor(x), always in [0, 1)); Rust's
+/// `f32::fract` keeps the sign for negative inputs.
+trait FractPos { fn fract_pos(self) -> f32; }
+impl FractPos for f32 { fn fract_pos(self) -> f32 { self - self.floor() } }
+
+/// Mirrors `cloud_noise` (40-clouds.wgsl): TRUE 3D lattice value noise with
+/// a quintic fade, hash13 at the eight corners. This replaced the triplanar
+/// 2D blend on the GPU in v0.873; the CPU mirror kept the old blend until
+/// 2026-09-05, so every twin built on it (type coordinate, weather field,
+/// cloud_reference) measured a field the GPU no longer drew - the blind spot
+/// that hid BUG-074. Guarded by `cloud_noise_matches_the_shader_lattice`.
 pub fn cloud_noise(dir: [f32; 3], freq: f32, seed: f32) -> f32 {
-    // Pow-4 sharpened blend weights, normalized -- see the WGSL comment
-    // (2026-07-11: plain dir*dir blend zones creased into straight lines).
-    let w2 = [dir[0] * dir[0], dir[1] * dir[1], dir[2] * dir[2]];
-    let w4 = [w2[0] * w2[0], w2[1] * w2[1], w2[2] * w2[2]];
-    let sum = (w4[0] + w4[1] + w4[2]).max(1e-12);
-    let wn = [w4[0] / sum, w4[1] / sum, w4[2] / sum];
-    let p = [dir[0] * freq, dir[1] * freq, dir[2] * freq];
-    let (ox, oy) = (seed, seed * 0.617);
-    // Plane coordinate order matches WGSL swizzles: p.yz, p.zx, p.xy.
-    let nx = value_noise(p[1] + ox, p[2] + oy);
-    let ny = value_noise(p[2] + ox * 1.3, p[0] + oy * 1.3);
-    let nz = value_noise(p[0] + ox * 1.7, p[1] + oy * 1.7);
-    nx * wn[0] + ny * wn[1] + nz * wn[2]
+    let p = [dir[0] * freq + seed, dir[1] * freq + seed * 0.617, dir[2] * freq + seed * 0.317];
+    let i = [p[0].floor(), p[1].floor(), p[2].floor()];
+    let fr = [p[0].fract_pos(), p[1].fract_pos(), p[2].fract_pos()];
+    let fade = |v: f32| v * v * v * (v * (v * 6.0 - 15.0) + 10.0);
+    let u = [fade(fr[0]), fade(fr[1]), fade(fr[2])];
+    let c = |dx: f32, dy: f32, dz: f32| hash13([i[0] + dx, i[1] + dy, i[2] + dz]);
+    let mix = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let x00 = mix(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0), u[0]);
+    let x10 = mix(c(0.0, 1.0, 0.0), c(1.0, 1.0, 0.0), u[0]);
+    let x01 = mix(c(0.0, 0.0, 1.0), c(1.0, 0.0, 1.0), u[0]);
+    let x11 = mix(c(0.0, 1.0, 1.0), c(1.0, 1.0, 1.0), u[0]);
+    mix(mix(x00, x10, u[1]), mix(x01, x11, u[1]), u[2])
 }
 
 /// Mirrors `cloud_field`: the 5-octave, two-set drifting density field.
@@ -2017,6 +2038,28 @@ mod carve_width_fit {
                 (v - fw).abs() <= tol,
                 "{name}: WGSL {v} vs fitted {fw} (tol {tol}) - re-fit after a bake change"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod cloud_noise_lattice_kat {
+    use super::cloud_noise;
+    /// Known answers from an f32-emulated port of the WGSL cloud_noise
+    /// (every operation rounded to f32 in the shader's order). If this
+    /// fails, the CPU twins are measuring a field the GPU does not draw.
+    #[test]
+    fn cloud_noise_matches_the_shader_lattice() {
+        let cases: [([f32; 3], f32, f32, f32); 5] = [
+            ([0.30304575, 0.80812204, -0.5050763], 9.0, 42.0, 0.5666775),
+            ([-0.7035265, 0.10050378, 0.7035265], 13.0, 61.0, 0.7974094),
+            ([0.0, -1.0, 0.0], 5.0, 42.0, 0.64051187),
+            ([0.57735026, 0.57735026, 0.57735026], 31.0, 275.0, 0.73096526),
+            ([-0.20051196, 0.30076793, 0.9323806], 7.0, 143.0, 0.49881238),
+        ];
+        for (dir, freq, seed, want) in cases {
+            let got = cloud_noise(dir, freq, seed);
+            assert!((got - want).abs() < 2.0e-4, "cloud_noise({dir:?}, {freq}, {seed}) = {got}, shader {want}");
         }
     }
 }
