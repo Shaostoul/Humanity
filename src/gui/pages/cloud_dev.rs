@@ -163,6 +163,21 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_field = fld;
                 changed = true;
             }
+            // Performance plan increment 1 (v0.1286): the sun optical depth
+            // becomes a planet-fixed cached quantity (two nested windows
+            // around the camera, baked by the same rung ladder, read with
+            // one tap per sample). Off is the exact old path, so this box
+            // IS the A/B: flip it and the picture must not change while
+            // the frame time does. The "Sun source" bisect channel below
+            // paints which window each pixel read from.
+            let mut lcb = state.cloud_dev_light;
+            if ui
+                .checkbox(&mut lcb, "Sun shadow cache (off = 12-rung ladder per pixel, for A/B)")
+                .changed()
+            {
+                state.cloud_dev_light = lcb;
+                changed = true;
+            }
             // v0.1272: the two fixes the estimator assessment designed.
             let mut estb = state.cloud_dev_est;
             if ui
@@ -409,21 +424,31 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // instrument, rebuilt. A ring at a fixed screen radius in a
             // channel that has NOTHING to do with lighting or density can
             // only come from the march schedule itself.
-            let names = [
-                "Off",
-                "Coverage alpha",
-                "Direct sun",
-                "Ambient",
-                "March steps",
-                "Step comb",
-                "Entry depth",
-                "Burial",
+            // (value, label): the VALUE is what the shader's map_diag
+            // ladder in 45-cloud-temporal.wgsl reads. 7 has no channel
+            // there (burial is `diag >= 7.5`, i.e. 8), so the old "Burial"
+            // button at index 7 was showing entry depth; the values are
+            // explicit now so a gap cannot mislabel a channel again.
+            // 9 = "Sun source" (v0.1286): which sun-shadow source each
+            // cloud pixel read - fine window white, coarse grey, analytic
+            // column dark - so the window EDGES are visible where a ring
+            // in the diff would sit.
+            let names: [(i32, &str); 9] = [
+                (0, "Off"),
+                (1, "Coverage alpha"),
+                (2, "Direct sun"),
+                (3, "Ambient"),
+                (4, "March steps"),
+                (5, "Step comb"),
+                (6, "Entry depth"),
+                (8, "Burial"),
+                (9, "Sun source"),
             ];
-            let mut pick = state.cloud_dev_map_diag.clamp(0, 8);
-            ui.horizontal(|ui| {
-                for (i, name) in names.iter().enumerate() {
-                    if ui.selectable_label(pick == i as i32, *name).clicked() {
-                        pick = i as i32;
+            let mut pick = state.cloud_dev_map_diag.clamp(0, 9);
+            ui.horizontal_wrapped(|ui| {
+                for (value, name) in names.iter() {
+                    if ui.selectable_label(pick == *value, *name).clicked() {
+                        pick = *value;
                     }
                 }
             });
@@ -431,10 +456,19 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_map_diag = pick;
                 changed = true;
             }
-            if pick >= 4 {
+            if pick >= 4 && pick <= 5 {
                 ui.label(
                     RichText::new(
                         "Black = few steps, white = this ray spent the whole                          224-step budget and integrated its remaining tail in                          ONE giant sample. Step comb bands every 8 steps.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
+            }
+            if pick == 9 {
+                ui.label(
+                    RichText::new(
+                        "White = the fine cache window, grey = the coarse                          window, dark = the analytic column beyond both.                          With the cache off every pixel is dark.",
                     )
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),

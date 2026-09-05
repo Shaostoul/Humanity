@@ -12236,6 +12236,47 @@ mod native_app {
                                                     _ => None,
                                                 },
                                             );
+                                            // ── Sun-shadow cache feed (increment 1, v0.1286) ──
+                                            // The cache's windows sit at the
+                                            // camera's GROUND point in the
+                                            // planet-local frame (the cloud
+                                            // shell's object space before its
+                                            // scale: `p_l` above is exactly
+                                            // that frame in render units).
+                                            // Metres = render units * true
+                                            // radius / drawn radius; the
+                                            // ground point is the camera's
+                                            // direction at the planet radius,
+                                            // f64 end to end. The sun is the
+                                            // renderer's current world sun
+                                            // rotated into the same frame,
+                                            // which is what the shader's
+                                            // `inv_model * sun` produces for
+                                            // the march and the bake alike.
+                                            // Fed only in the NEAR regime
+                                            // (the march that reads it).
+                                            if near {
+                                                let sun_w = state.renderer.cloud_ref_sun().0;
+                                                let sun_l = rot64.conjugate()
+                                                    * glam::DVec3::new(
+                                                        sun_w[0] as f64,
+                                                        sun_w[1] as f64,
+                                                        sun_w[2] as f64,
+                                                    );
+                                                let ground_m = p_l.normalize_or_zero() * d.radius as f64;
+                                                state.renderer.cloud_light_plan(
+                                                    crate::renderer::cloud_temporal::CloudLightFrame {
+                                                        ground_local_m: ground_m,
+                                                        sun_local: sun_l.normalize_or_zero(),
+                                                        radius_m: d.radius as f64,
+                                                        shell_ratio: shell_ratio as f64,
+                                                        // The same slab base the
+                                                        // shader gets in params2.x,
+                                                        // so z0 agrees per planet.
+                                                        slab_rb: slab_rb as f64,
+                                                    },
+                                                );
+                                            }
                                         }
                                         // Fullscreen composite frame (Wave D
                                         // slice 1b): armed with the temporal
@@ -18511,6 +18552,7 @@ mod native_app {
                                 state.renderer.cloud_checker = state.gui_state.cloud_dev_checker;
                                 state.renderer.cloud_ms = state.gui_state.cloud_dev_ms;
                                 state.renderer.cloud_field = state.gui_state.cloud_dev_field;
+                                state.renderer.cloud_light = state.gui_state.cloud_dev_light;
                                 state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
                                 state.renderer.cloud_res_div =

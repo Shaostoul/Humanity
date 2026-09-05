@@ -3471,6 +3471,9 @@ pub struct GuiState {
     pub cloud_dev_ms: bool,
     /// Increment B 2.1: the three-octave domain warp (v0.1281).
     pub cloud_dev_field: bool,
+    /// Performance plan increment 1 (v0.1286): the sun-shadow cache. Off =
+    /// the 12-rung sun ladder per pixel, the A/B twin.
+    pub cloud_dev_light: bool,
     /// Gain on the in-scattered source, 0 = default.
     pub cloud_dev_ms_gain: f32,
     /// Increment C (v0.1282): interior saturation of the built bodies, 0..1.
@@ -5340,6 +5343,7 @@ impl Default for GuiState {
             cloud_dev_checker: false,
             cloud_dev_ms: false,
             cloud_dev_field: false,
+            cloud_dev_light: false,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,

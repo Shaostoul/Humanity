@@ -31,11 +31,11 @@
 // Bindings are the standard groups 0-3: camera, the cloud SHELL's object
 // uniform (obj_model gives the planet frame the march needs), the cloud
 // material, and the texture group with history in the albedo slot.
-
-struct CloudOctaVsOut {
-    @builtin(position) pos: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-};
+//
+// v0.1286: the octa fragment itself is gone (dormant since the v0.1250
+// one-renderer cut); this file now holds the near-field screen march
+// (fs_cloud_screen) and the sun-shadow cache bake (fs_cloud_light_bake, at
+// the end), which reuses the albedo-slot trick for its slice atlas.
 
 // Strong per-texel hash (v0.1237). The old jitter fed hash21 with uv * 8192,
 // which steps by exactly 2.0 per texel through a fract(x * 0.1031) - a
@@ -74,405 +74,12 @@ fn ign(px: vec2<f32>, f: f32) -> f32 {
     return fract(52.9829189 * fract(0.06711056 * p.x + 0.00583715 * p.y));
 }
 
-@vertex
-fn vs_cloud_octa(@builtin(vertex_index) vi: u32) -> CloudOctaVsOut {
-    // The classic single fullscreen triangle.
-    let x = f32(i32(vi & 1u) * 4 - 1);
-    let y = f32(i32(vi & 2u) * 2 - 1);
-    var out: CloudOctaVsOut;
-    out.pos = vec4<f32>(x, y, 0.0, 1.0);
-    // THE MIRROR BUG (found 2026-08-21 from the operator's live report:
-    // "up/down flicking... a mirror like effect"). NDC +y is UP but
-    // texture row 0 is the TOP: a fragment at NDC y = +1 rasterizes into
-    // ROW 0, so its texture-space coordinate is v = 0, not v = 1. The old
-    // `uv = ndc * 0.5 + 0.5` handed the fragment a v that addressed the
-    // MIRRORED row - so every texel (a) marched the direction belonging
-    // to the opposite side of the map, and worse, (b) sampled its EMA
-    // HISTORY from the mirrored texel: each frame every sky direction
-    // blended 4% of its own mirror image. The converged map was a ghost
-    // double exposure of the sky with its reflection, endlessly
-    // re-excited into a period-2 mirror oscillation - the flicker, the
-    // "state 1 / state 2", and the 10b empty-overhead mystery (the GPU
-    // was showing the MIRRORED direction's lane while the CPU reference
-    // correctly saw the true direction's deck). Flipping v here makes
-    // decode(in.uv), the history sample, and the readers' encode all
-    // address the same texel.
-    out.uv = vec2<f32>(x, -y) * 0.5 + vec2<f32>(0.5);
-    return out;
-}
-
-@fragment
-fn fs_cloud_octa(in: CloudOctaVsOut) -> @location(0) vec4<f32> {
-    // The Lambert projection lives in the inscribed DISC of the square
-    // map; the composite's encode always lands inside it, so the 21.5%
-    // of texels in the corners are never read - skip their march.
-    let pd = in.uv * 2.0 - vec2<f32>(1.0);
-    if (dot(pd, pd) > 1.001) {
-        return vec4<f32>(0.0);
-    }
-    // QUARTER-CADENCE MARCH (4096-map brute force): only a quarter of
-    // the 32x32-texel BLOCKS march each frame; the rest reproject their
-    // history and carry it forward unblended. Per-frame march count
-    // therefore equals the old full-rate 2048 map while the stored map
-    // holds 4x the texels. BLOCKS, not a per-pixel checkerboard,
-    // deliberately: a 2x2 interleave put marching lanes in EVERY
-    // hardware wave, so no wave could skip and the whole pass paid
-    // full-march occupancy (measured: fps halved). 32x32 blocks let
-    // entire waves take the cheap path.
-    //
-    // TWO LESSONS from the operator's "dome of triangularish clouds"
-    // (v0.1189 live report - the cadence lattice itself became visible
-    // as a tiled dome at close range):
-    // - The block phase is HASHED per block, not a regular 2x2 spatial
-    //   pattern: aligned neighbours updating in lockstep read as a
-    //   coherent grid sweeping the sky; hashed phases turn the update
-    //   order into unstructured noise the EMA hides.
-    // - INSIDE/UNDER the deck (camera inside the drawn shell) the map
-    //   marches FULL RATE: map texels are enormous on screen there, the
-    //   content moves fastest, and a 4-frame-stale block is a visible
-    //   tile. The full-rate cost at 4096 is acceptable precisely
-    //   because the under-deck slab segment is short and the ground
-    //   cull kills most rays.
-    var do_march = true;
-    {
-        let cad_ctr = obj_model()[3].xyz;
-        let cad_shr = length(obj_model()[0].xyz);
-        let ro_in = (camera.view_pos.xyz - cad_ctr) / cad_shr;
-        // Full rate INSIDE the shell AND in the band just above it
-        // (< ~1.0075 planet radii = ~64 km on Earth, shell units 1.015):
-        // the operator's "worst layer is at cloud layer to just above" -
-        // map texels are screen-huge there, so any cadence staleness is
-        // a visible tile. w > 8.5 is the CPU teleport sentinel: the
-        // frame delta is so large that no history is valid, so cadence
-        // is suspended and everything marches fresh.
-        // v0.1245: full-rate only while the MAP is what the player sees.
-        // Inside/under the deck the near screen arm owns the sky (per-pixel
-        // regime split) and the map is occluded - full-rate marching 16.7M
-        // hidden texels was most of the operator's 3 FPS in the layer, and
-        // the low FPS is itself what kept the accumulator unconverged
-        // ("the static of being inside the clouds is insanely bad"). The
-        // CPU pokes near_mix into light7_color.x; above 0.5 the near arm
-        // dominates and the map drops back to quarter cadence.
-        // v0.1246 REGRESSION FIX: the v0.1245 near-owns gate starved the
-        // UNDER-DECK horizon band. Below the deck the per-pixel split hands
-        // near rays only ~32 km of mostly-horizontal slab - the horizon band
-        // is still the MAP's - yet near_mix reads 1.0 down there, so the
-        // gate dropped the one visible map region to quarter cadence: the
-        // operator's wall of static at the horizon and the stale-bright band
-        // at night. The occlusion argument is only valid INSIDE the slab
-        // (everything within near ownership); under the deck the map stays
-        // full rate as it always was.
-        let r2_in = dot(ro_in, ro_in);
-        // v0.1246 units fix: ro_in is in DRAWN-SHELL radii (divided by
-        // shell_r above); the slab base in that unit is slab_rb (planet
-        // radii, material.params2.x) times 1/shell_ratio (material.params.w).
-        // The previous literal 1.000314 was slab-base-squared in PLANET
-        // radii - ~16.8 km altitude in shell units, which made cam_near
-        // full-rate for the whole slab interior (the v0.1245 in-layer cost,
-        // masked at the time by the dispatch skip).
-        let rb_shell = material.params2.x * material.params.w;
-        let under_deck = r2_in < rb_shell * rb_shell;
-        let cam_near = r2_in < 1.015
-            && (under_deck || camera.light7_color.x < 0.5);
-        let w = camera.light4.w;
-        if (w > 0.5 && w < 8.5 && !cam_near) {
-            let px = vec2<u32>(in.pos.xy);
-            let bid = (px.x >> 5u) + (px.y >> 5u) * 128u;
-            let h = (bid * 747796405u + 2891336453u) >> 9u;
-            let cell = (h ^ (h >> 11u)) & 3u;
-            let phase = u32(w - 0.5);
-            do_march = cell == phase;
-        }
-    }
-    // RESTING FAST PATH: a cadence-skipped texel under a sub-texel camera
-    // delta (< 4 m - above the ~2 m f32 quantization noise of the
-    // baseline, still < 0.2 texel of parallax at any cloud distance) has
-    // nothing to reproject - copy the texel forward and skip the whole
-    // decode/reproject/encode chain. Three quarters of the map take this
-    // branch whenever the camera is still, which is what pays for the
-    // 4096 storage at rest. Resample frames (light3.w) keep the full
-    // path - their history lives under the OLD mapping.
-    if (!do_march && camera.light3.w < 0.5
-        && dot(camera.light4.xyz, camera.light4.xyz) < 16.0) {
-        return textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
-    }
-    cloud_set_slab_bounds();
-    let center = obj_model()[3].xyz;
-    let shell_r = length(obj_model()[0].xyz);
-    let rd_w = cloud_map_decode(in.uv, center);
-    // History: the ping-pong partner, bound in this pass's albedo slot.
-    // 12c RESAMPLE: on the one frame where the CPU controller re-anchored
-    // the map (anchor drift, extent drift, or a regime flip), the history
-    // texture still holds the OLD mapping - so look this texel's direction
-    // up through the OLD params (camera.light3: xy = old anchor octa pair,
-    // z = old cos(theta_max), w = flag). The re-anchor is then invisible:
-    // no content jump, no ghost EMA-fading out - the operator's "big jump
-    // and the old one phases out slowly" dies here. A direction outside
-    // the OLD extent has no history; take the fresh march outright.
-    // The accumulation sequence: per-texel stratum + the golden-ratio
-    // step per cloud-clock tick. Across frames each texel's march visits
-    // a low-discrepancy sequence of sample offsets, which is exactly the
-    // supersampling the EMA converges. The march runs FIRST (slice B):
-    // its first-hit distance (g_march_first_t) is the exact parallax
-    // distance for the content this texel shows, which the history
-    // reprojection below needs.
-    let texel = vec2<u32>(clamp(in.uv, vec2<f32>(0.0), vec2<f32>(0.99999)) * 4096.0);
-    let jitter = fract(
-        pcg2d_hash(texel) + fract(camera.sun_color.w * 11.0) * 0.618034,
-    );
-    // Sub-texel DIRECTION jitter (v0.1237): the anti-moire supersample. Each
-    // frame this texel marches a slightly different direction inside its own
-    // footprint, so over the EMA window the texel integrates its solid angle
-    // instead of point-sampling one fixed direction of a field with structure
-    // finer than the texel. Point-sampling is where the rosette was born; no
-    // jitter QUALITY could fix what was structurally a point sample.
-    let dj = vec2<f32>(
-        pcg2d_hash(texel + vec2<u32>(7919u, 104729u)),
-        pcg2d_hash(texel + vec2<u32>(15485863u, 32452843u)),
-    );
-    // R2 pair (v0.1246): the old single golden scalar splatted on both uv
-    // axes made the temporal kernel RANK-1 - each texel time-averaged a
-    // LINE segment, not its 2-D solid angle: permanent per-texel bias
-    // noise + uniform diagonal micro-streaking. Decorrelated axes, same R2
-    // constants the screen path uses.
-    // AMPLITUDE 0.4 (v0.1249, the rosette's true author found by the
-    // channel bisect): direction jitter is a DIRECTION-SPACE FILTER, and
-    // filtering directions over a THICK slab shears depth structure
-    // radially about the anchor - a +-0.8-texel angular wobble swings the
-    // far end of a 200 km grazing chord by kilometres while the near end
-    // barely moves, and the EMA averages that into radial streaks. Terms
-    // that vary along the ray smear hardest: the AMBIENT channel (height +
-    // cavity dependent) carried the operator's petal rosette loud and
-    // clear in the bisect dump while the column-uniform DIRECT channel was
-    // clean. 0.4 keeps enough sub-texel coverage to hold the v0.1237
-    // moire down (the PCG hash carries most of that fix) while cutting
-    // the depth shear by more than half.
-    let uv_j = clamp(
-        in.uv + (dj + fract(camera.sun_color.w * 7.0 * vec2<f32>(0.7548777, 0.5698403))
-            - vec2<f32>(1.0)) * (0.4 / 4096.0),
-        vec2<f32>(0.0), vec2<f32>(1.0));
-    let rd_wj = cloud_map_decode(uv_j, center);
-    // Footprint for band-limited volume sampling: this pass's pixel is a
-    // Lambert map texel; the footprint deliberately stays at the
-    // 2048-map angular size (see cloud_pix_ang_map) so the 4096 texels
-    // spatially supersample the same band-limited field instead of
-    // paying finer march steps.
-    var cur_s = vec4<f32>(0.0);
-    if (do_march) {
-        cur_s = cloud_march_core(rd_wj, center, shell_r, jitter, cloud_pix_ang_map());
-    }
-    // TRANSLATION REPROJECTION (slice B, from the operator's "solitaire
-    // artifact" report - radial streaks converging on the sub-camera
-    // point whenever the camera MOVES, clean when still). Rotation is
-    // free in a direction-indexed map, but translation was never
-    // corrected: the fresh march puts a cloud at its NEW direction while
-    // ~25 frames of history still hold it at the OLD one, and the EMA
-    // smears the difference along the motion. Fix: ask where this
-    // texel's CONTENT was from the PREVIOUS camera - at the distance the
-    // march ACTUALLY HIT cloud this frame (exact per-texel parallax; the
-    // analytic shell-sphere hit is the fallback for clear rays, and was
-    // the whole story before this - right at the shell, wrong inside the
-    // slab, which is exactly where the operator still saw ghosting).
-    // PRECISION: the pads carry the camera DELTA in the PLANET-LOCAL
-    // frame rotated to world axes (camera.light4.xyz, w = flag), never
-    // absolute positions - all math stays small (p - prev = rd*t -
-    // delta), immune to the f32-at-planet-scale cancellation class.
-    var d_hist = rd_w;
-    var shift_tx = 0.0;
-    var teleported = false;
-    if (camera.light4.w > 0.5) {
-        var t_rep = g_march_first_t;
-        if (t_rep <= 0.0) {
-            // Clear ray: no marched surface - the shell-sphere hit stands
-            // in so clear sky still counter-scrolls correctly.
-            let ro_c = camera.view_pos.xyz - center;
-            let b = dot(ro_c, rd_w);
-            let cc = dot(ro_c, ro_c) - shell_r * shell_r;
-            let disc = b * b - cc;
-            if (disc > 0.0) {
-                let sq = sqrt(disc);
-                t_rep = -b - sq;
-                if (t_rep <= 0.0) {
-                    t_rep = -b + sq;
-                }
-            }
-        }
-        if (t_rep > 0.0) {
-            d_hist = normalize(rd_w * t_rep - camera.light4.xyz);
-            // TELEPORT GUARD: the small-parallax model only holds for
-            // per-frame baselines well under the cloud distance. A
-            // teleport-scale delta bends every texel's lookup toward
-            // one direction and smears the whole map with one texel's
-            // content (seen live on a rig re-park jump). Beyond ~15
-            // degrees of reprojection, history is disoccluded - take
-            // the fresh march and let the EMA converge clean.
-            if (dot(d_hist, rd_w) < 0.966) {
-                teleported = true;
-            }
-        }
-    }
-    var hist: vec4<f32>;
-    var have_hist = true;
-    if (camera.light3.w > 0.5) {
-        let up_old = cloud_map_axis_world(camera.light3.x, camera.light3.y);
-        let k_old = clamp(1.0 - camera.light3.z, 1.0e-3, 2.0);
-        let e = cloud_map_encode_at(d_hist, up_old, k_old);
-        hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
-        have_hist = e.z <= 1.0;
-        shift_tx = length(e.xy - in.uv) * 4096.0;
-    } else if (camera.light4.w > 0.5) {
-        let e = cloud_map_encode_at(d_hist, cloud_map_up(center), cloud_map_k());
-        hist = textureSampleLevel(albedo_texture, albedo_sampler, e.xy, 0.0);
-        have_hist = e.z <= 1.0;
-        shift_tx = length(e.xy - in.uv) * 4096.0;
-    } else {
-        hist = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
-    }
-    // Cadence-skipped texel: carry the (reprojected) history forward
-    // untouched; its own march comes within the next three frames.
-    // THE CHECKERBOARD LESSON (operator round 4 - "hall of mirrors or
-    // tiles", literal cloud/empty checker across the deck in fast
-    // flight): at teleport-scale deltas the guard fires EVERY frame, and
-    // this branch used to return transparent black for skipped blocks -
-    // zeroing three quarters of the map each frame while the marching
-    // quarter refilled, which painted the cadence grid as alternating
-    // cloud/empty tiles. A skipped block with an invalid reprojection
-    // now keeps its OWN texel: stale for at most three frames, coherent,
-    // and invisible next to a fresh march - never a hole.
-    if (!do_march) {
-        // v0.1246: same coherence bound as the marching branch - past ~48
-        // texels of shift the reprojected fetch is advection, and iterating
-        // it every skipped frame was a fibre painter with NO cut at all.
-        // Keep the texel's own value instead (stale <= 3 frames, coherent).
-        if (teleported || !have_hist || shift_tx > 48.0) {
-            return textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
-        }
-        return hist;
-    }
-    // PREMULTIPLY before accumulating (the fidelity audit's top finding):
-    // the march returns straight alpha, and vec4(0) for clear/early-out
-    // rays. EMA-ing straight alpha makes a direction whose jittered
-    // marches sometimes miss converge to rgb = f*C with a = f*A (f = hit
-    // fraction); the straight-alpha composite then contributes f^2*C*A -
-    // every cloud darkened by its own hit fraction TWICE - and bilinear
-    // filtering between a cloud texel and a clear texel dragged rgb
-    // toward BLACK (the dark fringe/pepper on every edge). Premultiplied
-    // storage makes both the EMA and the bilinear filter linear in the
-    // right space; the composite divides by alpha to return to straight.
-    // Rosette-bisect diagnostic (v0.1249, camera.light7_color.z via the
-    // showcase map_diag pin): render ONE channel of the march into the map
-    // with the EMA bypassed, so a dump shows the raw per-texel quantity.
-    // 1 = first-hit t (geometry), 2 = direct-sun luminance, 3 = ambient
-    // luminance. Whichever carries the anchor-centred petals is the biased
-    // term. Zero-cost when the pin is 0 (uniform branch).
-    let map_diag = camera.light7_color.z;
-    if (map_diag > 0.5) {
-        var dv = 0.0;
-        if (map_diag < 1.5) {
-            dv = fract(g_march_first_t * 20.0);
-        } else if (map_diag < 2.5) {
-            dv = g_march_sun_acc * 2.0;
-        } else if (map_diag < 3.5) {
-            dv = g_march_amb_acc * 4.0;
-        } else if (map_diag < 4.5) {
-            dv = g_march_iters / f32(CLOUD_STEP_ITER_CAP);
-        } else if (map_diag < 5.5) {
-            dv = fract(g_march_iters * 0.125);
-        } else if (map_diag < 6.5) {
-            dv = clamp(g_march_first_depth_m / 600.0, 0.0, 1.0);
-        } else {
-            dv = clamp(g_march_prof_acc, 0.0, 1.0);
-        }
-        cur_s = vec4<f32>(vec3<f32>(dv), 1.0);
-    }
-    let cur = vec4<f32>(cur_s.rgb * cur_s.a, cur_s.a);
-    // EMA, DEEP and nearly flat (the v0.1159 lesson, from the operator's
-    // "tiny dots became big dots"): the first cut raised the blend
-    // aggressively wherever the new sample disagreed with history - but
-    // in a noisy region the new sample ALWAYS disagrees, that is what
-    // noise is, so the map kept chasing individual marches exactly where
-    // it most needed to average them, and its unconverged texel churn
-    // upscaled into the big dots. Convergence IS the feature: alpha 0.04
-    // averages ~25 recent marches per direction (about 1.5 s), which is
-    // the supersample that turns grain into cloud. The adaptive term is
-    // now a whisper - real changes (weather fronts, the sun, dev pins)
-    // evolve over many seconds and a 1.5 s catch-up never reads as
-    // ghosting on a cloud.
-    let diff = abs(cur.a - hist.a)
-        + (abs(cur.r - hist.r) + abs(cur.g - hist.g) + abs(cur.b - hist.b)) * 0.333;
-    // DISOCCLUSION CATCH-UP (operator "solitaire" round 3, the ghost
-    // copies trailing every mass during descent): reprojection recovers
-    // content that MOVED, but sky newly revealed behind a mass edge has
-    // no valid history anywhere - those texels were EMA-ing off stale
-    // cloud at the resting cap, and the trail was the visible result.
-    // During real motion (shift >= ~1 texel) the deep-blend rationale
-    // inverts - content change is signal, not noise - so both the diff
-    // response and its cap scale with the measured shift. At rest the
-    // v0.1159 anti-boil discipline stands untouched.
-    // Same epipole blind spot as the near resolve (see cloud_resolve.wgsl
-    // v0.1235): shift-only motion reads ~0 at the point being flown toward.
-    // light4.xyz is this frame's translation baseline in world axes;
-    // g_march_first_t is this texel's own content distance when it hit cloud.
-    var zoom_rel = 0.0;
-    if (g_march_first_t > 0.0) {
-        zoom_rel = length(camera.light4.xyz) / max(g_march_first_t, 1.0);
-    }
-    let motion = max(
-        clamp(shift_tx - 0.75, 0.0, 1.0),
-        smoothstep(0.005, 0.03, zoom_rel),
-    );
-    var alpha = clamp(
-        0.04 + diff * mix(0.05, 0.6, motion),
-        0.04,
-        mix(0.12, 0.5, motion),
-    );
-    // Residual parallax error also scales with shift - a floor keeps the
-    // trail from persisting even where diff happens to be small.
-    alpha = max(alpha, min(0.35, max(shift_tx - 1.0, 0.0) * 0.02));
-    // HARD VALIDITY CUT (v0.1245, the operator's radial starburst). Under
-    // SUSTAINED flight (FTL descent: km per frame, every frame) the history
-    // fetch is displaced many texels along the epipolar direction - radially
-    // about the motion epipole, which on a descent IS the nadir under the
-    // crosshair. An EMA of radially-displaced fetches paints radial fibres
-    // converging exactly where the operator is headed, at every altitude the
-    // map serves, and the floor above still kept 65 percent of that smear
-    // per step. Beyond ~6 texels of per-frame shift the fetch is advection,
-    // not reprojection: take the fresh march outright. Teleports were
-    // already guarded (single-frame spike, 15-degree cut); flight was not -
-    // which is why parked rig captures converged clean while every
-    // operator ARRIVAL repainted the smear.
-    // Threshold raised 6 -> 48 (v0.1246, the critic's sweep analysis): the
-    // planet-spin content sweep under an inertial camera shifts ~24 texels
-    // per frame at low FPS, and reprojection there is geometrically VALID
-    // (a coherent fetch N texels away). Cutting at 6 amputated accumulation
-    // in exactly that state - every frame became a raw jittered point
-    // sample, structurally re-enabling the anchor-centred rosette the
-    // supersampler exists to integrate away (the operator's persistent
-    // parked starburst). 48 still catches genuinely incoherent jumps well
-    // under the 15-degree guard (~430 texels).
-    if (shift_tx > 48.0) {
-        alpha = 1.0;
-    }
-    // Resume/sun-delta EMA floor boost (v0.1246): CPU-driven via
-    // light7_color.y - 1.0 on resume after a dispatch freeze (the map is
-    // stale; fading would replay it), scaled by sun movement otherwise.
-    alpha = max(alpha, camera.light7_color.y);
-    // Zoom-driven floor, same reasoning as the near resolve (v0.1236): close
-    // content under translation mis-reprojects too badly for history to be
-    // worth keeping, however small the screen-space shift reads.
-    alpha = max(alpha, smoothstep(0.005, 0.03, zoom_rel) * 0.6);
-    // No history for this direction (outside the old extent on a resample
-    // frame, or a teleport-scale reprojection): start from the fresh
-    // march instead of EMA-ing toward zero or smearing stale content.
-    if (!have_hist || teleported) {
-        alpha = 1.0;
-    }
-    // Diagnostic mode bypasses the EMA entirely (see map_diag above).
-    if (map_diag > 0.5) {
-        alpha = 1.0;
-    }
-    return mix(hist, cur, alpha);
-}
+// (fs_cloud_octa, the octahedral history march, and its vertex entry
+// vs_cloud_octa were deleted in v0.1286: dormant since the v0.1250
+// one-renderer cut, no pipeline referenced either. The pipeline slot is now
+// the sun-shadow cache bake, fs_cloud_light_bake at the end of this file,
+// which uses vs_cloud_screen. The vs_cloud_octa mirror-bug note lives on in
+// git history at v0.1237 if the v-flip ever needs re-deriving.)
 
 // ── The NEAR-FIELD MARCH pass (12e, the march/resolve split) ──────────
 //
@@ -732,6 +339,14 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
         // budget, which means its tail was integrated in ONE giant step.
         let l4 = clamp(g_march_iters / f32(CLOUD_STEP_ITER_CAP), 0.0, 1.0);
         cur_d = vec4<f32>(l4, l4, l4, 1.0);
+    } else if (diag >= 8.5) {
+        // ── SUN SOURCE (increment 1, v0.1286) ── which sun-shadow source lit
+        // each sample, accumulated with the colour's own weights: fine
+        // window white (1.0), coarse window grey (0.5), the ladder /
+        // analytic fallback dark (0.15). Shows exactly where the window
+        // edges fall so the ring gates know where to look.
+        let l9 = clamp(g_march_src_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l9, l9, l9, 1.0);
     } else if (diag >= 7.5) {
         // ── BURIAL PROFILE (v0.1280) ── where the in-cloud light engages.
         let l8 = clamp(g_march_prof_acc, 0.0, 1.0);
@@ -755,4 +370,112 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
     out.color = vec4<f32>(cur_d.rgb * cur_d.a, cur_d.a);
     out.dist_km = max(t_rep, 0.0) * 0.001;
     return out;
+}
+
+// ── THE SUN-SHADOW CACHE BAKE (increment 1, v0.1286) ─────────────────────
+//
+// Replaces the dead fs_cloud_octa (the octahedral history march; dormant
+// since the v0.1250 one-renderer cut, see lib.rs near_mix). This fragment
+// runs fullscreen over the R16F slice ATLAS (15360 x 256 texels, see the
+// CLOUD_LC_* block in 40-clouds.wgsl) and writes, per texel, the sun
+// ladder's rungs 2-11 optical depth at ONE planet-fixed lattice point. The
+// march then reads the atlas with one trilinear tap instead of walking ten
+// density evaluations per view sample.
+//
+// Rust (renderer::cloud_temporal::CloudLightCache) sets a scissor rect over
+// one eighth of each window's slices per frame in a fixed order (a full
+// refresh every 8 frames) and bakes a window whole on a re-anchor or when
+// the sun has moved more than 2 degrees. The vertex entry is the plain
+// fullscreen triangle vs_cloud_screen.
+//
+// Nothing view-dependent enters: the point's regime comes from ITS OWN
+// direction (cloud_regime(cloud_type_coord(normalize(point), ...)), the
+// rule BUG-074 established), the weather from that direction, the sun from
+// camera.sun_direction like the march, and the cone-spiral phase is 0 (no
+// per-pixel jitter on a planet-fixed lattice). g_deep_sample stays at its
+// 0 default, so the bit-20 experiment's skip never fires here.
+//
+// Bindings are the standard groups 0-3, bound like the march pass: camera,
+// the cloud SHELL's object uniform (obj_normal_matrix gives the planet
+// frame the sun direction is rotated into), the cloud material, and the
+// texture group (the noise volumes; the albedo slot is unread here).
+@fragment
+fn fs_cloud_light_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    cloud_set_slab_bounds();
+    // Which texel: @builtin(position) is the pixel CENTRE (x.5, y.5), so the
+    // truncation yields the integer texel index.
+    let px = vec2<u32>(in.pos.xy);
+    let x = f32(px.x);
+    let j = f32(px.y);
+    // Decode (window, k, i, j) from the packing: fine slices first, k * 256
+    // + i across x; the coarse slices start at CLOUD_LC_COARSE_X0 with
+    // k * 128 + i. Rows beyond a window's height (the coarse rows 128..255)
+    // hold nothing and write 0.
+    var anchor = camera.light3_color.xyz;
+    var cell_h = camera.light3_color.w;
+    var cell_v_m = CLOUD_LC_FINE_CELL_V_M;
+    var nx = CLOUD_LC_FINE_NX;
+    var nz = CLOUD_LC_FINE_NZ;
+    var xs = x;
+    if (x >= CLOUD_LC_COARSE_X0) {
+        anchor = camera.light4_color.xyz;
+        cell_h = camera.light4_color.w;
+        cell_v_m = CLOUD_LC_COARSE_CELL_V_M;
+        nx = CLOUD_LC_COARSE_NX;
+        nz = CLOUD_LC_COARSE_NZ;
+        xs = x - CLOUD_LC_COARSE_X0;
+    }
+    let k = floor(xs / nx);
+    let i = xs - k * nx;
+    if (j >= nx || k >= nz || cell_h <= 0.0) {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    }
+    let cell_v = cell_v_m * 0.001 * g_cloud_upkm;
+    // The lattice point in the march's own p-space (the inverse of the
+    // read side's coordinate mapping, one function shared by both).
+    let point = light_cache_point(anchor, cell_h, cell_v, nx, i, j, k);
+
+    let t = camera.sun_color.w;
+    let seed = material.params.x;
+    let coverage = material.base_color.a;
+    let inv_model = transpose(obj_normal_matrix());
+    let sun = normalize(camera.sun_direction.xyz);
+    let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
+
+    // Regime and weather at the point's OWN direction (BUG-074 stays dead
+    // by construction: no ray midpoint, no camera anywhere in this).
+    let dirp = normalize(point);
+    let reg = cloud_regime(cloud_type_coord(dirp, t, seed));
+    let wind_ang = t * cloud_wind_omega(reg.wind_lo);
+    // The weather tap's band limit is the lattice cell (190 m or 760 m),
+    // both far below the 27.8 km weather texel, so mip 0, the same value
+    // every near view sample uses.
+    let wlod = max(log2(max(cell_h / g_cloud_upkm / 27.8, 1.0)), 0.0);
+    let weather_a = clamp(
+        cloud_alpha_from_field(
+            cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
+            + reg.cover_bias, 0.0, 1.0);
+    // The component bisect (dev pad bits 13-15) applies to the bake exactly
+    // as it does to the march, so an A/B with one term off stays an A/B.
+    let bis = cloud_bisect_index();
+    let detail_amt = select(1.0, 0.0, bis == 1u);
+    let puff_amt = select(1.0, 0.0, bis == 2u);
+    let cell_amt = select(1.0, 0.0, bis == 3u);
+    // Constructed bodies (Ultra) are welcome, as in the screen march: the
+    // profile body the ladder taps IS the built cluster at that tier.
+    g_v2_allowed = true;
+    // The body's surface-displacement mip is SHAPE and must not depend on a
+    // viewer; the lattice has none, so the world-anchored value the
+    // cloud_world_shape experiment uses stands in for every lattice point.
+    g_v2_disp_lod = CLOUD_V2_SHAPE_LOD_WORLD;
+    // Rungs 2-11 from this lattice point, rung 0-1 depth 0: the per-pixel
+    // rungs are added by the reader. No view footprint enters (v0.1264:
+    // each tap band-limits by its own segment), so the stored quantity is
+    // the same whatever the camera is doing.
+    let tau = cloud_sun_tau_far(
+        point, sun_local, t, seed, weather_a, reg,
+        detail_amt, puff_amt, cell_amt, 0.0);
+    // Flag hygiene (the ladder sets the profile flag; this is its exit).
+    g_sun_profile = 0.0;
+    return vec4<f32>(clamp(tau, 0.0, CLOUD_LC_TAU_MAX), 0.0, 0.0, 1.0);
 }

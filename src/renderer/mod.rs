@@ -581,6 +581,18 @@ pub struct Renderer {
     /// Dev pad bit 23 (the last exact f32 bit): increment B 2.1, the
     /// three-octave domain warp on the noise path.
     pub cloud_field: bool,
+    /// Dev pad bit 16 (performance plan increment 1, v0.1286): the
+    /// sun-shadow CACHE. On = the march reads rungs 2..11 of the sun
+    /// ladder from the planet-fixed slice atlas baked by the Cloud Light
+    /// Bake Pass; off = the full 12-rung ladder per pixel (the A/B twin).
+    /// Mirrored from GuiState::cloud_dev_light by lib.rs.
+    pub cloud_light: bool,
+    /// The atlas + planning state, created on first use by
+    /// `ensure_cloud_light` (cloud_temporal.rs).
+    pub(crate) cloud_light_cache: Option<cloud_temporal::CloudLightCache>,
+    /// This frame's ground point / sun / planet constants from the cloud
+    /// fill block (None = no cloud body armed this frame, the pass skips).
+    pub(crate) cloud_light_frame: Option<cloud_temporal::CloudLightFrame>,
     /// Gain on the in-scattered source (light5_color.z); 0 = 1.0.
     pub cloud_ms_gain: f32,
     /// Increment C (v0.1282): interior density saturation of the constructed
@@ -1827,6 +1839,9 @@ impl Renderer {
             cloud_checker: false,
             cloud_ms: false,
             cloud_field: false,
+            cloud_light: false,
+            cloud_light_cache: None,
+            cloud_light_frame: None,
             cloud_ms_gain: 0.0,
             cloud_int_sat: 0.0,
             cloud_discard_diag: false,
@@ -3910,6 +3925,12 @@ impl Renderer {
                 * (if self.cloud_no_detail { 1.0 } else if self.cloud_no_puff { 2.0 }
                    else if self.cloud_no_cell { 3.0 } else if self.cloud_no_fray { 4.0 }
                    else if self.cloud_no_bdrop { 5.0 } else { 0.0 }))
+            // Bit 16 (65536, v0.1286): the sun-shadow cache is READABLE
+            // this frame - toggle on, near regime armed, atlas planned.
+            // Raised from the same predicate that binds the atlas at
+            // group 3 below, so the shader can never read a slot that
+            // holds the 1x1 fallback texture.
+            + (if self.cloud_light_active().is_some() { 65536.0f32 } else { 0.0 })
             + (if self.cloud_sharp_base { 262144.0f32 } else { 0.0 })
             + (if self.cloud_relief_fade { 524288.0f32 } else { 0.0 })
             + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })
@@ -3918,6 +3939,24 @@ impl Renderer {
             + (if self.cloud_field { 8388608.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
+        // light3_color (offset 256) and light4_color (offset 272), both
+        // unread by every shader until v0.1286: the sun-shadow cache
+        // window pads, (anchor_x, anchor_y, anchor_z, cell_h) for the fine
+        // and the coarse window in the march's p-units (planet-centred
+        // shell object space). f64 all the way in CloudLightState::pads,
+        // f32 only here. Written EVERY frame (zeros when no cache) so a
+        // stale window can never survive a regime change.
+        {
+            let (fine, coarse) = self
+                .cloud_light_cache
+                .as_ref()
+                .map(|lc| lc.state.pads())
+                .unwrap_or(([0.0; 4], [0.0; 4]));
+            self.queue
+                .write_buffer(&self.camera_buffer, 256, bytemuck::cast_slice(&fine));
+            self.queue
+                .write_buffer(&self.camera_buffer, 272, bytemuck::cast_slice(&coarse));
+        }
 
         // ── 12e NEAR march + resolve ── two passes replace 12d's single
         // cadence+history hybrid (whose one blend constant could not both
@@ -3951,6 +3990,40 @@ impl Renderer {
                         transparent.iter().position(|o| o.material == m)
                     }),
                 );
+                // [CloudLight] (v0.1286): the sun-shadow cache's state at
+                // 1 Hz - whether the march reads it this frame, where the
+                // windows sit, how often they moved, and the bake mix.
+                // Read this before believing any cache-on capture: active
+                // must be true and full+partial must be climbing.
+                match self.cloud_light_cache.as_ref() {
+                    Some(lc) => {
+                        let st = &lc.state;
+                        let (fine, coarse) = st.pads();
+                        log::info!(
+                            "[CloudLight] on={} active={} anchor_p=({:.6},{:.6},{:.6}) cell_p={:.3e}/{:.3e} reanchors={} sun_rerefs={} full={} partial={} phase={} last={:?}",
+                            self.cloud_light,
+                            self.cloud_light_active().is_some(),
+                            fine[0],
+                            fine[1],
+                            fine[2],
+                            fine[3],
+                            coarse[3],
+                            st.reanchors,
+                            st.sun_rerefs,
+                            st.full_bakes.get(),
+                            st.partial_bakes.get(),
+                            st.phase.get(),
+                            st.last_plan,
+                        );
+                    }
+                    None => {
+                        log::info!(
+                            "[CloudLight] on={} active=false (no atlas) fed={}",
+                            self.cloud_light,
+                            self.cloud_light_frame.is_some(),
+                        );
+                    }
+                }
             }
         }
         if self.cloud_mode_near {
@@ -3966,6 +4039,55 @@ impl Renderer {
                         self.upload_object_uniforms(
                             objects.iter().chain(transparent.iter()),
                         );
+                        let uniform_align = 256_u64;
+                        // ── Cloud Light Bake Pass (increment 1, v0.1286) ──
+                        // Refreshes the sun-shadow slice atlas BEFORE the
+                        // march reads it. Bound exactly like the march
+                        // (the cloud shell's object slot gives the bake
+                        // fragment the same planet frame, group 2 the same
+                        // material, group 3 the 1x1 fallback: the atlas is
+                        // this pass's attachment and may not also be
+                        // sampled). Scissored to one eighth of each
+                        // window's slices per frame in a fixed order, or
+                        // the whole atlas on the first frame, a re-anchor
+                        // or a sun re-reference (CloudLightState decides;
+                        // this pass only draws what it is handed).
+                        // LoadOp::Load keeps the seven eighths not baked
+                        // this frame.
+                        if let Some(lc) = self.cloud_light_active() {
+                            let rects = lc.state.take_bake_rects();
+                            let mut bake =
+                                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                    label: Some("Cloud Light Bake Pass"),
+                                    timestamp_writes: self.pass_timer("gpu.cloud_light"),
+                                    color_attachments: &[Some(
+                                        wgpu::RenderPassColorAttachment {
+                                            view: &lc.view,
+                                            resolve_target: None,
+                                            ops: wgpu::Operations {
+                                                load: wgpu::LoadOp::Load,
+                                                store: wgpu::StoreOp::Store,
+                                            },
+                                        },
+                                    )],
+                                    depth_stencil_attachment: None,
+                                    ..Default::default()
+                                });
+                            bake.set_pipeline(&self.pipeline.cloud_light_bake_pipeline);
+                            bake.set_bind_group(0, &self.camera_bind_group, &[]);
+                            bake.set_bind_group(
+                                1,
+                                &self.object_bind_group,
+                                &[(uniform_align as u32) * (slot as u32)],
+                            );
+                            bake.set_bind_group(2, &material.bind_group, &[]);
+                            bake.set_bind_group(3, &self.default_texture_bind_group, &[]);
+                            for (x, y, w, h) in rects {
+                                bake.set_scissor_rect(x, y, w, h);
+                                bake.draw(0..3, 0..1);
+                            }
+                            drop(bake);
+                        }
                         let mut pass =
                             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                                 label: Some("Cloud March Pass"),
@@ -3997,16 +4119,21 @@ impl Renderer {
                             });
                         pass.set_pipeline(&self.pipeline.cloud_screen_pipeline);
                         pass.set_bind_group(0, &self.camera_bind_group, &[]);
-                        let uniform_align = 256_u64;
                         pass.set_bind_group(
                             1,
                             &self.object_bind_group,
                             &[(uniform_align as u32) * (slot as u32)],
                         );
                         pass.set_bind_group(2, &material.bind_group, &[]);
-                        // Group 3 unused by the march (no history read) -
-                        // the shared layout still requires a binding.
-                        pass.set_bind_group(3, &self.default_texture_bind_group, &[]);
+                        // Group 3: the sun-shadow cache atlas in the
+                        // albedo slot while the cache is on (v0.1286; the
+                        // same predicate raised pad bit 16 above), else
+                        // the 1x1 fallback the shared layout requires.
+                        let g3 = self
+                            .cloud_light_active()
+                            .map(|lc| &lc.group.colour)
+                            .unwrap_or(&self.default_texture_bind_group);
+                        pass.set_bind_group(3, g3, &[]);
                         pass.draw(0..3, 0..1);
                         drop(pass);
 

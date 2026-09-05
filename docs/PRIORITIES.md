@@ -1,5 +1,55 @@
 # HumanityOS: Priorities
 
+> **v0.1286 (2026-09-05): PERF INCREMENT 1, THE SUN-SHADOW CACHE, built and
+> measured (F10 "Sun shadow cache", default off).** Sun optical depth is now a
+> planet-fixed cached quantity: rungs 2 to 11 of the per-sample sun ladder
+> are baked into two nested 3D windows around the camera ground point (fine
+> 48.6 km at 190 x 240 m, coarse 97 km at 760 x 480 m) as an R16F slice atlas
+> riding group 3 binding 0 (no bind-group-layout change), one trilinear tap
+> per sample, rungs 0 and 1 kept per pixel, one eighth of each window baked
+> per frame, a full bake on re-anchor. Built from the written contract
+> `docs/design/cloud-sun-shadow-cache.md` (as-built deviations appended there)
+> by two worktree agents on disjoint files, each critic-reviewed and repaired,
+> merged as patches, both feature checks, naga and the cloud_light tests
+> green.
+>
+> MEASURED (half res, Ultra, clock and world-shape LOD pinned, cache off vs
+> on in one boot, real GPU timestamps):
+>
+> ```
+> gpu.cloud_screen ms, cache off -> on (bake gpu.cloud_light in brackets): bm-12 4.6 km 58.9 -> 16.1 (2.5), 3.7x; bm-12 inside 215.9 -> 152.0 (2.6), 30% (gate asked 40%); cumulus closeup 156.6 -> 137.2 (1.6), 12%; rain 26 km 51.8 -> 46.7 (1.1); sc deck top 27.8 -> 22.5 (0.9); sc inside top 13.0 -> 12.6 (0.9).
+> Look: luminance bands and grain unchanged at rain, closeup, deck top and inside bm-12 (grain 0.552 -> 0.550, 1.331 -> 1.409, 2.989 -> 2.998); interiors read BRIGHTER with the cache by 10 to 12 levels (sc inside top 221 -> 231, bm-12 4.6 km 41.6 -> 53.8), the deck top +3.5; direct-sun channel grain 1.775 -> 1.738 (not up); above-deck radial profile a uniform +10 offset with NO ring at a window edge; the Sun-source channel reads fine-window (white) nearly everywhere at both bm-12 cameras.
+> Open: the cached optical depth runs systematically lower than the per-pixel ladder (the bake evaluates density at the world shape LOD with no cone jitter, and trilinear filtering averages tau over 190 m cells); a slice-dump parity test against the CPU twin is the next check before the cache can become the default. With world-shape LOD pinned (bit 3, required so both arms shade the same mips) the bm-12 4.6 km camera sits inside cloud, so that pair is an in-cloud pair, not an above-deck one.
+> ```
+>
+> NEXT, in order:
+> 1. **Operator judges the look** of the cache in flight (F10 "Sun shadow
+>    cache"; the "Sun source" bisect channel shows where each sample got its
+>    sun: white = fine window, grey = coarse, dark = decided locally or
+>    outside). If it holds, it becomes the default in the next release; the
+>    open question of the far fallback (the ladder beyond the coarse window
+>    versus the analytic column, `CLOUD_LC_FAR_ANALYTIC`) is measured on one
+>    horizon look first.
+> 2. **Increment 2, step economy**: interior step floors at half the sample
+>    footprint (continuous with distance), the transmittance budget exit, the
+>    BUILT-path saturating interior remap. Gates: March-steps histogram down
+>    30% in-deck, horizon band off the cap, masked mean within 3%.
+> 3. **Increment 3, the body cost**: a per-ray current-cell lobe cache in
+>    `cloud_v2_body`, then the per-cell cluster table storing the SDF. Gate:
+>    bit-exact diff; `gpu.cloud_screen` down 25% at bm-12 and the closeup.
+> 4. **Increment 4, the far rung inside the march** (the 363 ms orbit row):
+>    a per-cell prefiltered density-by-height profile chosen by footprint,
+>    planet-fixed, transmittance-blended; the Low sheet redrawn from it.
+> 5. **Increment 5, operator-gated**: the interleaved quarter march.
+> 6. **Cloud layering** (operator question, 2026-09-05): the design picks ONE
+>    family per ray, so a cumulus field under a cirrus veil cannot exist yet.
+>    Layering as separate height bands the march skips between is the design
+>    to write after the perf arc; estimated 1.3 to 1.6x a single layer, not 2
+>    to 3x, and pointless before the per-sample cost is fixed.
+> 7. **The planet pass** (`gpu.celestial` 30 to 37 ms in every situation) is
+>    the next arc: with clouds free the frame would still be about 27 fps at
+>    2560 wide.
+
 > **v0.1285 (2026-09-05): PERF DAY 0 DONE; the passes are measured.** The
 > rig now copies `debug/frame_costs.json` beside every vantage capture when
 > the sweep env carries `HUMANITY_FRAME_COSTS=1`, and

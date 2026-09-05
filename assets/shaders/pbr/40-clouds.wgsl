@@ -776,8 +776,239 @@ const CLOUD_CARVE_T8: f32 = -0.0125;
 fn cloud_bisect_index() -> u32 {
     return u32(floor(fract(camera.light7_color.w * 0.0000152587890625) * 8.0));
 }
-// Dev pad bits 16-17 are FREE (v0.1283; the carve-saturation remap that
-// briefly used them was a null and was removed, see BUGS/PRIORITIES).
+// Dev pad bit 16 = the SUN-SHADOW CACHE (increment 1 of the performance
+// arc, v0.1286). Bit 17 is still free (v0.1283; the carve-saturation remap
+// that briefly used both was a null and was removed, see BUGS/PRIORITIES).
+// fract(w / 2^17) >= 0.5 isolates bit 16: bits 0-15 sum to under 65536, so
+// they cannot carry into it, and the pad is integer-valued so the test is
+// exact in f32.
+fn cloud_light_cache_on() -> bool {
+    return fract(camera.light7_color.w * 0.00000762939453125) >= 0.5;
+}
+
+// ── THE SUN-SHADOW CACHE (increment 1, v0.1286) ──────────────────────────
+//
+// What it is: the sun optical depth a sample sees (`cloud_sun_tau`) used to
+// be a 12-rung ladder of density evaluations PER VIEW SAMPLE, and at Ultra
+// each rung rebuilds a constructed lobe cluster, so the ladder was 80-88% of
+// all density work in every situation (PRIORITIES v0.1284). Sunlight at a
+// point in a cloud does not depend on where the camera is, so rungs 2-11 of
+// that ladder are now BAKED ONCE into a planet-fixed 3D lattice around the
+// camera's ground point (two nested windows, fine and coarse) and read back
+// with one trilinear tap. Each pixel keeps rungs 0 and 1 on its own axis
+// (the 30 m + 57 m local self-shadow that the in-cloud light's A2 split
+// already isolates as g_sun_tau01), so the entry rind still self-shadows
+// exactly. Beyond both windows the per-pixel ladder runs as before.
+//
+// The lattice: a window is an axis-aligned box in a LOCAL planet-fixed
+// frame at its anchor (a point on the planet at the camera's ground
+// lat/lon): u = normalize(anchor), e = normalize(cross(Y, u)) with Y the
+// planet spin axis in this planet-local space, n = cross(u, e). Lattice
+// point (i, j, k) sits at
+//   anchor + e * ((i + 0.5) * cell_h - half_w)
+//          + n * ((j + 0.5) * cell_h - half_w)
+//          + u * (k * cell_v + z0)
+// with half_w = nx * cell_h / 2 and z0 = the slab base height above the
+// anchor's own radius (g_cloud_rb - length(anchor)), so slice 0 sits on the
+// cloud base and the slices climb through the band. Everything is in the
+// march's own coordinate space (the drawn shell's object space, 1 unit =
+// the drawn shell radius; g_cloud_upkm converts km into it).
+//
+// Rust (renderer::cloud_temporal::CloudLightCache) owns the anchors, the
+// re-anchor hysteresis, the atlas texture and the bake pass; it hands the
+// shader the anchor and the horizontal cell size of each window through two
+// camera pads that nothing else reads:
+//   light3_color = (fine_anchor.xyz, fine_cell_h)
+//   light4_color = (coarse_anchor.xyz, coarse_cell_h)
+// The cell counts, the vertical cell size and the atlas packing are the
+// CLOUD_LC_* constants below, mirrored in cloud_temporal.rs and pinned by a
+// unit test that reads this file (same discipline as cloud_reference.rs's
+// wgsl_reference_constants_stay_in_sync: every constant is `const NAME: f32
+// = value;` on one line so that parser finds it).
+//
+// The atlas: ONE R16F texture_2d, slices side by side along x, riding the
+// existing group-3 binding 0 `albedo_texture` (no bind-group-layout change,
+// exactly the way the octa map rode the albedo slot). Fine slices first
+// (48 of 256x256), then the coarse slices (24 of 128x128):
+//   fine:   x = k * 256 + i,                 y = j
+//   coarse: x = CLOUD_LC_COARSE_X0 + k * 128 + i,  y = j   (rows 128..255 unused)
+// The stored value is tau_far = the ladder's optical depth from rung 2
+// onward, measured from the lattice point (the first tap lands 195 m
+// sunward, exactly where rung 2 lands for a view sample), clamped to
+// [0, CLOUD_LC_TAU_MAX].
+
+// Fine window: 256 x 256 columns of 190 m (48.6 km square), 48 slices of
+// 240 m (11.5 km tall).
+const CLOUD_LC_FINE_NX: f32 = 256.0;
+const CLOUD_LC_FINE_NZ: f32 = 48.0;
+const CLOUD_LC_FINE_CELL_H_M: f32 = 190.0;
+const CLOUD_LC_FINE_CELL_V_M: f32 = 240.0;
+// Coarse window: 128 x 128 columns of 760 m (97 km square), 24 slices of
+// 480 m (11.5 km tall). It only has to cover the fine window's re-anchor
+// hysteresis and the mid distance; beyond it the ladder runs as before.
+const CLOUD_LC_COARSE_NX: f32 = 128.0;
+const CLOUD_LC_COARSE_NZ: f32 = 24.0;
+const CLOUD_LC_COARSE_CELL_H_M: f32 = 760.0;
+const CLOUD_LC_COARSE_CELL_V_M: f32 = 480.0;
+// Atlas packing: the coarse slices start at x = 48 * 256; the whole atlas is
+// 15360 x 256 texels.
+const CLOUD_LC_COARSE_X0: f32 = 12288.0;
+const CLOUD_LC_ATLAS_W: f32 = 15360.0;
+const CLOUD_LC_ATLAS_H: f32 = 256.0;
+// The stored optical depth is clamped here (f16 holds it exactly enough;
+// exp(-64 * 0.125) is 3e-4 on the slowest scatter octave, i.e. black).
+const CLOUD_LC_TAU_MAX: f32 = 64.0;
+// The blend band at each window's edge, as a fraction of the half-width:
+// fine -> coarse across the fine window's outer 20%, coarse -> the fallback
+// across the coarse window's outer 20%, so no window edge prints a ring.
+const CLOUD_LC_BLEND_FRAC: f32 = 0.20;
+// What the coarse window blends INTO at its edge, and what runs beyond it.
+// 0.0 = the per-pixel ladder (rungs 2-11 as before; the look outside the
+// windows is exactly today's, and the coarse outer band pays the ladder to
+// blend against). 1.0 = the analytic slant column g_sun_tau_col (cheaper,
+// but a different quantity from the ladder beyond 48 km, so the far field's
+// look changes). The contract text names both; the ladder is the safe first
+// cut and the constant is the one-line switch to try the other.
+const CLOUD_LC_FAR_ANALYTIC: f32 = 0.0;
+// "Sun source" codes for map_diag channel 9 (the bisect instrument that
+// shows where each window's edge falls): fine window 1.0, coarse window
+// 0.5, "decided by rungs 0-1" 0.35 (the A2 buried early-exit or the opaque
+// cap fired before any cache read; this happens INSIDE the windows too, so
+// the ring gate must not read it as "outside"), the ladder / analytic
+// fallback 0.15 (bit off, or beyond the coarse window).
+const CLOUD_LC_SRC_FINE: f32 = 1.0;
+const CLOUD_LC_SRC_COARSE: f32 = 0.5;
+const CLOUD_LC_SRC_DECIDED: f32 = 0.35;
+const CLOUD_LC_SRC_FALLBACK: f32 = 0.15;
+
+// Per-sample "sun source" code (see CLOUD_LC_SRC_*), set by cloud_sun_tau,
+// and its transmittance-weighted accumulation for map_diag channel 9, the
+// same acc weights as the colour so it reads as what the pixel sees.
+var<private> g_light_src: f32 = 0.15;
+var<private> g_march_src_acc: f32 = 0.0;
+
+// The local frame of a window: returns e (east), with n and u recoverable
+// by the caller. Kept as one function so the bake (which places lattice
+// points) and the read (which locates a sample in the lattice) can never
+// disagree on the frame. At the poles cross(Y, u) vanishes; the X axis
+// stands in there (Rust mirrors this rule; the re-anchor keeps the anchor
+// off the exact pole in practice).
+fn light_cache_east(u: vec3<f32>) -> vec3<f32> {
+    var e = cross(vec3<f32>(0.0, 1.0, 0.0), u);
+    if (dot(e, e) < 1.0e-8) {
+        e = cross(vec3<f32>(1.0, 0.0, 0.0), u);
+    }
+    return normalize(e);
+}
+
+// The lattice point of texel (i, j) on slice k of the window anchored at
+// `anchor` with horizontal cell `cell_h` (p-units) and vertical cell
+// `cell_v` (p-units): the bake's inverse of light_cache_tap's coordinate
+// mapping. `nx` is the window's column count (its width in cells).
+fn light_cache_point(
+    anchor: vec3<f32>, cell_h: f32, cell_v: f32, nx: f32,
+    i: f32, j: f32, k: f32,
+) -> vec3<f32> {
+    let u = normalize(anchor);
+    let e = light_cache_east(u);
+    let n = cross(u, e);
+    let half_w = nx * cell_h * 0.5;
+    let z0 = g_cloud_rb - length(anchor);
+    return anchor
+        + e * ((i + 0.5) * cell_h - half_w)
+        + n * ((j + 0.5) * cell_h - half_w)
+        + u * (k * cell_v + z0);
+}
+
+// How close to a window's horizontal edge a sample sits: 0 inside the inner
+// (1 - CLOUD_LC_BLEND_FRAC) of the half-width, rising to 1 at the edge and
+// beyond. Chebyshev distance (max of |east|, |north|) because the window is
+// a square; smoothstep so the blend is C1 at both ends of the band. The
+// vertical axis is NOT part of this test: both windows span the whole slab
+// and a sample above or below the lattice reads the nearest slice (see
+// light_cache_tap), never a fade to the fallback, because a vertical fade
+// would hand the lit cloud tops to the fallback quantity.
+fn light_cache_edge_w(p: vec3<f32>, anchor: vec3<f32>, cell_h: f32, nx: f32) -> f32 {
+    let u = normalize(anchor);
+    let e = light_cache_east(u);
+    let n = cross(u, e);
+    let d = p - anchor;
+    let half_w = nx * cell_h * 0.5;
+    let m = max(abs(dot(d, e)), abs(dot(d, n))) / max(half_w, 1.0e-12);
+    return smoothstep(1.0 - CLOUD_LC_BLEND_FRAC, 1.0, m);
+}
+
+// One manual-trilinear read of a window: two bilinear taps on the adjacent
+// k slices, each clamped INSIDE its own slice (texel-centre coordinates in
+// [0.5, n - 0.5], so the hardware bilinear filter can never reach into the
+// neighbouring slice), then a lerp in k. The sampler is the group's own
+// linear albedo_sampler; the texture is the atlas in the albedo slot.
+fn light_cache_tap(
+    p: vec3<f32>, anchor: vec3<f32>, cell_h: f32, cell_v: f32,
+    nx: f32, nz: f32, x0: f32,
+) -> f32 {
+    let u = normalize(anchor);
+    let e = light_cache_east(u);
+    let n = cross(u, e);
+    let d = p - anchor;
+    let half_w = nx * cell_h * 0.5;
+    let z0 = g_cloud_rb - length(anchor);
+    // Continuous lattice coordinates: the inverse of light_cache_point, so
+    // a sample exactly on lattice point (i, j, k) reads that texel.
+    let fi = clamp((dot(d, e) + half_w) / cell_h - 0.5, 0.0, nx - 1.0);
+    let fj = clamp((dot(d, n) + half_w) / cell_h - 0.5, 0.0, nx - 1.0);
+    let fk = clamp((dot(d, u) - z0) / cell_v, 0.0, nz - 1.0);
+    let k0 = floor(fk);
+    let k1 = min(k0 + 1.0, nz - 1.0);
+    let wk = fk - k0;
+    let inv_atlas = vec2<f32>(1.0 / CLOUD_LC_ATLAS_W, 1.0 / CLOUD_LC_ATLAS_H);
+    let uv0 = vec2<f32>(x0 + k0 * nx + fi + 0.5, fj + 0.5) * inv_atlas;
+    let uv1 = vec2<f32>(x0 + k1 * nx + fi + 0.5, fj + 0.5) * inv_atlas;
+    let v0 = textureSampleLevel(albedo_texture, albedo_sampler, uv0, 0.0).r;
+    let v1 = textureSampleLevel(albedo_texture, albedo_sampler, uv1, 0.0).r;
+    return mix(v0, v1, wk);
+}
+
+// The cache read for a view sample at p (the sample itself, NOT offset
+// along the sun: the stored value already starts its ladder 87 m sunward
+// of each lattice point, exactly as rung 2 does for a view sample).
+// Returns (tau_far, w_far, src):
+//   tau_far = the cached rungs 2-11 optical depth, fine inside the fine
+//             window's inner 80%, blended to coarse across its outer 20%,
+//             coarse out to the coarse window's inner 80%;
+//   w_far   = how much of the FALLBACK the caller must blend in: 0 inside
+//             the coarse inner 80%, rising to 1 at the coarse edge, and 1
+//             (cache unusable) beyond it or when the pads are unset;
+//   src     = the "Sun source" code for map_diag channel 9.
+fn light_cache_tau(p: vec3<f32>) -> vec3<f32> {
+    let fa = camera.light3_color.xyz;
+    let f_cell_h = camera.light3_color.w;
+    let ca = camera.light4_color.xyz;
+    let c_cell_h = camera.light4_color.w;
+    // Pads not written (cache armed in the shader but not yet planned by
+    // Rust this frame): treat as outside both windows.
+    if (f_cell_h <= 0.0 || c_cell_h <= 0.0) {
+        return vec3<f32>(0.0, 1.0, CLOUD_LC_SRC_FALLBACK);
+    }
+    let wc = light_cache_edge_w(p, ca, c_cell_h, CLOUD_LC_COARSE_NX);
+    if (wc >= 1.0) {
+        return vec3<f32>(0.0, 1.0, CLOUD_LC_SRC_FALLBACK);
+    }
+    let upm = g_cloud_upkm * 0.001;
+    var tau = light_cache_tap(
+        p, ca, c_cell_h, CLOUD_LC_COARSE_CELL_V_M * upm,
+        CLOUD_LC_COARSE_NX, CLOUD_LC_COARSE_NZ, CLOUD_LC_COARSE_X0);
+    var src = CLOUD_LC_SRC_COARSE;
+    let wf = light_cache_edge_w(p, fa, f_cell_h, CLOUD_LC_FINE_NX);
+    if (wf < 1.0) {
+        let tau_f = light_cache_tap(
+            p, fa, f_cell_h, CLOUD_LC_FINE_CELL_V_M * upm,
+            CLOUD_LC_FINE_NX, CLOUD_LC_FINE_NZ, 0.0);
+        tau = mix(tau_f, tau, wf);
+        src = mix(CLOUD_LC_SRC_FINE, CLOUD_LC_SRC_COARSE, wf);
+    }
+    return vec3<f32>(tau, wc, src);
+}
 
 fn cloud_carve_thr_off(lod: f32) -> f32 {
     var t: array<f32, 9> = array<f32, 9>(
@@ -2530,6 +2761,17 @@ fn cloud_density_hi(
 // was top-surface). Two taps cover ~0.9-2.5 km, exactly the lobe scale;
 // the remaining taps keep the cheap body-only density for the big-mass
 // shadow, where erosion detail is sub-shadow anyway.
+//
+// SPLIT IN TWO (increment 1, v0.1286, the sun-shadow cache): this function
+// walks rungs 0 and 1 itself (the 30 m + 57 m on-axis self-shadow every
+// pixel keeps), then either reads rungs 2-11 from the planet-fixed cache
+// (dev pad bit 16 on and the sample inside a window) or hands the SAME
+// running state to cloud_sun_tau_far, which walks rungs 2-11 exactly as the
+// single loop used to. The two halves are one arithmetic: the same dist /
+// step_d recurrence, the same `p + sun_local * dist` tap positions, the
+// same skips and the same break, so with the cache bit OFF the result is
+// bit-identical to the pre-split ladder (the A/B twin). cloud_sun_tau_far
+// is also what the bake pass evaluates at every lattice point.
 fn cloud_sun_tau(
     p: vec3<f32>,
     sun_local: vec3<f32>,
@@ -2550,21 +2792,16 @@ fn cloud_sun_tau(
     var tau = 0.0;
     var dist = 0.0;
     var step_d = g_light_near;
-    // Cone basis perpendicular to the sun ray (v0.1252.2; see
-    // CLOUD_SUN_CONE_K). Any stable pair works - the spiral covers the
-    // disc.
-    var cu = cross(sun_local, vec3<f32>(0.0, 1.0, 0.0));
-    if (dot(cu, cu) < 1.0e-6) {
-        cu = cross(sun_local, vec3<f32>(1.0, 0.0, 0.0));
-    }
-    cu = normalize(cu);
-    let cv = cross(sun_local, cu);
     var w_split = 0.0;
-    for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
+    // Set when rungs 0-1 already decided the answer (the A2 buried case or
+    // the opaque cap): no cache read, no far ladder.
+    var done = false;
+    for (var i = 0; i < 2; i = i + 1) {
         // Deep-sample coarse ladder (v0.1279 experiment, dev pad bit 20):
         // when the VIEW sample is already deep (g_deep_sample set by the
         // march from the eye transmittance), the first three rungs are
         // skipped so nearby lobe shadows do not print through the eye.
+        // (cloud_sun_tau_far applies the same skip to rung 2.)
         if (g_deep_sample > 0.5 && i < 3
             && fract(camera.light7_color.w * 0.000000476837158203125) >= 0.5) {
             continue;
@@ -2574,18 +2811,176 @@ fn cloud_sun_tau(
         dist = dist + step_d;
         let seg = step_d;
         step_d = step_d * CLOUD_LIGHT_RATIO;
+        // First two taps stay ON-AXIS: the entry rind is the surface the
+        // eye sees and must self-shadow exactly (the sun-profile split).
+        let lp = p + sun_local * dist;
+        // Slab skip (v0.1257): density outside the band is zero by
+        // construction. See the fuller note in cloud_sun_tau_far.
+        let lr_t = length(lp);
+        if (lr_t < g_cloud_rb || lr_t > g_cloud_rt) {
+            continue;
+        }
+        // Band limit = the tap's OWN segment length floored at the 260 m
+        // radiative-smoothing scale; never the view footprint (v0.1264,
+        // see cloud_sun_tau_far).
+        let lod_t = max(
+            log2(max(seg / g_cloud_upkm, 1.0e-4)),
+            log2(0.26),
+        );
+        // The PROFILE body (v0.1252.4; sub-MFP fields at their means).
+        g_sun_profile = 1.0;
+        let dens = cloud_density_hi(
+            lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
+            lod_t).x;
+        tau = tau + sigma * dens * seg;
+        // ── INCREMENT A2: DEPTH-SPLIT LADDER (v0.1280) ──
+        // The reference: at 45/km the transport mean free path is 148 m,
+        // so 150 m inside the medium the radiance field is already near
+        // isotropic and no lobe 400-1500 m away can cast a visible shadow.
+        // A sample buried under rungs 0-1 (87 m on-axis) takes the slant
+        // column for the rest instead of resolving its neighbours with
+        // rungs 2-11 - which is exactly what printed the lobes around an
+        // eye inside the cloud as radial petals.
+        if (i == 1) {
+            g_sun_tau01 = tau;
+            if (g_ms_on > 0.5) {
+                let w_deep = smoothstep(1.5, 4.0, tau);
+                if (w_deep >= 0.999) {
+                    tau = max(tau, g_sun_tau_col);
+                    done = true;
+                    break;
+                }
+                w_split = w_deep;
+            }
+        }
+        // v0.911 (perf audit #3): once the sun path is this optically deep
+        // every scatter octave is effectively zero - later taps cannot
+        // change the pixel. Cap raised again with physical extinction
+        // (exp(-40 * 0.20) is 3e-4 on the slowest octave).
+        if (tau > 40.0) {
+            done = true;
+            break;
+        }
+    }
+    // ── THE CACHE READ (increment 1) ── rungs 2-11 from the lattice.
+    // The default source code: "decided" when rungs 0-1 already settled
+    // the answer (no cache read, no far ladder), else "fallback", which
+    // covers every path that runs the ladder (bit off, outside both
+    // windows). The cache branch below overwrites it with the window code.
+    // NOTE (dev pad bit 20, the v0.1279 deep-sample experiment): that toggle
+    // skips rungs 0, 1, 2 per pixel, but with the cache on rung 2 arrives
+    // from the atlas, which is baked with g_deep_sample = 0. The two toggles
+    // do not compose as written; run bit 20 with the cache off.
+    g_light_src = select(CLOUD_LC_SRC_FALLBACK, CLOUD_LC_SRC_DECIDED, done);
+    if (!done) {
+        var cached = false;
+        if (cloud_light_cache_on()) {
+            let lc = light_cache_tau(p);
+            if (lc.y < 1.0) {
+                // Inside the coarse window: the cached far rungs, blended
+                // toward the fallback across the coarse outer band.
+                var tau_c = tau + lc.x;
+                if (lc.y > 0.0) {
+                    var tau_fb = max(tau, g_sun_tau_col);
+                    if (CLOUD_LC_FAR_ANALYTIC < 0.5) {
+                        tau_fb = cloud_sun_tau_far(
+                            p, sun_local, t, seed, weather_a, reg,
+                            detail_amt, puff_amt, cell_amt, tau);
+                    }
+                    tau_c = mix(tau_c, tau_fb, lc.y);
+                }
+                tau = tau_c;
+                g_light_src = mix(lc.z, CLOUD_LC_SRC_FALLBACK, lc.y);
+                cached = true;
+            }
+        }
+        if (!cached) {
+            tau = cloud_sun_tau_far(
+                p, sun_local, t, seed, weather_a, reg,
+                detail_amt, puff_amt, cell_amt, tau);
+        }
+    }
+    // Flag hygiene: cloud_sun_tau's single exit. A leak would make the
+    // EYE see the profile body - visible as lost close-up texture.
+    g_sun_profile = 0.0;
+    if (w_split > 0.0) {
+        tau = mix(tau, max(g_sun_tau01, g_sun_tau_col), w_split);
+    }
+    return tau;
+}
+
+// Rungs 2 to CLOUD_HI_LIGHT_SAMPLES - 1 of the sun ladder: the big-mass
+// shadow, the part the sun-shadow cache stores. `p` is the point the ladder
+// is measured FROM (the view sample, or a lattice point in the bake); the
+// function re-walks the rung 0-1 recurrence without tapping so its rung 2
+// lands 195 m sunward of p exactly as it always did (dist = 30 + 57 + 108 m,
+// the same f32 sum in the same order), then taps rungs 2-11 on the profile
+// body inside the sun cone. `tau_in` is the optical depth accumulated so
+// far (rungs 0-1 for a view sample, 0 for the bake) so the opaque cap
+// breaks at the same cumulative value the single loop did; the return is
+// the cumulative total (tau_in + the far rungs).
+//
+// Everything in here is a pure function of position and sun direction
+// (v0.1264: no view footprint enters; there is deliberately NO lodb
+// parameter, each tap band-limits by its own segment), which is what makes
+// it cacheable on a planet-fixed lattice in the first place. The one view-dependent
+// input is the bit-20 experiment's g_deep_sample skip, which is 0 in the
+// bake pass.
+fn cloud_sun_tau_far(
+    p: vec3<f32>,
+    sun_local: vec3<f32>,
+    t: f32,
+    seed: f32,
+    weather_a: f32,
+    reg: CloudRegime,
+    detail_amt: f32,
+    puff_amt: f32,
+    cell_amt: f32,
+    tau_in: f32,
+) -> f32 {
+    let sigma = reg.ext_km / g_cloud_upkm;
+    var tau = tau_in;
+    var dist = 0.0;
+    var step_d = g_light_near;
+    // Cone basis perpendicular to the sun ray (v0.1252.2; see
+    // CLOUD_SUN_CONE_K). Any stable pair works - the spiral covers the
+    // disc.
+    var cu = cross(sun_local, vec3<f32>(0.0, 1.0, 0.0));
+    if (dot(cu, cu) < 1.0e-6) {
+        cu = cross(sun_local, vec3<f32>(1.0, 0.0, 0.0));
+    }
+    cu = normalize(cu);
+    let cv = cross(sun_local, cu);
+    for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
+        // Deep-sample coarse ladder (v0.1279 experiment, dev pad bit 20):
+        // the same skip cloud_sun_tau applies to rungs 0-1, here for rung 2
+        // (and, because the skip does not advance the recurrence, rungs 0
+        // and 1 stay un-advanced under it too, as in the single loop).
+        if (g_deep_sample > 0.5 && i < 3
+            && fract(camera.light7_color.w * 0.000000476837158203125) >= 0.5) {
+            continue;
+        }
+        // Geometric ladder: the segment IS the step (see
+        // CLOUD_LIGHT_NEAR_KM / RATIO above).
+        dist = dist + step_d;
+        let seg = step_d;
+        step_d = step_d * CLOUD_LIGHT_RATIO;
+        // Rungs 0 and 1 belong to the caller (or, in the bake, to the
+        // pixel that will read this lattice point): advance past them.
+        if (i < 2) {
+            continue;
+        }
         var lp = p + sun_local * dist;
         // First two taps stay ON-AXIS: the entry rind is the surface the
         // eye sees and must self-shadow exactly (the sun-profile split).
         // Farther taps spiral inside the cone; the g_lod_jitter phase is
         // per-pixel + frame-advanced on the temporal path (0 on the
         // Medium direct path, where the fixed spiral still buys the
-        // lateral average without needing an integrator).
-        if (i >= 2) {
-            let ang = 2.3999632 * f32(i) + g_lod_jitter * 6.2831853;
-            lp = lp + (cu * cos(ang) + cv * sin(ang))
-                * (dist * CLOUD_SUN_CONE_K);
-        }
+        // lateral average without needing an integrator, and 0 in the
+        // bake, whose lattice is planet-fixed).
+        let ang = 2.3999632 * f32(i) + g_lod_jitter * 6.2831853;
+        lp = lp + (cu * cos(ang) + cv * sin(ang))
+            * (dist * CLOUD_SUN_CONE_K);
         // Band-limit each tap by ITS OWN step length too (phase 5): the
         // far taps stride tens of km and should integrate the mean field
         // at that scale, not point-sample full-frequency noise. Never
@@ -2656,25 +3051,6 @@ fn cloud_sun_tau(
             lp, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
             lod_t).x;
         tau = tau + sigma * dens * seg;
-        // ── INCREMENT A2: DEPTH-SPLIT LADDER (v0.1280) ──
-        // The reference: at 45/km the transport mean free path is 148 m,
-        // so 150 m inside the medium the radiance field is already near
-        // isotropic and no lobe 400-1500 m away can cast a visible shadow.
-        // A sample buried under rungs 0-1 (87 m on-axis) takes the slant
-        // column for the rest instead of resolving its neighbours with
-        // rungs 2-11 - which is exactly what printed the lobes around an
-        // eye inside the cloud as radial petals.
-        if (i == 1) {
-            g_sun_tau01 = tau;
-            if (g_ms_on > 0.5) {
-                let w_deep = smoothstep(1.5, 4.0, tau);
-                if (w_deep >= 0.999) {
-                    tau = max(tau, g_sun_tau_col);
-                    break;
-                }
-                w_split = w_deep;
-            }
-        }
         // v0.911 (perf audit #3): once the sun path is this optically deep
         // every scatter octave is effectively zero - later taps cannot
         // change the pixel. Cap raised again with physical extinction
@@ -2683,12 +3059,8 @@ fn cloud_sun_tau(
             break;
         }
     }
-    // Flag hygiene: cloud_sun_tau's single exit. A leak would make the
-    // EYE see the profile body - visible as lost close-up texture.
-    g_sun_profile = 0.0;
-    if (w_split > 0.0) {
-        tau = mix(tau, max(g_sun_tau01, g_sun_tau_col), w_split);
-    }
+    // (g_sun_profile is reset by the caller's single exit: cloud_sun_tau,
+    // or the bake fragment.)
     return tau;
 }
 
@@ -2978,6 +3350,7 @@ fn cloud_march_core(
     g_march_first_t = 0.0;
     g_march_sun_acc = 0.0;
     g_march_amb_acc = 0.0;
+    g_march_src_acc = 0.0;
     // (g_lod_jitter is set by the CALLING fragment entry, block-coherent
     // - see the note at its declaration. The Medium direct path never
     // sets it and keeps plain trilinear.)
@@ -4011,6 +4384,8 @@ fn cloud_march_core(
             + dot(amb_col * (sun_lum * ao_amb * day), lum_w) * (trans * a_i);
         acc_d = acc_d + tm * (trans * a_i);
         g_march_prof_acc = g_march_prof_acc + prof * (trans * a_i);
+        // map_diag 9 (increment 1): which sun source lit this sample.
+        g_march_src_acc = g_march_src_acc + g_light_src * (trans * a_i);
         trans = trans * (1.0 - a_i);
         // 0.005, not 0.02 (increment 10): with resolved density gradients
         // the last 1.5% of transmittance carries visible skirt light.

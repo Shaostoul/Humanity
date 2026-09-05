@@ -344,6 +344,12 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_field") {
         state.gui_state.cloud_dev_field = t == "1";
     }
+    // {"cloud_light":"1"}: performance plan increment 1, the sun-shadow
+    // cache (planet-fixed slice atlas, one tap per sample); "0" = the
+    // 12-rung ladder per pixel, the A/B twin.
+    if let Some(t) = grab("cloud_light") {
+        state.gui_state.cloud_dev_light = t == "1";
+    }
     if let Some(m) = grab("cloud_ms_gain").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_ms_gain = m;
     }

@@ -73,10 +73,14 @@ pub struct Pipeline {
     /// its tree cards share one index range, so this path cannot be split
     /// the way the classic one is.
     pub patch_shadow_pipeline: wgpu::RenderPipeline,
-    /// Temporal-cloud octa accumulation pass (clouds phase 4): fullscreen
-    /// triangle into the direction-indexed RGBA16F cloud map, standard
-    /// group layouts (history rides the albedo slot).
-    pub cloud_octa_pipeline: wgpu::RenderPipeline,
+    /// The sun-shadow cache BAKE pass (performance plan increment 1,
+    /// v0.1286): fullscreen triangle over the R16F slice atlas, fragment
+    /// `fs_cloud_light_bake` fills one planet-fixed lattice point's sun
+    /// optical depth. SAME pipeline layout as the march (the atlas rides
+    /// the group-3 albedo slot when the march reads it), so no bind-group
+    /// layout changes anywhere. Replaced the dead octa pipeline, whose
+    /// `fs_cloud_octa` entry this fragment replaces in the shader.
+    pub cloud_light_bake_pipeline: wgpu::RenderPipeline,
     /// Near-field screen cloud pass (12d): shell mesh at half res,
     /// per-pixel march + screen-space reprojection.
     pub cloud_screen_pipeline: wgpu::RenderPipeline,
@@ -478,8 +482,8 @@ impl Pipeline {
             &pipeline_layout,
             &patch_pipeline_layout,
         );
-        let cloud_octa_pipeline =
-            Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
+        let cloud_light_bake_pipeline =
+            Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
         let cloud_screen_pipeline =
             Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
 
@@ -491,7 +495,7 @@ impl Pipeline {
             overlay_pipeline,
             patch_render_pipeline,
             patch_shadow_pipeline,
-            cloud_octa_pipeline,
+            cloud_light_bake_pipeline,
             cloud_screen_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
@@ -501,55 +505,43 @@ impl Pipeline {
         }
     }
 
-    /// The temporal-cloud octa pass (clouds phase 4): a fullscreen triangle
-    /// over the direction-indexed cloud accumulation map. Uses the SAME
-    /// group layouts as the main pipeline (camera/object/material/texture),
-    /// with the history map riding the albedo slot of a dedicated group-3
-    /// bind group - zero layout changes, so the v0.1029 every-site hazard
-    /// never applies. Renders to RGBA16F with no depth and no blending
-    /// (the EMA happens in-shader against the ping-pong partner).
-    /// The near-field SCREEN cloud pass (12d two-regime architecture):
-    /// the cloud shell mesh drawn with the standard vertex path into a
-    /// half-res RGBA16F target, fragment = per-pixel march + screen-
-    /// space temporal reprojection. Cull NONE - the inside camera uses
-    /// the shell's back faces (the fragment keeps exactly one layer via
-    /// the standard front_facing rule).
-    fn build_cloud_screen_pipeline(
+    /// One fullscreen-triangle cloud pipeline over the SHARED group
+    /// layouts (camera/object/material/texture), parametrized by the
+    /// fragment entry and its colour targets. Zero layout changes, so the
+    /// v0.1029 every-site hazard never applies. No depth, no blending:
+    /// every consumer writes its target outright. Cull NONE (a fullscreen
+    /// triangle has one winding, but the march's inside-camera history
+    /// wants the rule stated). Two pipelines are built from it:
+    /// - the near-field SCREEN march (`fs_cloud_screen`, MRT: premultiplied
+    ///   march + first-hit distance in km);
+    /// - the sun-shadow cache BAKE (`fs_cloud_light_bake`, one R16F slice
+    ///   atlas, increment 1).
+    fn build_cloud_fullscreen_pipeline(
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
+        label: &str,
+        fs_entry: &str,
+        targets: &[Option<wgpu::ColorTargetState>],
     ) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Cloud Screen Temporal Pipeline"),
+            label: Some(label),
             layout: Some(layout),
             vertex: wgpu::VertexState {
                 module: shader,
                 // Fullscreen triangle: the fragment builds each pixel's ray
-                // analytically from the camera-basis pads. Never the shell
-                // mesh - its coarse icosphere chords sag below a ground
-                // camera and invert the rays (the under-deck vanish).
+                // (march) or lattice point (bake) analytically. Never the
+                // shell mesh - its coarse icosphere chords sag below a
+                // ground camera and invert the rays (the under-deck vanish).
                 entry_point: Some("vs_cloud_screen"),
                 compilation_options: Default::default(),
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
                 module: shader,
-                entry_point: Some("fs_cloud_screen"),
+                entry_point: Some(fs_entry),
                 compilation_options: Default::default(),
-                // MRT (12e): premultiplied march + first-hit distance in
-                // km (R16F) for the resolve pass's reprojection.
-                targets: &[
-                    Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba16Float,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    }),
-                    Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::R16Float,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    }),
-                ],
+                targets,
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -562,36 +554,59 @@ impl Pipeline {
         })
     }
 
-    fn build_cloud_octa_pipeline(
+    /// The near-field SCREEN cloud pass (12d two-regime architecture):
+    /// fullscreen triangle into the quarter-res march pair, fragment =
+    /// per-pixel march; the resolve pass reprojects from the MRT distance.
+    fn build_cloud_screen_pipeline(
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
     ) -> wgpu::RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Cloud Octa Temporal Pipeline"),
-            layout: Some(layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_cloud_octa"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_cloud_octa"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
+        Self::build_cloud_fullscreen_pipeline(
+            device,
+            shader,
+            layout,
+            "Cloud Screen Temporal Pipeline",
+            "fs_cloud_screen",
+            // MRT (12e): premultiplied march + first-hit distance in
+            // km (R16F) for the resolve pass's reprojection.
+            &[
+                Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba16Float,
                     blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        })
+                }),
+                Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::R16Float,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                }),
+            ],
+        )
+    }
+
+    /// The sun-shadow cache BAKE pass (increment 1): fullscreen triangle
+    /// over the 15360x256 R16F slice atlas; the pass scissors it to the
+    /// slices being refreshed this frame. The fragment derives (window,
+    /// k, i, j) from its pixel position and writes that lattice point's
+    /// far-rung sun optical depth in the red channel.
+    fn build_cloud_light_bake_pipeline(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> wgpu::RenderPipeline {
+        Self::build_cloud_fullscreen_pipeline(
+            device,
+            shader,
+            layout,
+            "Cloud Light Bake Pipeline",
+            "fs_cloud_light_bake",
+            &[Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::R16Float,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        )
     }
 
     /// Rebuild the four PSOs from a NEW shader module while keeping every
@@ -644,8 +659,8 @@ impl Pipeline {
         self.shadow_pipeline_alpha = shadow_alpha;
         self.patch_render_pipeline = patch_render;
         self.patch_shadow_pipeline = patch_shadow;
-        self.cloud_octa_pipeline =
-            Self::build_cloud_octa_pipeline(device, shader, &pipeline_layout);
+        self.cloud_light_bake_pipeline =
+            Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
         self.cloud_screen_pipeline =
             Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
     }
