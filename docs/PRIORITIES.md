@@ -1,5 +1,48 @@
 # HumanityOS: Priorities
 
+> **v0.1287 (2026-09-05): PERF INCREMENT 3, the per-ray body cluster cache
+> (F10 "Body cluster cache", dev pad bit 17).** At Ultra every density sample
+> rebuilt the lobe cluster of up to nine cells from hashes; the march now
+> keeps nine per-ray slots (cell weather alpha + built lobes) and evaluates
+> the union on cached lobes, keyed by the cell and by the cluster width with
+> a 2% tolerance; the sun ladder reads a slot the eye built but never builds
+> one (within the rig repeat floor, not bit-exact). A first cut
+> that sized clusters by the CELL-CENTRE weather to make the cache exact
+> changed coverage drastically on its own (bm-12 inside dark 93% to 21%) and
+> was dropped: a perf increment must not move the field.
+>
+> MEASURED (half res, Ultra, clock and world-shape LOD pinned, one boot, real
+> GPU timestamps; sc = sun-shadow cache, bc = body cluster cache):
+>
+> ```
+> gpu.cloud_screen ms (sc = sun cache, bc = body cache): bm-12 inside sc0 106 -> 67 (bc on), sc1 60 -> 37; both caches 106 -> 37 (2.9x). bm-12 4.6 km sc0 66 -> 37, sc1 30 -> 18; both 66 -> 18 (3.7x). Cumulus closeup (2.6 km, look 62, long oblique rays) sc0 76 -> 125 (WORSE), sc1 131 -> 98; both 76 -> 98: the per-invocation slot arrays spill to local memory and a ray that crosses many cells amortises few builds, so the closeup is the case for the per-cell cluster TABLE (next body increment); the sun cache alone also loses there (76 -> 131) because rays beyond the 48/97 km windows run the full ladder plus the window blend, the far-fallback question of the v0.1286 report.
+> On/off pixel diff (same sun-cache state, clock frozen): inside 0.20 mean (max 5), 4.6 km 0.016 (max 4), closeup 0.48 (max 53, 0.8% of pixels over 8): within the rig repeat floor.
+> Rig clock freeze: with time_scale 0 after each park the closeup pairs stopped rotating and became exact; the earlier "bit-exact" failures (mean 13 to 37) were rotation.
+> ```
+>
+> RIG: the game clock is now frozen between park and capture (showcase
+> `time_scale` 0, sent by `probe-sweep.js` after every park). The 20-minute
+> day had been turning the planet under the parked camera, which is what
+> rotated captures about the nadir and (with the settle timing) shifted where
+> a "vantage" actually was; the closeup pairs are exact with it. Absolute
+> numbers from sweeps before this fix are comparable only within their own
+> sweep. The heading-pin item is closed by this.
+>
+> NEXT, in order:
+> 1. **Sun-shadow cache parity** (`scratchpad abK.sh`, next sweep): the
+>    direct-sun channel off/on and the world-shape LOD pin off/on on the
+>    ladder arm decide whether the +10 to +12 interior brightening is the
+>    bake's LOD pin, the missing cone jitter, or the trilinear averaging;
+>    then the cache (and this body cache) become the defaults if the look
+>    holds for the operator.
+> 2. **Increment 2, step economy**: interior step floors at half the sample
+>    footprint, the transmittance-budget exit, the BUILT-path saturating
+>    interior remap.
+> 3. **Increment 4, the far rung** (the 363 ms orbit row).
+> 4. **Increment 5, operator-gated**: the interleaved quarter march.
+> 5. Cloud layering (design), then the planet pass arc (`gpu.celestial` 30 to
+>    37 ms everywhere).
+
 > **v0.1286 (2026-09-05): PERF INCREMENT 1, THE SUN-SHADOW CACHE, built and
 > measured (F10 "Sun shadow cache", default off).** Sun optical depth is now a
 > planet-fixed cached quantity: rungs 2 to 11 of the per-sample sun ladder

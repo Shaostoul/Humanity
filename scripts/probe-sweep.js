@@ -718,6 +718,7 @@ async function main() {
         clearDone("camera_done.json");
         req("camera_request.json", v0.camera);
         await waitFile("camera_done.json", 60000);
+        req("showcase_request.json", { time_scale: "0" });
         await sleep((v0.settle_s ?? 8) * 1000);
       } catch (e) {
         log(`  discarded pass failed (${e.message}); continuing`);
@@ -743,6 +744,11 @@ async function main() {
         req("camera_request.json", v.camera);
         const cam = await waitFile("camera_done.json", 60000);
         if (!cam || cam.ok !== true) throw new Error(`camera: ${JSON.stringify(cam)}`);
+        // CLOCK FREEZE (2026-09-05): the 20-minute day turns the planet 0.3
+        // degrees per second under a world-fixed camera, so two captures of
+        // one vantage came out rotated about the nadir. Hold the clock still
+        // from the park to the capture (the hour was just set by the park).
+        req("showcase_request.json", { time_scale: "0" });
         await sleep((v.settle_s ?? 8) * 1000);
         // RE-PARK, now UNCONDITIONAL (2026-08-21; was hold_altitude-only,
         // v0.1049 - that original reason still applies: gravity sinks a

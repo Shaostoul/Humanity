@@ -406,6 +406,146 @@ fn cv2_arch_index(tc: f32) -> i32 {
 
 // Signed distance (METRES) to one cloud, in that cloud's local frame:
 // base plane at y = 0, +y up. Negative inside.
+// ── PER-RAY BODY CLUSTER CACHE (perf increment 3, v0.1287, dev pad bit 17) ──
+// Nine slots, one per residue of the 3x3 cell neighbourhood, private to the
+// invocation (so per ray). A slot holds the cell key, the cell-centre weather
+// alpha that sizes its cloud, and the built lobe cluster. See the header of
+// cloud_v2_body for why this is exact.
+const CLOUD_BC_SLOTS: i32 = 9;
+var<private> g_bc_key: array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+    vec3<f32>(1.0e9), vec3<f32>(1.0e9), vec3<f32>(1.0e9), vec3<f32>(1.0e9), vec3<f32>(1.0e9),
+    vec3<f32>(1.0e9), vec3<f32>(1.0e9), vec3<f32>(1.0e9), vec3<f32>(1.0e9));
+// The width the cached lobes were built with (the key for the lobe half;
+// the weather half is keyed by the cell alone). Negative = not built.
+var<private> g_bc_width: array<f32, 9> = array<f32, 9>(-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0);
+var<private> g_bc_lc: array<vec4<f32>, 180>;
+
+fn cloud_body_cache_on() -> bool {
+    // bit 17 of the dev pad: fract(w / 2^18) >= 0.5, exact for the integer pad.
+    return fract(camera.light7_color.w * 0.000003814697265625) >= 0.5;
+}
+
+// Is the slot's cluster usable for this width? Built widths within 2% are
+// reused: along one ray the sample weather drifts slowly, so the cluster
+// width drifts by less than that, and a 2% size error on a lobe is far
+// below anything the rig can measure (the 0.5% rule rebuilt too often on
+// oblique rays and cost more than it saved at the closeup).
+fn cv2_bc_hit(slot: i32, width: f32) -> bool {
+    return abs(g_bc_width[slot] - width) <= 0.02 * width;
+}
+
+fn cv2_bc_slot(ci: f32, cj: f32) -> i32 {
+    // Direct-mapped by residues mod 3: the nine cells of any 3x3
+    // neighbourhood land in nine distinct slots.
+    let ri = i32(ci - 3.0 * floor(ci / 3.0));
+    let rj = i32(cj - 3.0 * floor(cj / 3.0));
+    return ri + 3 * rj;
+}
+
+// Build the lobe cluster of (seed, arch) into slot's 20 entries. The SAME
+// arithmetic, in the same order, as cv2_cloud_sdf's build, always for the
+// full lobe count (the sun-profile path then reads the first six, which are
+// generated identically because every lobe depends only on (seed, i)).
+fn cv2_build_lobes(seed: f32, arch: Cv2Arch, slot: i32) {
+    let width = arch.width_m;
+    let height = width * arch.aspect;
+    let r_hi = max(min(width * 0.44, height * 0.9), width * 0.07);
+    let r_lo = min(width * 0.11, r_hi);
+    let n_lobes = clamp(arch.lobes, 1, CLOUD_V2_LOBES);
+    let base = slot * 20;
+    let r0 = r_hi * mix(0.7, 1.0, cv2_hash(vec2<f32>(seed, 0.0), 31.0));
+    g_bc_lc[base] = vec4<f32>(0.0, min(r0, max(height - r0, r0 * arch.base_flat)), 0.0, r0);
+    for (var i = 1; i < n_lobes; i = i + 1) {
+        let fi = f32(i);
+        let pu = cv2_hash(vec2<f32>(seed, fi), 41.0);
+        let pj = i32(floor(pu * pu * f32(i)));
+        let parent = g_bc_lc[base + clamp(pj, 0, i - 1)];
+        let r = min(
+            cv2_pareto(cv2_hash(vec2<f32>(seed, fi), 43.0), r_lo, r_hi, arch.expo),
+            parent.w * 0.92,
+        );
+        let ang = cv2_hash(vec2<f32>(seed, fi), 45.0) * 6.2831853;
+        let up_lo = mix(-0.35, 0.15, arch.crown_bias);
+        let up = mix(up_lo, 1.0, cv2_hash(vec2<f32>(seed, fi), 47.0));
+        let horiz = sqrt(max(1.0 - up * up, 0.0));
+        let dir = vec3<f32>(cos(ang) * horiz, up, sin(ang) * horiz);
+        let sep = (parent.w + r) * mix(0.45, 0.62, cv2_hash(vec2<f32>(seed, fi), 49.0));
+        var c = parent.xyz + dir * sep;
+        let y_lo = min(r * arch.base_flat, height - r);
+        c.y = clamp(c.y, y_lo, max(height - r, y_lo));
+        let horiz_len = length(c.xz);
+        let horiz_max = max(width * 0.5 - r, 0.0);
+        if (horiz_len > horiz_max) {
+            let k = horiz_max / max(horiz_len, 1.0e-4);
+            c = vec3<f32>(c.x * k, c.y, c.z * k);
+        }
+        g_bc_lc[base + i] = vec4<f32>(c, r);
+    }
+    g_bc_width[slot] = width;
+}
+
+// The cached twin of cv2_cloud_sdf: same header, the lobes from the slot
+// (built on first use per ray), mean_r re-accumulated in the build's order
+// over the effective lobe count, then the identical warp and union.
+fn cv2_cloud_sdf_cached(local_m: vec3<f32>, seed: f32, arch: Cv2Arch, slot: i32) -> f32 {
+    let width = arch.width_m;
+    let n_lobes = clamp(arch.lobes, 1, CLOUD_V2_LOBES);
+    let n_lobes_eff = select(n_lobes, min(n_lobes, 6), g_sun_profile > 0.5);
+    // Rebuild when the cluster width moved by more than 0.5% since the slot
+    // was built (the sample weather drifts slowly along a ray) or the slot
+    // is fresh (width -1).
+    if (!cv2_bc_hit(slot, width)) {
+        cv2_build_lobes(seed, arch, slot);
+    }
+    let base = slot * 20;
+    var mean_r = g_bc_lc[base].w;
+    for (var i = 1; i < n_lobes_eff; i = i + 1) {
+        mean_r = mean_r + g_bc_lc[base + i].w;
+    }
+    mean_r = mean_r / f32(n_lobes_eff);
+
+    let k = clamp(max(mean_r * arch.blend, mean_r * 0.5),
+        CLOUD_V2_RIND_M * 1.6, 340.0);
+
+    let warp_tile_m = max(mean_r * CLOUD_V2_WARP_TILE_R, 1.0);
+    var wn = vec3<f32>(0.5);
+    if (g_sun_profile < 0.5) {
+        wn = textureSampleLevel(
+            cloud_detail_tex, cloud_tile_sampler,
+            local_m / warp_tile_m,
+            clamp(g_v2_disp_lod - select(CLOUD_V2_WARP_LODC,
+                log2(max(warp_tile_m * 1.0e-3 / 256.0, 1.0e-9)),
+                fract(camera.light7_color.w * 0.001953125) >= 0.5), 0.0, 8.0),
+        ).rgb;
+    }
+    let warp_amp_m = mean_r * CLOUD_V2_WARP_FRAC;
+    g_v2_warp_m = warp_amp_m;
+    let warped = local_m + (wn - vec3<f32>(0.5)) * 2.0 * warp_amp_m;
+
+    let lc0 = g_bc_lc[base];
+    var d = length(warped - lc0.xyz) - lc0.w;
+    let d0v = warped - lc0.xyz;
+    let d0l = length(d0v);
+    var nrm = select(vec3<f32>(0.0, 1.0, 0.0), d0v / max(d0l, 1.0e-4), d0l > 1.0e-4);
+    var seam = 0.0;
+    for (var i = 1; i < n_lobes_eff; i = i + 1) {
+        let lci = g_bc_lc[base + i];
+        let dv = warped - lci.xyz;
+        let dl = max(length(dv), 1.0e-4);
+        let ds = dl - lci.w;
+        let h = clamp(0.5 + 0.5 * (ds - d) / max(k, 1.0e-4), 0.0, 1.0);
+        d = mix(ds, d, h) - k * h * (1.0 - h);
+        let nmix = mix(dv / dl, nrm, h);
+        let nml = length(nmix);
+        nrm = select(nrm, nmix / nml, nml > 1.0e-4);
+        seam = max(seam, 4.0 * h * (1.0 - h));
+    }
+    g_v2_ny = nrm.y;
+    g_v2_seam = seam;
+
+    return max(d, -local_m.y);
+}
+
 fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
     let width = arch.width_m;
     let height = width * arch.aspect;
@@ -691,6 +831,16 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // every cloud by 1.5x to 4x and starved the sky by that factor.
             let fill = cv2_fill_frac(arch_i);
             let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25 * fill;
+            // Body cluster cache slot for this cell (perf increment 3): a new
+            // cell in this slot invalidates its cached lobes. The demand stays
+            // the shipped one (the sample's own weather); the lobes are keyed
+            // by the cluster width with a 0.5% tolerance in cv2_cloud_sdf_cached.
+            let slot = cv2_bc_slot(ci, cj);
+            let key = vec3<f32>(ci, cj, f32(arch_i));
+            if (!all(g_bc_key[slot] == key)) {
+                g_bc_key[slot] = key;
+                g_bc_width[slot] = -1.0;
+            }
             let demand = wa * cell_area / max(foot, 1.0);
 
             // ── GROW RATHER THAN CLAMP ──
@@ -812,7 +962,22 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // most the frame can have shrunk a real distance, so scaling
             // by it keeps the SDF a valid lower bound for the leap.
             let s_lo = min(sx_e, min(sy_e, sz_e));
-            let d_cell = cv2_cloud_sdf(local_m, seed, arch_g) * s_lo;
+            var d_cell: f32;
+            // Eye path only: the twelve-rung sun ladder (sun cache off) visits
+            // cells far from the ray and evicts the slots, and a miss builds
+            // twenty lobes where the sun path itself builds six, so with the
+            // ladder on the cache cost more than it saved (closeup 49 -> 125
+            // ms). With the sun cache on, rungs 0 and 1 stay in the ray's cells
+            // and could share the slots, but the sun path is cheap there anyway.
+            // The eye path builds and reads; the sun path only READS a slot
+            // the eye already built (a miss there runs the original six-lobe
+            // sun build, never a twenty-lobe rebuild that a far ladder tap
+            // would evict again).
+            if (cloud_body_cache_on() && (g_sun_profile < 0.5 || cv2_bc_hit(slot, arch_g.width_m))) {
+                d_cell = cv2_cloud_sdf_cached(local_m, seed, arch_g, slot) * s_lo;
+            } else {
+                d_cell = cv2_cloud_sdf(local_m, seed, arch_g) * s_lo;
+            }
             if (d_cell < best) {
                 best = d_cell;
                 // Remember the WINNING cloud's own height, so the interior

@@ -581,6 +581,9 @@ pub struct Renderer {
     /// Dev pad bit 23 (the last exact f32 bit): increment B 2.1, the
     /// three-octave domain warp on the noise path.
     pub cloud_field: bool,
+    /// Dev pad bit 17 (perf increment 3, v0.1287): the per-ray body cluster
+    /// cache in cloud_v2_body (cell weather + built lobes kept per ray).
+    pub cloud_body_cache: bool,
     /// Dev pad bit 16 (performance plan increment 1, v0.1286): the
     /// sun-shadow CACHE. On = the march reads rungs 2..11 of the sun
     /// ladder from the planet-fixed slice atlas baked by the Cloud Light
@@ -1839,6 +1842,7 @@ impl Renderer {
             cloud_checker: false,
             cloud_ms: false,
             cloud_field: false,
+            cloud_body_cache: false,
             cloud_light: false,
             cloud_light_cache: None,
             cloud_light_frame: None,
@@ -3936,7 +3940,8 @@ impl Renderer {
             + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })
             + (if self.cloud_checker { 2097152.0f32 } else { 0.0 })
             + (if self.cloud_ms { 4194304.0f32 } else { 0.0 })
-            + (if self.cloud_field { 8388608.0f32 } else { 0.0 });
+            + (if self.cloud_field { 8388608.0f32 } else { 0.0 })
+            + (if self.cloud_body_cache { 131072.0f32 } else { 0.0 });
         self.queue
             .write_buffer(&self.camera_buffer, 332, bytemuck::bytes_of(&dith));
         // light3_color (offset 256) and light4_color (offset 272), both

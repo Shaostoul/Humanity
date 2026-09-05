@@ -155,6 +155,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_int_sat = sat;
                 changed = true;
             }
+            // Perf increment 3 (v0.1287): keep each cell's built lobe cluster
+            // for the whole ray instead of rebuilding it at every sample.
+            let mut bc = state.cloud_dev_body_cache;
+            if ui
+                .checkbox(&mut bc, "Body cluster cache (per ray; off = rebuild the lobes at every sample, for A/B)")
+                .changed()
+            {
+                state.cloud_dev_body_cache = bc;
+                changed = true;
+            }
             let mut fld = state.cloud_dev_field;
             if ui
                 .checkbox(&mut fld, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)")

@@ -212,6 +212,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         }
     }
+    // Optional "time_scale":"0" sets the game clock SPEED (v0.1287, the rig
+    // clock freeze): 0 holds the clock still so the planet does not spin
+    // and the sun does not move between a park and its capture. Two
+    // down-look captures in one sweep came out rotated about the nadir
+    // (2026-09-05) because the 20-minute day turns the planet 0.3 degrees
+    // per second under a world-fixed camera. Same request channel as the
+    // hour (the TimeSystem's own accumulator is authoritative).
+    if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
+        if let Some(req) = state
+            .data_store
+            .get::<std::sync::Mutex<Option<f32>>>("time_set_scale_request")
+        {
+            if let Ok(mut r) = req.lock() {
+                *r = Some(sc.max(0.0));
+            }
+        }
+    }
     // Optional "sea":"0.8" pins the ocean sea state (0 = glassy calm,
     // 0.5 = ripples, 1 = storm chop + breaking crests) for dev shots;
     // "sea":"auto" returns control to the game weather's wind.
@@ -339,6 +356,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"cloud_int_sat":"1"}: increment C, interior saturation of the built bodies.
     if let Some(m) = grab("cloud_int_sat").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_int_sat = m.clamp(0.0, 1.0);
+    }
+    // {"cloud_body_cache":"1"}: perf increment 3, the per-ray body cluster cache.
+    if let Some(t) = grab("cloud_body_cache") {
+        state.gui_state.cloud_dev_body_cache = t == "1";
     }
     // {"cloud_field":"1"}: increment B 2.1, the three-octave domain warp.
     if let Some(t) = grab("cloud_field") {

@@ -18552,6 +18552,7 @@ mod native_app {
                                 state.renderer.cloud_checker = state.gui_state.cloud_dev_checker;
                                 state.renderer.cloud_ms = state.gui_state.cloud_dev_ms;
                                 state.renderer.cloud_field = state.gui_state.cloud_dev_field;
+                                state.renderer.cloud_body_cache = state.gui_state.cloud_dev_body_cache;
                                 state.renderer.cloud_light = state.gui_state.cloud_dev_light;
                                 state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
