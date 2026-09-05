@@ -1,5 +1,75 @@
 # HumanityOS: Priorities
 
+> **v0.1290 (2026-09-05): the far-rung contract v2, the operator's test
+> report on v0.1289, and the integration stub.** Two things landed and one
+> arc pivoted on the operator's eye.
+>
+> THE FAR RUNG (perf increment 4) went through a 5-agent design panel and its
+> adversarial critique returned NEEDS_REVISION with 8 blockers, all real: the
+> bake cost was understated about 100x (per-texel SDF point tests), the
+> transmittance law was O(seg^2) (halving the step halved the extinction),
+> the group-3 wiring premise was wrong, three gates read an alpha channel the
+> diag never writes (map_diag 1 is opaque greyscale), the speckle target sat
+> below the metric's floor, the sampler's mip filter is Nearest, the point
+> estimator was a coin flip at fine levels, and the lattice had no polar
+> behaviour. The orchestrator's v2 decisions (A1..A19) became
+> `docs/design/cloud-far-rung.md`: an analytic built-part bake from a
+> runtime CALIBRATION table (per archetype and height: equivalent-circle
+> radius ratio and mean density, point-tested once on the shipped SDF),
+> TOROIDAL clipmap windows on an absolute equal-angle equirect lattice (no
+> anchor, no re-anchor spike, graceful at the poles), TIME-based cadence
+> gated on the MAX, a step-invariant element law (`tau_elem = sigma D L_elem`,
+> exponent `seg / L_elem`) with a prove-red on eco 0 vs 1, the column stored
+> (nine slices per level, atlas 6144x3584, 117 MB allocated), luminance
+> gates calibrated red first, G5 at or below High's own census, and an
+> INTEGRATION STUB (constants + synthetic bake + real mip pass + the lattice
+> tap + channels 10/11/12) committed to main before either implementer
+> starts. `scripts/cloud-speckle-census.js` reproduces every baseline (High
+> 252, off 263, eco0 2464 on the colour render). The contract's own cost
+> derivation: a level-5 full bake 9 to 37 ms, steady 0.03 to 0.3 ms per
+> level per frame, the global 140 ms per pass rolled over 60 s.
+>
+> THE OPERATOR'S REPORT (ten screenshots, live toggling at half res, Ultra):
+> (1) a DARK ROTATED SQUARE of shadowed clouds at 36.8 km over a broken
+> cumulus field, gone with the sun cache off: the cache WINDOW (48.6 / 97 km,
+> planet-fixed); inside it the baked ladder gives real in-cloud sun columns,
+> outside it the v0.1288 analytic column under-shadows a cumulus field
+> (Jensen: a mean-density slant is far thinner than an in-cloud one), so the
+> far field is too bright and the window edge is a seam; the v0.1288 "look
+> identical" was measured only at rain-26km-nadir, a stratiform case.
+> SHIPPED DEFAULT, top fix. (2) step economy darkens and flattens the
+> horizon clouds (the deep relaxation starts at trans 0.5; never measured on
+> a horizon look at half res): violates the increment's own rule. (3) warp
+> band-limiting (bit 8, default since v0.1272) makes distant clouds vanish:
+> coverage decays with distance under a band-limited thresholded field, the
+> same class the far rung is built around, in the near band. (4) in-cloud
+> light (the Eddington experiment) makes clouds transparent: a light model
+> touching alpha. (5) sample-anchored march on = opaque wall, off =
+> see-through static: the old march under-counted extinction (v0.1271), the
+> wall is most likely right; check for double counting. (6) field walls
+> null: confirmed. Plus: the F10 panel is too long to see; make it a
+> scrollable LEFT SIDEBAR, F10 frees the cursor, a collapse tab on its right
+> edge. Dispatched as workflow wf_de0676a5: per finding diagnose ->
+> adversarial verify -> implement in a worktree if confirmed and bounded ->
+> review -> repair; the sidebar in parallel. Every shader fix keeps its
+> existing switch as the A/B twin.
+>
+> NEXT, in order:
+> 1. **Merge and gate the operator-report fixes** (serially: F1 sun-cache
+>    far fallback, F2 economy relaxation, F3 warp-band coverage, F4/F5 as the
+>    diagnoses decide, U1 the sidebar) with `--operator-config` rig sweeps
+>    once the operator's instance exits: the 36.8 km cumulus square fixture,
+>    a 5 m sunset horizon eco 0/1 pair, the 2.2 km above-deck bit-8 pair.
+> 2. **Increment 4, the far rung**: the two-implementer workflow from
+>    `docs/design/cloud-far-rung.md` on the stub, then gates G0 to G7 in the
+>    contract's order (G0 prove-red first; the F2 baseline with bits 16/17
+>    off/on and High's map_diag 1 census are preconditions).
+> 3. **The look** ("still kinda look like spheres"): the design-A geometry
+>    increment; its experiment `hum-top-30m` first.
+> 4. The per-cell cluster table, increment 5 (operator-gated), cloud
+>    layering, the planet pass arc (`gpu.celestial` 80 to 107 ms at the
+>    operator's settings: the frame's biggest lever now).
+
 > **v0.1289 (2026-09-05): the operator's testing loop, made to point at the
 > same switch and the same settings.** After v0.1288 the operator reported
 > "clouds are looking better from all angles" and "still a bit rough and

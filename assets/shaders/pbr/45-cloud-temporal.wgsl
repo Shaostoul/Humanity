@@ -339,7 +339,27 @@ fn fs_cloud_screen(in: CloudScreenVsOut) -> CloudMarchOut {
         // budget, which means its tail was integrated in ONE giant step.
         let l4 = clamp(g_march_iters / f32(CLOUD_STEP_ITER_CAP), 0.0, 1.0);
         cur_d = vec4<f32>(l4, l4, l4, 1.0);
-    } else if (diag >= 8.5) {
+    } else if (diag >= 9.5 && diag < 10.5) {
+        // ── PROFILE SHARE (increment 4, the far rung) ── w_pf accumulated
+        // with the colour's own weights: white = the sample was drawn from
+        // the planet-fixed profile, black = the marched field. Must read 0
+        // at the nadir below each arm's footprint floor (the prove-red).
+        let l10 = clamp(g_march_pf_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l10, l10, l10, 1.0);
+    } else if (diag >= 10.5 && diag < 11.5) {
+        // ── PROFILE LEVEL (increment 4) ── level / 6 (6 = the global): a
+        // forced level renders a flat L / 6 frame; auto a monotone staircase
+        // of rounded squares from the nadir outward; HARD the same with
+        // sharp treads. The window edges are visible here by design.
+        let l11 = clamp(g_march_lvl_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l11, l11, l11, 1.0);
+    } else if (diag >= 11.5 && diag < 12.5) {
+        // ── PROFILE FRACTION (increment 4) ── pf.f. Against the A17 synthetic
+        // atlas this is the i / 512 sawtooth, PLANET-FIXED: it must not slide
+        // when the camera moves (a sliding ramp is a scroll bug).
+        let l12 = clamp(g_march_frac_acc, 0.0, 1.0);
+        cur_d = vec4<f32>(l12, l12, l12, 1.0);
+    } else if (diag >= 8.5 && diag < 9.5) {
         // ── SUN SOURCE (increment 1, v0.1286) ── which sun-shadow source lit
         // each sample, accumulated with the colour's own weights: fine
         // window white (1.0), coarse window grey (0.5), the ladder /
@@ -478,4 +498,192 @@ fn fs_cloud_light_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     // Flag hygiene (the ladder sets the profile flag; this is its exit).
     g_sun_profile = 0.0;
     return vec4<f32>(clamp(tau, 0.0, CLOUD_LC_TAU_MAX), 0.0, 0.0, 1.0);
+}
+
+// ── THE CLOUD PROFILE BAKE (perf arc increment 4, the far rung) ──────────
+//
+// Contract: docs/design/cloud-far-rung.md, "The bake fragment". The constants,
+// lattice and slice layout live in the CLOUD_FR_* block of 40-clouds.wgsl.
+// One RGBA8Unorm target = the profile atlas MIP 0 (6144 x 3584); group 3
+// binding 14 = the atlas's MIP 1 view (which holds the calibration table; mip
+// 0 is this pass's attachment and may not also be sampled). Bound like the sun
+// bake: camera, the cloud SHELL's object slot, the cloud material. Rust
+// scissors the rects (scroll columns / rows, fills, rolling refresh rows, the
+// global's pass rows) and this fragment decodes, from @builtin(position)
+// alone, which planet cell and which slice it writes. No ray, no camera
+// anywhere (BUG-074 stays dead by construction).
+//
+// STUB (A17): the decode below is the real one and stays. The Rust
+// implementer proves passes, rects, pads, scrolling and groups against the
+// SYNTHETIC pattern written at the end: channel 11 must show the level
+// staircase about the nadir, channel 12 the i / 512 sawtooth, PLANET-FIXED (a
+// sliding ramp is a scroll bug). The WGSL implementer replaces everything
+// from the second "STUB (A17)" marker down with the real bake (the noise part
+// on every tier, the analytic built part on Ultra from the calibration table,
+// REF mode at knob 9).
+@fragment
+fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    cloud_set_slab_bounds();
+    // Which texel: @builtin(position) is the pixel CENTRE (x.5, y.5), so the
+    // truncation yields the integer texel index.
+    let px = vec2<u32>(in.pos.xy);
+    let x = i32(px.x);
+    let y = i32(px.y);
+    let planet_km = material.params2.z;
+    if (planet_km < 0.5) {
+        return vec4<f32>(0.0);
+    }
+    // The bake's per-texel inputs, whichever region this texel lies in: the
+    // cell centre direction and the cell's extent in km (north-south, and
+    // east-west at the centre latitude).
+    var lon_c = 0.0;
+    var lat_c = 0.0;
+    var cell_km_lat = 0.0;
+    var cell_km_lon = 0.0;
+    // The slice's role and storage coordinates (for the synthetic pattern).
+    var is_global = false;
+    var is_column = false;
+    var L = 0;
+    var si = 0;
+    var sj = 0;
+    if (y >= CLOUD_FR_GLOBAL_Y0) {
+        // ── the global equirect map ──
+        is_global = true;
+        let slice = x / CLOUD_FR_GLOBAL_W;          // 0 pair0, 1 pair1, 2 column
+        let i = x - slice * CLOUD_FR_GLOBAL_W;      // x mod 2048
+        let j = y - CLOUD_FR_GLOBAL_Y0;
+        is_column = slice >= 2;
+        si = i;
+        sj = j;
+        // Texel centre; row 0 = north, matching the weather map's w_uv.
+        lon_c = (f32(i) + 0.5) / f32(CLOUD_FR_GLOBAL_W) * TAU - PI;
+        lat_c = 0.5 * PI - (f32(j) + 0.5) / f32(CLOUD_FR_GLOBAL_H) * PI;
+        let global_km = TAU * planet_km / f32(CLOUD_FR_GLOBAL_W);
+        cell_km_lat = global_km;
+        cell_km_lon = global_km * cos(lat_c);
+    } else {
+        // ── a window slice ──
+        let s = (y / CLOUD_FR_NX) * CLOUD_FR_SLICE_COLS + x / CLOUD_FR_NX;
+        if (s >= CLOUD_FR_LEVELS * CLOUD_FR_SLICES_PER_LEVEL) {
+            return vec4<f32>(0.0);      // row 4, columns 6..11: spare at mip 0
+        }
+        L = s / CLOUD_FR_SLICES_PER_LEVEL;
+        let p = s % CLOUD_FR_SLICES_PER_LEVEL;
+        let sx = x % CLOUD_FR_NX;
+        let sy = y % CLOUD_FR_NX;
+        is_column = p >= CLOUD_FR_PAIRS;
+        si = sx;
+        sj = sy;
+        let c_km = CLOUD_FR_CELL0_KM * exp2(f32(L));
+        let cell_rad = c_km / planet_km;
+        let NI = floor(TAU * planet_km / c_km);
+        let NJ = floor(PI * planet_km / c_km);
+        // The window origin from the ground cell (pad), per level.
+        let half = CLOUD_FR_NX / 2;
+        let I0 = i32(floor(camera.light2_color.x / exp2(f32(L)))) - half;
+        let J0 = i32(floor(camera.light2_color.y / exp2(f32(L)))) - half;
+        // The window-frame cell this storage texel holds (toroidal).
+        let I_abs = I0 + pmod(sx - I0, CLOUD_FR_NX);
+        let J_abs = J0 + pmod(sy - J0, CLOUD_FR_NX);
+        if (J_abs < 0 || f32(J_abs) >= NJ) {
+            return vec4<f32>(0.0);      // void rows beyond the poles
+        }
+        let I = pmod(I_abs, i32(NI));
+        lon_c = (f32(I) + 0.5) * cell_rad - PI;
+        lat_c = (f32(J_abs) + 0.5) * cell_rad - 0.5 * PI;
+        cell_km_lat = c_km;
+        cell_km_lon = c_km * cos(lat_c);
+    }
+    let dir_c = vec3<f32>(cos(lat_c) * cos(lon_c), sin(lat_c), -cos(lat_c) * sin(lon_c));
+    // (The real bake continues from dir_c: t = camera.sun_color.w, seed =
+    // material.params.x, coverage = material.base_color.a, the regime at
+    // dir_c, wlod from cell_km_lat, the bin set of this slice, ZSUB heights
+    // per bin; noise part via cloud_density_hi at lodb_cell = log2(cell_km_lat),
+    // built part analytic from the calibration table at binding 14.)
+    // ── STUB (A17): the WGSL implementer replaces this body with the real bake ──
+    // The synthetic pattern (raw channel values, no encoding): pair slices
+    // (i / 512, j / 512, i / 512, j / 512), column slices (L / 6) x4, the
+    // global pair slices (i / 2048, j / 1024, ...), its column slice (1) x4,
+    // where (i, j) are the storage coordinates inside the slice.
+    if (is_global) {
+        if (is_column) {
+            return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+        }
+        let gi = f32(si) / f32(CLOUD_FR_GLOBAL_W);
+        let gj = f32(sj) / f32(CLOUD_FR_GLOBAL_H);
+        return vec4<f32>(gi, gj, gi, gj);
+    }
+    if (is_column) {
+        let lf = f32(L) / f32(CLOUD_FR_LEVELS);
+        return vec4<f32>(lf, lf, lf, lf);
+    }
+    let wi = f32(si) / f32(CLOUD_FR_NX);
+    let wj = f32(sj) / f32(CLOUD_FR_NX);
+    return vec4<f32>(wi, wj, wi, wj);
+}
+
+// ── THE GLOBAL MIP PASS (increment 4; real, not a stub) ────────────────────
+//
+// Attachment = the profile atlas at mip m, binding 14 = the atlas's mip m-1
+// view (so textureLoad level 0 IS the previous mip), scissored to the global
+// region at mip m: origin (0, 2560 >> m), size (6144 >> m, 1024 >> m). Six
+// passes, run once per completed global pass. The mip index is not a builtin:
+// the six destination row ranges are disjoint ([1280,1792), [640,896),
+// [320,448), [160,224), [80,112), [40,56)), so the row alone names m.
+// Channels of the column slice (x >= 4096 >> m) are decoded before the
+// average and re-encoded after (averaging square roots would under-read
+// coarse columns).
+@fragment
+fn fs_cloud_profile_mip(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    let px = vec2<u32>(in.pos.xy);
+    let x = i32(px.x);
+    let y = i32(px.y);
+    var m = 0;
+    for (var mm = 1; mm < CLOUD_FR_GLOBAL_MIPS; mm = mm + 1) {
+        let y0 = CLOUD_FR_GLOBAL_Y0 >> u32(mm);
+        let hm = CLOUD_FR_GLOBAL_H >> u32(mm);
+        if (y >= y0 && y < y0 + hm) {
+            m = mm;
+        }
+    }
+    if (m == 0) {
+        return vec4<f32>(0.0);          // outside every global region (the scissor never lands here)
+    }
+    // Source rows: the destination's local row doubled, at the SOURCE
+    // region's origin (2560 >> (m - 1)); the destination's origin is
+    // 2560 >> m. Because 2560 = 5 * 2^9 both origins are exact at every mip,
+    // so this equals 2y + dy; written out so the two offsets stay visible.
+    let y_dst0 = CLOUD_FR_GLOBAL_Y0 >> u32(m);
+    let y_src0 = CLOUD_FR_GLOBAL_Y0 >> u32(m - 1);
+    let ys = 2 * (y - y_dst0) + y_src0;
+    let xs = 2 * x;
+    let t00 = textureLoad(tree_atlas_tex, vec2<i32>(xs, ys), 0);
+    let t10 = textureLoad(tree_atlas_tex, vec2<i32>(xs + 1, ys), 0);
+    let t01 = textureLoad(tree_atlas_tex, vec2<i32>(xs, ys + 1), 0);
+    let t11 = textureLoad(tree_atlas_tex, vec2<i32>(xs + 1, ys + 1), 0);
+    let col_x0 = (2 * CLOUD_FR_GLOBAL_W) >> u32(m);   // the column slice at this mip
+    if (x >= col_x0) {
+        let c = (cloud_profile_col_dec(t00) + cloud_profile_col_dec(t10)
+            + cloud_profile_col_dec(t01) + cloud_profile_col_dec(t11)) * 0.25;
+        return cloud_profile_col_enc(c);
+    }
+    return (t00 + t10 + t01 + t11) * 0.25;
+}
+
+// ── THE CALIBRATION (A1) ── STUB (A17): the WGSL implementer replaces both
+// bodies. Stage 1 (fs_cloud_profile_calib, attachment mip 2, scissor
+// (CLOUD_FR_CALIB_STAGE_X0, _Y0, 32, 32)): per (archetype, seed, height row)
+// the 64 x 64 cross-section point test of the canonical cloud's SDF ->
+// (rho_r, Dbar, 0, 1). Stage 2 (fs_cloud_profile_calib_reduce, attachment
+// mip 1, binding 14 = mip 2, scissor (CLOUD_FR_CALIB_X0, _Y0, 32, 4)): the
+// eight-seed mean per (row, archetype). Until then every row reads a
+// plausible (rho_r = 0.35, Dbar = 0.5) so the Rust side's pipelines, rects
+// and the flag-8 hand-off have entry points to prove.
+@fragment
+fn fs_cloud_profile_calib(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.35, 0.5, 0.0, 1.0);
+}
+@fragment
+fn fs_cloud_profile_calib_reduce(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(0.35, 0.5, 0.0, 1.0);
 }

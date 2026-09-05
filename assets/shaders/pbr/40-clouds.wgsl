@@ -3336,6 +3336,556 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     return vec4<f32>(s.rgb, s.a * limb);
 }
 
+// ── THE CLOUD FAR RUNG (perf arc increment 4): the planet-fixed PROFILE ──
+//
+// Interface contract: docs/design/cloud-far-rung.md (v2, 2026-09-05). This
+// block is the A17 integration stub the orchestrator commits BEFORE the two
+// implementers start in separate worktrees (Rust: the atlas, passes, rects,
+// pads, groups, F10; WGSL: the real bake fragments and the transmittance /
+// lighting wiring in cloud_march_core). Every constant, pad decode, slice
+// layout formula and function signature here IS the shared interface: change
+// one only through the contract, and keep the "both"-owned constants in the
+// one-line `const NAME: <type> = <value>;` form the Rust sync test parses.
+//
+// What the profile is: per lattice cell and height bin, the cloud FRACTION f
+// (areal fraction of the cell holding cloud anywhere in the bin's height
+// range), the MEAN density G of the same field the march renders, and the
+// COLUMN C above each bin, baked at the cell's own footprint into an RGBA8
+// atlas over six nested TOROIDAL (clipmap) windows on an absolute equal-angle
+// equirect lattice, plus one global equirect map with a real mip pyramid. The
+// march reads it with 4-tap loads chosen by the same lodb that picks every
+// noise mip, and the profile share is integrated in TRANSMITTANCE by a
+// clumped-medium law (the WGSL implementer's half; see the STUB hook below).
+//
+// The speckles it kills: the constructed bodies point-sampled at footprints
+// larger than the clouds (873 km: 25-31 percent white texels as sugar grain).
+//
+// Pad: camera.light2_color = (ground_I_0, ground_J_0, knob, flags), all four
+// exact integers in f32, written every frame by Rust, zeros when no atlas
+// exists. Knob 0 = today's field, bit-identical (the A/B twin). Atlas: group 3
+// binding 14 (tree_atlas_tex, read only by the vegetation branches today), no
+// bind-group-layout change; the global reads use the group's albedo_sampler
+// (Linear / Linear / mipmap Nearest), the window reads use textureLoad.
+//
+// Lattice (angular, radians of the planet-local unit direction): level L = 0..5,
+// cell c_L = CELL0_KM * 2^L km of ARC (north-south everywhere; east-west
+// c_L * cos(lat): deliberately NOT cos-scaled, so a window spans less ground
+// east-west at high latitude and hands to the mipped global sooner - a blur,
+// never a speckle). N_I(L) = floor(2 pi planet_km / c_L) cells around,
+// N_J(L) = floor(pi planet_km / c_L) rows, both floors in f32 in BOTH
+// languages so they are bit-identical. Cell (I, J) centre: lon = (I + 0.5) *
+// cell_rad - pi, lat = (J + 0.5) * cell_rad - pi/2. Window L covers I_abs in
+// [I0_L, I0_L + 512), J_abs in [J0_L, J0_L + 512) with I0_L = ground_I_L - 256;
+// storage x = x0_s + pmod(I_abs, 512), y = y0_s + pmod(J_abs, 512) (toroidal:
+// a cell's storage position never changes while it stays in the window).
+//
+// Texels: per level nine slices s = L * 9 + p at x0_s = (s mod 12) * 512,
+// y0_s = (s / 12) * 512: pair slices p = 0..5 hold (f_k, G_k, f_k+1, G_k+1)
+// for k = 2p; column slices p = 6, 7, 8 (q = p - 6) hold (C_4q .. C_4q+3) for
+// q = 0, 1 and (C_8, C_9, C_10, T) for q = 2 (C_11 is identically zero, so its
+// channel carries the whole column T). f, G linear in [0, 1]; columns
+// sqrt-encoded: enc(C) = sqrt(clamp(C / COL_SCALE, 0, 1)). Global: 2048 x
+// 1024 texels per slice at row 2560 (pair0 at x 0, pair1 at 2048, column at
+// 4096), row 0 = north; mips 1..6 hold the 2x2 box average of the global
+// region only (origin (0, 2560 >> m), size (6144 >> m, 1024 >> m)).
+
+// ── Constants (the contract's table; the "both"-owned rows are parsed out of
+// this file by the Rust sync test in exactly this one-line form) ──
+// finest window cell, km of arc
+const CLOUD_FR_CELL0_KM: f32 = 0.25;
+// window levels, cells 0.25 to 8 km
+const CLOUD_FR_LEVELS: i32 = 6;
+// lodb of level 0 (= log2(CELL0_KM); the Rust test asserts it)
+const CLOUD_FR_LOD0: f32 = -2.0;
+// window cells across (and down)
+const CLOUD_FR_NX: i32 = 512;
+// slab height bins
+const CLOUD_FR_NZ: i32 = 12;
+// pair slices (f_k, G_k, f_k+1, G_k+1) per level
+const CLOUD_FR_PAIRS: i32 = 6;
+// column slices per level (the last carries T in .w)
+const CLOUD_FR_CSLICES: i32 = 3;
+// pair + column slices per level
+const CLOUD_FR_SLICES_PER_LEVEL: i32 = 9;
+// slices per atlas row (12 x 512 = 6144)
+const CLOUD_FR_SLICE_COLS: i32 = 12;
+// column encoding scale: enc(C) = sqrt(C / 12), dec(v) = v * v * 12
+const CLOUD_FR_COL_SCALE: f32 = 12.0;
+// atlas width, mip 0
+const CLOUD_FR_ATLAS_W: i32 = 6144;
+// atlas height, mip 0 (window band 2560 + global 1024)
+const CLOUD_FR_ATLAS_H: i32 = 3584;
+// global equirect map width (one slice)
+const CLOUD_FR_GLOBAL_W: i32 = 2048;
+// global equirect map height
+const CLOUD_FR_GLOBAL_H: i32 = 1024;
+// atlas row where the global region starts (5 * 2^9: mip-aligned)
+const CLOUD_FR_GLOBAL_Y0: i32 = 2560;
+// pooled height bins of the global (three slab bins each)
+const CLOUD_FR_GLOBAL_NZ: i32 = 4;
+// atlas mip count; mips 1..6 hold the global region only
+const CLOUD_FR_GLOBAL_MIPS: i32 = 7;
+// window edge hand-off band (Chebyshev distance, smoothstep)
+const CLOUD_FR_BLEND_FRAC: f32 = 0.20;
+// hand-off band start in dithered lodf (250 m footprint)
+const CLOUD_FR_LOD_LO: f32 = -2.0;
+// hand-off band end in dithered lodf (1 km footprint)
+const CLOUD_FR_LOD_HI: f32 = 0.0;
+// fraction floor for D_in and the in-cloud column
+const CLOUD_FR_F_EPS: f32 = 0.02;
+// horizontal element size, non-built families, km
+const CLOUD_FR_ELEM_THIN_KM: f32 = 8.0;
+// vertical element factor on the archetype aspect
+const CLOUD_FR_ELEM_SQUASH: f32 = 0.65;
+// cell-stratified ellipse test points per (bin, height), fine levels (4x4)
+const CLOUD_FR_PTS: i32 = 16;
+// heights per bin in the bake
+const CLOUD_FR_ZSUB: i32 = 4;
+// cv2 cells enumerated per texel, hard cap (stride subsampling beyond)
+const CLOUD_FR_MAX_CV2: i32 = 512;
+// reference bake points across the cell per bin (8x8)
+const CLOUD_FR_REF_K: i32 = 8;
+// reference bake heights per bin
+const CLOUD_FR_REF_KZ: i32 = 2;
+// calibration height rows per archetype
+const CLOUD_FR_CALIB_ROWS: i32 = 32;
+// canonical clouds averaged per archetype
+const CLOUD_FR_CALIB_SEEDS: i32 = 8;
+// calibration cross-section grid per side
+const CLOUD_FR_CALIB_GRID: i32 = 64;
+// calibration row span in cloud heights (0..1.5)
+const CLOUD_FR_CALIB_YMAX: f32 = 1.5;
+// final calibration table origin x, MIP-1 texel coords (32 x 4)
+const CLOUD_FR_CALIB_X0: i32 = 1536;
+// final calibration table origin y, MIP-1 texel coords
+const CLOUD_FR_CALIB_Y0: i32 = 1024;
+// per-seed staging origin x, MIP-2 texel coords (32 x 32)
+const CLOUD_FR_CALIB_STAGE_X0: i32 = 768;
+// per-seed staging origin y, MIP-2 texel coords
+const CLOUD_FR_CALIB_STAGE_Y0: i32 = 512;
+// Knob codes (pad light2_color.z).
+// off: today's field, bit-identical (the A/B twin)
+const CLOUD_FR_KNOB_OFF: i32 = 0;
+// automatic level by lodb, blended across levels and edges
+const CLOUD_FR_KNOB_ON: i32 = 1;
+// level 0 at w = 1 on every sample (Rust keeps it active)
+const CLOUD_FR_KNOB_FORCE0: i32 = 2;
+// level 1 forced
+const CLOUD_FR_KNOB_FORCE1: i32 = 3;
+// level 2 forced
+const CLOUD_FR_KNOB_FORCE2: i32 = 4;
+// level 3 forced
+const CLOUD_FR_KNOB_FORCE3: i32 = 5;
+// level 4 forced
+const CLOUD_FR_KNOB_FORCE4: i32 = 6;
+// level 5 forced
+const CLOUD_FR_KNOB_FORCE5: i32 = 7;
+// automatic level, hard switch, no blend anywhere (the prove-red)
+const CLOUD_FR_KNOB_HARD: i32 = 8;
+// the reference bake (dev only, slow)
+const CLOUD_FR_KNOB_REF: i32 = 9;
+
+// ── Pad decode (light2_color = (ground_I_0, ground_J_0, knob, flags)) ──
+// The knob code.
+fn cloud_profile_knob() -> i32 {
+    return i32(camera.light2_color.z);
+}
+// Flag bit b of the integer-valued pad: exact, because the pad is an integer
+// and the scaled fract isolates one bit. Bit 0 = some window level valid,
+// bit 1 = global valid (first full pass plus mips done), bits 2..7 = level
+// L = b - 2 valid (its first full fill completed), bit 8 = calibration valid.
+fn cloud_profile_flag(b: i32) -> bool {
+    return fract(camera.light2_color.w * exp2(-f32(b + 1))) >= 0.5;
+}
+fn cloud_profile_level_valid(L: i32) -> bool {
+    return cloud_profile_flag(2 + L);
+}
+fn cloud_profile_global_valid() -> bool {
+    return cloud_profile_flag(1);
+}
+
+// Positive modulus (the toroidal storage rule): pmod(a, n) = ((a mod n) + n) mod n.
+fn pmod(a: i32, n: i32) -> i32 {
+    return ((a % n) + n) % n;
+}
+
+// ── The read side's results ──
+// One window level: ok, f, G, the columns as optical depths, and the edge
+// hand-off weight (0 inside the window, 1 at its rim).
+struct ProfileLevel {
+    ok: bool,
+    f: f32,
+    G: f32,
+    tau_above: f32,
+    tau_below: f32,
+    w_edge: f32,
+};
+// The global map: the march's (f, G, tau_above, tau_below) at h, plus ALL
+// four pooled bins (fp, Gp) and the decoded column (Cp_0, Cp_1, Cp_2, Tp) for
+// the Low sheet, which reads the whole column at once (the contract's
+// `h_or_all`: one call serves both callers).
+struct ProfileGlobal {
+    ok: bool,
+    f: f32,
+    G: f32,
+    tau_above: f32,
+    tau_below: f32,
+    fp: vec4<f32>,
+    Gp: vec4<f32>,
+    Cp: vec4<f32>,
+};
+// The tap after the level walk: ok, f, G, the columns, and the (blended)
+// level index 0..6 (6 = the global) for map_diag channel 11.
+struct ProfileTap {
+    ok: bool,
+    f: f32,
+    G: f32,
+    tau_above: f32,
+    tau_below: f32,
+    level: f32,
+};
+
+// Extinction per drawn-shell unit of the CURRENT march (sigma_v), published
+// by the hook in cloud_march_core so the reads can express the columns as
+// optical depths while the contract's signatures carry only (dirp, h, lodb).
+var<private> g_pf_sigma_v: f32 = 0.0;
+
+// Column encoding (sqrt gives the low-tau end, where the light changes, 8-bit
+// steps of 0.008 in tau instead of 2.0). Bilinear on encoded channels must
+// decode each tap FIRST, then blend: the encoding is not linear.
+fn cloud_profile_col_dec(v: vec4<f32>) -> vec4<f32> {
+    return v * v * CLOUD_FR_COL_SCALE;
+}
+fn cloud_profile_col_enc(c: vec4<f32>) -> vec4<f32> {
+    return sqrt(clamp(c / CLOUD_FR_COL_SCALE, vec4<f32>(0.0), vec4<f32>(1.0)));
+}
+// Channel c of a texel, 0..3 (no dynamic vector indexing: the HLSL backend
+// is the one that decides, see check_hlsl_expressible).
+fn cloud_profile_chan(v: vec4<f32>, c: i32) -> f32 {
+    if (c <= 0) { return v.x; }
+    if (c == 1) { return v.y; }
+    if (c == 2) { return v.z; }
+    return v.w;
+}
+// Storage origin of slice s = L * 9 + p: 12 slices per atlas row, five rows.
+fn cloud_profile_slice_origin(s: i32) -> vec2<i32> {
+    return vec2<i32>((s % CLOUD_FR_SLICE_COLS) * CLOUD_FR_NX, (s / CLOUD_FR_SLICE_COLS) * CLOUD_FR_NX);
+}
+// The four-tap bilinear read of one slice, RAW channels (pair slices).
+// (xa, xb) / (ya, yb) are the two storage columns / rows inside the slice.
+fn cloud_profile_load4(o: vec2<i32>, xa: i32, xb: i32, ya: i32, yb: i32, fu: f32, fv: f32) -> vec4<f32> {
+    let t00 = textureLoad(tree_atlas_tex, vec2<i32>(o.x + xa, o.y + ya), 0);
+    let t10 = textureLoad(tree_atlas_tex, vec2<i32>(o.x + xb, o.y + ya), 0);
+    let t01 = textureLoad(tree_atlas_tex, vec2<i32>(o.x + xa, o.y + yb), 0);
+    let t11 = textureLoad(tree_atlas_tex, vec2<i32>(o.x + xb, o.y + yb), 0);
+    return mix(mix(t00, t10, fu), mix(t01, t11, fu), fv);
+}
+// The same for a COLUMN slice: every tap decoded before the blend.
+fn cloud_profile_load4_col(o: vec2<i32>, xa: i32, xb: i32, ya: i32, yb: i32, fu: f32, fv: f32) -> vec4<f32> {
+    let t00 = cloud_profile_col_dec(textureLoad(tree_atlas_tex, vec2<i32>(o.x + xa, o.y + ya), 0));
+    let t10 = cloud_profile_col_dec(textureLoad(tree_atlas_tex, vec2<i32>(o.x + xb, o.y + ya), 0));
+    let t01 = cloud_profile_col_dec(textureLoad(tree_atlas_tex, vec2<i32>(o.x + xa, o.y + yb), 0));
+    let t11 = cloud_profile_col_dec(textureLoad(tree_atlas_tex, vec2<i32>(o.x + xb, o.y + yb), 0));
+    return mix(mix(t00, t10, fu), mix(t01, t11, fu), fv);
+}
+
+// Window coordinates of a direction at level L: (du, dv) = the continuous
+// cell coordinate relative to the GROUND cell, the date line folded, so the
+// window is du, dv in [-256, 255). One function so the containment walk and
+// the read can never disagree.
+fn cloud_profile_window_uv(L: i32, lon: f32, lat: f32) -> vec2<f32> {
+    let planet_km = material.params2.z;
+    let c_km = CLOUD_FR_CELL0_KM * exp2(f32(L));
+    let cell_rad = c_km / planet_km;
+    let NI = floor(TAU * planet_km / c_km);
+    let gI = floor(camera.light2_color.x / exp2(f32(L)));
+    let gJ = floor(camera.light2_color.y / exp2(f32(L)));
+    let u = (lon + PI) / cell_rad - 0.5;
+    let v = (lat + 0.5 * PI) / cell_rad - 0.5;
+    var du = u - gI;
+    if (du >= 0.5 * NI) {
+        du = du - NI;
+    } else if (du < -0.5 * NI) {
+        du = du + NI;
+    }
+    let dv = v - gJ;
+    return vec2<f32>(du, dv);
+}
+// Does level L's window (valid, and containing the sample) cover this
+// direction? Arithmetic only, no fetch.
+fn cloud_profile_contains(L: i32, lon: f32, lat: f32) -> bool {
+    if (!cloud_profile_level_valid(L)) {
+        return false;
+    }
+    let d = cloud_profile_window_uv(L, lon, lat);
+    let half = f32(CLOUD_FR_NX / 2);
+    return d.x >= -half && d.x < half - 1.0 && d.y >= -half && d.y < half - 1.0;
+}
+// The arithmetic walk (A13): the first level >= L0 whose window contains the
+// sample; CLOUD_FR_LEVELS (6) = "the global" when none up to 5 does.
+fn cloud_profile_walk(L0: i32, lon: f32, lat: f32) -> i32 {
+    for (var L = L0; L < CLOUD_FR_LEVELS; L = L + 1) {
+        if (cloud_profile_contains(L, lon, lat)) {
+            return L;
+        }
+    }
+    return CLOUD_FR_LEVELS;
+}
+
+// The window read at one level (all of it textureLoad, level 0): one or two
+// pair fetches and one or two column fetches, four loads each.
+fn cloud_profile_level(L: i32, lon: f32, lat: f32, h: f32) -> ProfileLevel {
+    var r = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
+    let planet_km = material.params2.z;
+    let c_km = CLOUD_FR_CELL0_KM * exp2(f32(L));
+    let NJ = floor(PI * planet_km / c_km);
+    let gI = floor(camera.light2_color.x / exp2(f32(L)));
+    let gJ = floor(camera.light2_color.y / exp2(f32(L)));
+    let d = cloud_profile_window_uv(L, lon, lat);
+    let du = d.x;
+    let dv = d.y;
+    let half = f32(CLOUD_FR_NX / 2);
+    if (!(cloud_profile_level_valid(L) && du >= -half && du < half - 1.0
+        && dv >= -half && dv < half - 1.0)) {
+        return r;
+    }
+    let i0 = floor(du);
+    let fu = du - i0;
+    let j0 = floor(dv);
+    let fv = dv - j0;
+    // Chebyshev edge weight: 0 inside, rising across the outer BLEND_FRAC of
+    // the half-width to 1 at the rim, where the level hands off.
+    let m = max(abs(du), abs(dv)) / (half - 1.0);
+    r.w_edge = smoothstep(1.0 - CLOUD_FR_BLEND_FRAC, 1.0, m);
+    // Storage coordinates of the four taps (J clamped to existing rows).
+    let nj = i32(NJ);
+    let ia = i32(gI) + i32(i0);
+    let xa = pmod(ia, CLOUD_FR_NX);
+    let xb = pmod(ia + 1, CLOUD_FR_NX);
+    let ja = i32(gJ) + i32(j0);
+    let ya = pmod(clamp(ja, 0, nj - 1), CLOUD_FR_NX);
+    let yb = pmod(clamp(ja + 1, 0, nj - 1), CLOUD_FR_NX);
+    // Bins: the pair (k0, k1) bracketing the sample for f and G, and the bin
+    // kb holding it for the column split.
+    let hz = h * f32(CLOUD_FR_NZ);
+    let fk = clamp(hz - 0.5, 0.0, f32(CLOUD_FR_NZ - 1));
+    let k0 = i32(floor(fk));
+    let k1 = min(k0 + 1, CLOUD_FR_NZ - 1);
+    let wk = fk - f32(k0);
+    let kb = clamp(i32(floor(hz)), 0, CLOUD_FR_NZ - 1);
+    // Fraction of bin kb ABOVE the sample.
+    let frac_above = clamp(f32(kb + 1) - hz, 0.0, 1.0);
+    let s_base = L * CLOUD_FR_SLICES_PER_LEVEL;
+    // Pair slice(s) k0/2 (and k1/2 if different).
+    let o0 = cloud_profile_slice_origin(s_base + k0 / 2);
+    let p0 = cloud_profile_load4(o0, xa, xb, ya, yb, fu, fv);
+    var p1 = p0;
+    if (k1 / 2 != k0 / 2) {
+        let o1 = cloud_profile_slice_origin(s_base + k1 / 2);
+        p1 = cloud_profile_load4(o1, xa, xb, ya, yb, fu, fv);
+    }
+    let f0 = select(p0.x, p0.z, (k0 % 2) == 1);
+    let G0 = select(p0.y, p0.w, (k0 % 2) == 1);
+    let f1 = select(p1.x, p1.z, (k1 % 2) == 1);
+    let G1 = select(p1.y, p1.w, (k1 % 2) == 1);
+    r.f = mix(f0, f1, wk);
+    r.G = mix(G0, G1, wk);
+    // kb is always k0 or k1 (fk = hz - 0.5 brackets floor(hz)).
+    let G_kb = select(G1, G0, kb == k0);
+    // Column slice kb/4 -> C_kb (decoded); T from column slice 2 channel w
+    // (a second column fetch unless kb/4 == 2). C_11 is identically zero.
+    let q = kb / 4;
+    let oc = cloud_profile_slice_origin(s_base + CLOUD_FR_PAIRS + q);
+    let cq = cloud_profile_load4_col(oc, xa, xb, ya, yb, fu, fv);
+    var T = cq.w;
+    if (q != CLOUD_FR_CSLICES - 1) {
+        let oT = cloud_profile_slice_origin(s_base + CLOUD_FR_PAIRS + CLOUD_FR_CSLICES - 1);
+        T = cloud_profile_load4_col(oT, xa, xb, ya, yb, fu, fv).w;
+    }
+    let C_kb = select(cloud_profile_chan(cq, kb % 4), 0.0, kb == CLOUD_FR_NZ - 1);
+    // One bin in drawn-shell units.
+    let dz = (g_cloud_rt - g_cloud_rb) / f32(CLOUD_FR_NZ);
+    let above = C_kb + G_kb * frac_above;
+    r.tau_above = g_pf_sigma_v * dz * above;
+    r.tau_below = g_pf_sigma_v * dz * max(T - above, 0.0);
+    r.ok = true;
+    return r;
+}
+
+// One integer mip of the global map: the two pair slices raw, the column
+// slice decoded. Hardware bilinear inside the slice at that mip; every read
+// is clamped to texel centres inside its own slice so the filter never
+// crosses a slice edge and the sampler's u wrap is never reached.
+struct ProfileGlobalRaw {
+    pair0: vec4<f32>,
+    pair1: vec4<f32>,
+    col: vec4<f32>,
+};
+fn cloud_profile_global_fetch(m: i32, lon: f32, lat: f32) -> ProfileGlobalRaw {
+    let sh = u32(m);
+    let w_m = f32(CLOUD_FR_GLOBAL_W >> sh);
+    let h_m = f32(CLOUD_FR_GLOBAL_H >> sh);
+    let y0_m = f32(CLOUD_FR_GLOBAL_Y0 >> sh);
+    let aw = f32(CLOUD_FR_ATLAS_W >> sh);
+    let ah = f32(CLOUD_FR_ATLAS_H >> sh);
+    let u_m = clamp((lon + PI) / TAU * w_m, 0.5, w_m - 0.5);
+    let v_m = clamp((0.5 * PI - lat) / PI * h_m, 0.5, h_m - 0.5);
+    let lvl = f32(m);
+    var r: ProfileGlobalRaw;
+    r.pair0 = textureSampleLevel(tree_atlas_tex, albedo_sampler,
+        vec2<f32>((0.0 * w_m + u_m) / aw, (y0_m + v_m) / ah), lvl);
+    r.pair1 = textureSampleLevel(tree_atlas_tex, albedo_sampler,
+        vec2<f32>((1.0 * w_m + u_m) / aw, (y0_m + v_m) / ah), lvl);
+    r.col = cloud_profile_col_dec(textureSampleLevel(tree_atlas_tex, albedo_sampler,
+        vec2<f32>((2.0 * w_m + u_m) / aw, (y0_m + v_m) / ah), lvl));
+    return r;
+}
+
+// The global read (shared with the Low sheet), A11: two integer-mip fetches
+// bracketing lodb, lerped here because the group's sampler has mipmap_filter
+// Nearest (columns decoded before the lerp).
+fn cloud_profile_global(lon: f32, lat: f32, h: f32, lodb: f32) -> ProfileGlobal {
+    var r = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
+    if (!cloud_profile_global_valid()) {
+        return r;
+    }
+    let planet_km = material.params2.z;
+    // The global cell, km of arc, from the planet radius (never a constant).
+    let global_km = TAU * planet_km / f32(CLOUD_FR_GLOBAL_W);
+    let mf = clamp(lodb - log2(global_km), 0.0, f32(CLOUD_FR_GLOBAL_MIPS - 1));
+    let m0 = i32(floor(mf));
+    let m1 = min(m0 + 1, CLOUD_FR_GLOBAL_MIPS - 1);
+    let wm = mf - f32(m0);
+    let a = cloud_profile_global_fetch(m0, lon, lat);
+    var b = a;
+    if (m1 != m0) {
+        b = cloud_profile_global_fetch(m1, lon, lat);
+    }
+    let pair0 = mix(a.pair0, b.pair0, wm);
+    let pair1 = mix(a.pair1, b.pair1, wm);
+    let col = mix(a.col, b.col, wm);
+    r.fp = vec4<f32>(pair0.x, pair0.z, pair1.x, pair1.z);
+    r.Gp = vec4<f32>(pair0.y, pair0.w, pair1.y, pair1.w);
+    r.Cp = col;
+    // Pooled bins (three slab bins each): the same bracketing as the window.
+    let hz = h * f32(CLOUD_FR_GLOBAL_NZ);
+    let fk = clamp(hz - 0.5, 0.0, f32(CLOUD_FR_GLOBAL_NZ - 1));
+    let k0 = i32(floor(fk));
+    let k1 = min(k0 + 1, CLOUD_FR_GLOBAL_NZ - 1);
+    let wk = fk - f32(k0);
+    let kb = clamp(i32(floor(hz)), 0, CLOUD_FR_GLOBAL_NZ - 1);
+    let frac_above = clamp(f32(kb + 1) - hz, 0.0, 1.0);
+    r.f = mix(cloud_profile_chan(r.fp, k0), cloud_profile_chan(r.fp, k1), wk);
+    r.G = mix(cloud_profile_chan(r.Gp, k0), cloud_profile_chan(r.Gp, k1), wk);
+    let Gp_kb = cloud_profile_chan(r.Gp, kb);
+    // Cp_3 is identically zero; channel w of the column slice carries Tp.
+    let Cp_kb = select(cloud_profile_chan(col, kb), 0.0, kb == CLOUD_FR_GLOBAL_NZ - 1);
+    let Tp = col.w;
+    let dz_pool = 3.0 * (g_cloud_rt - g_cloud_rb) / f32(CLOUD_FR_NZ);
+    let above = Cp_kb + Gp_kb * frac_above;
+    r.tau_above = g_pf_sigma_v * dz_pool * above;
+    r.tau_below = g_pf_sigma_v * dz_pool * max(Tp - above, 0.0);
+    r.ok = true;
+    return r;
+}
+
+// The tap with the level walk (A13): at most TWO window fetches (La, Lb)
+// plus the global, hand-off weights summing to 1 by construction. Returns
+// not-ok (w_pf = 0 for this sample) when nothing baked covers it.
+fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTap {
+    var r = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0);
+    if (material.params2.z < 0.5) {
+        return r;
+    }
+    // The lattice is angular: the lines cloud_v2_body keys its cells on,
+    // minus its cos-scaling of longitude.
+    let lat = asin(clamp(dirp.y, -1.0, 1.0));
+    let lon = atan2(-dirp.z, dirp.x);
+    var lv = clamp(lodb - CLOUD_FR_LOD0, 0.0, f32(CLOUD_FR_LEVELS - 1));
+    if (knob >= CLOUD_FR_KNOB_FORCE0 && knob <= CLOUD_FR_KNOB_FORCE5) {
+        lv = f32(knob - CLOUD_FR_KNOB_FORCE0);      // forced: one level, no blend
+    }
+    var La = i32(floor(lv));
+    var Lb = min(La + 1, CLOUD_FR_LEVELS - 1);
+    var wl = lv - f32(La);
+    if (knob == CLOUD_FR_KNOB_HARD) {
+        wl = 0.0;                                     // HARD: floor level only
+    }
+    // The arithmetic walk (no fetch): the first level >= La whose window
+    // contains the sample; likewise from Lb.
+    La = cloud_profile_walk(La, lon, lat);
+    Lb = cloud_profile_walk(Lb, lon, lat);
+    if (La >= Lb) {
+        Lb = La;                                      // both walks landed on one level
+        wl = 0.0;
+    }
+    var ra = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
+    var rb = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
+    if (La < CLOUD_FR_LEVELS) {
+        ra = cloud_profile_level(La, lon, lat, h);
+    }
+    if (Lb < CLOUD_FR_LEVELS && Lb != La) {
+        rb = cloud_profile_level(Lb, lon, lat, h);
+    }
+    // Hand-off weights: La's edge band hands to rb when rb was fetched, else
+    // to the global; rb's edge band hands to the global. HARD: ea = eb = 0
+    // (the walk already guarantees the fetched level contains the sample).
+    var ea = select(1.0, ra.w_edge, ra.ok);
+    var eb = select(1.0, rb.w_edge, rb.ok);
+    if (knob == CLOUD_FR_KNOB_HARD) {
+        ea = 0.0;
+        eb = 0.0;
+    }
+    var share_a = 1.0 - wl;
+    var share_b = wl;
+    var w_g = 0.0;
+    if (La == CLOUD_FR_LEVELS) {
+        share_a = 0.0;                                // both walks ended at the global
+        share_b = 0.0;
+        w_g = 1.0;
+    }
+    var w_ra = share_a * (1.0 - ea);
+    let handed_a = share_a * ea;
+    if (rb.ok) {
+        share_b = share_b + handed_a;
+    } else {
+        w_g = w_g + handed_a;
+    }
+    var w_rb = share_b * (1.0 - eb);
+    w_g = w_g + share_b * eb;
+    var g = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
+    if (w_g > 0.0) {
+        g = cloud_profile_global(lon, lat, h, lodb);
+    }
+    if (w_g > 0.0 && !g.ok) {
+        // Global wanted but not baked yet: renormalize onto the windows, or
+        // abstain when there are none.
+        let wsum = w_ra + w_rb;
+        if (wsum <= 0.0) {
+            return r;
+        }
+        w_ra = w_ra / wsum;
+        w_rb = w_rb / wsum;
+        w_g = 0.0;
+    }
+    r.f = w_ra * ra.f + w_rb * rb.f + w_g * g.f;
+    r.G = w_ra * ra.G + w_rb * rb.G + w_g * g.G;
+    r.tau_above = w_ra * ra.tau_above + w_rb * rb.tau_above + w_g * g.tau_above;
+    r.tau_below = w_ra * ra.tau_below + w_rb * rb.tau_below + w_g * g.tau_below;
+    // Channel 11 = level / 6 (window edges visible).
+    r.level = w_ra * f32(La) + w_rb * f32(Lb) + w_g * f32(CLOUD_FR_LEVELS);
+    r.ok = true;
+    return r;
+}
+
+// map_diag channels 10 / 11 / 12: the profile share w_pf, the blended level
+// / 6, and the profile fraction pf.f, each accumulated with the colour's own
+// weights (trans * a_i) exactly as g_march_src_acc, so they read as what the
+// pixel sees. Reset beside the other march accumulators in cloud_march_core.
+var<private> g_march_pf_acc: f32 = 0.0;
+var<private> g_march_lvl_acc: f32 = 0.0;
+var<private> g_march_frac_acc: f32 = 0.0;
+
 // The marched slab integral: everything from the ray/slab intersection
 // through lighting, aerial perspective, and ACES, WITHOUT the
 // fragment-specific discard/limb concerns. Callable from the inline
@@ -3351,6 +3901,10 @@ fn cloud_march_core(
     g_march_sun_acc = 0.0;
     g_march_amb_acc = 0.0;
     g_march_src_acc = 0.0;
+    // The far rung's channels (increment 4, A17): 10 / 11 / 12.
+    g_march_pf_acc = 0.0;
+    g_march_lvl_acc = 0.0;
+    g_march_frac_acc = 0.0;
     // (g_lod_jitter is set by the CALLING fragment entry, block-coherent
     // - see the note at its declaration. The Medium direct path never
     // sets it and keeps plain trilinear.)
@@ -3905,6 +4459,39 @@ fn cloud_march_core(
         // Weather-map texel = 27.8 km at mip 0.
         let foot = max(tm * pix_ang, dt * 0.25);
         let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
+        // ── THE FAR RUNG (perf increment 4, A17 stub): the profile tap ──
+        // Knob 0 (no atlas, or the A/B twin): one uniform read and a branch
+        // not taken - the march below is bit-identical to v0.1288. Knob != 0:
+        // the planet-fixed profile is read through the real lattice / walk
+        // arithmetic and accumulated into map_diag channels 10 / 11 / 12
+        // ONLY, so the colour output is still bit-identical at every knob.
+        // STUB (A17): the WGSL implementer wires w_pf into the transmittance
+        // and the lighting here - at w_pf >= 1 - 1e-4 the weather tap, the
+        // density call, the sun ladder / cache, the entry bisection and the
+        // refinements are skipped; a_i takes the element law T_pf; the sun
+        // tau, the burial columns and the relief terms mix by w_pf (see the
+        // contract's "March side (WGSL)"). Nothing of that is here yet.
+        let knob = cloud_profile_knob();
+        var pf = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0);
+        var w_pf = 0.0;
+        if (knob != CLOUD_FR_KNOB_OFF) {
+            // The same dithered coordinate the v2 fade uses (cloud_carve).
+            let lodf = lodb + g_lod_jitter * 0.35;
+            // Normalized slab height of this sample: the contract's `h`. A
+            // later `let h` in this same scope holds the same value for the
+            // lighting block, hence the suffix here.
+            let h_pf = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+            g_pf_sigma_v = sigma_v;
+            pf = cloud_profile_tap(dirp, h_pf, lodb, knob);
+            if (knob >= CLOUD_FR_KNOB_FORCE0 && knob <= CLOUD_FR_KNOB_FORCE5) {
+                w_pf = 1.0;
+            } else if (knob == CLOUD_FR_KNOB_HARD) {
+                w_pf = select(0.0, 1.0, lodf >= -1.0);
+            } else {
+                w_pf = smoothstep(CLOUD_FR_LOD_LO, CLOUD_FR_LOD_HI, lodf);
+            }
+            w_pf = select(0.0, w_pf, pf.ok);
+        }
         // Surface-detail mip frozen PER SAMPLE, not per ray (v0.1234). The
         // per-ray freeze took the footprint at the SEGMENT MIDPOINT, and inside
         // the slab the unclipped chord runs ~600 km - so a cloud 500 m from the
@@ -4400,6 +4987,11 @@ fn cloud_march_core(
         g_march_prof_acc = g_march_prof_acc + prof * (trans * a_i);
         // map_diag 9 (increment 1): which sun source lit this sample.
         g_march_src_acc = g_march_src_acc + g_light_src * (trans * a_i);
+        // map_diag 10 / 11 / 12 (increment 4, A17): the profile share, the
+        // blended level / 6 and the profile fraction, the colour's weights.
+        g_march_pf_acc += trans * a_i * w_pf;
+        g_march_lvl_acc += trans * a_i * pf.level / 6.0;
+        g_march_frac_acc += trans * a_i * pf.f;
         trans = trans * (1.0 - a_i);
         // 0.005, not 0.02 (increment 10): with resolved density gradients
         // the last 1.5% of transmittance carries visible skirt light.
