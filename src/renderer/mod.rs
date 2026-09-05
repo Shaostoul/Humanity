@@ -586,6 +586,9 @@ pub struct Renderer {
     /// Increment C (v0.1282): interior density saturation of the constructed
     /// bodies, 0..1, light5_color.w (offset 300). 0 = the v0.1231 profile.
     pub cloud_int_sat: f32,
+    /// Increment D (v0.1283): carve saturation level 0..3 (off / 0.20 /
+    /// 0.10 / 0.05 body units), dev pad bits 16-17.
+    pub cloud_carve_sat: u8,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1829,6 +1832,7 @@ impl Renderer {
             cloud_field: false,
             cloud_ms_gain: 0.0,
             cloud_int_sat: 0.0,
+            cloud_carve_sat: 0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3904,11 +3908,14 @@ impl Renderer {
             + (if self.cloud_iso_step { 512.0f32 } else { 0.0 })
             + (if self.cloud_thin_deck { 2048.0f32 } else { 0.0 })
             + (if self.cloud_hv_warp { 4096.0f32 } else { 0.0 })
-            + (if self.cloud_no_detail { 8192.0f32 } else { 0.0 })
-            + (if self.cloud_no_puff { 16384.0f32 } else { 0.0 })
-            + (if self.cloud_no_cell { 32768.0f32 } else { 0.0 })
-            + (if self.cloud_no_fray { 65536.0f32 } else { 0.0 })
-            + (if self.cloud_no_bdrop { 131072.0f32 } else { 0.0 })
+            // v0.1283: bits 13-15 are an INDEX (first set bisect wins; the
+            // shader reads cloud_bisect_index), bits 16-17 the carve
+            // saturation level (increment D, cloud_carve_sat_w).
+            + (8192.0f32
+                * (if self.cloud_no_detail { 1.0 } else if self.cloud_no_puff { 2.0 }
+                   else if self.cloud_no_cell { 3.0 } else if self.cloud_no_fray { 4.0 }
+                   else if self.cloud_no_bdrop { 5.0 } else { 0.0 }))
+            + 65536.0f32 * (self.cloud_carve_sat.min(3) as f32)
             + (if self.cloud_sharp_base { 262144.0f32 } else { 0.0 })
             + (if self.cloud_relief_fade { 524288.0f32 } else { 0.0 })
             + (if self.cloud_deep_rung { 1048576.0f32 } else { 0.0 })

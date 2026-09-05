@@ -336,6 +336,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("cloud_ms") {
         state.gui_state.cloud_dev_ms = t == "1";
     }
+    // {"cloud_carve_sat":"2"}: increment D, noise-path carve saturation level 0..3.
+    if let Some(m) = grab("cloud_carve_sat").and_then(|t| t.parse::<u8>().ok()) {
+        state.gui_state.cloud_dev_carve_sat = m.min(3);
+    }
     // {"cloud_int_sat":"1"}: increment C, interior saturation of the built bodies.
     if let Some(m) = grab("cloud_int_sat").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_int_sat = m.clamp(0.0, 1.0);

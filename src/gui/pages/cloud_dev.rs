@@ -155,6 +155,20 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_int_sat = sat;
                 changed = true;
             }
+            // Increment D (v0.1283): how fast the noise-path interior fills
+            // past the cloud edge. Off = the shipped ramp (full density only
+            // where the shape field peaks, hundreds of metres in); the levels
+            // saturate 0.20 / 0.10 / 0.05 body units past the edge, a real
+            // top being opaque within tens of metres.
+            ui.horizontal(|ui| {
+                ui.label("Carve saturation (noise path):");
+                for (lvl, name) in [(0u8, "off"), (1u8, "0.20"), (2u8, "0.10"), (3u8, "0.05")] {
+                    if ui.selectable_label(state.cloud_dev_carve_sat == lvl, name).clicked() {
+                        state.cloud_dev_carve_sat = lvl;
+                        changed = true;
+                    }
+                }
+            });
             let mut fld = state.cloud_dev_field;
             if ui
                 .checkbox(&mut fld, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)")

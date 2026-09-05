@@ -1,5 +1,49 @@
 # HumanityOS: Priorities
 
+> **v0.1283 (2026-09-05): rosette CONFIRMED GONE by the operator; PERFORMANCE
+> is the next priority.** Operator, on v0.1282.1: "I finally didn't see the
+> rosette! Well done!" and then: "even at half resolution I'm crawling FPS
+> wise. It seems like I'm seeing the volumetric clouds from a very far
+> distance instead of the 2D cloud layer while far away." The code agrees:
+> since v0.1250 (ONE RENDERER) the screen march is the only cloud renderer
+> at every altitude, the octa map is retired, and far content is cheaper
+> only by the footprint stride. Rig frame times at 2560x1387, clouds half,
+> Ultra: inside a deck about 200 ms, a few km above 60-100 ms, orbit 40 ms.
+> A read-only performance panel (four map lenses, three designs, two
+> judges, synthesis with predicted frame times per situation) is in flight;
+> its plan replaces this block's NEXT list when it lands. Increment D (the
+> design-B saturating carve remap) was measured and removed: levels
+> identical to each other and 10 levels darker than off at the deck top,
+> High closeup bit-identical, rain grain worse; the noise-path interior is
+> already saturated at high cover, and the deck-top nadir gradient is the
+> two-stream source's angular term. CAUTION on that vantage: two captures in
+> ONE boot read 146 and 191 at the nadir (bimodal, 45 levels apart; the
+> edge agreed within 7), so `sc-top-3p0km` is not a gate until the cause is
+> found (temporal state at capture is the suspect). The dev pad bisect bits 13-17 are now a
+> 3-bit index at 13-15 (`cloud_bisect_index`), so bits 16 and 17 are free.
+>
+> NEXT, in order:
+> 1. **Performance arc** (operator priority): the panel's first increment,
+>    expected to be the far-field handoff (near screen march within an
+>    altitude-scaled range; a map, sheet or cheaper march beyond; blended in
+>    transmittance over a depth band, never a per-ray switch, so neither the
+>    v0.1233 seam nor BUG-074 can return). Gates: fps at operator-bm12,
+>    sc-top-3p0km, rain-26km-nadir, cumulus-closeup-ultra, plus an orbit
+>    vantage; the look judged by the same captures.
+> 2. **Flip the in-cloud light on by default** at `sc-inside-top` (over 170)
+>    once the perf floor holds with it on; it reads 230 there today.
+> 3. **Re-judge every unpinned down-look golden spec** (`just visual-sweep`):
+>    the family is local everywhere now and the specs predate the fix.
+> 4. **Pin the rig heading** so masked statistics across captures are safe;
+>    rotation-invariant scripts meanwhile (`cloud-radial-coherence.js`,
+>    `cloud-lum-bands.js`, `cloud-radial-profile.js`).
+> 5. Parked behind performance: the field designs from the rosette panel
+>    (A domes / flat bases / blue-noise placement / 3D erosion; B the
+>    noise-first deck; C a plume library), the Low-tier orbit seams (draw the
+>    sheet from `cloud_weather`, let cores go opaque), the stair-stepped
+>    band-top edge, the round grey discs on the 26 km overcast, the inert
+>    `g_march_max_km` clamp (which the handoff will likely wire).
+
 > **v0.1282 (2026-09-05): THE ROSETTE FOUND AND KILLED (BUG-074).** It was
 > never layer geometry. Since v0.1232.5 the per-ray cloud family was read at
 > the midpoint of the UNCLIPPED top-shell chord, which for any down-look runs

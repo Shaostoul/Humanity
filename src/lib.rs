@@ -18512,6 +18512,7 @@ mod native_app {
                                 state.renderer.cloud_ms = state.gui_state.cloud_dev_ms;
                                 state.renderer.cloud_field = state.gui_state.cloud_dev_field;
                                 state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
+                                state.renderer.cloud_carve_sat = state.gui_state.cloud_dev_carve_sat;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
                                 state.renderer.cloud_res_div =
                                     state.gui_state.cloud_dev_res_div;

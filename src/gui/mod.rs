@@ -3475,6 +3475,8 @@ pub struct GuiState {
     pub cloud_dev_ms_gain: f32,
     /// Increment C (v0.1282): interior saturation of the built bodies, 0..1.
     pub cloud_dev_int_sat: f32,
+    /// Increment D (v0.1283): noise-path carve saturation level 0..3.
+    pub cloud_dev_carve_sat: u8,
     /// Cloud march resolution divisor: 4 quarter (default), 2 half, 1 full.
     pub cloud_dev_res_div: u32,
     /// F10: disable the per-cloud shape frame (A/B the squash + stretch).
@@ -5342,6 +5344,7 @@ impl Default for GuiState {
             cloud_dev_field: false,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_int_sat: 0.0,
+            cloud_dev_carve_sat: 0,
             cloud_dev_res_div: 4,
             cloud_dev_shape_off: false,
             cloud_dev_discard_diag: false,

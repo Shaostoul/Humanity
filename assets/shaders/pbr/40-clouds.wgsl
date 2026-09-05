@@ -770,6 +770,15 @@ const CLOUD_CARVE_T6: f32 = 0.0025;
 const CLOUD_CARVE_T7: f32 = -0.0125;
 const CLOUD_CARVE_T8: f32 = -0.0125;
 
+// Dev pad bits 13-15 as an index (v0.1283): which density component the
+// F10 bisect turns off. fract(w / 2^16) * 8 leaves bits 13-15 as the integer
+// part (bits 0-12 sum to under 8192, so they cannot carry).
+fn cloud_bisect_index() -> u32 {
+    return u32(floor(fract(camera.light7_color.w * 0.0000152587890625) * 8.0));
+}
+// Dev pad bits 16-17 are FREE (v0.1283; the carve-saturation remap that
+// briefly used them was a null and was removed, see BUGS/PRIORITIES).
+
 fn cloud_carve_thr_off(lod: f32) -> f32 {
     var t: array<f32, 9> = array<f32, 9>(
         CLOUD_CARVE_T0, CLOUD_CARVE_T1, CLOUD_CARVE_T2, CLOUD_CARVE_T3,
@@ -2130,7 +2139,7 @@ fn cloud_carve(
     var thr = thr_base
         + shape_w * CLOUD_TOP_RISE * u_band * u_band
         + shape_w * CLOUD_BASE_DROP * reg.base_drop * v_band * v_band * (1.0 - lofi)
-            * select(1.0, 0.0, fract(camera.light7_color.w * 0.000003814697265625) >= 0.5);
+            * select(1.0, 0.0, cloud_bisect_index() == 5u);
     // Cumulus-scale cell split (phase 3, fidelity finding 4): the shape
     // volume's finest feature is ~11 km, and erosion can only nibble a
     // blob's edges - nothing could ever make a 1-2 km cloud. A second tap
@@ -2308,7 +2317,7 @@ fn cloud_carve(
     // BASE_DROP*wt*v^2 for v gives how far DOWN this column's own base
     // reaches (v_base >= 1: hangs at the very slab floor = a pouch).
     let bd_wt = CLOUD_BASE_DROP * reg.base_drop * (1.0 - lofi)
-        * select(1.0, 0.0, fract(camera.light7_color.w * 0.000003814697265625) >= 0.5);
+        * select(1.0, 0.0, cloud_bisect_index() == 5u);
     // Same iso-distance defect as crown above: pouch is f(body), which
     // on the constructed path is a radial coordinate. Faded out with the
     // constructed weight (0 = no pouch darkening).
@@ -2362,7 +2371,7 @@ fn cloud_density_hi(
         cloud_lod(lodb, CLOUD_LODC_FRAY));
     let frfbm = fr.r * 0.625 + fr.g * 0.25 + fr.b * 0.125;
     // Bit 16 of the dev pad: fray erosion off (component bisect, v0.1279).
-    let fray_on = select(1.0, 0.0, fract(camera.light7_color.w * 0.00000762939453125) >= 0.5);
+    let fray_on = select(1.0, 0.0, cloud_bisect_index() == 4u);
     let erode_c = frfbm * reg.fray * CLOUD_FRAY_ERODE * (0.35 + 0.65 * (1.0 - base)) * fray_on;
     base = clamp(cloud_remap(base, erode_c, 1.0, 0.0, 1.0), 0.0, 1.0);
     // FILAMENT streaking: the ridged-Perlin channel (detail alpha) frays flat
@@ -3559,9 +3568,13 @@ fn cloud_march_core(
         // The bm-12 rosette is in the density field itself (present in
         // coverage alpha, at every volumetric tier, under every march and
         // resolve toggle). One term off at a time.
-        let detail_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.00006103515625) >= 0.5);
-        let puff_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.000030517578125) >= 0.5);
-        let cell_amt = select(1.0, 0.0, fract(camera.light7_color.w * 0.0000152587890625) >= 0.5);
+        // v0.1283: the component bisect is a 3-bit INDEX at bits 13-15
+        // (0 none, 1 detail, 2 puff, 3 cell, 4 fray, 5 base drop), one term
+        // off at a time; bits 16-17 are free.
+        let bis = cloud_bisect_index();
+        let detail_amt = select(1.0, 0.0, bis == 1u);
+        let puff_amt = select(1.0, 0.0, bis == 2u);
+        let cell_amt = select(1.0, 0.0, bis == 3u);
         // (foot/lodb hoisted above the weather tap - increment 11b.)
         let dc = cloud_density_hi(
             p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
