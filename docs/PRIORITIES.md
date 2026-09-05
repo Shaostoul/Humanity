@@ -1,5 +1,58 @@
 # HumanityOS: Priorities
 
+> **v0.1282 (2026-09-05): THE ROSETTE FOUND AND KILLED (BUG-074).** It was
+> never layer geometry. Since v0.1232.5 the per-ray cloud family was read at
+> the midpoint of the UNCLIPPED top-shell chord, which for any down-look runs
+> through the planet, so every near-nadir pixel read the cloud type about
+> ninety degrees around the globe in its own screen azimuth; the 8-19 degree
+> type cells printed as wedges from the nadir and sectors with a band base
+> above the camera as see-through slivers. One line (`reg_reach`, the lookup
+> capped at four slab thicknesses down the ray) took operator-bm12 from
+> +0.91/+0.81/+0.96 inner-bin coherence to 0.00, slivers 2 to 0, and the
+> frame to plain fog; rain-26km-nadir grain 1.99 to 0.61; the type-pinned
+> closeup bit-identical; the horizon-seam vantages clean. Found by a fresh
+> read-only panel (five lenses, two refuters each; the march lens reproduced
+> the pattern offline at r 0.66 before any rebuild). The synthetic checker
+> had bypassed this stage, which is why "projection correct" was misread as
+> "unavoidable". Full record: `docs/BUGS.md` BUG-074.
+>
+> ALSO SHIPPED, default off: increment C (F10 "interior saturation", showcase
+> `cloud_int_sat`). A null where aimed: the stratocumulus deck is owned by the
+> sheet union and C touches only the constructed bodies (bit-identical at the
+> 3.0 km deck top); deep inside a Cb it darkens (39 to 34), the right sign.
+> THE INTERIOR TARGET IS ALREADY MET where the family is local: 180 m under a
+> stratocumulus top the in-cloud light reads 230 of 255 at sat 0 (new standing
+> vantage `sc-inside-top`; the ladder 3.0/2.8/2.6/2.4/2.2/2.0 km read
+> 175/230/218/208/191/153).
+>
+> NEXT, in order:
+> 1. **Deck top from its own level** (`sc-top-3p0km`, new standing): the nadir
+>    ray sees deepest and prints a dark centre, 146 against 207 at the edge.
+>    Fix on the NOISE path: a saturating, coverage-preserving density remap
+>    (design B increment 1, the Nubis remap) so the carve reaches 1 within
+>    tens of metres of the surface. Gate: nadir within 15 levels of the
+>    surround; `sc-inside-top` stays over 170.
+> 2. **Flip the in-cloud light on by default** once (1) lands: re-judge at
+>    `sc-inside-top` (over 170), `operator-bm12`, `cumulus-closeup-ultra`.
+> 3. **Re-judge every unpinned down-look golden spec** (`just visual-sweep`):
+>    the family is now the local one everywhere, so every such vantage changed
+>    look, for the better, and the specs were written against the bug.
+> 4. **Pin the rig heading.** Two 4.6 km down-look captures in one sweep came
+>    out rotated about the nadir; masked statistics across captures are unsafe
+>    until `camera_request` takes an azimuth. Rotation-invariant scripts in the
+>    meantime: `scripts/cloud-radial-coherence.js`, `cloud-lum-bands.js`,
+>    `cloud-radial-profile.js`.
+> 5. Smaller, observed this session: a stair-stepped hard edge where the band
+>    top is seen edge-on from 20 m above it (`sc-top-3p0km`, top-left); the
+>    Low tier from orbit shows hard-edged patches (the sheet caps alpha at 72%
+>    and the ground draws its own cloud darkening from a different weather
+>    field) - draw the Low sheet from `cloud_weather` and let dense cores go
+>    opaque; the inert `g_march_max_km` clamp (no writer) can be retired or
+>    wired; the 26 km rain overcast shows perfectly circular grey discs.
+> 6. Then the field designs from the panel (A: domes, flat bases, blue-noise
+>    placement, 3D erosion on the built path; B: the 3D noise-first deck), now
+>    judged against a renderer that no longer lies about the family.
+
 > **v0.1281 (2026-09-04): increment B 2.1 built, null at Ultra; the pad is
 > full.** The three-octave measure-preserving domain warp on the noise path
 > (24 km / 0.8 km, 3 km / 120 m, 0.6 km / 30 m; cell split following the

@@ -3844,10 +3844,11 @@
     },
     {
       "id": "operator-bm12",
-      "desc": "The operator bm-12 (F6, 2026-09-04): lat -11.09 lon -153.95 mid-Pacific, 1.63 km, straight down (look 2), clear, noon for legibility. Reproduces the rosette pixel-exact: radial slivers of ocean through the deck converging at the nadir, inner-bin coherence +0.92/+0.86/+0.97. Every renderer-side toggle is a null here; it is the field (vertical-walled km-scale gaps seen from inside the layer).",
-      "expect": "When fixed: gaps seen from inside the layer read as irregular openings, not radial slivers; inner-bin coherence well under +0.5.",
+      "desc": "The operator bm-12 (F6, 2026-09-04): lat -11.09 lon -153.95 mid-Pacific, 1.63 km, straight down (look 2), clear, noon. Reproduced the rosette pixel-exact until v0.1282 (BUG-074: the per-ray cloud family was read at the midpoint of the UNCLIPPED through-planet chord, ~90 degrees around the globe in the pixel own screen azimuth). With the lookup local the frame is plain fog 500 m inside a cumulonimbus-family deck: inner-bin coherence 0.00, slivers 0.",
+      "expect": "Uniform fog with no radial structure; inner-bin radial coherence under +0.3; zero slivers. If a starburst returns here, BUG-074 has regressed.",
       "regressions": [
-        "no radial slivers converging at the nadir from inside the layer"
+        "no radial slivers converging at the nadir from inside the layer",
+        "inner-bin radial coherence under +0.3 (was +0.91 with BUG-074)"
       ],
       "camera": {
         "body": "earth",
@@ -3966,6 +3967,94 @@
         "cloud_checker": "1"
       },
       "settle_s": 14
+    },
+    {
+      "id": "sc-inside-top",
+      "desc": "180 m inside the top of a stratocumulus deck (type 1.0, cover 0.9, band top 2.98 km), straight down, in-cloud light on. The fidelity reference target for an interior: fog-white, 170-240 of 255, achromatic. Added v0.1282 after the ladder (3.0/2.8/2.6/2.4/2.2/2.0 km read 175/230/218/208/191/153).",
+      "expect": "Fog-white, mean over 170, no structure (grain under 0.3).",
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 2.8,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_type": "1.0",
+        "cloud_cover": "0.9",
+        "cloud_ms": "1"
+      },
+      "settle_s": 14,
+      "regressions": [
+        "interior 180 m under a stratocumulus top reads over 170 of 255 with the in-cloud light on"
+      ]
+    },
+    {
+      "id": "sc-top-3p0km",
+      "desc": "At the band top of the same stratocumulus deck (3.0 km), straight down: the ray at the nadir sees deepest, so a too-thin interior prints a dark centre in a bright surround (v0.1282 ladder: mean 175 with a dark middle). The over-long extinction kernel the fidelity reference named, as a picture.",
+      "expect": "Bright, near-uniform top; the nadir no darker than the surround by more than ~15 levels.",
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 3,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_type": "1.0",
+        "cloud_cover": "0.9",
+        "cloud_ms": "1"
+      },
+      "settle_s": 14,
+      "regressions": [
+        "no dark hole at the nadir when parked at a deck top"
+      ]
     }
   ],
   "ladder": {

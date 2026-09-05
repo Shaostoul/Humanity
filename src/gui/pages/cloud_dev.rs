@@ -142,6 +142,19 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                     changed = true;
                 }
             }
+            // Increment C (v0.1282): interior density saturation of the
+            // constructed bodies. 0 = the shipped profile (crown fade to the
+            // base fraction over the top third, +-42% turbulence); 1 = LWC
+            // peaking at the top, opaque within tens of metres, and the
+            // in-cloud light fed the body's own column.
+            let mut sat = state.cloud_dev_int_sat;
+            if ui
+                .add(egui::Slider::new(&mut sat, 0.0..=1.0).text("interior saturation (built bodies)"))
+                .changed()
+            {
+                state.cloud_dev_int_sat = sat;
+                changed = true;
+            }
             let mut fld = state.cloud_dev_field;
             if ui
                 .checkbox(&mut fld, "Field walls (three-octave warp: sinuous walls, turbulent 100-500 m band)")

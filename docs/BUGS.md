@@ -1069,3 +1069,49 @@ the camera differently from how a player arrives there (teleport vs
 flight, fresh boot vs long session) can hide an entire defect class.
 starburst-far is the standing regression; the architectural cure for
 the class is a floating-origin rebase (PRIORITIES follow-up).
+
+## BUG-074: The nadir rosette was the cloud family read ninety degrees around the planet (fixed v0.1282.0)
+
+**Symptom (operator, v0.1232.5 through v0.1281.1, reported in nearly every
+session for a week):** looking straight down from inside or just above the
+cloud layer, a starburst of radial slivers, wedges and bright lines
+converging exactly at the feet, fading toward the horizon. Present at
+Medium, High and Ultra, absent at Low, and untouched by every F10 toggle:
+temporal, dither, shape frame, uniform step, sample-anchored march, the
+world-anchored shape, height-varying walls, the thin deck, the wide edge,
+every density-component bisect, the in-cloud light, the field warp.
+
+**Cause:** `cloud_march_core` picks ONE cloud regime (family: band base and
+top, cover bias, extinction, tint) per ray from the type field at the
+midpoint of the ray's segment. The v0.1232.5 horizon-seam fix changed that
+midpoint from the CLIPPED segment to the UNCLIPPED top-shell chord so the
+family could not flip across the base-shell tangent. For a camera inside
+or above the slab looking down, that chord runs through the planet and its
+midpoint sits about ninety degrees around the globe, in the pixel's own
+screen azimuth. Screen azimuth therefore mapped to far-hemisphere azimuth
+and screen radius to angular distance: the 8-19 degree type-noise cells
+printed as wedges radiating from the nadir, sectors whose band base lay
+above the camera rendered as see-through slivers of ocean, and the pattern
+was correct only toward the horizon where the lookup became local again.
+Low has no regime, which is why it alone was clean.
+
+**Why fifteen increments missed it:** the CPU twin pins the type, so it
+could not see a per-ray lookup; the synthetic checker replaced the density
+AFTER the regime gate, so it proved the projection right and was read as
+proving the artifact unavoidable; and every A/B toggled a march, dither,
+shape or lighting term while the regime line sat outside all of them.
+
+**Fix:** the lookup point is the segment midpoint but never farther than four
+slab thicknesses down the ray (`reg_reach`). Down-looks are local; at the
+base-shell tangent both neighbouring rays are far longer than the cap, so
+the v0.1233 continuity holds (worst jump under the cap, about 0.1 degree
+on the sphere, far inside one type cell).
+
+**Proof:** operator-bm12 (lat -11.09, lon -153.95, 1.63 km, straight down,
+clock pinned, in-cloud light on), same build, one line changed: inner-bin
+radial coherence +0.91 / +0.81 / +0.96 to 0.00 / 0.00 / 0.00, slivers 2 to
+0, grain 1.03 to 0.23; the frame turned from the starburst into plain fog,
+the honest view from inside the local deck. Found by a fresh read-only panel
+(five lenses, two refuters per candidate) whose march-lens reader reproduced
+the predicted far-hemisphere pattern offline against the on-disk capture (r
+0.66) before anything was rebuilt.

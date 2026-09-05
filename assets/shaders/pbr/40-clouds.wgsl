@@ -370,6 +370,9 @@ var<private> g_cloud_coltop: f32 = 1.0;
 // Built path: the winning cloud top height and the sample height, metres.
 var<private> g_v2_top_m: f32 = 0.0;
 var<private> g_v2_up_m: f32 = 0.0;
+// Increment C: the body's plane-parallel interior density at this sample
+// (adiabatic profile without turb), for the built-path source column.
+var<private> g_v2_int_dens: f32 = 0.0;
 
 // Peak domain-warp displacement in metres for the last body evaluated. The
 // warp bends the space the distance field is measured in, so it is exactly
@@ -2987,6 +2990,9 @@ fn cloud_march_core(
     // this ray only pays for (and only claims, via g_march_first_t feeding
     // the composite's distance key) the content it owns. Local units:
     // 1 unit = 1 planet radius; km = t / g_cloud_upkm.
+    // NOTE (v0.1282 panel audit): nothing writes g_march_max_km today (it
+    // stays at its 1.0e9 default), so this clamp is inert; it is kept as the
+    // hook the octa-map ownership split was designed around.
     let max_t = g_march_max_km * g_cloud_upkm;
     if (m0 > max_t) {
         return vec4<f32>(0.0);
@@ -3057,7 +3063,24 @@ fn cloud_march_core(
     // the base-shell tangent, so the cloud FAMILY could change along one screen
     // row. That is a far coarser discontinuity than a mip step, and it is the
     // dominant half of the horizon seam.
-    let mid_dir = normalize(ro + rd * (m0 + seg_step * 0.5));
+    // ── THE ROSETTE (v0.1282, panel finding, reproduced offline at r 0.66) ──
+    // seg_step is the UNCLIPPED top-shell chord (kept for the step budget,
+    // continuous across the base-shell tangent). For a camera inside the
+    // slab looking down, that chord runs THROUGH THE PLANET (~2R) and its
+    // midpoint is ~90 degrees around the globe in the pixel own screen
+    // azimuth: every near-nadir ray read the cloud FAMILY of the far
+    // hemisphere, so the type noise (8-19 degree cells) printed as wedges
+    // radiating from the nadir - band bases above the camera in some sectors
+    // (see-through slivers), other families in others - the starburst at the
+    // feet that survived every march, dither, shape and lighting toggle and
+    // was absent only on Low, which has no regime. Fix: the lookup point is
+    // the segment midpoint but never farther than two slab thicknesses down
+    // the ray. Short segments (down-looks) are unchanged and local; at the
+    // base-shell tangent both neighbours are far longer than the cap, so the
+    // v0.1233 continuity holds (the worst jump is under the cap, ~0.1 deg
+    // on the sphere, far inside one type cell).
+    let reg_reach = 4.0 * (g_cloud_rt - g_cloud_rb);
+    let mid_dir = normalize(ro + rd * (m0 + min(m1 - m0, reg_reach) * 0.5));
     let reg = cloud_regime(cloud_type_coord(mid_dir, t, seed));
     // Freeze the v2 body's rind for this ray (see g_v2_foot_m): the ray's
     // own footprint at the segment midpoint, in metres. Every density
@@ -3696,8 +3719,18 @@ fn cloud_march_core(
         let slab_a1 = g_cloud_rt - g_cloud_rb;
         let col_above = max(g_cloud_coltop - h_a1, 0.0) * slab_a1;
         let col_below = max(h_a1 - reg.h_lo, 0.0) * slab_a1;
-        let tau_above = sigma_v * s_carve * col_above;
-        let tau_below = sigma_v * s_carve * col_below;
+        // Increment C (v0.1282): inside a constructed body the column is
+        // the body's OWN geometry at its interior density, not the noise
+        // envelope's crown solve at ~0.5. Blended in by the saturation knob
+        // times the built weight; sat 0 is the v0.1280 column.
+        let sat_a1 = clamp(camera.light5_color.w, 0.0, 1.0) * s_v2_w
+            * select(0.0, 1.0, g_v2_sdf_m < 0.0);
+        let col_above_b = max(g_v2_top_m - g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
+        let col_below_b = max(g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
+        let tau_above = sigma_v * mix(s_carve * col_above,
+            max(s_carve * col_above, g_v2_int_dens * col_above_b), sat_a1);
+        let tau_below = sigma_v * mix(s_carve * col_below,
+            max(s_carve * col_below, g_v2_int_dens * col_below_b), sat_a1);
         let tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
         g_sun_tau_col = tau_above / max(ndl, 0.15);
         g_ms_on = select(0.0, 1.0, fract(camera.light7_color.w * 0.000000238418579101562 * 0.5) >= 0.5);

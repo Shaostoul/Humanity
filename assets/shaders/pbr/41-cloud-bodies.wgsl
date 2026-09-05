@@ -631,6 +631,10 @@ fn cv2_cloud_sdf(local_m: vec3<f32>, seed: f32, arch: Cv2Arch) -> f32 {
 // weather/coverage alpha at this point, which decides whether a cell
 // holds a cloud at all, so live MODIS placement still rules.
 fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
+    // Increment C: no body at this sample means no interior column; the
+    // source blend then degenerates to the envelope column (every early
+    // return below leaves this at 0).
+    g_v2_int_dens = 0.0;
     if (wa <= 0.02) {
         return 0.0;
     }
@@ -993,7 +997,17 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     //    skin. This is what lets light find paths through and gives the mass
     //    depth instead of a painted-on surface.
     let hf = clamp(up_m / max(best_height_m, 1.0), 0.0, 1.0);
-    let adiabatic = smoothstep(0.0, 0.30, hf) * (1.0 - smoothstep(0.68, 1.0, hf));
+    // ── INCREMENT C: INTERIOR SATURATION (v0.1282, light5_color.w) ──
+    // The crown fade below made the top third of every body a half-density
+    // skirt on top of the SDF's own rounding; real LWC peaks near the top
+    // and a real top is opaque within tens of metres. sat = 1 removes the
+    // fade and halves the turbulent swing; sat = 0 is the v0.1231 profile.
+    let sat = clamp(camera.light5_color.w, 0.0, 1.0);
+    let crown = 1.0 - smoothstep(0.68, 1.0, hf);
+    let adiabatic = smoothstep(0.0, 0.30, hf) * mix(crown, 1.0, sat);
+    // The plane-parallel interior density this column carries (no turb):
+    // the built-path source column reads it (40-clouds, increment A1).
+    g_v2_int_dens = mix(CLOUD_V2_BASE_FRAC, 1.0, adiabatic);
     // Sun-profile mode: turb's mean 0.5 makes the interior factor
     // exactly 1.0 - the sun sees the pure adiabatic profile (Nubis3's
     // "dimensional profile" verbatim). This field was the audit's #1
@@ -1006,7 +1020,8 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
         turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
     }
-    let interior = mix(CLOUD_V2_BASE_FRAC, 1.0, adiabatic)
-        * mix(1.0 - CLOUD_V2_TURB_AMP, 1.0 + CLOUD_V2_TURB_AMP, turb);
+    let turb_amp = CLOUD_V2_TURB_AMP * (1.0 - 0.5 * sat);
+    let interior = g_v2_int_dens
+        * mix(1.0 - turb_amp, 1.0 + turb_amp, turb);
     return clamp(core * interior, 0.0, 1.0);
 }

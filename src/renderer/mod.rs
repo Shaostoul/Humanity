@@ -583,6 +583,9 @@ pub struct Renderer {
     pub cloud_field: bool,
     /// Gain on the in-scattered source (light5_color.z); 0 = 1.0.
     pub cloud_ms_gain: f32,
+    /// Increment C (v0.1282): interior density saturation of the constructed
+    /// bodies, 0..1, light5_color.w (offset 300). 0 = the v0.1231 profile.
+    pub cloud_int_sat: f32,
     /// F10 bisect: paint WHY each pixel's cloud was discarded by the
     /// composite instead of discarding it (v0.1262).
     pub cloud_discard_diag: bool,
@@ -1825,6 +1828,7 @@ impl Renderer {
             cloud_ms: false,
             cloud_field: false,
             cloud_ms_gain: 0.0,
+            cloud_int_sat: 0.0,
             cloud_discard_diag: false,
             ssao_strength: 0.55,
             detail_distance: 1.0,
@@ -3119,7 +3123,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m, self.cloud_shear]));
         // light5_color.x (offset 288; zero readers, zero-filled): hv-warp amplitude km.
-        self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul, self.cloud_ms_gain]));
+        self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul, self.cloud_ms_gain, self.cloud_int_sat]));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all

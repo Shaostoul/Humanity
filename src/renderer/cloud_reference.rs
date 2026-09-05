@@ -433,8 +433,12 @@ impl<'a> CloudRefCtx<'a> {
         }
 
         let seg = m1 - m0;
-        // The GPU samples the type coordinate at the segment midpoint; the
-        // canonical vantages PIN the type, so the regime is direct here.
+        // The GPU samples the type coordinate at the segment midpoint, capped
+        // at four slab thicknesses down the ray so it stays LOCAL (v0.1282:
+        // from v0.1232.5 to v0.1281 it was the midpoint of the UNCLIPPED
+        // through-planet chord, ~90 degrees around the globe for a down-look,
+        // and this twin never saw it because the canonical vantages PIN the
+        // type). The regime is direct here for the same reason.
         let reg = cloud_regime(self.type_pin);
         let wind_ang = self.t * self.wind_omega(reg.wind_lo);
         let wa_at = move |me: &Self, p: [f32; 3]| -> f32 {
