@@ -16,10 +16,13 @@
 > identical to each other and 10 levels darker than off at the deck top,
 > High closeup bit-identical, rain grain worse; the noise-path interior is
 > already saturated at high cover, and the deck-top nadir gradient is the
-> two-stream source's angular term. CAUTION on that vantage: two captures in
-> ONE boot read 146 and 191 at the nadir (bimodal, 45 levels apart; the
-> edge agreed within 7), so `sc-top-3p0km` is not a gate until the cause is
-> found (temporal state at capture is the suspect). The dev pad bisect bits 13-17 are now a
+> two-stream source's angular term. FOUND (v0.1283.2): the 146 dark centre was
+> the rig's FIRST CAPTURE AFTER BOOT, a deterministic render state (bit-identical
+> across three boots; captures two to four read 192). The rig now takes a
+> discarded first pass, `sc-top-3p0km` is rewritten to its warm baseline (192
+> to 216, no hole), and the 'dark centre' motivation for increment D is void.
+> The cause (the sticky showcase pins' first application against the temporal
+> history is the suspect) is a toolsmith item. The dev pad bisect bits 13-17 are now a
 > 3-bit index at 13-15 (`cloud_bisect_index`), so bits 16 and 17 are free.
 >
 > NEXT, in order:

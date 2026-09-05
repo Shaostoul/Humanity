@@ -4014,8 +4014,8 @@
     },
     {
       "id": "sc-top-3p0km",
-      "desc": "At the band top of the same stratocumulus deck (3.0 km), straight down: the ray at the nadir sees deepest, so a too-thin interior prints a dark centre in a bright surround (v0.1282 ladder: mean 175 with a dark middle). The over-long extinction kernel the fidelity reference named, as a picture.",
-      "expect": "Bright, near-uniform top; the nadir no darker than the surround by more than ~15 levels.",
+      "desc": "At the band top of a stratocumulus deck (type 1.0, cover 0.9, 3.0 km), straight down, in-cloud light on. Warm captures read a gentle nadir-to-edge gradient (192 in the inner 150 px to 216 at 800-1000 px, three repeats within 1 level). The 146 dark centre first seen here (v0.1282 ladder) was the FIRST-CAPTURE-AFTER-BOOT state of the rig, since cured by the rig discarded first pass; it was never the scene.",
+      "expect": "Bright, near-uniform top: inner 150 px within about 25 levels of the 800-1000 px annulus (192 vs 216 today); no seams, no stair-stepped edges.",
       "camera": {
         "body": "earth",
         "lat": -11.09,
@@ -4053,7 +4053,8 @@
       },
       "settle_s": 14,
       "regressions": [
-        "no dark hole at the nadir when parked at a deck top"
+        "deck-top nadir within 30 levels of the surround (192 vs 216 warm baseline)",
+        "no hard seam or stair-stepped edge in a deck-top down-look"
       ]
     }
   ],

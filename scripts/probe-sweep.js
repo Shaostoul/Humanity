@@ -698,6 +698,32 @@ async function main() {
       }
     }
 
+    // DISCARDED FIRST PASS (2026-09-05): the first captured vantage of a boot
+    // renders in a different state from every later one - four repeats of one
+    // deck-top camera read 146 at the nadir on the first capture and 192 on
+    // captures two to four, and the first-capture frame was bit-identical
+    // across three boots (deterministic, not noise). The fixed 50 m warm-up
+    // above does not clear it; running the first vantage own protocol
+    // (showcase pins, camera, settle) once without capturing does. Costs one
+    // settle per sweep. Cause not yet found (the first application of the
+    // sticky showcase pins against the temporal history is the suspect).
+    if (vantages.length > 0) {
+      const v0 = vantages[0];
+      log(`discarded first pass: ${v0.id}`);
+      try {
+        if (v0.showcase) {
+          req("showcase_request.json", v0.showcase);
+          await sleep(3500);
+        }
+        clearDone("camera_done.json");
+        req("camera_request.json", v0.camera);
+        await waitFile("camera_done.json", 60000);
+        await sleep((v0.settle_s ?? 8) * 1000);
+      } catch (e) {
+        log(`  discarded pass failed (${e.message}); continuing`);
+      }
+    }
+
     for (const v of vantages) {
       log(`vantage ${v.id}`);
       const rec = {
