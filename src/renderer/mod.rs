@@ -584,6 +584,9 @@ pub struct Renderer {
     /// Dev pad bit 17 (perf increment 3, v0.1287): the per-ray body cluster
     /// cache in cloud_v2_body (cell weather + built lobes kept per ray).
     pub cloud_body_cache: bool,
+    /// Perf increment 2 (v0.1288): step-economy strength 0..1 in
+    /// light7_color.y (footprint step floors + deep relaxation).
+    pub cloud_step_eco: f32,
     /// Dev pad bit 16 (performance plan increment 1, v0.1286): the
     /// sun-shadow CACHE. On = the march reads rungs 2..11 of the sun
     /// ladder from the planet-fixed slice atlas baked by the Cloud Light
@@ -1842,8 +1845,9 @@ impl Renderer {
             cloud_checker: false,
             cloud_ms: false,
             cloud_field: false,
-            cloud_body_cache: false,
-            cloud_light: false,
+            cloud_body_cache: true,
+            cloud_step_eco: 1.0,
+            cloud_light: true,
             cloud_light_cache: None,
             cloud_light_frame: None,
             cloud_ms_gain: 0.0,
@@ -3143,6 +3147,13 @@ impl Renderer {
             &self.camera_buffer, 304, bytemuck::cast_slice(&[self.cloud_edge_mul, self.cloud_rind_wide_m, self.cloud_step_m, self.cloud_shear]));
         // light5_color.x (offset 288; zero readers, zero-filled): hv-warp amplitude km.
         self.queue.write_buffer(&self.camera_buffer, 288, bytemuck::cast_slice(&[self.cloud_hv_km, self.cloud_sigma_mul, self.cloud_ms_gain, self.cloud_int_sat]));
+        // light7_color.y (offset 324): the step-economy strength of perf
+        // increment 2 (v0.1288). The lane carried the deleted octa pass's EMA
+        // floor and its write sat in the render function BEFORE the frame's
+        // wholesale uniform upload, which zeroed it every frame (the first
+        // gate sweep read the March-steps channel unchanged with the knob
+        // at 1); it lives here with the other pad pokes, after that upload.
+        self.queue.write_buffer(&self.camera_buffer, 324, bytemuck::bytes_of(&self.cloud_step_eco));
         // Ocean disaster event block at the CameraUniforms TAIL (offset 672,
         // pinned by camera.rs::ocean_event_block_sits_at_the_struct_tail).
         // Written after the wholesale uniform write like every pad poke; all
@@ -3895,14 +3906,6 @@ impl Renderer {
         // composited in v0.1260; the operator still saw the artifact, so
         // the subsystem is gone entirely - no pass, no allocation, no
         // binding. Nothing that never runs can contribute to a pixel.
-        let boost = self.cloud_octa_boost.get();
-        if boost > 0.0 {
-            self.cloud_octa_boost.set((boost - 0.18).max(0.0));
-        }
-        // light7_color.y (offset 324; legacy-unread block): the octa pass
-        // applies this as an alpha floor for marching texels.
-        self.queue
-            .write_buffer(&self.camera_buffer, 324, bytemuck::bytes_of(&boost));
         // light7_color.z (offset 328): the rosette-bisect diagnostic channel
         // (v0.1249; showcase map_diag - EMA-bypassed raw-quantity render).
         self.queue

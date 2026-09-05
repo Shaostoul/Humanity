@@ -1,5 +1,50 @@
 # HumanityOS: Priorities
 
+> **v0.1288 (2026-09-05): PERF INCREMENT 2, step economy, and THE DEFAULTS FLIP:
+> the sun-shadow cache, the body cluster cache and the step economy are ON by
+> default (F10 toggles kept for A/B); the sun cache's far fallback is the
+> analytic column.** The interior step floors are now
+> footprint-aware (a ray 300 km out no longer steps 22 m) and opaque rays
+> relax their step; strength in `light7_color.y` (`cloud_step_eco`).
+>
+> MEASURED (half res, Ultra, clock frozen, both caches on, real GPU
+> timestamps):
+>
+> ```
+> gpu.cloud_screen ms, economy off -> on (both caches on, clock frozen): bm-12 inside 38.5 -> 26.0 (32% off), bm-12 4.6 km 18.7 -> 17.1, rain 26 km 22.7 -> 19.9 (12%), orbit 873 km 159 -> 30.6 (5.2x). March-steps channel mean: inside 72.5 -> 57.1 (21% fewer steps), orbit 23.1 -> 19.1.
+> Look: pixel diff mean inside 0.28, 4.6 km 0.35, rain 0.69 (radial profile identical, no contour bands, grain 1.40 -> 1.41); orbit mean 4.2 with the white fraction 9.1% -> 5.0%: the orbit Ultra view is speckles (sub-pixel constructed bodies sampled as snow) with or without the economy, the far-rung problem of increment 4; the economy makes that picture 5x cheaper and slightly sparser.
+> Two nulls before this: the knob write sat before the wholesale uniform upload (dead wire), then the SDF stride's quarter-rind body cap overrode the floors; the steps channel was the gate that exposed both.
+> default arm: tmp-D8-above                   201.9              16.64              5.04   timestamps
+> default arm: tmp-D8-cu                      235.1              48.72              3.79   timestamps
+> default arm: tmp-D8-in                      272.8              26.12              4.78   timestamps
+> default arm:
+> ```
+>
+> SUN-CACHE PARITY (why interiors read +10 to +12 brighter with the cache):
+> ```
+> Clock frozen, in one boot: inside the stratocumulus top the direct-sun channel reads 236.6 (ladder) vs 241.3 (cache), the render 216.9 vs 219.2 (+2.3 levels; the world-shape LOD pin alone accounts for +0.7); at bm-12 4.6 km the direct-sun channel 176.2 vs 175.7 and the render 179.9 vs 179.9 (identical). The +10 to +12 of the v0.1286 report was the rig's rotation drift between captures, not the cache. Residual +2 inside a deck = the trilinear averaging of tau over 190 m cells and the absent cone jitter; accepted.
+> ```
+>
+> SUN-CACHE FAR FALLBACK (the closeup, where the cache lost 76 to 131 ms):
+> ```
+> Both caches on, clock frozen, ladder beyond the coarse window vs the analytic column: closeup 108.7 vs 110.7 ms (same; its rays stay inside the windows), rain 26 km 151.5 vs 122.1 (19% cheaper), horizon look at 3 km 91.2 vs 82.7 (9% cheaper); look identical at the closeup and the horizon (diff mean 0.2 to 0.3) and within noise at rain (2.4, bands 209.6 vs 207.8). CLOUD_LC_FAR_ANALYTIC is now 1.0 (the analytic column beyond the windows). The closeup remains the weak spot of both caches (76 ms with neither, 109 with both): its rays look up and across through thin cloud where the ladder exits the slab in a rung or two while the cache read is a fixed cost; a follow-up.
+> ```
+>
+> NEXT, in order:
+> 1. **Operator judges the defaults in flight** (F10 toggles off to compare).
+>    Expected: about 3x inside a deck, 5x at orbit, the closeup roughly flat.
+> 2. **The per-cell cluster table** (increment 3b): the body cache loses on
+>    long oblique rays (closeup 76 to 98 ms with both caches) because the
+>    per-invocation slot arrays spill; a per-cell table in a texture stores
+>    the cluster once for everyone.
+> 3. **Increment 4, the far rung**: from 873 km the Ultra clouds are SPECKLES
+>    (sub-pixel constructed bodies sampled as snow, `tmp-L2-orbit-*` in sweep
+>    20260905-210918), with or without the economy; a per-cell prefiltered
+>    density profile chosen by footprint replaces them with cloud masses.
+> 4. **Increment 5, operator-gated**: the interleaved quarter march.
+> 5. Cloud layering (design); the planet pass arc (`gpu.celestial` 30 to 37
+>    ms everywhere).
+
 > **v0.1287 (2026-09-05): PERF INCREMENT 3, the per-ray body cluster cache
 > (F10 "Body cluster cache", dev pad bit 17).** At Ultra every density sample
 > rebuilt the lobe cluster of up to nine cells from hashes; the march now

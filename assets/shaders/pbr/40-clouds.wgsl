@@ -869,7 +869,7 @@ const CLOUD_LC_BLEND_FRAC: f32 = 0.20;
 // but a different quantity from the ladder beyond 48 km, so the far field's
 // look changes). The contract text names both; the ladder is the safe first
 // cut and the constant is the one-line switch to try the other.
-const CLOUD_LC_FAR_ANALYTIC: f32 = 0.0;
+const CLOUD_LC_FAR_ANALYTIC: f32 = 1.0; // v0.1288: the analytic column beyond the coarse window (rain 26 km 152 -> 122 ms, look identical)
 // "Sun source" codes for map_diag channel 9 (the bisect instrument that
 // shows where each window's edge falls): fine window 1.0, coarse window
 // 0.5, "decided by rungs 0-1" 0.35 (the A2 buried early-exit or the opaque
@@ -3579,6 +3579,11 @@ fn cloud_march_core(
     // between consecutive samples. Twin: bias -0.43 -> -0.02, sd 0.25 ->
     // 0.087, identical across approach distances.
     let est = fract(camera.light7_color.w * 0.00390625) >= 0.5;
+    // STEP ECONOMY (perf increment 2, v0.1288): strength 0..1 in
+    // light7_color.y (showcase cloud_step_eco, F10 slider). Floors the
+    // interior step at half the sample footprint (so far rays stop taking
+    // 22 m steps at 300 km) and relaxes the step as the ray goes opaque.
+    let eco = clamp(camera.light7_color.y, 0.0, 1.0);
     // Bit 8: band-limit the domain warp to its own tile (see
     // 41-cloud-bodies.wgsl) and refine at surfaces to rind/4.
     let warp_bl = fract(camera.light7_color.w * 0.001953125) >= 0.5;
@@ -3747,6 +3752,9 @@ fn cloud_march_core(
         // and a segment-density floor, clamped to what remains of the
         // segment so the march reaches m1 exactly (no unsampled tail).
         let p_cur = ro + rd * t_cur;
+        // Step economy (increment 2): half the sample footprint, the floor no
+        // interior rule may step below; 0 with the knob off.
+        let foot_floor = 0.5 * t_cur * pix_ang * eco;
         let r_rate = abs(dot(normalize(p_cur), rd));
         let dt_vert = max(
             step_near,
@@ -3762,13 +3770,13 @@ fn cloud_march_core(
         );
         if (dens_prev > CLOUD_STEP_INTERIOR_GATE) {
             let dt_mfp = CLOUD_STEP_TAU_MAX / (sigma_v * dens_prev);
-            dt = min(dt, max(dt_mfp, slab_h * 0.002));
+            dt = min(dt, max(max(dt_mfp, slab_h * 0.002), foot_floor));
         }
         // Skirt floor (est): dt_mfp = 0.75/(sigma*dens) is 167 m at dens 0.1
         // and 333 m at 0.05 - it refines cores and abandons exactly the
         // skirt the eye sees. Hold the step to 0.5% of the slab there.
         if (est && dens_prev > CLOUD_STEP_INTERIOR_GATE && dens_prev < 0.3) {
-            dt = min(dt, slab_h * 0.005);
+            dt = min(dt, max(slab_h * 0.005, foot_floor));
         }
         // ── SDF-GUIDED STEP (v0.1230): stride the gaps, refine at surfaces ──
         //
@@ -3806,7 +3814,9 @@ fn cloud_march_core(
             if (safe_m > 0.0) {
                 dt = max(dt, safe_m * to_draw);
             } else {
-                dt = min(dt, CLOUD_V2_RIND_M * select(0.5, 0.25, est || warp_bl) * to_draw);
+                // Inside or near a body: a quarter-rind step, but never below the
+                // sample footprint (increment 2): a 22 m step at 300 km is waste.
+                dt = min(dt, max(CLOUD_V2_RIND_M * select(0.5, 0.25, est || warp_bl) * to_draw, foot_floor));
             }
             dt = min(dt, m1 - t_cur);
         }
@@ -3850,6 +3860,10 @@ fn cloud_march_core(
         if (fixed_step) {
             dt = min(fixed_dt, m1 - t_cur);
         }
+        // Deep relaxation (increment 2), after every other dt rule: below
+        // transmittance 0.5 the step grows to 2x at full opacity; those
+        // samples contribute the least and the exit at 0.005 comes sooner.
+        dt = min(dt * (1.0 + eco * clamp((0.5 - trans) * 2.0, 0.0, 1.0)), m1 - t_cur);
         if (i == CLOUD_STEP_ITER_CAP - 1) {
             dt = m1 - t_cur;
         }

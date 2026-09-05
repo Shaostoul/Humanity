@@ -157,6 +157,16 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             // Perf increment 3 (v0.1287): keep each cell's built lobe cluster
             // for the whole ray instead of rebuilding it at every sample.
+            // Perf increment 2 (v0.1288): far rays stop taking 22 m steps and
+            // opaque rays relax their step; 0 = off, 1 = full.
+            let mut eco = state.cloud_dev_step_eco;
+            if ui
+                .add(egui::Slider::new(&mut eco, 0.0..=1.0).text("step economy (footprint floors + deep relaxation)"))
+                .changed()
+            {
+                state.cloud_dev_step_eco = eco;
+                changed = true;
+            }
             let mut bc = state.cloud_dev_body_cache;
             if ui
                 .checkbox(&mut bc, "Body cluster cache (per ray; off = rebuild the lobes at every sample, for A/B)")

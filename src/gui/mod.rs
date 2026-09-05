@@ -3473,6 +3473,8 @@ pub struct GuiState {
     pub cloud_dev_field: bool,
     /// Perf increment 3 (v0.1287): the per-ray body cluster cache.
     pub cloud_dev_body_cache: bool,
+    /// Perf increment 2 (v0.1288): step-economy strength 0..1.
+    pub cloud_dev_step_eco: f32,
     /// Performance plan increment 1 (v0.1286): the sun-shadow cache. Off =
     /// the 12-rung sun ladder per pixel, the A/B twin.
     pub cloud_dev_light: bool,
@@ -5345,8 +5347,9 @@ impl Default for GuiState {
             cloud_dev_checker: false,
             cloud_dev_ms: false,
             cloud_dev_field: false,
-            cloud_dev_body_cache: false,
-            cloud_dev_light: false,
+            cloud_dev_body_cache: true,
+            cloud_dev_step_eco: 1.0,
+            cloud_dev_light: true,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,

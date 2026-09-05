@@ -357,6 +357,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(m) = grab("cloud_int_sat").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_int_sat = m.clamp(0.0, 1.0);
     }
+    // {"cloud_step_eco":"1"}: perf increment 2, step economy strength 0..1.
+    if let Some(m) = grab("cloud_step_eco").and_then(|t| t.parse::<f32>().ok()) {
+        state.gui_state.cloud_dev_step_eco = m.clamp(0.0, 1.0);
+    }
     // {"cloud_body_cache":"1"}: perf increment 3, the per-ray body cluster cache.
     if let Some(t) = grab("cloud_body_cache") {
         state.gui_state.cloud_dev_body_cache = t == "1";
