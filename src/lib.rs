@@ -517,6 +517,13 @@ mod native_app {
             || state.gui_state.showroom_active
             || state.gui_state.construction_active
             || state.alt_held
+            // The F10 Cloud dev sidebar, open and expanded (2026-09-05): the
+            // sticky version of holding Alt, so the operator can scroll and
+            // click its long switch list without a held key. Closing or
+            // collapsing it drops this term and the cursor re-grabs exactly
+            // as it would have before the panel opened (this function derives
+            // the cursor from flags, so there is no separate "restore" step).
+            || state.gui_state.cloud_dev_sidebar_expanded()
             // In-world modal panel open (chat v0.772 / creature editor v0.778):
             // the cursor must reach its inputs + buttons.
             || state.gui_state.in_world_modal_open()
@@ -2149,9 +2156,24 @@ mod native_app {
                         // F10 (v0.1254.4, operator request): the cloud dev
                         // panel - GUI buttons for the bisect toggles that
                         // previously required showcase file drops.
+                        // 2026-09-05 (operator: "Pressing F10 should free the
+                        // cursor and bring up the menu so I don't have to hold
+                        // alt"): the panel is a left sidebar with a collapse
+                        // tab. F10 on an EXPANDED sidebar closes it (the cursor
+                        // re-grabs through reconcile_cursor, same as before it
+                        // opened); F10 on a closed OR collapsed sidebar opens
+                        // it expanded, so the key always works even when the
+                        // slim tab cannot be clicked because the cursor is
+                        // grabbed. The cursor itself is freed by
+                        // reconcile_cursor reading cloud_dev_sidebar_expanded,
+                        // never here (the single-authority rule, v0.460).
                         if key == KeyCode::F10 && pressed {
-                            state.gui_state.show_cloud_dev_panel =
-                                !state.gui_state.show_cloud_dev_panel;
+                            if state.gui_state.cloud_dev_sidebar_expanded() {
+                                state.gui_state.show_cloud_dev_panel = false;
+                            } else {
+                                state.gui_state.show_cloud_dev_panel = true;
+                                state.gui_state.cloud_dev_collapsed = false;
+                            }
                             return;
                         }
                         // F6 (v0.890): save a LOCATION BOOKMARK - the exact
@@ -19348,8 +19370,12 @@ mod native_app {
                 // button is held (so moving over a panel does nothing). (v0.464)
                 // Suppressed while Alt frees the cursor (v0.735): reaching for
                 // a machine-card button must not spin the camera.
+                // Same for the expanded F10 sidebar (2026-09-05): the cursor
+                // is free to work the panel, so motion must not spin the
+                // camera - the alt_held rule, made sticky.
                 if state.gui_state.active_page == GuiPage::None
                     && !state.alt_held
+                    && !state.gui_state.cloud_dev_sidebar_expanded()
                     && !state.gui_state.in_world_modal_open()
                     && state.gui_state.player_death_cause.is_none()
                 {

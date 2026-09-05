@@ -1112,7 +1112,9 @@ PBR-lite rendering with depth buffer, materials, instanced rendering.
 
 ### Cloud dev panel (F10) with data-driven test markers (v0.1289)
 Live cloud-renderer switches (every probe-rig pin: caches, step economy, bisect channels, resolution). `data/gui/dev_tests.json` names the rows the operator is being asked to test; the panel lists them at the top and paints a red TEST tag beside each named row, re-read live while the panel is open, so the chat and the panel name the same switch.
-- Native: `src/gui/pages/cloud_dev.rs` (`dev_tests`, `test_mark`), `src/gui/ui_snapshots.rs` (`snapshot_cloud_dev`)
+Since 2026-09-05 the panel is a LEFT SIDEBAR (resizable egui SidePanel, default 420 px) whose whole body scrolls with an always-visible bar, with a slim collapse tab on its right edge (painted arrow, `icons::paint_arrow_left/right`). F10 opens it expanded and FREES the cursor for as long as it is expanded (the held-Alt rule made sticky: `GuiState::cloud_dev_sidebar_expanded` feeds `reconcile_cursor` and the mouse-look gate in `lib.rs`), so no key needs holding to scroll or click; F10 again, or the tab, closes/collapses it and the cursor returns to whatever the game would have (grabbed in first person). Collapsed = only the tab remains at the screen edge; F10 still expands it when the cursor is grabbed. The collapsed flag is session-only (`GuiState::cloud_dev_collapsed`), like every switch on the panel.
+- Native: `src/gui/pages/cloud_dev.rs` (`dev_tests`, `test_mark`, `collapse_tab`, `draw_body`), `src/gui/ui_snapshots.rs` (`snapshot_cloud_dev`, `snapshot_cloud_dev_collapsed`), `src/lib.rs` (F10 handler, `reconcile_cursor`)
+- Web: none, by design. This is native-only renderer diagnostics (it drives wgpu cloud-march flags on the local GPU); the website has no renderer to diagnose, so there is nothing to mirror.
 - Data: `data/gui/dev_tests.json`
 
 ### Graphics presets: Ultra (reference) and Extreme (v0.1289)
