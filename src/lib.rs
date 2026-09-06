@@ -11847,14 +11847,13 @@ mod native_app {
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
                                         }
-                                        // The cloud SHELL material on EVERY
-                                        // tier (far rung, increment 4): the
-                                        // profile passes find the shell's
-                                        // object slot by it and the shell
-                                        // draw binds the profile atlas by
-                                        // it. Cleared at the top of every
-                                        // frame with set_cloud_temporal(None).
-                                        state.renderer.cloud_shell_mat = Some(cmat);
+                                        // The cloud SHELL material (far rung,
+                                        // increment 4) is recorded further
+                                        // down, beside the profile feed, and
+                                        // ONLY when that feed is accepted:
+                                        // the material the passes bind must
+                                        // be the body whose ground cell was
+                                        // planned (first body wins both).
                                         // 12d/12g regime split: NEAR (planet
                                         // filling the screen) uses the
                                         // half-res per-pixel screen pass -
@@ -12321,7 +12320,21 @@ mod native_app {
                                                 };
                                                 let knob = state.renderer.cloud_profile_knob;
                                                 let calib_key = state.renderer.cloud_profile_calib_key(quality);
-                                                state.renderer.cloud_profile_plan(
+                                                // The plan accepts the FIRST
+                                                // cloud body of the frame
+                                                // (a later body is ignored);
+                                                // the shell material the
+                                                // profile passes bind, and
+                                                // the shell draw reads the
+                                                // atlas through, follows the
+                                                // same first-wins rule so the
+                                                // lattice and the material
+                                                // (planet radius, slab) are
+                                                // always the same body's.
+                                                // Cleared at the top of every
+                                                // frame with
+                                                // set_cloud_temporal(None).
+                                                let accepted = state.renderer.cloud_profile_plan(
                                                     crate::renderer::cloud_temporal::CloudProfileFrame {
                                                         ground_lon_rad: ground_lon,
                                                         ground_lat_rad: ground_lat,
@@ -12339,6 +12352,9 @@ mod native_app {
                                                         calib_key,
                                                     },
                                                 );
+                                                if accepted {
+                                                    state.renderer.cloud_shell_mat = Some(cmat);
+                                                }
                                             }
                                             // Fed only in the NEAR regime
                                             // (the march that reads it).

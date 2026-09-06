@@ -389,10 +389,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             "1" | "on" => 1,
             "hard" | "8" => 8,
             "ref" | "9" => 9,
-            s if s.starts_with('l') && s.len() == 2 => {
-                s[1..].parse::<i32>().ok().filter(|l| (0..=5).contains(l)).map(|l| 2 + l).unwrap_or(0)
+            s if s.starts_with('l') && s.len() == 2 && s[1..].parse::<i32>().ok().is_some_and(|l| (0..=5).contains(&l)) => {
+                2 + s[1..].parse::<i32>().unwrap_or(0)
             }
-            s => s.parse::<i32>().ok().filter(|k| (0..=9).contains(k)).unwrap_or(0),
+            s if s.parse::<i32>().ok().is_some_and(|k| (0..=9).contains(&k)) => s.parse::<i32>().unwrap_or(0),
+            // An unknown value ("L6", "auto", a typo in a fixture) must be
+            // LOUD: silently landing on knob 0 would run the A/B twin while
+            // the sweep manifest says the cell was a profile cell (a gate
+            // that cannot fail). The knob stays 0 and the log says so.
+            s => {
+                log::warn!("[showcase] cloud_profile: unknown value {s:?} (want 0|1|hard|ref|L0..L5), knob stays 0");
+                0
+            }
         };
         state.gui_state.cloud_dev_profile_knob = knob;
     }

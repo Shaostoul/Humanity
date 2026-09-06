@@ -795,6 +795,35 @@ async function main() {
           fs.copyFileSync(path.join(RIG, shot2.path), path.join(OUT, `${v.id}-b.png`));
           rec.screenshot_b = `${v.id}-b.png`;
         }
+        // PROFILE ATLAS DUMP (the far rung, perf increment 4): a vantage
+        // with `dump_cloud_profile: true` asks the engine, after the
+        // capture(s), to write every slice of the cloud PROFILE atlas as
+        // raw RGBA8 PNGs (debug/cloud_profile_*.png: 54 window slices, 3
+        // global slices, the calibration table; ipc.rs
+        // poll_cloud_profile_dump_request). They are MOVED into
+        // <out>/<id>-profile/ with the engine's dump.json (knob, ground
+        // cell, flags) so scripts/cloud-profile-compare.js can diff the
+        // reference bake (knob 9) against the analytic one (G1/G4). Moved,
+        // not copied: the next dump cell must never pick up a stale slice.
+        if (v.dump_cloud_profile) {
+          clearDone("cloud_profile_done.json");
+          req("cloud_profile_dump_request.json", {});
+          const dd = await waitFile("cloud_profile_done.json", 120000);
+          if (!dd || dd.ok !== true) throw new Error(`profile dump: ${JSON.stringify(dd)}`);
+          const pdir = path.join(OUT, `${v.id}-profile`);
+          fs.mkdirSync(pdir, { recursive: true });
+          let moved = 0;
+          for (const f of fs.readdirSync(DEBUG)) {
+            if (/^cloud_profile_.*\.png$/.test(f)) {
+              fs.renameSync(path.join(DEBUG, f), path.join(pdir, f));
+              moved++;
+            }
+          }
+          fs.writeFileSync(path.join(pdir, "dump.json"), JSON.stringify(dd, null, 2));
+          rec.profile_dump = { dir: `${v.id}-profile`, files: moved, knob: dd.knob, flags: dd.flags };
+          if (moved !== dd.files) log(`  !! profile dump: engine wrote ${dd.files} files, ${moved} moved`);
+          log(`  profile atlas dumped: ${moved} files -> ${v.id}-profile/ (knob ${dd.knob}, flags ${dd.flags})`);
+        }
         rec.fps = typeof shot.fps === "number" ? Math.round(shot.fps * 10) / 10 : null;
         rec.frame_ms = typeof shot.frame_ms_avg === "number" ? Math.round(shot.frame_ms_avg * 10) / 10 : null;
         // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). Several

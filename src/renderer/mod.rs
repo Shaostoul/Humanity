@@ -4187,14 +4187,15 @@ impl Renderer {
                     // shape every far-rung pass shares.
                     let run = |encoder: &mut wgpu::CommandEncoder,
                                label: &'static str,
-                               timer: &'static str,
+                               timer: Option<&'static str>,
                                pipeline: &wgpu::RenderPipeline,
                                target: &wgpu::TextureView,
                                group3: &wgpu::BindGroup,
                                rects: &[(u32, u32, u32, u32)]| {
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                             label: Some(label),
-                            timestamp_writes: self.pass_timer(timer),
+                            // None = untimed (the mip burst; see below).
+                            timestamp_writes: timer.and_then(|t| self.pass_timer(t)),
                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                 view: target,
                                 resolve_target: None,
@@ -4230,7 +4231,7 @@ impl Renderer {
                         run(
                             &mut encoder,
                             "Cloud Profile Calib Pass",
-                            "gpu.cloud_profile_calib",
+                            Some("gpu.cloud_profile_calib"),
                             &self.pipeline.cloud_profile_calib_pipeline,
                             &pc.view_mip[2],
                             &self.default_texture_bind_group,
@@ -4244,7 +4245,7 @@ impl Renderer {
                         run(
                             &mut encoder,
                             "Cloud Profile Calib Reduce Pass",
-                            "gpu.cloud_profile_calib",
+                            Some("gpu.cloud_profile_calib"),
                             &self.pipeline.cloud_profile_calib_reduce_pipeline,
                             &pc.view_mip[1],
                             &pc.group_mip_src[2].colour,
@@ -4272,7 +4273,7 @@ impl Renderer {
                         run(
                             &mut encoder,
                             "Cloud Profile Bake Pass",
-                            "gpu.cloud_profile",
+                            Some("gpu.cloud_profile"),
                             &self.pipeline.cloud_profile_bake_pipeline,
                             &pc.view_mip[0],
                             &pc.group_mip_src[1].colour,
@@ -4282,13 +4283,22 @@ impl Renderer {
                     // The global's mip chain, once per completed pass: mip
                     // m from mip m - 1, scissored to the global region at
                     // mip m (origin (0, 2560 >> m), size (6144 >> m,
-                    // 1024 >> m)). Six passes on the bake's timer.
+                    // 1024 >> m)). Six passes, UNTIMED: the frame timer
+                    // ring holds 32 passes and a world frame already uses
+                    // about 22; six more on the (60 s cadence) mip frame
+                    // would push the cloud passes recorded after this block
+                    // (gpu.cloud_screen, the G6 bar) past the cap, where
+                    // they silently read as zero. The chain over the
+                    // 6144 x 1024 global region is a few tenths of a
+                    // millisecond once a minute; gpu.cloud_profile is the
+                    // bake alone (a deviation from the contract's "bake +
+                    // mips", recorded in the far-rung report).
                     if pc.state.mips_pending.replace(false) {
                         for m in 1..cloud_temporal::CLOUD_FR_GLOBAL_MIPS {
                             run(
                                 &mut encoder,
                                 "Cloud Profile Mip Pass",
-                                "gpu.cloud_profile",
+                                None,
                                 &self.pipeline.cloud_profile_mip_pipeline,
                                 &pc.view_mip[m as usize],
                                 &pc.group_mip_src[(m - 1) as usize].colour,

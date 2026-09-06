@@ -2,6 +2,7 @@
   "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
   "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
   "_clock_note": "READ THIS BEFORE PICKING A `time`. The showcase `time` field is a GLOBAL clock, not the local solar hour at the vantage (src/engine/ipc.rs:200-205 feeds it straight into the world clock). The local solar hour is roughly `time + lon/15`. So time 12.0 is local noon only near lon 0; at lon 138.8 (the Fuji vantages) time 12.0 is about 21:15 LOCAL and the frame comes back as a night scene. Pick `time = desired_local_hour - lon/15`, wrapped into 0..24. This trap cost `ground-storm-inslab` its whole purpose from v0.1070 to v0.1073: it was installed as the permanent BUG-049 daylight gate and was silently rendering at night, so every cloud LIGHTING change was being judged in the dark.",
+  "_profile_note": "FAR-RUNG CELLS (docs/design/cloud-far-rung.md, the cloud profile, perf increment 4). Showcase `cloud_profile` takes 0 (off, the bit-identical A/B twin), 1 (auto), hard (knob 8), ref (knob 9, the slow reference bake, settle 30 s) or L0..L5 (that level forced on every sample); an unknown value is logged as a warning and leaves the knob at 0, so grep run.log for `cloud_profile: unknown value` after a sweep. `dump_cloud_profile: true` makes probe-sweep.js dump every slice of the profile atlas after the capture(s) into <out>/<id>-profile/ (debug/cloud_profile_*.png moved there, plus dump.json) for scripts/cloud-profile-compare.js. Every far-rung cell pins the cache/eco/res keys explicitly because showcase pins are STICKY across cells. The nadir level in a cell's _note is computed as floor(log2((alt - 6 km) * pix_ang_march) + 2) with pix_ang_march = (1387 / 693) / floor(1387 / cloud_res).",
   "vantages": [
     {
       "id": "sahara-noon-ground",
@@ -5915,6 +5916,3513 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-3000-r1-f4",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 3000 km rung, cloud_res 1: the profile FORCED to the nadir's own level L4 (knob 6, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-3000-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 3000 km, cloud_res 1: lodb - LOD0 = 4.11 at mid-slab (4.11 at the slab base, 4.11 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3000-r1-f5",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 3000 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L5, knob 7). Same bars as the -f4 sibling against the auto cell prof-ladder-3000-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 3000 km, cloud_res 1: lodb - LOD0 = 4.11 at mid-slab (4.11 at the slab base, 4.11 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3000-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-3000-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-2000-r1-f3",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 2000 km rung, cloud_res 1: the profile FORCED to the nadir's own level L3 (knob 5, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-2000-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 2000 km, cloud_res 1: lodb - LOD0 = 3.52 at mid-slab (3.53 at the slab base, 3.52 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-2000-r1-f4",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 2000 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L4, knob 6). Same bars as the -f3 sibling against the auto cell prof-ladder-2000-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 2000 km, cloud_res 1: lodb - LOD0 = 3.52 at mid-slab (3.53 at the slab base, 3.52 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-2000-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-2000-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1600-r1-f3",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1600 km rung, cloud_res 1: the profile FORCED to the nadir's own level L3 (knob 5, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1600-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1600 km, cloud_res 1: lodb - LOD0 = 3.20 at mid-slab (3.21 at the slab base, 3.20 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1600-r1-f4",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 1600 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L4, knob 6). Same bars as the -f3 sibling against the auto cell prof-ladder-1600-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 1600 km, cloud_res 1: lodb - LOD0 = 3.20 at mid-slab (3.21 at the slab base, 3.20 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1600-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1600-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1250-r1-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1250 km rung, cloud_res 1: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1250-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1250 km, cloud_res 1: lodb - LOD0 = 2.84 at mid-slab (2.85 at the slab base, 2.84 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r1-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 1250 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-1250-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 1250 km, cloud_res 1: lodb - LOD0 = 2.84 at mid-slab (2.85 at the slab base, 2.84 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1250-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1000-r1-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1000 km rung, cloud_res 1: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1000-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r1-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 1000 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-1000-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1000-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-800-r1-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 800 km rung, cloud_res 1: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-800-r1: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 800 km, cloud_res 1: lodb - LOD0 = 2.20 at mid-slab (2.21 at the slab base, 2.19 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r1-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 800 km rung, cloud_res 1: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-800-r1; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 800 km, cloud_res 1: lodb - LOD0 = 2.20 at mid-slab (2.21 at the slab base, 2.19 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r1-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-800-r1 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-3000-r4-f5",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 3000 km rung, cloud_res 4: the profile FORCED to the nadir's own level L5 (knob 7, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-3000-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 3000 km, cloud_res 4: lodb - LOD0 = 6.11 at mid-slab (6.12 at the slab base, 6.11 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L5 (the coarsest window; one coarser is the global map, which no knob forces).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3000-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-3000-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-2000-r4-f5",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 2000 km rung, cloud_res 4: the profile FORCED to the nadir's own level L5 (knob 7, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-2000-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 2000 km, cloud_res 4: lodb - LOD0 = 5.53 at mid-slab (5.53 at the slab base, 5.52 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L5 (the coarsest window; one coarser is the global map, which no knob forces).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-2000-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-2000-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1600-r4-f5",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1600 km rung, cloud_res 4: the profile FORCED to the nadir's own level L5 (knob 7, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1600-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1600 km, cloud_res 4: lodb - LOD0 = 5.20 at mid-slab (5.21 at the slab base, 5.20 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L5 (the coarsest window; one coarser is the global map, which no knob forces).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1600-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1600-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1250-r4-f4",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1250 km rung, cloud_res 4: the profile FORCED to the nadir's own level L4 (knob 6, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1250-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1250 km, cloud_res 4: lodb - LOD0 = 4.85 at mid-slab (4.85 at the slab base, 4.84 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r4-f5",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 1250 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L5, knob 7). Same bars as the -f4 sibling against the auto cell prof-ladder-1250-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 1250 km, cloud_res 4: lodb - LOD0 = 4.85 at mid-slab (4.85 at the slab base, 4.84 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1250-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-1000-r4-f4",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 1000 km rung, cloud_res 4: the profile FORCED to the nadir's own level L4 (knob 6, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-1000-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 1000 km, cloud_res 4: lodb - LOD0 = 4.52 at mid-slab (4.53 at the slab base, 4.51 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r4-f5",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 1000 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L5, knob 7). Same bars as the -f4 sibling against the auto cell prof-ladder-1000-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 1000 km, cloud_res 4: lodb - LOD0 = 4.52 at mid-slab (4.53 at the slab base, 4.51 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-1000-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-800-r4-f4",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 800 km rung, cloud_res 4: the profile FORCED to the nadir's own level L4 (knob 6, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-800-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 800 km, cloud_res 4: lodb - LOD0 = 4.20 at mid-slab (4.21 at the slab base, 4.19 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r4-f5",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 800 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L5, knob 7). Same bars as the -f4 sibling against the auto cell prof-ladder-800-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 800 km, cloud_res 4: lodb - LOD0 = 4.20 at mid-slab (4.21 at the slab base, 4.19 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L4 and one coarser is L5.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L5"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-800-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-620-r4-f3",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 620 km rung, cloud_res 4: the profile FORCED to the nadir's own level L3 (knob 5, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-620-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 620 km, cloud_res 4: lodb - LOD0 = 3.83 at mid-slab (3.84 at the slab base, 3.81 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-620-r4-f4",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 620 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L4, knob 6). Same bars as the -f3 sibling against the auto cell prof-ladder-620-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 620 km, cloud_res 4: lodb - LOD0 = 3.83 at mid-slab (3.84 at the slab base, 3.81 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-620-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-620-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-500-r4-f3",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 500 km rung, cloud_res 4: the profile FORCED to the nadir's own level L3 (knob 5, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-500-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 500 km, cloud_res 4: lodb - LOD0 = 3.51 at mid-slab (3.53 at the slab base, 3.50 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 500,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-500-r4-f4",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 500 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L4, knob 6). Same bars as the -f3 sibling against the auto cell prof-ladder-500-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 500 km, cloud_res 4: lodb - LOD0 = 3.51 at mid-slab (3.53 at the slab base, 3.50 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 500,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-500-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-500-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 500,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-400-r4-f3",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 400 km rung, cloud_res 4: the profile FORCED to the nadir's own level L3 (knob 5, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-400-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 400 km, cloud_res 4: lodb - LOD0 = 3.19 at mid-slab (3.21 at the slab base, 3.17 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-400-r4-f4",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 400 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L4, knob 6). Same bars as the -f3 sibling against the auto cell prof-ladder-400-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 400 km, cloud_res 4: lodb - LOD0 = 3.19 at mid-slab (3.21 at the slab base, 3.17 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L3 and one coarser is L4.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-400-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-400-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-310-r4-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 310 km rung, cloud_res 4: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-310-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 310 km, cloud_res 4: lodb - LOD0 = 2.81 at mid-slab (2.84 at the slab base, 2.79 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-310-r4-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 310 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-310-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 310 km, cloud_res 4: lodb - LOD0 = 2.81 at mid-slab (2.84 at the slab base, 2.79 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-310-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-310-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-250-r4-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 250 km rung, cloud_res 4: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-250-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 250 km, cloud_res 4: lodb - LOD0 = 2.50 at mid-slab (2.53 at the slab base, 2.46 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-250-r4-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 250 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-250-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 250 km, cloud_res 4: lodb - LOD0 = 2.50 at mid-slab (2.53 at the slab base, 2.46 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-250-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-250-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-200-r4-f2",
+      "desc": "Far-rung gate G1 (docs/design/cloud-far-rung.md), the forced-level A/B at the 200 km rung, cloud_res 4: the profile FORCED to the nadir's own level L2 (knob 4, w = 1 on every sample, no blend). cloud-ab-metrics.js against the auto cell prof-ladder-200-r4: masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01, cloud fraction within 2 points (mask = the -mask sibling at luminance 128).",
+      "_note": "Nadir level at 200 km, cloud_res 4: lodb - LOD0 = 2.17 at mid-slab (2.21 at the slab base, 2.12 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-200-r4-f3",
+      "desc": "Far-rung gate G1, the forced-level A/B at the 200 km rung, cloud_res 4: the profile FORCED one level COARSER than the nadir's (L3, knob 5). Same bars as the -f2 sibling against the auto cell prof-ladder-200-r4; the coarser level must still agree in the mean (prefiltering is unbiased) while the p10/p90 may widen up to the 4-level bar.",
+      "_note": "Nadir level at 200 km, cloud_res 4: lodb - LOD0 = 2.17 at mid-slab (2.21 at the slab base, 2.12 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-200-r4-mask",
+      "desc": "Far-rung gate G1/G3/G5 mask: the map_diag 1 twin of prof-ladder-200-r4 (coverage as opaque greyscale; the A/B mask reads its LUMINANCE at 128, the census at 200, the silhouette IoU at 128 after a cubic resize to 512).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch10-873-r1",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 10, channel 10, the profile SHARE: the fraction of the ray's extinction that came from the profile read (must read 0 at the nadir of every rung below the arm's floor, 693 km full / 173 km quarter); the F2 camera (873 km), cloud_res 1, knob 1 (auto).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "10",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch11-873-r1",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 11, channel 11, the profile LEVEL: the blended level index / 6 (0 = level 0 ... 1 = the global); auto renders a monotone staircase of rounded squares from the nadir outward, HARD the same with sharp treads, a forced knob a flat L/6 frame; the F2 camera (873 km), cloud_res 1, knob 1 (auto). G2's cardinal-line gradient instrument reads this frame: cloud-profile-compare.js --grad=<png> --cx=1280 --cy=693 (no step above 0.5 level between adjacent pixels away from lodb steps).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "11",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch12-873-r1",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 12, channel 12, the profile FRACTION: the window-frame fractional position of the sample (a planet-fixed sawtooth that must NOT move with the camera); the F2 camera (873 km), cloud_res 1, knob 1 (auto).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "12",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch10-873-r4",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 10, channel 10, the profile SHARE: the fraction of the ray's extinction that came from the profile read (must read 0 at the nadir of every rung below the arm's floor, 693 km full / 173 km quarter); the F2 camera (873 km), cloud_res 4, knob 1 (auto).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "10",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch11-873-r4",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 11, channel 11, the profile LEVEL: the blended level index / 6 (0 = level 0 ... 1 = the global); auto renders a monotone staircase of rounded squares from the nadir outward, HARD the same with sharp treads, a forced knob a flat L/6 frame; the F2 camera (873 km), cloud_res 4, knob 1 (auto). G2's cardinal-line gradient instrument reads this frame: cloud-profile-compare.js --grad=<png> --cx=1280 --cy=693 (no step above 0.5 level between adjacent pixels away from lodb steps).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "11",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch12-873-r4",
+      "desc": "Far-rung gate G0(a) (prove red before any green): map_diag 12, channel 12, the profile FRACTION: the window-frame fractional position of the sample (a planet-fixed sawtooth that must NOT move with the camera); the F2 camera (873 km), cloud_res 4, knob 1 (auto).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "12",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch11-1000-r1",
+      "desc": "Far-rung gate G2 at the 1000 km rung: map_diag 11, channel 11, the profile LEVEL: the blended level index / 6 (0 = level 0 ... 1 = the global); auto renders a monotone staircase of rounded squares from the nadir outward, HARD the same with sharp treads, a forced knob a flat L/6 frame; cloud_res 1, knob 1 (auto). cloud-profile-compare.js --grad=<png> --cx=1280 --cy=693 reports the 2D histogram and the max cardinal step.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "11",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch11-873-r1-f4",
+      "desc": "Far-rung gate G0(a), the FLAT frame: map_diag 11 with the level FORCED to L4 (knob 6) at the F2 camera, cloud_res 1. Channel 11 must render a flat 4/6 = 0.667 frame wherever the profile is read (every sample beyond the band; the near samples read 0). If it is not flat, stop: the knob is not reaching the tap.",
+      "_note": "Nadir level at 873 km, cloud_res 1: lodb - LOD0 = 2.32 at mid-slab (2.33 at the slab base, 2.31 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "11",
+        "cloud_res": "1",
+        "cloud_profile": "L4"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ch11-873-r1-hard",
+      "desc": "Far-rung gate G0(a), the SHARP staircase: map_diag 11 at knob 8 (HARD: automatic level, no blend across levels) at the F2 camera, cloud_res 1. The same staircase of rounded squares as the auto cell prof-ch11-873-r1 with sharp treads (every pixel an exact L/6).",
+      "_note": "Nadir level at 873 km, cloud_res 1: lodb - LOD0 = 2.32 at mid-slab (2.33 at the slab base, 2.31 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "11",
+        "cloud_res": "1",
+        "cloud_profile": "hard"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "operator-bm12-prof-f0",
+      "desc": "Far-rung gate G0(c), prove red: level 0 FORCED (knob 2) 500 m inside a deck. The profile is read on EVERY sample, so the near deck must BLUR: masked mean and grain must move beyond the 3-level floor against the -prof-off twin. If nothing moves, the tap is not in the march. Twin of operator-bm12 (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "cumulus-closeup-ultra-prof-f0",
+      "desc": "Far-rung gate G0(c), prove red: level 0 FORCED (knob 2) at the ball-pit closeup. The profile is read on EVERY sample, so the cauliflower must BLUR: masked mean and grain must move beyond the 3-level floor against the -prof-off twin. If nothing moves, the tap is not in the march. Twin of cumulus-closeup-ultra (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-eco0",
+      "desc": "Far-rung gate G0(e), step invariance (A7): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 0. The two eco cells march the same content with a different step count; their masked means must agree within 1 percent (the v1 law, tau per step, fails this by construction; the v2 law, tau per element with the exponent seg / L_elem, passes).",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-eco1",
+      "desc": "Far-rung gate G0(e), step invariance (A7): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 1. The two eco cells march the same content with a different step count; their masked means must agree within 1 percent (the v1 law, tau per step, fails this by construction; the v2 law, tau per element with the exponent seg / L_elem, passes).",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ref-1000-r1",
+      "desc": "Far-rung gate G1/G4 (A16), the REFERENCE bake: knob 9 (the slow per-texel march, dev only) at the 1000 km rung, cloud_res 1, cover 0.5. settle 30 s (REF fills 4 rows per frame per level, the global 2 rows per frame). The atlas is DUMPED after the capture (dump_cloud_profile) to <out>/<id>-profile/; cloud-profile-compare.js <this dump> <the prof-ana twin's dump> prints per level the mean, the p90 and a 10-bin histogram of |delta f|: mean under 0.03, p90 under 0.10, no bin above the fifth holding more than 2 percent of texels.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "ref"
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "prof-ana-1000-r1",
+      "desc": "Far-rung gate G1/G4 (A16), the ANALYTIC bake partner of prof-ref-1000-r1: knob 1 at the 1000 km rung, cloud_res 1, cover 0.5, atlas dumped after the capture (dump_cloud_profile). Also the picture-side A/B of the pair: cloud-ab-metrics.js between the two captures with the G1 bars.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "prof-ref-250-r1",
+      "desc": "Far-rung gate G1/G4 (A16), the REFERENCE bake: knob 9 (the slow per-texel march, dev only) at the 250 km rung, cloud_res 1, cover 0.5. settle 30 s (REF fills 4 rows per frame per level, the global 2 rows per frame). The atlas is DUMPED after the capture (dump_cloud_profile) to <out>/<id>-profile/; cloud-profile-compare.js <this dump> <the prof-ana twin's dump> prints per level the mean, the p90 and a 10-bin histogram of |delta f|: mean under 0.03, p90 under 0.10, no bin above the fifth holding more than 2 percent of texels.",
+      "_note": "Nadir level at 250 km, cloud_res 1: lodb - LOD0 = 0.49 at mid-slab (0.53 at the slab base, 0.46 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "ref"
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "prof-ana-250-r1",
+      "desc": "Far-rung gate G1/G4 (A16), the ANALYTIC bake partner of prof-ref-250-r1: knob 1 at the 250 km rung, cloud_res 1, cover 0.5, atlas dumped after the capture (dump_cloud_profile). Also the picture-side A/B of the pair: cloud-ab-metrics.js between the two captures with the G1 bars.",
+      "_note": "Nadir level at 250 km, cloud_res 1: lodb - LOD0 = 0.49 at mid-slab (0.53 at the slab base, 0.46 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "prof-ref-1000-r1-c02",
+      "desc": "Far-rung gate G1/G4 (A16), the REFERENCE bake: knob 9 (the slow per-texel march, dev only) at the 1000 km rung, cloud_res 1, cover 0.2. settle 30 s (REF fills 4 rows per frame per level, the global 2 rows per frame). The atlas is DUMPED after the capture (dump_cloud_profile) to <out>/<id>-profile/; cloud-profile-compare.js <this dump> <the prof-ana twin's dump> prints per level the mean, the p90 and a 10-bin histogram of |delta f|: mean under 0.03, p90 under 0.10, no bin above the fifth holding more than 2 percent of texels. Cover 0.2 is the A16 case where the zc-derived noise fraction is most likely to saturate.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.2",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "ref"
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "prof-ana-1000-r1-c02",
+      "desc": "Far-rung gate G1/G4 (A16), the ANALYTIC bake partner of prof-ref-1000-r1-c02: knob 1 at the 1000 km rung, cloud_res 1, cover 0.2, atlas dumped after the capture (dump_cloud_profile). Also the picture-side A/B of the pair: cloud-ab-metrics.js between the two captures with the G1 bars. Cover 0.2 is the A16 case where the zc-derived noise fraction is most likely to saturate.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.2",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "dump_cloud_profile": true
+    },
+    {
+      "id": "orbit-tier-873-high-r1-mask",
+      "desc": "Far-rung gate G5 reference: the map_diag 1 twin of orbit-tier-873-high-r1 (cloud quality HIGH, no profile). cloud-speckle-census.js --t=200 --amax=64 on this render is the bar Ultra-with-profile's mask (orbit-speckle-873-r1-mask) must meet: components of 16 px or less at or below this count, luminance mass in components of 64 px or less at or below this.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-tier-873-high-r4-mask",
+      "desc": "Far-rung gate G5 reference: the map_diag 1 twin of orbit-tier-873-high-r4 (cloud quality HIGH, no profile). cloud-speckle-census.js --t=200 --amax=64 on this render is the bar Ultra-with-profile's mask (orbit-speckle-873-r4-mask) must meet: components of 16 px or less at or below this count, luminance mass in components of 64 px or less at or below this.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-60-r1-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-60-r1 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-60-r1.png against this: whole frame bit-exact (the farthest in-frame sample at 60 km is 138 km of slant, inside the 153 km band start).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-30-r1-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-30-r1 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-30-r1.png against this: whole frame bit-exact (the farthest in-frame sample at 60 km is 138 km of slant, inside the 153 km band start).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 30,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-12-r1-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-12-r1 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-12-r1.png against this: whole frame bit-exact (the farthest in-frame sample at 60 km is 138 km of slant, inside the 153 km band start).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 12,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3-r1-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-3-r1 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-3-r1.png against this: whole frame bit-exact (the farthest in-frame sample at 60 km is 138 km of slant, inside the 153 km band start).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-60-r4-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-60-r4 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-60-r4.png against this: nothing bit-exact (the nadir slant is 59.6 km, past the 38 km band start): seam scan along the nadir column x = 1280, no luminance step above 6 levels inside any 12-row band.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-30-r4-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-30-r4 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-30-r4.png against this: the central disc of radius 550 px bit-exact (slant under 38 km for angles under 38.8 degrees); seam scan outside it.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 30,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-12-r4-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-12-r4 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-12-r4.png against this: whole frame bit-exact.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 12,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3-r4-off",
+      "desc": "Far-rung gate G7, the knob 0 twin of prof-ladder-3-r4 (the point-sampled field, bit-identical to the shipped build by construction). cloud-diff.js prof-ladder-3-r4.png against this: whole frame bit-exact.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "cumulus-closeup-ultra-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at cumulus-closeup-ultra: look 62, the camera inside the slab, near-horizontal rays run hundreds of km: seam scan over the horizon-parallel band rows 187 to 464 (the horizon sits at row 325), no luminance step above 6 levels inside any 12-row band (detail_ratio_max 1.25). Twin of cumulus-closeup-ultra (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "cumulus-closeup-ultra-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at cumulus-closeup-ultra (compare against cumulus-closeup-ultra-prof-on in the SAME boot): look 62, the camera inside the slab, near-horizontal rays run hundreds of km: seam scan over the horizon-parallel band rows 187 to 464 (the horizon sits at row 325), no luminance step above 6 levels inside any 12-row band (detail_ratio_max 1.25). Twin of cumulus-closeup-ultra (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 2.6,
+        "look_offset_deg": 62,
+        "time": 10.5
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "mid-alt-45km-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at mid-alt-45km: look 25: seam scan along the nadir column x = 1280, all rows. Twin of mid-alt-45km (same camera, same showcase, plus the far-rung pins). cloud_quality pinned to ultra (the standing vantage pins none; showcase pins are sticky across cells).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.645,
+        "lon": -122.6925,
+        "time": 12.02,
+        "altitude_km": 45,
+        "look_offset_deg": 25
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "weather": "cloudy",
+        "sea": "0.3",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "1",
+        "cloud_quality": "ultra"
+      },
+      "settle_s": 12
+    },
+    {
+      "id": "mid-alt-45km-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at mid-alt-45km (compare against mid-alt-45km-prof-on in the SAME boot): look 25: seam scan along the nadir column x = 1280, all rows. Twin of mid-alt-45km (same camera, same showcase, plus the far-rung pins). cloud_quality pinned to ultra (the standing vantage pins none; showcase pins are sticky across cells).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 47.645,
+        "lon": -122.6925,
+        "time": 12.02,
+        "altitude_km": 45,
+        "look_offset_deg": 25
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.95",
+        "weather": "cloudy",
+        "sea": "0.3",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "0",
+        "cloud_quality": "ultra"
+      },
+      "settle_s": 12
+    },
+    {
+      "id": "fly-through-40km-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at fly-through-40km: look 90: seam scan over rows 555 to 832. Twin of fly-through-40km (same camera, same showcase, plus the far-rung pins). cloud_quality pinned to ultra (the standing vantage pins none; showcase pins are sticky across cells).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 40,
+        "look_offset_deg": 90
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "1",
+        "cloud_quality": "ultra"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "fly-through-40km-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at fly-through-40km (compare against fly-through-40km-prof-on in the SAME boot): look 90: seam scan over rows 555 to 832. Twin of fly-through-40km (same camera, same showcase, plus the far-rung pins). cloud_quality pinned to ultra (the standing vantage pins none; showcase pins are sticky across cells).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 40,
+        "look_offset_deg": 90
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3",
+        "cloud_res": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_clock": "120",
+        "cloud_profile": "0",
+        "cloud_quality": "ultra"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "operator-bm12-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at operator-bm12: pinned res 2, band 77 km; in-deck rays reach at most a few km: whole frame bit-exact (cloud-diff.js max 0). Twin of operator-bm12 (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "operator-bm12-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at operator-bm12 (compare against operator-bm12-prof-on in the SAME boot): pinned res 2, band 77 km; in-deck rays reach at most a few km: whole frame bit-exact (cloud-diff.js max 0). Twin of operator-bm12 (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "sc-top-3p0km-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at sc-top-3p0km: pinned res 2: whole frame bit-exact (cloud-diff.js max 0). Twin of sc-top-3p0km (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 3,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_type": "1.0",
+        "cloud_cover": "0.9",
+        "cloud_ms": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "sc-top-3p0km-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at sc-top-3p0km (compare against sc-top-3p0km-prof-on in the SAME boot): pinned res 2: whole frame bit-exact (cloud-diff.js max 0). Twin of sc-top-3p0km (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 3,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_type": "1.0",
+        "cloud_cover": "0.9",
+        "cloud_ms": "1",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "rain-26km-nadir-prof-on",
+      "desc": "Far-rung gate G7, the profile ON (knob 1, auto) side of the look-delta-vs-shipped pair at rain-26km-nadir: res 2, look 12: the central 55 percent crop bit-exact (its corners reach 111 km). Twin of rain-26km-nadir (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 26.4,
+        "look_offset_deg": 12,
+        "time": 11.4
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "rain",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_shear": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_res": "2",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "rain-26km-nadir-prof-off",
+      "desc": "Far-rung gate G7, the knob 0 side of the look-delta-vs-shipped pair at rain-26km-nadir (compare against rain-26km-nadir-prof-on in the SAME boot): res 2, look 12: the central 55 percent crop bit-exact (its corners reach 111 km). Twin of rain-26km-nadir (same camera, same showcase, plus the far-rung pins).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 24,
+        "lon": 14,
+        "altitude_km": 26.4,
+        "look_offset_deg": 12,
+        "time": 11.4
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "rain",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_shear": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "0",
+        "cloud_res": "2",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "prof-ladder-60-r1-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 1, cover 0.5 type 0.34. Against the built field (prof-ladder-60-r1-off): nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 1: lodb - LOD0 = -1.68 at mid-slab (-1.53 at the slab base, -1.85 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r1-c90t100-off",
+      "desc": "Far-rung gate G4 (A16), the BUILT field (knob 0) at the 60 km rung, cloud_res 1, cover 0.9 type 1.0. Against the -f0 sibling: nadir luminance-mask coverage within 3 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. This is the reference coverage for G4 (the built field measured at 60 km), never the orbit picture.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "1.0",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r1-c90t100-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 1, cover 0.9 type 1.0. Against the built field (prof-g4-60-r1-c90t100-off): nadir luminance-mask coverage within 3 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 1: lodb - LOD0 = -1.68 at mid-slab (-1.53 at the slab base, -1.85 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "1.0",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r1-c55t46-off",
+      "desc": "Far-rung gate G4 (A16), the BUILT field (knob 0) at the 60 km rung, cloud_res 1, cover 0.55 type 0.46. Against the -f0 sibling: nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. This is the reference coverage for G4 (the built field measured at 60 km), never the orbit picture.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r1-c55t46-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 1, cover 0.55 type 0.46. Against the built field (prof-g4-60-r1-c55t46-off): nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 1: lodb - LOD0 = -1.68 at mid-slab (-1.53 at the slab base, -1.85 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-60-r4-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 4, cover 0.5 type 0.34. Against the built field (prof-ladder-60-r4-off): nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 4: lodb - LOD0 = 0.32 at mid-slab (0.47 at the slab base, 0.15 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r4-c90t100-off",
+      "desc": "Far-rung gate G4 (A16), the BUILT field (knob 0) at the 60 km rung, cloud_res 4, cover 0.9 type 1.0. Against the -f0 sibling: nadir luminance-mask coverage within 3 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. This is the reference coverage for G4 (the built field measured at 60 km), never the orbit picture.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "1.0",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r4-c90t100-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 4, cover 0.9 type 1.0. Against the built field (prof-g4-60-r4-c90t100-off): nadir luminance-mask coverage within 3 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 4: lodb - LOD0 = 0.32 at mid-slab (0.47 at the slab base, 0.15 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.9",
+        "cloud_type": "1.0",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r4-c55t46-off",
+      "desc": "Far-rung gate G4 (A16), the BUILT field (knob 0) at the 60 km rung, cloud_res 4, cover 0.55 type 0.46. Against the -f0 sibling: nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. This is the reference coverage for G4 (the built field measured at 60 km), never the orbit picture.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-g4-60-r4-c55t46-f0",
+      "desc": "Far-rung gate G4 (A16), level 0 FORCED (knob 2) at the 60 km rung, cloud_res 4, cover 0.55 type 0.46. Against the built field (prof-g4-60-r4-c55t46-off): nadir luminance-mask coverage within 2 points, masked mean within 2 percent, p10/p90 within 4 levels, B/R within 0.01. A faithful prefilter of the Ultra field reproduces the built field's coverage.",
+      "_note": "Nadir level at 60 km, cloud_res 4: lodb - LOD0 = 0.32 at mid-slab (0.47 at the slab base, 0.15 at the slab top; pix_ang_march 5.785e-3), so the automatic level is L0 and one coarser is L1.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.55",
+        "cloud_type": "0.46",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "L0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
     }
   ],
   "ladder": {

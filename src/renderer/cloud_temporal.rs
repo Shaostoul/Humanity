@@ -171,8 +171,22 @@ impl Renderer {
             &self.device, "Cloud March Dist", qw, qh,
             wgpu::TextureFormat::R16Float,
         );
-        let g0 = self.build_albedo_group_from_view(&v0, &self.albedo_sampler);
-        let g1 = self.build_albedo_group_from_view(&v1, &self.albedo_sampler);
+        // Binding 14 of the accumulation pair: the profile atlas when it
+        // exists (the far rung, A8: every cloud-side group carries the
+        // atlas), else the tree atlas. The pair is recreated on every
+        // resolution / cloud_res_div change, so this is the ONLY place the
+        // rule can hold across a resize; ensure_cloud_profile does the same
+        // for a pair that already exists when the atlas is first created.
+        let (g0, g1) = match self.cloud_profile_cache.as_ref() {
+            Some(pc) => (
+                self.build_albedo_group_from_view_b14(&v0, &self.albedo_sampler, &pc.view_all),
+                self.build_albedo_group_from_view_b14(&v1, &self.albedo_sampler, &pc.view_all),
+            ),
+            None => (
+                self.build_albedo_group_from_view(&v0, &self.albedo_sampler),
+                self.build_albedo_group_from_view(&v1, &self.albedo_sampler),
+            ),
+        };
         self.cloud_screen = Some(CloudScreen {
             _textures: [t0, t1],
             views: [v0, v1],
@@ -1228,15 +1242,29 @@ pub const CLOUD_FR_GLOBAL_MIPS: u32 = 7;
 /// Final calibration table origin, MIP-1 texel coordinates (32 x 4).
 pub const CLOUD_FR_CALIB_X0: u32 = 1536;
 pub const CLOUD_FR_CALIB_Y0: u32 = 1024;
-/// Calibration table size in mip-1 texels: 32 height rows x 4 archetypes.
-pub const CLOUD_FR_CALIB_W: u32 = 32;
-pub const CLOUD_FR_CALIB_H: u32 = 4;
+/// Calibration table height rows (one per cloud-relative height band) and
+/// stratified seeds per archetype: "both" constants, read by the two
+/// calibration fragments and pinned against the shader text by the sync
+/// test, so the Rust scissors below can never shrink under the shader.
+pub const CLOUD_FR_CALIB_ROWS: u32 = 32;
+pub const CLOUD_FR_CALIB_SEEDS: u32 = 8;
+/// Archetypes in the calibration table (humilis, congestus, stratocumulus,
+/// cumulonimbus). The WGSL calibration fragments bound their archetype
+/// index with a literal 4 today; if a fifth archetype is ever added the
+/// shader AND this constant change together (the scissors derive from it).
+pub const CLOUD_FR_CALIB_ARCHETYPES: u32 = 4;
+/// Calibration table size in mip-1 texels: one column per height row, one
+/// row per archetype. DERIVED, never retyped: the scissor of the reduce
+/// pass is exactly what the reduce fragment bounds-checks.
+pub const CLOUD_FR_CALIB_W: u32 = CLOUD_FR_CALIB_ROWS;
+pub const CLOUD_FR_CALIB_H: u32 = CLOUD_FR_CALIB_ARCHETYPES;
 /// Per-seed staging origin, MIP-2 texel coordinates (32 x 32).
 pub const CLOUD_FR_CALIB_STAGE_X0: u32 = 768;
 pub const CLOUD_FR_CALIB_STAGE_Y0: u32 = 512;
-/// Staging area size in mip-2 texels: 32 rows x (4 archetypes x 8 seeds).
-pub const CLOUD_FR_CALIB_STAGE_W: u32 = 32;
-pub const CLOUD_FR_CALIB_STAGE_H: u32 = 32;
+/// Staging area size in mip-2 texels: one column per height row, one row
+/// per (archetype, seed) pair. DERIVED from the same three constants.
+pub const CLOUD_FR_CALIB_STAGE_W: u32 = CLOUD_FR_CALIB_ROWS;
+pub const CLOUD_FR_CALIB_STAGE_H: u32 = CLOUD_FR_CALIB_ARCHETYPES * CLOUD_FR_CALIB_SEEDS;
 /// Wall seconds per full rolling refresh of one active level; also the
 /// duration of the FAST (first or re-referenced) global pass. Rust-only.
 pub const CLOUD_FR_REFRESH_S: f64 = 2.0;
@@ -1568,7 +1596,6 @@ impl CloudProfileState {
         let active = cloud_fr_active_levels(&frame);
         for (l, lv) in self.levels.iter_mut().enumerate() {
             lv.active.set(active[l]);
-            lv.scroll.set((0, 0));
             if !active[l] {
                 // An inactive level drops its window: the shader must never
                 // read a window that is not being maintained, and the level
@@ -1576,26 +1603,43 @@ impl CloudProfileState {
                 lv.origin.set(None);
                 lv.valid.set(false);
                 lv.fill_cursor.set(None);
+                lv.scroll.set((0, 0));
                 continue;
             }
             let new_origin = cloud_fr_window_origin(ground_0, l as u32);
             let start_fill = match lv.origin.get() {
                 None => true,
                 Some(prev) => {
-                    let d_i = new_origin.0 - prev.0;
-                    let d_j = new_origin.1 - prev.1;
+                    // The scroll delta ACCUMULATES until the bake pass
+                    // consumes it (take_bake_rects), never overwrites: a
+                    // frame that plans but does not bake (the calibration
+                    // frame, or any future skipped pass) would otherwise
+                    // lose the columns it exposed while the level stayed
+                    // valid, and a cell 512 cells stale would read as
+                    // data. The accumulated delta is measured from the
+                    // origin at the LAST BAKE, so the fill rule applies to
+                    // the sum: 512 or more cells since the last bake means
+                    // nothing of the old window survives.
+                    let (p_i, p_j) = lv.scroll.get();
+                    let d_i = p_i + (new_origin.0 - prev.0);
+                    let d_j = p_j + (new_origin.1 - prev.1);
                     if d_i.abs() >= CLOUD_FR_NX as i64 || d_j.abs() >= CLOUD_FR_NX as i64 || refill_all {
                         true
                     } else {
-                        if d_i != 0 || d_j != 0 {
-                            lv.scroll.set((d_i, d_j));
-                            lv.scrolled.set(lv.scrolled.get().wrapping_add((d_i.abs() + d_j.abs()) as u32));
+                        if (d_i, d_j) != (p_i, p_j) {
+                            lv.scrolled.set(lv.scrolled.get().wrapping_add(
+                                ((d_i - p_i).abs() + (d_j - p_j).abs()) as u32,
+                            ));
                         }
+                        lv.scroll.set((d_i, d_j));
                         false
                     }
                 }
             };
             if start_fill {
+                // A fill rewrites the whole window: any pending scroll is
+                // covered by it.
+                lv.scroll.set((0, 0));
                 lv.valid.set(false);
                 lv.fill_cursor.set(Some(0));
                 lv.refresh_cursor.set(0.0);
@@ -1938,7 +1982,9 @@ impl Renderer {
         let mip_src = |m: usize| self.build_albedo_group_from_view_b14(&self.white_view, &self.albedo_sampler, &view_mip[m]);
         let group_mip_src = [mip_src(0), mip_src(1), mip_src(2), mip_src(3), mip_src(4), mip_src(5)];
         // The CloudScreen accumulation pair (unused by any pass today) also
-        // carries b14 = the atlas, for consistency with every cloud group.
+        // carries b14 = the atlas, for consistency with every cloud group;
+        // ensure_cloud_screen applies the same rule when the pair is
+        // recreated later (a resize or a cloud_res change).
         let screen_groups = self.cloud_screen.as_ref().map(|cs| {
             [
                 self.build_albedo_group_from_view_b14(&cs.views[0], &self.albedo_sampler, &view_all),
@@ -1993,9 +2039,17 @@ impl Renderer {
     /// refills. A second call in the same frame is ignored (two cloud
     /// bodies can never fight over the ground cell); `set_cloud_temporal
     /// (None)` at the top of every frame clears the feed.
-    pub fn cloud_profile_plan(&mut self, frame: CloudProfileFrame) {
+    ///
+    /// Returns whether THIS call's frame was accepted (true for the first
+    /// call of the frame, false for a later body). lib.rs sets
+    /// `cloud_shell_mat` only on acceptance, so the material the passes
+    /// bind (planet radius, slab, params) is always the body whose ground
+    /// cell was planned: a last-wins material beside a first-wins plan
+    /// would bake body A's lattice with body B's parameters into a window
+    /// that persists across frames.
+    pub fn cloud_profile_plan(&mut self, frame: CloudProfileFrame) -> bool {
         if self.cloud_profile_frame.is_some() {
-            return;
+            return false;
         }
         self.cloud_profile_frame = Some(frame);
         if frame.knob == CLOUD_FR_KNOB_OFF {
@@ -2003,12 +2057,13 @@ impl Renderer {
                 pc.state.mark_stale();
                 pc.state.frame = Some(frame);
             }
-            return;
+            return true;
         }
         self.ensure_cloud_profile();
         if let Some(pc) = self.cloud_profile_cache.as_mut() {
             pc.state.plan(frame);
         }
+        true
     }
 
     /// The profile the march may READ this frame: the knob is on, the frame
@@ -2179,7 +2234,9 @@ mod cloud_profile_tests {
     fn wgsl_cloud_profile_constants_stay_in_sync() {
         let root = env!("CARGO_MANIFEST_DIR");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl")).expect("read 40-clouds.wgsl");
-        let pairs: [(&str, f64); 31] = [
+        let pairs: [(&str, f64); 33] = [
+            ("CLOUD_FR_CALIB_ROWS", CLOUD_FR_CALIB_ROWS as f64),
+            ("CLOUD_FR_CALIB_SEEDS", CLOUD_FR_CALIB_SEEDS as f64),
             ("CLOUD_FR_CELL0_KM", CLOUD_FR_CELL0_KM as f64),
             ("CLOUD_FR_LEVELS", CLOUD_FR_LEVELS as f64),
             ("CLOUD_FR_NX", CLOUD_FR_NX as f64),
@@ -2306,6 +2363,17 @@ mod cloud_profile_tests {
         assert!(CLOUD_FR_CALIB_STAGE_Y0 + CLOUD_FR_CALIB_STAGE_H <= mip2_y0, "staging overlaps the global's mip 2");
         assert!(CLOUD_FR_CALIB_X0 + CLOUD_FR_CALIB_W <= CLOUD_FR_ATLAS_W >> 1);
         assert!(CLOUD_FR_CALIB_STAGE_X0 + CLOUD_FR_CALIB_STAGE_W <= CLOUD_FR_ATLAS_W >> 2);
+        // The calibration scissors are what the two calibration fragments
+        // bounds-check: the reduce pass covers one column per height row
+        // and one row per archetype; the staging pass one row per
+        // (archetype, seed). Pinned as relations so neither scissor can be
+        // retyped narrower than the table the shader writes.
+        assert_eq!(CLOUD_FR_CALIB_W, CLOUD_FR_CALIB_ROWS);
+        assert_eq!(CLOUD_FR_CALIB_H, CLOUD_FR_CALIB_ARCHETYPES);
+        assert_eq!(CLOUD_FR_CALIB_STAGE_W, CLOUD_FR_CALIB_ROWS);
+        assert_eq!(CLOUD_FR_CALIB_STAGE_H, CLOUD_FR_CALIB_ARCHETYPES * CLOUD_FR_CALIB_SEEDS);
+        assert_eq!((CLOUD_FR_CALIB_STAGE_W, CLOUD_FR_CALIB_STAGE_H), (32, 32), "the contract's 32 x 32 staging area");
+        assert_eq!((CLOUD_FR_CALIB_W, CLOUD_FR_CALIB_H), (32, 4), "the contract's 32 x 4 table");
         // Every mip region edge is exact: 2560 = 5 * 2^9, 3584 = 7 * 2^9.
         for m in 1..CLOUD_FR_GLOBAL_MIPS {
             assert_eq!((CLOUD_FR_GLOBAL_Y0 >> m) << m, CLOUD_FR_GLOBAL_Y0);
@@ -2361,6 +2429,62 @@ mod cloud_profile_tests {
         // width) and not the global: i.e. column runs (height 512) for the
         // horizontal scroll and row runs for the vertical one.
         rects.into_iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect()
+    }
+
+    /// Two planned moves with NO bake between them (+1 then +2 cells) must
+    /// bake the same three columns a single +3 move bakes: the pending
+    /// scroll accumulates until the bake consumes it, never overwrites
+    /// (a frame that plans but skips the bake would otherwise leave the
+    /// first move's column stale while the level stayed valid). And two
+    /// moves whose SUM reaches 512 become a fill even though each alone is
+    /// a scroll.
+    #[test]
+    fn scroll_deltas_accumulate_across_unbaked_frames() {
+        let cell = cloud_fr_cell_rad(0, R_KM);
+        let nj = cloud_fr_n_j(0, R_KM as f32) as i64;
+        let mk = |start_cell: i64| {
+            let mut st = CloudProfileState::default();
+            let mut f = frame_at(12000.0, 1, CLOUD_FR_KNOB_FORCE0);
+            f.ground_lon_rad = (start_cell as f64 + 0.5) * cell - std::f64::consts::PI;
+            f.ground_lat_rad = ((nj / 2) as f64 + 0.5) * cell - std::f64::consts::FRAC_PI_2;
+            st.plan(f);
+            st.take_calib();
+            st.take_bake_rects(1.0 / 60.0);
+            for _ in 0..8 {
+                st.take_bake_rects(1.0 / 60.0);
+            }
+            assert!(st.levels[0].valid.get());
+            (st, f)
+        };
+        // +1 planned, not baked; then +2 planned: the pending delta is +3.
+        let (mut st, mut f) = mk(1000);
+        f.ground_lon_rad += cell;
+        st.plan(f);
+        assert_eq!(st.levels[0].scroll.get(), (1, 0));
+        f.ground_lon_rad += 2.0 * cell;
+        st.plan(f);
+        assert_eq!(st.levels[0].scroll.get(), (3, 0), "the second move adds to the first, it does not replace it");
+        assert!(st.levels[0].valid.get(), "still a scroll, not a fill");
+        let got: Vec<_> = st.take_bake_rects(0.0).into_iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
+        let want = scroll_rects(3, 0, 1000);
+        let cols = |v: &Vec<(u32, u32, u32, u32)>| {
+            let mut c: Vec<_> = v.iter().filter(|r| r.3 == CLOUD_FR_NX).map(|r| (r.0, r.2)).collect();
+            c.sort();
+            c
+        };
+        assert_eq!(cols(&got), cols(&want), "two unbaked moves bake exactly the columns one +3 move bakes");
+        assert_eq!(st.levels[0].scroll.get(), (0, 0), "the bake consumed the delta");
+        // 300 + 300 without a bake between: the sum is a refill.
+        let (mut st, mut f) = mk(1000);
+        f.ground_lon_rad += 300.0 * cell;
+        st.plan(f);
+        assert!(st.levels[0].valid.get());
+        assert_eq!(st.levels[0].scroll.get(), (300, 0));
+        f.ground_lon_rad += 300.0 * cell;
+        st.plan(f);
+        assert!(!st.levels[0].valid.get(), "600 cells since the last bake: nothing of the old window survives");
+        assert_eq!(st.levels[0].fill_cursor.get(), Some(0));
+        assert_eq!(st.levels[0].scroll.get(), (0, 0));
     }
 
     /// Scroll rects for dI = +1, -1, +3 with and without wrapping 512, and a
