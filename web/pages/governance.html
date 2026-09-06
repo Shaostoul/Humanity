@@ -91,6 +91,54 @@
       border-radius: var(--radius); color: var(--text-muted);
     }
 
+    /* New-proposal form. Mirrors the native "New proposal" card
+       (src/gui/pages/governance.rs): toggle button beside the filters, then a
+       card with title, body, type, scope and voting window. */
+    .btn-propose {
+      margin-left: auto; padding: 4px 14px; border-radius: 20px;
+      background: var(--accent); border: 1px solid var(--accent);
+      color: var(--text-on-accent); font-weight: 600; font-size: 0.85rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-propose:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    .propose-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    /* Author styles beat the browser's own [hidden] { display: none }, so the
+       display:flex above would keep the closed form visible. Spell it out. */
+    .propose-card[hidden] { display: none; }
+    .propose-card h2 { font-size: 1.05rem; font-weight: 700; margin: 0; }
+    .propose-card label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
+    .propose-card input, .propose-card textarea, .propose-card select {
+      width: 100%; box-sizing: border-box;
+      background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 10px; font: inherit; font-size: 0.9rem;
+    }
+    .propose-card input:focus, .propose-card textarea:focus, .propose-card select:focus {
+      outline: none; border-color: var(--border-focus);
+    }
+    .propose-card textarea { resize: vertical; min-height: 90px; }
+    .propose-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .propose-field { display: flex; flex-direction: column; gap: 4px; }
+    /* Only the side-by-side row shares width. A basis on the card's own column
+       children would be read as a HEIGHT (the card is a column flex box) and
+       pad every field out to 180px tall. */
+    .propose-row > .propose-field { flex: 1 1 180px; }
+    .propose-note { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+    .propose-note.warn { color: var(--warning); }
+    .btn-submit {
+      align-self: flex-start; padding: 8px 20px; border-radius: var(--radius);
+      background: var(--accent); border: 1px solid var(--accent);
+      color: var(--text-on-accent); font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-submit:hover:enabled { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-submit:disabled { opacity: 0.5; cursor: default; }
+
     .accord-callout {
       background: rgba(255,136,17,0.08); border: 1px solid rgba(255,136,17,0.25);
       border-radius: var(--radius); padding: 16px 20px; margin-bottom: 24px;
@@ -131,7 +179,53 @@
     <div class="filter-row">
       <button class="filter-pill active" data-filter="open">Open</button>
       <button class="filter-pill" data-filter="all">All</button>
+      <button class="btn-propose" id="toggle-propose" type="button">New proposal</button>
     </div>
+
+    <!-- novalidate: the browser's own constraint bubble would fire before the
+         submit handler and report an unstyled message beside the field, so the
+         page never got to say anything. All checks live in readProposalForm and
+         report in the same status style the vote buttons use. min/max/maxlength
+         stay as input affordances (spinner range, paste truncation). -->
+    <form class="propose-card" id="propose-form" novalidate hidden>
+      <h2>New proposal</h2>
+      <p class="propose-note" id="propose-identity-note" hidden></p>
+
+      <div class="propose-field">
+        <label for="prop-title">Title</label>
+        <input type="text" id="prop-title" maxlength="200" autocomplete="off"
+               placeholder="One line: what are you proposing?">
+      </div>
+
+      <div class="propose-field">
+        <label for="prop-body">Body</label>
+        <textarea id="prop-body" rows="5" maxlength="8000"
+                  placeholder="What changes, why, and what happens if it passes."></textarea>
+      </div>
+
+      <div class="propose-row">
+        <div class="propose-field">
+          <label for="prop-type">Type</label>
+          <select id="prop-type"></select>
+        </div>
+        <div class="propose-field">
+          <label for="prop-scope">Scope</label>
+          <select id="prop-scope"></select>
+        </div>
+        <div class="propose-field">
+          <label for="prop-days">Voting window (days)</label>
+          <input type="number" id="prop-days" min="1" max="30" step="1" value="7">
+        </div>
+      </div>
+
+      <p class="propose-note">
+        Your proposal is signed with your Dilithium3 key and posted as a
+        <code>proposal_v1</code> object. It cannot be edited or withdrawn once posted.
+      </p>
+
+      <button type="submit" class="btn-submit" id="prop-submit" disabled>Submit proposal</button>
+      <div class="vote-status" id="propose-status"></div>
+    </form>
 
     <div class="proposal-list" id="proposal-list">
       <div class="empty-state">Loading proposals...</div>
@@ -189,7 +283,7 @@
         if (activeFilter === 'open') opts.onlyOpen = true;
         var props = await window.HumOS.pq.listProposals(opts);
         if (!props || !props.length) {
-          list.innerHTML = '<div class="empty-state">No proposals match these filters. Be the first to propose something: use the native app (Humanity tab, Governance) which has a proposal form, or post a <code>proposal_v1</code> signed object via <code>POST /api/v2/objects</code>.</div>';
+          list.innerHTML = '<div class="empty-state">No proposals match these filters. Use <strong>New proposal</strong> above to start the first one.</div>';
           return;
         }
         list.innerHTML = '';
@@ -364,6 +458,174 @@
         const wrap = card.querySelector('.tally-wrap');
         if (wrap && t) wrap.innerHTML = tallyHtml(t);
       } catch (_e) { /* tally refresh is best-effort; the vote itself succeeded */ }
+    }
+
+    /* ── New proposal: Dilithium3-signed proposal_v1 objects ────────
+     * Web mirror of the native form (src/gui/pages/governance.rs, the
+     * "New proposal" card + build_proposal). Same identity path, same builder
+     * shape and the same canonical CBOR payload the relay indexes in
+     * storage/governance.rs::index_proposal, so a proposal made here is
+     * indistinguishable from one made in the app. */
+
+    // Mirrors src/gui/pages/governance.rs::PROPOSAL_TYPES. The relay's full
+    // authored set is data/governance/proposal_types.ron (9 kinds, each with
+    // its own quorum and pass thresholds), but no endpoint serves that file to
+    // a browser, so both clients offer the same curated three. If a
+    // proposal-types endpoint ever lands, both clients should read it instead.
+    const PROPOSAL_TYPES = [
+      ['local_rule', 'Local rule'],
+      ['parameter_change', 'Parameter change'],
+      ['accord_amendment', 'Accord amendment'],
+    ];
+    // Mirrors src/gui/pages/governance.rs::SCOPES (and the scope tabs above).
+    const PROPOSAL_SCOPES = [
+      ['local', 'Local (this server)'],
+      ['civilization', 'Civilization-wide'],
+    ];
+    const TITLE_MAX = 200;
+    const BODY_MAX = 8000;
+    // The days input offers 1 to 30, the same range as the native slider. This
+    // is the backstop for a value typed past the spinner, not the normal range.
+    const WINDOW_MAX_DAYS = 365;
+
+    const proposeForm = document.getElementById('propose-form');
+    const proposeToggle = document.getElementById('toggle-propose');
+    const proposeStatus = document.getElementById('propose-status');
+    const proposeNote = document.getElementById('propose-identity-note');
+    const proposeSubmit = document.getElementById('prop-submit');
+    const fTitle = document.getElementById('prop-title');
+    const fBody = document.getElementById('prop-body');
+    const fType = document.getElementById('prop-type');
+    const fScope = document.getElementById('prop-scope');
+    const fDays = document.getElementById('prop-days');
+
+    function fillSelect(sel, pairs) {
+      pairs.forEach(function(pair){
+        const opt = document.createElement('option');
+        opt.value = pair[0];
+        opt.textContent = pair[1];
+        sel.appendChild(opt);
+      });
+    }
+    fillSelect(fType, PROPOSAL_TYPES);
+    fillSelect(fScope, PROPOSAL_SCOPES);
+
+    function setProposeStatus(text, kind) {
+      proposeStatus.textContent = text || '';
+      proposeStatus.className = 'vote-status' + (kind ? ' ' + kind : '');
+    }
+
+    // Gate the submit button on an identity, using the SAME cached myIdentity()
+    // path the vote buttons use. Re-run every time the form is opened: a user
+    // who signs in via Chat in another tab should not have to reload this one
+    // (myIdentity only caches successes, so a re-check is cheap and truthful).
+    async function refreshProposeIdentity() {
+      proposeSubmit.disabled = true;
+      proposeNote.hidden = false;
+      proposeNote.className = 'propose-note';
+      proposeNote.textContent = 'Checking your identity...';
+      const me = await myIdentity();
+      if (!me) {
+        proposeNote.className = 'propose-note warn';
+        proposeNote.textContent = 'Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and propose.';
+        return false;
+      }
+      proposeNote.hidden = true;
+      proposeNote.textContent = '';
+      proposeSubmit.disabled = false;
+      return true;
+    }
+
+    proposeToggle.addEventListener('click', function(){
+      const opening = proposeForm.hidden;
+      proposeForm.hidden = !opening;
+      proposeToggle.textContent = opening ? 'Close form' : 'New proposal';
+      if (opening) {
+        setProposeStatus('');
+        refreshProposeIdentity();
+        fTitle.focus();
+      }
+    });
+
+    // Returns { title, body, type, scope, days } or null (after showing why).
+    function readProposalForm() {
+      const title = fTitle.value.trim();
+      const body = fBody.value.trim();
+      const days = Number(fDays.value);
+      if (!title) { setProposeStatus('Give the proposal a title.', 'err'); fTitle.focus(); return null; }
+      if (title.length > TITLE_MAX) {
+        setProposeStatus('Title is too long (' + title.length + ' characters, max ' + TITLE_MAX + ').', 'err');
+        fTitle.focus();
+        return null;
+      }
+      if (!body) { setProposeStatus('Describe what you are proposing in the body.', 'err'); fBody.focus(); return null; }
+      if (body.length > BODY_MAX) {
+        setProposeStatus('Body is too long (' + body.length + ' characters, max ' + BODY_MAX + ').', 'err');
+        fBody.focus();
+        return null;
+      }
+      if (!Number.isFinite(days) || days <= 0) {
+        setProposeStatus('Voting window must be a positive number of days.', 'err');
+        fDays.focus();
+        return null;
+      }
+      if (days > WINDOW_MAX_DAYS) {
+        setProposeStatus('Voting window must be ' + WINDOW_MAX_DAYS + ' days or fewer.', 'err');
+        fDays.focus();
+        return null;
+      }
+      return { title: title, body: body, type: fType.value, scope: fScope.value, days: days };
+    }
+
+    proposeForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      submitProposal();
+    });
+
+    async function submitProposal() {
+      const fields = readProposalForm();
+      if (!fields) return;
+      proposeSubmit.disabled = true;
+      setProposeStatus('Checking your identity...');
+      try {
+        const me = await myIdentity();
+        if (!me) {
+          setProposeStatus('Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and propose.', 'err');
+          // Leaves the button disabled with the sign-in note: there is nothing
+          // to retry until an identity exists.
+          await refreshProposeIdentity();
+          return;
+        }
+        setProposeStatus('Signing your proposal (Dilithium3)...');
+        const mods = await pqMods();
+        const built = await mods.obj.buildProposalV1({
+          proposalType: fields.type,
+          scope: fields.scope,
+          title: fields.title,
+          body: fields.body,
+          windowDays: fields.days,
+          authorPublicKey: me.pub,
+          sign: async function(bytes){
+            const sig = await window.pqSignMessage(me.id.dilithiumSecret, bytes);
+            if (!sig) throw new Error('Dilithium signing failed (post-quantum bundle unavailable)');
+            return sig;
+          },
+          blake3: mods.blake3,
+        });
+        setProposeStatus('Submitting proposal...');
+        await window.HumOS.pq.postObject(built.submission);
+        setProposeStatus('Proposal submitted.', 'ok');
+        fTitle.value = '';
+        fBody.value = '';
+        proposeForm.hidden = true;
+        proposeToggle.textContent = 'New proposal';
+        proposeSubmit.disabled = false;
+        // The new proposal is open, so it shows under either filter.
+        loadProposals();
+      } catch (err) {
+        setProposeStatus('Proposal failed: ' + String(err && err.message || err), 'err');
+        proposeSubmit.disabled = false;
+      }
     }
 
     function escapeHtml(s) {
