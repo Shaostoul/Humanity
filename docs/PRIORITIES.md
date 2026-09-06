@@ -28,9 +28,20 @@
 > critic's cheaper option (make the far field the analytic column too) was
 > rejected by the captures: the column is far darker than the ladder on
 > stratocumulus and congestus fields. Cost: the v0.1288 band saving reverses
-> (rain 26 km about 122 -> 152 ms). Gate on the v0.1291.1 exe: the square
-> fixture's on/off diff must fall to the parity floor and the Sun-source
-> channel must show no dark ring.
+> (rain 26 km about 122 -> 152 ms). GATE PASSED on the v0.1291.1 exe (sweep
+> 20260906-004852, Sahara 36.8 km, stratocumulus, cloud_res 2): the ring is
+> gone at nadir and at 45 degrees (Sun-source channel: fine white, coarse
+> grey, a smooth hand-off, no dark band); mean brightness with the cache on
+> vs off went from 10.6 levels darker (v0.1289.1: 186.0 vs 196.6) to 1.2
+> (195.4 vs 196.6) at nadir and 0.7 at 45 degrees; the per-pixel diff that
+> remains (nadir mean 10.4) is lobe-scale (the 760 m coarse cells' trilinear
+> tau against the per-pixel ladder) and cancels in the mean; 45 degrees
+> mean 0.9. Costs for the record (res 2, rig defaults): rain-26km-nadir
+> 41.7 ms, operator-bm12 35.5, the square nadir 74.6 on / 69.2 off, 45
+> degrees 105.6 / 92.2 (the cache costs MORE than the ladder at 36.8 km over
+> stratocumulus: the 36.8 km class needs the cluster table, not the cache).
+> The square fixture becomes a standing vantage after the far-rung merge
+> (vantages.json is the far-rung Rust implementer's file until then).
 >
 > REFUTED AND MEASURED. (F2) The horizon darkening under the step economy:
 > the reader blamed the footprint floor (29 to 231 m at 20 to 160 km from
@@ -38,8 +49,13 @@
 > its evidence (the only on-disk horizon pair came from a sweep where the
 > eco knob was inert), refuted the ambient-ramp chain, and found the direct
 > term's sign plausibly opposite at sunset. First rig pair (humilis field,
-> 5 m sunset horizon) had NO cloud in frame; second pair with stratocumulus
-> and congestus fields in flight. (F3) "Distant clouds vanish with the warp
+> 5 m sunset horizon) had NO cloud in frame; the second pair (stratocumulus
+> and congestus fields filling the horizon band) reads eco 0 vs 1 mean 2.4,
+> luminance bands equal, visually identical: NOT REPRODUCED (the operator's
+> pair was nine sunset minutes apart). The cost it exposed: that 5 m sunset
+> horizon over stratocumulus costs 195 ms (eco 0) / 117 ms (eco 1) in the
+> cloud pass at half res, grazing rays with footprints under 1 km that the
+> far rung does not touch: the 'horizon rung', a perf class of its own. (F3) "Distant clouds vanish with the warp
 > band-limit": the reader's 224-iteration-cap chain was refuted (bit 7 and
 > bit 8 feed one OR, so bit 8 alone cannot move the refine); the critic's
 > mechanism of record is `cloud_noise.rs:995` capping the mip
@@ -47,8 +63,11 @@
 > per level, so the band-limited warp amplitude collapses geometrically with
 > mip; the full-amplitude warp's halo makes grazing rays saturate early, so
 > "more clouds" with it off is partly an artifact. First rig pair (cumulus
-> field from 4.5 km) showed no difference between arms; second pair over a
-> dense stratocumulus deck in flight. (F4) In-cloud light: the march's alpha
+> field from 4.5 km) showed no difference between arms; the second pair over
+> a dense stratocumulus deck (cover 0.85) neither: coverage masks identical,
+> no 224-cap hits in the steps channel, the OFF arm only adds fine hash on
+> the deck top. NOT REPRODUCED; the mip-gain collapse stays a property to
+> fix inside the far rung's near band if a same-clock repro appears. (F4) In-cloud light: the march's alpha
 > is invariant under the switch (only the resolve filter couples it,
 > bounded); the row is relabelled "changes the LIGHT only". (F5) The
 > sample-anchored march: the OFF arm's mechanism confirmed by a reproduced
