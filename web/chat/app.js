@@ -1954,14 +1954,20 @@ function updateRulesBanner() {
   }
   banner.style.display = 'flex';
   const agreed = localStorage.getItem('humanity_rules_agreed');
+  // The rules text used to be messages posted into this channel, and the live
+  // channel is now empty, so this banner was asking people to agree to nothing
+  // visible. The rules live at /rules since 2026-09-06 (with the moderator
+  // powers and the appeals route alongside them), so every state of this banner
+  // carries the link. Agreeing to unreadable rules is not consent.
+  const readLink = ' <a href="/rules" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.82rem;">Read the rules and how appeals work</a>';
   if (agreed === 'true') {
-    banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
+    banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' + readLink +
       '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
-    banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
+    banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>'+ readLink +
       '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
-    banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
+    banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the community rules?</span>' + readLink +
       '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:var(--space-sm) var(--space-2xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
       '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
