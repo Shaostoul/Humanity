@@ -712,7 +712,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0" }, v0.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0" }, v0.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -737,7 +737,7 @@ async function main() {
       };
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0" }, v.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0" }, v.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");

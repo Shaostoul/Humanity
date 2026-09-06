@@ -5971,7 +5971,7 @@
     },
     {
       "id": "prof-vert-250-r1-ref",
-      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 250 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine).",
+      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 250 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine). [eco 0: the reference is a genuinely uniform 60 m march (194 steps at nadir, under the 224 cap); with eco 1 the relaxation stretched the fixed step up to 2x below transmittance 0.5]",
       "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
       "expect": "diagnostic",
       "regressions": [
@@ -5996,7 +5996,7 @@
         "cloud_clock": "120",
         "cloud_light": "1",
         "cloud_body_cache": "1",
-        "cloud_step_eco": "1",
+        "cloud_step_eco": "0",
         "map_diag": "1",
         "cloud_res": "1",
         "cloud_profile": "0",
@@ -6007,7 +6007,7 @@
     },
     {
       "id": "prof-vert-250-r1-ref-steps",
-      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop.",
+      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop. [eco 0: the reference is a genuinely uniform 60 m march (194 steps at nadir, under the 224 cap); with eco 1 the relaxation stretched the fixed step up to 2x below transmittance 0.5]",
       "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
       "expect": "diagnostic",
       "regressions": [
@@ -6032,7 +6032,7 @@
         "cloud_clock": "120",
         "cloud_light": "1",
         "cloud_body_cache": "1",
-        "cloud_step_eco": "1",
+        "cloud_step_eco": "0",
         "map_diag": "4",
         "cloud_res": "1",
         "cloud_profile": "0",
@@ -6223,7 +6223,7 @@
     },
     {
       "id": "prof-vert-60-r1-ref",
-      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 60 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine).",
+      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 60 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine). [eco 0: the reference is a genuinely uniform 60 m march (194 steps at nadir, under the 224 cap); with eco 1 the relaxation stretched the fixed step up to 2x below transmittance 0.5]",
       "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
       "expect": "diagnostic",
       "regressions": [
@@ -6248,7 +6248,7 @@
         "cloud_clock": "120",
         "cloud_light": "1",
         "cloud_body_cache": "1",
-        "cloud_step_eco": "1",
+        "cloud_step_eco": "0",
         "map_diag": "1",
         "cloud_res": "1",
         "cloud_profile": "0",
@@ -6259,7 +6259,7 @@
     },
     {
       "id": "prof-vert-60-r1-ref-steps",
-      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop.",
+      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop. [eco 0: the reference is a genuinely uniform 60 m march (194 steps at nadir, under the 224 cap); with eco 1 the relaxation stretched the fixed step up to 2x below transmittance 0.5]",
       "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
       "expect": "diagnostic",
       "regressions": [
@@ -6284,7 +6284,7 @@
         "cloud_clock": "120",
         "cloud_light": "1",
         "cloud_body_cache": "1",
-        "cloud_step_eco": "1",
+        "cloud_step_eco": "0",
         "map_diag": "4",
         "cloud_res": "1",
         "cloud_profile": "0",
@@ -8970,6 +8970,150 @@
         "cloud_top_bound": "0",
         "cloud_uniform_step": "0",
         "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-s60",
+      "desc": "Far-rung gate G0(e), step invariance (A7), the FIXED-STEP pair (2026-09-06, replaces the eco pair as the A7 instrument: since D2 the profile share is exempt from the economy, so cloud_step_eco 0 and 1 march a forced level bit-identically): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 0, cloud_uniform_step 1, cloud_step_m 60 (193 steps on the 11.6 km nadir chord, 31 under the 224 cap; cap-valid only where the slab chord is under 13.44 km, so compare inside cloud-mask-iou.js --crop=0.25). The fixed step is applied AFTER every other dt rule, so the pair really changes the step count through the profile share. PASS: masked mean of s60 and s120 within 1 percent inside the converged crop. Prove red on the v1 law (tau per step) before the green is believed.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-s120",
+      "desc": "Far-rung gate G0(e), step invariance (A7), the FIXED-STEP pair (2026-09-06, replaces the eco pair as the A7 instrument: since D2 the profile share is exempt from the economy, so cloud_step_eco 0 and 1 march a forced level bit-identically): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 0, cloud_uniform_step 1, cloud_step_m 120 (97 steps on the nadir chord, half the s60 count). The fixed step is applied AFTER every other dt rule, so the pair really changes the step count through the profile share. PASS: masked mean of s60 and s120 within 1 percent inside the converged crop. Prove red on the v1 law (tau per step) before the green is believed.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "120"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-s60-mask",
+      "desc": "Far-rung gate G0(e), step invariance (A7), the FIXED-STEP pair (2026-09-06, replaces the eco pair as the A7 instrument: since D2 the profile share is exempt from the economy, so cloud_step_eco 0 and 1 march a forced level bit-identically): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 0, cloud_uniform_step 1, cloud_step_m 60 (193 steps on the 11.6 km nadir chord, 31 under the 224 cap; cap-valid only where the slab chord is under 13.44 km, so compare inside cloud-mask-iou.js --crop=0.25). The fixed step is applied AFTER every other dt rule, so the pair really changes the step count through the profile share. PASS: masked mean of s60 and s120 within 1 percent inside the converged crop (this cell is the map_diag 1 mask twin; the mask for the masked mean). Prove red on the v1 law (tau per step) before the green is believed.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-s120-mask",
+      "desc": "Far-rung gate G0(e), step invariance (A7), the FIXED-STEP pair (2026-09-06, replaces the eco pair as the A7 instrument: since D2 the profile share is exempt from the economy, so cloud_step_eco 0 and 1 march a forced level bit-identically): level 2 FORCED (knob 4) at the 1000 km rung, cloud_res 1, cloud_step_eco 0, cloud_uniform_step 1, cloud_step_m 120 (97 steps on the nadir chord, half the s60 count). The fixed step is applied AFTER every other dt rule, so the pair really changes the step count through the profile share. PASS: masked mean of s60 and s120 within 1 percent inside the converged crop (this cell is the map_diag 1 mask twin; the mask for the masked mean). Prove red on the v1 law (tau per step) before the green is believed.",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "120"
       },
       "settle_s": 12,
       "hold_altitude": true
