@@ -605,6 +605,17 @@ pub struct Renderer {
     /// 0..5 forced, 8 = hard switch (the prove-red), 9 = the reference
     /// bake. Mirrored from GuiState::cloud_dev_profile_knob by lib.rs.
     pub cloud_profile_knob: i32,
+    /// D3 dev bit (2026-09-06; flags-pad bit 12 of light2_color.w, see
+    /// `cloud_temporal::CLOUD_FR_FLAG_TOP_BOUND`): the BUILT-BODY TOP
+    /// BOUND. On = the body publishes a from-above SDF lower bound so the
+    /// march's stride finds thin built clouds under the 928 m comb, and
+    /// the step economy's in-cloud floor is capped at a quarter of the
+    /// found cloud's height. Off (default) = today's comb, the A/B twin.
+    /// Independent of the profile knob and of the atlas: the pad carries
+    /// it every frame, atlas or not. Mirrored from
+    /// GuiState::cloud_dev_top_bound by lib.rs; showcase key
+    /// `cloud_top_bound`.
+    pub cloud_top_bound: bool,
     /// The profile atlas, its views / groups and the planning state,
     /// created on first use by `ensure_cloud_profile` (cloud_temporal.rs).
     pub(crate) cloud_profile_cache: Option<cloud_temporal::CloudProfileCache>,
@@ -1882,6 +1893,9 @@ impl Renderer {
             // Default 0 (off) until gates G0..G6 of the far-rung contract
             // pass; the orchestrator flips it to 1.
             cloud_profile_knob: 0,
+            // D3 dev bit, default OFF until its gate (prof-vert-250/60-r1
+            // fix vs ref) passes; the orchestrator flips it.
+            cloud_top_bound: false,
             cloud_profile_cache: None,
             cloud_profile_frame: None,
             cloud_shell_mat: None,
@@ -4023,14 +4037,23 @@ impl Renderer {
         // flags)`, all exact integers in f32, f64 all the way in
         // CloudProfileState (the ground cell) and narrowed only here.
         // Written EVERY frame after the bulk camera upload (which lands
-        // zeros there first); zeros when no atlas exists, so the shader's
-        // knob branch is never taken without an atlas at binding 14.
+        // zeros there first); the ground and knob lanes are zeros when no
+        // atlas exists, so the shader's knob branch is never taken without
+        // an atlas at binding 14.
+        // D3 (2026-09-06): the flags lane ALSO carries the built-body
+        // top-bound dev bit (bit 12 = 4096, `CLOUD_FR_FLAG_TOP_BOUND`),
+        // atlas or not: without the atlas the pad is (0, 0, 0, 4096) when
+        // the bit is on. The bit is what `cloud_top_bound_on()` reads in
+        // the body and the step law; it never touches the validity bits
+        // 0..8 (unit test `top_bound_bit_decodes_as_bit_12_...`), and the
+        // gate's cells run it at knob 0 where no atlas is ever created.
         {
-            let pad = self
+            let mut pad = self
                 .cloud_profile_cache
                 .as_ref()
                 .map(|pc| pc.state.pads())
                 .unwrap_or([0.0; 4]);
+            pad[3] = cloud_temporal::cloud_fr_flags_with_top_bound(pad[3] as u32, self.cloud_top_bound) as f32;
             self.queue
                 .write_buffer(&self.camera_buffer, 240, bytemuck::cast_slice(&pad));
         }
@@ -4129,8 +4152,10 @@ impl Renderer {
                             ));
                         }
                         log::info!(
-                            "[CloudProfile] knob={} active={} ground=({},{}) flags={}{} global={}{}@{:.0}/passes={} calib={} trunc={} mb={:.1}",
+                            "[CloudProfile] knob={} top_bound={} active={} ground=({},{}) flags={}{} global={}{}@{:.0}/passes={} calib={} trunc={} mb={:.1}",
                             self.cloud_profile_knob,
+                            // D3 dev bit: printed so a capture's log proves which arm ran.
+                            self.cloud_top_bound,
                             self.cloud_profile_active().is_some(),
                             pad[0],
                             pad[1],
@@ -4152,8 +4177,10 @@ impl Renderer {
                     }
                     None => {
                         log::info!(
-                            "[CloudProfile] knob={} active=false (no atlas) fed={}",
+                            "[CloudProfile] knob={} top_bound={} active=false (no atlas) fed={}",
                             self.cloud_profile_knob,
+                            // D3 dev bit: the gate runs it at knob 0, so THIS branch is the one that logs it.
+                            self.cloud_top_bound,
                             self.cloud_profile_frame.is_some(),
                         );
                     }

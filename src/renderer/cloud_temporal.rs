@@ -1298,6 +1298,32 @@ pub const CLOUD_FR_KNOB_HARD: i32 = 8;
 /// The reference bake (dev only, slow: 128 frames per level).
 pub const CLOUD_FR_KNOB_REF: i32 = 9;
 
+/// D3 (the marched field empties from above, 2026-09-06): flags-pad bit 12
+/// (4096) of `light2_color.w` = the BUILT-BODY TOP BOUND dev bit. When it is
+/// on, `cloud_v2_body`'s vertical reject publishes the gap to the admitted
+/// density region as a from-above SDF lower bound (so the march's stride
+/// finds a thin humilis under a 928 m comb instead of a coin flip), and the
+/// step economy's in-cloud floor is capped at a quarter of the found cloud's
+/// height (so a found cloud is integrated, not skimmed). Off = today's comb,
+/// the A/B twin. Read in WGSL as `cloud_profile_flag(12)` =
+/// `cloud_top_bound_on()`. It is INDEPENDENT of the profile knob and of the
+/// atlas: the pad's flags lane carries it even when no atlas exists (the
+/// bits 0..8 above are then all zero), which is why the gate's cells run it
+/// at `cloud_profile` 0. Bits 0..8 are the validity bits; bits 13..15 are
+/// the component bisect on a different pad; 12 was free.
+pub const CLOUD_FR_FLAG_TOP_BOUND: u32 = 1 << 12;
+
+/// OR the D3 top-bound dev bit into a flags value (`cloud_fr_flags` or the
+/// zero pad of a frame without an atlas). Exact in f32: the largest value is
+/// 4096 + 511, far below 2^24.
+pub fn cloud_fr_flags_with_top_bound(flags: u32, top_bound: bool) -> u32 {
+    if top_bound {
+        flags | CLOUD_FR_FLAG_TOP_BOUND
+    } else {
+        flags
+    }
+}
+
 /// The per-frame inputs lib.rs feeds the profile from the cloud fill block,
 /// on EVERY tier the cloud shell exists (the Low sheet needs the global).
 /// All the planet-scale values are f64 (the v0.1238 lesson: never subtract
@@ -2280,6 +2306,17 @@ mod cloud_profile_tests {
             );
         }
         assert!((CLOUD_FR_LOD0 as f64 - (CLOUD_FR_CELL0_KM as f64).log2()).abs() < 1.0e-9);
+        // D3: the top-bound dev bit must be read by the shader on the SAME
+        // bit Rust writes it on. `CLOUD_FR_FLAG_TOP_BOUND` and the shader's
+        // `cloud_top_bound_on()` were written independently; without this
+        // tie a shader reading bit 11 would present as "the fix arm equals
+        // the prod arm", a failed fix, not the wiring bug it is. The bit
+        // rides `light2_color.w`, read through `cloud_profile_flag(b)`.
+        let want = format!("cloud_profile_flag({})", CLOUD_FR_FLAG_TOP_BOUND.trailing_zeros());
+        assert!(
+            src.contains("fn cloud_top_bound_on") && src.contains(&want),
+            "40-clouds.wgsl must define cloud_top_bound_on() and read the top-bound bit as {want}"
+        );
         // Also the calibration areas must be spelled in the temporal shader's
         // stubs by the same names (the passes scissor to them by these values).
         let tmp = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/45-cloud-temporal.wgsl")).expect("read 45-cloud-temporal.wgsl");
@@ -2691,6 +2728,48 @@ mod cloud_profile_tests {
         assert_eq!(p[3], 0.0, "nothing valid yet");
         // Earth's ground index fits an exact f32 integer (< 2^24).
         assert!(cloud_fr_n_i(0, R_KM as f32) < (1 << 24));
+    }
+
+    /// D3: the built-body top-bound dev bit rides bit 12 of the flags pad.
+    /// The shader isolates it as `fract(flags * exp2(-13)) >= 0.5`; the bit
+    /// must decode set on the f32 the pad carries, leave bits 0..8 exactly
+    /// as they were, and survive on the zero pad of a frame without an
+    /// atlas (the gate runs it at knob 0, where no atlas exists).
+    #[test]
+    fn top_bound_bit_decodes_as_bit_12_and_leaves_the_valid_bits_alone() {
+        let decode = |f: f32, b: u32| (f * (-(b as f32 + 1.0)).exp2()).fract() >= 0.5;
+        // Every validity pattern: the bit is added, nothing else moves.
+        let patterns = [
+            cloud_fr_flags([false; 6], false, false),
+            cloud_fr_flags([false; 6], true, false),
+            cloud_fr_flags([true, false, true, false, true, false], true, true),
+            cloud_fr_flags([true; 6], true, true),
+        ];
+        for &base in &patterns {
+            let off = cloud_fr_flags_with_top_bound(base, false);
+            let on = cloud_fr_flags_with_top_bound(base, true);
+            assert_eq!(off, base, "off leaves the flags untouched");
+            assert_eq!(on, base | 4096, "on ORs exactly 4096");
+            assert_eq!(on & 0x1FF, base & 0x1FF, "bits 0..8 unchanged under the bit");
+            let f_on = on as f32;
+            let f_off = off as f32;
+            assert_eq!(f_on as u32, on, "exact in f32");
+            assert!(decode(f_on, 12), "bit 12 decodes set on {on}");
+            assert!(!decode(f_off, 12), "bit 12 decodes clear on {off}");
+            // The shader's rule reads every validity bit the same way with
+            // the top bound on as off.
+            for b in 0..9 {
+                assert_eq!(decode(f_on, b), decode(f_off, b), "bit {b} of {base} moves under the top bound");
+                assert_eq!(decode(f_off, b), (base >> b) & 1 == 1, "bit {b} of {base} decodes");
+            }
+            // Bits 9..11 and 13..15 stay clear: the bit lands on 12 only.
+            for b in [9u32, 10, 11, 13, 14, 15] {
+                assert!(!decode(f_on, b), "bit {b} spuriously set by the top bound");
+            }
+        }
+        // The no-atlas pad: zeros everywhere, the flags lane = the bit alone.
+        assert_eq!(cloud_fr_flags_with_top_bound(0, true), 4096);
+        assert_eq!(cloud_fr_flags_with_top_bound(0, true) as f32, 4096.0);
     }
 
     /// The global's re-reference rules and the stale marking.

@@ -552,6 +552,25 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
             changed = true;
         }
     }
+    // D3 (2026-09-06), the marched field empties from above: the march's
+    // 928 m vertical comb cannot find a 100-400 m humilis that sits at the
+    // slab base (the body rejects every sample above a cloud with a bare
+    // continue, so the SDF stride never fires from above), and once found
+    // the step economy's footprint floor skims it. This bit (flags-pad
+    // bit 12 of light2_color.w, independent of the profile knob) makes the
+    // body publish the vertical gap to its admitted density region as a
+    // from-above SDF bound and caps the in-cloud step floor at a quarter
+    // of the found cloud's height. Off = today's comb, the A/B twin; the
+    // rig gates it on prof-vert-250/60-r1 {prod, ref, fix}.
+    let mut tbb = state.cloud_dev_top_bound;
+    test_mark(ui, theme, "Built-body top bound (D3: the march finds thin built clouds from above; off = today's 928 m comb, for A/B)", &tests);
+    if ui
+        .checkbox(&mut tbb, "Built-body top bound (D3: the march finds thin built clouds from above; off = today's 928 m comb, for A/B)")
+        .changed()
+    {
+        state.cloud_dev_top_bound = tbb;
+        changed = true;
+    }
     // v0.1272: the two fixes the estimator assessment designed.
     let mut estb = state.cloud_dev_est;
     test_mark(ui, theme, "Sample-anchored march (default ON since v0.1272; off = the OLD under-counting march for A/B only: see-through, misses whole bodies, glittery)", &tests);
