@@ -404,6 +404,203 @@ fn cv2_arch_index(tc: f32) -> i32 {
     return 2; // stratus..stratocumulus: flat broken sheets
 }
 
+// ── ELEMENT SIZES for the far rung's clumped-medium law (perf increment 4,
+// contract docs/design/cloud-far-rung.md "Element sizes") ──
+// The march's transmittance law treats the profile share as a field of
+// discrete cloud ELEMENTS: overlap is total inside one element and random
+// beyond it, so it needs a characteristic element size per family. For the
+// built families that is the archetype's own size: L_h = the geometric mean
+// of the width range (humilis 600 m, congestus 1549, stratocumulus 3000,
+// cumulonimbus 4899) and L_v = L_h times the mean aspect times
+// CLOUD_FR_ELEM_SQUASH (the shape frame squashes every cloud vertically).
+// Returned in METRES, uncapped: the caller (cloud_fr_elem_km, 40-clouds.wgsl)
+// caps L_v at the regime's band height and handles the thin families (index
+// < 0), which have no archetype and use CLOUD_FR_ELEM_THIN_KM instead.
+// Mirrors the w_lo / w_hi / a_lo / a_hi tables of cv2_arch above; keep them
+// in lockstep.
+fn cv2_elem_table_m(arch_i: i32) -> vec2<f32> {
+    var w_lo = array<f32, 4>(300.0, 800.0, 1500.0, 3000.0);
+    var w_hi = array<f32, 4>(1200.0, 3000.0, 6000.0, 8000.0);
+    var a_lo = array<f32, 4>(0.45, 1.20, 0.12, 1.60);
+    var a_hi = array<f32, 4>(0.75, 2.60, 0.28, 3.20);
+    let i = clamp(arch_i, 0, 3);
+    let l_h = sqrt(w_lo[i] * w_hi[i]);
+    let l_v = l_h * (a_lo[i] + a_hi[i]) * 0.5 * CLOUD_FR_ELEM_SQUASH;
+    return vec2<f32>(l_h, l_v);
+}
+
+// ── THE SHARED PLACEMENT (perf increment 4, the far rung; contract "The
+// shared placement") ──
+//
+// Everything cloud_v2_body decides about ONE cell's cloud before it ever
+// looks at a sample point: whether the cell holds a cloud at all (the
+// occupancy law + hash test), how big it grew (the coverage growth cap), where
+// its centre sits (jitter, brick stagger, row wander), which way the wind
+// frame points and how the shape frame squashes and stretches it. None of
+// that depends on the sample, so the profile BAKE (fs_cloud_profile_bake,
+// 45-cloud-temporal.wgsl) can enumerate the same clouds the march would see
+// and replace each one by an analytic ellipse. This is a BIT-EXACT refactor:
+// cloud_v2_body calls it and computes exactly the values, in exactly the
+// order, that its own per-cell block used to (the orchestrator gates that
+// with cloud-diff.js max 0 at operator-bm12 and cumulus-closeup-ultra).
+struct Cv2Placement {
+    // false = the cell is clear sky (the hash test failed the occupancy law).
+    present: bool,
+    // The cloud's own seed (drives its lobe cluster and every hash below).
+    seed: f32,
+    // The archetype AFTER coverage growth (width_m grown; the rest as drawn).
+    arch_g: Cv2Arch,
+    // The cloud centre in cv2 CELL units: (ci + 0.5 + jx + stagger, cj + 0.5 + jy + jy_w).
+    centre_cells: vec2<f32>,
+    // The EFFECTIVE shape-frame axes (the dev pad's shape-frame bit already
+    // applied): along-wind stretch, vertical squash, cross-wind.
+    sx: f32,
+    sy: f32,
+    sz: f32,
+    // The wind frame (cos, sin of the patch's wind angle).
+    cwx: f32,
+    cwy: f32,
+    // Post-growth size: height_m = width_m * aspect.
+    height_m: f32,
+    width_m: f32,
+    // The bounding-reject radius: half the stretched width plus the rind.
+    br: f32,
+};
+
+fn cv2_place(ci: f32, cj: f32, arch_i: i32, wa: f32, cell_km: f32) -> Cv2Placement {
+    var pl: Cv2Placement;
+    pl.present = false;
+    let cell = vec2<f32>(ci, cj);
+    let seed = cv2_hash(cell, 7.0) * 4096.0;
+    let arch = cv2_arch(arch_i, cv2_hash(cell, 9.0));
+    // OCCUPANCY LAW (increment 6): the probability a cell holds
+    // a cloud makes the MODIS fraction equal the actual AREAL
+    // coverage - p = wa * cell_area / cloud_footprint_area. The
+    // old bare hash>wa filled cells regardless of cloud size, so
+    // an 8 km cumulonimbus in every second 3.2 km cell tiled the
+    // sky ~11x denser than the weather said - the wall of
+    // giants.
+    let m_per_cell_o = cell_km * 1000.0;
+    let cell_area = m_per_cell_o * m_per_cell_o;
+    // TRUE footprint: the disc the width implies, times the fraction of
+    // it the cluster actually covers. Using the disc alone over-counted
+    // every cloud by 1.5x to 4x and starved the sky by that factor.
+    let fill = cv2_fill_frac(arch_i);
+    let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25 * fill;
+    let demand = wa * cell_area / max(foot, 1.0);
+
+    // ── GROW RATHER THAN CLAMP ──
+    // p is a probability, so it saturates at 1, and once every cell holds
+    // its one cloud, asking for more coverage buys nothing at all - the
+    // gaps can never close however overcast the weather claims to be.
+    // When one cloud cannot meet the demand even at p = 1, the cloud has
+    // to get BIGGER. Area goes as width squared, so the width multiplier
+    // is sqrt(demand). Below saturation this changes nothing, so the
+    // power-law size variety survives at ordinary coverage - and growing
+    // is also what overcast physically IS: larger merged clouds, not more
+    // small ones.
+    var arch_g = arch;
+    if (demand > 1.0) {
+        // GROWTH CAPPED AT 1.35x (v0.1234). The uncapped sqrt(demand)
+        // grew clouds to 1.9 cells wide, and everything about the
+        // cluster scales with its width - lobe radii AND the smooth-min
+        // blend radius - so overcast skies turned into giant melted-wax
+        // blobs (the operator's ascent screenshots). A modest growth
+        // keeps clouds looking like clouds; the SHEET UNION in
+        // cloud_carve (40-clouds.wgsl) is what actually closes the sky
+        // at high coverage now, the way real overcast is a continuous
+        // stratiform layer rather than ever-bigger cumulus.
+        let cap = CLOUD_V2_MAX_CELL_SPAN * m_per_cell_o
+            / max(arch.width_m, 1.0);
+        arch_g.width_m = arch.width_m
+            * clamp(sqrt(demand), 1.0, min(1.35, max(cap, 1.0)));
+    }
+    let p_cell = clamp(demand, 0.0, 1.0);
+    if (cv2_hash(cell, 3.0) > p_cell) {
+        return pl;
+    }
+    // Cell centre + jitter, in cell units.
+    let jx = (cv2_hash(cell, 17.0) - 0.5) * CLOUD_V2_JITTER;
+    let jy = (cv2_hash(cell, 19.0) - 0.5) * CLOUD_V2_JITTER;
+    // ── ROW STAGGER (v0.1232): break the lattice for free ──
+    //
+    // Operator: "the clouds seem to follow a grid pattern". They did,
+    // and fixing the SIZE distribution in v0.1230 is what exposed it:
+    // clouds used to be comparable to their own cell and overlapped
+    // enough to hide the spacing, and once most of them became much
+    // smaller than a cell, a field of small objects on a regular square
+    // grid reads instantly as a grid.
+    //
+    // The obvious fix - more positional jitter - was tried and MEASURED
+    // at 137.7 ms against 59.8 ms for the same frame. Jitter lets two
+    // neighbouring clouds drift together until they overlap, and a ray
+    // through clumped material refines far more steps than one through
+    // evenly spaced material. It buys irregularity by making the march
+    // work harder.
+    //
+    // Offsetting alternate ROWS by half a cell costs nothing at all,
+    // because the spacing stays perfectly regular - it is only no longer
+    // SQUARE. A staggered (brick) arrangement has no long straight rows
+    // to catch the eye along, which is what a lattice actually reads as.
+    // Same trick masonry uses, for the same reason.
+    let stagger = select(0.0, 0.5, (i32(cj) & 1) == 1);
+    // Per-row smooth sine wander (see CLOUD_V2_ROW_WANDER):
+    // phase from the ROW index only, so the whole row bends as
+    // one coherent wave.
+    let jy_w = CLOUD_V2_ROW_WANDER
+        * sin(ci * 0.71
+            + cv2_hash(vec2<f32>(cj, 7.0), 23.0) * 6.2831853);
+    // The centre, in the SAME association the body's dx_cells used
+    // (((ci + 0.5) + jx) + stagger), so the body's subtraction of cx is
+    // bit-identical.
+    pl.centre_cells = vec2<f32>(ci + 0.5 + jx + stagger, cj + 0.5 + jy + jy_w);
+    let height_m = arch_g.width_m * arch_g.aspect;
+    // ── PER-CLOUD SHAPE FRAME (v0.1256; see CLOUD_V2_SQUASH_LO) ──
+    // Wind direction is shared across a patch of cells so
+    // neighbours line up into streets; the squash and stretch are
+    // per cloud, so no two are the same shape.
+    let wcell = floor(vec2<f32>(ci, cj) / CLOUD_V2_WIND_PATCH_CELLS);
+    let wang = cv2_hash(wcell, 83.0) * 6.2831853;
+    let cwx = cos(wang);
+    let cwy = sin(wang);
+    let hsq = cv2_hash(cell, 71.0);
+    let hst = cv2_hash(cell, 73.0);
+    // Flat genera squash hardest; towering ones stay near round.
+    let asp01 = clamp(arch_g.aspect / 1.4, 0.0, 1.0);
+    let sy = mix(CLOUD_V2_SQUASH_LO, CLOUD_V2_SQUASH_HI, asp01)
+        * mix(0.88, 1.12, hsq);
+    let sx = mix(CLOUD_V2_WIND_STRETCH_LO,
+        CLOUD_V2_WIND_STRETCH_HI, hst);
+    let sz = 1.0 / max(sx * sy, 1.0e-3);
+    // F10 A/B (v0.1259): shape frame off = the old isotropic
+    // ball cluster, so the operator can flip the squash/stretch
+    // against it live instead of comparing from memory.
+    // Bit 1 of the dev pad. Tested as a BIT, not as "< 1.5": once a
+    // third flag took bit 2 the magnitude test silently turned the
+    // shape frame off whenever that flag was set. Same collision that
+    // caught the dither test earlier in this arc.
+    let shape_on = fract(camera.light7_color.w * 0.25) < 0.5;
+    let sx_e = select(1.0, sx, shape_on);
+    let sy_e = select(1.0, sy, shape_on);
+    let sz_e = select(1.0, sz, shape_on);
+    // The reject radius must cover the STRETCHED envelope or a
+    // wind-drawn cloud gets clipped at the cell test.
+    let smax = max(sx_e, sz_e);
+    let br = arch_g.width_m * 0.5 * smax + CLOUD_V2_RIND_M;
+    pl.present = true;
+    pl.seed = seed;
+    pl.arch_g = arch_g;
+    pl.sx = sx_e;
+    pl.sy = sy_e;
+    pl.sz = sz_e;
+    pl.cwx = cwx;
+    pl.cwy = cwy;
+    pl.height_m = height_m;
+    pl.width_m = arch_g.width_m;
+    pl.br = br;
+    return pl;
+}
+
 // Signed distance (METRES) to one cloud, in that cloud's local frame:
 // base plane at y = 0, +y up. Negative inside.
 // ── PER-RAY BODY CLUSTER CACHE (perf increment 3, v0.1287, dev pad bit 17) ──
@@ -814,100 +1011,37 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
         for (var di = -1; di <= 1; di = di + 1) {
             let ci = base_i + f32(di);
             let cj = base_j + f32(dj);
-            let cell = vec2<f32>(ci, cj);
-            let seed = cv2_hash(cell, 7.0) * 4096.0;
-            let arch = cv2_arch(arch_i, cv2_hash(cell, 9.0));
-            // OCCUPANCY LAW (increment 6): the probability a cell holds
-            // a cloud makes the MODIS fraction equal the actual AREAL
-            // coverage - p = wa * cell_area / cloud_footprint_area. The
-            // old bare hash>wa filled cells regardless of cloud size, so
-            // an 8 km cumulonimbus in every second 3.2 km cell tiled the
-            // sky ~11x denser than the weather said - the wall of
-            // giants.
-            let m_per_cell_o = cell_km * 1000.0;
-            let cell_area = m_per_cell_o * m_per_cell_o;
-            // TRUE footprint: the disc the width implies, times the fraction of
-            // it the cluster actually covers. Using the disc alone over-counted
-            // every cloud by 1.5x to 4x and starved the sky by that factor.
-            let fill = cv2_fill_frac(arch_i);
-            let foot = 3.14159265 * arch.width_m * arch.width_m * 0.25 * fill;
             // Body cluster cache slot for this cell (perf increment 3): a new
             // cell in this slot invalidates its cached lobes. The demand stays
             // the shipped one (the sample's own weather); the lobes are keyed
-            // by the cluster width with a 0.5% tolerance in cv2_cloud_sdf_cached.
+            // by the cluster width with a 2% tolerance in cv2_cloud_sdf_cached.
+            // The slot bookkeeping stays HERE, not in cv2_place: the profile
+            // bake enumerates placements too and must never touch the per-ray
+            // slots. (It ran before the hash-test `continue` in the inline
+            // block as well, so a clear cell still claims its slot.)
             let slot = cv2_bc_slot(ci, cj);
             let key = vec3<f32>(ci, cj, f32(arch_i));
             if (!all(g_bc_key[slot] == key)) {
                 g_bc_key[slot] = key;
                 g_bc_width[slot] = -1.0;
             }
-            let demand = wa * cell_area / max(foot, 1.0);
-
-            // ── GROW RATHER THAN CLAMP ──
-            // p is a probability, so it saturates at 1, and once every cell holds
-            // its one cloud, asking for more coverage buys nothing at all - the
-            // gaps can never close however overcast the weather claims to be.
-            // When one cloud cannot meet the demand even at p = 1, the cloud has
-            // to get BIGGER. Area goes as width squared, so the width multiplier
-            // is sqrt(demand). Below saturation this changes nothing, so the
-            // power-law size variety survives at ordinary coverage - and growing
-            // is also what overcast physically IS: larger merged clouds, not more
-            // small ones.
-            var arch_g = arch;
-            if (demand > 1.0) {
-                // GROWTH CAPPED AT 1.35x (v0.1234). The uncapped sqrt(demand)
-                // grew clouds to 1.9 cells wide, and everything about the
-                // cluster scales with its width - lobe radii AND the smooth-min
-                // blend radius - so overcast skies turned into giant melted-wax
-                // blobs (the operator's ascent screenshots). A modest growth
-                // keeps clouds looking like clouds; the SHEET UNION in
-                // cloud_carve (40-clouds.wgsl) is what actually closes the sky
-                // at high coverage now, the way real overcast is a continuous
-                // stratiform layer rather than ever-bigger cumulus.
-                let cap = CLOUD_V2_MAX_CELL_SPAN * m_per_cell_o
-                    / max(arch.width_m, 1.0);
-                arch_g.width_m = arch.width_m
-                    * clamp(sqrt(demand), 1.0, min(1.35, max(cap, 1.0)));
-            }
-            let p_cell = clamp(demand, 0.0, 1.0);
-            if (cv2_hash(cell, 3.0) > p_cell) {
+            // ── THE SHARED PLACEMENT (perf increment 4, the far rung) ──
+            // The occupancy law, growth cap, hash test, jitter, brick stagger,
+            // row wander, wind frame and shape frame live in cv2_place now,
+            // which the profile bake shares (45-cloud-temporal.wgsl). Every
+            // value below is the one the inline block computed, in the same
+            // order: a BIT-EXACT refactor (cloud-diff.js max 0 is the gate).
+            let pl = cv2_place(ci, cj, arch_i, wa, cell_km);
+            if (!pl.present) {
                 continue;
             }
-            // Cell centre + jitter, as an offset in metres from the
-            // sample, measured in the local tangent plane.
-            let jx = (cv2_hash(cell, 17.0) - 0.5) * CLOUD_V2_JITTER;
-            let jy = (cv2_hash(cell, 19.0) - 0.5) * CLOUD_V2_JITTER;
-            // ── ROW STAGGER (v0.1232): break the lattice for free ──
-            //
-            // Operator: "the clouds seem to follow a grid pattern". They did,
-            // and fixing the SIZE distribution in v0.1230 is what exposed it:
-            // clouds used to be comparable to their own cell and overlapped
-            // enough to hide the spacing, and once most of them became much
-            // smaller than a cell, a field of small objects on a regular square
-            // grid reads instantly as a grid.
-            //
-            // The obvious fix - more positional jitter - was tried and MEASURED
-            // at 137.7 ms against 59.8 ms for the same frame. Jitter lets two
-            // neighbouring clouds drift together until they overlap, and a ray
-            // through clumped material refines far more steps than one through
-            // evenly spaced material. It buys irregularity by making the march
-            // work harder.
-            //
-            // Offsetting alternate ROWS by half a cell costs nothing at all,
-            // because the spacing stays perfectly regular - it is only no longer
-            // SQUARE. A staggered (brick) arrangement has no long straight rows
-            // to catch the eye along, which is what a lattice actually reads as.
-            // Same trick masonry uses, for the same reason.
-            let stagger = select(0.0, 0.5, (i32(cj) & 1) == 1);
-            // Per-row smooth sine wander (see CLOUD_V2_ROW_WANDER):
-            // phase from the ROW index only, so the whole row bends as
-            // one coherent wave.
-            let jy_w = CLOUD_V2_ROW_WANDER
-                * sin(ci * 0.71
-                    + cv2_hash(vec2<f32>(cj, 7.0), 23.0) * 6.2831853);
-            let dx_cells = (ci + 0.5 + jx + stagger) - cx;
-            let dy_cells = (cj + 0.5 + jy + jy_w) - cy;
-            // Cell-space offset -> metres on the ground.
+            let seed = pl.seed;
+            let arch_g = pl.arch_g;
+            // Cell-space offset -> metres on the ground, from the sample's own
+            // (cx, cy) exactly as before: the centre is the same pre-summed
+            // value the inline block subtracted cx from.
+            let dx_cells = pl.centre_cells.x - cx;
+            let dy_cells = pl.centre_cells.y - cy;
             let m_per_cell = cell_km * 1000.0;
             let ox = -dx_cells * m_per_cell;
             let oy = -dy_cells * m_per_cell;
@@ -915,39 +1049,13 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
             // is now a true bound (centre+radius clamped), so width/2
             // plus the rind suffices - the old 0.62 factor let clamped
             // lobes truncate at the reject edge.
-            let height_m = arch_g.width_m * arch_g.aspect;
-            // ── PER-CLOUD SHAPE FRAME (v0.1256; see CLOUD_V2_SQUASH_LO) ──
-            // Wind direction is shared across a patch of cells so
-            // neighbours line up into streets; the squash and stretch are
-            // per cloud, so no two are the same shape.
-            let wcell = floor(vec2<f32>(ci, cj) / CLOUD_V2_WIND_PATCH_CELLS);
-            let wang = cv2_hash(wcell, 83.0) * 6.2831853;
-            let cwx = cos(wang);
-            let cwy = sin(wang);
-            let hsq = cv2_hash(cell, 71.0);
-            let hst = cv2_hash(cell, 73.0);
-            // Flat genera squash hardest; towering ones stay near round.
-            let asp01 = clamp(arch_g.aspect / 1.4, 0.0, 1.0);
-            let sy = mix(CLOUD_V2_SQUASH_LO, CLOUD_V2_SQUASH_HI, asp01)
-                * mix(0.88, 1.12, hsq);
-            let sx = mix(CLOUD_V2_WIND_STRETCH_LO,
-                CLOUD_V2_WIND_STRETCH_HI, hst);
-            let sz = 1.0 / max(sx * sy, 1.0e-3);
-            // F10 A/B (v0.1259): shape frame off = the old isotropic
-            // ball cluster, so the operator can flip the squash/stretch
-            // against it live instead of comparing from memory.
-            // Bit 1 of the dev pad. Tested as a BIT, not as "< 1.5": once a
-            // third flag took bit 2 the magnitude test silently turned the
-            // shape frame off whenever that flag was set. Same collision that
-            // caught the dither test earlier in this arc.
-            let shape_on = fract(camera.light7_color.w * 0.25) < 0.5;
-            let sx_e = select(1.0, sx, shape_on);
-            let sy_e = select(1.0, sy, shape_on);
-            let sz_e = select(1.0, sz, shape_on);
-            // The reject radius must cover the STRETCHED envelope or a
-            // wind-drawn cloud gets clipped at the cell test.
-            let smax = max(sx_e, sz_e);
-            let br = arch_g.width_m * 0.5 * smax + CLOUD_V2_RIND_M;
+            let height_m = pl.height_m;
+            let cwx = pl.cwx;
+            let cwy = pl.cwy;
+            let sx_e = pl.sx;
+            let sy_e = pl.sy;
+            let sz_e = pl.sz;
+            let br = pl.br;
             if (ox * ox + oy * oy > br * br) {
                 continue;
             }
@@ -1105,9 +1213,60 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
         let ew2 = e2.r * 0.625 + e2.g * 0.25 + e2.b * 0.125;
         ewm = ew1 * 0.72 + ew2 * 0.28;
     }
+    // Profile mode widens the ramp to the photon-transport scale (see
+    // CLOUD_V2_SUN_SMOOTH_M). The flag is set once per ladder and
+    // shared by every tap (single-exit hygiene in cloud_sun_tau), so
+    // the per-tap-rind eyeball-ring class (v0.1230) cannot return.
+    let rind0 = select(CLOUD_V2_RIND_M, CLOUD_V2_SUN_SMOOTH_M,
+        g_sun_profile > 0.5);
+    // ── INCREMENT C: INTERIOR SATURATION (v0.1282, light5_color.w) ──
+    // The crown fade in the tail made the top third of every body a
+    // half-density skirt on top of the SDF's own rounding; real LWC peaks
+    // near the top and a real top is opaque within tens of metres. sat = 1
+    // removes the fade and halves the turbulent swing; sat = 0 is the
+    // v0.1231 profile.
+    let sat = clamp(camera.light5_color.w, 0.0, 1.0);
+    // Sun-profile mode: turb's mean 0.5 makes the interior factor
+    // exactly 1.0 - the sun sees the pure adiabatic profile (Nubis3's
+    // "dimensional profile" verbatim). This field was the audit's #1
+    // variance source: +-42% at ~4 m content, point-sampled by 200-400 m
+    // sun segments.
+    var turb = 0.5;
+    if (g_sun_profile < 0.5) {
+        let t1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
+            p * (1.0 / (CLOUD_V2_INT_TILE_KM * g_cloud_upkm)),
+            clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
+        turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
+    }
+    // ── THE DENSITY TAIL (perf increment 4, bit-exact refactor) ──
+    // Erosion phase, the rind ramp, the wide-edge skirt, the adiabatic
+    // profile and the turbulent interior now live in cv2_density_tail, which
+    // the profile CALIBRATION (fs_cloud_profile_calib, 45-cloud-temporal.wgsl)
+    // shares: it point-tests the canonical cloud of each archetype through
+    // exactly this density law. Same arithmetic, same order, same
+    // g_v2_int_dens publish.
+    return cv2_density_tail(best, up_m, best_height_m, disp_m, ewm, turb, rind0, sat);
+}
+
+// The tail of cloud_v2_body from the erosion phase to the density (perf
+// increment 4, contract docs/design/cloud-far-rung.md "The shared placement",
+// second refactor): given the reduced signed distance `best` (metres, the
+// smin over every candidate cloud), the sample height above the slab base
+// `up_m`, the winning cloud's `height_m`, the surface displacement `disp_m`
+// (metres, the two-octave FBM), the Worley erosion mean `ewm`, the interior
+// turbulence value `turb`, the rind width `rind0` and the interior saturation
+// `sat`, returns the body density in [0, 1] and publishes g_v2_int_dens (the
+// plane-parallel interior density the built-path source column reads).
+//
+// Two callers: cloud_v2_body (the field, with its own fetched values) and the
+// calibration (disp_m = 0, ewm = 0.5, turb = 0.5: every zero-mean field at its
+// mean, the eye's 90 m rind), so the per-archetype (rho_r, Dbar) table is
+// measured on the SAME density law the march renders. The wide-edge
+// experiment (dev pad bit 6) is honoured in here, as it was inline.
+fn cv2_density_tail(best: f32, up_m: f32, height_m: f32, disp_m: f32, ewm: f32, turb: f32, rind0: f32, sat: f32) -> f32 {
     // Height phase (the Nubis flip): wispy 1-w at the base, billowy w at the
     // crown, transitioning over the lower third.
-    let hph = clamp(up_m / max(best_height_m, 1.0) * 3.0, 0.0, 1.0);
+    let hph = clamp(up_m / max(height_m, 1.0) * 3.0, 0.0, 1.0);
     let wor = mix(1.0 - ewm, ewm, hph);
     // Edge-proximity strength: full carve at the surface, decaying to an
     // interior floor. best is negative inside; legal in the DISTANCE domain
@@ -1116,12 +1275,6 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
         clamp(1.0 + best / CLOUD_V2_ERODE_REACH_M, 0.0, 1.0));
     // One-sided: erosion only ADDS distance (carves in), never inflates.
     let erode_m = wor * edge_w * (CLOUD_V2_ERODE_M + CLOUD_V2_ERODE2_M * 0.4);
-    // Profile mode widens the ramp to the photon-transport scale (see
-    // CLOUD_V2_SUN_SMOOTH_M). The flag is set once per ladder and
-    // shared by every tap (single-exit hygiene in cloud_sun_tau), so
-    // the per-tap-rind eyeball-ring class (v0.1230) cannot return.
-    let rind0 = select(CLOUD_V2_RIND_M, CLOUD_V2_SUN_SMOOTH_M,
-        g_sun_profile > 0.5);
     // Wide-edge experiment (dev pad bit 6, see CLOUD_EDGE_WIDE_MUL in
     // 40-clouds.wgsl): the constructed body ramp widens to the radiative
     // smoothing scale. Outer boundary unchanged; the ramp extends inward.
@@ -1161,30 +1314,12 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
     //    the density has structure at 50-500 m throughout, not just on the
     //    skin. This is what lets light find paths through and gives the mass
     //    depth instead of a painted-on surface.
-    let hf = clamp(up_m / max(best_height_m, 1.0), 0.0, 1.0);
-    // ── INCREMENT C: INTERIOR SATURATION (v0.1282, light5_color.w) ──
-    // The crown fade below made the top third of every body a half-density
-    // skirt on top of the SDF's own rounding; real LWC peaks near the top
-    // and a real top is opaque within tens of metres. sat = 1 removes the
-    // fade and halves the turbulent swing; sat = 0 is the v0.1231 profile.
-    let sat = clamp(camera.light5_color.w, 0.0, 1.0);
+    let hf = clamp(up_m / max(height_m, 1.0), 0.0, 1.0);
     let crown = 1.0 - smoothstep(0.68, 1.0, hf);
     let adiabatic = smoothstep(0.0, 0.30, hf) * mix(crown, 1.0, sat);
     // The plane-parallel interior density this column carries (no turb):
     // the built-path source column reads it (40-clouds, increment A1).
     g_v2_int_dens = mix(CLOUD_V2_BASE_FRAC, 1.0, adiabatic);
-    // Sun-profile mode: turb's mean 0.5 makes the interior factor
-    // exactly 1.0 - the sun sees the pure adiabatic profile (Nubis3's
-    // "dimensional profile" verbatim). This field was the audit's #1
-    // variance source: +-42% at ~4 m content, point-sampled by 200-400 m
-    // sun segments.
-    var turb = 0.5;
-    if (g_sun_profile < 0.5) {
-        let t1 = textureSampleLevel(cloud_detail_tex, cloud_tile_sampler,
-            p * (1.0 / (CLOUD_V2_INT_TILE_KM * g_cloud_upkm)),
-            clamp(g_v2_disp_lod - CLOUD_V2_INT_LODC, 0.0, 8.0));
-        turb = t1.r * 0.6 + t1.g * 0.25 + t1.b * 0.15;
-    }
     let turb_amp = CLOUD_V2_TURB_AMP * (1.0 - 0.5 * sat);
     let interior = g_v2_int_dens
         * mix(1.0 - turb_amp, 1.0 + turb_amp, turb);

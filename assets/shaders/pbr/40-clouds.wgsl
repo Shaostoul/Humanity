@@ -233,11 +233,14 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 //          Medium consuming params.w for the first time is exactly what
 //          caused BUG-049. It gets its own bounds only once it has its own
 //          storm + in-slab vantage.
-//   Low    (cloud_layer_flat)       - never reads them at all. It used to
-//          hold the ONLY assignment, which was unobservable: `var<private>`
-//          is per-invocation storage and cloud_layer dispatches to exactly
-//          ONE path per invocation, so the Low path's write could never
-//          reach the High path's read.
+//   Low    (cloud_layer_flat)       - the old cloud_weather path never reads
+//          them at all. It used to hold the ONLY assignment, which was
+//          unobservable: `var<private>` is per-invocation storage and
+//          cloud_layer dispatches to exactly ONE path per invocation, so the
+//          Low path's write could never reach the High path's read. The far
+//          rung's profile branch (cloud_layer_flat_profile, v0.1290+) DOES
+//          read them (slab height for the pooled bins) and calls
+//          cloud_set_slab_bounds itself first.
 //
 // WHAT THE DEAD WRITE COST: High fell back to the static CLOUD_RB/RT
 // (0.996032 / 1.003968), but src/lib.rs raises the DRAWN shell to
@@ -1411,16 +1414,165 @@ fn cloud_low_cam_haze(
     return 1.0 - smoothstep(6.0, 14.0, slant / gap);
 }
 
+// ── THE LOW SHEET FROM THE PROFILE (perf increment 4, contract "The orbit
+// and Low-sheet map") ──
+// The global equirect map IS the 2D profile map: four pooled height bins of
+// (cloud fraction fp, mean density Gp) and the pooled column Tp per texel,
+// at the mip pair bracketing the fragment's own footprint. The sheet's
+// opacity is the element law (A7) applied to each pooled bin in turn along
+// this fragment's ray: T_q = (1 - fp_q (1 - exp(-sigma D_in L_elem)))^(seg /
+// L_elem), alpha = 1 - T_0 T_1 T_2 T_3, so a 30 percent cumulus field reads
+// 30 percent opaque from orbit instead of the old field's cue-ball white.
+// Self-shadow comes from the column (Tp toward the sun minus Tp here)
+// instead of a second field sample; the sphere-normal lighting, silver
+// lining, ACES, limb fade and low-camera haze are the flat path's own.
+// Called only with the knob on and the global valid; `dir` is the planet-
+// local unit direction of the fragment, `inv_model` the world-to-local
+// rotation, both already computed by the caller.
+fn cloud_layer_flat_profile(
+    world_position: vec3<f32>,
+    center: vec3<f32>,
+    shell_r: f32,
+    dir: vec3<f32>,
+    inv_model: mat4x4<f32>,
+    cam_inside: bool,
+    t: f32,
+    seed: f32,
+) -> vec4<f32> {
+    // The slab, for the bin height and the element caps (the flat path
+    // never set these before; the profile is expressed in slab bins).
+    cloud_set_slab_bounds();
+    let slab_km = (g_cloud_rt - g_cloud_rb) / max(g_cloud_upkm, 1.0e-9);
+    let dz_pool_km = 3.0 * slab_km / f32(CLOUD_FR_NZ);
+    // Footprint: the shell draws at SCREEN resolution, so the screen pixel
+    // angle is the right one here (cloud_pix_ang_screen, pad
+    // light5_cone_inner.z), times the fragment's distance from the camera.
+    // shell_r is one drawn-shell unit in render units; g_cloud_upkm converts
+    // drawn-shell units to km.
+    let slant = length(world_position - camera.view_pos.xyz);
+    let dist_km = slant / max(shell_r, 1.0e-6) / max(g_cloud_upkm, 1.0e-9);
+    let foot_km = max(dist_km * cloud_pix_ang_screen(), 1.0e-4);
+    let lodb_sheet = log2(foot_km);
+    // The regime at the fragment's OWN direction (BUG-074 rule): its
+    // extinction per km and the element sizes of its family, in km.
+    let tc = cloud_type_coord(dir, t, seed);
+    let reg = cloud_regime(tc);
+    let sigma = reg.ext_km;
+    let e_km = cloud_fr_elem_km(tc, reg, slab_km);
+    // The global read (the optical-depth columns it also returns are in the
+    // march's units and unused here: the sheet reads the raw pooled bins).
+    g_pf_sigma_v = 0.0;
+    let lat = asin(clamp(dir.y, -1.0, 1.0));
+    let lon = atan2(-dir.z, dir.x);
+    let g = cloud_profile_global(lon, lat, 0.5, lodb_sheet);
+    if (!g.ok) {
+        return vec4<f32>(0.0);
+    }
+    // The ray in the planet-local frame and its angle to the local vertical:
+    // c_v = 1 looks straight down through the pooled bin, c_v -> 0 grazes it.
+    let rd = normalize(world_position - camera.view_pos.xyz);
+    let rd_local = normalize((inv_model * vec4<f32>(rd, 0.0)).xyz);
+    let c_v = abs(dot(rd_local, dir));
+    let seg_q = dz_pool_km / max(c_v, 0.05);
+    let l_v_eff = max(e_km.y, dz_pool_km);
+    // The element law per pooled bin, bins multiplied along the ray.
+    var trans = 1.0;
+    for (var q = 0; q < CLOUD_FR_GLOBAL_NZ; q = q + 1) {
+        let fp_q = cloud_profile_chan(g.fp, q);
+        let gp_q = cloud_profile_chan(g.Gp, q);
+        let d_in = clamp(gp_q / max(fp_q, CLOUD_FR_F_EPS), 0.0, 1.0);
+        trans = trans * cloud_fr_t_pf(1.0, fp_q, d_in, sigma, e_km.x, l_v_eff, c_v, seg_q);
+    }
+    let alpha = 1.0 - trans;
+    if (alpha <= 0.002) {
+        // Clear sky at this fragment: fully transparent, skip the lighting.
+        return vec4<f32>(0.0);
+    }
+
+    // Macro lighting from the SPHERE normal: the deck is a thin wrap, so the
+    // planet's own day/night curvature dominates. Computed from geometry
+    // (position - center), not the interpolated mesh normal, so the level-3
+    // icosphere facets never show in the shading.
+    let n = normalize(world_position - center);
+    let sun = normalize(camera.sun_direction.xyz);
+    let ndl = dot(n, sun);
+    // Soft terminator; the night side fades to near-black (clouds are lit by
+    // the sun alone -- moonlight/city glow are future increments).
+    let day = smoothstep(-0.05, 0.3, ndl);
+
+    // Cheap self-shadow from the COLUMN: the pooled column Tp a short
+    // great-circle step toward the sun against the column here. If the
+    // column RISES toward the sun, this fragment sits on the shaded flank of
+    // a cloud mass -> darken. Tp is in pooled-bin units (at most 4), hence
+    // the 0.25. The sun step vanishes smoothly when the sun is overhead (the
+    // tangent projection goes to zero; no normalize-of-zero NaN).
+    let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
+    let tang = sun_local - dir * dot(sun_local, dir);
+    let sdir = normalize(dir + tang * CLOUD_SHADOW_STEP);
+    let lat_s = asin(clamp(sdir.y, -1.0, 1.0));
+    let lon_s = atan2(-sdir.z, sdir.x);
+    let gs = cloud_profile_global(lon_s, lat_s, 0.5, lodb_sheet);
+    let shade = 1.0
+        - CLOUD_SHADOW_STRENGTH
+            * clamp((gs.Cp.w - g.Cp.w) * 0.25 * CLOUD_SHADOW_SHARP, 0.0, 1.0);
+
+    // Silver lining: HG forward lobe (the atmosphere's phase function,
+    // reused) at THIN edges -- thick cores block the forward-scattered sun,
+    // so weight by (1 - alpha). Gated by a twilight-wide day window so the
+    // deep night limb never glows.
+    let cos_vs = dot(rd, sun);
+    let silver = CLOUD_SILVER_GAIN * atmo_mie_phase(cos_vs) * (1.0 - alpha)
+        * smoothstep(-0.15, 0.1, ndl);
+
+    // Sun energy matches the celestial pass's directional light so the deck
+    // sits in the same exposure regime as the surface below it.
+    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let lit = clamp(ndl, 0.0, 1.0);
+    var radiance = material.base_color.rgb
+        * (sun_energy * (CLOUD_AMBIENT + lit * shade) * day
+            + vec3<f32>(CLOUD_NIGHT_FLOOR));
+    radiance = radiance + sun_energy * silver;
+
+    // Same ACES curve as the rest of the pipeline: all math above is linear,
+    // the render target view is sRGB, blending happens in linear space per
+    // the WebGPU spec (the v0.802/v0.803 lesson: encode once, never twice).
+    let aces_a = 2.51;
+    let aces_b = 0.03;
+    let aces_c = 2.43;
+    let aces_d = 0.59;
+    let aces_e = 0.14;
+    let mapped = clamp(
+        (radiance * (aces_a * radiance + vec3<f32>(aces_b)))
+            / (radiance * (aces_c * radiance + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
+
+    // Limb fade: near the disc edge the shell is seen almost edge-on and
+    // stacks over the atmosphere's own limb brightening into a hard white
+    // ring; ease the deck off as the view grazes the sphere.
+    let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
+    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside, center, shell_r);
+    // The element law already IS the density ramp: alpha is the real
+    // transmittance loss, so dense columns approach opaque and thin cloud
+    // stays translucent without the old field's re-shaping.
+    return vec4<f32>(mapped, alpha * limb * low_haze * 0.97);
+}
+
 fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     // Shell center + radius recovered from the object transform, same trick
     // as the atmosphere shell: unit icosphere placed via Vec3::splat(scale),
     // so column 0's length IS the shell radius and column 3 the center.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
-    // No slab bounds here: the Low path paints ONE field sample at the
-    // fragment, so it has no altitude bounds to set and never reads
-    // g_cloud_rb/rt. (It used to write them - the dead write described in
-    // the g_cloud_rb declaration comment, removed 2026-07-31.)
+    // No slab bounds here: the old cloud_weather path below paints ONE
+    // field sample at the fragment, so it has no altitude bounds to set and
+    // never reads g_cloud_rb/rt. (It used to write them - the dead write
+    // described in the g_cloud_rb declaration comment, removed 2026-07-31.)
+    // The far rung's profile branch (cloud_layer_flat_profile, gated below)
+    // DOES read g_cloud_rb/rt for the slab height and calls
+    // cloud_set_slab_bounds itself before its first read.
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -1444,6 +1596,25 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     let t = camera.sun_color.w; // the cloud clock (see header comment)
     let seed = material.params.x;
     let coverage = material.base_color.a;
+
+    // ── THE FAR RUNG'S LOW SHEET (perf increment 4) ── when the profile
+    // knob is on and the global map has completed its first pass (flag bit
+    // 1), the sheet is redrawn from the same planet-fixed profile the march
+    // reads beyond level 5's window, so the orbit disc, the marble and the
+    // Low tier all draw one map from one law. Knob 0, or before the first
+    // pass completes: today's cloud_weather path below, so the sheet never
+    // goes blank while the first pass bakes.
+    // The last two terms are the guards the march path already has:
+    // cloud_profile_tap refuses a material with no planet radius
+    // (params2.z), and cloud_set_slab_bounds only sets the slab when the
+    // material carries params.w (planet_r / drawn_r). Without them a shell
+    // drawn from a non-planet material would reach cloud_profile_global
+    // with planet_km = 0 (log2(0) in the mip pick, the legacy slab
+    // constants for dist_km) and paint garbage instead of falling through.
+    if (cloud_profile_knob() != CLOUD_FR_KNOB_OFF && cloud_profile_global_valid()
+        && material.params2.z >= 0.5 && material.params.w > 0.001) {
+        return cloud_layer_flat_profile(world_position, center, shell_r, dir, inv_model, cam_inside, t, seed);
+    }
 
     // v0.1284: the SAME field the ground shadow and the volumetric tiers use
     // (blended live+procedural weather), not the older purely procedural
@@ -1915,6 +2086,19 @@ var<private> g_cloud_pouch: f32 = 0.0;
 // voxels at ~mip 0 up close, pixel-scale grain the column estimate must
 // not carry either.
 var<private> g_cloud_carve: f32 = 0.0;
+// ── THE FAR RUNG'S TWO PUBLISHES (perf increment 4, contract "NOISE part") ──
+// g_cloud_frac = clamp((zc + 1) * 0.5, 0, 1): the compact hinge's OWN areal
+// fraction, the share of the sample's footprint whose body lies above the
+// coverage threshold under the uniform sub-footprint spread the hinge
+// integrates (zc = -1 nothing, +1 everything). g_cloud_carve_pt = the
+// PRE-EROSION carve (the value cloud_density_hi erodes from). The profile
+// bake turns the pair into the noise body's per-cell cloud FRACTION f_n:
+// frac = g_cloud_frac * clamp(dens / g_cloud_carve_pt, 0, 1), evaluated at
+// the cell's own mip, where the hinge IS the cell mean. Zero cost: both
+// values already exist inside cloud_carve. Reset at every carve entry so an
+// early return (clear sky, outside the band) never leaks a stale fraction.
+var<private> g_cloud_frac: f32 = 0.0;
+var<private> g_cloud_carve_pt: f32 = 0.0;
 // How much of this sample is the CONSTRUCTED body rather than the noise body.
 // Published on the same side-channel as g_cloud_pouch because the shading site
 // needs it and the CloudSample it lives on is not in scope there.
@@ -2097,6 +2281,10 @@ fn cloud_carve(
     cell_amt: f32,
     lodb: f32,
 ) -> CloudSample {
+    // Far-rung publishes (increment 4): reset first, so the early returns
+    // below leave "no cloud" behind, never a previous sample's fraction.
+    g_cloud_frac = 0.0;
+    g_cloud_carve_pt = 0.0;
     let r = length(p);
     let h = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
     // ── THE LEAN (v0.1275, design 1b; showcase cloud_shear, F10 slider) ──
@@ -2519,6 +2707,10 @@ fn cloud_carve(
         fract(camera.light7_color.w * 0.00048828125) >= 0.5);
     let carve = clamp(
         hinge * sw / max(CLOUD_BODY_TOP - thr, norm_floor), 0.0, 1.0) * env;
+    // The far rung's publishes (increment 4, see the declarations): the
+    // hinge's own areal fraction and the pre-erosion carve.
+    g_cloud_frac = clamp((zc + 1.0) * 0.5, 0.0, 1.0);
+    g_cloud_carve_pt = carve;
     // v0.1252.2: a second, CELL-FREE hinge for the tau_vert envelope (see
     // g_cloud_carve's note). The cell split is a COVERAGE mechanism
     // (where cloud exists); the vertical column-depth estimate feeding
@@ -3377,7 +3569,8 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
 // equirect lattice, plus one global equirect map with a real mip pyramid. The
 // march reads it with 4-tap loads chosen by the same lodb that picks every
 // noise mip, and the profile share is integrated in TRANSMITTANCE by a
-// clumped-medium law (the WGSL implementer's half; see the STUB hook below).
+// clumped-medium law (cloud_fr_t_pf, wired into cloud_march_core; the bake
+// fragments live in 45-cloud-temporal.wgsl).
 //
 // The speckles it kills: the constructed bodies point-sampled at footprints
 // larger than the clouds (873 km: 25-31 percent white texels as sugar grain).
@@ -3900,6 +4093,45 @@ fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTa
     return r;
 }
 
+// ── ELEMENT SIZES (contract "Element sizes"), in KILOMETRES ──
+// The clumped-medium law (A7) treats the profile share as a field of cloud
+// ELEMENTS: overlap is total inside one element (a ray through a cumulus
+// sees its whole depth, not a mean) and random beyond it. It needs the
+// element's horizontal and vertical size per family. Built families
+// (cv2_arch_index(tc) >= 0): the archetype's own geometric-mean width and
+// the squashed height (cv2_elem_table_m, 41-cloud-bodies.wgsl), the vertical
+// size capped at the regime's band height. Thin families (cirrus, altocu,
+// index < 0): CLOUD_FR_ELEM_THIN_KM across and the band height tall (a sheet
+// is one element vertically). Returns (L_h, L_v) in km; callers convert to
+// their own units (the march: km * g_cloud_upkm; the Low sheet: km as is).
+fn cloud_fr_elem_km(tc: f32, reg: CloudRegime, slab_km: f32) -> vec2<f32> {
+    let band_km = max((reg.h_hi - reg.h_lo) * slab_km, 1.0e-3);
+    let arch_i = cv2_arch_index(tc);
+    if (arch_i < 0) {
+        return vec2<f32>(CLOUD_FR_ELEM_THIN_KM, band_km);
+    }
+    let e_km = cv2_elem_table_m(arch_i) * 0.001;
+    return vec2<f32>(max(e_km.x, 1.0e-3), max(min(e_km.y, band_km), 1.0e-3));
+}
+
+// ── THE ELEMENT LAW (A7), one sample's profile-share transmittance ──
+// tau_elem = sigma_v * D_in * L_elem is the optical depth of ONE element
+// along the ray (D_in = G / f, the in-cloud density; L_elem the element's
+// chord for this ray direction, 1 / (c_v / L_v + c_h / L_h)); a fraction f of
+// the ground is covered, so one element-length of travel transmits
+// 1 - w * f * (1 - exp(-tau_elem)); a segment of length seg is seg / L_elem
+// element-lengths, and random overlap between elements makes the exponents
+// ADD, so the result is a property of the medium and not of the step (one
+// step of S and k steps of S / k give the same product by construction; the
+// v1 form failed exactly that). Returns T_pf in [0, 1].
+fn cloud_fr_t_pf(w_pf: f32, f: f32, D_in: f32, sigma_v: f32, l_h: f32, l_v: f32, c_v: f32, seg: f32) -> f32 {
+    let c_h = sqrt(max(1.0 - c_v * c_v, 0.0));
+    let l_elem = 1.0 / max(c_v / l_v + c_h / l_h, 1.0e-9);
+    let tau_elem = sigma_v * D_in * l_elem;
+    let per_elem = max(1.0 - w_pf * f * (1.0 - exp(-tau_elem)), 0.0);
+    return pow(per_elem, max(seg / l_elem, 1.0e-6));
+}
+
 // map_diag channels 10 / 11 / 12: the profile share w_pf, the blended level
 // / 6, and the profile fraction pf.f, each accumulated with the colour's own
 // weights (trans * a_i) exactly as g_march_src_acc, so they read as what the
@@ -4048,7 +4280,11 @@ fn cloud_march_core(
     // on the sphere, far inside one type cell).
     let reg_reach = 4.0 * (g_cloud_rt - g_cloud_rb);
     let mid_dir = normalize(ro + rd * (m0 + min(m1 - m0, reg_reach) * 0.5));
-    let reg = cloud_regime(cloud_type_coord(mid_dir, t, seed));
+    // The type coordinate is kept (increment 4): the far rung's element
+    // sizes are per family, so the ray's own tc names the archetype. The
+    // regime itself is the same call it always was.
+    let tc_ray = cloud_type_coord(mid_dir, t, seed);
+    let reg = cloud_regime(tc_ray);
     // Freeze the v2 body's rind for this ray (see g_v2_foot_m): the ray's
     // own footprint at the segment midpoint, in metres. Every density
     // call in this invocation - view samples AND all eight sun-shadow
@@ -4273,6 +4509,23 @@ fn cloud_march_core(
     // cloud_sigma_mul, F10 slider); 0 = off. The transparency test at bm-12.
     let sigma_mul = select(1.0, camera.light5_color.y, camera.light5_color.y > 0.0);
     let sigma_v = (reg.ext_km / g_cloud_upkm) * sigma_mul;
+    // ── THE FAR RUNG (perf increment 4): per-ray constants ──
+    // Knob 0 (the A/B twin): this one uniform read is the ONLY new code
+    // that executes; every profile branch below tests it or the w_pf it
+    // derives, so the march is bit-identical to v0.1288. Knob != 0: the
+    // element sizes of this ray's family in drawn-shell units (the element
+    // law needs them per sample), and one bin's height for the vertical
+    // element floor.
+    let knob = cloud_profile_knob();
+    var fr_l_h = 1.0;
+    var fr_l_v = 1.0;
+    var fr_dz = 1.0;
+    if (knob != CLOUD_FR_KNOB_OFF) {
+        let e_km = cloud_fr_elem_km(tc_ray, reg, slab_h / max(g_cloud_upkm, 1.0e-9));
+        fr_l_h = e_km.x * g_cloud_upkm;
+        fr_l_v = e_km.y * g_cloud_upkm;
+        fr_dz = slab_h / f32(CLOUD_FR_NZ);
+    }
     var trans = 1.0;
     var acc = vec3<f32>(0.0);
     var acc_w = 0.0;
@@ -4481,19 +4734,21 @@ fn cloud_march_core(
         // Weather-map texel = 27.8 km at mip 0.
         let foot = max(tm * pix_ang, dt * 0.25);
         let lodb = log2(max(foot / g_cloud_upkm, 1.0e-4));
-        // ── THE FAR RUNG (perf increment 4, A17 stub): the profile tap ──
-        // Knob 0 (no atlas, or the A/B twin): one uniform read and a branch
-        // not taken - the march below is bit-identical to v0.1288. Knob != 0:
-        // the planet-fixed profile is read through the real lattice / walk
-        // arithmetic and accumulated into map_diag channels 10 / 11 / 12
-        // ONLY, so the colour output is still bit-identical at every knob.
-        // STUB (A17): the WGSL implementer wires w_pf into the transmittance
-        // and the lighting here - at w_pf >= 1 - 1e-4 the weather tap, the
-        // density call, the sun ladder / cache, the entry bisection and the
-        // refinements are skipped; a_i takes the element law T_pf; the sun
-        // tau, the burial columns and the relief terms mix by w_pf (see the
-        // contract's "March side (WGSL)"). Nothing of that is here yet.
-        let knob = cloud_profile_knob();
+        // ── THE FAR RUNG (perf increment 4): the profile tap ──
+        // Knob 0 (no atlas, or the A/B twin): a branch not taken, w_pf = 0,
+        // full = true - the march below is bit-identical to v0.1288. Knob !=
+        // 0: the planet-fixed profile (fraction f, mean density G, the
+        // columns above and below) is read through the lattice / walk
+        // arithmetic above and takes the share w_pf of this sample:
+        //   * w_pf < 1 - 1e-4 ("full"): the weather tap, cloud_density_hi,
+        //     the sun ladder / cache, the entry bisection, the backtrack and
+        //     the refinements run as today on the full-field share;
+        //   * w_pf >= 1 - 1e-4: none of them run (dens = 0, dens_prev = 0,
+        //     sdf_prev = the no-body sentinel so the step is the base law).
+        //     That is where the orbit cost goes.
+        // The transmittance takes the element law T_pf (A7) on the profile
+        // share and the sun / burial columns and the relief terms mix by w_pf
+        // (contract "March side (WGSL)").
         var pf = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0);
         var w_pf = 0.0;
         if (knob != CLOUD_FR_KNOB_OFF) {
@@ -4513,6 +4768,21 @@ fn cloud_march_core(
                 w_pf = smoothstep(CLOUD_FR_LOD_LO, CLOUD_FR_LOD_HI, lodf);
             }
             w_pf = select(0.0, w_pf, pf.ok);
+        }
+        // Does the full field still own any of this sample?
+        let full = w_pf < 1.0 - 1.0e-4;
+        // The profile share's in-cloud columns (optical depths above and
+        // below the sample INSIDE the cloud fraction, capped at the slab):
+        // computed with the share so the lighting block can mix them in.
+        var tau_above_in = 0.0;
+        var tau_below_in = 0.0;
+        var D_in_pf = 0.0;
+        if (w_pf > 0.0) {
+            let f_floor = max(pf.f, CLOUD_FR_F_EPS);
+            let r_pf = length(p);
+            tau_above_in = min(pf.tau_above / f_floor, sigma_v * max(g_cloud_rt - r_pf, 0.0));
+            tau_below_in = min(pf.tau_below / f_floor, sigma_v * max(r_pf - g_cloud_rb, 0.0));
+            D_in_pf = clamp(pf.G / f_floor, 0.0, 1.0);
         }
         // Surface-detail mip frozen PER SAMPLE, not per ray (v0.1234). The
         // per-ray freeze took the footprint at the SEGMENT MIDPOINT, and inside
@@ -4552,10 +4822,6 @@ fn cloud_march_core(
             g_v2_foot_m = foot / max(g_cloud_upkm, 1.0e-9) * 1000.0;
         }
         let wlod = max(log2(max(foot / g_cloud_upkm / 27.8, 1.0)), 0.0);
-        let weather_a = clamp(
-            cloud_alpha_from_field(
-                cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
-                + reg.cover_bias, 0.0, 1.0);
         // DISTANCE FADES DELETED (increment 11, far-field truth): the
         // detail/puff/cell amounts used to fade out at 193/51/30 km, which
         // made the FIELD ITSELF a function of camera distance - the
@@ -4581,33 +4847,57 @@ fn cloud_march_core(
         let puff_amt = select(1.0, 0.0, bis == 2u);
         let cell_amt = select(1.0, 0.0, bis == 3u);
         // (foot/lodb hoisted above the weather tap - increment 11b.)
-        let dc = cloud_density_hi(
-            p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
-        var dens = dc.x;
-        // ── SYNTHETIC CHECKER (dev pad bit 21) ── a known world-space field.
-        if (fract(camera.light7_color.w * 0.000000238418579101562) >= 0.5) {
-            let alt_m = (length(p) - g_cloud_rb) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
-            let lat_r = asin(clamp(dirp.y, -1.0, 1.0));
-            let lon_r = atan2(-dirp.z, dirp.x);
-            let u = floor(lat_r * 6371.0 / 0.5);
-            let vv = floor(lon_r * cos(lat_r) * 6371.0 / 0.5);
-            let odd = fract((u + vv) * 0.5) > 0.25;
-            let in_slab = alt_m > 0.0 && alt_m < 600.0;
-            dens = select(0.0, 1.0, odd && in_slab);
-        }
-        // 12f: copy the view sample's side-channel NOW - the sun march
-        // below re-enters cloud_carve and overwrites these globals.
-        let s_pouch = g_cloud_pouch;
-        let s_v2_w = g_v2_w;
-        let s_v2_ny = g_v2_ny;
-        let s_v2_seam = g_v2_seam;
-        let s_btop = g_cloud_bandtop;
-        let s_carve = g_cloud_carve;
+        // ── THE FULL-FIELD SHARE (increment 4) ── the weather tap, the
+        // density call and the side-channel copies run only while the full
+        // field owns any of this sample (`full`); at w_pf = 1 the sample is
+        // clear air to the march (dens 0, no body, neutral side channels)
+        // and the profile share carries it. Knob 0: `full` is always true and
+        // every line below is the shipped one.
+        var weather_a = 0.0;
+        var dc = vec3<f32>(0.0);
+        var dens = 0.0;
+        // 12f: the view sample's side-channel, copied IMMEDIATELY after the
+        // density call - the sun march below re-enters cloud_carve and
+        // overwrites these globals. Neutral when the density call is skipped.
+        var s_pouch = 0.0;
+        var s_v2_w = 0.0;
+        var s_v2_ny = 0.0;
+        var s_v2_seam = 0.0;
+        var s_btop = 1.0;
+        var s_carve = 0.0;
         // Hygiene (v0.1275, design 1a): the sun ladder re-enters the body
         // and overwrites g_v2_warp_m with its 6-lobe value; the NEXT
         // iteration reads it in margin_m. Restore the eye value after.
-        let s_warp = g_v2_warp_m;
-        let s_sdf = g_v2_sdf_m;
+        var s_warp = 0.0;
+        var s_sdf = 1.0e9;
+        if (full) {
+            weather_a = clamp(
+                cloud_alpha_from_field(
+                    cloud_weather_adv(dirp, t, seed, wind_ang, wlod), coverage)
+                    + reg.cover_bias, 0.0, 1.0);
+            dc = cloud_density_hi(
+                p, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt, lodb);
+            dens = dc.x;
+            // ── SYNTHETIC CHECKER (dev pad bit 21) ── a known world-space field.
+            if (fract(camera.light7_color.w * 0.000000238418579101562) >= 0.5) {
+                let alt_m = (length(p) - g_cloud_rb) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+                let lat_r = asin(clamp(dirp.y, -1.0, 1.0));
+                let lon_r = atan2(-dirp.z, dirp.x);
+                let u = floor(lat_r * 6371.0 / 0.5);
+                let vv = floor(lon_r * cos(lat_r) * 6371.0 / 0.5);
+                let odd = fract((u + vv) * 0.5) > 0.25;
+                let in_slab = alt_m > 0.0 && alt_m < 600.0;
+                dens = select(0.0, 1.0, odd && in_slab);
+            }
+            s_pouch = g_cloud_pouch;
+            s_v2_w = g_v2_w;
+            s_v2_ny = g_v2_ny;
+            s_v2_seam = g_v2_seam;
+            s_btop = g_cloud_bandtop;
+            s_carve = g_cloud_carve;
+            s_warp = g_v2_warp_m;
+            s_sdf = g_v2_sdf_m;
+        }
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
         // whole optical depth at ONE deep, dark sample - skipping the
@@ -4622,7 +4912,9 @@ fn cloud_march_core(
         // bisection NEVER FIRED - the entry fell through to the trapezoid,
         // whose depth below a flat cloud top is the comb phase, printing
         // concentric contour bands about the nadir on a rain overcast.
-        if (est && dens > CLOUD_STEP_INTERIOR_GATE
+        // (Both entry rules belong to the full-field share: `full` is true
+        // at knob 0, and a profile-only sample has no field to enter.)
+        if (full && est && dens > CLOUD_STEP_INTERIOR_GATE
             && dens_prev <= CLOUD_STEP_INTERIOR_GATE
             && seg_len > 4.0 * (30.0 * 0.001 * g_cloud_upkm))
         {
@@ -4674,7 +4966,7 @@ fn cloud_march_core(
             }
             continue;
         }
-        if (!est && dens > CLOUD_STEP_INTERIOR_GATE
+        if (full && !est && dens > CLOUD_STEP_INTERIOR_GATE
             && dens_prev <= CLOUD_STEP_INTERIOR_GATE
             && sigma_v * dens * dt > CLOUD_STEP_TAU_MAX)
         {
@@ -4690,13 +4982,19 @@ fn cloud_march_core(
         // integral needs the far endpoint, so it has to be taken here.
         let dens_last = dens_prev;
         dens_prev = dens;
-        sdf_prev = g_v2_sdf_m;
+        // A profile-only sample leaves the no-body sentinel behind so the
+        // SDF stride block is bypassed and the next step is the base law.
+        sdf_prev = select(1.0e9, g_v2_sdf_m, full);
         if (dens <= CLOUD_STEP_INTERIOR_GATE) {
             t_last_clear = tm;
         }
+        // The profile share's own cloud in this sample: the two skips below
+        // continue only when BOTH shares are empty (0 at knob 0, so the
+        // shipped tests are unchanged).
+        let pf_f = w_pf * pf.f;
         // est credits the EXIT half-step: the skip moved below the
         // trapezoid and tests the whole interval, not this endpoint.
-        if (!est && dens <= 0.001) {
+        if (!est && dens <= 0.001 && pf_f <= 0.001) {
             continue;
         }
         // ── TRAPEZOID OVER THE STEP (v0.1258, the operator's third
@@ -4717,10 +5015,26 @@ fn cloud_march_core(
         // dens_prev is the clear air outside), which is exactly the
         // binary opaque-or-clear edge the operator has been reporting.
         let dens_i = 0.5 * (dens + dens_last);
-        if (est && dens_i <= 0.001) {
+        if (est && dens_i <= 0.001 && pf_f <= 0.001) {
             continue;
         }
-        let a_i = 1.0 - exp(-sigma_v * dens_i * select(dt, seg_len, est));
+        // ── TRANSMITTANCE (increment 4, the element law A7) ──
+        // The full-field share is Beer-Lambert on the trapezoid density over
+        // the step, as shipped (knob 0: exactly the shipped expression). The
+        // profile share multiplies in T_pf from cloud_fr_t_pf: a fraction f
+        // of ground covered by elements of in-cloud density D_in, total
+        // overlap inside one element, random beyond it, so the exponent
+        // adds across any subdivision of the step and the result cannot
+        // depend on the step law (the G0(e) prove-red). A 30 percent field of
+        // slab-tall elements seen from the nadir transmits 0.7, where the
+        // plain mean would give exp(-157): the white-veil class.
+        let seg_used = select(dt, seg_len, est);
+        var a_i = 1.0 - exp(-sigma_v * dens_i * seg_used);
+        if (w_pf > 0.0) {
+            let c_v = abs(dot(rd, dirp));
+            let t_pf = cloud_fr_t_pf(w_pf, pf.f, D_in_pf, sigma_v, fr_l_h, max(fr_l_v, fr_dz), c_v, seg_used);
+            a_i = 1.0 - exp(-sigma_v * dens_i * seg_used * (1.0 - w_pf)) * t_pf;
+        }
         if (first_t < 0.0) {
             first_t = tm;
             g_march_first_depth_m = (tm - t_last_clear) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
@@ -4745,23 +5059,46 @@ fn cloud_march_core(
             * select(0.0, 1.0, g_v2_sdf_m < 0.0);
         let col_above_b = max(g_v2_top_m - g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
         let col_below_b = max(g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
-        let tau_above = sigma_v * mix(s_carve * col_above,
+        var tau_above = sigma_v * mix(s_carve * col_above,
             max(s_carve * col_above, g_v2_int_dens * col_above_b), sat_a1);
-        let tau_below = sigma_v * mix(s_carve * col_below,
+        var tau_below = sigma_v * mix(s_carve * col_below,
             max(s_carve * col_below, g_v2_int_dens * col_below_b), sat_a1);
-        let tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
+        var tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
+        // ── THE PROFILE SHARE'S BURIAL (increment 4) ── the columns above
+        // and below mix toward the profile's IN-CLOUD columns by w_pf (the
+        // share renders f of thick cloud plus 1 - f of clear, so the burial
+        // of the cloud part is the in-cloud column, never the plain mean
+        // that lit a thin haze and read dark: the v0.1233 mismatch); the
+        // body-depth term belongs to the full field only.
+        if (w_pf > 0.0) {
+            tau_above = mix(tau_above, tau_above_in, w_pf);
+            tau_below = mix(tau_below, tau_below_in, w_pf);
+            tau_built = tau_built * (1.0 - w_pf);
+        }
         g_sun_tau_col = tau_above / max(ndl, 0.15);
         g_ms_on = select(0.0, 1.0, fract(camera.light7_color.w * 0.000000238418579101562 * 0.5) >= 0.5);
 
         // Light march toward the sun + Beer-powder edge darkening. The
         // first two taps see the same eroded density this view sample does
         // (clouds depth increment), so lobes self-shadow.
-        g_deep_sample = select(0.0, 1.0, trans < 0.5);
-        let tau = cloud_sun_tau(
-            p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
-            lodb);
-        g_v2_warp_m = s_warp;
-        g_v2_sdf_m = s_sdf;
+        // Increment 4: the ladder / cache runs on the full-field share only;
+        // the profile share takes the analytic slant column of its in-cloud
+        // depth above (tau_pf = tau_above_in / ndl, the same column the march
+        // already uses beyond the sun windows), mixed by w_pf. At w_pf = 1
+        // the ladder never ran, which is where the orbit cost goes.
+        var tau = 0.0;
+        if (full) {
+            g_deep_sample = select(0.0, 1.0, trans < 0.5);
+            tau = cloud_sun_tau(
+                p, sun_local, t, seed, weather_a, reg, detail_amt, puff_amt, cell_amt,
+                lodb);
+            g_v2_warp_m = s_warp;
+            g_v2_sdf_m = s_sdf;
+        }
+        if (w_pf > 0.0) {
+            let tau_pf = tau_above_in / max(ndl, 0.15);
+            tau = mix(tau, tau_pf, w_pf);
+        }
         // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
         // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
         // 12.5x darkening. Measured on the operator capture, that put
@@ -4803,9 +5140,14 @@ fn cloud_march_core(
         // Increment A: the column above the sample is the cloud's own column
         // (tau_above), not the regime band top 4 km up - the 10x overstatement
         // that made every ambient term FALL with extinction.
-        let tau_vert = select(
-            sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d,
-            tau_above, g_ms_on > 0.5);
+        // Increment 4: the envelope form (in-cloud light off) mixes toward
+        // the profile's in-cloud column by w_pf; the increment-A form reads
+        // tau_above, which is already mixed.
+        var tau_vert_env = sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d;
+        if (w_pf > 0.0) {
+            tau_vert_env = mix(tau_vert_env, tau_above_in, w_pf);
+        }
+        let tau_vert = select(tau_vert_env, tau_above, g_ms_on > 0.5);
         // A1 burial profile: 0 at the surface, 1 one transport MFP in.
         // Burial is the column AROUND the sample (above and below at the
         // envelope density), or the depth inside a built body. NOT the sun
@@ -4887,7 +5229,7 @@ fn cloud_march_core(
         // crown fraction), so a fixed 0.70 floor grayed cirrus veils that
         // should stay bright. Faint regimes get a gentler valley shade.
         let crown_floor = mix(0.88, 0.62, reg.opacity);
-        let crown_shade = mix(crown_floor, 1.12, dc.z);
+        var crown_shade = mix(crown_floor, 1.12, dc.z);
         // 12f pouch shading: the from-below twin of the crown term. A
         // column whose own base hangs low (pouch -> 1) has more cloud
         // directly above its base and a smaller sky-view solid angle from
@@ -4895,8 +5237,19 @@ fn cloud_march_core(
         // Weighted toward the band bottom so tops are untouched.
         let vband = clamp(
             1.0 - (h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
-        let pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
-        var ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade * pouch_shade;
+        var pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
+        // ── RELIEF ON THE PROFILE SHARE (increment 4) ── the crown, pouch
+        // and cavity terms are surface relief of the marched field; the
+        // profile share has no surface, so they mix toward 1.0 by w_pf and
+        // the share renders f of bright thick cloud plus 1 - f of clear (the
+        // brightness-equal condition).
+        var cav = (1.0 - CLOUD_PUFF_AO * dc.y);
+        if (w_pf > 0.0) {
+            crown_shade = mix(crown_shade, 1.0, w_pf);
+            pouch_shade = mix(pouch_shade, 1.0, w_pf);
+            cav = mix(cav, 1.0, w_pf);
+        }
+        var ao = cav * crown_shade * pouch_shade;
         // ── INTERIOR RELIEF FADE (v0.1279 experiment, dev pad bit 19) ──
         // Relief is a surface phenomenon. `trans` here is the transmittance
         // from the eye to THIS sample: 1 at the visible surface, ~0 one
@@ -4989,8 +5342,11 @@ fn cloud_march_core(
         // the carrier and needs no gain table.
         let crown_amb = mix(1.0, crown_shade, 0.35 * relief_w);
         let pouch_amb = mix(1.0, pouch_shade, 0.35 * relief_w);
-        let ao_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35 * relief_w)
-            * crown_amb * pouch_amb;
+        var cav_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35 * relief_w);
+        if (w_pf > 0.0) {
+            cav_amb = mix(cav_amb, 1.0, w_pf);
+        }
+        let ao_amb = cav_amb * crown_amb * pouch_amb;
         let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
 
         let c_i = material.base_color.rgb
