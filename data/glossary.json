@@ -2532,6 +2532,114 @@
       "term": "PIN (quick unlock)",
       "category": "crypto",
       "definition": "A short number, 4 to 12 digits here, used instead of your full passphrase on one device you trust. HumanityOS keeps a random device secret in the operating system's keychain and your PIN unlocks it, so someone who steals only one of the two gets nothing."
+    },
+    "open-pollinated": {
+      "term": "Open-Pollinated",
+      "category": "homestead",
+      "definition": "A plant variety whose seed grows into plants like the parent, so you can save seed and keep the variety year after year. The opposite of a hybrid. Heirloom varieties are open-pollinated.",
+      "link": "https://en.wikipedia.org/wiki/Open_pollination"
+    },
+    "hybrid seed": {
+      "term": "Hybrid Seed (F1)",
+      "category": "homestead",
+      "definition": "Seed from a deliberate cross between two parent lines. The plant is often excellent, but its own seed does not come true: the next generation is a scattered mix. Saving seed from a hybrid means buying that variety again every year.",
+      "link": "https://en.wikipedia.org/wiki/F1_hybrid"
+    },
+    "heirloom": {
+      "term": "Heirloom Variety",
+      "category": "homestead",
+      "definition": "An older open-pollinated variety kept alive by people saving and passing on its seed rather than by a seed company. Heirlooms can be saved and replanted indefinitely.",
+      "link": "https://en.wikipedia.org/wiki/Heirloom_plant"
+    },
+    "cross-pollination": {
+      "term": "Cross-Pollination",
+      "category": "homestead",
+      "definition": "Pollen from one plant fertilizing the flower of a different variety, usually carried by insects or wind. Harmless to this year's food, but it decides the parentage of any seed you save, which is why squash varieties grown side by side produce mystery squash the following year.",
+      "link": "https://en.wikipedia.org/wiki/Pollination"
+    },
+    "biennial": {
+      "term": "Biennial",
+      "category": "homestead",
+      "definition": "A plant that takes two growing seasons to flower and make seed. Carrots, beets, onions and cabbage are biennial, so saving their seed is a two-year project even though you eat them in year one.",
+      "link": "https://en.wikipedia.org/wiki/Biennial_plant"
+    },
+    "seed saving": {
+      "term": "Seed Saving",
+      "category": "homestead",
+      "definition": "Producing next season's seed from this season's plants instead of buying it. Works reliably on open-pollinated, self-pollinating crops such as beans, peas, lettuce and tomatoes.",
+      "link": "https://en.wikipedia.org/wiki/Seed_saving"
+    },
+    "germination test": {
+      "term": "Germination Test",
+      "category": "homestead",
+      "definition": "A quick check of whether stored seed is still alive: sprout a counted sample on a damp paper towel in a sealed bag for about a week, then count how many came up. Twenty of twenty-five is 80 percent, which is fine.",
+      "link": "https://en.wikipedia.org/wiki/Germination"
+    },
+    "blanching": {
+      "term": "Blanching",
+      "category": "homestead",
+      "definition": "A brief scald in boiling water or steam, followed by an immediate plunge into ice water, done to vegetables before freezing. It stops the enzymes that would otherwise keep degrading color, flavor and texture in the freezer.",
+      "link": "https://en.wikipedia.org/wiki/Blanching_(cooking)"
+    },
+    "root cellar": {
+      "term": "Root Cellar",
+      "category": "homestead",
+      "definition": "A cool space used to store crops with no processing and no power. There is no single set of conditions: root crops want cold and very damp, onions want cold and dry, and winter squash wants cool and dry, so putting a crop in the wrong one is why home storage usually fails.",
+      "link": "https://en.wikipedia.org/wiki/Root_cellar"
+    },
+    "curing (produce)": {
+      "term": "Curing (Produce)",
+      "category": "homestead",
+      "definition": "A short warm rest after harvest that hardens skins and heals scratches so a crop stores well. Potatoes and winter squash both need it, at different temperatures, and it is the difference between a squash that keeps until spring and one that goes soft in November.",
+      "link": "https://en.wikipedia.org/wiki/Curing_(food_preservation)"
+    },
+    "water-bath canning": {
+      "term": "Water-Bath Canning",
+      "category": "homestead",
+      "definition": "Preserving food in sealed jars submerged in boiling water. Because boiling water cannot exceed 212 F at sea level, this method is safe ONLY for acid foods (pH 4.6 or lower): fruits, jams, pickles, and tomatoes with acid added. Vegetables, meat and fish are low-acid and require a pressure canner.",
+      "link": "https://en.wikipedia.org/wiki/Home_canning"
+    },
+    "pressure canning": {
+      "term": "Pressure Canning",
+      "category": "homestead",
+      "definition": "Preserving low-acid food in sealed jars inside a pressure canner, which reaches 240 to 250 F. That temperature is required to destroy botulism spores, which survive boiling. It is the only recommended method for canning vegetables, meat, poultry and seafood.",
+      "link": "https://en.wikipedia.org/wiki/Pressure_canning"
+    },
+    "botulism": {
+      "term": "Botulism",
+      "category": "survival",
+      "definition": "A rare, often fatal poisoning caused by a toxin from the bacterium Clostridium botulinum, which grows in moist low-acid food sealed away from oxygen. The toxin cannot be seen, smelled or tasted, which is why home canning follows tested procedures exactly and why suspect jars are never tasted.",
+      "link": "https://en.wikipedia.org/wiki/Botulism"
+    },
+    "solanine": {
+      "term": "Solanine",
+      "category": "survival",
+      "definition": "A natural toxin that potatoes produce when exposed to light, showing as green skin and a bitter taste. Cut green patches away generously and discard badly greened tubers. It is why potatoes are stored in the dark, and why only the tuber of the plant is food.",
+      "link": "https://en.wikipedia.org/wiki/Solanine"
+    },
+    "last frost date": {
+      "term": "Last Frost Date",
+      "category": "homestead",
+      "definition": "The average date of the final spring frost where you live. Nearly every planting instruction is counted forward or backward from it. It is an average, not a promise: a late frost can still land after it.",
+      "link": "https://en.wikipedia.org/wiki/Growing_season"
+    },
+    "hardiness zone": {
+      "term": "Hardiness Zone",
+      "category": "homestead",
+      "definition": "A map region defined by how cold local winters get, used to tell whether a perennial plant can survive where you live. Different countries publish their own; look up yours before trusting any planting advice written for somewhere else.",
+      "link": "https://en.wikipedia.org/wiki/Hardiness_zone"
+    },
+    "micron": {
+      "term": "Micron",
+      "category": "survival",
+      "definition": "A micrometer, one thousandth of a millimeter. The unit water filters are rated in. It matters because germs differ hugely in size: a filter at 1 micron catches parasites, 0.2 catches bacteria, and only about 0.01 catches viruses.",
+      "link": "https://en.wikipedia.org/wiki/Micrometre"
+    },
+    "absolute pore size": {
+      "term": "Absolute Pore Size",
+      "category": "survival",
+      "definition": "A water filter rating meaning no hole in the filter is larger than the stated size. A nominal rating is only an average, so some holes are bigger. When a filter is meant to keep something out, absolute is the rating that counts.",
+      "link": "https://en.wikipedia.org/wiki/Water_filter"
     }
   }
 }

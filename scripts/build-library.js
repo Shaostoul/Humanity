@@ -58,13 +58,18 @@ const CATEGORIES = [
   // fill the gap the outreach docs honestly admit; every number sourced from
   // agricultural extension / CDC / EPA guidance; source docs/user/skills/).
   { name: 'Real Skills', docs: [
-    // Ordered as the capability ladder: grow, multiply, close the soil
-    // loop, collect water, store water, make power.
+    // Ordered as the capability ladder: grow, multiply, feed yourself,
+    // keep the harvest, close the soil loop, collect water, store water,
+    // make water safe, make power.
     { title: 'Your First Tomato', src: 'docs/user/skills/your_first_tomato.md' },
     { title: 'Starting Seeds', src: 'docs/user/skills/starting_seeds.md' },
+    { title: 'Saving Your Own Seeds', src: 'docs/user/skills/saving_your_own_seeds.md' },
+    { title: 'Growing Food You Can Live On', src: 'docs/user/skills/growing_food_you_can_live_on.md' },
+    { title: 'Keeping What You Grew', src: 'docs/user/skills/keeping_what_you_grew.md' },
     { title: 'Your First Compost', src: 'docs/user/skills/your_first_compost.md' },
     { title: 'Collecting Rainwater', src: 'docs/user/skills/collecting_rainwater.md' },
     { title: 'Storing Water Safely', src: 'docs/user/skills/storing_water_safely.md' },
+    { title: 'Making Water Safe to Drink', src: 'docs/user/skills/making_water_safe_to_drink.md' },
     { title: 'Your First Solar Power', src: 'docs/user/skills/first_solar_power.md' },
   ]},
   { name: 'The Accord', accord: true, docs: [

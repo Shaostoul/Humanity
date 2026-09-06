@@ -1,5 +1,95 @@
 # HumanityOS: Priorities
 
+> **REAL SKILLS, SECOND RUNG (2026-09-06). Four new Library guides, written
+> because a verified account with a real audience reposted the project that day
+> and sent traffic to /library, and the operator replied in public "more going
+> in as I write them."** Content-only session, no `src/`, no `web/`, no
+> `assets/`, run alongside the front-door and far-rung work in the same
+> checkout.
+>
+> The gap this closes: the first rung (v0.1096) taught someone to grow a tomato,
+> which is a wonderful first success and nutritionally minor. Measured against
+> the project's own thesis in `the_five_adversaries.md` (poverty is needs gated
+> behind permission, the antidote is capability), a Library that stops at salad
+> is not yet making good on "helping educate humanity on STEM and the trades."
+>
+> SHIPPED, all four under Real Skills, every number sourced to a university
+> extension service, USDA, FDA, CDC, EPA or WHO:
+>
+> 1. **`saving_your_own_seeds.md`.** The purest expression of the thesis: a seed
+>    you saved cannot be gated. Two rules that decide everything (open-pollinated
+>    never hybrid; start with self-pollinating annuals), the traps named
+>    (biennials need two seasons, the SDSU cucurbit crossing groups, corn),
+>    wet and dry processing, the sub-8-percent drying target, storage, and the
+>    germination test. Publishes the Maine and Colorado State longevity tables
+>    side by side and says out loud that they disagree (lettuce 5 years vs 1),
+>    with the advice to plan on the shorter number and settle it with a test.
+> 2. **`growing_food_you_can_live_on.md`.** The honest counterweight to the
+>    tomato, and it says so in its first line: a pound of tomatoes is about 82
+>    calories, a pound of potatoes about 350, a pound of dry beans about 1,550
+>    (USDA FoodData Central). Potatoes, dry beans, winter squash with real
+>    extension yields per 100-foot row and the calories-per-row arithmetic shown
+>    so a reader can redo it. Prints Iowa State's potato figure and Utah State's
+>    side by side, a factor of three apart, and explains that the spread is
+>    real rather than an error.
+> 3. **`keeping_what_you_grew.md`.** The one with genuine safety stakes.
+>    Botulism first, the pH 4.6 line, 212 F vs 240 F, and the rule stated in a
+>    block quote: low-acid foods (which is ALL fresh vegetables) cannot be
+>    water-bath canned. Freezing, drying and root cellaring in full; exactly ONE
+>    complete tested canning procedure (NCHFP crushed tomatoes, with the
+>    acidification table and the altitude table); pressure canning explicitly
+>    OUT of scope with a pointer to the USDA Complete Guide rather than a half
+>    lesson. Spoilage signs, the do-not-taste rule, and NCHFP's disposal and
+>    bleach-cleanup procedures.
+> 4. **`making_water_safe_to_drink.md`.** Companion to `storing_water_safely.md`
+>    (which covers the calm case; this one covers an unknown source), cross-linked
+>    both ways. Frames treatment as three separate problems (germs, dirt,
+>    chemicals) that no single method solves. The new material is the filter
+>    chapter: CDC's pathogen sizes against required pore sizes, microfiltration
+>    vs ultrafiltration vs reverse osmosis, why carbon filters are not treatment,
+>    and the EPA purifier standard. Ends on the row of the table that is entirely
+>    empty: nothing here fixes chemical contamination, and boiling concentrates it.
+>
+> THE ADVERSARIAL RE-READ CAUGHT TWO REAL HAZARDS IN THE FIRST DRAFTS, which is
+> the reason that pass is mandatory and not a formality:
+>
+> - **Raw dry beans are toxic and the guide did not say so.** A guide telling
+>   beginners to grow dry beans had no cooking warning. Phytohaemagglutinin: the
+>   FDA Bad Bug Book records that four or five improperly cooked red kidney beans
+>   cause severe vomiting. Added K-State's procedure (soak 5 hours, discard the
+>   soak water, boil 30 minutes in fresh water) AND the counterintuitive part,
+>   do not cook dry beans in a slow cooker, since below boiling it leaves the
+>   toxin intact while making the beans soft enough to eat.
+> - **A blanching table quoted without its own footnote.** Colorado State's
+>   times (green beans 4 min, broccoli 4, diced carrots 3) carry the note
+>   "blanching times given are for 5,000 feet or higher. At altitudes below 5000
+>   feet, subtract one minute." Colorado wrote for Colorado. Most readers are
+>   below 5,000 feet, so the guide now prints both and uses it as the worked
+>   example of checking whose altitude a table was written for.
+>
+> Also added: seed potatoes are frequently fungicide-treated, plant them do not
+> eat them; tomato acidification is required even when pressure canning; use
+> Mason-type jars; bleach must be plain sodium hypochlorite only; and the
+> *Giardia* row of the water table softened to "less reliable" because CDC's own
+> two pages differ in emphasis and the cautious reading wins.
+>
+> WIRING: `scripts/build-library.js` gains the four entries (it is in the same
+> "ui" lane as `docs/` and `data/library/` per `data/coordination/lanes.json`),
+> Real Skills is now a ten-rung ladder in order (grow, multiply, save seed, feed
+> yourself, keep the harvest, close the soil loop, collect water, store water,
+> make water safe, make power). `data/glossary.json` +18 terms (botulism,
+> solanine, open-pollinated, hybrid seed, biennial, blanching, root cellar,
+> water-bath and pressure canning, micron, absolute pore size and the rest),
+> 442 to 460. `check-doc-links.js` stays at 0 broken; all 32 external source
+> URLs were checked live.
+>
+> NEXT, if this arc continues: the obvious remaining holes in Real Skills are
+> **cooking dry staples** (the bean-toxin warning is currently buried inside a
+> growing guide and deserves its own rung), **a first-aid rung**, and **growing
+> in a cold climate / season extension**. None is claimed or started.
+>
+> ---
+>
 > **v0.1296 (2026-09-06): THE FRONT DOOR. A verification pass measured the live
 > site and relay against what the project promises in public, and the first
 > minute of a stranger's visit was the worst part of the product.** Non-game
