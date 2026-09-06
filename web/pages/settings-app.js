@@ -65,7 +65,7 @@ function applyPrefs() {
   var es = document.getElementById('pref-show-simple');
   var ee = document.getElementById('pref-show-expert');
   if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
-  if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
+  if (ee) ee.checked = localStorage.getItem('hos_show_expert') === '1';
   // Load customizer values from the unified prefs store
   try {
     var iwSlider = document.getElementById('pref-icon-weight');
