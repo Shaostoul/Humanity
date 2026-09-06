@@ -1,5 +1,84 @@
 # HumanityOS: Priorities
 
+> **v0.1292 (2026-09-06): THE FAR RUNG MERGED (perf arc increment 4), knob
+> 0 until its gates pass.** Both halves of `docs/design/cloud-far-rung.md`
+> v2, built in separate worktrees on the A17 stub by the relaunched
+> two-implementer workflow (the first run died on the usage limit with
+> nothing cached), each reviewed by a critic and repaired, merged serially
+> (Rust fast-forward, WGSL three-way, clean) and shipped after the full
+> static bar (both feature checks, naga, 14 constant-sync tests, 12 profile
+> unit tests, the sidebar snapshots, four lints).
+>
+> WHAT LANDED. Rust: `CloudProfileFrame` / `CloudProfileState` (toroidal
+> windows scrolled by whole cells, time-based refresh, fills, the global's
+> fast and rolling passes, the flags) with unit tests; `CloudProfileCache`
+> (6144x3584 RGBA8, 7 mips, the b14 override on the albedo-group builder);
+> four pipelines; calibration, bake and mip passes hoisted out of the
+> near-mode block; the `light2_color` pad; a 1 Hz `[CloudProfile]` line; the
+> atlas dump request; ipc `cloud_profile` (0 | 1 | hard | ref | L0..L5); the
+> F10 checkbox and level combo; map_diag 10/11/12; `cloud-profile-compare.js`,
+> `cloud-radial-profile.js --step`, the rig's `dump_cloud_profile` key; 102
+> self-pinning gate fixtures (317 vantages). WGSL: the real bake (noise part
+> at the cell's own mip; the built part as per-cloud ellipses from the
+> calibration table, hoisted once per fragment; union and Poisson forms;
+> sqrt-encoded columns), the two calibration stages, the bit-exact
+> `cv2_place` / `cv2_density_tail` refactors, the march wiring (the element
+> law, the w = 1 skip of density and the sun ladder, the lighting mix), the
+> Low sheet on the global map. Orchestrator wiring: `MAX_TIMED_PASSES` 48,
+> the mip burst timed under `gpu.cloud_profile`, `CLOUD_FR_CALIB_ARCH`
+> shared with its sync pair, two contract corrections. New instrument:
+> `scripts/cloud-mask-iou.js` (luminance masks, cubic 512, consecutive-pair
+> IoU; proven on disk: High r2 vs r4 0.98, Ultra vs High 0.01).
+>
+> THE CRITICS' LOAD-BEARING WARNING: knob-0 bit-exactness across the two new
+> function boundaries in 41-cloud-bodies.wgsl cannot be proven statically
+> (compiler fusion), so G0(d) runs first on the exe; if non-zero beyond the
+> rig's floor, the 41 refactor reverts to inline and the bake duplicates the
+> placement block. Deviations of record: no knob forces the global, so the
+> three r4 rungs at L5 have no "one coarser" sibling; G7 pairs are
+> `<id>-prof-on/-off` twins of the standing vantages; every new cell sits on
+> the Sahara camera (the covladder column is unlit at the default clock).
+>
+> GATES: G0 on v0.1292.1 (sweeps 20260906-0154 to -0159). PASSED: (b) the
+> prove-red prints the HARD ring at 640 to 680 px at 250 km (predicted 667 to
+> 732) and at 720 px at 60 km quarter res (predicted 730 to 1039), the auto
+> arm ring-free (no annulus above 1.05x the median); (c) forced level 0 moves
+> the near deck (mean 42 at bm12, 43 at the closeup); (e) step invariance at
+> L2 (eco 0 vs 1 luminance 196.0 vs 196.2); (a) channels 10/11/12 render and
+> move under the knob; panics 0; knob-0 COST identical to the shipped exe on
+> all three cells (closeup 330.0 vs 329.5 ms, bm12 16.3 vs 16.2, the 60 km
+> rung 131.0 vs 130.9), so the 41 refactor is cost-neutral. UNDECIDED: (d)
+> knob-0 bit-exactness: bm12 at the floor, the closeup 0.55 percent of pixels
+> above 8 levels, the 60 km rung 11.4 percent (mean 6.7); the same-exe floor
+> on those two cells decides. THE ORBIT: coverage restored (the mask 28
+> percent white against 0.9 on the shipped build and High's 31), coherent
+> sheets, gpu.cloud_screen 21.8 ms + gpu.cloud_profile 16.7 at 873 km full
+> res, and THREE DEFECTS: (D1) the nested window boundaries print as
+> rectangular brightness and coverage steps (the hand-off is not
+> brightness-neutral: a coarser level's f is systematically larger); (D2)
+> the field inside the windows is grainy per pixel (mask census 9996
+> components of 16 px or less against High's 7); (D3) at 250 km inside the
+> HARD ring the MARCHED field is nearly empty against the dense profile
+> outside it, so the auto band is a coverage ramp from nothing to full: the
+> march's 928 m vertical ceiling cannot resolve a 300 m humilis at ANY
+> horizontal footprint (the shipped orbit emptiness by the same mechanism),
+> so the hand-off criterion (horizontal footprint, lodf -2..0) is the wrong
+> variable and a vertical-resolution criterion is the candidate. Default
+> stays knob 0; a three-reader diagnosis panel with critics runs on the
+> captures and G1..G7 run for the numbers.
+>
+> NEXT, in order:
+> 1. **The far-rung gates** G0 (d, a, c, e, b) then G1..G7 in the contract's
+>    order; flip the default to knob 1 when G1..G6 pass; then delete
+>    `CLOUD_V2_FADE_LO/HI` and the twin after G4.
+> 2. **F5, the stride over the noise sheet** (the default arm's over-credit
+>    x1.8 to x2.4 on sub-gate wisps): in `cloud_march_core`, now that the far
+>    rung is in.
+> 3. The look ("still kinda look like spheres"), the per-cell cluster table
+>    (the 36.8 km class, 63 to 105 ms) and the horizon rung (the 5 m sunset
+>    stratocumulus horizon, 117 to 195 ms), increment 5, cloud layering, the
+>    planet pass arc.
+
 > **v0.1291 (2026-09-06): the operator's report answered in code: the F10
 > sidebar, the sun-cache band fix, and three measurements instead of three
 > guesses.** The five-finding workflow (16 agents: reader + adversarial
