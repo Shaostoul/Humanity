@@ -56,6 +56,31 @@ if (!seedHex || !/^[0-9a-f]{64}$/i.test(seedHex)) {
 }
 const SERVER = args.server.replace(/\/+$/, '');
 
+// ── sample-data guard (2026-09-06) ──────────────────────────────────────────
+// The bundled samples/*.json describe "Rivertown Bikes, 12 Main St", an
+// invented storefront written to show the file shape. Someone ran this
+// importer against the live server with them, so united-humanity.us has
+// spent months telling visitors it has "2 offerings from 1 provider" that do
+// not exist. Signed objects cannot be un-published by anyone but their
+// author, so the cheap moment to catch this is here, before the POST.
+// Local servers stay unguarded: that is what the samples are for.
+{
+  const usesSamples = [args.provider, args.offerings].some(
+    (p) => p && /(^|[\\/])(scripts[\\/])?samples[\\/]/.test(p)
+  );
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:|\/|$)/.test(SERVER);
+  if (usesSamples && !isLocal && !args.allowSampleData && !args.dryRun) {
+    die(
+      `refusing to publish the bundled sample catalog to ${SERVER}.\n` +
+        '  These files are invented demo data ("Rivertown Bikes"). Publishing them\n' +
+        '  puts fake storefronts in a real directory, and a signed object can only\n' +
+        '  be withdrawn by whoever signed it.\n' +
+        '  Point --provider/--offerings at your real catalog, use --dry-run to\n' +
+        '  rehearse, or pass --allow-sample-data if you genuinely mean it.'
+    );
+  }
+}
+
 // ── crypto + canonical encoding (the same modules the clients ship) ─────────
 const noble = await import(pathToFileURL(join(REPO, 'web', 'shared', 'vendor', 'noble-pq.bundle.js')).href);
 const cbor = await import(pathToFileURL(join(REPO, 'web', 'shared', 'canonical-cbor.js')).href);
