@@ -194,6 +194,26 @@ impl Renderer {
         view: &wgpu::TextureView,
         sampler: &wgpu::Sampler,
     ) -> AlbedoBindGroup {
+        // The one-line wrapper (far rung, A8): the entry list is written
+        // ONCE, in the b14 variant below, with the tree atlas at binding 14.
+        self.build_albedo_group_from_view_b14(view, sampler, &self.tree_atlas_view)
+    }
+
+    /// The same two group-3 bind groups with binding 14 OVERRIDDEN: `b14`
+    /// takes the slot the tree atlas normally rides (`tree_atlas_tex`,
+    /// read only by the vegetation branches). The cloud profile atlas
+    /// (perf increment 4, the far rung) rides here for every cloud-side
+    /// group - the march, the shell, the Low sheet, the bake's calibration
+    /// source and the mip passes - so the profile needed NO bind-group-
+    /// layout change (16 entries at every site, the v0.1029 rule). Every
+    /// other caller goes through `build_albedo_group_from_view`, which
+    /// passes the tree atlas, so this is still the ONE entry list.
+    pub(super) fn build_albedo_group_from_view_b14(
+        &self,
+        view: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+        b14: &wgpu::TextureView,
+    ) -> AlbedoBindGroup {
         let build = |depth6: &wgpu::TextureView, label: &str| {
             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some(label),
@@ -257,9 +277,12 @@ impl Renderer {
                         binding: 13,
                         resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view),
                     },
+                    // Binding 14: the tree atlas for every ordinary
+                    // material, the cloud profile atlas (or one of its
+                    // mips) for the cloud-side groups (see the b14 note).
                     wgpu::BindGroupEntry {
                         binding: 14,
-                        resource: wgpu::BindingResource::TextureView(&self.tree_atlas_view),
+                        resource: wgpu::BindingResource::TextureView(b14),
                     },
                     // v0.1039 CRASH FIX: binding 15 (FFT ocean tile) was added
                     // to the LAYOUT in v0.1029 but this per-material creation

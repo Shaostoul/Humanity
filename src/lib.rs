@@ -11816,6 +11816,14 @@ mod native_app {
                                         if temporal {
                                             state.renderer.set_cloud_temporal(Some(cmat));
                                         }
+                                        // The cloud SHELL material on EVERY
+                                        // tier (far rung, increment 4): the
+                                        // profile passes find the shell's
+                                        // object slot by it and the shell
+                                        // draw binds the profile atlas by
+                                        // it. Cleared at the top of every
+                                        // frame with set_cloud_temporal(None).
+                                        state.renderer.cloud_shell_mat = Some(cmat);
                                         // 12d/12g regime split: NEAR (planet
                                         // filling the screen) uses the
                                         // half-res per-pixel screen pass -
@@ -12253,6 +12261,54 @@ mod native_app {
                                             // which is what the shader's
                                             // `inv_model * sun` produces for
                                             // the march and the bake alike.
+                                            // ── Cloud PROFILE feed (increment 4, the far rung) ──
+                                            // Fed on EVERY tier the shell
+                                            // exists (the Low sheet needs
+                                            // the global map), from the
+                                            // same planet-local `p_l` the
+                                            // sun cache uses: the ground
+                                            // lon/lat in f64, the altitude,
+                                            // the slab, the MARCH pixel
+                                            // angle (mod.rs stores it beside
+                                            // the screen pix_ang), the cloud
+                                            // clock exactly as mod.rs writes
+                                            // it (pinned or live), the
+                                            // coverage, the type pin (before
+                                            // the temporal +4), the weather
+                                            // upload counter, the tier, the
+                                            // knob and the calibration key.
+                                            {
+                                                let pl = p_l;
+                                                let plen = pl.length().max(1.0e-9);
+                                                let ground_lat = (pl.y / plen).clamp(-1.0, 1.0).asin();
+                                                let ground_lon = (-pl.z).atan2(pl.x);
+                                                let radius_km = d.radius as f64 / 1000.0;
+                                                let cloud_t = if state.renderer.cloud_clock_pin >= 0.0 {
+                                                    state.renderer.cloud_clock_pin
+                                                } else {
+                                                    state.start_time.elapsed().as_secs_f32()
+                                                };
+                                                let knob = state.renderer.cloud_profile_knob;
+                                                let calib_key = state.renderer.cloud_profile_calib_key(quality);
+                                                state.renderer.cloud_profile_plan(
+                                                    crate::renderer::cloud_temporal::CloudProfileFrame {
+                                                        ground_lon_rad: ground_lon,
+                                                        ground_lat_rad: ground_lat,
+                                                        alt_km: (cam_r_ratio as f64 - 1.0).max(0.0) * radius_km,
+                                                        radius_km,
+                                                        slab_rb: slab_rb as f64,
+                                                        slab_rt: slab_rt as f64,
+                                                        pix_ang_march: state.renderer.cloud_pix_ang_march.get() as f64,
+                                                        cloud_t,
+                                                        coverage: cov_eff,
+                                                        type_pin: if pin >= 4.0 { pin - 4.0 } else { pin },
+                                                        weather_gen: state.renderer.weather_map_gen.get(),
+                                                        tier: quality,
+                                                        knob,
+                                                        calib_key,
+                                                    },
+                                                );
+                                            }
                                             // Fed only in the NEAR regime
                                             // (the march that reads it).
                                             if near {
@@ -15535,6 +15591,7 @@ mod native_app {
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
                     crate::engine::ipc::poll_cloudmap_request(state);
+                    crate::engine::ipc::poll_cloud_profile_dump_request(state);
 
                     // F6 location bookmark save (v0.890): runs here so
                     // current_spin + frame-lock state are fresh this frame.
@@ -18555,6 +18612,7 @@ mod native_app {
                                 state.renderer.cloud_body_cache = state.gui_state.cloud_dev_body_cache;
                                 state.renderer.cloud_step_eco = state.gui_state.cloud_dev_step_eco;
                                 state.renderer.cloud_light = state.gui_state.cloud_dev_light;
+                                state.renderer.cloud_profile_knob = state.gui_state.cloud_dev_profile_knob;
                                 state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
                                 state.renderer.cloud_res_div =

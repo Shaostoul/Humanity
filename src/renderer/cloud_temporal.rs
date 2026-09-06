@@ -222,6 +222,16 @@ impl Renderer {
                     lc.state.mark_stale();
                 }
             }
+            // The far rung (increment 4) follows the same lifecycle on
+            // EVERY tier: the shell material and the profile feed are
+            // cleared here at the top of the frame; an unfed frame marks
+            // the atlas stale so the next fed frame refills.
+            self.cloud_shell_mat = None;
+            if self.cloud_profile_frame.take().is_none() {
+                if let Some(pc) = self.cloud_profile_cache.as_mut() {
+                    pc.state.mark_stale();
+                }
+            }
         }
     }
 }
@@ -679,6 +689,9 @@ impl Renderer {
             group,
             state: CloudLightState::default(),
         });
+        // The profile's `group_sun` (b0 = THIS atlas, b14 = the profile
+        // atlas) is rebuilt whenever either atlas is (re)created.
+        self.rebuild_cloud_profile_sun_group();
         log::info!(
             "[CloudLight] atlas ON: {}x{} R16F ({:.1} MB), fine {}^2x{} @ {} m, coarse {}^2x{} @ {} m",
             CLOUD_LC_ATLAS_W,
@@ -737,6 +750,30 @@ impl Renderer {
     }
 }
 
+/// Read `const NAME: <type> = <value>;` out of a shader text whatever the
+/// scalar type (the cloud constants are a mix of u32, i32 and f32). Shared by
+/// the sun-cache and the profile sync tests.
+#[cfg(test)]
+fn wgsl_const(src: &str, name: &str) -> f64 {
+    for line in src.lines() {
+        let t = line.trim();
+        let Some(rest) = t.strip_prefix(&format!("const {name}:")) else {
+            continue;
+        };
+        let Some((_ty, val)) = rest.split_once('=') else {
+            continue;
+        };
+        let v = val.trim().trim_end_matches(';').trim().trim_end_matches('u');
+        return v
+            .parse::<f64>()
+            .unwrap_or_else(|_| panic!("parse {name} = {v}"));
+    }
+    panic!(
+        "const {name} not found in the shader - the WGSL side must declare \
+         every shared constant with exactly this name and value"
+    );
+}
+
 #[cfg(test)]
 mod cloud_light_tests {
     use super::*;
@@ -763,28 +800,6 @@ mod cloud_light_tests {
     /// z0 for an anchor on the sphere, by the shader's rule.
     fn z0_at(anchor: DVec3) -> f64 {
         cloud_lc_z0_m(anchor, R_M, SLAB_RB)
-    }
-
-    /// Read `const NAME: <type> = <value>;` out of 40-clouds.wgsl whatever
-    /// the scalar type (the cache constants are a mix of u32 and f32).
-    fn wgsl_const(src: &str, name: &str) -> f64 {
-        for line in src.lines() {
-            let t = line.trim();
-            let Some(rest) = t.strip_prefix(&format!("const {name}:")) else {
-                continue;
-            };
-            let Some((_ty, val)) = rest.split_once('=') else {
-                continue;
-            };
-            let v = val.trim().trim_end_matches(';').trim().trim_end_matches('u');
-            return v
-                .parse::<f64>()
-                .unwrap_or_else(|_| panic!("parse {name} = {v}"));
-        }
-        panic!(
-            "const {name} not found in 40-clouds.wgsl - the WGSL side must declare \
-             every CLOUD_LC_* constant with exactly this name and value"
-        );
     }
 
     /// The contract's sync test: every CLOUD_LC_* the shader reads must
@@ -1139,5 +1154,1502 @@ mod cloud_light_tests {
             "every atlas column baked exactly once per cycle"
         );
         assert_eq!(st.phase.get(), 0);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// THE CLOUD PROFILE, THE FAR RUNG (performance plan increment 4)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Contract: docs/design/cloud-far-rung.md (v2). Read that first; this block
+// implements its "Rust" section and nothing else, and every constant below
+// is named and valued exactly as the contract's table says.
+//
+// What it is for. From orbit the constructed cloud bodies (the Ultra
+// cumulus field) are POINT-SAMPLED at footprints larger than the clouds
+// themselves: each march sample is a coin flip (inside a lobe or clear)
+// printed as one full-white texel, which is the "speckle" the operator sees
+// at 873 km. The far rung gives the built field a PREFILTERED
+// representation: a planet-fixed PROFILE per lattice cell and height bin
+// (cloud fraction f, mean density G and the column C above the bin), baked
+// into an RGBA8 atlas over six nested toroidal (clipmap) windows around the
+// camera's ground cell plus one global equirect map with a real mip
+// pyramid. The march reads it with 4-tap loads chosen by the same lodb that
+// picks every noise mip, and integrates the profile share in transmittance
+// with a clumped-medium law (a property of the medium, not of the step).
+//
+// Who owns what. Rust (this block) owns the NUMBERS and the SCHEDULE: the
+// lattice (absolute equal-angle equirect, no anchor), the ground cell in
+// f64, the active level range from the footprint law, the toroidal scroll
+// rects when the ground cell moves, the time-based fill / refresh / global
+// cadence, the calibration re-run rule, the pads (`light2_color`), the
+// atlas and its views / bind groups, the four pipelines and the passes.
+// WGSL (40-clouds.wgsl, 45-cloud-temporal.wgsl) owns the bake fragments,
+// the calibration fragments, the mip fragment and the read side.
+//
+// Nothing view-dependent enters the bake: every texel is decoded from its
+// own storage position and the ground cell, at the CELL'S OWN direction
+// (BUG-074 stays dead by construction).
+
+/// Finest window cell, km of arc (level L cell = CELL0 * 2^L: 0.25 .. 8 km).
+pub const CLOUD_FR_CELL0_KM: f32 = 0.25;
+/// Window levels (0.25 to 8 km cells).
+pub const CLOUD_FR_LEVELS: u32 = 6;
+/// lodb of level 0. WGSL-owned; the sync test asserts it equals log2(CELL0).
+pub const CLOUD_FR_LOD0: f32 = -2.0;
+/// Window cells across (and down): each level's window is NX x NX cells.
+pub const CLOUD_FR_NX: u32 = 512;
+/// Slab height bins.
+pub const CLOUD_FR_NZ: u32 = 12;
+/// Pair slices per level: (f_k, G_k, f_k+1, G_k+1) for k = 2p.
+pub const CLOUD_FR_PAIRS: u32 = 6;
+/// Column slices per level: (C_4q .. C_4q+3), the last carrying T in .w.
+pub const CLOUD_FR_CSLICES: u32 = 3;
+/// Pair + column slices per level.
+pub const CLOUD_FR_SLICES_PER_LEVEL: u32 = 9;
+/// Slices per atlas row (12 x 512 = 6144).
+pub const CLOUD_FR_SLICE_COLS: u32 = 12;
+/// Column encoding scale: enc(C) = sqrt(C / 12), dec(v) = v * v * 12.
+pub const CLOUD_FR_COL_SCALE: f32 = 12.0;
+/// Atlas width at mip 0.
+pub const CLOUD_FR_ATLAS_W: u32 = 6144;
+/// Atlas height at mip 0 (window band 2560 + global 1024).
+pub const CLOUD_FR_ATLAS_H: u32 = 3584;
+/// Global equirect map width (one slice).
+pub const CLOUD_FR_GLOBAL_W: u32 = 2048;
+/// Global equirect map height.
+pub const CLOUD_FR_GLOBAL_H: u32 = 1024;
+/// Atlas row where the global region starts (5 * 2^9: mip-aligned).
+pub const CLOUD_FR_GLOBAL_Y0: u32 = 2560;
+/// Pooled height bins of the global (three slab bins each).
+pub const CLOUD_FR_GLOBAL_NZ: u32 = 4;
+/// Atlas mip count; mips 1..6 hold the global region only.
+pub const CLOUD_FR_GLOBAL_MIPS: u32 = 7;
+/// Final calibration table origin, MIP-1 texel coordinates (32 x 4).
+pub const CLOUD_FR_CALIB_X0: u32 = 1536;
+pub const CLOUD_FR_CALIB_Y0: u32 = 1024;
+/// Calibration table size in mip-1 texels: 32 height rows x 4 archetypes.
+pub const CLOUD_FR_CALIB_W: u32 = 32;
+pub const CLOUD_FR_CALIB_H: u32 = 4;
+/// Per-seed staging origin, MIP-2 texel coordinates (32 x 32).
+pub const CLOUD_FR_CALIB_STAGE_X0: u32 = 768;
+pub const CLOUD_FR_CALIB_STAGE_Y0: u32 = 512;
+/// Staging area size in mip-2 texels: 32 rows x (4 archetypes x 8 seeds).
+pub const CLOUD_FR_CALIB_STAGE_W: u32 = 32;
+pub const CLOUD_FR_CALIB_STAGE_H: u32 = 32;
+/// Wall seconds per full rolling refresh of one active level; also the
+/// duration of the FAST (first or re-referenced) global pass. Rust-only.
+pub const CLOUD_FR_REFRESH_S: f64 = 2.0;
+/// Wall seconds per rolling refresh of the global map. Rust-only.
+pub const CLOUD_FR_GLOBAL_REFRESH_S: f64 = 60.0;
+/// Storage rows per frame per level during a FILL (1/8 of the level).
+pub const CLOUD_FR_FILL_ROWS: u32 = 64;
+/// Storage rows per frame in REF mode for the windows (the global uses 2).
+pub const CLOUD_FR_REF_ROWS: u32 = 4;
+/// Storage rows per frame in REF mode for the global.
+pub const CLOUD_FR_REF_GLOBAL_ROWS: u32 = 2;
+/// Cloud-clock JUMP (seconds) that re-references the global: the rolling
+/// pass restarts t_ref every 60 s, so only a scrub or a pin change trips it.
+pub const CLOUD_FR_GLOBAL_REREF_S: f64 = 120.0;
+/// Coverage change that re-references the global.
+pub const CLOUD_FR_COVERAGE_REREF: f32 = 0.02;
+// Knob codes (pad light2_color.z), both languages.
+/// Off: today's field, bit-identical (the A/B twin).
+pub const CLOUD_FR_KNOB_OFF: i32 = 0;
+/// Automatic level by lodb, blended across levels and edges.
+pub const CLOUD_FR_KNOB_ON: i32 = 1;
+/// Level 0..5 forced at w = 1 on every sample (Rust keeps it active).
+pub const CLOUD_FR_KNOB_FORCE0: i32 = 2;
+pub const CLOUD_FR_KNOB_FORCE1: i32 = 3;
+pub const CLOUD_FR_KNOB_FORCE2: i32 = 4;
+pub const CLOUD_FR_KNOB_FORCE3: i32 = 5;
+pub const CLOUD_FR_KNOB_FORCE4: i32 = 6;
+pub const CLOUD_FR_KNOB_FORCE5: i32 = 7;
+/// Automatic level, hard switch, no blend anywhere (the prove-red).
+pub const CLOUD_FR_KNOB_HARD: i32 = 8;
+/// The reference bake (dev only, slow: 128 frames per level).
+pub const CLOUD_FR_KNOB_REF: i32 = 9;
+
+/// The per-frame inputs lib.rs feeds the profile from the cloud fill block,
+/// on EVERY tier the cloud shell exists (the Low sheet needs the global).
+/// All the planet-scale values are f64 (the v0.1238 lesson: never subtract
+/// planet-scale quantities in f32); the pad narrows to exact integers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CloudProfileFrame {
+    /// The camera's ground longitude / latitude in the planet-local frame,
+    /// radians, from `p_l`: `lat = asin(y / |p|)`, `lon = atan2(-z, x)`
+    /// (the same lines `cloud_v2_body` uses for its cells).
+    pub ground_lon_rad: f64,
+    pub ground_lat_rad: f64,
+    /// Camera altitude above the sphere, km (from `cam_r_ratio`).
+    pub alt_km: f64,
+    /// Planet radius, km (`d.radius / 1000`; the shader's params2.z).
+    pub radius_km: f64,
+    /// Slab base / top as multiples of the planet radius (params2.x / .y).
+    pub slab_rb: f64,
+    pub slab_rt: f64,
+    /// The MARCH texture's pixel angle: `2 tan(fov/2) / rows` with rows =
+    /// `config.height / cloud_res_div` (the temporal march derives its
+    /// footprint from its own rasterizer, so the active-level range must
+    /// use the same value, not the screen's).
+    pub pix_ang_march: f64,
+    /// The cloud clock as written to sun_color.w (pinned or live).
+    pub cloud_t: f32,
+    /// Effective coverage (`cov_eff`, base_color.a).
+    pub coverage: f32,
+    /// The placement / type pin (`pin` before the temporal +4).
+    pub type_pin: f32,
+    /// Counter bumped at every weather-map upload.
+    pub weather_gen: u32,
+    /// Cloud quality tier (params.y): 0 low, 1 medium, 2 high, 3 ultra.
+    pub tier: f32,
+    /// The knob code (CLOUD_FR_KNOB_*).
+    pub knob: i32,
+    /// Hash of (tier, interior saturation, wide-edge bit, bisect index):
+    /// a change re-runs the calibration and refills every level.
+    pub calib_key: u32,
+}
+
+impl CloudProfileFrame {
+    /// The march pixel angle for a given screen height, divisor and fov
+    /// (the contract's `pix_ang_march = 2 tan(fov/2) / max(height / div, 8)`).
+    pub fn pix_ang_march(fov_degrees: f64, height_px: u32, res_div: u32) -> f64 {
+        let rows = (height_px / res_div.clamp(1, 4)).max(8) as f64;
+        2.0 * (fov_degrees.to_radians() * 0.5).tan() / rows
+    }
+}
+
+// ── The lattice (contract: "The data: lattice, bins, texels, atlas") ──
+
+/// Cell size of level L in km of arc.
+pub fn cloud_fr_cell_km(level: u32) -> f64 {
+    CLOUD_FR_CELL0_KM as f64 * (1u32 << level) as f64
+}
+
+/// Angular cell size of level L in radians: `c_L / planet_km`.
+pub fn cloud_fr_cell_rad(level: u32, planet_km: f64) -> f64 {
+    cloud_fr_cell_km(level) / planet_km
+}
+
+/// Cells around the planet at level L: `floor(2 pi planet_km / c_L)`,
+/// computed in f32 exactly as the shader does (`floor(TAU * planet_km /
+/// c_km)` with `c_km = CELL0 * exp2(L)`) so both sides are bit-identical.
+pub fn cloud_fr_n_i(level: u32, planet_km: f32) -> u32 {
+    let c_km = CLOUD_FR_CELL0_KM * (level as f32).exp2();
+    (std::f32::consts::TAU * planet_km / c_km).floor().max(1.0) as u32
+}
+
+/// Rows pole to pole at level L: `floor(pi planet_km / c_L)`, f32 like the shader.
+pub fn cloud_fr_n_j(level: u32, planet_km: f32) -> u32 {
+    let c_km = CLOUD_FR_CELL0_KM * (level as f32).exp2();
+    (std::f32::consts::PI * planet_km / c_km).floor().max(1.0) as u32
+}
+
+/// The ground CELL of level 0 from the ground direction: RAW indices in
+/// `[0, N_I(0))` x `[0, N_J(0))`, never unwrapped (a date-line crossing is
+/// handled by a full refill, see `CloudProfileState::plan`). f64 in, exact
+/// integers out.
+pub fn cloud_fr_ground_cell(lon_rad: f64, lat_rad: f64, planet_km: f64) -> (i64, i64) {
+    let cell = cloud_fr_cell_rad(0, planet_km);
+    let ni = cloud_fr_n_i(0, planet_km as f32) as i64;
+    let nj = cloud_fr_n_j(0, planet_km as f32) as i64;
+    let i = ((lon_rad + std::f64::consts::PI) / cell).floor() as i64;
+    let j = ((lat_rad + std::f64::consts::FRAC_PI_2) / cell).floor() as i64;
+    (i.clamp(0, ni - 1), j.clamp(0, nj - 1))
+}
+
+/// The window origin `(I0_L, J0_L)` of level L from the level-0 ground
+/// cell: `ground_I_L = floor(ground_I_0 / 2^L)`, `I0_L = ground_I_L - NX/2`
+/// (the same arithmetic the shader does with `floor(pad.x / exp2(L))`).
+pub fn cloud_fr_window_origin(ground_0: (i64, i64), level: u32) -> (i64, i64) {
+    let half = (CLOUD_FR_NX / 2) as i64;
+    let sh = level as i64;
+    // Non-negative raw indices, so >> is the floor division.
+    ((ground_0.0 >> sh) - half, (ground_0.1 >> sh) - half)
+}
+
+/// Positive modulus (the toroidal storage rule): `((a mod n) + n) mod n`.
+pub fn cloud_fr_pmod(a: i64, n: i64) -> i64 {
+    ((a % n) + n) % n
+}
+
+/// Atlas origin `(x0, y0)` of slice `s = L * 9 + p` (mip 0 texels):
+/// 12 slices per atlas row, five rows.
+pub fn cloud_fr_slice_origin(level: u32, slice: u32) -> (u32, u32) {
+    let s = level * CLOUD_FR_SLICES_PER_LEVEL + slice;
+    ((s % CLOUD_FR_SLICE_COLS) * CLOUD_FR_NX, (s / CLOUD_FR_SLICE_COLS) * CLOUD_FR_NX)
+}
+
+/// Split a run of `n` consecutive window-frame indices starting at
+/// `start` into storage runs `(offset, len)` inside a 512-wide toroidal
+/// slice: one run, or two when the run wraps the slice edge. `n <= NX`.
+pub fn cloud_fr_storage_runs(start: i64, n: u32) -> Vec<(u32, u32)> {
+    let nx = CLOUD_FR_NX;
+    let n = n.min(nx);
+    if n == 0 {
+        return Vec::new();
+    }
+    let a = cloud_fr_pmod(start, nx as i64) as u32;
+    if a + n <= nx {
+        vec![(a, n)]
+    } else {
+        vec![(a, nx - a), (0, a + n - nx)]
+    }
+}
+
+/// The active level range from the footprint law (contract: `plan`).
+/// `foot_min = max(alt - slab_top, 0) * pix_ang`, `foot_max = (horizon of
+/// the camera + horizon of the slab top) * pix_ang`, both in km; level L is
+/// active iff `[L - 1, L + 1)` meets `[log2(foot_min) - LOD0, log2(foot_max)
+/// - LOD0]`. The forced level (knob 2..7) is always active.
+pub fn cloud_fr_active_levels(frame: &CloudProfileFrame) -> [bool; 6] {
+    let r = frame.radius_km;
+    let top_km = (frame.slab_rt - 1.0) * r;
+    let alt = frame.alt_km.max(0.0);
+    let foot_min = (alt - top_km).max(0.0) * frame.pix_ang_march;
+    let horiz_cam = ((r + alt) * (r + alt) - r * r).max(0.0).sqrt();
+    let horiz_top = ((r + top_km) * (r + top_km) - r * r).max(0.0).sqrt();
+    let foot_max = (horiz_cam + horiz_top) * frame.pix_ang_march;
+    // log2(0) = -inf: a camera inside the slab has no lower bound.
+    let lo = if foot_min > 0.0 { foot_min.log2() - CLOUD_FR_LOD0 as f64 } else { f64::NEG_INFINITY };
+    let hi = if foot_max > 0.0 { foot_max.log2() - CLOUD_FR_LOD0 as f64 } else { f64::NEG_INFINITY };
+    let forced = cloud_fr_forced_level(frame.knob);
+    let mut out = [false; 6];
+    for (l, slot) in out.iter_mut().enumerate() {
+        let lf = l as f64;
+        // [L - 1, L + 1) meets [lo, hi] iff lo < L + 1 and hi >= L - 1.
+        *slot = (lo < lf + 1.0 && hi >= lf - 1.0) || forced == Some(l as u32);
+    }
+    out
+}
+
+/// The forced level of a FORCE knob, else None.
+pub fn cloud_fr_forced_level(knob: i32) -> Option<u32> {
+    if (CLOUD_FR_KNOB_FORCE0..=CLOUD_FR_KNOB_FORCE5).contains(&knob) {
+        Some((knob - CLOUD_FR_KNOB_FORCE0) as u32)
+    } else {
+        None
+    }
+}
+
+/// The flags pad: bit 0 = some window level valid, bit 1 = global valid,
+/// bits 2..7 = level L = b - 2 valid, bit 8 = calibration valid. An exact
+/// integer in f32 (the shader isolates bits with a scaled fract).
+pub fn cloud_fr_flags(levels_valid: [bool; 6], global_valid: bool, calib_valid: bool) -> u32 {
+    let mut f = 0u32;
+    if levels_valid.iter().any(|&v| v) {
+        f |= 1;
+    }
+    if global_valid {
+        f |= 2;
+    }
+    for (l, &v) in levels_valid.iter().enumerate() {
+        if v {
+            f |= 1 << (2 + l);
+        }
+    }
+    if calib_valid {
+        f |= 1 << 8;
+    }
+    f
+}
+
+/// Worst-case cv2 candidate count of a texel whose cell is `c_lat` km
+/// north-south at latitude `lat` (the contract's dev counter formula with
+/// the 1.1 km humilis grid): `(ceil(c_lat / 1.1) + 2) * (ceil(c_lat cos(lat)
+/// / 1.1) + 2)`.
+fn cloud_fr_worst_candidates(c_lat_km: f64, lat_rad: f64) -> f64 {
+    let g = 1.1;
+    ((c_lat_km / g).ceil() + 2.0) * ((c_lat_km * lat_rad.cos().max(0.0) / g).ceil() + 2.0)
+}
+
+// ── Planning state (GPU-free, unit-tested; interior mutability because the
+// bake pass consumes it on `&self`, like CloudLightState) ──
+
+use std::cell::Cell;
+
+/// One window level's schedule.
+#[derive(Default, Debug)]
+pub struct CloudProfileLevel {
+    /// Window origin `(I0_L, J0_L)` in level-L cells; None = no window (the
+    /// level is inactive, or has never been planned).
+    pub origin: Cell<Option<(i64, i64)>>,
+    /// In the active range this frame (or forced).
+    pub active: Cell<bool>,
+    /// The first full fill completed: the shader may read this level.
+    pub valid: Cell<bool>,
+    /// Rows baked so far in the current FILL (None = not filling).
+    pub fill_cursor: Cell<Option<u32>>,
+    /// Rolling refresh cursor, storage row (fractional by the contract's
+    /// type; advanced by whole rows here).
+    pub refresh_cursor: Cell<f64>,
+    /// The scroll delta `(dI, dJ)` pending for this frame's scroll rects
+    /// (set by `plan`, consumed by `take_bake_rects`).
+    pub scroll: Cell<(i64, i64)>,
+    /// Bookkeeping for the 1 Hz line: columns + rows scrolled, fills started.
+    pub scrolled: Cell<u32>,
+    pub fills: Cell<u32>,
+}
+
+/// The whole schedule: six levels, the global, the calibration.
+#[derive(Default, Debug)]
+pub struct CloudProfileState {
+    pub levels: [CloudProfileLevel; 6],
+    /// The global's first pass has been ordered.
+    pub global_started: bool,
+    /// Storage row the global's rolling / fast pass is at.
+    pub global_pass_cursor: Cell<f64>,
+    /// The current pass is a FAST one (2 s), else rolling (60 s).
+    pub global_pass_fast: Cell<bool>,
+    /// The global has completed a pass (plus its mips): readable.
+    pub global_valid: Cell<bool>,
+    /// The cloud clock the global was last (re)referenced or completed at.
+    pub global_t_ref: Cell<f32>,
+    /// The references a re-reference compares against.
+    pub coverage_ref: f32,
+    pub pin_ref: f32,
+    pub weather_ref: u32,
+    pub tier_ref: f32,
+    /// Knob CLASS (1 = analytic, 9 = the reference bake).
+    pub knob_class_ref: i32,
+    /// A knob-off frame (or a stale mark) orders the next plan to fast-pass
+    /// the global even though nothing else changed.
+    pub global_reref_pending: bool,
+    /// Set when a global pass completes: the six mip passes run this frame.
+    pub mips_pending: Cell<bool>,
+    /// The calibration table is baked and its flag may be raised.
+    pub calib_valid: Cell<bool>,
+    /// The calibration must run (first use, or its key changed).
+    pub calib_pending: Cell<bool>,
+    /// The calibration ran THIS frame: the bake waits one frame so the
+    /// pad's bit 8 lands before any texel is baked from the table.
+    pub calib_ran: Cell<bool>,
+    pub calib_key_ref: Option<u32>,
+    /// The frame the pads were last computed with.
+    pub frame: Option<CloudProfileFrame>,
+    /// Level-0 ground cell of the last plan.
+    pub ground_0: (i64, i64),
+    /// Counters for the 1 Hz line.
+    pub global_passes: Cell<u32>,
+    pub calib_runs: Cell<u32>,
+    /// Wall clock of the last bake, for dt.
+    pub last_bake: Cell<Option<std::time::Instant>>,
+}
+
+impl CloudProfileState {
+    /// Decide this frame's windows and passes. Pure planning: no GPU work.
+    ///
+    /// Per level (contract): a level that was inactive, or whose origin
+    /// moved by 512 cells or more (a date-line crossing produces this), or
+    /// a calibration / tier / knob-class change, starts a FILL (`valid`
+    /// false until it completes); otherwise the move becomes scroll rects.
+    /// The global: first use, a cloud-clock JUMP, a weather-map upload, a
+    /// coverage change over 0.02, a type-pin, tier or knob-class change each
+    /// start a FAST pass; `valid` stays as it was during a re-reference (the
+    /// old map serves until the new pass completes), except on first use.
+    pub fn plan(&mut self, frame: CloudProfileFrame) {
+        let planet_km = frame.radius_km;
+        let ground_0 = cloud_fr_ground_cell(frame.ground_lon_rad, frame.ground_lat_rad, planet_km);
+        self.ground_0 = ground_0;
+        // The calibration: run once, re-run on a key change; a re-run refills
+        // every active level and fast-passes the global.
+        let calib_change = self.calib_key_ref != Some(frame.calib_key);
+        if calib_change {
+            self.calib_key_ref = Some(frame.calib_key);
+            self.calib_pending.set(true);
+            self.calib_valid.set(false);
+            self.calib_runs.set(self.calib_runs.get().wrapping_add(1));
+        }
+        let class = if frame.knob == CLOUD_FR_KNOB_REF { CLOUD_FR_KNOB_REF } else { CLOUD_FR_KNOB_ON };
+        let first = self.frame.is_none();
+        let tier_change = !first && self.tier_ref != frame.tier;
+        let class_change = !first && self.knob_class_ref != class;
+        let refill_all = calib_change || tier_change || class_change;
+        let active = cloud_fr_active_levels(&frame);
+        for (l, lv) in self.levels.iter_mut().enumerate() {
+            lv.active.set(active[l]);
+            lv.scroll.set((0, 0));
+            if !active[l] {
+                // An inactive level drops its window: the shader must never
+                // read a window that is not being maintained, and the level
+                // refills when it comes back.
+                lv.origin.set(None);
+                lv.valid.set(false);
+                lv.fill_cursor.set(None);
+                continue;
+            }
+            let new_origin = cloud_fr_window_origin(ground_0, l as u32);
+            let start_fill = match lv.origin.get() {
+                None => true,
+                Some(prev) => {
+                    let d_i = new_origin.0 - prev.0;
+                    let d_j = new_origin.1 - prev.1;
+                    if d_i.abs() >= CLOUD_FR_NX as i64 || d_j.abs() >= CLOUD_FR_NX as i64 || refill_all {
+                        true
+                    } else {
+                        if d_i != 0 || d_j != 0 {
+                            lv.scroll.set((d_i, d_j));
+                            lv.scrolled.set(lv.scrolled.get().wrapping_add((d_i.abs() + d_j.abs()) as u32));
+                        }
+                        false
+                    }
+                }
+            };
+            if start_fill {
+                lv.valid.set(false);
+                lv.fill_cursor.set(Some(0));
+                lv.refresh_cursor.set(0.0);
+                lv.fills.set(lv.fills.get().wrapping_add(1));
+            }
+            lv.origin.set(Some(new_origin));
+        }
+        // The global.
+        let clock_jump = (frame.cloud_t - self.global_t_ref.get()).abs() as f64 > CLOUD_FR_GLOBAL_REREF_S;
+        let need_fast = !self.global_started
+            || self.global_reref_pending
+            || clock_jump
+            || frame.weather_gen != self.weather_ref
+            || (frame.coverage - self.coverage_ref).abs() > CLOUD_FR_COVERAGE_REREF
+            || frame.type_pin != self.pin_ref
+            || tier_change
+            || class_change
+            || calib_change;
+        if need_fast {
+            if !self.global_started {
+                self.global_valid.set(false);
+            }
+            self.global_started = true;
+            self.global_reref_pending = false;
+            self.global_pass_fast.set(true);
+            self.global_pass_cursor.set(0.0);
+            self.global_t_ref.set(frame.cloud_t);
+            self.coverage_ref = frame.coverage;
+            self.pin_ref = frame.type_pin;
+            self.weather_ref = frame.weather_gen;
+        }
+        self.tier_ref = frame.tier;
+        self.knob_class_ref = class;
+        self.frame = Some(frame);
+    }
+
+    /// Mark everything STALE: called for every frame the atlas exists but
+    /// the knob is off (or no cloud body is armed), so that turning the
+    /// profile back on refills every window and fast-passes the global
+    /// instead of serving slices from an older cloud clock. The global's
+    /// `valid` is kept (the old map serves for the 2 s of the fast pass).
+    pub fn mark_stale(&mut self) {
+        for lv in self.levels.iter() {
+            lv.origin.set(None);
+            lv.valid.set(false);
+            lv.fill_cursor.set(None);
+            lv.scroll.set((0, 0));
+        }
+        if self.global_started {
+            self.global_reref_pending = true;
+        }
+        self.last_bake.set(None);
+    }
+
+    /// Whether the shader may read anything: some level or the global valid.
+    pub fn any_valid(&self) -> bool {
+        self.levels.iter().any(|l| l.valid.get()) || self.global_valid.get()
+    }
+
+    pub fn levels_valid(&self) -> [bool; 6] {
+        let mut v = [false; 6];
+        for (i, l) in self.levels.iter().enumerate() {
+            v[i] = l.valid.get();
+        }
+        v
+    }
+
+    /// The `light2_color` pad: `(ground_I_0, ground_J_0, knob, flags)`, all
+    /// exact integers in f32. Zeros when nothing was planned.
+    pub fn pads(&self) -> [f32; 4] {
+        let Some(f) = self.frame else {
+            return [0.0; 4];
+        };
+        let flags = cloud_fr_flags(self.levels_valid(), self.global_valid.get(), self.calib_valid.get());
+        [self.ground_0.0 as f32, self.ground_0.1 as f32, f.knob as f32, flags as f32]
+    }
+
+    /// The calibration passes run this frame? Consumes the pending order;
+    /// after this frame the table is valid (bit 8 rises on the next pad
+    /// write) and the bake waits one frame (see `take_bake_rects`).
+    pub fn take_calib(&self) -> bool {
+        if self.calib_pending.replace(false) {
+            self.calib_valid.set(true);
+            self.calib_ran.set(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Scissor rects `(x, y, w, h)` for this frame's bake pass, in the
+    /// contract's order: (1) scroll rects for every active level with a
+    /// window, (2) fill rects, (3) refresh rects for every valid active
+    /// level, (4) the global's pass rows. `dt_s` = wall seconds since the
+    /// last bake (the cadence is TIME based, gated on its MAX). Called on
+    /// `&self` by the bake pass.
+    pub fn take_bake_rects(&self, dt_s: f64) -> Vec<(u32, u32, u32, u32)> {
+        let mut out = Vec::new();
+        // The frame the calibration ran: pads carried bit 8 = 0, so no texel
+        // is baked from the table until the flag has landed (one frame).
+        if self.calib_ran.replace(false) {
+            return out;
+        }
+        let Some(frame) = self.frame else {
+            return out;
+        };
+        let ref_mode = frame.knob == CLOUD_FR_KNOB_REF;
+        let nx = CLOUD_FR_NX;
+        let dt = dt_s.clamp(0.0, 1.0);
+        for (l, lv) in self.levels.iter().enumerate() {
+            if !lv.active.get() {
+                continue;
+            }
+            let Some(origin) = lv.origin.get() else {
+                continue;
+            };
+            let level = l as u32;
+            // (1) Scroll rects: the columns / rows the window exposed when
+            // the origin moved, as toroidal storage runs, for all 9 slices.
+            let (d_i, d_j) = lv.scroll.replace((0, 0));
+            if d_i != 0 {
+                let n = d_i.unsigned_abs() as u32;
+                // dI > 0: I_abs in [I0_new + NX - dI, I0_new + NX); dI < 0: [I0_new, I0_new - dI).
+                let start = if d_i > 0 { origin.0 + nx as i64 - d_i } else { origin.0 };
+                for (off, len) in cloud_fr_storage_runs(start, n) {
+                    for p in 0..CLOUD_FR_SLICES_PER_LEVEL {
+                        let (x0, y0) = cloud_fr_slice_origin(level, p);
+                        out.push((x0 + off, y0, len, nx));
+                    }
+                }
+            }
+            if d_j != 0 {
+                let n = d_j.unsigned_abs() as u32;
+                let start = if d_j > 0 { origin.1 + nx as i64 - d_j } else { origin.1 };
+                for (off, len) in cloud_fr_storage_runs(start, n) {
+                    for p in 0..CLOUD_FR_SLICES_PER_LEVEL {
+                        let (x0, y0) = cloud_fr_slice_origin(level, p);
+                        out.push((x0, y0 + off, nx, len));
+                    }
+                }
+            }
+            // (2) Fill rects: FILL_ROWS (REF: REF_ROWS) storage rows at the
+            // fill cursor; the level becomes valid when the cursor reaches NX.
+            if let Some(c) = lv.fill_cursor.get() {
+                let rows = if ref_mode { CLOUD_FR_REF_ROWS } else { CLOUD_FR_FILL_ROWS };
+                let n = rows.min(nx - c);
+                for p in 0..CLOUD_FR_SLICES_PER_LEVEL {
+                    let (x0, y0) = cloud_fr_slice_origin(level, p);
+                    out.push((x0, y0 + c, nx, n));
+                }
+                if c + n >= nx {
+                    lv.fill_cursor.set(None);
+                    lv.valid.set(true);
+                    lv.refresh_cursor.set(0.0);
+                } else {
+                    lv.fill_cursor.set(Some(c + n));
+                }
+                continue;
+            }
+            // (3) Refresh rects: ceil(NX * dt / REFRESH_S) rows (at most
+            // FILL_ROWS; REF: REF_ROWS) at the refresh cursor, wrapping.
+            if lv.valid.get() {
+                let n = if ref_mode {
+                    CLOUD_FR_REF_ROWS
+                } else {
+                    ((nx as f64 * dt / CLOUD_FR_REFRESH_S).ceil() as u32).clamp(1, CLOUD_FR_FILL_ROWS)
+                };
+                let start = lv.refresh_cursor.get().floor() as i64;
+                for (off, len) in cloud_fr_storage_runs(start, n) {
+                    for p in 0..CLOUD_FR_SLICES_PER_LEVEL {
+                        let (x0, y0) = cloud_fr_slice_origin(level, p);
+                        out.push((x0, y0 + off, nx, len));
+                    }
+                }
+                lv.refresh_cursor.set(((start + n as i64) % nx as i64) as f64);
+            }
+        }
+        // (4) The global: n rows at the pass cursor across all three slices
+        // (width 6144); a completed pass sets mips_pending and valid.
+        if self.global_started {
+            let fast = self.global_pass_fast.get();
+            let n = if ref_mode {
+                CLOUD_FR_REF_GLOBAL_ROWS
+            } else {
+                let span = if fast { CLOUD_FR_REFRESH_S } else { CLOUD_FR_GLOBAL_REFRESH_S };
+                ((CLOUD_FR_GLOBAL_H as f64 * dt / span).ceil() as u32).clamp(1, CLOUD_FR_GLOBAL_H)
+            };
+            let c = self.global_pass_cursor.get().floor() as u32;
+            let n = n.min(CLOUD_FR_GLOBAL_H - c);
+            out.push((0, CLOUD_FR_GLOBAL_Y0 + c, CLOUD_FR_ATLAS_W, n));
+            if c + n >= CLOUD_FR_GLOBAL_H {
+                self.global_pass_cursor.set(0.0);
+                self.mips_pending.set(true);
+                self.global_valid.set(true);
+                self.global_pass_fast.set(false);
+                self.global_t_ref.set(frame.cloud_t);
+                self.global_passes.set(self.global_passes.get().wrapping_add(1));
+            } else {
+                self.global_pass_cursor.set((c + n) as f64);
+            }
+        }
+        out
+    }
+
+    /// Analytic dev counter: the number of global-row and window-row texels
+    /// whose worst-case cv2 candidate count exceeds CLOUD_FR_MAX_CV2 (512),
+    /// i.e. where the bake's stride subsampling engages. 0 on Earth; a
+    /// larger planet is where it engages. Printed at 1 Hz.
+    pub fn truncated_texels_estimate(&self) -> u64 {
+        let Some(f) = self.frame else {
+            return 0;
+        };
+        let planet_km = f.radius_km;
+        let cap = 512.0;
+        let mut n = 0u64;
+        // The global: 1024 rows of 2048 texels, cell = 2 pi R / 2048.
+        let global_km = std::f64::consts::TAU * planet_km / CLOUD_FR_GLOBAL_W as f64;
+        for j in 0..CLOUD_FR_GLOBAL_H {
+            let lat = std::f64::consts::FRAC_PI_2 - (j as f64 + 0.5) / CLOUD_FR_GLOBAL_H as f64 * std::f64::consts::PI;
+            if cloud_fr_worst_candidates(global_km, lat) > cap {
+                n += CLOUD_FR_GLOBAL_W as u64;
+            }
+        }
+        // The windows: each active level's 512 rows at their own latitudes.
+        for (l, lv) in self.levels.iter().enumerate() {
+            let Some(origin) = lv.origin.get() else {
+                continue;
+            };
+            let level = l as u32;
+            let c_km = cloud_fr_cell_km(level);
+            let cell_rad = cloud_fr_cell_rad(level, planet_km);
+            let nj = cloud_fr_n_j(level, planet_km as f32) as i64;
+            for r in 0..CLOUD_FR_NX as i64 {
+                let j_abs = origin.1 + r;
+                if j_abs < 0 || j_abs >= nj {
+                    continue;
+                }
+                let lat = (j_abs as f64 + 0.5) * cell_rad - std::f64::consts::FRAC_PI_2;
+                if cloud_fr_worst_candidates(c_km, lat) > cap {
+                    n += CLOUD_FR_NX as u64;
+                }
+            }
+        }
+        n
+    }
+}
+
+/// The atlas, its views and bind groups, plus the planning state. Created
+/// by `ensure_cloud_profile` on the first frame the knob is on; planned
+/// every frame by `cloud_profile_plan` (from lib.rs) and consumed by the
+/// passes in mod.rs (interior mutability, the passes run on `&self`).
+pub struct CloudProfileCache {
+    _texture: wgpu::Texture,
+    /// All seven mips: the march, the shell and the Low sheet read this.
+    pub view_all: wgpu::TextureView,
+    /// One mip each: attachments, and the mip passes' read sources.
+    pub view_mip: [wgpu::TextureView; 7],
+    /// b0 = the 1x1 white fallback, b14 = the whole atlas: the march without
+    /// the sun cache, the transparent shell draw, the Low sheet.
+    pub group_plain: AlbedoBindGroup,
+    /// b0 = the sun-shadow atlas, b14 = the whole atlas: the march when both
+    /// caches are active. Rebuilt whenever either atlas is (re)created.
+    pub group_sun: Option<AlbedoBindGroup>,
+    /// b0 = white, b14 = mip m (m = 0..5): the mip passes (writing m + 1),
+    /// the calibration reduce (`[2]`) and the bake (`[1]`).
+    pub group_mip_src: [AlbedoBindGroup; 6],
+    pub state: CloudProfileState,
+}
+
+impl CloudProfileCache {
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self._texture
+    }
+}
+
+impl Renderer {
+    /// Create the profile atlas on first use. Refuses (logs once, stays
+    /// `None`) when the device cannot hold a 6144-wide texture: the limits
+    /// are requested `using_resolution(adapter)` so a desktop GPU grants
+    /// 8192+, but a small-limit adapter must degrade to the point-sampled
+    /// field, not die at create_texture (the v0.782 boot-killer class).
+    pub fn ensure_cloud_profile(&mut self) {
+        if self.cloud_profile_cache.is_some() {
+            return;
+        }
+        let max_dim = self.device.limits().max_texture_dimension_2d;
+        if max_dim < CLOUD_FR_ATLAS_W {
+            static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                log::warn!(
+                    "[CloudProfile] atlas {}x{} exceeds max_texture_dimension_2d {}: profile stays off",
+                    CLOUD_FR_ATLAS_W, CLOUD_FR_ATLAS_H, max_dim
+                );
+            }
+            return;
+        }
+        let tex = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Cloud Profile Atlas"),
+            size: wgpu::Extent3d {
+                width: CLOUD_FR_ATLAS_W,
+                height: CLOUD_FR_ATLAS_H,
+                depth_or_array_layers: 1,
+            },
+            // The full-extent chain is allocated (117 MB); mips 1..6 are
+            // written only over the global region plus the two calibration
+            // areas, the rest is never touched.
+            mip_level_count: CLOUD_FR_GLOBAL_MIPS,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            // COPY_SRC for the dev dump (never let a dump be the first time
+            // the flag is missed).
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view_all = tex.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Cloud Profile Atlas (all mips)"),
+            ..Default::default()
+        });
+        let mip_view = |m: u32| {
+            tex.create_view(&wgpu::TextureViewDescriptor {
+                label: Some("Cloud Profile Atlas (one mip)"),
+                base_mip_level: m,
+                mip_level_count: Some(1),
+                ..Default::default()
+            })
+        };
+        let view_mip = [
+            mip_view(0), mip_view(1), mip_view(2), mip_view(3), mip_view(4), mip_view(5), mip_view(6),
+        ];
+        // Every cloud-side group rebuilt with the atlas at binding 14 (A8):
+        // no layout change, 16 entries at every site.
+        let group_plain = self.build_albedo_group_from_view_b14(&self.white_view, &self.albedo_sampler, &view_all);
+        let group_sun = self
+            .cloud_light_cache
+            .as_ref()
+            .map(|lc| self.build_albedo_group_from_view_b14(&lc.view, &self.albedo_sampler, &view_all));
+        let mip_src = |m: usize| self.build_albedo_group_from_view_b14(&self.white_view, &self.albedo_sampler, &view_mip[m]);
+        let group_mip_src = [mip_src(0), mip_src(1), mip_src(2), mip_src(3), mip_src(4), mip_src(5)];
+        // The CloudScreen accumulation pair (unused by any pass today) also
+        // carries b14 = the atlas, for consistency with every cloud group.
+        let screen_groups = self.cloud_screen.as_ref().map(|cs| {
+            [
+                self.build_albedo_group_from_view_b14(&cs.views[0], &self.albedo_sampler, &view_all),
+                self.build_albedo_group_from_view_b14(&cs.views[1], &self.albedo_sampler, &view_all),
+            ]
+        });
+        if let (Some(g), Some(cs)) = (screen_groups, self.cloud_screen.as_mut()) {
+            cs.groups = g;
+        }
+        self.cloud_profile_cache = Some(CloudProfileCache {
+            _texture: tex,
+            view_all,
+            view_mip,
+            group_plain,
+            group_sun,
+            group_mip_src,
+            state: CloudProfileState::default(),
+        });
+        log::info!(
+            "[CloudProfile] atlas ON: {}x{} RGBA8, {} mips ({:.1} MB mip 0), {} levels x {} slices of {}^2, global {}x{}",
+            CLOUD_FR_ATLAS_W,
+            CLOUD_FR_ATLAS_H,
+            CLOUD_FR_GLOBAL_MIPS,
+            (CLOUD_FR_ATLAS_W as f64 * CLOUD_FR_ATLAS_H as f64 * 4.0) / 1.0e6,
+            CLOUD_FR_LEVELS,
+            CLOUD_FR_SLICES_PER_LEVEL,
+            CLOUD_FR_NX,
+            CLOUD_FR_GLOBAL_W,
+            CLOUD_FR_GLOBAL_H,
+        );
+    }
+
+    /// Rebuild the profile's `group_sun` (b0 = the sun atlas, b14 = the
+    /// profile atlas). Called whenever EITHER atlas is (re)created: from
+    /// `ensure_cloud_profile` above and from `ensure_cloud_light`.
+    pub(crate) fn rebuild_cloud_profile_sun_group(&mut self) {
+        let g = match (self.cloud_light_cache.as_ref(), self.cloud_profile_cache.as_ref()) {
+            (Some(lc), Some(pc)) => {
+                Some(self.build_albedo_group_from_view_b14(&lc.view, &self.albedo_sampler, &pc.view_all))
+            }
+            _ => None,
+        };
+        if let (Some(g), Some(pc)) = (g, self.cloud_profile_cache.as_mut()) {
+            pc.group_sun = Some(g);
+        }
+    }
+
+    /// Per-frame feed from lib.rs (the cloud fill block, EVERY tier): create
+    /// the atlas if the knob is on, plan the windows. With the knob off the
+    /// frame is recorded (the pads carry knob 0, the shader's bit-identical
+    /// branch) and the atlas is marked stale, so flipping the knob on
+    /// refills. A second call in the same frame is ignored (two cloud
+    /// bodies can never fight over the ground cell); `set_cloud_temporal
+    /// (None)` at the top of every frame clears the feed.
+    pub fn cloud_profile_plan(&mut self, frame: CloudProfileFrame) {
+        if self.cloud_profile_frame.is_some() {
+            return;
+        }
+        self.cloud_profile_frame = Some(frame);
+        if frame.knob == CLOUD_FR_KNOB_OFF {
+            if let Some(pc) = self.cloud_profile_cache.as_mut() {
+                pc.state.mark_stale();
+                pc.state.frame = Some(frame);
+            }
+            return;
+        }
+        self.ensure_cloud_profile();
+        if let Some(pc) = self.cloud_profile_cache.as_mut() {
+            pc.state.plan(frame);
+        }
+    }
+
+    /// The profile the march may READ this frame: the knob is on, the frame
+    /// was fed, the atlas exists and some level or the global is valid.
+    pub(crate) fn cloud_profile_active(&self) -> Option<&CloudProfileCache> {
+        if self.cloud_profile_knob == CLOUD_FR_KNOB_OFF || self.cloud_profile_frame.is_none() {
+            return None;
+        }
+        self.cloud_profile_cache.as_ref().filter(|pc| pc.state.any_valid())
+    }
+
+    /// The calibration key: a hash of (tier, interior saturation, the
+    /// wide-edge bit, the component bisect index), the inputs the
+    /// calibration table depends on. A change re-runs it.
+    pub fn cloud_profile_calib_key(&self, tier: f32) -> u32 {
+        let bisect: u32 = if self.cloud_no_detail {
+            1
+        } else if self.cloud_no_puff {
+            2
+        } else if self.cloud_no_cell {
+            3
+        } else if self.cloud_no_fray {
+            4
+        } else if self.cloud_no_bdrop {
+            5
+        } else {
+            0
+        };
+        // FNV-1a over the four inputs' bit patterns: deterministic, no
+        // allocation, and any single-bit change moves the key.
+        let mut h: u32 = 0x811c_9dc5;
+        for w in [tier.to_bits(), self.cloud_int_sat.clamp(0.0, 1.0).to_bits(), self.cloud_wide_edge as u32, bisect] {
+            for b in w.to_le_bytes() {
+                h ^= b as u32;
+                h = h.wrapping_mul(0x0100_0193);
+            }
+        }
+        h
+    }
+
+    /// Dev dump (`debug/cloud_profile_dump_request.json`): every window
+    /// slice (`cloud_profile_L<level>_s<slice>.png`, 54), the three global
+    /// slices (`cloud_profile_global_<0|1|c>.png`) and the calibration table
+    /// (`cloud_profile_calib.png`, 32 x 4 from mip 1), raw RGBA8, into
+    /// `dir`. Returns the number of files written. The A17 proof reads the
+    /// synthetic pattern back through these; `scripts/cloud-profile-compare.js`
+    /// diffs two dumps (the reference bake against the analytic one).
+    pub fn dump_cloud_profile_pngs(&self, dir: &std::path::Path) -> Result<usize, String> {
+        let pc = self.cloud_profile_cache.as_ref().ok_or_else(|| "cloud profile atlas not created".to_string())?;
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        // One readback of mip 0 (88 MB) plus the 32 x 4 calibration area of mip 1.
+        let read = |mip: u32, x: u32, y: u32, w: u32, h: u32| -> Result<Vec<u8>, String> {
+            let bytes_per_row = ((w * 4 + 255) / 256) * 256;
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("cloud_profile_readback"),
+                size: (bytes_per_row * h) as u64,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("cloud_profile_dump_encoder") });
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: pc.texture(),
+                    mip_level: mip,
+                    origin: wgpu::Origin3d { x, y, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(bytes_per_row),
+                        rows_per_image: Some(h),
+                    },
+                },
+                wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            );
+            self.queue.submit([encoder.finish()]);
+            let slice = buffer.slice(..);
+            slice.map_async(wgpu::MapMode::Read, |_| {});
+            let _ = self.device.poll(wgpu::Maintain::Wait);
+            let data = slice.get_mapped_range();
+            let mut out = vec![0u8; (w * h * 4) as usize];
+            for row in 0..h {
+                let s = (row * bytes_per_row) as usize;
+                let d = (row * w * 4) as usize;
+                out[d..d + (w * 4) as usize].copy_from_slice(&data[s..s + (w * 4) as usize]);
+            }
+            drop(data);
+            buffer.unmap();
+            Ok(out)
+        };
+        let atlas = read(0, 0, 0, CLOUD_FR_ATLAS_W, CLOUD_FR_ATLAS_H)?;
+        let crop = |x0: u32, y0: u32, w: u32, h: u32| -> Vec<u8> {
+            let mut px = vec![0u8; (w * h * 4) as usize];
+            for row in 0..h {
+                let s = (((y0 + row) * CLOUD_FR_ATLAS_W + x0) * 4) as usize;
+                let d = (row * w * 4) as usize;
+                px[d..d + (w * 4) as usize].copy_from_slice(&atlas[s..s + (w * 4) as usize]);
+            }
+            px
+        };
+        let save = |name: String, w: u32, h: u32, px: Vec<u8>| -> Result<(), String> {
+            let img = image::RgbaImage::from_raw(w, h, px).ok_or_else(|| format!("{name}: pixel buffer size mismatch"))?;
+            img.save(dir.join(name)).map_err(|e| e.to_string())
+        };
+        let mut files = 0usize;
+        for level in 0..CLOUD_FR_LEVELS {
+            for slice in 0..CLOUD_FR_SLICES_PER_LEVEL {
+                let (x0, y0) = cloud_fr_slice_origin(level, slice);
+                save(format!("cloud_profile_L{level}_s{slice}.png"), CLOUD_FR_NX, CLOUD_FR_NX, crop(x0, y0, CLOUD_FR_NX, CLOUD_FR_NX))?;
+                files += 1;
+            }
+        }
+        for (i, tag) in ["0", "1", "c"].iter().enumerate() {
+            save(
+                format!("cloud_profile_global_{tag}.png"),
+                CLOUD_FR_GLOBAL_W,
+                CLOUD_FR_GLOBAL_H,
+                crop(i as u32 * CLOUD_FR_GLOBAL_W, CLOUD_FR_GLOBAL_Y0, CLOUD_FR_GLOBAL_W, CLOUD_FR_GLOBAL_H),
+            )?;
+            files += 1;
+        }
+        let calib = read(1, CLOUD_FR_CALIB_X0, CLOUD_FR_CALIB_Y0, CLOUD_FR_CALIB_W, CLOUD_FR_CALIB_H)?;
+        save("cloud_profile_calib.png".to_string(), CLOUD_FR_CALIB_W, CLOUD_FR_CALIB_H, calib)?;
+        files += 1;
+        Ok(files)
+    }
+}
+
+#[cfg(test)]
+mod cloud_profile_tests {
+    use super::*;
+
+    /// Earth (radius 6371 km, slab 0.4 .. 12 km), the rig's 2560 x 1387
+    /// captures at fov 90.05.
+    const R_KM: f64 = 6371.0;
+    const SLAB_RB: f64 = 1.0 + 0.4 / 6371.0;
+    const SLAB_RT: f64 = 1.0 + 12.0 / 6371.0;
+    const FOV: f64 = 90.05;
+    const ROWS: u32 = 1387;
+
+    fn frame_at(alt_km: f64, res_div: u32, knob: i32) -> CloudProfileFrame {
+        CloudProfileFrame {
+            ground_lon_rad: 0.0,
+            ground_lat_rad: 0.0,
+            alt_km,
+            radius_km: R_KM,
+            slab_rb: SLAB_RB,
+            slab_rt: SLAB_RT,
+            pix_ang_march: CloudProfileFrame::pix_ang_march(FOV, ROWS, res_div),
+            cloud_t: 120.0,
+            coverage: 0.5,
+            type_pin: 2.34,
+            weather_gen: 0,
+            tier: 3.0,
+            knob,
+            calib_key: 7,
+        }
+    }
+
+    /// Every "both"-owned constant of the contract's table must equal the
+    /// value declared in 40-clouds.wgsl, read from the shader TEXT so the
+    /// two can never drift silently.
+    #[test]
+    fn wgsl_cloud_profile_constants_stay_in_sync() {
+        let root = env!("CARGO_MANIFEST_DIR");
+        let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl")).expect("read 40-clouds.wgsl");
+        let pairs: [(&str, f64); 31] = [
+            ("CLOUD_FR_CELL0_KM", CLOUD_FR_CELL0_KM as f64),
+            ("CLOUD_FR_LEVELS", CLOUD_FR_LEVELS as f64),
+            ("CLOUD_FR_NX", CLOUD_FR_NX as f64),
+            ("CLOUD_FR_NZ", CLOUD_FR_NZ as f64),
+            ("CLOUD_FR_PAIRS", CLOUD_FR_PAIRS as f64),
+            ("CLOUD_FR_CSLICES", CLOUD_FR_CSLICES as f64),
+            ("CLOUD_FR_SLICES_PER_LEVEL", CLOUD_FR_SLICES_PER_LEVEL as f64),
+            ("CLOUD_FR_SLICE_COLS", CLOUD_FR_SLICE_COLS as f64),
+            ("CLOUD_FR_COL_SCALE", CLOUD_FR_COL_SCALE as f64),
+            ("CLOUD_FR_ATLAS_W", CLOUD_FR_ATLAS_W as f64),
+            ("CLOUD_FR_ATLAS_H", CLOUD_FR_ATLAS_H as f64),
+            ("CLOUD_FR_GLOBAL_W", CLOUD_FR_GLOBAL_W as f64),
+            ("CLOUD_FR_GLOBAL_H", CLOUD_FR_GLOBAL_H as f64),
+            ("CLOUD_FR_GLOBAL_Y0", CLOUD_FR_GLOBAL_Y0 as f64),
+            ("CLOUD_FR_GLOBAL_NZ", CLOUD_FR_GLOBAL_NZ as f64),
+            ("CLOUD_FR_GLOBAL_MIPS", CLOUD_FR_GLOBAL_MIPS as f64),
+            ("CLOUD_FR_CALIB_X0", CLOUD_FR_CALIB_X0 as f64),
+            ("CLOUD_FR_CALIB_Y0", CLOUD_FR_CALIB_Y0 as f64),
+            ("CLOUD_FR_CALIB_STAGE_X0", CLOUD_FR_CALIB_STAGE_X0 as f64),
+            ("CLOUD_FR_CALIB_STAGE_Y0", CLOUD_FR_CALIB_STAGE_Y0 as f64),
+            ("CLOUD_FR_KNOB_OFF", CLOUD_FR_KNOB_OFF as f64),
+            ("CLOUD_FR_KNOB_ON", CLOUD_FR_KNOB_ON as f64),
+            ("CLOUD_FR_KNOB_FORCE0", CLOUD_FR_KNOB_FORCE0 as f64),
+            ("CLOUD_FR_KNOB_FORCE1", CLOUD_FR_KNOB_FORCE1 as f64),
+            ("CLOUD_FR_KNOB_FORCE2", CLOUD_FR_KNOB_FORCE2 as f64),
+            ("CLOUD_FR_KNOB_FORCE3", CLOUD_FR_KNOB_FORCE3 as f64),
+            ("CLOUD_FR_KNOB_FORCE4", CLOUD_FR_KNOB_FORCE4 as f64),
+            ("CLOUD_FR_KNOB_FORCE5", CLOUD_FR_KNOB_FORCE5 as f64),
+            ("CLOUD_FR_KNOB_HARD", CLOUD_FR_KNOB_HARD as f64),
+            ("CLOUD_FR_KNOB_REF", CLOUD_FR_KNOB_REF as f64),
+            // WGSL-owned, but its value is a function of CELL0: the test
+            // pins the relation (log2(0.25) = -2).
+            ("CLOUD_FR_LOD0", (CLOUD_FR_CELL0_KM as f64).log2()),
+        ];
+        for (name, rust_v) in pairs {
+            let wgsl_v = wgsl_const(&src, name);
+            assert!(
+                (wgsl_v - rust_v).abs() < 1.0e-6,
+                "{name}: WGSL {wgsl_v} != Rust {rust_v} - the bake and the read no longer agree on the lattice"
+            );
+        }
+        assert!((CLOUD_FR_LOD0 as f64 - (CLOUD_FR_CELL0_KM as f64).log2()).abs() < 1.0e-9);
+        // Also the calibration areas must be spelled in the temporal shader's
+        // stubs by the same names (the passes scissor to them by these values).
+        let tmp = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/45-cloud-temporal.wgsl")).expect("read 45-cloud-temporal.wgsl");
+        for entry in ["fn fs_cloud_profile_bake", "fn fs_cloud_profile_mip", "fn fs_cloud_profile_calib(", "fn fs_cloud_profile_calib_reduce"] {
+            assert!(tmp.contains(entry), "45-cloud-temporal.wgsl must define {entry} (the pipelines bind it)");
+        }
+    }
+
+    /// `N_I` / `N_J` computed in f32 (the shader's arithmetic) must agree
+    /// with the f64 floors for Earth at every level, and match the
+    /// contract's numbers.
+    #[test]
+    fn n_i_and_n_j_agree_between_f32_and_f64_for_earth() {
+        let want_ni = [160120u32, 80060, 40030, 20015, 10007, 5003];
+        for l in 0..6 {
+            let c = cloud_fr_cell_km(l);
+            let ni64 = (std::f64::consts::TAU * R_KM / c).floor() as u32;
+            let nj64 = (std::f64::consts::PI * R_KM / c).floor() as u32;
+            assert_eq!(cloud_fr_n_i(l, R_KM as f32), ni64, "N_I level {l}");
+            assert_eq!(cloud_fr_n_j(l, R_KM as f32), nj64, "N_J level {l}");
+            assert_eq!(ni64, want_ni[l as usize], "N_I level {l} vs the contract");
+        }
+        // Earth level 0 cell: 3.9240e-5 rad.
+        assert!((cloud_fr_cell_rad(0, R_KM) - 3.9240e-5).abs() < 1.0e-8);
+    }
+
+    /// The lattice formula: a point 1 km east of the equator / prime
+    /// meridian cell centre lands at `I = I_c + 4` of level 0 within 1e-6
+    /// rad (four 250 m cells), and the same latitude row.
+    #[test]
+    fn one_km_east_is_four_level0_cells() {
+        let cell = cloud_fr_cell_rad(0, R_KM);
+        let (ic, jc) = cloud_fr_ground_cell(0.0, 0.0, R_KM);
+        // The centre of that cell, then 1 km east along the equator.
+        let lon_c = (ic as f64 + 0.5) * cell - std::f64::consts::PI;
+        let lat_c = (jc as f64 + 0.5) * cell - std::f64::consts::FRAC_PI_2;
+        assert!(lon_c.abs() < cell && lat_c.abs() < cell, "lon0/lat0 sit in their own cell");
+        let lon_e = lon_c + 1.0 / R_KM;
+        let (ie, je) = cloud_fr_ground_cell(lon_e, lat_c, R_KM);
+        assert_eq!(ie, ic + 4, "1 km east = 4 cells of 250 m");
+        assert_eq!(je, jc);
+        // And the residual against the exact 4-cell offset is under 1e-6 rad.
+        let lon_back = (ie as f64 + 0.5) * cell - std::f64::consts::PI;
+        assert!((lon_back - lon_e).abs() < 1.0e-6);
+        // Raw indices never unwrap: the date line clamps to the last cell.
+        let ni = cloud_fr_n_i(0, R_KM as f32) as i64;
+        let (iw, _) = cloud_fr_ground_cell(std::f64::consts::PI - 1.0e-9, 0.0, R_KM);
+        assert_eq!(iw, ni - 1);
+        // The window origin halves per level with the shared grid origin.
+        let g = (1000, 2000);
+        assert_eq!(cloud_fr_window_origin(g, 0), (1000 - 256, 2000 - 256));
+        assert_eq!(cloud_fr_window_origin(g, 3), (125 - 256, 250 - 256));
+        assert_eq!(cloud_fr_window_origin((1001, 2001), 3), (125 - 256, 250 - 256));
+    }
+
+    /// Packing coherence: 54 slices fit 12 x 5, the window band is 5 x 512,
+    /// both atlas dimensions are multiples of 64 (every mip edge stays
+    /// texel-aligned), and the calibration areas lie OUTSIDE the global's
+    /// mip regions.
+    #[test]
+    fn atlas_packing_is_coherent() {
+        assert!(CLOUD_FR_LEVELS * CLOUD_FR_SLICES_PER_LEVEL <= CLOUD_FR_SLICE_COLS * 5);
+        assert_eq!(CLOUD_FR_GLOBAL_Y0, 5 * CLOUD_FR_NX);
+        assert_eq!(CLOUD_FR_GLOBAL_Y0 % 64, 0);
+        assert_eq!(CLOUD_FR_ATLAS_H % 64, 0);
+        assert_eq!(CLOUD_FR_ATLAS_W, CLOUD_FR_SLICE_COLS * CLOUD_FR_NX);
+        assert_eq!(CLOUD_FR_ATLAS_W, 3 * CLOUD_FR_GLOBAL_W);
+        assert_eq!(CLOUD_FR_ATLAS_H, CLOUD_FR_GLOBAL_Y0 + CLOUD_FR_GLOBAL_H);
+        assert_eq!(CLOUD_FR_PAIRS + CLOUD_FR_CSLICES, CLOUD_FR_SLICES_PER_LEVEL);
+        assert_eq!(2 * CLOUD_FR_PAIRS, CLOUD_FR_NZ);
+        assert_eq!(3 * CLOUD_FR_GLOBAL_NZ, CLOUD_FR_NZ);
+        // The last slice sits in row 4, column 5; columns 6..11 are spare.
+        assert_eq!(cloud_fr_slice_origin(5, 8), (5 * CLOUD_FR_NX, 4 * CLOUD_FR_NX));
+        assert_eq!(cloud_fr_slice_origin(0, 0), (0, 0));
+        assert_eq!(cloud_fr_slice_origin(1, 3), (0, CLOUD_FR_NX));
+        // The calibration areas against the global's mip regions: mip 1's
+        // region starts at row 1280, mip 2's at 640; the table (mip 1) sits
+        // at rows 1024..1028 and the staging (mip 2) at rows 512..544.
+        let mip1_y0 = CLOUD_FR_GLOBAL_Y0 >> 1;
+        let mip2_y0 = CLOUD_FR_GLOBAL_Y0 >> 2;
+        assert!(CLOUD_FR_CALIB_Y0 + CLOUD_FR_CALIB_H <= mip1_y0, "calibration table overlaps the global's mip 1");
+        assert!(CLOUD_FR_CALIB_STAGE_Y0 + CLOUD_FR_CALIB_STAGE_H <= mip2_y0, "staging overlaps the global's mip 2");
+        assert!(CLOUD_FR_CALIB_X0 + CLOUD_FR_CALIB_W <= CLOUD_FR_ATLAS_W >> 1);
+        assert!(CLOUD_FR_CALIB_STAGE_X0 + CLOUD_FR_CALIB_STAGE_W <= CLOUD_FR_ATLAS_W >> 2);
+        // Every mip region edge is exact: 2560 = 5 * 2^9, 3584 = 7 * 2^9.
+        for m in 1..CLOUD_FR_GLOBAL_MIPS {
+            assert_eq!((CLOUD_FR_GLOBAL_Y0 >> m) << m, CLOUD_FR_GLOBAL_Y0);
+            assert_eq!((CLOUD_FR_ATLAS_H >> m) << m, CLOUD_FR_ATLAS_H);
+            assert_eq!((CLOUD_FR_GLOBAL_W >> m) << m, CLOUD_FR_GLOBAL_W);
+        }
+    }
+
+    /// Storage runs: no wrap, wrap, and the full-slice case.
+    #[test]
+    fn storage_runs_wrap_the_slice() {
+        assert_eq!(cloud_fr_storage_runs(10, 3), vec![(10, 3)]);
+        assert_eq!(cloud_fr_storage_runs(510, 3), vec![(510, 2), (0, 1)]);
+        assert_eq!(cloud_fr_storage_runs(-1, 1), vec![(511, 1)]);
+        assert_eq!(cloud_fr_storage_runs(-3, 3), vec![(509, 3)]);
+        assert_eq!(cloud_fr_storage_runs(0, 512), vec![(0, 512)]);
+        assert_eq!(cloud_fr_storage_runs(1024 + 5, 2), vec![(5, 2)]);
+        assert_eq!(cloud_fr_pmod(-1, 512), 511);
+        assert_eq!(cloud_fr_pmod(512, 512), 0);
+    }
+
+    /// Drive one level through its fill, then a scroll of `d_i` cells,
+    /// returning the scroll rects (the level's nine slices, columns only).
+    fn scroll_rects(d_i: i64, d_j: i64, start_cell: i64) -> Vec<(u32, u32, u32, u32)> {
+        let mut st = CloudProfileState::default();
+        // Level 0 forced at 12000 km, where the footprint law activates
+        // nothing on its own, so exactly one level is active.
+        let cell = cloud_fr_cell_rad(0, R_KM);
+        let mut f = frame_at(12000.0, 1, CLOUD_FR_KNOB_FORCE0);
+        // Place the ground at cell (start_cell, mid-row) exactly (cell centre).
+        let nj = cloud_fr_n_j(0, R_KM as f32) as i64;
+        let j0 = nj / 2;
+        f.ground_lon_rad = (start_cell as f64 + 0.5) * cell - std::f64::consts::PI;
+        f.ground_lat_rad = (j0 as f64 + 0.5) * cell - std::f64::consts::FRAC_PI_2;
+        st.plan(f);
+        st.take_calib();
+        assert!(st.take_bake_rects(1.0 / 60.0).is_empty(), "the calibration frame bakes nothing");
+        // Drain the fill: 8 frames of 64 rows.
+        for _ in 0..8 {
+            let r = st.take_bake_rects(1.0 / 60.0);
+            assert!(r.iter().filter(|r| r.0 < CLOUD_FR_NX * 9).count() >= 9);
+        }
+        assert!(st.levels[0].valid.get(), "level 0 valid after 8 fill frames");
+        assert!(st.levels[1..].iter().all(|l| !l.active.get()), "only the forced level is active at 12000 km");
+        // Move the ground by (d_i, d_j) cells.
+        f.ground_lon_rad += d_i as f64 * cell;
+        f.ground_lat_rad += d_j as f64 * cell;
+        st.plan(f);
+        assert_eq!(st.levels[0].scroll.get(), (d_i, d_j));
+        // Zero dt: the refresh still bakes one row (ceil), the global one row.
+        let rects = st.take_bake_rects(0.0);
+        // Keep only the level-0 rects that are NOT the refresh row (full
+        // width) and not the global: i.e. column runs (height 512) for the
+        // horizontal scroll and row runs for the vertical one.
+        rects.into_iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect()
+    }
+
+    /// Scroll rects for dI = +1, -1, +3 with and without wrapping 512, and a
+    /// dI = 600 move that becomes a full fill.
+    #[test]
+    fn scroll_rects_expose_the_right_columns() {
+        // Ground at cell 1000: I0 = 744, new I0 = 745; +1 exposes I_abs =
+        // I0_prev + 512 = 1256 -> x = 1256 mod 512 = 232.
+        let r = scroll_rects(1, 0, 1000);
+        let cols: Vec<_> = r.iter().filter(|r| r.3 == 512 && r.2 < 512).collect();
+        assert_eq!(cols.len(), 9, "one column run per slice");
+        for (p, c) in cols.iter().enumerate() {
+            let (x0, y0) = cloud_fr_slice_origin(0, p as u32);
+            assert_eq!(**c, (x0 + 232, y0, 1, 512));
+        }
+        // -1 from 1001 (I0 = 745, new 744): exposes I_abs = 744 -> x = 232.
+        let r = scroll_rects(-1, 0, 1001);
+        let cols: Vec<_> = r.iter().filter(|r| r.3 == 512 && r.2 < 512).collect();
+        assert_eq!(cols.len(), 9);
+        assert_eq!(cols[0].0, 232);
+        assert_eq!(cols[0].2, 1);
+        // +3 from 1000: I_abs 1256..1258 -> x 232..234, one run.
+        let r = scroll_rects(3, 0, 1000);
+        let cols: Vec<_> = r.iter().filter(|r| r.3 == 512 && r.2 < 512).collect();
+        assert_eq!(cols.len(), 9);
+        assert_eq!((cols[0].0, cols[0].2), (232, 3));
+        // +3 with a WRAP: ground 1278 -> I0 = 1022; new I0 = 1025; exposed
+        // I_abs = 1534..1536 -> x = 510, 511, 0: two runs per slice.
+        let r = scroll_rects(3, 0, 1278);
+        let cols: Vec<_> = r.iter().filter(|r| r.3 == 512 && r.2 < 512).collect();
+        assert_eq!(cols.len(), 18, "two runs per slice when the exposed columns wrap");
+        // Rects are emitted run-major (the first run for all nine slices,
+        // then the second), so slice 0's two runs sit at 0 and 9.
+        assert_eq!((cols[0].0, cols[0].2), (510, 2));
+        assert_eq!((cols[9].0, cols[9].2), (0, 1));
+        assert_eq!(cols[1].0, cloud_fr_slice_origin(0, 1).0 + 510);
+        // -1 with a wrap: ground 1280 -> I0 = 1024; new I0 = 1023; exposed
+        // I_abs = 1023 -> x = 511.
+        let r = scroll_rects(-1, 0, 1280);
+        let cols: Vec<_> = r.iter().filter(|r| r.3 == 512 && r.2 < 512).collect();
+        assert_eq!(cols.len(), 9);
+        assert_eq!((cols[0].0, cols[0].2), (511, 1));
+        // A row scroll (+1 north): exposes J_abs = J0_new + 511, a full-width run.
+        let r = scroll_rects(0, 1, 1000);
+        let rows: Vec<_> = r.iter().filter(|r| r.2 == 512 && r.3 == 1).collect();
+        // The refresh row is also a 512 x 1 run at row 0; the scroll row is
+        // at pmod(J0 + 511, 512). Both present.
+        assert!(rows.len() >= 9);
+        // dI = 600: no scroll, a FILL (valid drops, the cursor restarts).
+        let mut st = CloudProfileState::default();
+        let cell = cloud_fr_cell_rad(0, R_KM);
+        let mut f = frame_at(12000.0, 1, CLOUD_FR_KNOB_FORCE0);
+        f.ground_lon_rad = 1000.5 * cell - std::f64::consts::PI;
+        st.plan(f);
+        st.take_calib();
+        st.take_bake_rects(0.0);
+        for _ in 0..8 {
+            st.take_bake_rects(1.0 / 60.0);
+        }
+        assert!(st.levels[0].valid.get());
+        f.ground_lon_rad += 600.0 * cell;
+        st.plan(f);
+        assert!(!st.levels[0].valid.get(), "a 600-cell move is a refill");
+        assert_eq!(st.levels[0].fill_cursor.get(), Some(0));
+        assert_eq!(st.levels[0].scroll.get(), (0, 0));
+        let r = st.take_bake_rects(1.0 / 60.0);
+        let fills: Vec<_> = r.iter().filter(|r| r.2 == 512 && r.3 == 64).collect();
+        assert_eq!(fills.len(), 9, "first fill frame: 64 rows per slice");
+        assert_eq!(fills[0].1, 0);
+    }
+
+    /// Refresh row counts at dt = 1/60 and 1/30: ceil(512 * dt / 2 s) =
+    /// 5 and 9 rows; the global rolling pass 1 row, its fast pass 9 rows at
+    /// 1/60; REF mode 4 window rows and 2 global rows.
+    #[test]
+    fn refresh_row_counts_follow_the_time_cadence() {
+        let drive = |knob: i32| {
+            let mut st = CloudProfileState::default();
+            // 12000 km: only the forced level 0 (or, in REF mode, level 0
+            // forced through the FORCE0 knob is not available, so REF at
+            // 12000 km activates nothing and the test below forces it).
+            let mut f = frame_at(12000.0, 1, knob);
+            if knob == CLOUD_FR_KNOB_REF {
+                // REF at 60 km quarter res: levels 0..5 active; level 0 is
+                // the one the assertions read.
+                f = frame_at(60.0, 4, knob);
+            }
+            st.plan(f);
+            st.take_calib();
+            st.take_bake_rects(0.0);
+            let fill_frames = if knob == CLOUD_FR_KNOB_REF { 128 } else { 8 };
+            for _ in 0..fill_frames {
+                st.take_bake_rects(1.0 / 60.0);
+            }
+            assert!(st.levels[0].valid.get());
+            st
+        };
+        let st = drive(CLOUD_FR_KNOB_FORCE0);
+        // The fast global pass is still running (9 rows per 1/60 frame ->
+        // 114 frames); its rect is the one at y >= 2560.
+        let r = st.take_bake_rects(1.0 / 60.0);
+        let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
+        let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
+        assert_eq!(win.len(), 9);
+        assert_eq!(win[0].3, 5, "1/60 s at 2 s per 512 rows = ceil(4.27) = 5 rows");
+        assert_eq!(glob.len(), 1);
+        assert_eq!(glob[0].3, 9, "fast global: ceil(1024 / 120) = 9 rows");
+        assert_eq!(glob[0].2, CLOUD_FR_ATLAS_W);
+        let r = st.take_bake_rects(1.0 / 30.0);
+        let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
+        assert_eq!(win[0].3, 9, "1/30 s = ceil(8.53) = 9 rows");
+        assert_eq!(win[0].1, 5, "the cursor advanced by the previous 5 rows");
+        // Drain the fast pass; then the rolling pass takes 1 row per frame.
+        for _ in 0..200 {
+            st.take_bake_rects(1.0 / 60.0);
+        }
+        assert!(st.global_valid.get());
+        assert!(!st.global_pass_fast.get());
+        assert!(st.mips_pending.get(), "mips pending after the pass completed");
+        st.mips_pending.set(false);
+        let r = st.take_bake_rects(1.0 / 60.0);
+        let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
+        assert_eq!(glob[0].3, 1, "rolling global: ceil(1024 / 3600) = 1 row");
+        // The refresh cursor wraps: at 6 rows per frame (dt 1/50) a run
+        // straddles the slice edge and is split into two rects, the second
+        // starting at storage row 0.
+        let mut wrapped = false;
+        for _ in 0..110 {
+            let r = st.take_bake_rects(1.0 / 50.0);
+            if r.iter().any(|r| r.1 < CLOUD_FR_GLOBAL_Y0 && r.1 % 512 == 0 && r.2 == 512 && r.3 < 6) {
+                wrapped = true;
+            }
+        }
+        assert!(wrapped, "a refresh run split at the slice edge");
+        assert!(st.levels[0].refresh_cursor.get() < 512.0);
+        // REF mode: 4 window rows, 2 global rows, whatever dt.
+        let st = drive(CLOUD_FR_KNOB_REF);
+        let r = st.take_bake_rects(1.0 / 30.0);
+        let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
+        let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
+        assert_eq!(win[0].3, CLOUD_FR_REF_ROWS);
+        assert_eq!(glob[0].3, CLOUD_FR_REF_GLOBAL_ROWS);
+    }
+
+    /// The active level range at 3, 60, 873 and 12000 km for cloud_res 1
+    /// (1387 rows) and 4 (346 rows), from the footprint law.
+    #[test]
+    fn active_levels_follow_the_footprint_law() {
+        let levels = |alt: f64, div: u32| -> Vec<u32> {
+            let a = cloud_fr_active_levels(&frame_at(alt, div, CLOUD_FR_KNOB_ON));
+            (0..6u32).filter(|&l| a[l as usize]).collect()
+        };
+        assert_eq!(levels(3.0, 1), vec![0, 1, 2]);
+        assert_eq!(levels(3.0, 4), vec![0, 1, 2, 3, 4]);
+        assert_eq!(levels(60.0, 1), vec![0, 1, 2, 3]);
+        assert_eq!(levels(60.0, 4), vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(levels(873.0, 1), vec![2, 3, 4, 5]);
+        assert_eq!(levels(873.0, 4), vec![4, 5]);
+        assert_eq!(levels(12000.0, 1), Vec::<u32>::new());
+        assert_eq!(levels(12000.0, 4), Vec::<u32>::new());
+        // The forced level is active whatever the footprint.
+        let a = cloud_fr_active_levels(&frame_at(12000.0, 1, CLOUD_FR_KNOB_FORCE3));
+        assert_eq!(a, [false, false, false, true, false, false]);
+        assert_eq!(cloud_fr_forced_level(CLOUD_FR_KNOB_HARD), None);
+        assert_eq!(cloud_fr_forced_level(CLOUD_FR_KNOB_FORCE5), Some(5));
+        // The pixel angle itself: 1.443e-3 rad at full res, 4x at quarter
+        // (integer rows: 346).
+        let full = CloudProfileFrame::pix_ang_march(FOV, ROWS, 1);
+        assert!((full - 1.4432e-3).abs() < 2.0e-6, "full-res pix_ang {full}");
+        let quarter = CloudProfileFrame::pix_ang_march(FOV, ROWS, 4);
+        assert!((quarter - 2.0 * (FOV.to_radians() * 0.5).tan() / 346.0).abs() < 1.0e-12);
+    }
+
+    /// Flags encoding: bit 0 = any window, bit 1 = global, bits 2..7 per
+    /// level, bit 8 = calibration; exact integers in f32.
+    #[test]
+    fn flags_encode_the_valid_bits() {
+        assert_eq!(cloud_fr_flags([false; 6], false, false), 0);
+        assert_eq!(cloud_fr_flags([false; 6], true, false), 2);
+        assert_eq!(cloud_fr_flags([true, false, false, false, false, false], false, false), 1 | 4);
+        assert_eq!(cloud_fr_flags([false, false, false, false, false, true], false, true), 1 | 128 | 256);
+        let all = cloud_fr_flags([true; 6], true, true);
+        assert_eq!(all, 0b1_1111_1111);
+        // The shader isolates bit b as fract(flags * 2^-(b+1)) >= 0.5: check
+        // the arithmetic on the f32 the pad carries.
+        let f = all as f32;
+        for b in 0..9 {
+            let v = (f * (-(b as f32 + 1.0)).exp2()).fract();
+            assert!(v >= 0.5, "bit {b} of {all} decodes set");
+        }
+        let f = cloud_fr_flags([false; 6], true, false) as f32;
+        assert!((f * 0.5).fract() < 0.5, "bit 0 clear");
+        assert!((f * 0.25).fract() >= 0.5, "bit 1 set");
+        // pads() from a planned state carries the ground cell and the knob.
+        let mut st = CloudProfileState::default();
+        assert_eq!(st.pads(), [0.0; 4]);
+        st.plan(frame_at(873.0, 1, CLOUD_FR_KNOB_HARD));
+        let p = st.pads();
+        let (gi, gj) = cloud_fr_ground_cell(0.0, 0.0, R_KM);
+        assert_eq!(p[0], gi as f32);
+        assert_eq!(p[1], gj as f32);
+        assert_eq!(p[2], CLOUD_FR_KNOB_HARD as f32);
+        assert_eq!(p[3], 0.0, "nothing valid yet");
+        // Earth's ground index fits an exact f32 integer (< 2^24).
+        assert!(cloud_fr_n_i(0, R_KM as f32) < (1 << 24));
+    }
+
+    /// The global's re-reference rules and the stale marking.
+    #[test]
+    fn global_rereferences_on_jumps_weather_coverage_pin_and_class() {
+        let mut st = CloudProfileState::default();
+        let mut f = frame_at(873.0, 1, CLOUD_FR_KNOB_ON);
+        st.plan(f);
+        assert!(st.global_started && st.global_pass_fast.get() && !st.global_valid.get());
+        st.take_calib();
+        st.take_bake_rects(0.0);
+        for _ in 0..130 {
+            st.take_bake_rects(1.0 / 60.0);
+        }
+        assert!(st.global_valid.get() && !st.global_pass_fast.get());
+        // Nothing changed: still rolling.
+        st.plan(f);
+        assert!(!st.global_pass_fast.get());
+        // A 200 s clock jump: fast pass, valid kept.
+        f.cloud_t += 200.0;
+        st.plan(f);
+        assert!(st.global_pass_fast.get() && st.global_valid.get());
+        st.global_pass_fast.set(false);
+        // Coverage +0.01: nothing; +0.03: fast.
+        f.coverage += 0.01;
+        st.plan(f);
+        assert!(!st.global_pass_fast.get());
+        f.coverage += 0.02;
+        st.plan(f);
+        assert!(st.global_pass_fast.get());
+        st.global_pass_fast.set(false);
+        f.weather_gen += 1;
+        st.plan(f);
+        assert!(st.global_pass_fast.get());
+        st.global_pass_fast.set(false);
+        f.type_pin = 1.0;
+        st.plan(f);
+        assert!(st.global_pass_fast.get());
+        st.global_pass_fast.set(false);
+        // Knob class 1 -> 9 (REF): fast pass AND every window refills.
+        for _ in 0..8 {
+            st.take_bake_rects(1.0 / 60.0);
+        }
+        let valid_before = st.levels_valid();
+        assert!(valid_before.iter().any(|&v| v));
+        f.knob = CLOUD_FR_KNOB_REF;
+        st.plan(f);
+        assert!(st.global_pass_fast.get());
+        assert!(st.levels.iter().filter(|l| l.active.get()).all(|l| !l.valid.get() && l.fill_cursor.get() == Some(0)));
+        // Calibration key change: the calibration re-runs, everything refills.
+        f.knob = CLOUD_FR_KNOB_ON;
+        st.plan(f);
+        for _ in 0..8 {
+            st.take_bake_rects(1.0 / 60.0);
+        }
+        f.calib_key += 1;
+        st.plan(f);
+        assert!(st.calib_pending.get() && !st.calib_valid.get());
+        assert!(st.levels.iter().filter(|l| l.active.get()).all(|l| l.fill_cursor.get() == Some(0)));
+        assert!(st.take_calib());
+        assert!(!st.take_calib(), "consumed");
+        assert!(st.calib_valid.get());
+        assert!(st.take_bake_rects(1.0 / 60.0).is_empty(), "the bake waits one frame after the calibration");
+        assert!(!st.take_bake_rects(1.0 / 60.0).is_empty());
+        // Stale marking drops every window and orders a fast global pass on
+        // the next plan.
+        st.mark_stale();
+        assert!(st.levels.iter().all(|l| !l.valid.get() && l.origin.get().is_none()));
+        st.global_pass_fast.set(false);
+        st.plan(f);
+        assert!(st.global_pass_fast.get());
+        assert!(st.levels.iter().filter(|l| l.active.get()).all(|l| l.fill_cursor.get() == Some(0)));
+    }
+
+    /// The truncation counter is 0 on Earth and engages on a 4x planet.
+    #[test]
+    fn truncated_texels_estimate_is_zero_on_earth() {
+        let mut st = CloudProfileState::default();
+        st.plan(frame_at(873.0, 4, CLOUD_FR_KNOB_ON));
+        assert_eq!(st.truncated_texels_estimate(), 0);
+        let mut f = frame_at(873.0, 4, CLOUD_FR_KNOB_ON);
+        f.radius_km = 4.0 * R_KM;
+        let mut st = CloudProfileState::default();
+        st.plan(f);
+        assert!(st.truncated_texels_estimate() > 0, "a 78 km global cell exceeds 512 candidates");
     }
 }

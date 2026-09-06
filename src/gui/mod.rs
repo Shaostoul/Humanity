@@ -3478,6 +3478,11 @@ pub struct GuiState {
     /// Performance plan increment 1 (v0.1286): the sun-shadow cache. Off =
     /// the 12-rung sun ladder per pixel, the A/B twin.
     pub cloud_dev_light: bool,
+    /// Performance plan increment 4, the far rung: the cloud PROFILE knob
+    /// (0 off = the point-sampled field, bit-identical; 1 on = automatic
+    /// level; 2..7 = level 0..5 forced; 8 = hard switch; 9 = reference
+    /// bake). Showcase key `cloud_profile`.
+    pub cloud_dev_profile_knob: i32,
     /// Gain on the in-scattered source, 0 = default.
     pub cloud_dev_ms_gain: f32,
     /// Increment C (v0.1282): interior saturation of the built bodies, 0..1.
@@ -5350,6 +5355,8 @@ impl Default for GuiState {
             cloud_dev_body_cache: true,
             cloud_dev_step_eco: 1.0,
             cloud_dev_light: true,
+            // Off until the far-rung gates G0..G6 pass (contract default).
+            cloud_dev_profile_knob: 0,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,

@@ -271,7 +271,8 @@
       },
       "showcase": {
         "time": "10.7",
-        "sea": "0.3"
+        "sea": "0.3",
+        "cloud_res": "1"
       },
       "settle_s": 10
     },
@@ -1482,7 +1483,8 @@
         "clouds": "1",
         "cloud_cover": "0.95",
         "weather": "cloudy",
-        "sea": "0.3"
+        "sea": "0.3",
+        "cloud_res": "1"
       }
     },
     {
@@ -2593,7 +2595,8 @@
         "clouds": "1",
         "cloud_cover": "0.55",
         "cloud_type": "0.46",
-        "weather": "clear"
+        "weather": "clear",
+        "cloud_res": "1"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -4056,6 +4059,1862 @@
         "deck-top nadir within 30 levels of the surround (192 vs 216 warm baseline)",
         "no hard seam or stair-stepped edge in a deck-top down-look"
       ]
+    },
+    {
+      "id": "prof-ladder-3000-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 3000 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-2000-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 2000 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1600-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1600 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1250 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1000 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 800 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-620-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 620 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) 347 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-500-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 500 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) 666 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 500,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-400-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 400 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) 982 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-310-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 310 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) 346 px; w=1 (1 km, 693 km) 1388 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-250-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 250 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) 665 px; w=1 (1 km, 693 km) 1795 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-200-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 200 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) 981 px; w=1 (1 km, 693 km) 2304 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-155-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 155 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 348 px; hard switch (0.5 km, 346 km) 1388 px; w=1 (1 km, 693 km) 3028 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 155,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-120-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 120 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 724 px; hard switch (0.5 km, 346 km) 1881 px; w=1 (1 km, 693 km) 3955 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 120,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-60-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 60 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 1888 px; hard switch (0.5 km, 346 km) 3963 px; w=1 (1 km, 693 km) 8028 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-30-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 30 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 3991 px; hard switch (0.5 km, 346 km) 8071 px; w=1 (1 km, 693 km) 16210 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 30,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-12-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 12 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 10312 px; hard switch (0.5 km, 346 km) 20659 px; w=1 (1 km, 693 km) 41395 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 12,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3-r1",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 3 km, cloud march resolution full (cloud_res 1), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 693 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 1: band start (0.25 km, slant 173 km) 46106 px; hard switch (0.5 km, 346 km) 92220 px; w=1 (1 km, 693 km) 184710 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3000-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 3000 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-2000-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 2000 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 2000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1600-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1600 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1600,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1250-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1250 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-1000-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 1000 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-800-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 800 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 800,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-620-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 620 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-500-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 500 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 500,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-400-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 400 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 400,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-310-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 310 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-250-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 250 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-200-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 200 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-155-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 155 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) 348 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 155,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-120-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 120 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) 724 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 120,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-60-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 60 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) 737 px; w=1 (1 km, 173 km) 1888 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-30-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 30 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) 730 px; hard switch (0.5 km, 87 km) 1915 px; w=1 (1 km, 173 km) 3991 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 30,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-12-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 12 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) 2474 px; hard switch (0.5 km, 87 km) 5151 px; w=1 (1 km, 173 km) 10312 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 12,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-ladder-3-r4",
+      "desc": "Far-rung fixture F1 (docs/design/cloud-far-rung.md): the profile ladder rung at 3 km, cloud march resolution quarter (cloud_res 4), nadir, Sahara daylight camera, clock pinned, cover 0.5 type 0.34 (humilis). Two captures 3 s apart (the temporal floor). Gates G1 (forced-level A/B at rungs at or above 173 km; below that channel 10 must read 0 at the nadir), G2 rings, G3 descent ladder, G7 bit-exact at 60/30/12/3 km (full res) or 12/3 km (quarter).",
+      "_note": "Predicted radii about the nadir (1280, 693) at this rung, cloud_res 4: band start (0.25 km, slant 43 km) 11440 px; hard switch (0.5 km, 87 km) 23178 px; w=1 (1 km, 173 km) 46106 px. The frozen lodf dither widens every boundary by about 12 percent in slant.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 3,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "orbit-speckle-873-r1",
+      "desc": "Far-rung fixture F2: the operator's Sahara look from 873 km (lat 23, lon 13, nadir, time 12, cover 0.5, type 0.34), cloud_res 1. Baseline v0.1289.1: Ultra mean coverage on the map_diag 1 render 0.9 percent of full scale at both arms against High 31 percent (one march sample per ray inside the 11.6 km slab misses a 300 m humilis layer). Gates G2 (no annulus above 1.5x the median in the diff against the shipped build), G5 speckle census against High's own mask, G6 cost (gpu.cloud_screen at most 1.5x High: 10.7 ms at res 2, 2.8 ms at res 4, and not above today's Ultra).",
+      "_note": "Predicted radii, cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it). The orchestrator captures this cell with cloud_profile 0 and 1 in ONE boot (G7 look-delta) and with bits 16/17 off/on before the increment's baseline (decision 11).",
+      "expect": "A humilis field from orbit rendered as coherent coverage, not sugar grain: the Ultra map_diag 1 census at or below High's.",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      }
+    },
+    {
+      "id": "orbit-speckle-873-r1-mask",
+      "desc": "Far-rung fixture F2, the map_diag 1 twin (coverage alpha as opaque greyscale; every mask gate reads its LUMINANCE at 128, the census at 200), cloud_res 1.",
+      "expect": "diagnostic",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      }
+    },
+    {
+      "id": "orbit-speckle-873-r1-off",
+      "desc": "Far-rung fixture F2, the clouds-off twin (the census floor: stars and terrain), cloud_res 1.",
+      "expect": "diagnostic",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "0",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      }
+    },
+    {
+      "id": "orbit-speckle-873-r4",
+      "desc": "Far-rung fixture F2: the operator's Sahara look from 873 km (lat 23, lon 13, nadir, time 12, cover 0.5, type 0.34), cloud_res 4. Baseline v0.1289.1: Ultra mean coverage on the map_diag 1 render 0.9 percent of full scale at both arms against High 31 percent (one march sample per ray inside the 11.6 km slab misses a 300 m humilis layer). Gates G2 (no annulus above 1.5x the median in the diff against the shipped build), G5 speckle census against High's own mask, G6 cost (gpu.cloud_screen at most 1.5x High: 10.7 ms at res 2, 2.8 ms at res 4, and not above today's Ultra).",
+      "_note": "Predicted radii, cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it). The orchestrator captures this cell with cloud_profile 0 and 1 in ONE boot (G7 look-delta) and with bits 16/17 off/on before the increment's baseline (decision 11).",
+      "expect": "A humilis field from orbit rendered as coherent coverage, not sugar grain: the Ultra map_diag 1 census at or below High's.",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      }
+    },
+    {
+      "id": "orbit-speckle-873-r4-mask",
+      "desc": "Far-rung fixture F2, the map_diag 1 twin (coverage alpha as opaque greyscale; every mask gate reads its LUMINANCE at 128, the census at 200), cloud_res 4.",
+      "expect": "diagnostic",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      }
+    },
+    {
+      "id": "orbit-speckle-873-r4-off",
+      "desc": "Far-rung fixture F2, the clouds-off twin (the census floor: stars and terrain), cloud_res 4.",
+      "expect": "diagnostic",
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "regressions": [
+        "panics=0"
+      ],
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "0",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      }
+    },
+    {
+      "id": "orbit-tier-873-high-r1",
+      "desc": "Far-rung fixture F3: the tier pair (was orbit-tier-high/ultra at 12000 km with no lat/lon) moved inside the built range at the F2 camera (873 km, Sahara), cloud quality high, cloud_res 1. G4 REPORTS High vs Ultra-with-profile (masked mean, coverage, lum-bands white) with no pass bar: point sampling is unbiased in the mean, so a faithful prefilter of the Ultra field reproduces Ultra's coverage, not High's. G5 uses High's own map_diag 1 census as the reference; G6 its gpu.cloud_screen.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-tier-873-ultra-r1",
+      "desc": "Far-rung fixture F3: the tier pair (was orbit-tier-high/ultra at 12000 km with no lat/lon) moved inside the built range at the F2 camera (873 km, Sahara), cloud quality ultra, cloud_res 1. G4 REPORTS High vs Ultra-with-profile (masked mean, coverage, lum-bands white) with no pass bar: point sampling is unbiased in the mean, so a faithful prefilter of the Ultra field reproduces Ultra's coverage, not High's. G5 uses High's own map_diag 1 census as the reference; G6 its gpu.cloud_screen.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-tier-873-high-r4",
+      "desc": "Far-rung fixture F3: the tier pair (was orbit-tier-high/ultra at 12000 km with no lat/lon) moved inside the built range at the F2 camera (873 km, Sahara), cloud quality high, cloud_res 4. G4 REPORTS High vs Ultra-with-profile (masked mean, coverage, lum-bands white) with no pass bar: point sampling is unbiased in the mean, so a faithful prefilter of the Ultra field reproduces Ultra's coverage, not High's. G5 uses High's own map_diag 1 census as the reference; G6 its gpu.cloud_screen.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "high",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-tier-873-ultra-r4",
+      "desc": "Far-rung fixture F3: the tier pair (was orbit-tier-high/ultra at 12000 km with no lat/lon) moved inside the built range at the F2 camera (873 km, Sahara), cloud quality ultra, cloud_res 4. G4 REPORTS High vs Ultra-with-profile (masked mean, coverage, lum-bands white) with no pass bar: point sampling is unbiased in the mean, so a faithful prefilter of the Ultra field reproduces Ultra's coverage, not High's. G5 uses High's own map_diag 1 census as the reference; G6 its gpu.cloud_screen.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-red-250-hard",
+      "desc": "Far-rung fixture F4 (G0b, the prove-red): 250 km nadir at cloud_res 1, knob 8 (HARD: automatic level, w = select(0, 1, lodf >= -1), no blend anywhere). The diff of HARD against auto must print a RING: cloud-radial-profile.js --step=40 must show an annulus above 3x the median inside the predicted band, and cloud-radial-coherence.js ring-negative there; then auto alone shows no annulus above 1.5x the median nor above 4 levels, the 3 s pair under 2 levels everywhere.",
+      "_note": "Predicted band (slab base to slab top) for the HARD switch, cloud_res 1: 667 to 732 px. Full radii: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) 665 px; w=1 (1 km, 693 km) 1795 px.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "hard"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-red-250-auto",
+      "desc": "Far-rung fixture F4 (G0b, the prove-red): 250 km nadir at cloud_res 1, knob 1 (auto, blended). The diff of HARD against auto must print a RING: cloud-radial-profile.js --step=40 must show an annulus above 3x the median inside the predicted band, and cloud-radial-coherence.js ring-negative there; then auto alone shows no annulus above 1.5x the median nor above 4 levels, the 3 s pair under 2 levels everywhere.",
+      "_note": "Predicted band (slab base to slab top) for the HARD switch, cloud_res 1: 667 to 732 px. Full radii: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) 665 px; w=1 (1 km, 693 km) 1795 px.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-red-60-hard",
+      "desc": "Far-rung fixture F4 (G0b, the prove-red): 60 km nadir at cloud_res 4, knob 8 (HARD: automatic level, w = select(0, 1, lodf >= -1), no blend anywhere). The diff of HARD against auto must print a RING: cloud-radial-profile.js --step=40 must show an annulus above 3x the median inside the predicted band, and cloud-radial-coherence.js ring-negative there; then auto alone shows no annulus above 1.5x the median nor above 4 levels, the 3 s pair under 2 levels everywhere.",
+      "_note": "Predicted band (slab base to slab top) for the HARD switch, cloud_res 4: 730 to 1039 px. Full radii: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) 737 px; w=1 (1 km, 173 km) 1888 px.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "hard"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-red-60-auto",
+      "desc": "Far-rung fixture F4 (G0b, the prove-red): 60 km nadir at cloud_res 4, knob 1 (auto, blended). The diff of HARD against auto must print a RING: cloud-radial-profile.js --step=40 must show an annulus above 3x the median inside the predicted band, and cloud-radial-coherence.js ring-negative there; then auto alone shows no annulus above 1.5x the median nor above 4 levels, the 3 s pair under 2 levels everywhere.",
+      "_note": "Predicted band (slab base to slab top) for the HARD switch, cloud_res 4: 730 to 1039 px. Full radii: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) 737 px; w=1 (1 km, 173 km) 1888 px.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "captures": 2,
+      "pair_gap_s": 3
+    },
+    {
+      "id": "prof-moving-873-r1",
+      "desc": "Far-rung fixture F5 (G6b): the F2 camera unpinned in altitude, cloud_res 1, two captures 30 s apart with HUMANITY_FRAME_COSTS=1; the ground cell drifts under the spin so the windows SCROLL every frame. Bar: gpu.cloud_profile MAX under 3 ms and steady mean under 1 ms over the window (the calibration frame is on gpu.cloud_profile_calib and excluded).",
+      "_note": "The contract's cost derivation predicts a level-5 humilis FILL at 64 rows per frame at 4.7 ms; if this fixture trips the 3 ms max the orchestrator's choice is CLOUD_FR_FILL_ROWS 32 or a coarser wa grid.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "captures": 2,
+      "pair_gap_s": 30
+    },
+    {
+      "id": "prof-moving-873-r4",
+      "desc": "Far-rung fixture F5 (G6b): the F2 camera unpinned in altitude, cloud_res 4, two captures 30 s apart with HUMANITY_FRAME_COSTS=1; the ground cell drifts under the spin so the windows SCROLL every frame. Bar: gpu.cloud_profile MAX under 3 ms and steady mean under 1 ms over the window (the calibration frame is on gpu.cloud_profile_calib and excluded).",
+      "_note": "The contract's cost derivation predicts a level-5 humilis FILL at 64 rows per frame at 4.7 ms; if this fixture trips the 3 ms max the orchestrator's choice is CLOUD_FR_FILL_ROWS 32 or a coarser wa grid.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "captures": 2,
+      "pair_gap_s": 30
+    },
+    {
+      "id": "prof-polar-873-r1",
+      "desc": "Far-rung fixture F6 (A3): lat 78, lon 20, 873 km, nadir, cloud_res 1. The equal-angle lattice shrinks east-west cells by cos(lat) here (0.21), so a window spans less ground east-west and the tap hands to the global map sooner: a blur, never a speckle, no discontinuity. G0 and G7 gated; G2 (rings) and G5 (census) reported; the 1 Hz [CloudProfile] trunc counter must read 0 (Earth never reaches the 512-candidate cap).",
+      "_note": "Predicted radii (nadir), cloud_res 1: band start (0.25 km, slant 173 km) none (nadir beyond it); hard switch (0.5 km, 346 km) none (nadir beyond it); w=1 (1 km, 693 km) none (nadir beyond it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 78,
+        "lon": 20,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-polar-873-r4",
+      "desc": "Far-rung fixture F6 (A3): lat 78, lon 20, 873 km, nadir, cloud_res 4. The equal-angle lattice shrinks east-west cells by cos(lat) here (0.21), so a window spans less ground east-west and the tap hands to the global map sooner: a blur, never a speckle, no discontinuity. G0 and G7 gated; G2 (rings) and G5 (census) reported; the 1 Hz [CloudProfile] trunc counter must read 0 (Earth never reaches the 512-candidate cap).",
+      "_note": "Predicted radii (nadir), cloud_res 4: band start (0.25 km, slant 43 km) none (nadir beyond it); hard switch (0.5 km, 87 km) none (nadir beyond it); w=1 (1 km, 173 km) none (nadir beyond it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 78,
+        "lon": 20,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "4",
+        "cloud_profile": "1"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

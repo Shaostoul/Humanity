@@ -276,6 +276,67 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 state.cloud_dev_light = lcb;
                 changed = true;
             }
+            // Performance plan increment 4, the far rung: beyond the
+            // footprint band the march reads a planet-fixed cloud PROFILE
+            // (fraction, mean density, column per lattice cell and height
+            // bin) instead of point-sampling the constructed bodies - the
+            // orbit speckles. The checkbox is the A/B (off = knob 0, the
+            // exact old path); the level picker beside it selects the dev
+            // modes the gates use: Auto (blended by footprint), Hard (the
+            // prove-red hard switch), Ref (the slow reference bake), L0..L5
+            // (one level forced on every sample). Channels 10/11/12 below
+            // paint the share, the level and the fraction.
+            let knob = state.cloud_dev_profile_knob;
+            let mut pfb = knob != 0;
+            test_mark(ui, theme, "Cloud profile, the far rung (off = point-sampled bodies at every footprint, for A/B)", &tests);
+            if ui
+                .checkbox(&mut pfb, "Cloud profile, the far rung (off = point-sampled bodies at every footprint, for A/B)")
+                .changed()
+            {
+                state.cloud_dev_profile_knob = if pfb { 1 } else { 0 };
+                changed = true;
+            }
+            if state.cloud_dev_profile_knob != 0 {
+                // (knob, label): the knob VALUE is what the shader's
+                // CLOUD_FR_KNOB_* codes read (1 on, 8 hard, 9 ref, 2..7 =
+                // level 0..5 forced).
+                let modes: [(i32, &str); 9] = [
+                    (1, "Auto"),
+                    (8, "Hard"),
+                    (9, "Ref"),
+                    (2, "L0"),
+                    (3, "L1"),
+                    (4, "L2"),
+                    (5, "L3"),
+                    (6, "L4"),
+                    (7, "L5"),
+                ];
+                let mut pick = state.cloud_dev_profile_knob;
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Profile level")
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    egui::ComboBox::from_id_salt("cloud_dev_profile_level")
+                        .selected_text(
+                            modes
+                                .iter()
+                                .find(|(k, _)| *k == pick)
+                                .map(|(_, n)| *n)
+                                .unwrap_or("Auto"),
+                        )
+                        .show_ui(ui, |ui| {
+                            for (k, name) in modes.iter() {
+                                ui.selectable_value(&mut pick, *k, *name);
+                            }
+                        });
+                });
+                if pick != state.cloud_dev_profile_knob {
+                    state.cloud_dev_profile_knob = pick;
+                    changed = true;
+                }
+            }
             // v0.1272: the two fixes the estimator assessment designed.
             let mut estb = state.cloud_dev_est;
             test_mark(ui, theme, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)", &tests);
@@ -548,7 +609,12 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             // cloud pixel read - fine window white, coarse grey, analytic
             // column dark - so the window EDGES are visible where a ring
             // in the diff would sit.
-            let names: [(i32, &str); 9] = [
+            // 10/11/12 (increment 4, the far rung): the profile SHARE
+            // (w_pf, white = drawn from the planet-fixed profile), the
+            // profile LEVEL (level / 6, the window staircase about the
+            // nadir; 6 = the global) and the profile FRACTION (f; against
+            // the A17 synthetic atlas the planet-fixed i / 512 sawtooth).
+            let names: [(i32, &str); 12] = [
                 (0, "Off"),
                 (1, "Coverage alpha"),
                 (2, "Direct sun"),
@@ -558,8 +624,11 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
                 (6, "Entry depth"),
                 (8, "Burial"),
                 (9, "Sun source"),
+                (10, "Profile share"),
+                (11, "Profile level"),
+                (12, "Profile fraction"),
             ];
-            let mut pick = state.cloud_dev_map_diag.clamp(0, 9);
+            let mut pick = state.cloud_dev_map_diag.clamp(0, 12);
             ui.horizontal_wrapped(|ui| {
                 for (value, name) in names.iter() {
                     if ui.selectable_label(pick == *value, *name).clicked() {

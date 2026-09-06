@@ -84,6 +84,21 @@ pub struct Pipeline {
     /// Near-field screen cloud pass (12d): shell mesh at half res,
     /// per-pixel march + screen-space reprojection.
     pub cloud_screen_pipeline: wgpu::RenderPipeline,
+    /// The cloud PROFILE bake (perf increment 4, the far rung): fullscreen
+    /// triangle into the RGBA8 profile atlas (mip 0), scissored by Rust to
+    /// the scroll / fill / refresh / global rows of the frame
+    /// (`fs_cloud_profile_bake`). Same layout as the march.
+    pub cloud_profile_bake_pipeline: wgpu::RenderPipeline,
+    /// The profile atlas's global-region mip chain (`fs_cloud_profile_mip`,
+    /// one RGBA8 target = mip m, source = mip m - 1 at binding 14).
+    pub cloud_profile_mip_pipeline: wgpu::RenderPipeline,
+    /// The calibration table, stage 1 (`fs_cloud_profile_calib`: per
+    /// archetype / seed / height row, the canonical cloud's cross-section
+    /// point test into the mip-2 staging area).
+    pub cloud_profile_calib_pipeline: wgpu::RenderPipeline,
+    /// The calibration table, stage 2 (`fs_cloud_profile_calib_reduce`:
+    /// the eight-seed mean into the mip-1 table).
+    pub cloud_profile_calib_reduce_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     /// Group-1 layout for the terrain-batch pipelines: one shared batch
@@ -486,6 +501,22 @@ impl Pipeline {
             Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
         let cloud_screen_pipeline =
             Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
+        let cloud_profile_bake_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Bake Pipeline", "fs_cloud_profile_bake",
+        );
+        let cloud_profile_mip_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Mip Pipeline", "fs_cloud_profile_mip",
+        );
+        let cloud_profile_calib_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Calib Pipeline", "fs_cloud_profile_calib",
+        );
+        let cloud_profile_calib_reduce_pipeline = Self::build_cloud_profile_pipeline(
+            device,
+            shader,
+            &pipeline_layout,
+            "Cloud Profile Calib Reduce Pipeline",
+            "fs_cloud_profile_calib_reduce",
+        );
 
         Self {
             render_pipeline,
@@ -497,6 +528,10 @@ impl Pipeline {
             patch_shadow_pipeline,
             cloud_light_bake_pipeline,
             cloud_screen_pipeline,
+            cloud_profile_bake_pipeline,
+            cloud_profile_mip_pipeline,
+            cloud_profile_calib_pipeline,
+            cloud_profile_calib_reduce_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
             patch_bind_group_layout,
@@ -663,6 +698,50 @@ impl Pipeline {
             Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
         self.cloud_screen_pipeline =
             Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
+        // The four far-rung pipelines (increment 4) follow the same
+        // hot-reload rule: new module, same layouts, live bind groups intact.
+        self.cloud_profile_bake_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Bake Pipeline", "fs_cloud_profile_bake",
+        );
+        self.cloud_profile_mip_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Mip Pipeline", "fs_cloud_profile_mip",
+        );
+        self.cloud_profile_calib_pipeline = Self::build_cloud_profile_pipeline(
+            device, shader, &pipeline_layout, "Cloud Profile Calib Pipeline", "fs_cloud_profile_calib",
+        );
+        self.cloud_profile_calib_reduce_pipeline = Self::build_cloud_profile_pipeline(
+            device,
+            shader,
+            &pipeline_layout,
+            "Cloud Profile Calib Reduce Pipeline",
+            "fs_cloud_profile_calib_reduce",
+        );
+    }
+
+    /// One far-rung pipeline (perf increment 4): fullscreen triangle over
+    /// ONE `Rgba8Unorm` target (the profile atlas at some mip), blend None,
+    /// the shared layout, parametrized by the fragment entry. The bake,
+    /// the mip chain and the two calibration stages are all this shape;
+    /// Rust chooses the attachment (mip view) and the scissor per pass.
+    fn build_cloud_profile_pipeline(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+        label: &str,
+        fs_entry: &str,
+    ) -> wgpu::RenderPipeline {
+        Self::build_cloud_fullscreen_pipeline(
+            device,
+            shader,
+            layout,
+            label,
+            fs_entry,
+            &[Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        )
     }
 
     /// The sun-shadow PSO a CLASSIC caster should draw with (v0.1106).

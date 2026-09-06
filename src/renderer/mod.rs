@@ -599,6 +599,35 @@ pub struct Renderer {
     /// This frame's ground point / sun / planet constants from the cloud
     /// fill block (None = no cloud body armed this frame, the pass skips).
     pub(crate) cloud_light_frame: Option<cloud_temporal::CloudLightFrame>,
+    /// The cloud PROFILE knob (perf increment 4, the far rung; pad
+    /// light2_color.z): 0 = off (the point-sampled field, bit-identical,
+    /// the A/B twin), 1 = on (automatic level by footprint), 2..7 = level
+    /// 0..5 forced, 8 = hard switch (the prove-red), 9 = the reference
+    /// bake. Mirrored from GuiState::cloud_dev_profile_knob by lib.rs.
+    pub cloud_profile_knob: i32,
+    /// The profile atlas, its views / groups and the planning state,
+    /// created on first use by `ensure_cloud_profile` (cloud_temporal.rs).
+    pub(crate) cloud_profile_cache: Option<cloud_temporal::CloudProfileCache>,
+    /// This frame's ground cell / altitude / clock / coverage inputs from
+    /// the cloud fill block on EVERY tier (None = no cloud shell this frame).
+    pub(crate) cloud_profile_frame: Option<cloud_temporal::CloudProfileFrame>,
+    /// The cloud SHELL material this frame on every tier (set by lib.rs
+    /// unconditionally beside the temporal arming, cleared at the top of
+    /// every frame): the far-rung passes find the shell's object slot by
+    /// it, and the transparent shell draw binds the profile group by it.
+    pub(crate) cloud_shell_mat: Option<usize>,
+    /// The MARCH texture's pixel angle `2 tan(fov/2) / (height / div)`,
+    /// stored beside the screen pix_ang write each celestial pass and read
+    /// by lib.rs for the profile's active-level range (the temporal march
+    /// derives its footprint from its own rasterizer, not the screen's).
+    pub cloud_pix_ang_march: std::cell::Cell<f32>,
+    /// Bumped at every weather-map upload (`update_weather_map`): the
+    /// profile's global map re-references on it.
+    pub weather_map_gen: std::cell::Cell<u32>,
+    /// The 1x1 white fallback albedo view (group-3 binding 0 of every
+    /// untextured draw); kept as a field so the profile's bind groups can
+    /// put it at binding 0 while the atlas rides binding 14.
+    pub(crate) white_view: wgpu::TextureView,
     /// Gain on the in-scattered source (light5_color.z); 0 = 1.0.
     pub cloud_ms_gain: f32,
     /// Increment C (v0.1282): interior density saturation of the constructed
@@ -1850,6 +1879,15 @@ impl Renderer {
             cloud_light: true,
             cloud_light_cache: None,
             cloud_light_frame: None,
+            // Default 0 (off) until gates G0..G6 of the far-rung contract
+            // pass; the orchestrator flips it to 1.
+            cloud_profile_knob: 0,
+            cloud_profile_cache: None,
+            cloud_profile_frame: None,
+            cloud_shell_mat: None,
+            cloud_pix_ang_march: std::cell::Cell::new(0.0),
+            weather_map_gen: std::cell::Cell::new(0),
+            white_view,
             cloud_ms_gain: 0.0,
             cloud_int_sat: 0.0,
             cloud_discard_diag: false,
@@ -2247,6 +2285,9 @@ impl Renderer {
             log::warn!("[Weather] bad grid size {} - ignored", rg.len());
             return;
         }
+        // The cloud profile's global map is baked from this map: count the
+        // upload so the next plan re-references it (a fast 2 s pass).
+        self.weather_map_gen.set(self.weather_map_gen.get().wrapping_add(1));
         // Upload the base + a CPU box-filtered mip chain (increment 11b).
         // ~1.4 MB of filtering per refresh (every few minutes) - noise.
         let mut level: Vec<u8> = rg.to_vec();
@@ -3174,6 +3215,18 @@ impl Renderer {
             / (self.config.height.max(1) as f32);
         self.queue
             .write_buffer(&self.camera_buffer, 552, bytemuck::bytes_of(&pix_ang));
+        // The MARCH texture's own pixel angle (far rung): the temporal
+        // march passes `ndc_step.y * tanf` to cloud_march_core, i.e. the
+        // angle of one march-texture row (`config.height / cloud_res_div`),
+        // and that is the footprint the profile's active-level range must
+        // use. lib.rs reads it back for CloudProfileFrame.pix_ang_march.
+        self.cloud_pix_ang_march.set(
+            cloud_temporal::CloudProfileFrame::pix_ang_march(
+                camera.fov_degrees as f64,
+                self.config.height,
+                self.cloud_res_div,
+            ) as f32,
+        );
         // Cloud-map basis anchor, octahedrally encoded into two spare pads
         // (496 = light2_cone_inner.x, 556 = light5_cone_inner.w). The
         // shell/octa shaders decode it in cloud_map_axis_world; the
@@ -3965,6 +4018,22 @@ impl Renderer {
             self.queue
                 .write_buffer(&self.camera_buffer, 272, bytemuck::cast_slice(&coarse));
         }
+        // light2_color (offset 240; unread by every shader until the far
+        // rung): the cloud PROFILE pad `(ground_I_0, ground_J_0, knob,
+        // flags)`, all exact integers in f32, f64 all the way in
+        // CloudProfileState (the ground cell) and narrowed only here.
+        // Written EVERY frame after the bulk camera upload (which lands
+        // zeros there first); zeros when no atlas exists, so the shader's
+        // knob branch is never taken without an atlas at binding 14.
+        {
+            let pad = self
+                .cloud_profile_cache
+                .as_ref()
+                .map(|pc| pc.state.pads())
+                .unwrap_or([0.0; 4]);
+            self.queue
+                .write_buffer(&self.camera_buffer, 240, bytemuck::cast_slice(&pad));
+        }
 
         // ── 12e NEAR march + resolve ── two passes replace 12d's single
         // cadence+history hybrid (whose one blend constant could not both
@@ -4030,6 +4099,207 @@ impl Renderer {
                             self.cloud_light,
                             self.cloud_light_frame.is_some(),
                         );
+                    }
+                }
+                // [CloudProfile] (increment 4, the far rung): the profile's
+                // state at 1 Hz - knob, ground cell, per-level valid / fill
+                // cursor / scroll count, the global's cursor and mode, the
+                // calibration, the truncation estimate and the atlas size.
+                // Read this before believing any profile-on capture: active
+                // must be true and the valid bits must be up.
+                match self.cloud_profile_cache.as_ref() {
+                    Some(pc) => {
+                        let st = &pc.state;
+                        let pad = st.pads();
+                        let mut lv = String::new();
+                        for (l, s) in st.levels.iter().enumerate() {
+                            if !s.active.get() {
+                                continue;
+                            }
+                            let fill = match s.fill_cursor.get() {
+                                Some(c) => format!("fill@{c}"),
+                                None => format!("rf@{:.0}", s.refresh_cursor.get()),
+                            };
+                            lv.push_str(&format!(
+                                " L{l}:{}{}/{}/scr{}",
+                                if s.valid.get() { "valid" } else { "FILLING" },
+                                if s.valid.get() { format!("/{fill}") } else { String::new() },
+                                s.fills.get(),
+                                s.scrolled.replace(0),
+                            ));
+                        }
+                        log::info!(
+                            "[CloudProfile] knob={} active={} ground=({},{}) flags={}{} global={}{}@{:.0}/passes={} calib={} trunc={} mb={:.1}",
+                            self.cloud_profile_knob,
+                            self.cloud_profile_active().is_some(),
+                            pad[0],
+                            pad[1],
+                            pad[3],
+                            lv,
+                            if st.global_valid.get() { "valid/" } else { "PENDING/" },
+                            if st.global_pass_fast.get() { "fast" } else { "rolling" },
+                            st.global_pass_cursor.get(),
+                            st.global_passes.get(),
+                            st.calib_valid.get(),
+                            st.truncated_texels_estimate(),
+                            (cloud_temporal::CLOUD_FR_ATLAS_W as f64
+                                * cloud_temporal::CLOUD_FR_ATLAS_H as f64
+                                * 4.0
+                                * 4.0
+                                / 3.0)
+                                / 1.0e6,
+                        );
+                    }
+                    None => {
+                        log::info!(
+                            "[CloudProfile] knob={} active=false (no atlas) fed={}",
+                            self.cloud_profile_knob,
+                            self.cloud_profile_frame.is_some(),
+                        );
+                    }
+                }
+            }
+        }
+        // ── THE FAR RUNG PASSES (perf increment 4) ── hoisted OUT of the
+        // near block below and keyed on the cloud SHELL material, which
+        // lib.rs sets on EVERY tier (the Low sheet reads the global map, so
+        // the atlas must be baked even when no screen march runs). Bound
+        // like the sun bake: camera, the shell's object slot (the same
+        // planet frame), the cloud material; group 3 = whichever atlas mip
+        // the fragment reads at binding 14. Order: the calibration (two
+        // stages, on their own timer so the bake gate's MAX never counts
+        // them), the bake (LoadOp::Load, scissored to the frame's rects),
+        // the six mip passes when a global pass just completed.
+        if let (Some(mat_idx), Some(pc)) = (self.cloud_shell_mat, self.cloud_profile_cache.as_ref()) {
+            if let (Some(i), Some(material)) = (
+                transparent.iter().position(|o| o.material == mat_idx),
+                self.materials.get(mat_idx),
+            ) {
+                let slot = objects.len() + i;
+                if slot < MAX_OBJECTS
+                    && self.cloud_profile_knob != cloud_temporal::CLOUD_FR_KNOB_OFF
+                    && self.cloud_profile_frame.is_some()
+                {
+                    self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
+                    let uniform_align = 256_u64;
+                    let dyn_off = (uniform_align as u32) * (slot as u32);
+                    // One fullscreen pass over one mip view, scissored: the
+                    // shape every far-rung pass shares.
+                    let run = |encoder: &mut wgpu::CommandEncoder,
+                               label: &'static str,
+                               timer: &'static str,
+                               pipeline: &wgpu::RenderPipeline,
+                               target: &wgpu::TextureView,
+                               group3: &wgpu::BindGroup,
+                               rects: &[(u32, u32, u32, u32)]| {
+                        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                            label: Some(label),
+                            timestamp_writes: self.pass_timer(timer),
+                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                view: target,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    // Load: every pass touches only its
+                                    // rects; the rest of the mip (other
+                                    // windows, the calibration areas in
+                                    // mips 1 and 2) must survive.
+                                    load: wgpu::LoadOp::Load,
+                                    store: wgpu::StoreOp::Store,
+                                },
+                            })],
+                            depth_stencil_attachment: None,
+                            ..Default::default()
+                        });
+                        pass.set_pipeline(pipeline);
+                        pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                        pass.set_bind_group(1, &self.object_bind_group, &[dyn_off]);
+                        pass.set_bind_group(2, &material.bind_group, &[]);
+                        pass.set_bind_group(3, group3, &[]);
+                        for &(x, y, w, h) in rects {
+                            if w == 0 || h == 0 {
+                                continue;
+                            }
+                            pass.set_scissor_rect(x, y, w, h);
+                            pass.draw(0..3, 0..1);
+                        }
+                    };
+                    // The calibration (A1): stage 1 reads only the noise
+                    // volumes (group 3 = the 1x1 fallback), stage 2 reads
+                    // the mip-2 staging through binding 14.
+                    if pc.state.take_calib() {
+                        run(
+                            &mut encoder,
+                            "Cloud Profile Calib Pass",
+                            "gpu.cloud_profile_calib",
+                            &self.pipeline.cloud_profile_calib_pipeline,
+                            &pc.view_mip[2],
+                            &self.default_texture_bind_group,
+                            &[(
+                                cloud_temporal::CLOUD_FR_CALIB_STAGE_X0,
+                                cloud_temporal::CLOUD_FR_CALIB_STAGE_Y0,
+                                cloud_temporal::CLOUD_FR_CALIB_STAGE_W,
+                                cloud_temporal::CLOUD_FR_CALIB_STAGE_H,
+                            )],
+                        );
+                        run(
+                            &mut encoder,
+                            "Cloud Profile Calib Reduce Pass",
+                            "gpu.cloud_profile_calib",
+                            &self.pipeline.cloud_profile_calib_reduce_pipeline,
+                            &pc.view_mip[1],
+                            &pc.group_mip_src[2].colour,
+                            &[(
+                                cloud_temporal::CLOUD_FR_CALIB_X0,
+                                cloud_temporal::CLOUD_FR_CALIB_Y0,
+                                cloud_temporal::CLOUD_FR_CALIB_W,
+                                cloud_temporal::CLOUD_FR_CALIB_H,
+                            )],
+                        );
+                    }
+                    // The bake: wall-clock dt drives the time-based cadence
+                    // (the cloud clock may be pinned; the refresh must not
+                    // stop with it). Group 3 = mip 1 (the calibration table)
+                    // at binding 14; mip 0 is the attachment.
+                    let now = std::time::Instant::now();
+                    let dt_s = pc
+                        .state
+                        .last_bake
+                        .replace(Some(now))
+                        .map(|t| now.duration_since(t).as_secs_f64())
+                        .unwrap_or(1.0 / 60.0);
+                    let rects = pc.state.take_bake_rects(dt_s);
+                    if !rects.is_empty() {
+                        run(
+                            &mut encoder,
+                            "Cloud Profile Bake Pass",
+                            "gpu.cloud_profile",
+                            &self.pipeline.cloud_profile_bake_pipeline,
+                            &pc.view_mip[0],
+                            &pc.group_mip_src[1].colour,
+                            &rects,
+                        );
+                    }
+                    // The global's mip chain, once per completed pass: mip
+                    // m from mip m - 1, scissored to the global region at
+                    // mip m (origin (0, 2560 >> m), size (6144 >> m,
+                    // 1024 >> m)). Six passes on the bake's timer.
+                    if pc.state.mips_pending.replace(false) {
+                        for m in 1..cloud_temporal::CLOUD_FR_GLOBAL_MIPS {
+                            run(
+                                &mut encoder,
+                                "Cloud Profile Mip Pass",
+                                "gpu.cloud_profile",
+                                &self.pipeline.cloud_profile_mip_pipeline,
+                                &pc.view_mip[m as usize],
+                                &pc.group_mip_src[(m - 1) as usize].colour,
+                                &[(
+                                    0,
+                                    cloud_temporal::CLOUD_FR_GLOBAL_Y0 >> m,
+                                    cloud_temporal::CLOUD_FR_ATLAS_W >> m,
+                                    cloud_temporal::CLOUD_FR_GLOBAL_H >> m,
+                                )],
+                            );
+                        }
                     }
                 }
             }
@@ -4137,10 +4407,22 @@ impl Renderer {
                         // albedo slot while the cache is on (v0.1286; the
                         // same predicate raised pad bit 16 above), else
                         // the 1x1 fallback the shared layout requires.
-                        let g3 = self
-                            .cloud_light_active()
-                            .map(|lc| &lc.group.colour)
-                            .unwrap_or(&self.default_texture_bind_group);
+                        // Far rung (increment 4): when the profile is
+                        // active too, the profile atlas rides binding 14 of
+                        // the same group - `group_sun` (b0 = the sun atlas)
+                        // when both caches are active, `group_plain` (b0 =
+                        // white) when only the profile is; today's rule
+                        // otherwise. The bit-16 predicate is unchanged.
+                        let g3 = match (self.cloud_light_active(), self.cloud_profile_active()) {
+                            (Some(lc), Some(pc)) => pc
+                                .group_sun
+                                .as_ref()
+                                .map(|g| &g.colour)
+                                .unwrap_or(&lc.group.colour),
+                            (None, Some(pc)) => &pc.group_plain.colour,
+                            (Some(lc), None) => &lc.group.colour,
+                            (None, None) => &self.default_texture_bind_group,
+                        };
                         pass.set_bind_group(3, g3, &[]);
                         pass.draw(0..3, 0..1);
                         drop(pass);
@@ -4466,13 +4748,16 @@ impl Renderer {
                         bound_material = obj.material;
                         render_pass.set_bind_group(2, &material.bind_group, &[]);
                         // Group 3 fallback/texture -- same rule as the opaque
-                        // loop. Temporal-cloud override (phase 4): the cloud
-                        // material's composite samples the freshly written
-                        // octa map through the albedo slot.
-                        let g3 = if Some(obj.material) == self.cloud_temporal_mat {
-                            self.cloud_temporal
-                                .as_ref()
-                                .map(|ct| &ct.groups[ct.cur.get()].colour)
+                        // loop. Cloud SHELL override (far rung, increment 4,
+                        // replacing the dead octa-map override: `cloud_temporal`
+                        // has been None since v0.1261): the shell's fragment
+                        // (the direct path when the temporal map is not armed,
+                        // and the Low sheet) reads the profile atlas at
+                        // binding 14 through `group_plain`, on every tier.
+                        let g3 = if Some(obj.material) == self.cloud_shell_mat {
+                            self.cloud_profile_active()
+                                .map(|pc| &pc.group_plain.colour)
+                                .or_else(|| material.albedo_group())
                         } else {
                             material.albedo_group()
                         };

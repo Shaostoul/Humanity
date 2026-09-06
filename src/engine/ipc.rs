@@ -241,7 +241,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // renderer every frame - one source of truth, so buttons and file
     // drops can never disagree.
     if let Some(d) = grab("map_diag").and_then(|t| t.parse::<f32>().ok()) {
-        state.gui_state.cloud_dev_map_diag = d as i32;
+        // 0..12: channels 10/11/12 are the far rung's profile share / level /
+        // fraction (increment 4); the F10 panel clamps to the same range.
+        state.gui_state.cloud_dev_map_diag = (d as i32).clamp(0, 12);
     }
     // {"cloud_clock":"120"} freezes the cloud advection clock at that many
     // seconds; "-1" returns it live. The clock is app-start-relative, so
@@ -374,6 +376,25 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // 12-rung ladder per pixel, the A/B twin.
     if let Some(t) = grab("cloud_light") {
         state.gui_state.cloud_dev_light = t == "1";
+    }
+    // {"cloud_profile":"0|1|hard|ref|L0".."L5"}: performance plan increment
+    // 4, the far rung (the planet-fixed cloud PROFILE read beyond the
+    // footprint band). "0" = the point-sampled field, bit-identical (the
+    // A/B twin); "1" = automatic level by footprint, blended; "hard" = the
+    // hard-switch prove-red (knob 8); "ref" = the slow reference bake (knob
+    // 9); "L0".."L5" = that level forced on every sample (knobs 2..7).
+    if let Some(t) = grab("cloud_profile") {
+        let knob = match t.trim().to_ascii_lowercase().as_str() {
+            "0" | "off" => 0,
+            "1" | "on" => 1,
+            "hard" | "8" => 8,
+            "ref" | "9" => 9,
+            s if s.starts_with('l') && s.len() == 2 => {
+                s[1..].parse::<i32>().ok().filter(|l| (0..=5).contains(l)).map(|l| 2 + l).unwrap_or(0)
+            }
+            s => s.parse::<i32>().ok().filter(|k| (0..=9).contains(k)).unwrap_or(0),
+        };
+        state.gui_state.cloud_dev_profile_knob = knob;
     }
     if let Some(m) = grab("cloud_ms_gain").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_ms_gain = m;
@@ -1070,6 +1091,47 @@ pub(crate) fn poll_cloudmap_request(state: &mut EngineState) {
         .dump_cloud_map_png(std::path::Path::new(&out))
     {
         Ok((w, h)) => serde_json::json!({"ok": true, "path": out, "w": w, "h": h}),
+        Err(e) => serde_json::json!({"ok": false, "error": e}),
+    };
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write(DONE_PATH, done.to_string());
+}
+
+/// Cloud PROFILE atlas dump (increment 4, the far rung, dev forensics):
+/// drop `debug/cloud_profile_dump_request.json` (any content) while the
+/// game runs and every slice of the profile atlas is written as raw RGBA8
+/// PNGs under `debug/`: the 54 window slices
+/// (`cloud_profile_L<level>_s<slice>.png`), the three global slices
+/// (`cloud_profile_global_<0|1|c>.png`) and the calibration table
+/// (`cloud_profile_calib.png`), then `debug/cloud_profile_done.json`
+/// reports the count (or the error). `scripts/cloud-profile-compare.js`
+/// diffs two dumps (the reference bake against the analytic one, G1/G4).
+pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
+    const REQUEST_PATH: &str = "debug/cloud_profile_dump_request.json";
+    const DONE_PATH: &str = "debug/cloud_profile_done.json";
+    if !std::path::Path::new(REQUEST_PATH).exists() {
+        return;
+    }
+    let _ = std::fs::remove_file(REQUEST_PATH);
+    let dir = std::path::Path::new("debug");
+    let done = match state.renderer.dump_cloud_profile_pngs(dir) {
+        Ok(files) => {
+            let pads = state
+                .renderer
+                .cloud_profile_cache
+                .as_ref()
+                .map(|pc| pc.state.pads())
+                .unwrap_or([0.0; 4]);
+            serde_json::json!({
+                "ok": true,
+                "dir": "debug",
+                "files": files,
+                "knob": state.renderer.cloud_profile_knob,
+                "ground_i0": pads[0],
+                "ground_j0": pads[1],
+                "flags": pads[3],
+            })
+        }
         Err(e) => serde_json::json!({"ok": false, "error": e}),
     };
     let _ = std::fs::create_dir_all("debug");
