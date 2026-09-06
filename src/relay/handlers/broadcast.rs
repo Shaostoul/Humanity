@@ -262,7 +262,7 @@ pub async fn handle_mod_command(
     cmd: &str,
     caller_role: &str,
     target_name: &str,
-    _caller_key: &str,
+    caller_key: &str,
 ) -> String {
     // Resolve target name → public key(s).
     let target_keys = match state.db.keys_for_name(target_name) {
@@ -272,6 +272,35 @@ pub async fn handle_mod_command(
 
     let is_admin = caller_role == "admin";
     let is_mod = caller_role == "mod" || is_admin;
+
+    // ── The two guards the button path has had since v0.247 ──
+    //
+    // There are two ways to moderate: this one (a slash command typed in chat)
+    // and `mod_action` (the buttons in the profile modal). The button path
+    // refuses self-targeting and refuses a non-admin acting on an admin. This
+    // path had NEITHER, and its caller_key parameter was prefixed with an
+    // underscore to say so, so a moderator could /kick or /mute an admin, and
+    // could kick themselves, simply by typing instead of clicking. Two doors
+    // into the same room, one of them unlocked.
+    //
+    // Same checks, same order, same wording as msg_handlers::handle_mod_action,
+    // deliberately: divergence between these two paths is the bug being fixed,
+    // so a future edit to one should read strangely if it is not made to both.
+    if matches!(cmd, "/kick" | "/ban" | "/mute") && target_keys.iter().any(|k| k == caller_key) {
+        // An admin locking themselves out is the sharper edge here: a self-ban
+        // leaves role='admin' in place, so the zero-admins claim code never
+        // mints and there is no in-app way back.
+        return format!("You can't {} yourself.", cmd.trim_start_matches('/'));
+    }
+    if !is_admin {
+        let touches_protected = target_keys.iter().any(|k| {
+            let r = state.db.get_role(k).unwrap_or_default();
+            r == "admin" || r == "owner"
+        });
+        if touches_protected {
+            return "Only an admin can act on another admin.".to_string();
+        }
+    }
 
     match cmd {
         "/kick" => {
@@ -441,3 +470,115 @@ pub async fn leave_voice_room(state: &Arc<RelayState>, key: &str) {
 // (2026-08-23) — the relay no longer holds any DM conversation data to
 // list. Clients build their own conversation lists from their decrypted
 // local history stores.
+
+#[cfg(test)]
+mod mod_command_guard_tests {
+    use super::*;
+    use crate::relay::storage::Storage;
+
+    fn fresh_state() -> Arc<RelayState> {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_modcmd_{pid}_{nanos}.db"));
+        let db = Storage::open(&path).expect("open test db");
+        Arc::new(RelayState::new(db))
+    }
+
+    fn block<F: std::future::Future>(f: F) -> F::Output {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(f)
+    }
+
+    /// The divergence this guard closes: the button path (mod_action) has
+    /// refused self-targeting since v0.247, the typed path never did. A
+    /// moderator could kick themselves, and an admin could /ban themselves,
+    /// which is the unrecoverable one: a self-ban leaves role='admin' in place,
+    /// so the zero-admins claim code never mints and there is no way back in.
+    #[test]
+    fn a_moderator_cannot_target_themselves() {
+        let st = fresh_state();
+        st.db.register_name("Mod", "mod_key").unwrap();
+        st.db.set_role("mod_key", "mod").unwrap();
+
+        for cmd in ["/kick", "/ban", "/mute"] {
+            let out = block(handle_mod_command(&st, cmd, "admin", "Mod", "mod_key"));
+            assert!(
+                out.contains("yourself"),
+                "{cmd} on self must be refused, got: {out}"
+            );
+        }
+        assert!(
+            !st.db.is_banned("mod_key").unwrap_or(false),
+            "a refused self-ban must not have landed anyway"
+        );
+    }
+
+    /// Targeting SOMEONE ELSE still works, so the guard did not simply break
+    /// moderation. Without this the test above passes on a handler that
+    /// refuses everything.
+    #[test]
+    fn targeting_another_member_still_works() {
+        let st = fresh_state();
+        st.db.register_name("Mod", "mod_key").unwrap();
+        st.db.set_role("mod_key", "mod").unwrap();
+        st.db.register_name("Member", "member_key").unwrap();
+
+        let out = block(handle_mod_command(&st, "/mute", "mod", "Member", "mod_key"));
+        assert!(!out.contains("yourself"), "unexpected self-guard: {out}");
+        assert!(
+            st.db.is_muted("member_key").unwrap_or(false),
+            "the mute must actually have been applied, got: {out}"
+        );
+    }
+
+    /// A moderator may not act on an admin from the typed path either. The
+    /// button path has refused this since v0.247; this one accepted it.
+    #[test]
+    fn a_moderator_cannot_act_on_an_admin() {
+        let st = fresh_state();
+        st.db.register_name("Mod", "mod_key").unwrap();
+        st.db.set_role("mod_key", "mod").unwrap();
+        st.db.register_name("Boss", "boss_key").unwrap();
+        st.db.set_role("boss_key", "admin").unwrap();
+
+        let out = block(handle_mod_command(&st, "/mute", "mod", "Boss", "mod_key"));
+        assert!(
+            out.contains("Only an admin"),
+            "a mod muting an admin must be refused, got: {out}"
+        );
+        assert!(
+            !st.db.is_muted("boss_key").unwrap_or(false),
+            "and the mute must not have landed"
+        );
+
+        // An ADMIN acting on another admin is still allowed: the guard is about
+        // privilege, not about admins being untouchable.
+        let out = block(handle_mod_command(&st, "/mute", "admin", "Boss", "other_admin"));
+        assert!(!out.contains("Only an admin"), "admin-on-admin must pass: {out}");
+        assert!(st.db.is_muted("boss_key").unwrap_or(false), "and must apply");
+    }
+
+    /// The name-only path resolves to EVERY key registered under that name, so
+    /// a second device cannot be used to slip past either guard.
+    #[test]
+    fn guards_cover_every_key_registered_to_the_name() {
+        let st = fresh_state();
+        st.db.register_name("Boss", "boss_phone").unwrap();
+        st.db.register_name("Boss", "boss_laptop").unwrap();
+        st.db.set_role("boss_laptop", "admin").unwrap();
+        st.db.register_name("Mod", "mod_key").unwrap();
+
+        // Only ONE of Boss's keys is the admin one; the guard must still fire.
+        let out = block(handle_mod_command(&st, "/kick", "mod", "Boss", "mod_key"));
+        assert!(
+            out.contains("Only an admin"),
+            "one admin registration under the name must protect the name, got: {out}"
+        );
+    }
+}
