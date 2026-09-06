@@ -71,9 +71,16 @@ impl Storage {
             // (follows removed 2026-08-24: the server stores no social
             // graph to export — following lives in the user's own client
             // store.)
-            grab("uploads", "SELECT id, filename, url, size, mime_type, created_at FROM uploads WHERE uploader_key = ?1", &[&key]);
+            // `user_uploads`, NOT `uploads`. There is no table called `uploads`
+            // and there never was: this query named one, `grab` swallowed the
+            // prepare error into an empty array, and the export has been telling
+            // every user "uploads": [] as though they had none. Real columns
+            // per the schema: public_key, filename, uploaded_at, shared,
+            // original_name, size_bytes.
+            grab("uploads", "SELECT id, filename, original_name, size_bytes, shared, uploaded_at FROM user_uploads WHERE public_key = ?1", &[&key]);
             grab("notification_prefs", "SELECT * FROM notification_prefs WHERE public_key = ?1", &[&key]);
-            grab("tasks_created", "SELECT id, title, description, status, priority, created_at FROM tasks WHERE created_by = ?1", &[&key]);
+            // `project_tasks`, NOT `tasks`. Same phantom-table bug as uploads above.
+            grab("tasks_created", "SELECT id, title, description, status, priority, created_by FROM project_tasks WHERE created_by = ?1", &[&key]);
             grab("listings", "SELECT * FROM marketplace_listings WHERE seller_key = ?1", &[&key]);
             grab("reviews_written", "SELECT * FROM listing_reviews WHERE reviewer_key = ?1", &[&key]);
             // The vault blob is the user's own client-encrypted data.
@@ -96,7 +103,12 @@ impl Storage {
         // Upload files first (need the rows to find the paths).
         let upload_files: Vec<String> = self
             .with_read_conn(|conn| {
-                let mut stmt = conn.prepare("SELECT url FROM uploads WHERE uploader_key = ?1")?;
+                // This named a table that does not exist, so with_read_conn
+                // returned Err, unwrap_or_default() turned it into an empty
+                // list, and NO uploaded file was ever removed from disk by
+                // "erase everything". files_removed was structurally always 0.
+                // user_uploads stores the on-disk filename directly, not a URL.
+                let mut stmt = conn.prepare("SELECT filename FROM user_uploads WHERE public_key = ?1")?;
                 let v = stmt
                     .query_map(params![key], |r| r.get::<_, String>(0))?
                     .filter_map(|r| r.ok())
@@ -106,7 +118,9 @@ impl Storage {
             .unwrap_or_default();
         let mut files_removed = 0usize;
         for url in &upload_files {
-            // Upload URLs are /uploads/<file>; files live in data/uploads/.
+            // user_uploads.filename is the on-disk name; files live in
+            // data/uploads/. The rsplit is kept so a stored value that happens
+            // to carry a path prefix still resolves to its basename.
             if let Some(fname) = url.rsplit('/').next() {
                 let path = std::path::Path::new("data/uploads").join(fname);
                 if std::fs::remove_file(&path).is_ok() {
@@ -121,14 +135,24 @@ impl Storage {
             let mut del = |label: &str, sql: &str, binds: &[&dyn rusqlite::types::ToSql]| {
                 match conn.execute(sql, binds) {
                     Ok(n) => receipt.push((label.to_string(), n)),
-                    // Defensive: a missing table (older DB) is not fatal to
-                    // the rest of the erasure.
-                    Err(e) => tracing::warn!("account erase: {label}: {e}"),
+                    Err(e) => {
+                        // A failed statement stays non-fatal (one broken table
+                        // must not abandon the rest of an erasure), but it no
+                        // longer stays SILENT. Previously this only warned to
+                        // the log, and the caller's receipt filters out zero
+                        // counts, so "the statement errored", "you had no rows"
+                        // and "we never ran it" were indistinguishable to the
+                        // user, who was told their data was erased either way.
+                        // That is how two DELETEs against tables that do not
+                        // exist survived in here unnoticed.
+                        tracing::error!("account erase FAILED for {label}: {e}");
+                        receipt.push((format!("{label}_FAILED"), 1));
+                    }
                 }
             };
             del("messages", "DELETE FROM messages WHERE from_key = ?1", &[&key]);
             del("reactions", "DELETE FROM reactions WHERE reactor_key = ?1", &[&key]);
-            del("uploads", "DELETE FROM uploads WHERE uploader_key = ?1", &[&key]);
+            del("uploads", "DELETE FROM user_uploads WHERE public_key = ?1", &[&key]);
             del("notification_prefs", "DELETE FROM notification_prefs WHERE public_key = ?1", &[&key]);
             del("vault", "DELETE FROM vault_blobs WHERE public_key = ?1", &[&key]);
             del("dm_mailbox", "DELETE FROM dm_mailbox WHERE to_key = ?1", &[&key]);
@@ -140,7 +164,7 @@ impl Storage {
             del("listing_reviews", "DELETE FROM listing_reviews WHERE reviewer_key = ?1", &[&key]);
             del("listing_images", "DELETE FROM listing_images WHERE listing_id IN (SELECT id FROM marketplace_listings WHERE seller_key = ?1)", &[&key]);
             del("listings", "DELETE FROM marketplace_listings WHERE seller_key = ?1", &[&key]);
-            del("tasks", "DELETE FROM tasks WHERE created_by = ?1", &[&key]);
+            del("tasks", "DELETE FROM project_tasks WHERE created_by = ?1", &[&key]);
             del("roles", "DELETE FROM user_roles WHERE public_key = ?1", &[&key]);
             del("membership", "DELETE FROM server_members WHERE public_key = ?1", &[&key]);
             del("registered_name", "DELETE FROM registered_names WHERE public_key = ?1", &[&key]);
@@ -163,6 +187,57 @@ mod tests {
             .unwrap_or(0);
         let path = std::env::temp_dir().join(format!("hum_account_{pid}_{nanos}.db"));
         Storage::open(&path).expect("open test db")
+    }
+
+    /// Uploads and tasks specifically, because those two were the ones that
+    /// silently did nothing. The queries named `uploads` and `tasks`, neither of
+    /// which is a table in this schema (the real names are `user_uploads` and
+    /// `project_tasks`), and both helpers swallow a bad table name: `grab`
+    /// returns an empty array and `del` only warned. So the export told the user
+    /// they had no uploads, the erase receipt never mentioned them, and every
+    /// uploaded row and every file on disk stayed exactly where it was.
+    ///
+    /// The test below passed throughout, because it never touched either table.
+    /// That is the shape of the bug: a green suite over the half that worked.
+    #[test]
+    fn uploads_and_tasks_are_actually_exported_and_actually_erased() {
+        let db = test_storage();
+        db.register_name("Ann", "ann_key").unwrap();
+        db.register_name("Bea", "bea_key").unwrap();
+        db.record_upload("ann_key", "ann-photo.png", 100, false, "photo.png", 4096).unwrap();
+        db.record_upload("bea_key", "bea-photo.png", 100, false, "photo.png", 2048).unwrap();
+        db.create_task("Ann task", "", "backlog", "medium", None, "ann_key", "").unwrap();
+        db.create_task("Bea task", "", "backlog", "medium", None, "bea_key", "").unwrap();
+
+        // Export must SEE them. Before the fix both arrays came back empty,
+        // which reads to a user as "you have none", not "we did not look".
+        let export = db.export_account("ann_key", "Ann");
+        let uploads = export["uploads"].as_array().expect("uploads array");
+        assert_eq!(uploads.len(), 1, "the export must contain the upload");
+        assert_eq!(uploads[0]["filename"], "ann-photo.png");
+        assert_eq!(export["tasks_created"].as_array().unwrap().len(), 1);
+
+        // Erase must actually delete them, and say so in the receipt.
+        let receipt = db.delete_account("ann_key", "Ann");
+        let count = |label: &str| {
+            receipt.iter().find(|(l, _)| l == label).map(|(_, n)| *n).unwrap_or(0)
+        };
+        assert_eq!(count("uploads"), 1, "the upload row must be deleted");
+        assert_eq!(count("tasks"), 1, "the task row must be deleted");
+        assert!(
+            !receipt.iter().any(|(l, _)| l.ends_with("_FAILED")),
+            "no statement may fail: {receipt:?}"
+        );
+
+        // And they are really gone, not merely reported gone.
+        let after = db.export_account("ann_key", "Ann");
+        assert!(after["uploads"].as_array().unwrap().is_empty());
+        assert!(after["tasks_created"].as_array().unwrap().is_empty());
+
+        // The other member is untouched.
+        let bea = db.export_account("bea_key", "Bea");
+        assert_eq!(bea["uploads"].as_array().unwrap().len(), 1, "Bea keeps her upload");
+        assert_eq!(bea["tasks_created"].as_array().unwrap().len(), 1, "Bea keeps her task");
     }
 
     /// A populated account exports its data and erases to nothing, while
