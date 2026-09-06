@@ -1475,13 +1475,25 @@ fn cloud_layer_flat_profile(
     let c_v = abs(dot(rd_local, dir));
     let seg_q = dz_pool_km / max(c_v, 0.05);
     let l_v_eff = max(e_km.y, dz_pool_km);
+    // E1 lever 2 (the horizontal element unscaled): when the vertical
+    // element is clamped up to the pooled bin height, the horizontal one
+    // must grow by the same factor. Expected element crossings along a
+    // path s through a bin of height dz holding elements L_h x L_v at areal
+    // fraction f are n * A_proj * s = f * s * (c_v / dz + c_h * L_v / (L_h *
+    // dz)): the ray is inside the thin layer for only L_v / dz of the bin's
+    // slant path. The unscaled call counted f * s * (c_v / dz + c_h / L_h),
+    // dz / L_v times too many horizontal crossings (about 12x for humilis
+    // against the 2.9 km pooled bin), so the sheet's slant alpha was far
+    // over the field's. l_h_eff = L_h * L_v_eff / L_v (ratio 1 when
+    // L_v >= dz_pool; e_km.y >= 1e-3 by cloud_fr_elem_km, finite).
+    let l_h_eff = e_km.x * (l_v_eff / e_km.y);
     // The element law per pooled bin, bins multiplied along the ray.
     var trans = 1.0;
     for (var q = 0; q < CLOUD_FR_GLOBAL_NZ; q = q + 1) {
         let fp_q = cloud_profile_chan(g.fp, q);
         let gp_q = cloud_profile_chan(g.Gp, q);
         let d_in = clamp(gp_q / max(fp_q, CLOUD_FR_F_EPS), 0.0, 1.0);
-        trans = trans * cloud_fr_t_pf(1.0, fp_q, d_in, sigma, e_km.x, l_v_eff, c_v, seg_q);
+        trans = trans * cloud_fr_t_pf(1.0, fp_q, d_in, sigma, l_h_eff, l_v_eff, c_v, seg_q);
     }
     let alpha = 1.0 - trans;
     if (alpha <= 0.002) {
@@ -3750,6 +3762,12 @@ struct ProfileLevel {
     tau_above: f32,
     tau_below: f32,
     w_edge: f32,
+    // D4 (the band tap reuse): the mean density of the bin HOLDING the
+    // sample (G_kb, the bin the column split uses). Inside one bin
+    // tau_above is exactly linear in the sample height, with slope
+    // -sigma * dz * G_kb per bin unit, so a cached tap can be carried to a
+    // nearby height in the same bin without a re-fetch (cloud_march_core).
+    G_kb: f32,
 };
 // The global map: the march's (f, G, tau_above, tau_below) at h, plus ALL
 // four pooled bins (fp, Gp) and the decoded column (Cp_0, Cp_1, Cp_2, Tp) for
@@ -3764,6 +3782,10 @@ struct ProfileGlobal {
     fp: vec4<f32>,
     Gp: vec4<f32>,
     Cp: vec4<f32>,
+    // D4: the pooled bin's mean density Gp_kb. In slab-bin units (hz = h *
+    // 12) the global's tau_above slope is -sigma * dz * Gp_kb per bin, the
+    // same form as the window's, so the march's one correction serves both.
+    G_kb: f32,
 };
 // The tap after the level walk: ok, f, G, the columns, and the (blended)
 // level index 0..6 (6 = the global) for map_diag channel 11.
@@ -3774,6 +3796,9 @@ struct ProfileTap {
     tau_above: f32,
     tau_below: f32,
     level: f32,
+    // D4: the blended G_kb of the fetched levels (see ProfileLevel), the
+    // slope the march uses to carry a cached tap within its bin.
+    G_kb: f32,
 };
 
 // Extinction per drawn-shell unit of the CURRENT march (sigma_v), published
@@ -3866,7 +3891,7 @@ fn cloud_profile_walk(L0: i32, lon: f32, lat: f32) -> i32 {
 // The window read at one level (all of it textureLoad, level 0): one or two
 // pair fetches and one or two column fetches, four loads each.
 fn cloud_profile_level(L: i32, lon: f32, lat: f32, h: f32) -> ProfileLevel {
-    var r = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
+    var r = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
     let planet_km = material.params2.z;
     let c_km = CLOUD_FR_CELL0_KM * exp2(f32(L));
     let NJ = floor(PI * planet_km / c_km);
@@ -3939,6 +3964,7 @@ fn cloud_profile_level(L: i32, lon: f32, lat: f32, h: f32) -> ProfileLevel {
     let above = C_kb + G_kb * frac_above;
     r.tau_above = g_pf_sigma_v * dz * above;
     r.tau_below = g_pf_sigma_v * dz * max(T - above, 0.0);
+    r.G_kb = G_kb;    // D4: the in-bin slope for the march's tap reuse
     r.ok = true;
     return r;
 }
@@ -3976,7 +4002,7 @@ fn cloud_profile_global_fetch(m: i32, lon: f32, lat: f32) -> ProfileGlobalRaw {
 // bracketing lodb, lerped here because the group's sampler has mipmap_filter
 // Nearest (columns decoded before the lerp).
 fn cloud_profile_global(lon: f32, lat: f32, h: f32, lodb: f32) -> ProfileGlobal {
-    var r = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
+    var r = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0), 0.0);
     if (!cloud_profile_global_valid()) {
         return r;
     }
@@ -4016,6 +4042,10 @@ fn cloud_profile_global(lon: f32, lat: f32, h: f32, lodb: f32) -> ProfileGlobal 
     let above = Cp_kb + Gp_kb * frac_above;
     r.tau_above = g_pf_sigma_v * dz_pool * above;
     r.tau_below = g_pf_sigma_v * dz_pool * max(Tp - above, 0.0);
+    // D4: per SLAB bin (hz = h * 12) the slope of tau_above is
+    // -sigma * dz_pool * Gp_kb * (4 / 12) = -sigma * dz * Gp_kb, the
+    // window's form with Gp_kb in G_kb's place.
+    r.G_kb = Gp_kb;
     r.ok = true;
     return r;
 }
@@ -4024,7 +4054,7 @@ fn cloud_profile_global(lon: f32, lat: f32, h: f32, lodb: f32) -> ProfileGlobal 
 // plus the global, hand-off weights summing to 1 by construction. Returns
 // not-ok (w_pf = 0 for this sample) when nothing baked covers it.
 fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTap {
-    var r = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0);
+    var r = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
     if (material.params2.z < 0.5) {
         return r;
     }
@@ -4070,8 +4100,8 @@ fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTa
         wl = 0.0;
         Lb = select(CLOUD_FR_LEVELS, cloud_profile_walk(La + 1, lon, lat), La < CLOUD_FR_LEVELS - 1);
     }
-    var ra = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
-    var rb = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
+    var ra = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    var rb = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
     if (La < CLOUD_FR_LEVELS) {
         ra = cloud_profile_level(La, lon, lat, h);
     }
@@ -4111,7 +4141,7 @@ fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTa
     }
     var w_rb = share_b * (1.0 - eb);
     w_g = w_g + share_b * eb;
-    var g = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
+    var g = ProfileGlobal(false, 0.0, 0.0, 0.0, 0.0, vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0), 0.0);
     if (w_g > 0.0) {
         g = cloud_profile_global(lon, lat, h, lodb);
     }
@@ -4130,6 +4160,8 @@ fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTa
     r.G = w_ra * ra.G + w_rb * rb.G + w_g * g.G;
     r.tau_above = w_ra * ra.tau_above + w_rb * rb.tau_above + w_g * g.tau_above;
     r.tau_below = w_ra * ra.tau_below + w_rb * rb.tau_below + w_g * g.tau_below;
+    // D4: the blended in-bin slope (linear in the weights, as tau_above is).
+    r.G_kb = w_ra * ra.G_kb + w_rb * rb.G_kb + w_g * g.G_kb;
     // Channel 11 = level / 6 (window edges visible).
     r.level = w_ra * f32(La) + w_rb * f32(Lb) + w_g * f32(CLOUD_FR_LEVELS);
     r.ok = true;
@@ -4173,6 +4205,281 @@ fn cloud_fr_t_pf(w_pf: f32, f: f32, D_in: f32, sigma_v: f32, l_h: f32, l_v: f32,
     let tau_elem = sigma_v * D_in * l_elem;
     let per_elem = max(1.0 - w_pf * f * (1.0 - exp(-tau_elem)), 0.0);
     return pow(per_elem, max(seg / l_elem, 1.0e-6));
+}
+
+// ── E2 (THE IN-DECK BLACKOUT): ONE ARM OF THE SAMPLE'S SHADING ──
+// The shipped hand-off mixed the profile's IN-CLOUD columns into the
+// field's optical depths (tau, tau_above, tau_below, tau_vert) LINEARLY by
+// w_pf and then shaded the sample once. Two things go wrong at 0 < w < 1:
+// the marched field's own alpha (dens_i, which does not exist at w = 1) is
+// lit by the profile's column (which does not exist at w = 0), the
+// CROSS-TERM, and the mixed tau_above re-entered the sun ladder unscaled
+// through g_sun_tau_col. At bm12 (cumulonimbus, the in-cloud column's cap
+// is 60/km * 10.4 km = 622 optical depths) that blend rendered mean 23
+// against 109 (knob 0) and 124 (forced L0): a hand-off landing 4.7x below
+// BOTH endpoints. A LOD hand-off between two estimators of the same
+// medium is not a spatial mixture, so no tau-space mix is the right law;
+// the transmittance-space form (rejected) bounds the darkening but not
+// the brightening and steps at w -> 1.
+//
+// The fix: shade each arm on ITS OWN optical depths and lerp the RESULTING
+// radiance by the profile's share of this sample's alpha (w_l, computed in
+// cloud_march_core). Arm A = the field's tau (the ladder / cache), its
+// columns, its body depth, its envelope column and its relief; arm B = the
+// profile's analytic slant column tau_pf, its in-cloud columns, no body
+// depth, and the relief terms neutral (crown = pouch = 1, cavity 0).
+// Bounded on both sides by construction, exact at w = 0 (arm A alone: the
+// shipped code, knob 0 bit-identical since the expressions are the
+// shipped ones in the shipped order) and at w = 1 (arm B alone: the
+// shipped w = 1 path, where every mix collapsed to the profile's value),
+// continuous through the band, one extra cloud_scatter_energy +
+// cloud_ms_source per band sample. Publishes g_ms_prof for the arm's own
+// cloud_scatter_energy call (the octaves go isotropic with burial).
+struct FrShadeIn {
+    tau: f32,           // sun optical depth of this arm
+    tau_above: f32,     // column above (burial, e_ms, the A-form tau_vert)
+    tau_below: f32,     // column below (burial, e_ms)
+    tau_built: f32,     // signed depth inside a built body (arm A only)
+    tau_vert_env: f32,  // the envelope column (the in-cloud-light-off form)
+    crown_shade: f32,   // relief: the crown term (1.0 on arm B)
+    pouch_shade: f32,   // relief: the pouch term (1.0 on arm B)
+    cav_dc: f32,        // relief: the cavity field dc.y (0.0 on arm B)
+    s_v2_w: f32,        // the built weight of the eye sample
+    h: f32,             // normalized slab height
+    ndl: f32,           // sun cosine at the sample's sphere normal
+    day: f32,           // the terminator fade
+    cos_vs: f32,        // view-sun cosine (per ray)
+    powder_gate: f32,   // per ray
+    trans: f32,         // eye transmittance to this sample
+    rd: vec3<f32>,      // ray direction (planet-local)
+    dirp: vec3<f32>,    // the sample's sphere normal
+    sun_energy: vec3<f32>,
+};
+struct FrShade {
+    c: vec3<f32>,       // the sample's radiance (before the trans * a_i weight)
+    sun_l: f32,         // luminance of the direct term (map_diag sun channel)
+    amb_l: f32,         // luminance of the ambient term (map_diag amb channel)
+    prof: f32,          // the burial profile (map_diag prof channel)
+};
+fn cloud_fr_shade(a: FrShadeIn) -> FrShade {
+    // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
+    // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
+    // 12.5x darkening. Measured on the operator capture, that put
+    // the cloud rim at 0.71x the luminance of the SKY BEHIND IT -
+    // physically impossible for a conservative scatterer (droplet
+    // single-scatter albedo > 0.9999). It is also double-counted:
+    // cloud_scatter_energy already evaluates the dual-lobe HG phase
+    // per octave AND carries a two-stream diffusion floor, which is
+    // the multiple-scattering behaviour powder is an ad-hoc stand-in
+    // for. The noise path keeps it (its look is calibrated around
+    // it); the constructed path floors it so an edge can never go
+    // darker than the sky it is seen against.
+    let powder_raw = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * a.tau);
+    // Beer-powder DELETED for the constructed path (v0.1231). Cloud
+    // droplets have a single-scatter albedo above 0.9999 - they scatter
+    // essentially every photon they receive - so a cloud edge physically
+    // CANNOT be darker than the sky behind it. Ours measured 0.71x, which
+    // read as grey mush exactly where a real cloud is at its brightest and
+    // most translucent. It is also double-counted: cloud_scatter_energy
+    // already evaluates the dual-lobe phase per octave AND carries a
+    // two-stream diffusion floor, which is the multiple scattering that
+    // powder is an ad-hoc stand-in for. The noise path keeps it, its look
+    // being calibrated around it.
+    let powder = select(powder_raw, 1.0, material.params.y >= 2.5);
+    let pw = mix(powder, 1.0, a.powder_gate);
+    // 12f: the VERTICAL column depth above this sample (plane-parallel
+    // estimate from the local density and the column's own band top) -
+    // what the diffusion floor and ambient shaper are physically governed
+    // by. Driving them with the slant SUN path double-counted obliquity
+    // (~1.5x too dark at mid sun) and read relief kilometres sideways from
+    // where the eye sees it. Increment A: the column above the sample is
+    // the cloud's own column (tau_above), not the regime band top 4 km up.
+    let tau_vert = select(a.tau_vert_env, a.tau_above, g_ms_on > 0.5);
+    // A1 burial profile: 0 at the surface, 1 one transport MFP in.
+    // Burial is the column AROUND the sample (above and below at the
+    // envelope density), or the depth inside a built body. NOT the sun
+    // rung tau: in a thin-skirted top the first 87 m toward the sun are
+    // nearly clear while the sample sits hundreds of metres inside the
+    // medium, and the first cut gated the source off exactly there
+    // (bm-12 masked mean 45 -> 51 instead of the predicted 135+).
+    let tau_col = min(a.tau_above, a.tau_below);
+    let tau_min = max(tau_col, a.tau_built * a.s_v2_w);
+    let prof = smoothstep(1.0, 4.0, tau_min) * g_ms_on;
+    g_ms_prof = prof;
+    // A4: powder is a rind effect.
+    let pw_a = mix(pw, 1.0, prof);
+    // A3: the in-scattered source. c = +1 when the eye looks DOWN at
+    // this sample (light travelling up), mu_s the sun cosine.
+    let ms_gain = select(1.0, camera.light5_color.z, camera.light5_color.z > 0.0);
+    let e_ms = cloud_ms_source(a.tau_above, a.tau_below, dot(-a.rd, a.dirp), a.ndl, prof) * ms_gain;
+    let direct = cloud_scatter_energy(a.tau, a.cos_vs, tau_vert) * pw_a + e_ms;
+
+    // Ambient skylight (clouds depth increment): height across the slab
+    // picks the base value (tops see the sky dome), then the VERTICAL
+    // column depth attenuates it (12f - the old exp(-tau_sun * 0.12)
+    // was shaped for tau 0-10 and moved 3% across a real overcast's
+    // tau 33-49: numerically dead). Plus a GROUND BOUNCE term: real
+    // cloud bases over land/ocean are lit from below by surface-
+    // reflected sunlight - the cue that keeps undersides readable
+    // instead of uniformly mud-grey.
+    // TWO-TONE ambient (phase 5 lighting, fidelity finding 4): the
+    // strongest photographic cloud cue is CHROMATIC - sunlit faces
+    // warm, shadowed faces and bases BLUE (lit by the sky dome),
+    // undersides warm-grey from ground bounce. The old scalar amb
+    // multiplied the sun's own colour, so shadow and light differed
+    // only in brightness. The sky term now takes its HUE from the
+    // aerial sky colour (light2_cone_inner.yzw - the same
+    // transmittance-tinted, weather-tinted, day-faded sky the haze
+    // uses, so dusk ambient goes orange and night goes dark for
+    // free); the ground bounce keeps a fixed warm hue. Magnitudes
+    // are hue-normalized so overall energy matches the old scalar.
+    let amb_h = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, a.h)
+        * (0.25 + 0.75 / (1.0 + 0.10 * tau_vert));
+    let sky_aer = vec3<f32>(
+        camera.light2_cone_inner.y,
+        camera.light2_cone_inner.z,
+        camera.light2_cone_inner.w,
+    );
+    let sky_peak = max(max(sky_aer.x, sky_aer.y), max(sky_aer.z, 1.0e-4));
+    // 12f ground bounce: bounce is ground albedo times the DOWNWELLING
+    // irradiance at the surface, which IS the cloud's own diffuse
+    // transmittance - a fixed warm 0.05 was 57-63% of the base
+    // radiance under a real overcast and inverted the chroma sign
+    // (measured: darkest decile R/B 1.377 vs brightest 1.187 - dark
+    // went WARMER; real thick cloud goes BLUER because only diffuse
+    // skylight remains). Scaling by the column transmittance restores
+    // both the sign and the luminance range.
+    let bounce_t = clamp(1.8 / (1.0 + 0.15 * tau_vert), 0.0, 1.0);
+    // Whitened sky hue: multiple scattering inside the medium
+    // desaturates the ambient - full-strength sky blue made thin
+    // columns read as open sky (round-2 gate4: 33k false-sky
+    // pixels). 0.55 keeps the blue TENDENCY (thick = bluer than
+    // warm) without cloud impersonating sky.
+    // Increment A4: blue is a 150-300 m surface phenomenon; deep interior
+    // is achromatic and lit by the solar diffuse field (e_ms), so the sky
+    // and bounce ambient fade with burial.
+    let sky_hue = mix(mix(vec3<f32>(1.0), sky_aer / sky_peak, 0.55), vec3<f32>(1.0), prof);
+    let amb_col = (sky_hue * amb_h
+        + vec3<f32>(0.98, 0.94, 0.88)
+            * (CLOUD_AMB_BOUNCE * (1.0 - a.h) * bounce_t)) * (1.0 - prof);
+
+    // Crevice occlusion (v0.1011): the puff cavity field darkens the
+    // sample - lobes shade individually even though the light march
+    // is far coarser than the lobe scale. Direct takes half the
+    // occlusion (crevices still catch some sun), ambient the full.
+    // Crown shading (v0.1014) and pouch shading (12f) arrive as the
+    // caller's terms (the field's relief on arm A, 1.0 on arm B).
+    var cav = (1.0 - CLOUD_PUFF_AO * a.cav_dc);
+    var ao = cav * a.crown_shade * a.pouch_shade;
+    // ── INTERIOR RELIEF FADE (v0.1279 experiment, dev pad bit 19) ──
+    // Relief is a surface phenomenon. `trans` here is the transmittance
+    // from the eye to THIS sample: 1 at the visible surface, ~0 one
+    // optical depth in. Deep samples are lit by diffuse multiple
+    // scattering and carry no lobe-relief shading; without this, an eye
+    // INSIDE a body sees the lobes around it painted as dark petals that
+    // converge at the nadir.
+    var relief_w = select(1.0, a.trans,
+        fract(camera.light7_color.w * 0.00000095367431640625) >= 0.5);
+    // Increment A4: relief is gated by BURIAL (world-space), never by
+    // eye transmittance - the bit-19 null showed the load-bearing
+    // samples sit at trans ~1 by construction.
+    relief_w = mix(relief_w, 1.0 - prof, g_ms_on);
+    ao = mix(1.0, ao, relief_w);
+    // ── SHADE ON THE REAL SURFACE: GROUNDWORK ONLY (v0.1233) ──
+    //
+    // The normal and seam ARE computed now (41-cloud-bodies.wgsl) and cost
+    // almost nothing, but the attempt to shade with them is NOT shipped:
+    // wiring them into ao turned every cloud into a dark silhouette and
+    // three separate retunes - gentler floor, gentler seam, NaN guards on
+    // both normalizes - each failed to bring the brightness back, which
+    // says the fault is in HOW the term enters the lighting rather than in
+    // its magnitude.
+    //
+    // The likely reason, for whoever picks this up: the normal is only
+    // meaningful within a rind of the surface. Deep inside a body the
+    // gradient direction is arbitrary, and those interior samples carry
+    // most of the accumulated weight - so an ao built from it is being
+    // applied hardest exactly where it means least. The next attempt should
+    // weight the term by surface proximity (g_v2_sdf_m is right there) and
+    // apply it to the AMBIENT only, never to direct, since a sky-view term
+    // is by definition about the sky.
+    //
+    // Shipping the groundwork unused rather than shipping a regression.
+    // Direct carries the SUN's colour; ambient carries the SKY's (the
+    // two-tone split above). Ambient magnitude rides the sun's
+    // luminance so total energy matches the old single-hue form.
+    // ── RADIATIVE-SMOOTHING CLAMP on direct (field-coherence
+    // rebuild, 2026-08-31) ── the cavity field (dc.y, puff noise)
+    // is sub-smoothing-scale structure in the sun channel, and real
+    // cloud-top radiance carries at most ~1.1-1.35x local contrast
+    // below ~300 m (Marshak 1995; the lobe-lattice audit measured
+    // ours at 5-11x cap-vs-crevice - the dot lattice). The BUILT
+    // path compresses cavity's bite on DIRECT from the 1.43x full
+    // swing to <= ~1.15x; the noise path keeps its calibrated
+    // half-strength (its look was tuned around it, and its body is
+    // not a distance field). Ambient keeps its 0.35 cavity: the
+    // bisect convicted the sun channel, not ambient. Envelope-scale
+    // terms (tau_vert, pouch, day) keep their FULL range - the
+    // clamp is scale-gated, never global, or the deck goes
+    // cardboard (the v0.1241 melted-blob rejection cuts both ways).
+    let cav_dir_w = mix(0.5, 0.12, a.s_v2_w);
+    let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), cav_dir_w);
+    // ── SMOOTH AMBIENT (v0.1252, the operator's "sandblasted" grain) ──
+    // The cavity noise (dc.y, puff-frequency) used to hit the AMBIENT
+    // at full strength while direct took half - backwards physically.
+    // Ambient skylight arriving inside a cloud is the most heavily
+    // multiple-scattered light there is: fine crevices are FILLED IN
+    // (that fill is why real cumulus read soft and luminous), and
+    // real ambient occlusion operates at LOBE scale, not noise scale.
+    // Per-sample cavity noise multiplying the ambient painted frozen
+    // salt-and-pepper over every converged surface - static no
+    // temporal filter could remove, because it is in the signal.
+    // Ambient keeps the coarse relief terms (crown, pouch) and 35%
+    // of the cavity; direct keeps its full half-strength cavity (the
+    // sunlit cauliflower texture is real).
+    // ── AMBIENT MUST NOT CARRY MIP-DEPENDENT RELIEF (v0.1266) ──
+    // crown_shade and pouch_shade are functions of `body`, which is a
+    // MIPPED texture sample - so they inherit the view footprint, and
+    // on a down-look the footprint is monotone in the angle from the
+    // nadir. On the CONSTRUCTED path they are already neutralised
+    // (ring_off, v0.1252.6); on the NOISE path they run at full
+    // strength - which is precisely where the operator still sees the
+    // last residue: "from high orbit... much more pronounced in the
+    // ambient light setting", on the full sheet rather than the voxel
+    // clouds.
+    //
+    // Physically the compression is right anyway, and this is the same
+    // argument that damped the cavity above: ambient skylight inside a
+    // cloud is the most heavily multiple-scattered light there is, so
+    // it cannot carry sharp relief structure. Direct keeps crown and
+    // pouch at full strength - the sunlit relief cue is real and is
+    // not view-dependent in the same way, because the sun path no
+    // longer reads the view footprint at all (v0.1264).
+    //
+    // NOT a global flattening: 0.35 keeps a third of the relief, so
+    // undersides and crowns still read, and the ELIMINATION that led
+    // here is recorded too - the carve MAGNITUDE was measured
+    // mip-invariant to 1% (carve_magnitude_fit), so tau_vert is not
+    // the carrier and needs no gain table.
+    let crown_amb = mix(1.0, a.crown_shade, 0.35 * relief_w);
+    let pouch_amb = mix(1.0, a.pouch_shade, 0.35 * relief_w);
+    let cav_amb = (1.0 - CLOUD_PUFF_AO * a.cav_dc * 0.35 * relief_w);
+    let ao_amb = cav_amb * crown_amb * pouch_amb;
+    let sun_lum = dot(a.sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
+
+    let c_i = material.base_color.rgb
+        * (a.sun_energy * (direct_lit * a.day)
+            + amb_col * (sun_lum * ao_amb * a.day)
+            + vec3<f32>(CLOUD_NIGHT_FLOOR));
+    // Rosette-bisect channels (v0.1249): the direct and ambient
+    // luminances, weighted by the caller exactly as the colour is.
+    let lum_w = vec3<f32>(0.2126, 0.7152, 0.0722);
+    return FrShade(
+        c_i,
+        dot(a.sun_energy * (direct_lit * a.day), lum_w),
+        dot(amb_col * (sun_lum * ao_amb * a.day), lum_w),
+        prof,
+    );
 }
 
 // map_diag channels 10 / 11 / 12: the profile share w_pf, the blended level
@@ -4563,11 +4870,29 @@ fn cloud_march_core(
     var fr_l_h = 1.0;
     var fr_l_v = 1.0;
     var fr_dz = 1.0;
+    // E1 lever 2: the element sizes the law is CALLED with. The vertical
+    // element is clamped up to one bin (l_v_eff = max(L_v, dz): the bake's
+    // f is per bin, so a ray crosses at most one element per bin
+    // vertically) and the horizontal element grows by the SAME factor.
+    // Expected crossings along a path s in a bin of height dz holding
+    // elements L_h x L_v at areal fraction f: n * A_proj * s = f * s *
+    // (c_v / dz + c_h * L_v / (L_h * dz)), because the ray is inside the
+    // thin layer for only L_v / dz of the bin's slant path. With l_h left
+    // at L_h the exponent was f * s * (c_v / dz + c_h / L_h): dz / L_v
+    // times too many horizontal crossings (4.13 for humilis, 2.48 for
+    // stratocumulus, 1 for every family whose L_v >= dz), so a 45 degree
+    // ray through f = 0.33 read alpha 0.65 where the law gives 0.43. Nadir
+    // (c_h = 0) and grazing (the chord tends to L_h either way) are
+    // unchanged. fr_l_v >= 1e-3 km * upkm by cloud_fr_elem_km: finite.
+    var fr_l_h_eff = 1.0;
+    var fr_l_v_eff = 1.0;
     if (knob != CLOUD_FR_KNOB_OFF) {
         let e_km = cloud_fr_elem_km(tc_ray, reg, slab_h / max(g_cloud_upkm, 1.0e-9));
         fr_l_h = e_km.x * g_cloud_upkm;
         fr_l_v = e_km.y * g_cloud_upkm;
         fr_dz = slab_h / f32(CLOUD_FR_NZ);
+        fr_l_v_eff = max(fr_l_v, fr_dz);
+        fr_l_h_eff = fr_l_h * (fr_l_v_eff / fr_l_v);
     }
     var trans = 1.0;
     var acc = vec3<f32>(0.0);
@@ -4607,6 +4932,18 @@ fn cloud_march_core(
     // law (the 928 m vertical ceiling, one bin per step) and no longer the
     // economy's 2x relaxation striding across the thin layer's bin.
     var w_pf_prev = 0.0;
+    // D4 (the band tap cost): the tap cache, per ray. The last tap's result
+    // and where it was taken: the sample direction, its height in bin
+    // units, its half-bin index and the requested level. The profile block
+    // in the loop reuses it while the sample stays in the same half-bin,
+    // at the same level and within a quarter cell horizontally, carrying
+    // the columns by their exact in-bin slope. Never touched at knob 0.
+    var pf_cache = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    var pf_have = false;
+    var pf_dir = vec3<f32>(0.0);
+    var pf_hz = 0.0;
+    var pf_hbin = -1;
+    var pf_lvl = -1;
     // Sample-anchored bookkeeping: the last sample position (the trapezoid
     // integrates from it) and the last CLEAR sample (the entry depth).
     var t_last = m0;
@@ -4844,27 +5181,94 @@ fn cloud_march_core(
         //     sdf_prev = the no-body sentinel so the step is the base law).
         //     That is where the orbit cost goes.
         // The transmittance takes the element law T_pf (A7) on the profile
-        // share and the sun / burial columns and the relief terms mix by w_pf
-        // (contract "March side (WGSL)").
-        var pf = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0);
+        // share; the lighting shades the field's arm and the profile's arm
+        // on their own optical depths and lerps the RADIANCE by the
+        // profile's share of the sample's alpha (E2, cloud_fr_shade).
+        var pf = ProfileTap(false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         var w_pf = 0.0;
         if (knob != CLOUD_FR_KNOB_OFF) {
+            // ── E1 lever 1: THE HAND-OFF READS THE PIXEL FOOTPRINT ──
+            // The share w_pf and the tap level come from the PIXEL footprint
+            // tm * pix_ang (the footprint the contract's band radii are
+            // computed from: 153 km slant at full res, 38 km at quarter),
+            // never from the dt-floored `foot` above. The noise mip keeps
+            // its floor (a coarse step wants a coarse mip); the hand-off
+            // must not: dt_vert = 928 m / cos(theta) put dt * 0.25 = 232 m /
+            // cos(theta) across the [-2, 0] band on every oblique ray at
+            // EVERY altitude, and the SDF clear-air stride and the
+            // iteration-cap tail did it at any angle, so the profile fired
+            // on samples the pixel never handed off (36 to 86 percent of the
+            // 40 to 90 degree pixels moved at the 30 and 60 km rungs, where
+            // G7 requires the whole frame bit-exact; the same trigger was
+            // E2's in-deck blackout at bm12). With the pixel law w = 0 on
+            // every sample below the band, so those rungs and bm12 are
+            // bit-exact against knob 0 by construction; in the 200 to 620
+            // km band the pixel term already won the max, nothing moves.
+            let lodb_pix = log2(max(tm * pix_ang / g_cloud_upkm, 1.0e-4));
             // The same dithered coordinate the v2 fade uses (cloud_carve).
-            let lodf = lodb + g_lod_jitter * 0.35;
-            // Normalized slab height of this sample: the contract's `h`. A
-            // later `let h` in this same scope holds the same value for the
-            // lighting block, hence the suffix here.
-            let h_pf = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
-            g_pf_sigma_v = sigma_v;
-            pf = cloud_profile_tap(dirp, h_pf, lodb, knob);
+            let lodf = lodb_pix + g_lod_jitter * 0.35;
+            var w_req = 0.0;
             if (knob >= CLOUD_FR_KNOB_FORCE0 && knob <= CLOUD_FR_KNOB_FORCE5) {
-                w_pf = 1.0;
+                w_req = 1.0;
             } else if (knob == CLOUD_FR_KNOB_HARD) {
-                w_pf = select(0.0, 1.0, lodf >= -1.0);
+                w_req = select(0.0, 1.0, lodf >= -1.0);
             } else {
-                w_pf = smoothstep(CLOUD_FR_LOD_LO, CLOUD_FR_LOD_HI, lodf);
+                w_req = smoothstep(CLOUD_FR_LOD_LO, CLOUD_FR_LOD_HI, lodf);
             }
-            w_pf = select(0.0, w_pf, pf.ok);
+            // ── D4: THE BAND TAP COST ── (1) no tap where the share is 0
+            // anyway: below the band that is every sample, and the tap's 4
+            // to 16 loads ran on each of them today (bm12 18.2 against 16.2
+            // ms). (2) Inside the band the last tap is REUSED along the ray
+            // while the sample stays in the same HALF-bin (the pair
+            // interpolation switches pairs at the half-bin, the column
+            // split at the bin), at the same requested level, and within a
+            // quarter of that level's cell horizontally (the chord of the
+            // unit directions, radians); the columns are carried to the new
+            // height by their exact in-bin slope (tau_above = sigma * dz *
+            // (C_kb + G_kb * frac_above) is linear in hz inside bin kb, slope
+            // -sigma * dz * G_kb), so tau_above / tau_below stay continuous
+            // inside the bin; f and G are held (they vary at cell scale).
+            // On the base-law comb (928 m per step against 483 m half-bins)
+            // every step re-fetches as today; the refine steps (tens of
+            // metres, inside and beside bodies) reuse 4 to 16 taps per fetch.
+            if (w_req > 0.0) {
+                // Normalized slab height of this sample: the contract's `h`.
+                // A later `let h` in this scope holds the same value for the
+                // lighting block, hence the suffix here.
+                let h_pf = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
+                let hz_pf = h_pf * f32(CLOUD_FR_NZ);
+                let hbin = i32(floor(hz_pf * 2.0));
+                var lv_req = clamp(lodb_pix - CLOUD_FR_LOD0, 0.0, f32(CLOUD_FR_LEVELS - 1));
+                if (knob >= CLOUD_FR_KNOB_FORCE0 && knob <= CLOUD_FR_KNOB_FORCE5) {
+                    lv_req = f32(knob - CLOUD_FR_KNOB_FORCE0);
+                }
+                let lvl = i32(floor(lv_req));
+                // A quarter of the requested level's cell in radians (the
+                // walk can only land COARSER than the request, and the
+                // global's cell is coarser still, so this is conservative).
+                let cell_q = 0.25 * CLOUD_FR_CELL0_KM * exp2(f32(lvl)) / max(material.params2.z, 1.0e-3);
+                let reuse = pf_have && hbin == pf_hbin && lvl == pf_lvl
+                    && length(dirp - pf_dir) < cell_q;
+                if (reuse) {
+                    pf = pf_cache;
+                    // The in-bin carry: hz grew by (hz_pf - pf_hz) bin units
+                    // since the fetch; the column above lost, the column
+                    // below gained, sigma * dz * G_kb per bin unit.
+                    let dtau = sigma_v * fr_dz * pf.G_kb * (hz_pf - pf_hz);
+                    pf.tau_above = max(pf.tau_above - dtau, 0.0);
+                    pf.tau_below = max(pf.tau_below + dtau, 0.0);
+                } else {
+                    g_pf_sigma_v = sigma_v;
+                    pf = cloud_profile_tap(dirp, h_pf, lodb_pix, knob);
+                    pf_cache = pf;
+                    pf_have = true;
+                    pf_dir = dirp;
+                    pf_hz = hz_pf;
+                    pf_hbin = hbin;
+                    pf_lvl = lvl;
+                }
+                w_pf = select(0.0, w_req, pf.ok);
+            }
         }
         // D2: publish this sample's share for the NEXT step's economy terms
         // (stays 0 at knob 0: the assignment is outside the knob branch but
@@ -4874,7 +5278,8 @@ fn cloud_march_core(
         let full = w_pf < 1.0 - 1.0e-4;
         // The profile share's in-cloud columns (optical depths above and
         // below the sample INSIDE the cloud fraction, capped at the slab):
-        // computed with the share so the lighting block can mix them in.
+        // arm B's columns in the E2 radiance blend (never mixed into the
+        // field's own).
         var tau_above_in = 0.0;
         var tau_below_in = 0.0;
         var D_in_pf = 0.0;
@@ -5142,10 +5547,33 @@ fn cloud_march_core(
         // plain mean would give exp(-157): the white-veil class.
         let seg_used = select(dt, seg_len, est);
         var a_i = 1.0 - exp(-sigma_v * dens_i * seg_used);
+        // ── E2: THE PROFILE'S SHARE OF THIS SAMPLE'S ALPHA, w_l ──
+        // a_i = a_full + a_prof exactly (a_full = the field's own opacity
+        // on its 1 - w share, a_prof = what the element law adds behind
+        // it), so w_l = a_prof / (a_full + a_prof) is the fraction of the
+        // alpha the profile owns: the weight that lerps the two shading arms
+        // below (see cloud_fr_shade). Its range, stated honestly: in clear
+        // air (dens_i near 0) a_full is near 0 and w_l goes to 1 even at
+        // w_pf = 0.01, so the thin parts of the band are shaded by the
+        // profile's arm outright; in opaque fog (bm12, a_full near 1) it
+        // stays small and the field's arm keeps the deck, which is what
+        // un-blacks it. 0 at knob 0 (the branch is never entered), 1 at
+        // w = 1 (the field did not run: no a_full).
+        var w_l = 0.0;
         if (w_pf > 0.0) {
             let c_v = abs(dot(rd, dirp));
-            let t_pf = cloud_fr_t_pf(w_pf, pf.f, D_in_pf, sigma_v, fr_l_h, max(fr_l_v, fr_dz), c_v, seg_used);
-            a_i = 1.0 - exp(-sigma_v * dens_i * seg_used * (1.0 - w_pf)) * t_pf;
+            // E1 lever 2: the law is called with the SCALED element pair
+            // (fr_l_h_eff, fr_l_v_eff), see the per-ray block above.
+            let t_pf = cloud_fr_t_pf(w_pf, pf.f, D_in_pf, sigma_v, fr_l_h_eff, fr_l_v_eff, c_v, seg_used);
+            let e_full = exp(-sigma_v * dens_i * seg_used * (1.0 - w_pf));
+            a_i = 1.0 - e_full * t_pf;
+            if (full) {
+                let a_full = 1.0 - e_full;
+                let a_prof = (1.0 - t_pf) * e_full;
+                w_l = a_prof / max(a_full + a_prof, 1.0e-6);
+            } else {
+                w_l = 1.0;
+            }
         }
         if (first_t < 0.0) {
             first_t = tm;
@@ -5159,6 +5587,9 @@ fn cloud_march_core(
         // The column above and below this sample, from the cloud's OWN top
         // (g_cloud_coltop) and the band base, at the envelope density; on the
         // built path also the signed distance inside the body.
+        // E2: these are ARM A's (the field's own) optical depths. Nothing
+        // mixes the profile's columns into them any more; arm B takes
+        // tau_above_in / tau_below_in directly (cloud_fr_shade below).
         let h_a1 = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
         let slab_a1 = g_cloud_rt - g_cloud_rb;
         let col_above = max(g_cloud_coltop - h_a1, 0.0) * slab_a1;
@@ -5171,33 +5602,30 @@ fn cloud_march_core(
             * select(0.0, 1.0, g_v2_sdf_m < 0.0);
         let col_above_b = max(g_v2_top_m - g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
         let col_below_b = max(g_v2_up_m, 0.0) * 0.001 * g_cloud_upkm;
-        var tau_above = sigma_v * mix(s_carve * col_above,
+        let tau_above = sigma_v * mix(s_carve * col_above,
             max(s_carve * col_above, g_v2_int_dens * col_above_b), sat_a1);
-        var tau_below = sigma_v * mix(s_carve * col_below,
+        let tau_below = sigma_v * mix(s_carve * col_below,
             max(s_carve * col_below, g_v2_int_dens * col_below_b), sat_a1);
-        var tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
-        // ── THE PROFILE SHARE'S BURIAL (increment 4) ── the columns above
-        // and below mix toward the profile's IN-CLOUD columns by w_pf (the
-        // share renders f of thick cloud plus 1 - f of clear, so the burial
-        // of the cloud part is the in-cloud column, never the plain mean
-        // that lit a thin haze and read dark: the v0.1233 mismatch); the
-        // body-depth term belongs to the full field only.
-        if (w_pf > 0.0) {
-            tau_above = mix(tau_above, tau_above_in, w_pf);
-            tau_below = mix(tau_below, tau_below_in, w_pf);
-            tau_built = tau_built * (1.0 - w_pf);
-        }
+        let tau_built = sigma_v * max(-g_v2_sdf_m, 0.0) * 0.001 * g_cloud_upkm;
+        // E2 hygiene: g_sun_tau_col is the FIELD's own column (arm A), never
+        // a mixed value. The shipped mix assigned it AFTER mixing the
+        // profile's in-cloud column into tau_above, and it re-entered the
+        // sun ladder unscaled by w_pf through max(tau, g_sun_tau_col) and
+        // the w_split blend inside cloud_sun_tau (the fourth consumer the
+        // E2 diagnosis missed). At w = 1 the ladder never runs and this
+        // value is unread.
         g_sun_tau_col = tau_above / max(ndl, 0.15);
         g_ms_on = select(0.0, 1.0, fract(camera.light7_color.w * 0.000000238418579101562 * 0.5) >= 0.5);
 
         // Light march toward the sun + Beer-powder edge darkening. The
         // first two taps see the same eroded density this view sample does
         // (clouds depth increment), so lobes self-shadow.
-        // Increment 4: the ladder / cache runs on the full-field share only;
-        // the profile share takes the analytic slant column of its in-cloud
-        // depth above (tau_pf = tau_above_in / ndl, the same column the march
-        // already uses beyond the sun windows), mixed by w_pf. At w_pf = 1
-        // the ladder never ran, which is where the orbit cost goes.
+        // Increment 4: the ladder / cache runs on the full-field share only
+        // (arm A's sun depth); the profile share takes the analytic slant
+        // column of its in-cloud depth above (tau_pf, arm B's). At w_pf = 1
+        // the ladder never ran, which is where the orbit cost goes. E2: the
+        // two are never mixed; each arm is shaded on its own and the
+        // radiance is blended.
         var tau = 0.0;
         if (full) {
             g_deep_sample = select(0.0, 1.0, trans < 0.5);
@@ -5219,141 +5647,33 @@ fn cloud_march_core(
                 g_v2_top_m = s_top;
             }
         }
-        if (w_pf > 0.0) {
-            let tau_pf = tau_above_in / max(ndl, 0.15);
-            tau = mix(tau, tau_pf, w_pf);
-        }
-        // BEER-POWDER, capped on the CONSTRUCTED path (2026-08-25).
-        // At a thin edge tau -> 0 so this returns 1 - 0.92 = 0.08: a
-        // 12.5x darkening. Measured on the operator capture, that put
-        // the cloud rim at 0.71x the luminance of the SKY BEHIND IT -
-        // physically impossible for a conservative scatterer (droplet
-        // single-scatter albedo > 0.9999). It is also double-counted:
-        // cloud_scatter_energy already evaluates the dual-lobe HG phase
-        // per octave AND carries a two-stream diffusion floor, which is
-        // the multiple-scattering behaviour powder is an ad-hoc stand-in
-        // for. The noise path keeps it (its look is calibrated around
-        // it); the constructed path floors it so an edge can never go
-        // darker than the sky it is seen against.
-        let powder_raw = 1.0 - CLOUD_POWDER_STRENGTH * exp(-2.0 * tau);
-        // Beer-powder DELETED for the constructed path (v0.1231). Cloud
-        // droplets have a single-scatter albedo above 0.9999 - they scatter
-        // essentially every photon they receive - so a cloud edge physically
-        // CANNOT be darker than the sky behind it. Ours measured 0.71x, which
-        // read as grey mush exactly where a real cloud is at its brightest and
-        // most translucent. It is also double-counted: cloud_scatter_energy
-        // already evaluates the dual-lobe phase per octave AND carries a
-        // two-stream diffusion floor, which is the multiple scattering that
-        // powder is an ad-hoc stand-in for. The noise path keeps it, its look
-        // being calibrated around it.
-        let powder = select(powder_raw, 1.0, material.params.y >= 2.5);
-        let pw = mix(powder, 1.0, powder_gate);
+        // Arm B's sun depth: the analytic slant column of the profile's
+        // in-cloud depth above (the same column the march already uses
+        // beyond the sun windows). 0 when w_pf = 0 (tau_above_in is 0 then;
+        // arm B does not run).
+        let tau_pf = tau_above_in / max(ndl, 0.15);
         let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
         // 12f: the VERTICAL column depth above this sample (plane-
         // parallel estimate from the local density and the column's own
         // band top) - what the diffusion floor and ambient shaper are
-        // physically governed by. Driving them with the slant SUN path
-        // double-counted obliquity (~1.5x too dark at mid sun) and read
-        // relief kilometres sideways from where the eye sees it.
+        // physically governed by. v0.1252: column depth from the smooth
+        // carve ENVELOPE, not the post-erosion point density (see
+        // g_cloud_carve's note - the sandblast-stipple fix; magnitude stays
+        // right because the carve IS the interior density the erosion
+        // ratio renormalizes against). Arm A's; arm B's envelope column is
+        // its in-cloud column tau_above_in.
         let slab_h_d = g_cloud_rt - g_cloud_rb;
-        // v0.1252: column depth from the smooth carve ENVELOPE, not the
-        // post-erosion point density (see g_cloud_carve's note - this is
-        // the sandblast-stipple fix; magnitude stays right because the
-        // carve IS the interior density the erosion ratio renormalizes
-        // against).
-        // Increment A: the column above the sample is the cloud's own column
-        // (tau_above), not the regime band top 4 km up - the 10x overstatement
-        // that made every ambient term FALL with extinction.
-        // Increment 4: the envelope form (in-cloud light off) mixes toward
-        // the profile's in-cloud column by w_pf; the increment-A form reads
-        // tau_above, which is already mixed.
-        var tau_vert_env = sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d;
-        if (w_pf > 0.0) {
-            tau_vert_env = mix(tau_vert_env, tau_above_in, w_pf);
-        }
-        let tau_vert = select(tau_vert_env, tau_above, g_ms_on > 0.5);
-        // A1 burial profile: 0 at the surface, 1 one transport MFP in.
-        // Burial is the column AROUND the sample (above and below at the
-        // envelope density), or the depth inside a built body. NOT the sun
-        // rung tau: in a thin-skirted top the first 87 m toward the sun are
-        // nearly clear while the sample sits hundreds of metres inside the
-        // medium, and the first cut gated the source off exactly there
-        // (bm-12 masked mean 45 -> 51 instead of the predicted 135+).
-        let tau_col = min(tau_above, tau_below);
-        let tau_min = max(tau_col, tau_built * s_v2_w);
-        let prof = smoothstep(1.0, 4.0, tau_min) * g_ms_on;
-        g_ms_prof = prof;
-        // A4: powder is a rind effect.
-        let pw_a = mix(pw, 1.0, prof);
-        // A3: the in-scattered source. c = +1 when the eye looks DOWN at
-        // this sample (light travelling up), mu_s the sun cosine.
-        let ms_gain = select(1.0, camera.light5_color.z, camera.light5_color.z > 0.0);
-        let e_ms = cloud_ms_source(tau_above, tau_below, dot(-rd, dirp), ndl, prof) * ms_gain;
-        let direct = cloud_scatter_energy(tau, cos_vs, tau_vert) * pw_a + e_ms;
-
-        // Ambient skylight (clouds depth increment): height across the slab
-        // picks the base value (tops see the sky dome), then the VERTICAL
-        // column depth attenuates it (12f - the old exp(-tau_sun * 0.12)
-        // was shaped for tau 0-10 and moved 3% across a real overcast's
-        // tau 33-49: numerically dead). Plus a GROUND BOUNCE term: real
-        // cloud bases over land/ocean are lit from below by surface-
-        // reflected sunlight - the cue that keeps undersides readable
-        // instead of uniformly mud-grey.
-        // TWO-TONE ambient (phase 5 lighting, fidelity finding 4): the
-        // strongest photographic cloud cue is CHROMATIC - sunlit faces
-        // warm, shadowed faces and bases BLUE (lit by the sky dome),
-        // undersides warm-grey from ground bounce. The old scalar amb
-        // multiplied the sun's own colour, so shadow and light differed
-        // only in brightness. The sky term now takes its HUE from the
-        // aerial sky colour (light2_cone_inner.yzw - the same
-        // transmittance-tinted, weather-tinted, day-faded sky the haze
-        // uses, so dusk ambient goes orange and night goes dark for
-        // free); the ground bounce keeps a fixed warm hue. Magnitudes
-        // are hue-normalized so overall energy matches the old scalar.
-        let amb_h = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h)
-            * (0.25 + 0.75 / (1.0 + 0.10 * tau_vert));
-        let sky_aer = vec3<f32>(
-            camera.light2_cone_inner.y,
-            camera.light2_cone_inner.z,
-            camera.light2_cone_inner.w,
-        );
-        let sky_peak = max(max(sky_aer.x, sky_aer.y), max(sky_aer.z, 1.0e-4));
-        // 12f ground bounce: bounce is ground albedo times the DOWNWELLING
-        // irradiance at the surface, which IS the cloud's own diffuse
-        // transmittance - a fixed warm 0.05 was 57-63% of the base
-        // radiance under a real overcast and inverted the chroma sign
-        // (measured: darkest decile R/B 1.377 vs brightest 1.187 - dark
-        // went WARMER; real thick cloud goes BLUER because only diffuse
-        // skylight remains). Scaling by the column transmittance restores
-        // both the sign and the luminance range.
-        let bounce_t = clamp(1.8 / (1.0 + 0.15 * tau_vert), 0.0, 1.0);
-        // Whitened sky hue: multiple scattering inside the medium
-        // desaturates the ambient - full-strength sky blue made thin
-        // columns read as open sky (round-2 gate4: 33k false-sky
-        // pixels). 0.55 keeps the blue TENDENCY (thick = bluer than
-        // warm) without cloud impersonating sky.
-        // Increment A4: blue is a 150-300 m surface phenomenon; deep interior
-        // is achromatic and lit by the solar diffuse field (e_ms), so the sky
-        // and bounce ambient fade with burial.
-        let sky_hue = mix(mix(vec3<f32>(1.0), sky_aer / sky_peak, 0.55), vec3<f32>(1.0), prof);
-        let amb_col = (sky_hue * amb_h
-            + vec3<f32>(0.98, 0.94, 0.88)
-                * (CLOUD_AMB_BOUNCE * (1.0 - h) * bounce_t)) * (1.0 - prof);
-
-        // Crevice occlusion (v0.1011): the puff cavity field darkens the
-        // sample - lobes shade individually even though the light march
-        // is far coarser than the lobe scale. Direct takes half the
-        // occlusion (crevices still catch some sun), ambient the full.
-        // Crown shading (v0.1014): samples near their own column's domed
-        // crown catch extra sky, samples deep in the fold between domes
-        // sit in valley shade - the from-above relief cue that survives
-        // even a zenith sun.
-        // Regime-aware floor (v0.1021, watch item "cirrus possibly
-        // grayer"): thin families' samples sit LOW in their bands (small
-        // crown fraction), so a fixed 0.70 floor grayed cirrus veils that
-        // should stay bright. Faint regimes get a gentler valley shade.
+        let tau_vert_env = sigma_v * s_carve * max(s_btop - h, 0.0) * slab_h_d;
+        // The field's relief terms (arm A). Crown shading (v0.1014): samples
+        // near their own column's domed crown catch extra sky, samples deep
+        // in the fold between domes sit in valley shade - the from-above
+        // relief cue that survives even a zenith sun. Regime-aware floor
+        // (v0.1021, watch item "cirrus possibly grayer"): thin families'
+        // samples sit LOW in their bands (small crown fraction), so a fixed
+        // 0.70 floor grayed cirrus veils that should stay bright. Faint
+        // regimes get a gentler valley shade.
         let crown_floor = mix(0.88, 0.62, reg.opacity);
-        var crown_shade = mix(crown_floor, 1.12, dc.z);
+        let crown_shade = mix(crown_floor, 1.12, dc.z);
         // 12f pouch shading: the from-below twin of the crown term. A
         // column whose own base hangs low (pouch -> 1) has more cloud
         // directly above its base and a smaller sky-view solid angle from
@@ -5361,132 +5681,46 @@ fn cloud_march_core(
         // Weighted toward the band bottom so tops are untouched.
         let vband = clamp(
             1.0 - (h - reg.h_lo) / max(s_btop - reg.h_lo, 1.0e-4), 0.0, 1.0);
-        var pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
-        // ── RELIEF ON THE PROFILE SHARE (increment 4) ── the crown, pouch
-        // and cavity terms are surface relief of the marched field; the
-        // profile share has no surface, so they mix toward 1.0 by w_pf and
-        // the share renders f of bright thick cloud plus 1 - f of clear (the
-        // brightness-equal condition).
-        var cav = (1.0 - CLOUD_PUFF_AO * dc.y);
-        if (w_pf > 0.0) {
-            crown_shade = mix(crown_shade, 1.0, w_pf);
-            pouch_shade = mix(pouch_shade, 1.0, w_pf);
-            cav = mix(cav, 1.0, w_pf);
+        let pouch_shade = mix(1.0, 0.72, s_pouch * vband * vband);
+        // ── E2: THE RADIANCE-SPACE BLEND ── arm A (the field: its ladder
+        // tau, its columns, its body depth, its envelope column, its relief,
+        // its built weight) when the field owns any of the alpha; arm B (the
+        // profile: tau_pf, the in-cloud columns, no body depth, the in-cloud
+        // column as the envelope, relief neutral, built weight 0, exactly
+        // the shipped w = 1 path) when the profile owns any; the RESULTING
+        // radiance and the three diag luminances lerped by w_l. Knob 0:
+        // w_l = 0, arm A alone, the shipped expressions. Cost: the second
+        // arm only inside the band.
+        var sh = FrShade(vec3<f32>(0.0), 0.0, 0.0, 0.0);
+        if (w_l < 1.0) {
+            sh = cloud_fr_shade(FrShadeIn(
+                tau, tau_above, tau_below, tau_built, tau_vert_env,
+                crown_shade, pouch_shade, dc.y, s_v2_w,
+                h, ndl, day, cos_vs, powder_gate, trans, rd, dirp, sun_energy));
         }
-        var ao = cav * crown_shade * pouch_shade;
-        // ── INTERIOR RELIEF FADE (v0.1279 experiment, dev pad bit 19) ──
-        // Relief is a surface phenomenon. `trans` here is the transmittance
-        // from the eye to THIS sample: 1 at the visible surface, ~0 one
-        // optical depth in. Deep samples are lit by diffuse multiple
-        // scattering and carry no lobe-relief shading; without this, an eye
-        // INSIDE a body sees the lobes around it painted as dark petals that
-        // converge at the nadir.
-        var relief_w = select(1.0, trans,
-            fract(camera.light7_color.w * 0.00000095367431640625) >= 0.5);
-        // Increment A4: relief is gated by BURIAL (world-space), never by
-        // eye transmittance - the bit-19 null showed the load-bearing
-        // samples sit at trans ~1 by construction.
-        relief_w = mix(relief_w, 1.0 - prof, g_ms_on);
-        ao = mix(1.0, ao, relief_w);
-        // ── SHADE ON THE REAL SURFACE: GROUNDWORK ONLY (v0.1233) ──
-        //
-        // The normal and seam ARE computed now (41-cloud-bodies.wgsl) and cost
-        // almost nothing, but the attempt to shade with them is NOT shipped:
-        // wiring them into ao turned every cloud into a dark silhouette and
-        // three separate retunes - gentler floor, gentler seam, NaN guards on
-        // both normalizes - each failed to bring the brightness back, which
-        // says the fault is in HOW the term enters the lighting rather than in
-        // its magnitude.
-        //
-        // The likely reason, for whoever picks this up: the normal is only
-        // meaningful within a rind of the surface. Deep inside a body the
-        // gradient direction is arbitrary, and those interior samples carry
-        // most of the accumulated weight - so an ao built from it is being
-        // applied hardest exactly where it means least. The next attempt should
-        // weight the term by surface proximity (g_v2_sdf_m is right there) and
-        // apply it to the AMBIENT only, never to direct, since a sky-view term
-        // is by definition about the sky.
-        //
-        // Shipping the groundwork unused rather than shipping a regression.
-        // Direct carries the SUN's colour; ambient carries the SKY's (the
-        // two-tone split above). Ambient magnitude rides the sun's
-        // luminance so total energy matches the old single-hue form.
-        // ── RADIATIVE-SMOOTHING CLAMP on direct (field-coherence
-        // rebuild, 2026-08-31) ── the cavity field (dc.y, puff noise)
-        // is sub-smoothing-scale structure in the sun channel, and real
-        // cloud-top radiance carries at most ~1.1-1.35x local contrast
-        // below ~300 m (Marshak 1995; the lobe-lattice audit measured
-        // ours at 5-11x cap-vs-crevice - the dot lattice). The BUILT
-        // path compresses cavity's bite on DIRECT from the 1.43x full
-        // swing to <= ~1.15x; the noise path keeps its calibrated
-        // half-strength (its look was tuned around it, and its body is
-        // not a distance field). Ambient keeps its 0.35 cavity: the
-        // bisect convicted the sun channel, not ambient. Envelope-scale
-        // terms (tau_vert, pouch, day) keep their FULL range - the
-        // clamp is scale-gated, never global, or the deck goes
-        // cardboard (the v0.1241 melted-blob rejection cuts both ways).
-        let cav_dir_w = mix(0.5, 0.12, s_v2_w);
-        let direct_lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), cav_dir_w);
-        // ── SMOOTH AMBIENT (v0.1252, the operator's "sandblasted" grain) ──
-        // The cavity noise (dc.y, puff-frequency) used to hit the AMBIENT
-        // at full strength while direct took half - backwards physically.
-        // Ambient skylight arriving inside a cloud is the most heavily
-        // multiple-scattered light there is: fine crevices are FILLED IN
-        // (that fill is why real cumulus read soft and luminous), and
-        // real ambient occlusion operates at LOBE scale, not noise scale.
-        // Per-sample cavity noise multiplying the ambient painted frozen
-        // salt-and-pepper over every converged surface - static no
-        // temporal filter could remove, because it is in the signal.
-        // Ambient keeps the coarse relief terms (crown, pouch) and 35%
-        // of the cavity; direct keeps its full half-strength cavity (the
-        // sunlit cauliflower texture is real).
-        // ── AMBIENT MUST NOT CARRY MIP-DEPENDENT RELIEF (v0.1266) ──
-        // crown_shade and pouch_shade are functions of `body`, which is a
-        // MIPPED texture sample - so they inherit the view footprint, and
-        // on a down-look the footprint is monotone in the angle from the
-        // nadir. On the CONSTRUCTED path they are already neutralised
-        // (ring_off, v0.1252.6); on the NOISE path they run at full
-        // strength - which is precisely where the operator still sees the
-        // last residue: "from high orbit... much more pronounced in the
-        // ambient light setting", on the full sheet rather than the voxel
-        // clouds.
-        //
-        // Physically the compression is right anyway, and this is the same
-        // argument that damped the cavity above: ambient skylight inside a
-        // cloud is the most heavily multiple-scattered light there is, so
-        // it cannot carry sharp relief structure. Direct keeps crown and
-        // pouch at full strength - the sunlit relief cue is real and is
-        // not view-dependent in the same way, because the sun path no
-        // longer reads the view footprint at all (v0.1264).
-        //
-        // NOT a global flattening: 0.35 keeps a third of the relief, so
-        // undersides and crowns still read, and the ELIMINATION that led
-        // here is recorded too - the carve MAGNITUDE was measured
-        // mip-invariant to 1% (carve_magnitude_fit), so tau_vert is not
-        // the carrier and needs no gain table.
-        let crown_amb = mix(1.0, crown_shade, 0.35 * relief_w);
-        let pouch_amb = mix(1.0, pouch_shade, 0.35 * relief_w);
-        var cav_amb = (1.0 - CLOUD_PUFF_AO * dc.y * 0.35 * relief_w);
-        if (w_pf > 0.0) {
-            cav_amb = mix(cav_amb, 1.0, w_pf);
+        if (w_l > 0.0) {
+            let shb = cloud_fr_shade(FrShadeIn(
+                tau_pf, tau_above_in, tau_below_in, 0.0, tau_above_in,
+                1.0, 1.0, 0.0, 0.0,
+                h, ndl, day, cos_vs, powder_gate, trans, rd, dirp, sun_energy));
+            if (w_l >= 1.0) {
+                sh = shb;
+            } else {
+                sh = FrShade(
+                    mix(sh.c, shb.c, w_l),
+                    mix(sh.sun_l, shb.sun_l, w_l),
+                    mix(sh.amb_l, shb.amb_l, w_l),
+                    mix(sh.prof, shb.prof, w_l));
+            }
         }
-        let ao_amb = cav_amb * crown_amb * pouch_amb;
-        let sun_lum = dot(sun_energy, vec3<f32>(0.2126, 0.7152, 0.0722));
-
-        let c_i = material.base_color.rgb
-            * (sun_energy * (direct_lit * day)
-                + amb_col * (sun_lum * ao_amb * day)
-                + vec3<f32>(CLOUD_NIGHT_FLOOR));
+        let c_i = sh.c;
         acc = acc + c_i * (trans * a_i);
         acc_w = acc_w + trans * a_i;
         // Rosette-bisect channels (v0.1249): same weights as acc.
-        let lum_w = vec3<f32>(0.2126, 0.7152, 0.0722);
-        g_march_sun_acc = g_march_sun_acc
-            + dot(sun_energy * (direct_lit * day), lum_w) * (trans * a_i);
-        g_march_amb_acc = g_march_amb_acc
-            + dot(amb_col * (sun_lum * ao_amb * day), lum_w) * (trans * a_i);
+        g_march_sun_acc = g_march_sun_acc + sh.sun_l * (trans * a_i);
+        g_march_amb_acc = g_march_amb_acc + sh.amb_l * (trans * a_i);
         acc_d = acc_d + tm * (trans * a_i);
-        g_march_prof_acc = g_march_prof_acc + prof * (trans * a_i);
+        g_march_prof_acc = g_march_prof_acc + sh.prof * (trans * a_i);
         // map_diag 9 (increment 1): which sun source lit this sample.
         g_march_src_acc = g_march_src_acc + g_light_src * (trans * a_i);
         // map_diag 10 / 11 / 12 (increment 4, A17): the profile share, the
