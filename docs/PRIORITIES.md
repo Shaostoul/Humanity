@@ -1,5 +1,104 @@
 # HumanityOS: Priorities
 
+> **v0.1293 (2026-09-06): FAR RUNG 4b, three G0 defects fixed and two more
+> found by G1..G7; the default stays off.** Two panels of readers and
+> critics on the v0.1292.1 captures, then a two-implementer workflow with
+> critics and repairs, merged serially and shipped after the full static
+> bar.
+>
+> FIXED (4b). D1, the window-edge steps: the level walk collapsed onto one
+> level for every sample outside the finest CONTAINED window (at 873 km
+> everything outside level 2's 255 km window), so each window's edge band
+> handed to the GLOBAL map (a different estimator, 15 to 38 percent more
+> coverage on the same ground) and printed as a bright strip and a step; the
+> critic verified the rectangle geometry on four rims to within 5 px. Fix:
+> re-walk from La + 1 so the band hands to the next containing level (the
+> contract had specified the collapse; it is amended). D2, the in-window
+> grain: the reader's atlas-variance story was REFUTED by a control on disk
+> (at a forced level, with identical atlas cells, the tiny-component census
+> fell 2566 to 108 with the step economy off): the deep relaxation strode
+> across the thin layer's bin in the profile share. Fix: the profile share
+> is exempt from the relaxation and the footprint floor (scaled by
+> 1 - w_pf_prev). D3, the marched field empties from above: CONFIRMED and
+> deeper than diagnosed: the built layer is based at the SLAB BASE, the
+> march's final sample lands exactly on that base plane where density is 0,
+> and the vertical reject leaves the SDF at its sentinel so the stride is
+> inert from above; only one comb sample per ray can find a humilis (hit
+> probability h / 928 = 0.11 to 0.22) at EVERY altitude, and the found ones
+> are skimmed by the economy floors. The reader's fix was broken four ways
+> (a bound that omitted br, a top read polluted by the sun ladder, ungated
+> effects, a gate whose reference arm rendered nothing under the 224 cap).
+> Fix, corrected: the vertical gap to the ADMITTED region as the SDF lower
+> bound and the in-cloud floor at a quarter of the found cloud's height from
+> a snapshotted top, behind flags-pad bit 12 (F10 "Built-body top bound",
+> ipc `cloud_top_bound`, default off) with a rebuilt gate (a uniform 60 m
+> reference at eco 0, full-res masks at 250 and 60 km, a VOID condition:
+> prod must sit more than 4 points below ref).
+>
+> FOUND BY G1..G7 (open, panel in flight): E1 OVER-COVERAGE wherever the
+> profile has weight: the descent ladder's coverage climbs from 50 percent
+> at 620 km to 97 at 200 km (the hand-off band), forced level 0 at 60 km
+> paints 67 to 100 percent against 3 to 44 marched, the adjacent-rung IoU
+> sits at 0.4 to 0.9 against 0.97, the profile over-covers High by 10 points
+> at orbit (44 vs 34), and the reference-vs-analytic dumps disagree on f by
+> 0.12 to 0.17 while agreeing on G (the reference samples two heights per
+> bin and under-counts thin clouds, so which f is right is open). In the
+> band the frame fills with a pale veil at a weight of 0.15. E2 THE IN-DECK
+> BLACKOUT: operator-bm12 (inside the deck) renders mean luminance 23
+> against 109 with the profile on, where w is about 0.007: the lighting
+> mixes OPTICAL DEPTH linearly, so a huge analytic column times a tiny
+> weight dominates the ladder. Rain-26km +11 levels, mid-alt 26 percent of
+> pixels moved. Also: D4 the band costs more than either side (the march
+> runs the full field AND the taps: 60 km r1 131 -> 204 ms, r4 5.5 -> 16.4;
+> in-deck twins +8 to +20 percent; horizon views cheaper) and D5 the bake
+> runs 9 to 18 ms per frame at 3 to 4 fps because the time-based cadence
+> bakes a fraction per SECOND (per frame it scales with frame time; the
+> contract's figures assumed 60 fps). Passed: G6 at orbit (22.0 vs High
+> 25.6 ms r1; 1.49 vs 1.96 r4), G0(b/c/e), G0(d) statistically (pixel-exact
+> outside the coin-flip regime). Rig lessons: every map_diag channel leaves
+> through the sRGB swapchain (ratios must decode; raw bytes read
+> L + r(6 - L)); a HARD twin of channel 10 makes the band excess a pure
+> same-pixel ratio; the reference bake at 30 m steps overruns the 224 cap.
+>
+> GATES ON v0.1293.1: 4b gates on v0.1293.1 (sweeps 20260906-0351 to -0357). G0(d): knob 0
+> statistically identical to v0.1292.1 (bm12 max 2, the closeup 0.14 percent
+> above 8 against its 0.34 floor, the 60 km humilis nadir 11.3 percent with
+> identical mean 171.2 and white 7.6: the coin-flip regime again). D1: the
+> decoded cardinal instrument on the auto level map reads a max bin step of
+> 0.507 level (bar 0.5; before the re-walk the same south line read 1.567):
+> the global hand-off is gone, one bin pair sits at the bar. D2: the orbit
+> mask census is UNCHANGED (10317 tiny components vs 9996; High 122), so the
+> economy's relaxation was not the orbit grain's carrier; the s60/s120
+> fixed-step pair proves A7 (mask IoU 0.986, coverage 68.4 vs 69.3) while
+> their LIGHTING differs (white 18 vs 34 percent): the shading, not the
+> transmittance, is step-dependent. D3: NULL at 250 km (prod 4.25 percent,
+> ref 8.55, fix 4.36 inside the cap-valid disc), NEGATIVE at 60 km (prod
+> 7.11, ref 8.35, fix 4.62; the fixture is void there by its own rule since
+> prod sits within 4 points of ref) and +66 percent cost at 250 km (62 to
+> 103 ms); the look-40 pair loses 13.6 percent of the mask in 3440 tiny
+> blobs: coin flips re-rolled. A read-only diagnosis of the null is in
+> flight. THE REFERENCE MARCH ITSELF is the finding of the night: a uniform
+> 60 m march of the built field at 250 km reads 8.55 percent coverage at
+> the 0.216 threshold where the profile's f claims 25 to 30 percent and
+> High 31: the bake's f (area with density above 0.02, the rind's faint
+> skin, unioned over four heights) is several times the OPAQUE area the
+> mask counts, which is E1's core and the 4d item. E2 check: bm12 in-deck
+> with the profile on reads 68.9 (before 23.3, off 109.5): 4b's D1/D2 moved
+> it, 4c's radiance blend is the fix. COST: the D2 exemption's foot_floor
+> scaling re-enables the fine interior floors in the band's marched share:
+> 200 km 186 to 260 ms, 310 km 117 to 420 ms at knob 1 (knob 0 untouched);
+> the foot_floor half of D2 reverts in 4c, the relaxation half stays.
+>
+> NEXT, in order:
+> 1. **4c**: E1 and E2 from the second panel, D4 (reuse the tap along the
+>    ray, skip it where w would be 0), D5 (cap the bake rows per frame so the
+>    cost is bounded by frame, not by second); then the full G0..G7 again;
+>    flip the default when G1..G6 pass; then delete `CLOUD_V2_FADE_LO/HI`.
+> 2. **F5, the stride over the noise sheet**, in `cloud_march_core`.
+> 3. The look ("still kinda look like spheres"), the per-cell cluster table
+>    (the 36.8 km class), the horizon rung (the 5 m sunset), increment 5,
+>    cloud layering, the planet pass arc.
+
 > **v0.1292 (2026-09-06): THE FAR RUNG MERGED (perf arc increment 4), knob
 > 0 until its gates pass.** Both halves of `docs/design/cloud-far-rung.md`
 > v2, built in separate worktrees on the A17 stub by the relaunched
