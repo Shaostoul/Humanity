@@ -1292,6 +1292,15 @@ pub const CLOUD_FR_REFRESH_ROWS_MAX: u32 = CLOUD_FR_FILL_ROWS / 4;
 /// 6144-wide, 128-row bake on every frame) and now takes 8 (32 s for the
 /// fast pass at that frame rate, bounded per frame). Rust-only.
 pub const CLOUD_FR_GLOBAL_ROWS_MAX: u32 = 8;
+/// D5, the fast pass exception: the FIRST global pass (and every
+/// re-referenced one) has to COMPLETE inside a capture window or the map
+/// never becomes valid, the Low sheet falls back to the old weather path and
+/// every global-fed gate reads a picture the profile never drew. The rig runs
+/// at 2 to 4 fps and the profile fixtures settle 12 to 14 s, so 8 rows a frame
+/// (128 frames, 32 to 64 s) is too slow: the fast pass gets 32 rows (at most
+/// 32 frames, about 10 s at 3 fps, still a quarter of the uncapped 128-row
+/// spike). The rolling 60 s pass keeps the tight bound. Rust-only.
+pub const CLOUD_FR_GLOBAL_FAST_ROWS_MAX: u32 = 32;
 /// Storage rows per frame in REF mode for the windows (the global uses 2).
 pub const CLOUD_FR_REF_ROWS: u32 = 4;
 /// Storage rows per frame in REF mode for the global.
@@ -1870,7 +1879,9 @@ impl CloudProfileState {
         }
         // (4) The global: n rows at the pass cursor across all three slices
         // (width 6144); a completed pass sets mips_pending and valid.
-        // D5: the row count is capped at CLOUD_FR_GLOBAL_ROWS_MAX (8) per
+        // D5: the row count is capped per frame (the fast pass at
+        // CLOUD_FR_GLOBAL_FAST_ROWS_MAX = 32 so it still completes inside a
+        // capture window, the rolling pass at CLOUD_FR_GLOBAL_ROWS_MAX = 8) per
         // frame (it was clamped only to the whole 1024-row map, so a 0.25 s
         // frame baked 128 rows of 6144 texels in one go); the pass takes
         // more frames at a low frame rate instead of costing more per frame.
@@ -1880,7 +1891,8 @@ impl CloudProfileState {
                 CLOUD_FR_REF_GLOBAL_ROWS
             } else {
                 let span = if fast { CLOUD_FR_REFRESH_S } else { CLOUD_FR_GLOBAL_REFRESH_S };
-                ((CLOUD_FR_GLOBAL_H as f64 * dt / span).ceil() as u32).clamp(1, CLOUD_FR_GLOBAL_ROWS_MAX)
+                let cap = if fast { CLOUD_FR_GLOBAL_FAST_ROWS_MAX } else { CLOUD_FR_GLOBAL_ROWS_MAX };
+                ((CLOUD_FR_GLOBAL_H as f64 * dt / span).ceil() as u32).clamp(1, cap)
             };
             let c = self.global_pass_cursor.get().floor() as u32;
             let n = n.min(CLOUD_FR_GLOBAL_H - c);
@@ -2651,7 +2663,7 @@ mod cloud_profile_tests {
         };
         let st = drive(CLOUD_FR_KNOB_FORCE0);
         // The fast global pass is still running (ceil(1024 / 120) = 9 rows
-        // per 1/60 frame, capped by D5 at CLOUD_FR_GLOBAL_ROWS_MAX = 8 ->
+        // per 1/60 frame, under the D5 fast cap of 32 ->
         // 128 frames); its rect is the one at y >= 2560.
         let r = st.take_bake_rects(1.0 / 60.0);
         let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
@@ -2659,7 +2671,7 @@ mod cloud_profile_tests {
         assert_eq!(win.len(), 9);
         assert_eq!(win[0].3, 5, "1/60 s at 2 s per 512 rows = ceil(4.27) = 5 rows");
         assert_eq!(glob.len(), 1);
-        assert_eq!(glob[0].3, CLOUD_FR_GLOBAL_ROWS_MAX, "fast global: min(ceil(1024 / 120) = 9, the D5 cap 8) = 8 rows");
+        assert_eq!(glob[0].3, 9, "fast global at 60 fps: ceil(1024 / 120) = 9 rows, under the fast cap of 32");
         assert_eq!(glob[0].2, CLOUD_FR_ATLAS_W);
         let r = st.take_bake_rects(1.0 / 30.0);
         let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
@@ -2700,11 +2712,14 @@ mod cloud_profile_tests {
     /// D5 (the bake cadence at low frame rates): at dt 0.3 s (about 3 fps,
     /// the rig's slow cells) a level's refresh never bakes more than
     /// CLOUD_FR_REFRESH_ROWS_MAX rows per frame and the global never more
-    /// than CLOUD_FR_GLOBAL_ROWS_MAX, so the per-frame cost is bounded by
+    /// than CLOUD_FR_GLOBAL_FAST_ROWS_MAX on its fast pass (the rolling one
+    /// keeps CLOUD_FR_GLOBAL_ROWS_MAX), so the per-frame cost is bounded by
     /// the frame and not by the second (uncapped, 0.3 s asked for 77 window
-    /// rows per level and 154 global rows in ONE frame); and a level still
-    /// completes a full refresh (512 rows in exactly 32 frames), the global
-    /// its fast pass (1024 rows in 128 frames).
+    /// rows per level and 154 global rows in ONE frame); a level still
+    /// completes a full refresh (512 rows in exactly 32 frames); and the fast
+    /// global pass still finishes inside a capture window (1024 rows at 32 a
+    /// frame = 32 frames = 9.6 s at 3 fps, under every fixture s 12 to 14 s
+    /// settle: the reason the fast cap is not 8).
     #[test]
     fn low_frame_rate_caps_rows_per_frame_and_still_completes_a_refresh() {
         let mut st = CloudProfileState::default();
@@ -2729,7 +2744,7 @@ mod cloud_profile_tests {
             assert!(win_rows >= 1 && win_rows <= CLOUD_FR_REFRESH_ROWS_MAX, "frame {frame}: {win_rows} refresh rows");
             let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
             for g in &glob {
-                assert!(g.3 >= 1 && g.3 <= CLOUD_FR_GLOBAL_ROWS_MAX, "frame {frame}: {} global rows", g.3);
+                assert!(g.3 >= 1 && g.3 <= CLOUD_FR_GLOBAL_FAST_ROWS_MAX, "frame {frame}: {} global rows", g.3);
                 assert_eq!(g.2, CLOUD_FR_ATLAS_W);
             }
             if frame <= 32 {
@@ -2746,10 +2761,13 @@ mod cloud_profile_tests {
                 global_done_at = Some(frame);
             }
         }
-        // The fast global pass at 8 rows per frame: the first frame (dt 0)
-        // baked 1 row and the eight fill frames 64, so 959 rows remain =
-        // 119 full frames plus a 7-row frame: done at loop frame 120.
-        assert_eq!(global_done_at, Some(120), "the fast global pass completes at 8 rows per frame");
+        // The fast global pass at 32 rows per frame. The bar that matters is
+        // 32 frames (9.6 s at 3 fps, inside a 12 s settle): before the split
+        // it took 120 frames = 36 s and no capture window ever saw a valid
+        // global, so the Low sheet fell back to the old weather path and its
+        // gate could not fail.
+        let done = global_done_at.expect("the fast global pass completes");
+        assert!(done <= 32, "the fast global pass completes inside a capture window, took {done} frames");
     }
 
     /// The active level range at 3, 60, 873 and 12000 km for cloud_res 1
