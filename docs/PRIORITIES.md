@@ -84,9 +84,29 @@
 >    resolve, then the composite.
 > 2. **The Low sheet's profile path** (99.8 against 34.2), which the D5 fix
 >    exposed by making the global valid.
-> 3. **The vertical comb** below the band (the top bound was a null and a
->    regression; its diagnosis is in flight), then the default flip, then
->    deleting the fade constants and the twin.
+> 3. **The vertical comb** below the band. The top bound is now diagnosed
+>    (high confidence, measured): the bound DOES reach the stride and its
+>    units are right, but it publishes the gap to a plane one HORIZONTAL
+>    cluster radius above the cloud, because the vertical bound subtracts
+>    the bounding radius `br`, which is HORIZONTAL. The stride then overrides
+>    the comb and marches 1.35 km a step, ABOVE the 928 m vertical ceiling, so the ray
+>    strides PAST the 150 to 400 m layer instead of stopping above it. Proof:
+>    on the pixels where the bit LOSES a cloud the fix arm used FEWER samples
+>    than its own average (7.6 against 8.6 at 250 km), and the whole nadir
+>    chord is marched in 8.6 samples against the reference march's 192. Two
+>    further defects: the from-above value is published into `g_v2_sdf_m`,
+>    which is deliberately never reset when the body path is skipped, so a
+>    kilometre-scale gap leaks into samples that evaluated no body; and a
+>    from-above stride is not clamped to the vertical ceiling, so a miss
+>    degrades to a 1.35 km step instead of to today's comb. The other half
+>    of the bit, the in-cloud floor cap, MEASURABLY WORKS and should be split
+>    out with its own switch: found clouds render more opaque with it (the
+>    top-alpha band at 60 km 0.55 to 1.96 percent against the reference's
+>    3.75). And the gate itself was VOID on its own preconditions (the
+>    reference reads 8.55 percent coverage against its own 20-point bar), so
+>    the fixture must be re-cut onto a cloudier camera with a prod-steps twin
+>    before any of this is re-judged. Then the default flip, then deleting
+>    the fade constants and the twin.
 > 4. The look ("still kinda look like spheres"), the per-cell cluster table
 >    (the 36.8 km class), the horizon rung (the 5 m sunset), increment 5,
 >    cloud layering, the planet pass arc.
