@@ -513,14 +513,31 @@ fn fs_cloud_light_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
 // alone, which planet cell and which slice it writes. No ray, no camera
 // anywhere (BUG-074 stays dead by construction).
 //
-// STUB (A17): the decode below is the real one and stays. The Rust
-// implementer proves passes, rects, pads, scrolling and groups against the
-// SYNTHETIC pattern written at the end: channel 11 must show the level
-// staircase about the nadir, channel 12 the i / 512 sawtooth, PLANET-FIXED (a
-// sliding ramp is a scroll bug). The WGSL implementer replaces everything
-// from the second "STUB (A17)" marker down with the real bake (the noise part
-// on every tier, the analytic built part on Ultra from the calibration table,
-// REF mode at knob 9).
+// What one texel holds, and how it is made (contract "The bake fragment"):
+//   1. DECODE: from the texel position alone, which planet cell (its centre
+//      direction dir_c and its extent in km) and which slice (a pair slice
+//      holds two height bins of (fraction f, mean density G); a column
+//      slice holds the encoded columns C_k = sum of G above bin k).
+//   2. The NOISE part, every tier: cloud_density_hi at the cell's own mip
+//      (lodb = log2(cell km), where the compact carve hinge IS the cell
+//      mean) at four heights per bin, with the constructed bodies OFF.
+//      f_n = the hinge's own areal fraction scaled by the erosion survivor
+//      ratio, max over the heights; G_n = the mean density.
+//   3. The BUILT part, Ultra only: every cv2 cell whose cloud can touch this
+//      profile cell is enumerated (the body only ever searches a 3x3
+//      neighbourhood, so the one-cell margin is exact), placed by the SAME
+//      cv2_place the march uses, and replaced by an ellipse per height
+//      from the calibration table (per archetype and cloud-relative height:
+//      equivalent-circle radius ratio and mean in-cloud density, measured
+//      once on the shipped SDF). Fine levels (cells <= 1 km) count 16
+//      stratified points of the profile cell inside the ellipse; coarse
+//      levels and the global attribute the analytic ellipse area to the
+//      cell holding the cloud's centre. Clouds union (or Poisson-union past
+//      the enumeration cap), and the built and noise parts combine exactly
+//      as cloud_carve's sheet union does.
+//   4. REFERENCE (knob 9, dev): the same texel point-sampled from the field
+//      itself (8 x 8 x 2 per bin, bodies on), the analytic bake's truth.
+//   5. WRITE: pooled to four bins for the global; columns sqrt-encoded.
 @fragment
 fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     cloud_set_slab_bounds();
@@ -533,19 +550,26 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     if (planet_km < 0.5) {
         return vec4<f32>(0.0);
     }
+    // ── 1. DECODE ──
     // The bake's per-texel inputs, whichever region this texel lies in: the
-    // cell centre direction and the cell's extent in km (north-south, and
-    // east-west at the centre latitude).
+    // cell centre (lon_c, lat_c), the cell's extent in km (north-south, and
+    // east-west at the centre latitude), its angular half-extent dl (both
+    // axes: the lattice is equal-angle), and the slice's role.
     var lon_c = 0.0;
     var lat_c = 0.0;
     var cell_km_lat = 0.0;
     var cell_km_lon = 0.0;
-    // The slice's role and storage coordinates (for the synthetic pattern).
+    var dl = 0.0;
     var is_global = false;
     var is_column = false;
+    // The slice index inside its region: window 0..8 (pairs 0..5, columns
+    // 6..8), global 0..2 (pairs 0, 1, the column 2).
+    var p_slice = 0;
     var L = 0;
-    var si = 0;
-    var sj = 0;
+    // The per-texel hash key (the cell's planet index): the fine-level test
+    // points and the stride phase are jittered by it.
+    var key_i = 0;
+    var key_j = 0;
     if (y >= CLOUD_FR_GLOBAL_Y0) {
         // ── the global equirect map ──
         is_global = true;
@@ -553,14 +577,16 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
         let i = x - slice * CLOUD_FR_GLOBAL_W;      // x mod 2048
         let j = y - CLOUD_FR_GLOBAL_Y0;
         is_column = slice >= 2;
-        si = i;
-        sj = j;
+        p_slice = slice;
+        key_i = i;
+        key_j = j;
         // Texel centre; row 0 = north, matching the weather map's w_uv.
         lon_c = (f32(i) + 0.5) / f32(CLOUD_FR_GLOBAL_W) * TAU - PI;
         lat_c = 0.5 * PI - (f32(j) + 0.5) / f32(CLOUD_FR_GLOBAL_H) * PI;
         let global_km = TAU * planet_km / f32(CLOUD_FR_GLOBAL_W);
         cell_km_lat = global_km;
         cell_km_lon = global_km * cos(lat_c);
+        dl = PI / f32(CLOUD_FR_GLOBAL_W);           // half of 2 pi / 2048 = half of pi / 1024
     } else {
         // ── a window slice ──
         let s = (y / CLOUD_FR_NX) * CLOUD_FR_SLICE_COLS + x / CLOUD_FR_NX;
@@ -572,8 +598,7 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
         let sx = x % CLOUD_FR_NX;
         let sy = y % CLOUD_FR_NX;
         is_column = p >= CLOUD_FR_PAIRS;
-        si = sx;
-        sj = sy;
+        p_slice = p;
         let c_km = CLOUD_FR_CELL0_KM * exp2(f32(L));
         let cell_rad = c_km / planet_km;
         let NI = floor(TAU * planet_km / c_km);
@@ -589,37 +614,391 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
             return vec4<f32>(0.0);      // void rows beyond the poles
         }
         let I = pmod(I_abs, i32(NI));
+        key_i = I;
+        key_j = J_abs;
         lon_c = (f32(I) + 0.5) * cell_rad - PI;
         lat_c = (f32(J_abs) + 0.5) * cell_rad - 0.5 * PI;
         cell_km_lat = c_km;
         cell_km_lon = c_km * cos(lat_c);
+        dl = 0.5 * cell_rad;
     }
     let dir_c = vec3<f32>(cos(lat_c) * cos(lon_c), sin(lat_c), -cos(lat_c) * sin(lon_c));
-    // (The real bake continues from dir_c: t = camera.sun_color.w, seed =
-    // material.params.x, coverage = material.base_color.a, the regime at
-    // dir_c, wlod from cell_km_lat, the bin set of this slice, ZSUB heights
-    // per bin; noise part via cloud_density_hi at lodb_cell = log2(cell_km_lat),
-    // built part analytic from the calibration table at binding 14.)
-    // ── STUB (A17): the WGSL implementer replaces this body with the real bake ──
-    // The synthetic pattern (raw channel values, no encoding): pair slices
-    // (i / 512, j / 512, i / 512, j / 512), column slices (L / 6) x4, the
-    // global pair slices (i / 2048, j / 1024, ...), its column slice (1) x4,
-    // where (i, j) are the storage coordinates inside the slice.
+
+    // The field's inputs at this cell (no ray, no camera: BUG-074 stays dead
+    // by construction). The regime at the cell's OWN direction, its base
+    // wind, the weather band limit at the cell's own size, the component
+    // bisect exactly as the march and the sun bake apply it.
+    let t = camera.sun_color.w;
+    let seed = material.params.x;
+    let coverage = material.base_color.a;
+    let tc_c = cloud_type_coord(dir_c, t, seed);
+    let reg = cloud_regime(tc_c);
+    let wind_ang = t * cloud_wind_omega(reg.wind_lo);
+    let wlod = max(log2(max(cell_km_lat / 27.8, 1.0)), 0.0);
+    let bis = cloud_bisect_index();
+    let detail_amt = select(1.0, 0.0, bis == 1u);
+    let puff_amt = select(1.0, 0.0, bis == 2u);
+    let cell_amt = select(1.0, 0.0, bis == 3u);
+    let knob = cloud_profile_knob();
+    let ref_mode = knob == CLOUD_FR_KNOB_REF;
+    // Slab geometry: one bin is 1/12 of the slab; heights in metres above
+    // the slab base feed the built part.
+    let slab_p = g_cloud_rt - g_cloud_rb;
+    let slab_m = slab_p / max(g_cloud_upkm, 1.0e-9) * 1000.0;
+
+    // ── The bin set of this texel ──
+    // A pair slice p computes bins 2p, 2p + 1. A column slice q = p - 6
+    // holds C_4q .. C_4q+3 and needs bins 4q + 1 .. 11; the last one also
+    // carries T, which needs bin 0, so it computes all twelve. The global
+    // pair slices compute the six slab bins of their two pooled bins; the
+    // global column slice all twelve.
+    var k_lo = 0;
+    var k_hi = CLOUD_FR_NZ - 1;
     if (is_global) {
-        if (is_column) {
-            return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+        if (!is_column) {
+            k_lo = 6 * p_slice;
+            k_hi = k_lo + 5;
         }
-        let gi = f32(si) / f32(CLOUD_FR_GLOBAL_W);
-        let gj = f32(sj) / f32(CLOUD_FR_GLOBAL_H);
-        return vec4<f32>(gi, gj, gi, gj);
+    } else if (!is_column) {
+        k_lo = 2 * p_slice;
+        k_hi = k_lo + 1;
+    } else {
+        let q = p_slice - CLOUD_FR_PAIRS;
+        k_lo = select(4 * q + 1, 0, q == CLOUD_FR_CSLICES - 1);
     }
-    if (is_column) {
-        let lf = f32(L) / f32(CLOUD_FR_LEVELS);
-        return vec4<f32>(lf, lf, lf, lf);
+    // Per-bin results (only k_lo..k_hi are written; the rest stay 0 and are
+    // never read by this texel's write).
+    var f_k: array<f32, 12>;
+    var G_k: array<f32, 12>;
+    for (var k = 0; k < CLOUD_FR_NZ; k = k + 1) {
+        f_k[k] = 0.0;
+        G_k[k] = 0.0;
     }
-    let wi = f32(si) / f32(CLOUD_FR_NX);
-    let wj = f32(sj) / f32(CLOUD_FR_NX);
-    return vec4<f32>(wi, wj, wi, wj);
+
+    if (ref_mode) {
+        // ── 4. THE REFERENCE BAKE (knob 9, dev only, slow) ──
+        // The same texel from the field itself: CLOUD_FR_REF_K^2 points
+        // stratified across the cell, CLOUD_FR_REF_KZ heights per bin, the
+        // FULL cloud_density_hi (constructed bodies on, each point at its own
+        // footprint lodb = log2(cell / 8), the weather at each point's own
+        // direction). f = the fraction of points with density above the
+        // interior gate at either height; G = the mean over all points.
+        g_v2_allowed = true;
+        g_sun_profile = 0.0;
+        g_lod_jitter = 0.0;
+        let lodb_pt = log2(max(cell_km_lat / f32(CLOUD_FR_REF_K), 1.0e-4));
+        g_v2_disp_lod = lodb_pt;
+        // The 64 point directions' weather alphas, once (height-independent).
+        var wa_pts: array<f32, 64>;
+        for (var n = 0; n < 64; n = n + 1) {
+            let a = n % CLOUD_FR_REF_K;
+            let b = n / CLOUD_FR_REF_K;
+            let lon_p = lon_c + ((f32(a) + 0.5) / f32(CLOUD_FR_REF_K) - 0.5) * 2.0 * dl;
+            let lat_p = lat_c + ((f32(b) + 0.5) / f32(CLOUD_FR_REF_K) - 0.5) * 2.0 * dl;
+            let dir_p = vec3<f32>(cos(lat_p) * cos(lon_p), sin(lat_p), -cos(lat_p) * sin(lon_p));
+            wa_pts[n] = clamp(
+                cloud_alpha_from_field(
+                    cloud_weather_adv(dir_p, t, seed, wind_ang, wlod), coverage)
+                    + reg.cover_bias, 0.0, 1.0);
+        }
+        let n_pts = CLOUD_FR_REF_K * CLOUD_FR_REF_K;
+        for (var k = k_lo; k <= k_hi; k = k + 1) {
+            var n_in = 0;
+            var dsum = 0.0;
+            for (var n = 0; n < n_pts; n = n + 1) {
+                let a = n % CLOUD_FR_REF_K;
+                let b = n / CLOUD_FR_REF_K;
+                let lon_p = lon_c + ((f32(a) + 0.5) / f32(CLOUD_FR_REF_K) - 0.5) * 2.0 * dl;
+                let lat_p = lat_c + ((f32(b) + 0.5) / f32(CLOUD_FR_REF_K) - 0.5) * 2.0 * dl;
+                let dir_p = vec3<f32>(cos(lat_p) * cos(lon_p), sin(lat_p), -cos(lat_p) * sin(lon_p));
+                var any_in = false;
+                for (var s = 0; s < CLOUD_FR_REF_KZ; s = s + 1) {
+                    let h_s = (f32(k) + (f32(s) + 0.5) / f32(CLOUD_FR_REF_KZ)) / f32(CLOUD_FR_NZ);
+                    let r_s = g_cloud_rb + h_s * slab_p;
+                    let dens = cloud_density_hi(
+                        dir_p * r_s, t, seed, wa_pts[n], reg,
+                        detail_amt, puff_amt, cell_amt, lodb_pt).x;
+                    any_in = any_in || dens > CLOUD_STEP_INTERIOR_GATE;
+                    dsum = dsum + dens;
+                }
+                n_in = n_in + select(0, 1, any_in);
+            }
+            f_k[k] = f32(n_in) / f32(n_pts);
+            G_k[k] = dsum / f32(n_pts * CLOUD_FR_REF_KZ);
+        }
+    } else {
+        // ── 2. THE NOISE PART (every tier) ──
+        // The weather alpha at the cell centre (height-independent, once),
+        // then per (bin, height) the noise density at the cell's own mip
+        // with the bodies OFF. The fraction is the compact hinge's own areal
+        // fraction (g_cloud_frac, published by cloud_carve) scaled by how
+        // much of the pre-erosion carve survived erosion at this height,
+        // unioned (max) over the heights; the mean density is the plain mean.
+        let wa_c = clamp(
+            cloud_alpha_from_field(
+                cloud_weather_adv(dir_c, t, seed, wind_ang, wlod), coverage)
+                + reg.cover_bias, 0.0, 1.0);
+        let lodb_cell = log2(max(cell_km_lat, 1.0e-4));
+        g_v2_allowed = false;
+        g_sun_profile = 0.0;
+        g_lod_jitter = 0.0;
+        g_v2_disp_lod = CLOUD_V2_SHAPE_LOD_WORLD;
+        for (var k = k_lo; k <= k_hi; k = k + 1) {
+            var f_n = 0.0;
+            var G_n = 0.0;
+            for (var s = 0; s < CLOUD_FR_ZSUB; s = s + 1) {
+                let h_s = (f32(k) + (f32(s) + 0.5) / f32(CLOUD_FR_ZSUB)) / f32(CLOUD_FR_NZ);
+                let r_s = g_cloud_rb + h_s * slab_p;
+                let dens_s = cloud_density_hi(
+                    dir_c * r_s, t, seed, wa_c, reg,
+                    detail_amt, puff_amt, cell_amt, lodb_cell).x;
+                let frac_s = g_cloud_frac
+                    * clamp(dens_s / max(g_cloud_carve_pt, 1.0e-3), 0.0, 1.0);
+                f_n = max(f_n, frac_s);
+                G_n = G_n + dens_s;
+            }
+            f_k[k] = f_n;
+            G_k[k] = G_n / f32(CLOUD_FR_ZSUB);
+        }
+
+        // ── 3. THE BUILT PART (Ultra only, from the calibration table) ──
+        // Gated on the calibration flag (pad bit 8): before the table exists
+        // the built part is zero, and Rust orders a FILL of every level plus
+        // a fast global pass once the calibration lands.
+        let arch_i = cv2_arch_index(tc_c);
+        if (material.params.y >= 2.5 && arch_i >= 0 && cloud_profile_flag(8)) {
+            // The cv2 grid this family places on (41-cloud-bodies.wgsl: cells
+            // of g km, longitude cells scaled by 1 / cos(lat)), and this
+            // profile cell's extent in cv2 grid coordinates at the centre
+            // latitude (the body's own cx / cy law).
+            let g_km = cv2_cell_km(arch_i);
+            let cell_rad_cv2 = g_km / planet_km;
+            let coslat_c = max(cos(lat_c), 0.05);
+            let cx_scale = cell_rad_cv2 / coslat_c;
+            let cx_lo = (lon_c - dl) / cx_scale;
+            let cx_hi = (lon_c + dl) / cx_scale;
+            let cy_lo = (lat_c - dl) / cell_rad_cv2;
+            let cy_hi = (lat_c + dl) / cell_rad_cv2;
+            let cx_c = lon_c / cx_scale;
+            let cy_c = lat_c / cell_rad_cv2;
+            // The one-cell margin is EXACT: the body only ever searches the
+            // 3x3 neighbourhood of a sample's cell, so no cloud beyond one cv2
+            // cell of this profile cell's extent can touch it.
+            let ci_lo = floor(cx_lo) - 1.0;
+            let ci_hi = floor(cx_hi) + 1.0;
+            let cj_lo = floor(cy_lo) - 1.0;
+            let cj_hi = floor(cy_hi) + 1.0;
+            let n_cols = i32(ci_hi - ci_lo) + 1;
+            let n_rows = i32(cj_hi - cj_lo) + 1;
+            let n_cand = n_cols * n_rows;
+            // Stride subsampling past the cap (A3) with a per-texel hash
+            // phase on both axes; the union then takes the Poisson form. On
+            // Earth the cap is never reached (worst case 400 < 512 at the
+            // global's equatorial humilis rows), so stride is 1 everywhere
+            // here and a larger planet is where it engages.
+            var stride = 1;
+            if (n_cand > CLOUD_FR_MAX_CV2) {
+                stride = i32(ceil(sqrt(f32(n_cand) / f32(CLOUD_FR_MAX_CV2))));
+            }
+            let ph = floor(cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 41.0) * f32(stride));
+            let m_per_cell = g_km * 1000.0;
+            // The profile cell in metres: half-extents, area, and (fine
+            // levels only) the 16 cell-stratified test points relative to
+            // the cell centre, jittered per texel so adjacent cells do not
+            // share one comb.
+            let half_x = 0.5 * cell_km_lon * 1000.0;
+            let half_y = 0.5 * cell_km_lat * 1000.0;
+            let cell_area = cell_km_lon * cell_km_lat * 1.0e6;
+            let fine = !is_global && L <= 2;
+            var ptx: array<f32, 16>;
+            var pty: array<f32, 16>;
+            for (var n = 0; n < CLOUD_FR_PTS; n = n + 1) {
+                let jx = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(n));
+                let jy = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(CLOUD_FR_PTS) + f32(n));
+                let qx = (f32(n % 4) + jx) / 4.0 - 0.5;
+                let qy = (f32(n / 4) + jy) / 4.0 - 0.5;
+                ptx[n] = qx * cell_km_lon * 1000.0;
+                pty[n] = qy * cell_km_lat * 1000.0;
+            }
+            // Accumulators per (bin, height) slot: the union product, the
+            // area sum (the Poisson form and the density weight) and the
+            // area-weighted in-cloud density.
+            var acc_u: array<f32, 48>;
+            var acc_a: array<f32, 48>;
+            var acc_ad: array<f32, 48>;
+            for (var n = 0; n < 48; n = n + 1) {
+                acc_u[n] = 1.0;
+                acc_a[n] = 0.0;
+                acc_ad[n] = 0.0;
+            }
+            for (var a = 0; a < n_cols; a = a + stride) {
+                let ci = ci_lo + ph + f32(a);
+                if (ci > ci_hi) {
+                    break;
+                }
+                for (var b = 0; b < n_rows; b = b + stride) {
+                    let cj = cj_lo + ph + f32(b);
+                    if (cj > cj_hi) {
+                        break;
+                    }
+                    // Presence is a threshold on the weather alpha, so it is
+                    // read at the cv2 cell's OWN centre (A2): one value per
+                    // profile cell would flip whole clusters at once.
+                    let lon_i = (ci + 0.5) * cx_scale;
+                    let lat_i = (cj + 0.5) * cell_rad_cv2;
+                    let dir_i = vec3<f32>(cos(lat_i) * cos(lon_i), sin(lat_i), -cos(lat_i) * sin(lon_i));
+                    let wa_i = clamp(
+                        cloud_alpha_from_field(
+                            cloud_weather_adv(dir_i, t, seed, wind_ang, wlod), coverage)
+                            + reg.cover_bias, 0.0, 1.0);
+                    // The body's own clear-sky gate on the weather alpha.
+                    if (wa_i <= 0.02) {
+                        continue;
+                    }
+                    let pl = cv2_place(ci, cj, arch_i, wa_i, g_km);
+                    if (!pl.present) {
+                        continue;
+                    }
+                    // The profile cell centre relative to the cloud centre,
+                    // metres east (x) and north (y) in the tangent plane: the
+                    // same convention as the body's (ox, oy) for a sample.
+                    let ox = (cx_c - pl.centre_cells.x) * m_per_cell;
+                    let oy = (cy_c - pl.centre_cells.y) * m_per_cell;
+                    // Coarse form: the whole cloud is attributed to the cell
+                    // holding its centre.
+                    let in_cell = abs(ox) <= half_x && abs(oy) <= half_y;
+                    if (!fine && !in_cell) {
+                        continue;
+                    }
+                    // The cloud's height in the shape frame, and its
+                    // wind-frame semi-axes per unit calibration ratio: the
+                    // calibration measures the equivalent-circle radius as a
+                    // fraction of the WIDTH (rho = r_eq / width), so the
+                    // semi-axes are width * rho times the frame's stretch.
+                    let h_cloud = max(pl.sy * pl.height_m, 1.0);
+                    let a_ax0 = pl.width_m * pl.sx;
+                    let b_ax0 = pl.width_m * pl.sz;
+                    for (var k = k_lo; k <= k_hi; k = k + 1) {
+                        for (var s = 0; s < CLOUD_FR_ZSUB; s = s + 1) {
+                            let h_s = (f32(k) + (f32(s) + 0.5) / f32(CLOUD_FR_ZSUB)) / f32(CLOUD_FR_NZ);
+                            let up_m_s = h_s * slab_m;
+                            let y_rel = up_m_s / h_cloud;
+                            if (y_rel >= CLOUD_FR_CALIB_YMAX) {
+                                continue;
+                            }
+                            let row = clamp(i32(floor(y_rel / CLOUD_FR_CALIB_YMAX * f32(CLOUD_FR_CALIB_ROWS))), 0, CLOUD_FR_CALIB_ROWS - 1);
+                            // The bound view is mip 1: the reduced table.
+                            let cal = textureLoad(tree_atlas_tex,
+                                vec2<i32>(CLOUD_FR_CALIB_X0 + row, CLOUD_FR_CALIB_Y0 + arch_i), 0);
+                            let rho = cal.r;
+                            let dbar = cal.g;
+                            if (rho <= 0.0) {
+                                continue;
+                            }
+                            let a_ax = a_ax0 * rho;
+                            let b_ax = b_ax0 * rho;
+                            var a_i = 0.0;
+                            if (fine) {
+                                // 16 points of the profile cell, rotated into
+                                // the cloud's wind frame, tested against the
+                                // ellipse.
+                                var hit = 0;
+                                for (var n = 0; n < CLOUD_FR_PTS; n = n + 1) {
+                                    let qx = ptx[n] + ox;
+                                    let qy = pty[n] + oy;
+                                    let wu = qx * pl.cwx + qy * pl.cwy;
+                                    let wv = -qx * pl.cwy + qy * pl.cwx;
+                                    let eu = wu / a_ax;
+                                    let ev = wv / b_ax;
+                                    if (eu * eu + ev * ev <= 1.0) {
+                                        hit = hit + 1;
+                                    }
+                                }
+                                a_i = f32(hit) / f32(CLOUD_FR_PTS);
+                            } else {
+                                a_i = min(PI * a_ax * b_ax / cell_area, 1.0);
+                            }
+                            a_i = clamp(a_i, 0.0, 1.0);
+                            let idx = k * CLOUD_FR_ZSUB + s;
+                            acc_u[idx] = acc_u[idx] * (1.0 - a_i);
+                            acc_a[idx] = acc_a[idx] + a_i;
+                            acc_ad[idx] = acc_ad[idx] + a_i * dbar;
+                        }
+                    }
+                }
+            }
+            // Per (bin, height): the union (exact at stride 1, Poisson past
+            // the cap) and the area-weighted density, never above f_b. Per
+            // bin: the union over heights (max) and the mean density. Then
+            // the combine, exactly as cloud_carve's sheet union: the built
+            // weight ramps in over the convective boundary of the type
+            // coordinate, and past ~0.6 sky-wide coverage the noise field is
+            // unioned back in under the clusters.
+            let w_b = smoothstep(0.20, 0.30, tc_c);
+            let sheet_w = smoothstep(0.60, 0.90, coverage);
+            let stride2 = f32(stride * stride);
+            for (var k = k_lo; k <= k_hi; k = k + 1) {
+                var f_b = 0.0;
+                var G_b = 0.0;
+                for (var s = 0; s < CLOUD_FR_ZSUB; s = s + 1) {
+                    let idx = k * CLOUD_FR_ZSUB + s;
+                    let f_bs = select(1.0 - acc_u[idx], 1.0 - exp(-stride2 * acc_a[idx]), stride > 1);
+                    let G_bs = f_bs * acc_ad[idx] / max(acc_a[idx], 1.0e-4);
+                    f_b = max(f_b, f_bs);
+                    G_b = G_b + G_bs;
+                }
+                G_b = G_b / f32(CLOUD_FR_ZSUB);
+                let f_n = f_k[k];
+                let G_n = G_k[k];
+                let f_u = 1.0 - (1.0 - f_b) * (1.0 - f_n);
+                let G_u = G_b + G_n * (1.0 - f_b);
+                f_k[k] = mix(f_n, mix(f_b, f_u, sheet_w), w_b);
+                G_k[k] = mix(G_n, mix(G_b, G_u, sheet_w), w_b);
+            }
+        }
+    }
+
+    // ── 5. WRITE ──
+    if (is_global) {
+        // Pooled bins, three slab bins each: the union over heights is the
+        // max (one cloud spanning three bins occupies one area, exactly as
+        // the heights inside a bin are unioned), the density the mean.
+        var fp: array<f32, 4>;
+        var Gp: array<f32, 4>;
+        for (var q = 0; q < CLOUD_FR_GLOBAL_NZ; q = q + 1) {
+            fp[q] = max(f_k[3 * q], max(f_k[3 * q + 1], f_k[3 * q + 2]));
+            Gp[q] = (G_k[3 * q] + G_k[3 * q + 1] + G_k[3 * q + 2]) / 3.0;
+        }
+        if (!is_column) {
+            let q0 = 2 * p_slice;
+            return vec4<f32>(fp[q0], Gp[q0], fp[q0 + 1], Gp[q0 + 1]);
+        }
+        // (Cp_0, Cp_1, Cp_2, Tp) in pooled-bin units, sqrt-encoded.
+        let Tp = Gp[0] + Gp[1] + Gp[2] + Gp[3];
+        let Cp_0 = Gp[1] + Gp[2] + Gp[3];
+        let Cp_1 = Gp[2] + Gp[3];
+        let Cp_2 = Gp[3];
+        return cloud_profile_col_enc(vec4<f32>(Cp_0, Cp_1, Cp_2, Tp));
+    }
+    if (!is_column) {
+        let k0 = 2 * p_slice;
+        return vec4<f32>(f_k[k0], G_k[k0], f_k[k0 + 1], G_k[k0 + 1]);
+    }
+    // The columns C_k = sum of G over the bins ABOVE k (exclusive; C_11 is
+    // identically zero, and its channel carries the whole column T instead),
+    // in slab-bin units, sqrt-encoded.
+    var C_k: array<f32, 12>;
+    var run = 0.0;
+    for (var k = CLOUD_FR_NZ - 1; k >= 0; k = k - 1) {
+        C_k[k] = run;
+        run = run + G_k[k];
+    }
+    let T = run;
+    let q = p_slice - CLOUD_FR_PAIRS;
+    if (q < CLOUD_FR_CSLICES - 1) {
+        return cloud_profile_col_enc(vec4<f32>(C_k[4 * q], C_k[4 * q + 1], C_k[4 * q + 2], C_k[4 * q + 3]));
+    }
+    return cloud_profile_col_enc(vec4<f32>(C_k[8], C_k[9], C_k[10], T));
 }
 
 // ── THE GLOBAL MIP PASS (increment 4; real, not a stub) ────────────────────
@@ -670,20 +1049,114 @@ fn fs_cloud_profile_mip(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     return (t00 + t10 + t01 + t11) * 0.25;
 }
 
-// ── THE CALIBRATION (A1) ── STUB (A17): the WGSL implementer replaces both
-// bodies. Stage 1 (fs_cloud_profile_calib, attachment mip 2, scissor
-// (CLOUD_FR_CALIB_STAGE_X0, _Y0, 32, 32)): per (archetype, seed, height row)
-// the 64 x 64 cross-section point test of the canonical cloud's SDF ->
-// (rho_r, Dbar, 0, 1). Stage 2 (fs_cloud_profile_calib_reduce, attachment
-// mip 1, binding 14 = mip 2, scissor (CLOUD_FR_CALIB_X0, _Y0, 32, 4)): the
-// eight-seed mean per (row, archetype). Until then every row reads a
-// plausible (rho_r = 0.35, Dbar = 0.5) so the Rust side's pipelines, rects
-// and the flag-8 hand-off have entry points to prove.
+// ── THE CALIBRATION (A1, contract "Calibration") ───────────────────────────
+//
+// The built part of the profile bake replaces every placed cloud by an
+// ELLIPSE per height instead of point-testing its SDF, which needs, per
+// archetype and cloud-relative height, the equivalent-circle radius of the
+// cloud's cross-section as a fraction of its width (rho) and the mean
+// in-cloud density across that cross-section (Dbar). Both are measured HERE,
+// once, on the shipped SDF and the shipped density law (cv2_cloud_sdf with
+// every lobe built, cv2_density_tail with every zero-mean field at its mean),
+// over eight canonical clouds per archetype whose size draws are stratified
+// over the power-law (so the eight ARE the size distribution), and averaged.
+// Re-run by Rust whenever the tier, the interior saturation, the wide-edge
+// bit or the component bisect changes.
+//
+// Stage 1, fs_cloud_profile_calib: attachment = the atlas's MIP 2, scissor
+// (CLOUD_FR_CALIB_STAGE_X0, _Y0, 32, 32) in mip-2 texels. Texel (x, y): row =
+// x - 768 (the height row, 0..31 over 0 to 1.5 cloud heights), arch_i =
+// (y - 512) / 8, seed_s = (y - 512) mod 8. 64 x 64 points over the cloud's
+// bounding square [-br, br]^2 at that height, in the cloud's UNIT shape frame
+// (sx = sy = sz = 1: the frame's stretch is applied by the bake per placed
+// cloud). Writes (rho, Dbar, 0, 1). rho = sqrt(A / pi) / width stays at most
+// 2 br / (sqrt(pi) width) = 0.90 for the smallest humilis, so it fits the
+// RGBA8Unorm channel; the bake's semi-axes are width * stretch * rho.
+//
+// Stage 2, fs_cloud_profile_calib_reduce: attachment = MIP 1, binding 14 =
+// the mip-2 view, scissor (CLOUD_FR_CALIB_X0, _Y0, 32, 4) in mip-1 texels.
+// Texel (x, y): row = x - 1536, arch_i = y - 1024; the plain mean of the
+// eight staging texels. Rust raises pad flag bit 8 after this frame; the
+// bake reads the table through its mip-1 view at (1536 + row, 1024 + arch).
+//
+// Both areas live in the window band's mip levels, which nothing else
+// writes (the global's mip-1 region starts at row 1280 and its mip-2 region
+// at row 640, both below these areas). Cost: 1024 fragments x 4096 SDF
+// evaluations, once.
 @fragment
 fn fs_cloud_profile_calib(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.35, 0.5, 0.0, 1.0);
+    cloud_set_slab_bounds();
+    let px = vec2<u32>(in.pos.xy);
+    let x = i32(px.x);
+    let y = i32(px.y);
+    let row = x - CLOUD_FR_CALIB_STAGE_X0;
+    let ys = y - CLOUD_FR_CALIB_STAGE_Y0;
+    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || ys < 0 || ys >= 4 * CLOUD_FR_CALIB_SEEDS) {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0);   // outside the staging area (the scissor never lands here)
+    }
+    let arch_i = ys / CLOUD_FR_CALIB_SEEDS;
+    let seed_s = ys % CLOUD_FR_CALIB_SEEDS;
+    // The canonical cloud: the size draw stratified over the power law, no
+    // coverage growth, the seed from the same hash family the field uses.
+    let u_s = (f32(seed_s) + 0.5) / f32(CLOUD_FR_CALIB_SEEDS);
+    let arch = cv2_arch(arch_i, u_s);
+    let seed = cv2_hash(vec2<f32>(f32(seed_s), f32(arch_i)), 7.0) * 4096.0;
+    let width = arch.width_m;
+    let height_m = width * arch.aspect;
+    let br = width * 0.5 + CLOUD_V2_RIND_M;
+    let a_box = 4.0 * br * br;
+    // This row's height: rows span 0 to CLOUD_FR_CALIB_YMAX cloud heights (the
+    // body rejects samples above height * sy + br, and 1.5 covers that for
+    // every archetype).
+    let y_local = (f32(row) + 0.5) / f32(CLOUD_FR_CALIB_ROWS) * CLOUD_FR_CALIB_YMAX * height_m;
+    // The EYE's density law: every lobe built (g_sun_profile = 0), the domain
+    // warp fetched at the world shape LOD (shape is viewer-independent), the
+    // interior saturation as the march reads it.
+    g_sun_profile = 0.0;
+    g_v2_disp_lod = CLOUD_V2_SHAPE_LOD_WORLD;
+    let sat = clamp(camera.light5_color.w, 0.0, 1.0);
+    var n_in = 0;
+    var dsum = 0.0;
+    let n_grid = CLOUD_FR_CALIB_GRID;
+    for (var gy = 0; gy < n_grid; gy = gy + 1) {
+        let pz = -br + (f32(gy) + 0.5) / f32(n_grid) * 2.0 * br;
+        for (var gx = 0; gx < n_grid; gx = gx + 1) {
+            let pxm = -br + (f32(gx) + 0.5) / f32(n_grid) * 2.0 * br;
+            let local_m = vec3<f32>(pxm, y_local, pz);
+            let d = cv2_cloud_sdf(local_m, seed, arch);
+            // Displacement zero-mean (0), Worley mean 0.5, turbulence mean
+            // 0.5, the eye's rind, the march's saturation.
+            let dens = cv2_density_tail(d, y_local, height_m, 0.0, 0.5, 0.5, CLOUD_V2_RIND_M, sat);
+            if (dens > CLOUD_STEP_INTERIOR_GATE) {
+                n_in = n_in + 1;
+                dsum = dsum + dens;
+            }
+        }
+    }
+    let area = f32(n_in) / f32(n_grid * n_grid) * a_box;
+    let rho = sqrt(area / PI) / max(width, 1.0);
+    let dbar = dsum / max(f32(n_in), 1.0);
+    return vec4<f32>(clamp(rho, 0.0, 1.0), clamp(dbar, 0.0, 1.0), 0.0, 1.0);
 }
+
 @fragment
 fn fs_cloud_profile_calib_reduce(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.35, 0.5, 0.0, 1.0);
+    let px = vec2<u32>(in.pos.xy);
+    let x = i32(px.x);
+    let y = i32(px.y);
+    let row = x - CLOUD_FR_CALIB_X0;
+    let arch_i = y - CLOUD_FR_CALIB_Y0;
+    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || arch_i < 0 || arch_i >= 4) {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0);   // outside the table (the scissor never lands here)
+    }
+    // The eight staging texels of this (row, archetype), through the bound
+    // mip-2 view (level 0 of the view IS mip 2): plain means.
+    var acc = vec2<f32>(0.0);
+    for (var s = 0; s < CLOUD_FR_CALIB_SEEDS; s = s + 1) {
+        let tex = textureLoad(tree_atlas_tex,
+            vec2<i32>(CLOUD_FR_CALIB_STAGE_X0 + row, CLOUD_FR_CALIB_STAGE_Y0 + arch_i * CLOUD_FR_CALIB_SEEDS + s), 0);
+        acc = acc + tex.rg;
+    }
+    acc = acc / f32(CLOUD_FR_CALIB_SEEDS);
+    return vec4<f32>(acc.x, acc.y, 0.0, 1.0);
 }
