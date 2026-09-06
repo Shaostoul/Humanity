@@ -786,6 +786,41 @@
       animation: channeling 3s linear infinite;
     }
 
+    /* Collapsed developer/operator group. Styled to read as the same card as
+       the h4 groups above it, so the only difference a visitor notices is
+       that this one is closed until they open it. */
+    .mobile-hub-dev > summary {
+      margin: 0;
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 3rem;
+      box-sizing: border-box;
+    }
+    .mobile-hub-dev[open] > summary { border-bottom: 1px solid var(--border); }
+    .mobile-hub-dev > summary::-webkit-details-marker { display: none; }
+    .mobile-hub-dev > summary::after {
+      content: 'Show';
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .mobile-hub-dev[open] > summary::after { content: 'Hide'; }
+    .mobile-hub-dev > summary:hover,
+    .mobile-hub-dev > summary:focus-visible {
+      background: var(--bg-secondary);
+      color: var(--text);
+      outline: none;
+    }
+
     /* ── Nav group wrappers ──
        Each wrapper sets the category color its tabs tint from, mirroring the
        native nav_group() categories (escape_menu.rs): red = platform entry
@@ -1012,6 +1047,11 @@
   mobileDrawer.setAttribute('aria-modal', 'true');
   mobileDrawer.setAttribute('aria-label', 'Site menu');
   mobileDrawer.setAttribute('aria-hidden', 'true');
+  // Whether the developer/operator group starts expanded. Remembered per
+  // browser, so someone who works on this project opens it once; a visitor
+  // who never touches it never sees eleven dev pages in their menu.
+  var devOpen = false;
+  try { devOpen = localStorage.getItem('hos_nav_dev_open') === '1'; } catch (e) {}
   mobileDrawer.innerHTML =
     // Header band pins the always-reachable RGB close button at top-center.
     '<div class="mobile-hub-header">' +
@@ -1056,22 +1096,38 @@
       mobileLink('/recovery',  'Recovery') +
       mobileLink('/roadmap',   'Roadmap') +
     '</div>' +
-    '<div class="mobile-hub-group group-blue"><h4>Tools, system and dev</h4>' +
+    '<div class="mobile-hub-group group-blue"><h4>Tools and system</h4>' +
       mobileLink('/calculator','Calculator') +
       mobileLink('/calendar',  'Calendar') +
       mobileLink('/notes',     'Notes') +
       mobileLink('/web',       'Bookmarks') +
       mobileLink('/files',     'Files') +
+      mobileLink('/devlog',    'Devlog') +
+    '</div>' +
+    // Developer and operator surfaces: PERMANENT infrastructure (this project
+    // is in perpetual development and these are load-bearing), but collapsed
+    // by default (2026-09-06) so a first-time visitor's menu is not eleven
+    // pages of Ops/Admin/Agents/Dev. One click opens it, and the open state
+    // sticks, so anyone who works here opens it once and never again.
+    '<details class="mobile-hub-group group-blue mobile-hub-dev"' + (devOpen ? ' open' : '') + '>' +
+      '<summary>Developer and operator</summary>' +
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
-      mobileLink('/devlog',    'Devlog') +
       mobileLink('/admin',     'Admin') +
       mobileLink('/agents',    'Agents') +
-    '</div>' +
+    '</details>' +
     '</div>'; // close .mobile-hub-scroll
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
+
+  // Remember whether the developer/operator group is expanded.
+  var devDetails = mobileDrawer.querySelector('.mobile-hub-dev');
+  if (devDetails) {
+    devDetails.addEventListener('toggle', function () {
+      try { localStorage.setItem('hos_nav_dev_open', devDetails.open ? '1' : '0'); } catch (e) {}
+    });
+  }
 
   var mobileMenuBtn = document.getElementById('mobile-hub-menu-btn');
   var mobileCloseBtn = document.getElementById('mobile-hub-close');
