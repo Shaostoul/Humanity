@@ -188,13 +188,13 @@ wrong one is why home storage usually fails.
 
 Iowa State University Extension's figures:
 
-| Crop | Temperature | Relative humidity | Typical storage life |
-|---|---|---|---|
-| Potatoes | 40 F | 90 to 95 percent | 5 to 8 months |
-| Carrots | 32 to 35 F | 98 to 100 percent | 4 to 6 months |
-| Beets | 32 to 35 F | 95 percent | 1 to 3 months |
-| Onions | 32 to 40 F | 65 to 70 percent | 5 to 8 months |
-| Winter squash | 50 to 55 F | (dry, well ventilated) | acorn 5 to 8 weeks, butternut 2 to 3 months, Hubbard 5 to 6 months |
+- **Potatoes:** 40 F, 90 to 95 percent relative humidity, 5 to 8 months.
+- **Carrots:** 32 to 35 F, 98 to 100 percent humidity, 4 to 6 months.
+- **Beets:** 32 to 35 F, 95 percent humidity, 1 to 3 months.
+- **Onions:** 32 to 40 F, 65 to 70 percent humidity, 5 to 8 months.
+- **Winter squash:** 50 to 55 F, dry and well ventilated. Storage life by
+  type: acorn 5 to 8 weeks, butternut 2 to 3 months, Hubbard 5 to 6
+  months.
 
 The three climates:
 
@@ -233,10 +233,10 @@ and the USDA requires acid to be added before processing.
 
 NCHFP's amounts, added directly to the jars before filling:
 
-| Jar size | Bottled lemon juice | OR citric acid | OR 5 percent vinegar |
-|---|---|---|---|
-| Pint | 1 tablespoon | 1/4 teaspoon | 2 tablespoons |
-| Quart | 2 tablespoons | 1/2 teaspoon | 4 tablespoons |
+- **Per pint jar:** 1 tablespoon bottled lemon juice, OR 1/4 teaspoon
+  citric acid, OR 2 tablespoons of 5 percent vinegar.
+- **Per quart jar:** 2 tablespoons bottled lemon juice, OR 1/2 teaspoon
+  citric acid, OR 4 tablespoons of 5 percent vinegar.
 
 NCHFP notes vinegar "may cause undesirable flavor changes."
 
@@ -272,17 +272,15 @@ procedure" means in practice.
    release juice. Add the rest, continuing to heat and stir until the
    whole pot is boiling, then keep it at a gentle boil for 5 minutes.
 3. Add the bottled lemon juice or citric acid to each jar, in the amounts
-   in the table above. Optionally add 1 teaspoon of salt per quart.
+   listed above. Optionally add 1 teaspoon of salt per quart.
 4. Fill the jars immediately with the hot tomatoes, leaving 1/2 inch
    headspace. Wipe the rims, apply the lids.
-5. Process in a boiling water canner for the time in this table:
-
-| Altitude | Pints | Quarts |
-|---|---|---|
-| 0 to 1,000 ft | 35 min | 45 min |
-| 1,001 to 3,000 ft | 40 min | 50 min |
-| 3,001 to 6,000 ft | 45 min | 55 min |
-| Above 6,000 ft | 50 min | 60 min |
+5. Process in a boiling water canner for the time that matches your
+   altitude:
+   - 0 to 1,000 feet: pints 35 minutes, quarts 45 minutes.
+   - 1,001 to 3,000 feet: pints 40 minutes, quarts 50 minutes.
+   - 3,001 to 6,000 feet: pints 45 minutes, quarts 55 minutes.
+   - Above 6,000 feet: pints 50 minutes, quarts 60 minutes.
 
 **Altitude is not optional.** Water boils cooler as you go up, so the
 same minutes deliver less heat. Look up your elevation once and write it
@@ -392,7 +390,7 @@ spoilage gets the disposal procedure, not the stove.
   Guide, or your extension service, without adjustments.
 - Your frozen food is at 0 F, your dried food shows no condensation
   inside the jar, and your stored roots, onions and squash are each in
-  the climate the table says they want.
+  the climate the figures above say they want.
 - In February you open something you grew and it is good.
 
 ## The loop this closes

@@ -94,15 +94,17 @@ number covers them.
 
 CDC's travel health guidance gives the sizes:
 
-| Organism | Its size | Pore size needed to catch it |
-|---|---|---|
-| Viruses | about 0.03 micrometers | about 0.01, an ultrafilter |
-| Bacteria (such as E. coli) | 0.5 by 2 to 8 micrometers | 0.2 to 0.4 or smaller |
-| *Cryptosporidium* (a parasite) | 4 to 6 micrometers | 1 or smaller |
-| *Giardia* (a parasite) | 8 by 19 micrometers | 3 to 5 or smaller |
+- **Viruses** are about 0.03 micrometers across, and need a pore size of
+  about 0.01 to catch them, which means an ultrafilter.
+- **Bacteria** such as E. coli are 0.5 by 2 to 8 micrometers, and need a
+  pore size of 0.2 to 0.4 or smaller.
+- ***Cryptosporidium***, a parasite, is 4 to 6 micrometers, and needs a
+  pore size of 1 or smaller.
+- ***Giardia***, a parasite, is 8 by 19 micrometers, and needs a pore
+  size of 3 to 5 or smaller.
 
 A micrometer, also called a micron, is a thousandth of a millimeter. The
-practical consequence of that table is this ladder:
+practical consequence of those sizes is this ladder:
 
 - **Microfilters**, pores under 1 micron: the ordinary hiking and
   camping filter. Removes bacteria and parasites. CDC: microfilters "do
@@ -147,14 +149,12 @@ large volume.
 hypochlorite, with nothing else added. Not scented, not "splashless," not
 color-safe, not a bleach with detergent or cleaners mixed in, and not
 pool chlorine. If the label lists anything beyond sodium hypochlorite and
-water, do not put it in drinking water. CDC's table for 5 to 9 percent
+water, do not put it in drinking water. CDC's amounts for 5 to 9 percent
 bleach:
 
-| Water | Bleach |
-|---|---|
-| 1 quart or 1 liter | 2 drops |
-| 1 gallon | 8 drops (a little less than 1/8 teaspoon) |
-| 5 gallons | 40 drops (about 2.5 mL) |
+- **1 quart or 1 liter of water:** 2 drops of bleach.
+- **1 gallon:** 8 drops, a little less than 1/8 teaspoon.
+- **5 gallons:** 40 drops, about 2.5 mL.
 
 Double the amount if the water is cloudy, colored or very cold. Stir,
 cover, and let it stand at least 30 minutes before drinking. The water
@@ -195,16 +195,22 @@ absolute or smaller catches it physically.
 
 Match the method to what you are worried about:
 
-| Worry | Boiling | Microfilter (under 1 micron) | Bleach or iodine | Chlorine dioxide |
-|---|---|---|---|---|
-| Bacteria | yes | yes | yes | yes |
-| Viruses | yes | no | yes | yes |
-| *Giardia* | yes | yes | less reliable | yes |
-| *Cryptosporidium* | yes | yes | no | yes |
-| Chemicals | no | no | no | no |
+- **Bacteria:** boiling yes, microfilter yes, bleach or iodine yes,
+  chlorine dioxide yes.
+- **Viruses:** boiling yes, microfilter **no**, bleach or iodine yes,
+  chlorine dioxide yes.
+- ***Giardia*:** boiling yes, microfilter yes, bleach or iodine **less
+  reliable**, chlorine dioxide yes.
+- ***Cryptosporidium*:** boiling yes, microfilter yes, bleach or iodine
+  **no**, chlorine dioxide yes.
+- **Chemicals:** boiling **no**, microfilter **no**, bleach or iodine
+  **no**, chlorine dioxide **no**.
 
-On the *Giardia* row, the two CDC sources differ in emphasis and the
-cautious reading is the one in the table. CDC's travel guidance treats
+("Microfilter" here means a filter with an absolute pore size under 1
+micron, the ordinary camping kind.)
+
+On the *Giardia* line, the two CDC sources differ in emphasis and the
+cautious reading is the one above. CDC's travel guidance treats
 chlorine and iodine as effective against *Giardia* given adequate contact
 time; CDC's emergency guidance says more plainly that disinfectants "do
 not work as well as boiling for killing some germs, including the
@@ -212,8 +218,8 @@ parasites *Cryptosporidium* and *Giardia*." Treat bleach as an imperfect
 answer for both parasites and use boiling, a filter, or chlorine dioxide
 where you can.
 
-Reading across, boiling is the only single method that covers every germ
-row, which is why it stays the first recommendation whenever fuel exists.
+Reading down that list, boiling is the only single method that covers
+every germ line, which is why it stays the first recommendation whenever fuel exists.
 When it does not, the strong pairing is **filter, then disinfect**: a
 microfilter takes out the parasites and the cloudiness that would
 otherwise consume the chemical, and the chemical then handles the viruses
@@ -221,7 +227,7 @@ the filter let through. CDC's own phrasing on filters is the warning
 label for doing only half of this: "Filtered water might need additional
 treatment to be safe."
 
-Note the entirely empty bottom row. That is the point of the next
+Note the entirely empty bottom line. That is the point of the next
 section.
 
 ## What nothing here fixes

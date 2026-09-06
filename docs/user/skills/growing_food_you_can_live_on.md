@@ -36,23 +36,24 @@ you can check it or redo it with your own local figures.
 **Calorie density (USDA FoodData Central, per 100 grams raw, converted to
 pounds by us at 453.6 grams to the pound):**
 
-| Food | Calories per 100 g | Calories per pound | Protein per 100 g |
-|---|---|---|---|
-| Tomato, red ripe, raw | 18 | about 82 | 0.9 g |
-| Potato, flesh and skin, raw | 77 | about 350 | 2.1 g |
-| Winter squash, butternut, raw | 45 | about 205 | 1.0 g |
-| Dry beans, black, mature seeds, raw | 341 | about 1,550 | 21.6 g |
+- **Tomato**, red ripe, raw: 18 calories per 100 g, so about **82 per
+  pound**. Protein 0.9 g per 100 g.
+- **Potato**, flesh and skin, raw: 77 calories per 100 g, so about **350
+  per pound**. Protein 2.1 g per 100 g.
+- **Winter squash**, butternut, raw: 45 calories per 100 g, so about
+  **205 per pound**. Protein 1.0 g per 100 g.
+- **Dry beans**, black, mature seeds, raw: 341 calories per 100 g, so
+  about **1,550 per pound**. Protein 21.6 g per 100 g.
 
 **Yield per 100 feet of row (extension figures):**
 
-| Crop | Yield | Source |
-|---|---|---|
-| Potatoes | 200 to 300 lb | Iowa State (20 to 30 lb per 10-foot row) |
-| Potatoes | 75 to 100 lb | Utah State |
-| Dry beans | 20 to 25 lb | Utah State |
-| Winter squash | 75 to 100 lb | Utah State |
+- **Potatoes: 200 to 300 lb**, per Iowa State, whose figure is 20 to 30
+  lb per 10-foot row.
+- **Potatoes: 75 to 100 lb**, per Utah State.
+- **Dry beans: 20 to 25 lb**, per Utah State.
+- **Winter squash: 75 to 100 lb**, per Utah State.
 
-Look at the two potato rows. Two real extension services, both giving
+Look at the two potato figures. Two real extension services, both giving
 home-garden guidance, differ by a factor of three. That is not an error
 in either one. Iowa is deep prairie soil with a long humid summer; Utah
 is arid, high, and short-seasoned. Everything about garden yield depends
@@ -65,22 +66,26 @@ estimate rather than a promise, and plan on the low number.
 
 **Putting them together (our arithmetic):**
 
-| Crop | Calories per 100-foot row | Days of one adult's calories |
-|---|---|---|
-| Potatoes, Utah figure | 26,000 to 35,000 | 13 to 18 |
-| Potatoes, Iowa figure | 70,000 to 105,000 | 35 to 53 |
-| Dry beans | 31,000 to 39,000 | 15 to 19 |
-| Winter squash | 15,000 to 20,000 | 8 to 10 |
+Calories from one 100-foot row, and how many days of one adult's food
+energy that is:
 
-The "days" column uses 2,000 calories a day, which the FDA states is
+- **Potatoes, Utah figure:** 26,000 to 35,000 calories, which is **13 to
+  18 days**.
+- **Potatoes, Iowa figure:** 70,000 to 105,000 calories, which is **35 to
+  53 days**.
+- **Dry beans:** 31,000 to 39,000 calories, which is **15 to 19 days**.
+- **Winter squash:** 15,000 to 20,000 calories, which is **8 to 10
+  days**.
+
+The days figures use 2,000 calories a day, which the FDA states is
 "used as a general guide for nutrition advice," while noting that your
 own needs "may be higher or lower and vary depending on your age, sex,
 height, weight, and physical activity level." A working adult doing
 physical labor needs more.
 
-Two cautions on that table. The winter squash row is generous, because
+Two cautions on those figures. The winter squash line is generous, because
 the yield figure is whole fruit and you do not eat the skin or the seed
-cavity, so the real number is lower. And the dry bean row understates
+cavity, so the real number is lower. And the dry bean line understates
 what beans are for: their value is the 21.6 grams of protein in every
 100 grams, which works out to roughly 4.3 to 5.4 pounds of protein from
 a 100-foot row, alongside a food that keeps for years in a jar.
@@ -231,8 +236,8 @@ State gives acorn about 5 to 8 weeks, butternut 2 to 3 months, and
 Hubbard 5 to 6 months. Utah State agrees on the pattern, noting that
 buttercup and banana squash store longer than butternut and acorn.
 
-If you want food in February, that table is the whole decision. Grow the
-long-keeping types.
+If you want food in February, those storage numbers are the whole
+decision. Grow the long-keeping types.
 
 ## The honest counterweight
 
@@ -256,7 +261,7 @@ go looking for a community garden plot.
 
 ## What can go wrong
 
-- **The yield came in far under the table.** Expected, especially in year
+- **The yield came in far under the published figures.** Expected, especially in year
   one. The published figures assume decent soil, adequate water and a
   full season. Improve the soil (see Your First Compost), water more
   consistently, and compare next year, which is the only comparison that

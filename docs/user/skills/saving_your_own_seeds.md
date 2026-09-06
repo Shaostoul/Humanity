@@ -225,12 +225,11 @@ agree. That disagreement is itself worth knowing about.
 
 University of Maine, expected storage life in years:
 
-| Years | Crops |
-|---|---|
-| 1 to 2 | onion, parsnip, sweet corn |
-| 3 | bean, carrot, leek, pea |
-| 4 | beet, pepper, pumpkin, tomato |
-| 5 | Brussels sprouts, cabbage, cauliflower, cucumber, lettuce, melon, radish, squash, watermelon |
+- **1 to 2 years:** onion, parsnip, sweet corn
+- **3 years:** bean, carrot, leek, pea
+- **4 years:** beet, pepper, pumpkin, tomato
+- **5 years:** Brussels sprouts, cabbage, cauliflower, cucumber, lettuce,
+  melon, radish, squash, watermelon
 
 Colorado State's table gives lettuce 1 year and onion 1 year, with beans
 3, peas 3, carrot 3, tomato 4, squash 4, and sweet corn 2.
