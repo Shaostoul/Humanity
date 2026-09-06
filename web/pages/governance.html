@@ -51,7 +51,9 @@
     }
     .scope-badge.local { background: rgba(74,158,255,0.15); color: #4a9eff; }
     .scope-badge.civilization { background: rgba(255,136,17,0.15); color: var(--accent); }
-    .proposal-body { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px; }
+    .proposal-body { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .proposal-id { color: var(--text-muted); font-size: 0.75rem; opacity: 0.7; margin-bottom: 12px; }
+    .prop-type-tag { color: var(--text-muted); font-size: 0.75rem; }
 
     .tally-bar {
       display: flex; height: 8px; border-radius: 4px; overflow: hidden;
@@ -274,6 +276,56 @@
         '</div>';
     }
 
+    /* ── Proposal titles ──────────────────────────────────────────────────
+     * /api/v2/proposals returns the INDEX row: type, scope, dates, DID and
+     * object id. The title and body a person actually reads live only inside
+     * the signed CBOR payload, so this page used to head each card with the
+     * proposal_type ("local_rule") and fill its body with an object id. Native
+     * has always decoded them (payload_texts in src/gui/pages/governance.rs);
+     * only this page did not.
+     *
+     * Fixed on the CLIENT with ONE extra bulk request, not by teaching the
+     * relay to decode payloads in its proposals query: that query runs on the
+     * single writer connection, so a blob read plus CBOR decode per proposal
+     * would sit on the relay's only write path behind a public endpoint.
+     * The market pages already join signed payloads exactly this way.
+     */
+    var _payloadCbor = null;
+    async function cborMod() {
+      if (!_payloadCbor) _payloadCbor = await import('/shared/canonical-cbor.js');
+      return _payloadCbor;
+    }
+    function b64Bytes(b64) {
+      var bin = atob(String(b64 || ''));
+      var out = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    /** object_id -> {title, body} for every proposal object, best effort. */
+    async function loadProposalTexts() {
+      var texts = {};
+      try {
+        var cbor = await cborMod();
+        var rows = await window.HumOS.pq.listObjects({ type: 'proposal_v1', limit: 500 });
+        (rows || []).forEach(function (row) {
+          var id = row.object_id || row.id;
+          if (!id || !row.payload_b64) return;
+          try {
+            var m = cbor.decodeCanonicalCbor(b64Bytes(row.payload_b64));
+            texts[id] = {
+              title: m && typeof m.title === 'string' ? m.title : '',
+              body: m && typeof m.body === 'string' ? m.body : '',
+            };
+          } catch (_e) { /* one unreadable payload must not blank the page */ }
+        });
+      } catch (e) {
+        // A federated relay may not serve the objects query. Cards then fall
+        // back to the type heading, which is what they showed before.
+        console.warn('governance: could not load proposal texts', e);
+      }
+      return texts;
+    }
+
     async function loadProposals() {
       var list = document.getElementById('proposal-list');
       list.innerHTML = '<div class="empty-state">Loading proposals...</div>';
@@ -281,7 +333,12 @@
         var opts = { limit: 100 };
         if (activeScope) opts.scope = activeScope;
         if (activeFilter === 'open') opts.onlyOpen = true;
-        var props = await window.HumOS.pq.listProposals(opts);
+        var propsAndTexts = await Promise.all([
+          window.HumOS.pq.listProposals(opts),
+          loadProposalTexts(),
+        ]);
+        var props = propsAndTexts[0];
+        var texts = propsAndTexts[1];
         if (!props || !props.length) {
           list.innerHTML = '<div class="empty-state">No proposals match these filters. Use <strong>New proposal</strong> above to start the first one.</div>';
           return;
@@ -294,16 +351,25 @@
           const card = document.createElement('div');
           card.className = 'proposal-card';
           card.dataset.pid = p.proposal_object_id;
+          const t = texts[p.proposal_object_id] || {};
+          // Fall back to the type heading when a payload could not be read, so
+          // a card is never blank; the type then reads as the label it always was.
+          const heading = t.title ? t.title : p.proposal_type;
           card.innerHTML =
-            '<h3>' + escapeHtml(p.proposal_type) + '</h3>' +
+            '<h3>' + escapeHtml(heading) + '</h3>' +
             '<div class="proposal-meta">' +
               '<span class="scope-badge ' + p.scope + '">' + p.scope + '</span>' +
+              (t.title ? ' <span class="prop-type-tag">' + escapeHtml(p.proposal_type) + '</span>' : '') +
               ' Proposer: <code>' + escapeHtml(p.proposer_did.slice(0, 24)) + '...</code>' +
               ' \u2022 Closes: ' + fmtTime(p.closes_at) +
             '</div>' +
             '<div class="proposal-body">' +
-              'object_id: <code>' + escapeHtml(p.proposal_object_id.slice(0, 16)) + '...</code>' +
+              (t.body
+                ? escapeHtml(t.body)
+                : '<em>This proposal carries no readable text.</em>') +
             '</div>' +
+            '<div class="proposal-id">object_id: <code>' +
+              escapeHtml(p.proposal_object_id.slice(0, 16)) + '...</code></div>' +
             '<div class="tally-wrap">' + tallyHtml(tally) + '</div>' +
             (isOpen
               ? '<div class="vote-actions">' +
