@@ -54,6 +54,27 @@
     .fed-dot.offline { background: var(--text-muted); }
     .fed-name { font-weight: 600; font-size: 0.85rem; }
     .fed-url { font-size: var(--text-sm); color: var(--text-muted); }
+    .fed-card .fed-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-md); }
+    .fed-card select, .fed-add-row input {
+      background: #1a1a1a; border: 1px solid var(--border); color: var(--text);
+      padding: var(--space-sm) var(--space-md); border-radius: 6px; font-size: var(--text-sm);
+    }
+    .fed-add-row input { flex: 1; min-width: 140px; }
+    .fed-card button, .fed-add-row button {
+      background: #1a1a1a; border: 1px solid var(--border); color: var(--text);
+      padding: var(--space-sm) var(--space-lg); border-radius: 6px; font-size: var(--text-sm); cursor: pointer;
+    }
+    .fed-card button:hover, .fed-add-row button:hover { border-color: var(--accent); color: var(--accent); }
+    .fed-card button.danger:hover { border-color: var(--danger); color: var(--danger); }
+    .fed-card button:disabled, .fed-add-row button:disabled { opacity: 0.5; cursor: default; }
+    .fed-tier-note { font-size: var(--text-sm); color: var(--text-muted); }
+    .fed-help { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.55; margin: 0 0 var(--space-lg); }
+    .fed-add { margin-top: var(--space-xl); padding-top: var(--space-lg); border-top: 1px solid var(--border); }
+    .fed-add h3 { font-size: 0.85rem; margin: 0 0 var(--space-md); }
+    .fed-add-row { display: flex; gap: var(--space-md); flex-wrap: wrap; margin-bottom: var(--space-md); }
+    .fed-status { font-size: var(--text-sm); margin: var(--space-md) 0; min-height: 1.2em; }
+    .fed-status.err { color: var(--danger); }
+    .fed-status.ok { color: var(--success); }
 
     /* Auth gate */
     #auth-gate { text-align: center; padding: 80px 20px; }
@@ -152,11 +173,39 @@
       </table>
     </div>
 
-    <!-- Federation status -->
+    <!-- Federation: status AND management. Peer add/trust/remove used to be
+         chat slash commands only, so anyone running this relay without our chat
+         client had no way to federate at all. GUI-first rule: every operator
+         action lives in an app. -->
     <div class="panel">
-      <h2>Federation Status</h2>
+      <h2>Federation</h2>
+      <p class="fed-help">
+        Servers this relay federates with. A peer does nothing until you raise it to
+        trust tier 2: below that, outbound connections are skipped and inbound hellos
+        are refused. Adding a peer is safe on its own.
+      </p>
       <div id="federation-list">
         <p style="color:var(--text-muted)">No federated servers configured.</p>
+      </div>
+      <div id="fed-status" class="fed-status"></div>
+      <div class="fed-add">
+        <h3>Add a peer</h3>
+        <p class="fed-help">
+          By address if the other server is reachable on the open internet. By key if it
+          is behind a home router: it cannot be dialed, but it can dial out, and pinning
+          its key lets its connection be recognised. Copy the key from that server's Host
+          Node page.
+        </p>
+        <div class="fed-add-row">
+          <input id="fed-add-url" type="text" placeholder="https://server.example.com" autocomplete="off">
+          <input id="fed-add-url-name" type="text" placeholder="name (optional)" autocomplete="off">
+          <button id="fed-add-url-btn" type="button">Add by address</button>
+        </div>
+        <div class="fed-add-row">
+          <input id="fed-add-key" type="text" placeholder="64-character key from their Host Node page" autocomplete="off">
+          <input id="fed-add-key-name" type="text" placeholder="name (optional)" autocomplete="off">
+          <button id="fed-add-key-btn" type="button">Add by key</button>
+        </div>
       </div>
     </div>
 

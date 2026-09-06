@@ -1028,6 +1028,11 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // POST form carries the ~10KB Dilithium key+signature in the body so it
         // can't 414 on a proxy URI limit; GET kept for existing callers. (v0.851)
         .route("/api/admin/stats", get(api::get_admin_stats).post(api::post_admin_stats))
+        // Federation peer management for admins. POST-only: the Dilithium key
+        // plus signature are roughly 10 KB, which a GET would carry in the URL
+        // and a proxy would reject as 414 (the same reason admin stats grew a
+        // POST form). Signs the purpose "admin_federation", not "admin_stats".
+        .route("/api/admin/federation", post(api::post_admin_federation))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
         // === API v2: signed objects substrate (Phase 0 PR 2) ===

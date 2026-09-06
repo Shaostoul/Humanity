@@ -548,8 +548,12 @@ PRIORITIES.md, trust PRIORITIES.md.
   Native **video, screen-share, and streaming are still missing** (web-only) -
   no native capture/transport for those yet. (PRIORITIES TIER 2 #2, #4, #6.)
 - Native **trade UI** page exists but trade events aren't dispatched (TIER 2 #7).
-- **Federation** code is fail-closed and dormant, designed, not activated; no
-  admin UI to add/trust peers yet (TIER 2 #5).
+- **Federation** code is fail-closed and dormant. An admin UI to add, trust and
+  remove peers DOES exist now: native Server Settings has had one since v0.722,
+  and the web admin page gained the same controls on 2026-09-06 via
+  POST /api/admin/federation (the underlying /server-* slash commands remain).
+  What is still true: only two nodes have ever federated, both the operator's
+  own, so the path has never been exercised by a third party (TIER 2 #5).
 - **Bloom post-process** scaffolding built, render-loop integration unverified.
 - **16+ scaffolded game systems** (aging, astronomy, fire, genetics, geology,
   hvac, manufacturing, medical, plumbing, transportation, waste, etc.) tick but
