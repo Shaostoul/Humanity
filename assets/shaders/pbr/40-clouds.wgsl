@@ -862,14 +862,36 @@ const CLOUD_LC_TAU_MAX: f32 = 64.0;
 // fine -> coarse across the fine window's outer 20%, coarse -> the fallback
 // across the coarse window's outer 20%, so no window edge prints a ring.
 const CLOUD_LC_BLEND_FRAC: f32 = 0.20;
-// What the coarse window blends INTO at its edge, and what runs beyond it.
-// 0.0 = the per-pixel ladder (rungs 2-11 as before; the look outside the
-// windows is exactly today's, and the coarse outer band pays the ladder to
-// blend against). 1.0 = the analytic slant column g_sun_tau_col (cheaper,
-// but a different quantity from the ladder beyond 48 km, so the far field's
-// look changes). The contract text names both; the ladder is the safe first
-// cut and the constant is the one-line switch to try the other.
-const CLOUD_LC_FAR_ANALYTIC: f32 = 1.0; // v0.1288: the analytic column beyond the coarse window (rain 26 km 152 -> 122 ms, look identical)
+// What the coarse window blends INTO at its outer 20% band. This constant
+// decides ONLY the band's blend target; beyond the coarse window the
+// per-pixel ladder (cloud_sun_tau_far, rungs 2-11) ALWAYS runs on the
+// !cached path of cloud_sun_tau, regardless of this value, because
+// light_cache_tau returns w = 1 there and the cache branch is skipped.
+// 0.0 = the band blends to the per-pixel ladder: the band's inner limit and
+// the region one pixel beyond the window are then the SAME quantity, so the
+// window edge cannot print (continuity by construction); the coarse outer
+// band pays the ladder to blend against.
+// 1.0 = the band blends to max(tau01, g_sun_tau_col), the analytic vertical
+// column of the NOISE envelope (col_above / tau_above / 1/ndl in the march):
+// cheaper, but a different quantity from the ladder that runs beyond the
+// edge, so the band ENDS on a step at wc = 1.
+// v0.1289.x (finding F1, the dark rotated square of shadowed clouds seen from
+// 36.8 km over broken cumulus, gone with F10 "Sun shadow cache" off): 0.0
+// again. v0.1288 set 1.0 believing the analytic column also ran beyond the
+// window ("look identical" was measured only on vantages with the coarse
+// edge out of frame or foreshortened). Its band target differs from the
+// ladder over built lobe tops (the column is the envelope's crown and
+// density, not the built lobe's, see the increment C note at tau_above), so
+// the coarse window's outer edge printed as a hard step. This revert removes
+// that discontinuity and restores the band's documented purpose (no window
+// edge prints a ring). It is NOT proven to remove all of the operator's
+// filled dark square: the coarse 760 x 480 m trilinear tau blur inside the
+// window is a separate candidate (the map_diag 9 on/off gate separates
+// them). Cost: rain 26 km about 122 -> 152 ms, 3 km horizon about 83 -> 91,
+// closeup unchanged (the v0.1288 delta in reverse). The proper cheaper far
+// target is the far-rung profile, in design; set 1.0 to reproduce the
+// pre-fix seam for A/B.
+const CLOUD_LC_FAR_ANALYTIC: f32 = 0.0;
 // "Sun source" codes for map_diag channel 9 (the bisect instrument that
 // shows where each window's edge falls): fine window 1.0, coarse window
 // 0.5, "decided by rungs 0-1" 0.35 (the A2 buried early-exit or the opaque
