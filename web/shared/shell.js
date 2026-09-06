@@ -1090,6 +1090,7 @@
       mobileLink('/donate',    'Donate') +
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/governance', 'Governance') +
+      mobileLink('/rules',     'Rules and appeals') +
       mobileLink('/laws',      'Laws') +
       mobileLink('/shared-files', 'Shared Files') +
       mobileLink('/identity',  'Identity') +

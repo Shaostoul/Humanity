@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width,initial-scale=1.0">
+  <title>Rules, HumanityOS</title>
+  <meta name="description" content="The rules for united-humanity.us, who moderates it, what powers they hold, and how to appeal a decision.">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    .rules-wrap { max-width: 46rem; margin: 0 auto; padding: 0 var(--space-lg) 4rem; }
+    .rules-wrap h1 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); margin: var(--space-xl) 0 var(--space-md); }
+    .rules-wrap h2 {
+      font-size: 1.15rem; margin: 2.4rem 0 var(--space-md);
+      padding-top: var(--space-lg); border-top: 1px solid var(--border);
+    }
+    .rules-wrap h3 { font-size: 0.98rem; margin: var(--space-xl) 0 var(--space-xs); }
+    .rules-wrap p, .rules-wrap li { line-height: 1.65; color: var(--text); }
+    .rules-wrap ul { padding-left: 1.2rem; }
+    .rules-wrap li { margin-bottom: var(--space-sm); }
+    .lede { color: var(--text-muted); font-size: 1.02rem; }
+    .rule { margin-bottom: var(--space-lg); }
+    .rule b { color: var(--text); }
+    .rule span { color: var(--text-muted); display: block; margin-top: 2px; }
+    .callout {
+      border: 1px solid var(--border); border-left: 3px solid var(--accent);
+      border-radius: var(--radius, 8px); background: var(--bg-card);
+      padding: var(--space-lg); margin: var(--space-lg) 0;
+    }
+    .callout.hard { border-left-color: var(--danger); }
+    .callout.gap { border-left-color: var(--warning, var(--text-muted)); }
+    .callout h3 { margin-top: 0; }
+    table.powers { width: 100%; border-collapse: collapse; margin: var(--space-lg) 0; font-size: 0.9rem; }
+    table.powers th, table.powers td {
+      text-align: left; padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border); vertical-align: top;
+    }
+    table.powers th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .scroll-x { overflow-x: auto; }
+    .updated { color: var(--text-muted); font-size: 0.85rem; }
+    .rules-wrap a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="rules"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div class="rules-wrap">
+
+  <h1>Rules, moderation and appeals</h1>
+  <p class="lede">
+    These are the rules for <strong>united-humanity.us</strong>, the server run by this
+    project. They sit on top of the <a href="/library#communication-and-association">Humanity
+    Accord</a>, which takes precedence: a server rule may be stricter than the Accord, never
+    looser, and never coercive.
+  </p>
+  <p class="updated">Published 6 September 2026. Anyone running their own HumanityOS server writes their own rules; these bind this server only.</p>
+
+  <h2>The rules</h2>
+
+  <div class="rule"><b>1. Respect every person.</b>
+    <span>No harassment, hate speech, doxxing or targeted attacks. Disagreement is fine. Contempt is not.</span></div>
+  <div class="rule"><b>2. Act in good faith.</b>
+    <span>Communicate honestly. No deception or manipulation. If you got something wrong, say so. Everyone here is still learning.</span></div>
+  <div class="rule"><b>3. Protect privacy.</b>
+    <span>Do not share someone else's personal information without their consent. Your identity here is yours; treat everyone else's the same way.</span></div>
+  <div class="rule"><b>4. Keep it legal.</b>
+    <span>No illegal content, threats or fraud.</span></div>
+  <div class="rule"><b>5. Stay roughly on topic.</b>
+    <span>Channels exist for a reason. Use the general channel for anything broad.</span></div>
+  <div class="rule"><b>6. Build rather than burn.</b>
+    <span>Constructive criticism is welcome and wanted. Wrecking things for its own sake is not.</span></div>
+
+  <div class="callout hard">
+    <h3>The limits that are not negotiable</h3>
+    <p>
+      A few things are prohibited regardless of intent, belief, culture, consent or claimed
+      authorization. They are not weighed against context and they do not get a proportional
+      first response. Sexual exploitation of children is the clearest of them: it means
+      immediate permanent removal and reporting to the authorities, with no warning step and
+      no appeal on this server.
+    </p>
+    <p>
+      The full list, and why it is written as absolute, is in
+      <a href="/library#absolute-prohibitions">Absolute Prohibitions</a>.
+    </p>
+  </div>
+
+  <h2>Who moderates, and what they can actually do</h2>
+  <p>
+    The Accord requires every space to declare who can moderate it and what powers they hold.
+    On this server that is the operator (admin) and anyone the operator has made a moderator.
+    This table is the real list, taken from the code that enforces it, not a summary of
+    intentions.
+  </p>
+
+  <div class="scroll-x">
+  <table class="powers">
+    <thead><tr><th>Action</th><th>Who</th><th>What it does</th><th>Reversible</th></tr></thead>
+    <tbody>
+      <tr><td>Kick</td><td>Moderator</td><td>Closes your connection. Nothing is stored and you can reconnect immediately. It is a way to interrupt, not to exclude.</td><td>Yes, instantly</td></tr>
+      <tr><td>Mute</td><td>Moderator</td><td>You stay connected and can read, but cannot post in channels or send private messages.</td><td>Yes</td></tr>
+      <tr><td>Ban</td><td>Admin only</td><td>Refuses your key at connection. It is checked before anything else and survives restarts.</td><td>Yes, by an admin</td></tr>
+      <tr><td>Delete a message</td><td>Moderator (anyone may delete their own)</td><td>Removes it for everyone.</td><td><strong>No</strong></td></tr>
+      <tr><td>Wipe a channel</td><td>Admin only</td><td>Deletes that channel's history.</td><td><strong>No</strong></td></tr>
+      <tr><td>Change someone's role</td><td>Admin only</td><td>Grants or removes moderator and similar roles.</td><td>Yes</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Ordinary response is proportional, in this order: a word about it, then mute, then kick,
+    then ban. Immediate removal is for severe harm or for repeated violations after the
+    earlier steps, and for the absolute limits above, which skip the ladder entirely.
+  </p>
+
+  <h3>What a ban is, exactly</h3>
+  <p>
+    A ban is attached to your identity key, not to your name, your address or your device. It
+    has no expiry: nothing removes it automatically, so it stays until an admin lifts it.
+    Because it is key-based, generating a new identity gets around it, which is a deliberate
+    consequence of not tracking people by address. We would rather a determined person be able
+    to come back than build the surveillance it would take to stop them.
+  </p>
+
+  <h2>Reporting something</h2>
+  <p>
+    Use <code>/report &lt;name&gt; &lt;what happened&gt;</code> in chat. Include the reason: it
+    is the difference between a report that can be acted on and one that cannot. Reports go to
+    moderators who are connected at that moment.
+  </p>
+  <p>
+    You do not have to involve a moderator at all if you would rather not. You can block or
+    mute anyone yourself, close a conversation, or leave a space, and nobody is told that you
+    did. The Accord treats that as your right rather than a lesser option.
+  </p>
+
+  <h2>Appealing a decision</h2>
+  <p>
+    Every moderation decision on this server can be questioned, and the person who made it has
+    to be able to say who they are and why they did it.
+  </p>
+  <ul>
+    <li><strong>If you can still connect</strong> (muted, kicked, or a message removed): message an
+      admin directly and ask. You do not need anyone's permission to send that message.</li>
+    <li><strong>If you are banned</strong> you cannot connect at all, so no in-app route can work.
+      Open an issue at
+      <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener">github.com/Shaostoul/Humanity/issues</a>.
+      It is public, which cuts both ways: it means an appeal cannot be quietly ignored, and it
+      means you should not put private details in it.</li>
+  </ul>
+  <p>
+    There is no fixed deadline and no limit on asking twice. If a moderator cannot explain a
+    decision in terms of a rule on this page, the decision is wrong.
+  </p>
+
+  <div class="callout gap">
+    <h3>What this server does not have yet</h3>
+    <p>
+      Saying you have protections you do not have is itself a harm, so here is the honest
+      state of it:
+    </p>
+    <ul>
+      <li><strong>There is no moderation audit log.</strong> A ban is a row in a database with no
+        record of who issued it, why, or when it might end. The design for signed, tamper-evident
+        moderation records exists and is not built. Until it is, "attributable" means you can ask
+        and get an answer, not that you can verify one independently.</li>
+      <li><strong>Reports have no tracked outcome.</strong> There is no status on a report, so you
+        will not automatically hear what happened to one you filed. Ask if you want to know.</li>
+      <li><strong>Reports only reach moderators who are online</strong> when you file them. There is
+        no queue holding them for someone who was away.</li>
+      <li><strong>A ban message gives no reason and no contact.</strong> All you see is that you were
+        banned. That is why this page exists at a public address you can reach while banned.</li>
+      <li><strong>There is no formal warning step</strong> in the software. A warning is a person
+        telling you, not a recorded action.</li>
+    </ul>
+    <p>
+      Progress on these is tracked in the open, in
+      <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/design/signed_moderation_logs.md" target="_blank" rel="noopener">the
+      signed moderation logs design</a>.
+    </p>
+  </div>
+
+  <h2>Changing these rules</h2>
+  <p>
+    Rules should not change because one person decided so in private. This server has a
+    <a href="/governance">governance</a> page where anyone can put up a <em>local rule</em>
+    proposal and everyone can vote on it, with each vote cryptographically signed by the person
+    casting it. That is the intended route for amending this page.
+  </p>
+  <p>
+    If a rule here ever conflicts with the Humanity Accord, the Accord wins and the rule is void.
+  </p>
+
+  <h2>If you disagree with how this place is run</h2>
+  <p>
+    You can leave, and you can start your own. The software is public domain, a server is a
+    single binary, and nothing here punishes you for running one. The Accord is explicit that
+    forking a community is legitimate rather than disloyal. A space that could not be left, or
+    could not be replaced, would not be worth being in.
+  </p>
+
+</div>
+</body>
+</html>
