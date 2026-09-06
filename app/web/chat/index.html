@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS, Network</title>
+  <title>Chat, HumanityOS</title>
   <meta name="description" content="HumanityOS cooperative chat with cryptographic identity. No accounts, no tracking. Just people talking freely.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS, Network Chat">
+  <meta property="og:title" content="Chat, HumanityOS">
   <meta property="og:description" content="HumanityOS cooperative chat with cryptographic identity. No accounts, no tracking, no surveillance.">
   <meta property="og:url" content="https://united-humanity.us/chat">
   <meta property="og:image" content="https://united-humanity.us/favicon.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="HumanityOS, Network Chat">
+  <meta name="twitter:title" content="Chat, HumanityOS">
   <meta name="twitter:description" content="HumanityOS cooperative chat with Ed25519 identity. No accounts. No tracking.">
   <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
   <meta name="theme-color" content="#ed8c24">
@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/chat/base.css?v=3">
   <link rel="stylesheet" href="/chat/layout.css?v=3">
   <link rel="stylesheet" href="/chat/sidebar.css?v=3">
-  <link rel="stylesheet" href="/chat/messages.css?v=3">
+  <link rel="stylesheet" href="/chat/messages.css?v=4">
   <link rel="stylesheet" href="/chat/modals.css?v=3">
   <link rel="stylesheet" href="/chat/voice.css?v=3">
   <link rel="stylesheet" href="/chat/inputs.css?v=3">
@@ -86,13 +86,14 @@
 <body>
   <script src="/shared/icons.js?v=1"></script>
   <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/hold-confirm.js?v=1"></script>
   <script src="/shared/shell.js?v=3" data-active="chat"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js?v=3"></script>
 
   <!-- Login Screen -->
   <div id="login-screen">
-    <h1><span class="pg-ico" data-icon="globe" data-size="24"></span> HumanityOS Network</h1>
+    <h1><span class="pg-ico" data-icon="globe" data-size="24"></span> Chat</h1>
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Choose a name" autofocus>
     <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
@@ -412,7 +413,7 @@
           <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
             data-tip-title="Attach File"
             data-tip-desc="Upload an image or file to share in this channel."
-            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (max 50 MB)"><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
+            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (up to 6 MB)"><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
           <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()"
@@ -672,35 +673,46 @@
   <!-- Load order: bip39-english (wordlist) → crypto → app (core) → feature modules (each patches globals from prior scripts) -->
   <!-- bip39-english.js must load before crypto.js so generateMnemonic() and restoreIdentityFromMnemonic() have the wordlist -->
   <script src="/chat/bip39-english.js?v=1"></script>
-  <script src="/chat/crypto.js?v=4"></script>
+  <script src="/chat/crypto.js?v=6"></script>
   <!-- pq.js: post-quantum (Dilithium3) identity, derived from the same
        BIP39 seed as the Ed25519 key. Must load before app.js calls
        attachPqIdentity(). Self-loads the vendored same-origin bundle. -->
   <script src="/chat/pq.js?v=1"></script>
+  <!-- chat-dm-store.js: local encrypted DM history (sealed-sender cutover,
+       2026-08-23). The relay no longer stores readable DM history; this
+       IndexedDB store, keyed from the seed, is the archive. Load before
+       app.js so the dm_new/dm_batch handlers can use it. -->
+  <script src="/chat/chat-dm-store.js?v=1"></script>
   <!-- Clean view modules (docs/design/chat-layout.md), one per native draw_*.
        Load before app.js so its renderers can call them. -->
   <script src="/chat/view/timestampPill.js?v=1"></script>
   <script src="/chat/view/messageRow.js?v=1"></script>
-  <script src="/chat/app.js?v=6"></script>
-  <script src="/chat/chat-messages.js?v=4"></script>
-  <script src="/chat/chat-dms.js?v=4"></script>
+  <script src="/chat/app.js?v=8"></script>
+  <script src="/chat/chat-messages.js?v=5"></script>
+  <script src="/chat/chat-dms.js?v=6"></script>
   <script src="/chat/chat-social.js?v=8"></script>
   <script src="/chat/chat-groups-p2p.js?v=8"></script>
-  <script src="/chat/chat-ui.js?v=4"></script>
+  <script src="/chat/chat-ui.js?v=5"></script>
   <script src="/chat/chat-voice-rooms.js?v=1"></script>
   <script src="/chat/chat-voice-calls.js?v=1"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
   <script src="/chat/chat-voice-streaming.js?v=1"></script>
+  <!-- Live-now mirror of the native Chat live strip: /api/live directory, links to /watch (v0.1151) -->
+  <script src="/chat/chat-live.js?v=1"></script>
   <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
   <script src="/chat/chat-voice-modal.js?v=1"></script>
   <script src="/chat/chat-profile.js?v=4"></script>
+  <!-- chat-privacy.js: privacy tiers (2026-08-23) — first-connect chooser
+       (default: maximum privacy) + tier application. Needs chat-profile.js
+       (profile privacy merge) loaded first. -->
+  <script src="/chat/chat-privacy.js?v=1"></script>
   <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
   <script src="/chat/chat-game-admin.js?v=1"></script>
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + seed phrase) -->
   <script src="/chat/chat-onboarding.js?v=1"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=6"></script>
+  <script src="/chat/chat-p2p.js?v=7"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
   <script>

@@ -547,6 +547,43 @@
   white-space: nowrap;
 }
 
+/* ── Press-and-hold mailbox scrub (destructive; hold, don't click) ── */
+.purge-mailbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none; /* so a hold-drag doesn't scroll the sidebar on touch */
+  opacity: 0.7;
+}
+.purge-mailbox-row:hover { opacity: 1; }
+.purge-mailbox-row .hold-ring {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* Progress wheel: danger arc fills to (--hold-p * 1turn), the rest is the
+     track colour. The radial mask punches the centre so it reads as a ring. */
+  background: conic-gradient(var(--danger) calc(var(--hold-p, 0) * 1turn), var(--border) 0);
+  -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.5px);
+          mask: radial-gradient(circle, transparent 5px, #000 5.5px);
+}
+/* While holding, the arc cycles RGB fast so the wheel is maximally visible.
+   hos-hold-rgb is defined in /shared/hold-confirm.js's injected CSS. */
+.purge-mailbox-row.holding .hold-ring { animation: hos-hold-rgb 0.8s linear infinite; }
+.purge-mailbox-row .hold-hint {
+  margin-left: auto;
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.purge-mailbox-row.holding { opacity: 1; }
+.purge-mailbox-row.holding .dm-name,
+.purge-mailbox-row.holding .hold-hint { color: var(--danger); }
+
 /* ── Sidebar Tab Bar ── */
 .sidebar-tabs {
   display: flex;
@@ -645,6 +682,7 @@
   color: var(--accent);
   padding: 0 var(--space-xs);
   border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 .mention-me {
   background: rgba(224,112,32,0.3);

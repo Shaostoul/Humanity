@@ -65,7 +65,7 @@ function applyPrefs() {
   var es = document.getElementById('pref-show-simple');
   var ee = document.getElementById('pref-show-expert');
   if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
-  if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
+  if (ee) ee.checked = localStorage.getItem('hos_show_expert') === '1';
   // Load customizer values from the unified prefs store
   try {
     var iwSlider = document.getElementById('pref-icon-weight');
@@ -383,8 +383,8 @@ function beginPttRebind() {
   document.addEventListener('keydown', capture, true);
 }
 
-function clearAllData() {
-  if (!confirm('This will permanently delete all local HumanityOS data (skills, inventory, logbook, quests, calendar). Your chat identity is preserved.\n\nThis cannot be undone. Continue?')) return;
+async function clearAllData() {
+  if (!await holdConfirm('This will permanently delete all local HumanityOS data (skills, inventory, logbook, quests, calendar). Your chat identity is preserved.\n\nThis cannot be undone. Continue?', { seconds: 5 })) return;
   const keys = ['hos_skills_v1','hos_inventory_v1','hos_logbook_v1','hos_quests_v1','hos_calendar_v1'];
   keys.forEach(k => localStorage.removeItem(k));
   alert('Local data cleared.');
@@ -420,10 +420,10 @@ function importData(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(ev) {
+  reader.onload = async function(ev) {
     try {
       const data = JSON.parse(ev.target.result);
-      if (!confirm('Import this backup? It will overwrite matching local data.')) return;
+      if (!await holdConfirm('Import this backup? It will overwrite matching local data.', { seconds: 3 })) return;
       Object.keys(data).forEach(k => {
         if (data[k] !== null) localStorage.setItem(k, JSON.stringify(data[k]));
       });
@@ -686,8 +686,8 @@ function calculateStorage() {
   container.innerHTML = rows.join('');
 }
 
-function clearModule(key, name) {
-  if (!confirm('Clear all ' + name + ' data? This cannot be undone.')) return;
+async function clearModule(key, name) {
+  if (!await holdConfirm('Clear all ' + name + ' data? This cannot be undone.', { seconds: 3 })) return;
   localStorage.removeItem(key);
   calculateStorage();
 }
@@ -709,7 +709,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1081.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1296.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1483,7 +1483,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     if (!activeId || !vault) return;
     const entry = vault.entries.find(e => e.id === activeId);
     if (!entry) return;
-    if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    if (!await holdConfirm(`Delete "${entry.title}"? This cannot be undone.`, { seconds: 3 })) return;
     vault.entries = vault.entries.filter(e => e.id !== activeId);
     await vault_persist();
     activeId = null;
@@ -1835,7 +1835,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
   async function vault_restoreFromCloud() {
     const auth = await vault_signSyncRequest();
     if (!auth) { alert('No Humanity identity found, vault sync requires a chat identity to authenticate.'); return; }
-    if (!confirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.')) return;
+    if (!await holdConfirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.', { seconds: 5 })) return;
     try {
       const url = `/api/vault/sync?key=${encodeURIComponent(auth.key)}&timestamp=${auth.timestamp}&sig=${encodeURIComponent(auth.sig)}`;
       const res = await fetch(url);
@@ -1843,7 +1843,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
       if (!res.ok) { const t = await res.text(); throw new Error(t); }
       const { blob, updated_at } = await res.json();
       const date = new Date(updated_at).toLocaleString();
-      if (!confirm(`Found cloud backup from ${date}. Overwrite local vault and reload?`)) return;
+      if (!await holdConfirm(`Found cloud backup from ${date}. Overwrite local vault and reload?`, { seconds: 5 })) return;
       localStorage.setItem(VAULT_LS_KEY, blob);
       location.reload();
     } catch(e) {

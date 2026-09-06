@@ -360,8 +360,8 @@ function labelDevice(publicKey, label) {
   }
 }
 
-function revokeDevice(keyPrefix) {
-  if (!confirm('Revoke this device? It will be disconnected and removed from your account.')) return;
+async function revokeDevice(keyPrefix) {
+  if (!await holdConfirm('Revoke this device? It will be disconnected and removed from your account.', { seconds: 3 })) return;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'device_revoke', key_prefix: keyPrefix }));
   }
@@ -641,6 +641,31 @@ let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
 // Full-PQ DM: Kyber768 (ML-KEM-768), derived from the SAME seed.
 let myKyberPublicBase64 = null;    // base64 1184-byte encapsulation key (advertised at identify)
 let myKyberSecret = null;          // Uint8Array decapsulation key (in-memory only)
+let mySeed32 = null;               // the 32-byte master seed (in-memory only; keys the local DM store)
+let _dmStoreKeyPromise = null;     // cached CryptoKey derivation for the local DM store
+
+/**
+ * At-rest key for the LOCAL DM history store (sealed-sender cutover:
+ * long-term history lives in IndexedDB, not on the relay). Derived from
+ * the seed via HKDF so a copied IndexedDB is unreadable without it —
+ * this genuinely protects wrapped-key users, whose seed never sits in
+ * localStorage. Non-extractable AES-GCM CryptoKey; null until identity
+ * is ready.
+ */
+function getDmStoreKey() {
+  if (!mySeed32) return null;
+  if (!_dmStoreKeyPromise) {
+    _dmStoreKeyPromise = (async () => {
+      const base = await crypto.subtle.importKey('raw', mySeed32, 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0),
+          info: new TextEncoder().encode('hum/dm-store-web/v1') },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    })();
+  }
+  return _dmStoreKeyPromise;
+}
+window.getDmStoreKey = getDmStoreKey;
 
 /**
  * FULL-PQ identity (cutover v0.262.34). From the ONE 32-byte BIP39
@@ -674,6 +699,8 @@ async function attachPqIdentity() {
     myDilithiumSecret = pq.dilithiumSecret;
     myKyberSecret = kp.kyberSecret;
     myKyberPublicBase64 = btoa(String.fromCharCode(...kp.kyberPublicBytes));
+    mySeed32 = seed;             // keys the local DM history store
+    _dmStoreKeyPromise = null;   // re-derive if the identity changed
     // Promote Dilithium to THE chat identity. Stash the old Ed25519
     // hex (Solana-wallet use only); `publicKeyHex` is now Dilithium.
     myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
@@ -735,45 +762,203 @@ function getPeerEcdhPublic(peerKey) {
   return peer ? (peer.kyber_public || null) : null;
 }
 
-/** Dual-seal `plaintext` (to recipient + to self). Returns
- *  { content:<JSON envelope>, nonce:<recipient nonce, wire-compat> } or
- *  null (→ caller falls back to sending plaintext). */
-async function encryptDmContent(plaintext, peerKyberPublicBase64) {
+// ── Sealed-sender DM v2 (2026-08-23) ────────────────────────────────────────
+// The v1 dual-seal hid CONTENT but the wire + relay row still carried
+// from/to in the clear, so the relay accumulated a complete DM social
+// graph (the dataset the Take-Two/Discord subpoena harvested). v2 moves
+// the sender INSIDE the ciphertext, Dilithium-signed:
+//
+//   inner = { v:2, from, to, ts, text, sig }
+//   sig   = Dilithium3 over "hum/dm/v2\n{from}\n{to}\n{ts}\n{text}"
+//   wire  = { v:2, ek_ct_b64, nonce_b64, ct_b64 }   (single seal)
+//
+// One message = TWO independent envelopes deposited via `dm_put`: sealed
+// to the recipient (their server mailbox) and to ourselves (our mailbox,
+// so our other devices can fetch sent history). MUST stay byte-shape
+// compatible with native `net::dm_pq` (build_signed_inner / seal_v2 /
+// parse_verify_inner).
+
+const DM_SIG_DOMAIN_V2 = 'hum/dm/v2';
+
+// Reserved control-message texts (follows removal, 2026-08-24; must match
+// native net::dm_pq). Acted on by clients, never rendered.
+const CTL_FOLLOW = '[[hum:follow]]';
+const CTL_UNFOLLOW = '[[hum:unfollow]]';
+const CTL_FRIEND_CERT = '[[hum:friend-cert]]';
+
+// Friendship certificates: cert = Dilithium_issuer("hum/friend/v1\n{issuer}\n{grantee}").
+// The issuer authorizes the grantee to DM them; the relay verifies it
+// STATELESSLY at dm_put (no server-side friends table exists).
+const FRIEND_CERT_DOMAIN = 'hum/friend/v1';
+
+/** Build MY certificate authorizing `granteeHex` to DM me. */
+async function pqBuildFriendCert(granteeHex) {
+  if (!myDilithiumSecret || !myDilithiumPublicHex) return null;
+  const preimage = `${FRIEND_CERT_DOMAIN}\n${myDilithiumPublicHex}\n${granteeHex}`;
+  const sig = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
+  return sig ? btoa(String.fromCharCode(...sig)) : null;
+}
+
+/** Verify that `issuerHex` authorized `granteeHex`. */
+async function pqVerifyFriendCert(issuerHex, granteeHex, certB64) {
   try {
-    if (typeof window.pqDmSeal !== 'function'
-        || !peerKyberPublicBase64 || !myKyberPublicBase64) return null;
-    const r = await window.pqDmSeal(peerKyberPublicBase64, plaintext); // → recipient
-    const s = await window.pqDmSeal(myKyberPublicBase64, plaintext);   // → self (history)
-    if (!r || !s) return null;
-    const env = { v: 1, r, s };
-    // Keep a top-level `nonce` only so existing `msg.encrypted && msg.nonce`
-    // guards still trip; the authoritative nonce lives inside the envelope.
-    return { content: JSON.stringify(env), nonce: r.nonce_b64 };
+    const sig = Uint8Array.from(atob(certB64), (c) => c.charCodeAt(0));
+    const preimage = `${FRIEND_CERT_DOMAIN}\n${issuerHex}\n${granteeHex}`;
+    return await window.pqVerifyMessage(_hexToBytes(issuerHex), new TextEncoder().encode(preimage), sig);
+  } catch { return false; }
+}
+
+function _dmSigPreimage(from, to, ts, text) {
+  return `${DM_SIG_DOMAIN_V2}\n${from}\n${to}\n${ts}\n${text}`;
+}
+
+function _hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+/**
+ * Build the two `dm_put` frames for one DM. Returns
+ *   { recipientPut, selfPut, inner }   (puts are plain objects for ws.send)
+ * or null when the identity / peer key isn't ready (FAIL CLOSED — there
+ * is no plaintext fallback in the v2 protocol).
+ */
+async function pqBuildDmPuts(text, partnerKey, ts, opts) {
+  try {
+    if (typeof window.pqDmSeal !== 'function' || typeof window.pqSignMessage !== 'function') return null;
+    if (!myDilithiumPublicHex || !myDilithiumSecret || !myKyberPublicBase64) return null;
+    const peerKyber = getPeerEcdhPublic(partnerKey);
+    if (!peerKyber) return null;
+    const from = myDilithiumPublicHex;
+    const preimage = _dmSigPreimage(from, partnerKey, ts, text);
+    const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
+    if (!sigBytes) return null;
+    const sigB64 = btoa(String.fromCharCode(...sigBytes));
+    const inner = { v: 2, from, to: partnerKey, ts, text, sig: sigB64 };
+    // A [[hum:friend-cert]] control carries the certificate payload
+    // (self-authenticating, so outside the message signature).
+    if (opts && opts.ctlCert) inner.cert = opts.ctlCert;
+    // Size padding (2026-08-24): round the sealed plaintext up to a
+    // bucket so ciphertext length doesn't leak message length. Buckets
+    // must match native (net::dm_pq::DM_PAD_BUCKETS).
+    {
+      const buckets = [256, 1024, 4096, 16384];
+      const bare = JSON.stringify(inner).length;
+      const bucket = buckets.find((b) => bare + 12 <= b) || (bare + 12);
+      inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
+    }
+    const innerJson = JSON.stringify(inner);
+    const sealTo = async (kyberPubB64) => {
+      const sealed = await window.pqDmSeal(kyberPubB64, innerJson);
+      if (!sealed) return null;
+      return JSON.stringify({ v: 2, ek_ct_b64: sealed.ek_ct_b64, nonce_b64: sealed.nonce_b64, ct_b64: sealed.ct_b64 });
+    };
+    const envRecipient = await sealTo(peerKyber);
+    const envSelf = await sealTo(myKyberPublicBase64);
+    if (!envRecipient || !envSelf) return null;
+    const recipientPut = { type: 'dm_put', to: partnerKey, content: envRecipient };
+    // Attach the recipient's friendship certificate when we hold one
+    // (follows removal 2026-08-24): certified mail rides the friend lane;
+    // without it this send spends the daily knock budget.
+    try {
+      const cert = window.hosDmStore && hosDmStore.ready ? hosDmStore.certFor(partnerKey) : null;
+      if (cert) recipientPut.friend_cert = cert;
+    } catch {}
+    return {
+      recipientPut,
+      selfPut: { type: 'dm_put', to: from, content: envSelf },
+      inner,
+    };
   } catch (e) {
-    console.warn('encryptDmContent (PQ) failed:', e && e.message);
+    console.warn('pqBuildDmPuts failed:', e && e.message);
     return null;
   }
 }
 
-/** Open a PQ DM envelope. The 3rd arg (old ECDH peer key) is IGNORED, a
- *  KEM decapsulates with OUR OWN deterministic secret. Tries the recipient
- *  copy then the self copy, so it works whether the message was received
- *  OR is our own from history. Returns plaintext or null. */
-async function decryptDmContent(contentStr, _nonceIgnored, _peerKeyIgnored) {
+// ── Encrypted private attachments (2026-08-24) ──────────────────────────────
+// A file shared in a DM must be as private as the message. We encrypt it with
+// a fresh random AES-256-GCM key BEFORE upload; the server stores only opaque
+// ciphertext at a public URL (harmless without the key), and the key + nonce +
+// metadata ride INSIDE the sealed DM envelope as a [[hum:file:v1]] marker. The
+// recipient decrypts the envelope, fetches the ciphertext, and decrypts it
+// locally. The server never sees the key or the plaintext.
+
+const FILE_MARKER = '[[hum:file:v1]]';
+
+/** Encrypt file bytes with a fresh key. Returns {cipherBytes, keyB64, nonceB64}. */
+async function pqEncryptFile(bytes) {
+  const rawKey = crypto.getRandomValues(new Uint8Array(32));
+  const key = await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
+  return {
+    cipherBytes: ct,
+    keyB64: btoa(String.fromCharCode(...rawKey)),
+    nonceB64: btoa(String.fromCharCode(...iv)),
+  };
+}
+
+/** Decrypt an encrypted attachment. Returns a Uint8Array or null. */
+async function pqDecryptFile(cipherBytes, keyB64, nonceB64) {
+  try {
+    const rawKey = Uint8Array.from(atob(keyB64), (c) => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(nonceB64), (c) => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherBytes));
+  } catch (e) {
+    console.warn('pqDecryptFile failed (wrong key / tampered):', e && e.message);
+    return null;
+  }
+}
+
+/** Build the [[hum:file:v1]] marker text that rides in a sealed DM. */
+function pqBuildFileMarker(meta) {
+  const json = JSON.stringify(meta);
+  return FILE_MARKER + btoa(unescape(encodeURIComponent(json)));
+}
+
+/** Parse a file marker back to its metadata, or null if not a file message. */
+function pqParseFileMarker(text) {
+  if (typeof text !== 'string' || !text.startsWith(FILE_MARKER)) return null;
+  try {
+    return JSON.parse(decodeURIComponent(escape(atob(text.slice(FILE_MARKER.length)))));
+  } catch { return null; }
+}
+
+window.pqEncryptFile = pqEncryptFile;
+window.pqDecryptFile = pqDecryptFile;
+window.pqBuildFileMarker = pqBuildFileMarker;
+window.pqParseFileMarker = pqParseFileMarker;
+window.FILE_MARKER = FILE_MARKER;
+
+/**
+ * Open a v2 wire envelope with OUR OWN Kyber secret and VERIFY the inner
+ * Dilithium signature against the claimed `from` key. Returns the inner
+ * ({from,to,ts,text,sig}) or null — a spoofed/tampered sender must never
+ * render as that sender.
+ */
+async function pqOpenDmEnvelope(contentStr) {
   try {
     if (typeof window.pqDmOpen !== 'function' || !myKyberSecret) return null;
     let env;
     try { env = JSON.parse(contentStr); } catch { return null; }
-    if (!env || env.v !== 1) return null;
-    for (const part of [env.r, env.s]) {
-      if (!part) continue;
-      const p = await window.pqDmOpen(
-        myKyberSecret, part.ek_ct_b64, part.nonce_b64, part.ct_b64);
-      if (p !== null && p !== undefined) return p;
+    if (!env || env.v !== 2 || !env.ek_ct_b64 || !env.nonce_b64 || !env.ct_b64) return null;
+    const innerJson = await window.pqDmOpen(myKyberSecret, env.ek_ct_b64, env.nonce_b64, env.ct_b64);
+    if (innerJson === null || innerJson === undefined) return null;
+    let inner;
+    try { inner = JSON.parse(innerJson); } catch { return null; }
+    if (!inner || inner.v !== 2 || !inner.from || !inner.to || !inner.sig) return null;
+    const sig = Uint8Array.from(atob(inner.sig), (c) => c.charCodeAt(0));
+    const preimage = _dmSigPreimage(inner.from, inner.to, Number(inner.ts) || 0, String(inner.text ?? ''));
+    const ok = await window.pqVerifyMessage(_hexToBytes(inner.from), new TextEncoder().encode(preimage), sig);
+    if (!ok) {
+      console.warn('DM inner signature INVALID (spoofed or corrupted) — dropped');
+      return null;
     }
-    return null;
+    return { from: inner.from, to: inner.to, ts: Number(inner.ts) || 0, text: String(inner.text ?? ''), sig: inner.sig, cert: inner.cert || null };
   } catch (e) {
-    console.warn('decryptDmContent (PQ) failed:', e && e.message);
+    console.warn('pqOpenDmEnvelope failed:', e && e.message);
     return null;
   }
 }

@@ -29,6 +29,30 @@
 
   function contentEl() { return document.getElementById('lib-content'); }
 
+  /* Deep links: /library#the-five-adversaries opens that doc directly.
+     Slugs match the /accord convention (filename minus .md, _ -> -), so the
+     two pages share one link grammar. Native needs no equivalent: it has no
+     URLs, and its rail already navigates directly. */
+  function slugOf(file) {
+    return String(file).replace(/\.md$/i, '').replace(/_/g, '-').toLowerCase();
+  }
+  function findBySlug(slug) {
+    if (!manifest || !slug) return null;
+    var cats = manifest.categories || [];
+    for (var ci = 0; ci < cats.length; ci++) {
+      var docs = cats[ci].docs || [];
+      for (var di = 0; di < docs.length; di++) {
+        if (slugOf(docs[di].file) === slug) return { ci: ci, di: di };
+      }
+    }
+    return null;
+  }
+  function openHashDoc() {
+    var hit = findBySlug(location.hash.replace(/^#/, ''));
+    if (hit) openDoc(hit.ci, hit.di);
+    return !!hit;
+  }
+
   /* ── Left rail: nested category tree, mirroring the native collapsing headers ── */
   function renderRail() {
     var rail = document.getElementById('lib-rail');
@@ -100,6 +124,8 @@
     var doc = cat && (cat.docs || [])[di];
     if (!doc) return;
     current = { ci: ci, di: di };
+    // Keep the address bar shareable without growing history on every click.
+    if (history.replaceState) history.replaceState(null, '', '#' + slugOf(doc.file));
     renderRail();
 
     var el = contentEl();
@@ -204,11 +230,15 @@
       .then(function(j) {
         manifest = j;
         renderRail();
-        // Open the first document, matching the native page's default.
-        var cats = manifest.categories || [];
-        for (var ci = 0; ci < cats.length; ci++) {
-          if ((cats[ci].docs || []).length) { openDoc(ci, 0); break; }
+        // A #slug in the URL wins; otherwise open the first document,
+        // matching the native page's default.
+        if (!openHashDoc()) {
+          var cats = manifest.categories || [];
+          for (var ci = 0; ci < cats.length; ci++) {
+            if ((cats[ci].docs || []).length) { openDoc(ci, 0); break; }
+          }
         }
+        window.addEventListener('hashchange', openHashDoc);
       })
       .catch(function(err) {
         console.error('library: could not load ' + MANIFEST_URL, err);

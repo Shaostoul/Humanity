@@ -199,7 +199,7 @@
         var hasAddr = solAddr && solAddr !== 'Coming soon';
         card.innerHTML =
           '<h3><span class="source-icon">&#x25CE;</span> Solana (SOL / USDC)</h3>' +
-          '<p>Near-zero fees. Uses Ed25519, the same cryptography as HumanityOS identity.</p>' +
+          '<p>Near-zero fees. Your wallet comes from the same 24-word seed phrase as your HumanityOS identity.</p>' +
           '<div class="fee-tag">~0% fees</div>' +
           (hasAddr
             ? '<div class="addr-row"><span class="addr-text">' + escHtml(solAddr) + '</span>' +

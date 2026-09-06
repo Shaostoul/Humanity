@@ -23,7 +23,8 @@
     .cat-chip[aria-pressed="true"]{background:var(--accent);color:var(--text-on-accent);border-color:var(--accent)}
     .craft-count{font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-md)}
     .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--space-lg)}
-    .recipe-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);display:flex;flex-direction:column;gap:var(--space-sm)}
+    .recipe-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);display:flex;flex-direction:column;gap:var(--space-sm);cursor:default}
+    .craft-reminder{text-align:center;font-size:var(--text-sm);color:var(--text-muted);margin:var(--space-md) 0 var(--space-lg)}
     .recipe-card h3{margin:0;font-size:var(--text-lg);display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm)}
     .recipe-cat{font-size:var(--text-xs);color:var(--text-muted);background:var(--bg-tertiary);border-radius:var(--badge-radius);padding:2px var(--space-sm);text-transform:capitalize;font-weight:600;white-space:nowrap}
     .recipe-desc{font-size:var(--text-sm);color:var(--text-muted);line-height:1.4;margin:0}
@@ -44,13 +45,14 @@
       <h1>Crafting</h1>
       <p>Every recipe in HumanityOS: what it takes, what it makes, and where to make it. Search and browse the full reference below.</p>
     </div>
-    <p class="craft-note">Crafting is interactive in the <a href="/download">desktop app</a>. This page is a read-only reference.</p>
+    <p class="craft-note">These recipes are here for looking up. To actually make them, open the <a href="/download">desktop app</a>.</p>
 
     <div class="craft-controls">
       <input id="recipe-search" class="craft-search" type="search" placeholder="Search recipes, ingredients, or stations..." aria-label="Search recipes">
       <div id="cat-filters" class="cat-filters" role="group" aria-label="Filter recipes by category"></div>
     </div>
     <div id="recipe-count" class="craft-count" aria-live="polite"></div>
+    <p class="craft-reminder">Reference only. Make these in the desktop app.</p>
     <div id="recipe-grid" class="recipe-grid"></div>
     <div id="recipe-empty" class="craft-empty" hidden>No recipes match your search.</div>
   </div>

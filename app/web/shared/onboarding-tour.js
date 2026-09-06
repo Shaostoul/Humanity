@@ -1,7 +1,7 @@
 /**
  * HumanityOS Onboarding Tour, guided first-time user walkthrough.
  * Self-contained IIFE, no external dependencies beyond DOM.
- * Auto-starts for new users; callable via window.startOnboardingTour().
+ * Opt-in only: opened from the help button (?), or window.startOnboardingTour().
  */
 (function () {
   if (window.__HOS_TOUR_INIT__) return;
@@ -34,6 +34,11 @@
         'pointer-events:none;transition:opacity 0.25s;' +
       '}' +
       '#hos-tour-overlay.active { pointer-events:auto; }' +
+      // On a step with no highlight target the highlight (and its 9999px
+      // dimming shadow) is switched off, which left the overlay fully
+      // transparent AND click-eating: the page looked normal and simply stopped
+      // responding. Dim it so the modal state is always visible to the user.
+      '#hos-tour-overlay.no-target { background:rgba(0,0,0,0.65); }' +
 
       '#hos-tour-highlight {' +
         'position:fixed;z-index:10001;' +
@@ -130,6 +135,7 @@
     if (!targetEl) {
       // Centered modal (no target element)
       highlight.style.display = 'none';
+      if (overlay) overlay.classList.add('no-target');
       popover.style.left = '50%';
       popover.style.top = '50%';
       popover.style.transform = 'translate(-50%, -50%)';
@@ -143,6 +149,7 @@
     var pad = 6;
 
     // Position highlight around target
+    if (overlay) overlay.classList.remove('no-target');
     highlight.style.display = 'block';
     highlight.style.left = (rect.left - pad) + 'px';
     highlight.style.top = (rect.top - pad) + 'px';
@@ -339,13 +346,15 @@
 
   window.startOnboardingTour = startTour;
 
-  // ── Auto-start for first-time users ──
-  if (!localStorage.getItem('hos_tour_completed')) {
-    setTimeout(function () {
-      // Only auto-start if still no completion flag (user might have set it elsewhere)
-      if (!localStorage.getItem('hos_tour_completed')) {
-        startTour();
-      }
-    }, 2000);
-  }
+  // ── No auto-start. The tour is opt-in, always. ──
+  // This used to fire 2s after load for every first-time visitor, on every page.
+  // The overlay is a full-viewport click catcher, so the tour was stealing the
+  // first tap anywhere on the page: hit-testing showed the overlay, not the
+  // button, was the top element at the centre of the landing page CTA. Beyond
+  // the bug, an unrequested popup is the thing people most reliably dislike.
+  // The tour is now reached deliberately, from the help button (?) anchored at
+  // the top right of every page, alongside that page's shortcuts and help.
+  // Entry points: window.startOnboardingTour(), the help panel, and the
+  // "Take Tour" footer link that shell.js already injects.
+
 })();

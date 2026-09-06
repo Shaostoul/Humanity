@@ -16,7 +16,7 @@
   window.__HOS_ELI5__ = true;
 
   var showSimple = localStorage.getItem('hos_show_simple') !== '0';
-  var showExpert = localStorage.getItem('hos_show_expert') !== '0';
+  var showExpert = localStorage.getItem('hos_show_expert') === '1';
 
   var style = document.createElement('style');
   style.id = 'eli5-styles';
@@ -49,7 +49,7 @@
   // Apply preference changes from Settings (called globally)
   window.__hos_eli5_update = function () {
     showSimple = localStorage.getItem('hos_show_simple') !== '0';
-    showExpert = localStorage.getItem('hos_show_expert') !== '0';
+    showExpert = localStorage.getItem('hos_show_expert') === '1';
     document.querySelectorAll('.eli5-block').forEach(function (block) {
       block.dataset.showSimple = showSimple ? '1' : '0';
       block.dataset.showExpert = showExpert ? '1' : '0';

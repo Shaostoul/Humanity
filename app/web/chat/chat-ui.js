@@ -330,9 +330,14 @@ handleMessage = function(msg) {
 };
 
 // ── Auto-resize textarea to fit content ──
+// Grows with the content up to ~45% of the viewport so a whole multi-paragraph
+// post is visible while you write and proofread it, instead of the old 150px
+// cap that scrolled a long post inside a cramped box. Past that it scrolls
+// (overflow-y:auto in inputs.css) so it can never eat the whole window.
 function autoResizeTextarea(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+  const cap = Math.round(window.innerHeight * 0.45);
+  el.style.height = Math.min(el.scrollHeight, cap) + 'px';
 }
 
 // ── Enter to send + Shift+Enter for newline + typing indicator ──
@@ -598,9 +603,8 @@ function followFromCtx(doFollow) {
   if (!ctxMenuTarget) return;
   const pk = ctxMenuTarget.publicKey;
   hideContextMenu();
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: doFollow ? 'follow' : 'unfollow', target_key: pk }));
-  }
+  // Follows removal (2026-08-24): sealed control message, no server edge.
+  if (typeof setFollowLocal === 'function') setFollowLocal(pk, doFollow);
 }
 
 function dmFromCtx() {
@@ -608,18 +612,12 @@ function dmFromCtx() {
   const name = ctxMenuTarget.name;
   const pk = ctxMenuTarget.publicKey;
   hideContextMenu();
-  // DM permission check
-  const myRole = (window.myPeerRole || '').toLowerCase();
-  if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-    if (myRole !== 'verified' && myRole !== 'donor') {
-      addSystemMessage('🔒 Verify your account to send DMs.');
-      return;
-    }
-    if (typeof isFriend === 'function' && !isFriend(pk)) {
-      addSystemMessage('🔒 You must be friends with this user to DM them. Use /follow ' + name);
-      return;
-    }
-  }
+  // No-gatekeeper default (2026-09-06): opening a DM is never gated. This
+  // used to demand the admin-granted "verified" role AND an existing
+  // friendship, so a new member could not write to anybody. The relay's
+  // knock budget (a capped number of messages per day to people who have
+  // not befriended you) is the abuse ceiling; it does not need an
+  // operator in the loop, and it is enforced server-side either way.
   openDmConversation(pk, name);
 }
 
@@ -1195,12 +1193,12 @@ sendMessage = async function() {
   }
   if (val.startsWith('/follow ') && !val.startsWith('/follow-')) {
     const name = val.substring(8).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
+    if (name) {
       input.value = '';
       // Resolve name to key from peer list
       const targetKey = resolveNameToKey(name);
       if (targetKey) {
-        ws.send(JSON.stringify({ type: 'follow', target_key: targetKey }));
+        setFollowLocal(targetKey, true);
       } else {
         addSystemMessage('User "' + name + '" not found in peer list.');
       }
@@ -1209,56 +1207,24 @@ sendMessage = async function() {
   }
   if (val.startsWith('/unfollow ')) {
     const name = val.substring(10).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
+    if (name) {
       input.value = '';
       const targetKey = resolveNameToKey(name);
       if (targetKey) {
-        ws.send(JSON.stringify({ type: 'unfollow', target_key: targetKey }));
+        setFollowLocal(targetKey, false);
       } else {
         addSystemMessage('User "' + name + '" not found in peer list.');
       }
       return;
     }
   }
-  if (val.startsWith('/group-create ')) {
-    const name = val.substring(14).trim();
-    if (name && ws && ws.readyState === WebSocket.OPEN) {
-      input.value = '';
-      ws.send(JSON.stringify({ type: 'group_create', name: name }));
-      return;
-    }
-  }
-  if (val.startsWith('/group-join ')) {
-    const code = val.substring(12).trim();
-    if (code && ws && ws.readyState === WebSocket.OPEN) {
-      input.value = '';
-      ws.send(JSON.stringify({ type: 'group_join', invite_code: code }));
-      return;
-    }
-  }
-  if (val.startsWith('/group-leave')) {
+  if (val.startsWith('/group-create') || val.startsWith('/group-join')
+      || val.startsWith('/group-leave') || val.startsWith('/group-invite')) {
+    // Legacy relay-group commands died 2026-08-23. Groups are the E2EE
+    // P2P system: use the Groups tab's Create/Join buttons (invite is a
+    // signed ticket via right-click, leave/disband via right-click too).
     input.value = '';
-    if (activeGroupId && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'group_leave', group_id: activeGroupId }));
-    } else {
-      addSystemMessage('You are not viewing a group. Switch to a group first.');
-    }
-    return;
-  }
-  if (val.startsWith('/group-invite')) {
-    input.value = '';
-    if (activeGroupId) {
-      const group = myGroups.find(g => g.id === activeGroupId);
-      if (group) {
-        navigator.clipboard.writeText(group.invite_code).then(() => {
-          addSystemMessage('📋 Invite code copied: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
-        }).catch(() => {
-          addSystemMessage('📋 Invite code: ' + group.invite_code + ', Share it with /group-join ' + group.invite_code);
-        });
-      }
-    } else {
-      addSystemMessage('Switch to a group first to get its invite code.');
-    }
+    addSystemMessage('Groups moved to the encrypted P2P system: use the Groups tab (Create Group / Join Group buttons; right-click a group for invite, leave, disband).');
     return;
   }
   // Group or DM view: route through the single content-routing authority
@@ -1285,28 +1251,27 @@ sendMessage = async function() {
 // bug fixed 2026-07-04: attach/paste/drop used to always post a public
 // `chat` while echoing into the DM pane, so it looked private and was not).
 // Returns true if it sent, false if blocked (permissions, no key, too long).
+//
+// Partners we have already explained the introduction-request cap to, so the
+// note appears once per conversation per session rather than on every send.
+const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
 
-  // Group view -> group message (server round-trips the echo, like text).
-  if (activeGroupId) {
-    ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
-    return true;
-  }
+  // (Legacy group_msg branch removed 2026-08-23; the P2P group composer
+  // patch in chat-groups-p2p.js routes E2EE group sends before this runs.)
 
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
   if (activeDmPartner) {
-    const myRole = (window.myPeerRole || '').toLowerCase();
-    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-      if (myRole !== 'verified' && myRole !== 'donor') {
-        addSystemMessage('🔒 Verify your account to send DMs.');
-        return false;
-      }
-      if (!isFriend(activeDmPartner)) {
-        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
-        return false;
-      }
+    // No-gatekeeper default (2026-09-06): no role gate, no hard friendship
+    // gate. Writing to someone who has not befriended you is a "knock" —
+    // it goes through, capped per day by the relay. We say so once per
+    // partner so the cap is not a surprise, then get out of the way.
+    if (typeof isFriend === 'function' && !isFriend(activeDmPartner)
+        && !knockNoticeShown.has(activeDmPartner)) {
+      knockNoticeShown.add(activeDmPartner);
+      addSystemMessage('This person has not added you yet, so this is an introduction request. A limited number of these can be sent per day. Once they add you back, messages are unlimited.');
     }
     const DM_PLAINTEXT_MAX = 2000;
     if (content.length > DM_PLAINTEXT_MAX) {
@@ -1318,17 +1283,25 @@ async function sendComposedContent(content) {
       addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
       return false;
     }
-    const enc = await encryptDmContent(content, peerKyber);
-    if (!enc) {
+    // Sealed-sender v2: the sender's identity travels Dilithium-signed
+    // INSIDE the ciphertext. Two deposits — the recipient's copy and our
+    // self-copy (so our other devices can fetch sent history). The relay
+    // stores neither with a sender.
+    const sentTs = Date.now();
+    const built = await pqBuildDmPuts(content, activeDmPartner, sentTs);
+    if (!built) {
       addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
       return false;
     }
-    ws.send(JSON.stringify({
-      type: 'dm', from: myKey, from_name: myName, to: activeDmPartner,
-      content: enc.content, nonce: enc.nonce, encrypted: true, timestamp: Date.now(),
-    }));
-    const sentTs = Date.now();
-    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, false);
+    ws.send(JSON.stringify(built.recipientPut));
+    ws.send(JSON.stringify(built.selfPut));
+    // Persist our copy locally right away; the relay echo of the
+    // self-copy dedupes against this via the inner signature.
+    if (window.hosDmStore && hosDmStore.ready) {
+      await hosDmStore.insert(built.inner);
+      hosDmStore.markRead(activeDmPartner, sentTs);
+    }
+    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, true);
     upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
     return true;
   }

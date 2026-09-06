@@ -228,7 +228,7 @@ button { font-family: inherit; cursor: pointer; }
 <script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Explore maps from your neighborhood to the whole galaxy.</div>
+  <div class="eli5-simple">Zoom from your own street out to the whole galaxy. Scroll in past the Sun to land on the real Earth, or click any planet to visit it. This is the real cosmos for looking up. Your in-game ship and character live in the desktop app.</div>
   <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. 3D perspective orbit with tilt/rotation, real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps.</div>
 </div>
 
@@ -1523,7 +1523,13 @@ function autoFocusOnZoom() {
     state.panY = 0;
   }
   if (state.zoomLevel >= ZOOM_GLOBE_MIN && !state.focusPlanet) {
-    state.zoomLevel = ZOOM_GLOBE_MIN - 0.5;
+    // Keep the promised "seamless galaxy to street" zoom flowing instead of
+    // hitting an invisible wall: if the user zooms past the solar-system tier
+    // without having clicked a planet, dive into Earth (their home world) so
+    // the wheel and the slider continue all the way to the surface map.
+    state.focusPlanet = PLANETS.find(function (p) { return p.name === 'Earth'; }) || PLANETS[2];
+    state.tileLat = 20;
+    state.tileLng = 0;
   }
 }
 

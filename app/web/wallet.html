@@ -181,7 +181,7 @@
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Your digital wallet for sending, receiving, and managing crypto on Solana.</div>
-  <div class="eli5-expert">Self-custody Solana wallet derived from your Ed25519 identity key. Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
+  <div class="eli5-expert">Self-custody Solana wallet derived from the same 24-word seed as your identity (Solana keys are Ed25519; your identity signature scheme is Dilithium3). Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
 </div>
 <p class="page-hint">Manage your Solana wallet. Send and receive SOL and tokens, swap between assets, stake for rewards, and view your NFTs.</p>
 
@@ -189,7 +189,7 @@
   <!-- No identity state -->
   <div id="wallet-no-identity" class="wallet-no-identity" style="display:none;">
     <h2>Connect to the network first</h2>
-    <p>Visit the <a href="/chat">Network</a> page to create or import your identity.<br>
+    <p>Visit the <a href="/chat">Chat</a> page to create or import your identity.<br>
     Your identity key doubles as your Solana wallet, no extra setup needed.</p>
   </div>
 
@@ -477,6 +477,7 @@
     document.head.appendChild(s);
   })();
 </script>
+<script src="/shared/hold-confirm.js?v=1"></script>
 <script src="/pages/wallet-app.js"></script>
 </body>
 </html>

@@ -183,6 +183,97 @@ export async function buildVoteV1({ proposalId, choice, authorPublicKey, sign, b
   });
 }
 
+/** The two governance scopes. Mirrors src/gui/pages/governance.rs::SCOPES and
+ *  the `scope` field of every entry in data/governance/proposal_types.ron. */
+export const PROPOSAL_SCOPES = ['local', 'civilization'];
+
+/** Smallest voting window the native builder will produce, in days (about 58
+ *  minutes). Mirrors the `.max(0.04)` clamp in
+ *  src/gui/pages/governance.rs::build_proposal, which exists because an
+ *  unclamped sub-day value used to truncate to 0 and yield a proposal that was
+ *  already closed the moment it was posted. */
+export const PROPOSAL_WINDOW_MIN_DAYS = 0.04;
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * `proposal_v1` payload: the six fields the relay indexes plus the two text
+ * fields it carries but does not index.
+ *
+ * Mirrors src/gui/pages/governance.rs::build_proposal. `proposal_type`, `scope`,
+ * `opens_at` and `closes_at` are read by
+ * src/relay/storage/governance.rs::index_proposal (a payload with no
+ * `proposal_type` is silently NOT indexed, so it would never appear in any
+ * proposal list); `title` and `body` are read back out of the stored object by
+ * the clients (governance.rs::payload_texts).
+ *
+ * The pairs are listed in the native builder's order for readability only:
+ * `cborMap` sorts keys canonically (shorter encoded key first, then bytewise),
+ * exactly as the Rust `to_canonical_bytes` does, so the emitted bytes are
+ * `body, scope, title, opens_at, closes_at, proposal_type` either way. The
+ * object_id is a hash of those bytes, so this ordering is not cosmetic on the
+ * wire, it just is not decided here.
+ *
+ * `scope` is validated for the same reason `voteV1Payload` validates `choice`:
+ * the relay quietly falls back to "local" for anything it does not recognise,
+ * so a typo would silently file a civilization proposal as a local one.
+ */
+export function proposalV1Payload({ proposalType, scope, title, body, opensAt, closesAt }) {
+  if (typeof proposalType !== 'string' || !proposalType.trim()) {
+    throw new Error('proposal_v1: proposal_type is required');
+  }
+  if (!PROPOSAL_SCOPES.includes(scope)) {
+    throw new Error(`proposal_v1: scope must be one of ${PROPOSAL_SCOPES.join('/')}, got "${scope}"`);
+  }
+  if (typeof title !== 'string' || !title.trim()) throw new Error('proposal_v1: title is required');
+  if (typeof body !== 'string' || !body.trim()) throw new Error('proposal_v1: body is required');
+  if (!Number.isInteger(opensAt) || opensAt < 0) throw new Error('proposal_v1: opens_at must be a non-negative integer (ms)');
+  if (!Number.isInteger(closesAt) || closesAt <= opensAt) {
+    throw new Error('proposal_v1: closes_at must be an integer after opens_at (ms)');
+  }
+  return cborMap([
+    [cborText('proposal_type'), cborText(proposalType)],
+    [cborText('scope'), cborText(scope)],
+    [cborText('title'), cborText(title)],
+    [cborText('body'), cborText(body)],
+    [cborText('opens_at'), cborUint(opensAt)],
+    [cborText('closes_at'), cborUint(closesAt)],
+  ]);
+}
+
+/**
+ * Convenience: build + sign a `proposal_v1` object. No references (a proposal
+ * is a root object; votes reference IT). Returns `{ objectId, submission }`,
+ * where `objectId` is the proposal id that later `vote_v1` objects reference.
+ *
+ * `windowDays` is clamped to `PROPOSAL_WINDOW_MIN_DAYS` and, like the native
+ * builder, a single `now` serves as both `created_at` and `opens_at`. A
+ * non-finite `windowDays` clamps rather than poisoning `closes_at` with NaN,
+ * matching Rust's `f64::max`, which returns the other operand when one side is
+ * NaN. The day-to-ms product truncates, as `as u64` does in Rust.
+ */
+export async function buildProposalV1({ proposalType, scope, title, body, windowDays, authorPublicKey, sign, blake3, createdAt }) {
+  const now = createdAt ?? Date.now();
+  const requested = Number(windowDays);
+  const days = Number.isFinite(requested)
+    ? Math.max(requested, PROPOSAL_WINDOW_MIN_DAYS)
+    : PROPOSAL_WINDOW_MIN_DAYS;
+  const closesAt = now + Math.floor(days * MS_PER_DAY);
+  return buildSignedObject({
+    objectType: 'proposal_v1',
+    payload: proposalV1Payload({
+      proposalType,
+      scope,
+      title,
+      body,
+      opensAt: now,
+      closesAt,
+    }),
+    authorPublicKey, sign, blake3,
+    createdAt: now,
+  });
+}
+
 /* ── P2P group payloads (docs/design/p2p-groups.md object-format spec) ── */
 
 /** `group_v1` payload: `{ name }`, plus `share_history: 1` ONLY when the group

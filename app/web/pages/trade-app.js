@@ -362,8 +362,8 @@ function confirmTrade(tradeId) {
   }));
 }
 
-function cancelTrade(tradeId) {
-  if (!confirm('Cancel this trade?')) return;
+async function cancelTrade(tradeId) {
+  if (!await holdConfirm('Cancel this trade?', { seconds: 3 })) return;
   if (!tradeWs || tradeWs.readyState !== 1) return;
   tradeWs.send(JSON.stringify({
     type: 'trade_cancel',
@@ -512,7 +512,7 @@ async function createSellOrder() {
 }
 
 async function cancelOrder(orderId) {
-  if (!confirm('Cancel this sell order?')) return;
+  if (!await holdConfirm('Cancel this sell order?', { seconds: 3 })) return;
   if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
   var timestamp = Date.now();
   var sigContent = 'cancel_order\n' + orderId + '\n' + timestamp;

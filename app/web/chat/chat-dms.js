@@ -92,12 +92,72 @@ function openDmConversation(partnerKey, partnerName) {
   input.placeholder = `Message ${partnerName}…`;
   document.getElementById('send-btn').disabled = false;
 
-  // Request DM history from server.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'dm_open', partner: partnerKey }));
-  }
+  // History renders from the LOCAL encrypted store — the relay keeps no
+  // DM history any more (sealed-sender: its mailbox is a sender-less
+  // delivery window that expires).
+  renderDmConversationFromStore(partnerKey);
 
   if (isMobile()) closeSidebars();
+}
+
+/** Render a DM conversation from the LOCAL history store into #messages. */
+function renderDmConversationFromStore(partnerKey) {
+  const msgsEl = document.getElementById('messages');
+  msgsEl.innerHTML = '';
+  const banner = document.createElement('div');
+  banner.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
+  banner.innerHTML = hosIcon('lock', 14) + ' End-to-end encrypted, sender sealed inside (post-quantum). History lives on your devices; the server keeps no readable copy.';
+  msgsEl.appendChild(banner);
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  const msgs = hosDmStore.conversation(partnerKey);
+  if (msgs.length > 0) {
+    const notice = document.createElement('div');
+    notice.id = 'history-notice';
+    notice.textContent = `── ${msgs.length} earlier messages ──`;
+    msgsEl.appendChild(notice);
+  }
+  for (const m of msgs) {
+    const isMe = m.from === myKey;
+    const name = isMe
+      ? myName
+      : ((window.peerData && peerData[m.from]?.display_name) || activeDmPartnerName || shortKey(m.from));
+    addDmMessage(name, m.text, m.ts, m.from, m.to, true);
+  }
+  const last = msgs[msgs.length - 1];
+  if (last) hosDmStore.markRead(partnerKey, last.ts);
+}
+
+/** Rebuild the sidebar conversation list from the local store. */
+function loadDmListFromStore() {
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  const summaries = hosDmStore.summaries();
+  const known = new Set(summaries.map(s => s.peer));
+  // Preserve locally-seeded entries (brand-new, still-empty conversations).
+  const localOnly = dmConversations.filter(c => !known.has(c.partner_key));
+  dmConversations = summaries.map(s => ({
+    partner_key: s.peer,
+    partner_name: (window.peerData && peerData[s.peer]?.display_name)
+      || dmConversations.find(c => c.partner_key === s.peer)?.partner_name
+      || shortKey(s.peer),
+    last_message: (s.lastFromMe ? 'You: ' : '') + dmSafePreview(s.lastText),
+    last_timestamp: s.lastTs,
+    unread_count: s.unread ? 1 : 0,
+  })).concat(localOnly);
+  dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
+  renderDmList();
+}
+
+/** Sealed-sender privacy control: delete every envelope currently queued
+ *  for us server-side (they auto-expire after the server TTL anyway; this
+ *  is the immediate scrub). Local history on this device is untouched. */
+function purgeServerMailbox() {
+  // No confirm() dialog: the press-and-HOLD on the button IS the confirmation
+  // (see holdToConfirm / the .purge-mailbox-row wiring), so this only fires
+  // after a deliberate ~1.5s hold, never a stray click.
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'dm_purge' }));
+    if (typeof addSystemMessage === 'function') addSystemMessage('Clearing your server mailbox…');
+  }
 }
 
 /** Close DM view and return to channel view. */
@@ -128,16 +188,94 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const e2eeBadge = isEncrypted ? '<span class="dm-e2ee" title="End-to-end encrypted" style="opacity:0.6;margin-left:var(--space-xs);">' + hosIcon('lock', 12) + '</span>' : '';
 
   const metaHtml = `<div class="meta"><span class="author${isMe ? ' you' : ''}">${esc(author)}</span></div>`;
+
+  // Encrypted attachment (2026-08-24): a [[hum:file:v1]] marker renders as a
+  // decrypt-on-view card, not raw text. The file's ciphertext is public but
+  // useless; the key rode in this sealed message.
+  const fileMeta = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(body) : null;
+  const bodyHtml = fileMeta ? encAttachmentPlaceholder(fileMeta) : formatBody(body);
+
   el.innerHTML = messageRowHTML({
     isContinuation,
     identiconHtml,
     metaHtml,
     pillHtml: timestampPillHTML({ time: formatTimePill(timestamp), extra: e2eeBadge }),
-    bodyHtml: formatBody(body),
+    bodyHtml,
   });
 
   appendMessage(el);
+  if (fileMeta) hydrateEncAttachment(el, fileMeta);
   if (window.twemoji) twemoji.parse(el);
+}
+
+function _fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+/** The card shown before (and instead of, for non-images) decryption. */
+function encAttachmentPlaceholder(meta) {
+  const isImg = (meta.mime || '').startsWith('image/');
+  return `<div class="enc-attach" data-enc="1">
+    <div class="enc-attach-head">${hosIcon('lock', 12)} <span>${esc(meta.name || 'file')}</span>
+      <span class="enc-attach-size">${_fmtBytes(meta.size)}</span></div>
+    <div class="enc-attach-body">${isImg
+      ? '<div class="enc-attach-loading">Decrypting image…</div>'
+      : '<button class="enc-attach-dl">Decrypt & download</button>'}</div>
+  </div>`;
+}
+
+/** Fetch the ciphertext, decrypt with the in-envelope key, render/offer it. */
+async function hydrateEncAttachment(el, meta) {
+  const card = el.querySelector('.enc-attach');
+  const bodyEl = card && card.querySelector('.enc-attach-body');
+  if (!bodyEl) return;
+  const isImg = (meta.mime || '').startsWith('image/');
+  try {
+    const decryptToBlob = async () => {
+      const resp = await fetch(meta.url);
+      if (!resp.ok) throw new Error('fetch ' + resp.status);
+      const ct = new Uint8Array(await resp.arrayBuffer());
+      const plain = await pqDecryptFile(ct, meta.k, meta.n);
+      if (!plain) throw new Error('decrypt failed');
+      return new Blob([plain], { type: meta.mime || 'application/octet-stream' });
+    };
+    if (isImg) {
+      const blob = await decryptToBlob();
+      const url = URL.createObjectURL(blob);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = meta.name || 'image';
+      img.className = 'enc-attach-img';
+      img.loading = 'lazy';
+      img.onclick = () => window.open(url, '_blank');
+      bodyEl.innerHTML = '';
+      bodyEl.appendChild(img);
+    } else {
+      const btn = bodyEl.querySelector('.enc-attach-dl');
+      if (btn) {
+        btn.onclick = async () => {
+          btn.disabled = true; btn.textContent = 'Decrypting…';
+          try {
+            const blob = await decryptToBlob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = meta.name || 'attachment';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            btn.textContent = 'Downloaded';
+          } catch (e) {
+            btn.disabled = false; btn.textContent = 'Decrypt & download';
+            addSystemMessage('Could not decrypt attachment.');
+          }
+        };
+      }
+    }
+  } catch (e) {
+    bodyEl.innerHTML = '<div class="enc-attach-loading">🔒 Attachment unavailable (expired or unreachable).</div>';
+  }
 }
 
 // DM previews loaded from the zero-knowledge relay arrive as the raw E2EE
@@ -149,14 +287,28 @@ function dmSafePreview(raw) {
   if (/^\s*\{\s*"v"\s*:\s*\d/.test(raw) || raw.includes('"ek_ct') || /"r"\s*:\s*\{/.test(raw)) {
     return '🔒 Encrypted message';
   }
+  // Encrypted attachment marker: show a friendly label, never the base64.
+  const fm = (typeof pqParseFileMarker === 'function') ? pqParseFileMarker(raw) : null;
+  if (fm) return ((fm.mime || '').startsWith('image/') ? '🔒 Photo' : '🔒 ' + (fm.name || 'File'));
   return raw;
 }
 
 /** Render the DM conversation list in the sidebar. */
 function renderDmList() {
   const list = document.getElementById('dm-list');
+  // Sealed-sender scrub control, always available at the foot of the list.
+  // PRESS-AND-HOLD, not a click: this scrubs the server mailbox for every
+  // device you haven't synced yet, so a single fat-fingered tap must not fire
+  // it (operator 2026-08-24). The .hold-ring fills over the hold; see
+  // holdToConfirm below. Mirrors native widgets::hold_to_confirm.
+  const purgeRow = '<div class="dm-item purge-mailbox-row" id="purge-mailbox-btn" '
+    + 'title="Press and HOLD to delete the encrypted envelopes queued for you on the server. Local history on your devices stays. Holding prevents an accidental misclick.">'
+    + '<span class="hold-ring" aria-hidden="true"></span>'
+    + '<span class="dm-name">Delete my server mailbox</span>'
+    + '<span class="hold-hint">hold</span></div>';
   if (dmConversations.length === 0) {
-    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>';
+    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>' + purgeRow;
+    wirePurgeMailboxHold();
     return;
   }
 
@@ -177,7 +329,16 @@ function renderDmList() {
       <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
       <span class="dm-time">${timeStr}</span>
     </div>`;
-  }).join('');
+  }).join('') + purgeRow;
   if (window.twemoji) twemoji.parse(list);
+  wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
+}
+
+/** Attach the press-and-hold gate to the mailbox-scrub row after each render.
+ *  5s hold (operator 2026-08-25: max protection on the catastrophic scrub).
+ *  holdToConfirm is the shared gate from /shared/hold-confirm.js. */
+function wirePurgeMailboxHold() {
+  const el = document.getElementById('purge-mailbox-btn');
+  if (el && window.holdToConfirm) holdToConfirm(el, { seconds: 5, onConfirm: purgeServerMailbox });
 }

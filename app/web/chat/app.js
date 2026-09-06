@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (location.hash.indexOf('devicelink=') === -1) return;
   const raw = location.hash;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-  if (!confirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.')) {
+  if (!await holdConfirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.', { seconds: 5 })) {
     return;
   }
   try {
@@ -41,6 +41,7 @@ window.addEventListener('hashchange', () => {
 // ── State ──
 let ws = null;
 let myKey = '';
+let dmFetchSent = false; // one-time mailbox fetch per socket (sealed-sender DMs)
 let myName = '';
 let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
@@ -227,10 +228,36 @@ document.getElementById('reply-cancel').addEventListener('click', (e) => {
 });
 
 // Event delegation: handle clicks on image placeholders (data-img-url).
+// Resolve a mention name to a known peer's public key (case-insensitive match
+// on either display_name or name). Returns null if no user is known by that
+// name, so a mention of a stranger simply does nothing on click.
+function resolveMentionKey(name) {
+  if (!name || typeof peerData === 'undefined' || !peerData) return null;
+  const target = name.toLowerCase();
+  for (const key in peerData) {
+    const p = peerData[key];
+    if (!p) continue;
+    const dn = (p.display_name || p.name || '').toLowerCase();
+    if (dn && dn === target) return key;
+  }
+  return null;
+}
+
 document.getElementById('messages').addEventListener('click', function(e) {
   const placeholder = e.target.closest('[data-img-url]');
   if (placeholder) {
     loadImage(placeholder, placeholder.dataset.imgUrl);
+    return;
+  }
+  // Click an @mention → open that user (native parity: native opens the user's
+  // modal). Resolve the name to a known peer; unknown names are inert.
+  const mention = e.target.closest('.mention');
+  if (mention && mention.dataset.mention) {
+    const name = mention.dataset.mention;
+    const key = resolveMentionKey(name);
+    if (key) {
+      showUserContextMenu(e, peerData[key].display_name || peerData[key].name || name, key);
+    }
     return;
   }
   // Handle clicks on reaction badges (data-target-from).
@@ -445,6 +472,13 @@ function onIdentityConfirmed() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('chat-screen').style.display = 'flex';
 
+  // Privacy tiers (2026-08-23): first-ever connect asks the user how
+  // visible they want to be (default = maximum privacy); later connects
+  // just re-assert the stored choice to this server.
+  if (typeof window.maybeShowPrivacyTierModal === 'function') {
+    window.maybeShowPrivacyTierModal();
+  }
+
   // Show identity in sidebar.
   document.getElementById('my-key-display').textContent = myKey;
   document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
@@ -619,6 +653,9 @@ function openSocket() {
     return;
   }
 
+  // Fresh socket: re-arm the one-time DM mailbox fetch (sealed-sender).
+  dmFetchSent = false;
+
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
 
@@ -747,6 +784,21 @@ async function handleMessage(msg) {
       updateChannelList(msg.channels || []);
       updateChannelHeader();
       updateInputForChannel();
+      // Sealed-sender DMs: channel_list only arrives on a BOUND socket,
+      // so this is the reliable moment to load the local history store
+      // and fetch our server mailbox (once per connection).
+      if (!dmFetchSent && myKey && window.hosDmStore) {
+        dmFetchSent = true;
+        hosDmStore.init(myKey, location.host).then((ok) => {
+          if (ok && typeof loadDmListFromStore === 'function') loadDmListFromStore();
+          // Social badges come from the local store now (follows
+          // removal 2026-08-24).
+          if (ok && typeof syncSocialFromStore === 'function') syncSocialFromStore();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (ok && hosDmStore.highWater) || 0 }));
+          }
+        });
+      }
       break;
     case 'identify_challenge': {
       // Full-PQ Inc3b: relay issued a nonce after our Identify. Sign the
@@ -928,79 +980,85 @@ async function handleMessage(msg) {
       }
       break;
     }
-    case 'dm': {
-      // Incoming/outgoing DM event.
-      const dmFrom = msg.from;
-      const dmFromName = resolveSenderName(msg.from_name, dmFrom);
-      const dmPartnerKey = (dmFrom === myKey) ? msg.to : dmFrom;
-      const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
-      let dmContent = msg.content;
-      let dmIsEncrypted = !!msg.encrypted;
-      // Full-PQ: decapsulate with OUR OWN deterministic Kyber secret -
-      // no sender key needed (ML-KEM). The dual-seal envelope means this
-      // works for both incoming messages and our own from history.
-      if (msg.encrypted) {
-        const plain = await decryptDmContent(msg.content, msg.nonce, null);
-        dmContent = (plain !== null && plain !== undefined)
-          ? plain : '🔒 [Decryption failed]';
+    case 'dm_new': {
+      // Sealed-sender envelope, live-delivered. The wire carries NO
+      // sender — decrypt with our own key and trust only the
+      // Dilithium-verified inner payload (crypto.js pqOpenDmEnvelope).
+      const inner = await pqOpenDmEnvelope(msg.content);
+      if (window.hosDmStore && hosDmStore.ready && msg.id) hosDmStore.setHighWater(msg.id);
+      if (!inner) break; // not ours / tampered / spoofed — never rendered
+      // Social control messages (follows removal 2026-08-24): act, never render.
+      if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) break;
+      const isNew = (window.hosDmStore && hosDmStore.ready) ? await hosDmStore.insert(inner) : true;
+      if (!isNew) break; // duplicate (echo of our own send, refetch, replay)
+      const isFromMe = inner.from === myKey;
+      const peer = isFromMe ? inner.to : inner.from;
+      const peerName = peerData[peer]?.display_name || shortKey(peer);
+      // Encrypted-attachment markers show a friendly label in the sidebar
+      // and notification, but render as a decrypt card in the thread.
+      const previewText = (typeof dmSafePreview === 'function') ? dmSafePreview(inner.text) : inner.text;
+      upsertDmConversation(peer, peerName, previewText, inner.ts, !isFromMe);
+      if (activeDmPartner === peer) {
+        addDmMessage(isFromMe ? myName : peerName, inner.text, inner.ts, inner.from, inner.to, true);
+        if (window.hosDmStore && hosDmStore.ready) hosDmStore.markRead(peer, inner.ts);
       }
-      upsertDmConversation(dmPartnerKey, dmPartnerName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, msg.timestamp, dmFrom !== myKey);
-      if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
-        addDmMessage(dmFromName, dmContent, msg.timestamp, dmFrom, msg.to, dmIsEncrypted);
-      }
-      // Notify.
-      if (dmFrom !== myKey) {
-        notifyNewMessage(dmFromName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, true);
+      if (!isFromMe) {
+        notifyNewMessage(peerName, previewText, true);
       }
       break;
     }
-    case 'dm_list': {
-      // Merge server list with locally-seeded entries (e.g. brand-new conversations)
-      // so that an open DM view doesn't disappear from the sidebar while waiting for
-      // the first message to be stored server-side.
-      const serverList = msg.conversations || [];
-      const serverKeys = new Set(serverList.map(c => c.partner_key));
-      const localOnly = dmConversations.filter(c => !serverKeys.has(c.partner_key));
-      dmConversations = [...serverList, ...localOnly];
-      dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
-      renderDmList();
+    case 'dm_batch': {
+      // A page of our sealed mailbox (reply to dm_fetch). Decrypt +
+      // verify each envelope into the local store; page until done.
+      const items = msg.messages || [];
+      let lastId = 0;
+      let ingested = 0;
+      for (const item of items) {
+        if (item.id > lastId) lastId = item.id;
+        if (!item.content) continue;
+        const inner = await pqOpenDmEnvelope(item.content);
+        if (!inner) continue; // undecryptable/spoofed — skip, high-water still advances
+        if (typeof ingestDmControl === 'function' && await ingestDmControl(inner)) continue;
+        if (window.hosDmStore && hosDmStore.ready) {
+          if (await hosDmStore.insert(inner)) ingested++;
+        }
+      }
+      if (window.hosDmStore && hosDmStore.ready) {
+        hosDmStore.setHighWater(lastId);
+        if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
+        // Refresh the open conversation so fetched history appears in place.
+        if (activeDmPartner && typeof renderDmConversationFromStore === 'function') {
+          renderDmConversationFromStore(activeDmPartner);
+        }
+      }
+      if (ingested > 0) console.log(`DM batch: ${ingested} new message(s)`);
+      if (msg.done === false && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'dm_fetch', after_id: (window.hosDmStore && hosDmStore.highWater) || lastId }));
+      }
       break;
     }
-    case 'dm_history': {
-      // Received conversation history for a DM.
-      if (activeDmPartner === msg.partner) {
-        document.getElementById('messages').innerHTML = '';
-        const msgs = msg.messages || [];
-        // E2EE status banner. Full-PQ: a conversation is end-to-end
-        // encrypted when the partner advertised a Kyber768 key and our
-        // own PQ secret is ready (dual-seal lets us read BOTH directions).
-        const partnerKyber = getPeerEcdhPublic(msg.partner);
-        const e2eeNotice = document.createElement('div');
-        e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
-        if (partnerKyber && myKyberSecret) {
-          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted (post-quantum)';
-        } else {
-          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted, the other party has no post-quantum key';
-        }
-        document.getElementById('messages').appendChild(e2eeNotice);
-        if (msgs.length > 0) {
-          const notice = document.createElement('div');
-          notice.id = 'history-notice';
-          notice.textContent = `── ${msgs.length} earlier messages ──`;
-          document.getElementById('messages').appendChild(notice);
-        }
-        for (const m of msgs) {
-          let histContent = m.content;
-          let histEncrypted = !!m.encrypted;
-          if (m.encrypted) {
-            // Full-PQ dual-seal: our own Kyber secret opens BOTH our sent
-            // copy and received messages, no peer key needed.
-            const plain = await decryptDmContent(m.content, m.nonce, null);
-            histContent = (plain !== null && plain !== undefined)
-              ? plain : '🔒 [Decryption failed]';
-          }
-          addDmMessage(resolveSenderName(m.from_name, m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
-        }
+    case 'account_export_data': {
+      // Sovereignty (2026-08-23): everything the server stores about us,
+      // handed over as a downloadable JSON file.
+      try {
+        const blob = new Blob([JSON.stringify(msg.data || {}, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'humanityos-account-export-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        if (typeof addSystemMessage === 'function') addSystemMessage('Your account export downloaded.');
+      } catch (e) {
+        console.warn('account export download failed:', e && e.message);
+      }
+      break;
+    }
+    case 'dm_purged': {
+      // Confirmation of our own server-mailbox scrub.
+      const n = Number(msg.count) || 0;
+      if (typeof addSystemMessage === 'function') {
+        addSystemMessage(`Server mailbox cleared (${n} envelope${n === 1 ? '' : 's'} deleted).`);
       }
       break;
     }
@@ -1442,6 +1500,11 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
   if (isMe) {
     actions += '<button class="delete-btn" title="Delete">✕</button>';
+  } else if (isStaff) {
+    // Moderators/admins can delete others' messages (native parity). The relay
+    // authorizes this when the sent `from` is the ORIGINAL sender's key and the
+    // caller's role is admin/mod; the send site below picks the right `from`.
+    actions += '<button class="delete-btn" title="Delete (moderator)">✕</button>';
   }
   actions += '</div>';
 
@@ -1563,7 +1626,12 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'delete', from: myKey, timestamp: Number(timestamp) }));
+        // Own delete → from: myKey (unchanged). Moderator delete of someone
+        // else's message → from: the ORIGINAL sender's key (fromKey), which is
+        // how the relay recognizes an authorized mod/admin delete and how
+        // native does it. For own messages fromKey === myKey already.
+        const deleteFrom = isMe ? myKey : fromKey;
+        ws.send(JSON.stringify({ type: 'delete', from: deleteFrom, timestamp: Number(timestamp) }));
         el.remove(); // Remove locally immediately.
       }
     });
@@ -1886,14 +1954,20 @@ function updateRulesBanner() {
   }
   banner.style.display = 'flex';
   const agreed = localStorage.getItem('humanity_rules_agreed');
+  // The rules text used to be messages posted into this channel, and the live
+  // channel is now empty, so this banner was asking people to agree to nothing
+  // visible. The rules live at /rules since 2026-09-06 (with the moderator
+  // powers and the appeals route alongside them), so every state of this banner
+  // carries the link. Agreeing to unreadable rules is not consent.
+  const readLink = ' <a href="/rules" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.82rem;">Read the rules and how appeals work</a>';
   if (agreed === 'true') {
-    banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
+    banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' + readLink +
       '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
-    banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
+    banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>'+ readLink +
       '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
-    banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
+    banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the community rules?</span>' + readLink +
       '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:var(--space-sm) var(--space-2xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
       '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
@@ -2025,11 +2099,13 @@ function formatBody(text) {
   // `inline code` (but not inside code blocks)
   safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
-  // @mentions, highlight usernames.
+  // @mentions, highlight usernames. The data-mention carries the raw name so a
+  // delegated click handler (see the #messages listener) can open that user,
+  // matching native (native opens the user's modal on mention click).
   safe = safe.replace(/@([A-Za-z0-9_-]+)/g, (match, name) => {
     const isMe = myName && name.toLowerCase() === myName.toLowerCase();
     const cls = isMe ? 'mention mention-me' : 'mention';
-    return `<span class="${cls}">@${esc(name)}</span>`;
+    return `<span class="${cls}" data-mention="${esc(name)}">@${esc(name)}</span>`;
   });
 
   // Step 5: Process line-level formatting (quotes, lists).

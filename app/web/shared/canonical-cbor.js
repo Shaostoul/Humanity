@@ -144,16 +144,25 @@ export function encodeObjectCanonical(f) {
  * Parse canonical-CBOR bytes (as produced by the encoder above, or by Rust's
  * ciborium) back into a JS value:
  *   - unsigned integers       → number (or BigInt for values > 2^53-1)
+ *   - negative integers       → number (or BigInt below -2^53+1)
  *   - byte strings (major 2)  → Uint8Array
  *   - text strings (major 3)  → string
  *   - arrays (major 4)        → Array
- *   - maps (major 5)          → plain object (text-string keys only — which is
+ *   - maps (major 5)          → plain object (text-string keys only, which is
  *                                what every Object payload + the group schemas
  *                                use; reject other key types loudly)
- * Indefinite-length, tags, negative ints, and floats are NOT supported (this
- * matches the canonical encoder's "no floats/no tags/definite-length" rules).
- * Used to read group_epoch_key_v1 / group_msg_v1 payloads off the relay's
- * SignedObjectResponse JSON.
+ *   - simple values (major 7) → false (20), true (21), null (22)
+ *   - float64 (major 7 / 0xfb)→ number
+ * The ENCODER above emits none of the negative-int, simple-value or float
+ * forms: it is signature critical and stays "no floats, no tags,
+ * definite-length". The DECODER is deliberately wider, because it also has to
+ * read payloads it did not write:
+ * offering_v1 prices are IEEE754 doubles (scripts/import-offerings.mjs writes
+ * `amount` as 0xfb) and schema booleans ride as major 7 / 20-21. Reading them
+ * changes no bytes and so cannot affect any signature.
+ * Indefinite-length, tags, and half/single floats remain unsupported.
+ * Used to read group_epoch_key_v1 / group_msg_v1 / provider_v1 / offering_v1
+ * payloads off the relay's SignedObjectResponse JSON.
  */
 
 const _dec = new TextDecoder();
@@ -172,10 +181,16 @@ function _readHead(bytes, off) {
         + ((bytes[off + 2] << 16) | (bytes[off + 3] << 8) | bytes[off + 4]);
     hLen = 5;
   } else if (minor === 27) {
-    // u64 — use BigInt; collapse to Number if it fits losslessly.
-    let big = 0n;
-    for (let i = 0; i < 8; i++) big = (big << 8n) | BigInt(bytes[off + 1 + i]);
-    arg = big <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(big) : big;
+    if (major === 7) {
+      // IEEE754 double (0xfb). DataView reads through the UNDERLYING buffer,
+      // so add byteOffset: `bytes` is often a subarray of a larger payload.
+      arg = new DataView(bytes.buffer, bytes.byteOffset + off + 1, 8).getFloat64(0);
+    } else {
+      // u64: use BigInt; collapse to Number if it fits losslessly.
+      let big = 0n;
+      for (let i = 0; i < 8; i++) big = (big << 8n) | BigInt(bytes[off + 1 + i]);
+      arg = big <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(big) : big;
+    }
     hLen = 9;
   } else {
     throw new Error('canonical-cbor: indefinite-length not supported');
@@ -188,6 +203,10 @@ function _decodeAt(bytes, off) {
   let pos = off + hLen;
   switch (major) {
     case 0: return [arg, pos];                              // unsigned int
+    case 1:                                                 // negative int
+      // CBOR stores -1-n, so n = 0 means -1. Stay in BigInt when the head was
+      // big enough to need it, otherwise plain Number.
+      return [typeof arg === 'bigint' ? -1n - arg : -1 - arg, pos];
     case 2: {                                               // byte string
       const len = Number(arg);
       const val = bytes.subarray(pos, pos + len);
@@ -219,6 +238,15 @@ function _decodeAt(bytes, off) {
         obj[k] = v; pos = p2;
       }
       return [obj, pos];
+    }
+    case 7: {                                               // simple / float
+      if (hLen === 9) return [arg, pos];                    // float64 (0xfb)
+      if (arg === 20) return [false, pos];
+      if (arg === 21) return [true, pos];
+      if (arg === 22) return [null, pos];
+      // 23 = undefined, 25/26 = half/single float, 24 = simple(n): no payload
+      // schema uses them, so fail loudly rather than guess.
+      throw new Error(`canonical-cbor: unsupported simple value ${arg}`);
     }
     default:
       throw new Error(`canonical-cbor: unsupported major type ${major}`);

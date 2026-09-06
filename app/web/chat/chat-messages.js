@@ -410,7 +410,22 @@ function loadImage(placeholder, url) {
   placeholder.replaceWith(img);
 }
 
+// Server cap is 6 MB (nginx client_max_body_size 6m). Guard client-side so an
+// oversize file fails fast with a clear message instead of a generic 413, and
+// so we never waste an upload that the server will reject.
+const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024;
+function attachmentTooLarge(file) {
+  if (file && file.size > MAX_ATTACHMENT_BYTES) {
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    addSystemMessage(`File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing it or sending a smaller file.`);
+    return true;
+  }
+  return false;
+}
+
 async function uploadImage(file) {
+  // Client-side size guard: abort before uploading anything over the 6 MB cap.
+  if (attachmentTooLarge(file)) return null;
   const indicator = document.getElementById('upload-indicator');
   indicator.textContent = `Uploading ${file.name}…`;
   indicator.style.display = 'block';
@@ -434,7 +449,7 @@ async function uploadImage(file) {
       let friendly = text;
       if (text.includes('too large')) {
         const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-        friendly = `File "${file.name}" is ${sizeMB}MB. Max allowed: 10MB for images/docs, 20MB for audio/video. Try compressing the image or using a smaller file.`;
+        friendly = `File "${file.name}" is ${sizeMB}MB, over the 6 MB max. Try compressing the image or using a smaller file.`;
       } else if (text.includes('Unsupported')) {
         friendly = `File type not allowed. Supported: images (png, jpg, gif, webp), documents (pdf, txt), audio (mp3, ogg, wav), video (mp4, webm).`;
       }
@@ -458,11 +473,52 @@ async function handleFileAttachment(event) {
   if (!file) return;
   event.target.value = ''; // Reset for re-selection
 
-  const url = await uploadImage(file); // Reuse existing upload function
-  // Route through the shared content authority so the attachment goes to
-  // whatever is in view -- channel, DM (E2EE), or group -- instead of always
-  // posting to the public channel (privacy bug fixed 2026-07-04).
+  // In a DM, the FILE must be as private as the message (2026-08-24): encrypt
+  // it client-side, upload only ciphertext, and send an encrypted-attachment
+  // marker inside the sealed envelope. In a public channel, public is public,
+  // so keep the plain public-URL path.
+  if (typeof activeDmPartner !== 'undefined' && activeDmPartner) {
+    await sendEncryptedAttachment(file);
+    return;
+  }
+  const url = await uploadImage(file); // public channel / group path
   if (url) await window.sendComposedContent(url);
+}
+
+/** Encrypt a file, upload the ciphertext, and send it as a sealed DM. */
+async function sendEncryptedAttachment(file) {
+  // Same 6 MB cap applies to encrypted DM attachments (the ciphertext upload
+  // hits the same nginx body limit). Guard before encrypting/uploading.
+  if (attachmentTooLarge(file)) return;
+  const indicator = document.getElementById('upload-indicator');
+  try {
+    if (indicator) { indicator.textContent = `Encrypting ${file.name}…`; indicator.style.display = 'block'; }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const enc = await pqEncryptFile(bytes);
+    if (indicator) indicator.textContent = `Uploading ${file.name}…`;
+    const uploadBase = myUploadToken
+      ? `/api/upload?token=${encodeURIComponent(myUploadToken)}&encrypted=1`
+      : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}&encrypted=1` : '/api/upload?encrypted=1');
+    const fd = new FormData();
+    fd.append('file', new Blob([enc.cipherBytes], { type: 'application/octet-stream' }), 'attachment.enc');
+    const resp = await fetch(uploadBase, { method: 'POST', body: fd });
+    if (!resp.ok) { addSystemMessage(`Upload failed: ${await resp.text()}`); return; }
+    const data = await resp.json();
+    const marker = pqBuildFileMarker({
+      url: data.url,
+      k: enc.keyB64,
+      n: enc.nonceB64,
+      name: file.name,
+      mime: file.type || 'application/octet-stream',
+      size: file.size,
+    });
+    // Goes through the exact DM send path (sealed envelope) as any message.
+    await window.sendComposedContent(marker);
+  } catch (e) {
+    addSystemMessage(`Encrypted upload failed: ${e && e.message}`);
+  } finally {
+    if (indicator) indicator.style.display = 'none';
+  }
 }
 
 // Paste image from clipboard → upload and send.

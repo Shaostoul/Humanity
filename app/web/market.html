@@ -137,6 +137,27 @@
     .store-link{display:inline-block;padding:var(--space-sm) var(--space-xl);background:var(--accent);color:var(--text-on-accent);border-radius:var(--radius);text-decoration:none;font-size:0.75rem;font-weight:600}
     .store-link:hover{background:var(--accent-hover);color:var(--text-on-accent)}
     .stores-empty{color:var(--text-muted);font-style:italic;padding:var(--space-3xl);text-align:center}
+
+    /* Market Directory (renderDirectory). Offering cards reuse .listing-card
+       and provider cards reuse .store-card above; these are the directory-only
+       bits. Every value is a theme token, except the per-category --cat / --cat-bg
+       the JS sets from CATEGORY_COLORS (same convention as .cat-chip). */
+    .dir-bar{display:flex;gap:var(--space-md);flex-wrap:wrap;align-items:center;margin-bottom:var(--space-lg)}
+    .dir-toggle{min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem}
+    .dir-note{font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-lg)}
+    .dir-error{font-size:0.78rem;color:var(--danger);margin-bottom:var(--space-lg)}
+    .dir-crumb{font-size:0.78rem;color:var(--accent);display:inline-flex;align-items:center;gap:var(--space-sm)}
+    .dir-age{font-size:0.68rem;color:var(--text-muted);white-space:nowrap;margin-left:var(--space-sm)}
+    .dir-summary{font-size:0.75rem;color:var(--text-muted);line-height:1.4;margin-top:var(--space-sm)}
+    .dir-kind{font-size:0.7rem;color:var(--text-muted);margin-top:var(--space-xs)}
+    .dir-provider-count{font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md)}
+    .provider-card{cursor:pointer}
+    .dir-fact{font-size:0.8rem;color:var(--text);margin-bottom:var(--space-xs)}
+    .dir-fact span{color:var(--text-muted)}
+    /* The provider key is a 3904-char Dilithium hex string: it must wrap and
+       scroll rather than stretch the modal. */
+    .dir-key{font-family:monospace;font-size:0.66rem;color:var(--text-muted);word-break:break-all;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm);margin:var(--space-sm) 0;max-height:5.5em;overflow-y:auto}
+    .dir-empty{text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl)}
 </style>
 </head>
 <body>
@@ -147,28 +168,54 @@
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Buy and sell things with other players, like a flea market for everyone.</div>
-  <div class="eli5-expert">Peer-to-peer marketplace with listings stored server-side via REST API (/api/listings). Ed25519 authenticated. Categories span physical goods, digital assets, services, and in-game items. Crypto payment integration planned (see docs/economy/crypto_exchange.md).</div>
+  <div class="eli5-expert">Directory entries are signed objects: a provider and its offerings are published under your own key and verified by anyone, so no server vouches for them. Signing uses Dilithium3 (ML-DSA-65), the post-quantum scheme this platform uses for identity. Categories span physical goods, digital assets, services and in-game items. The platform never handles payment: it lists and introduces, and you settle directly.</div>
 </div>
 <p class="page-hint">The marketplace. Find things people are offering, or share something you'd like to give, trade, or sell. Browse stores and post your own listings.</p>
 <div id=page-app><div id="tab-market" class="tab-content" style="padding:var(--space-xl);overflow-y:auto;">
   <!-- Sub-navigation -->
   <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);flex-wrap:wrap;align-items:center;">
-   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16" aria-hidden="true"></span> Marketplace</button>
+   <button class="btn btn-clickable" onclick="showMarketSection('directory')" id="market-nav-directory" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="grid" data-size="16" aria-hidden="true"></span> Directory</button>
+   <button class="btn" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16" aria-hidden="true"></span> Classifieds</button>
    <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16" aria-hidden="true"></span> Stores</button>
    <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16" aria-hidden="true"></span> My Listings</button>
    <span style="flex:1;"></span>
    <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
 
+  <!-- Directory Section: the signed provider/offering catalog. Mirrors the
+       native Market page's Directory tab (src/gui/pages/market_directory.rs),
+       which is likewise the default tab. Data comes from plain GETs against
+       /api/v2/objects, not the classifieds WebSocket. -->
+  <div id="market-section-directory">
+   <div class="dir-bar">
+    <button class="btn btn-clickable dir-toggle" onclick="setDirectorySub('offerings')" id="dir-sub-offerings">Offerings</button>
+    <button class="btn dir-toggle" onclick="setDirectorySub('providers')" id="dir-sub-providers">Providers</button>
+    <span id="dir-breadcrumb"></span>
+    <span style="flex:1;"></span>
+    <button class="btn dir-toggle" onclick="loadDirectory(true)" id="dir-refresh-btn">Refresh</button>
+   </div>
+   <div class="dir-bar" id="dir-filters">
+    <input type="text" id="dir-search" aria-label="Search offerings" placeholder="Search offerings..." oninput="renderDirectory()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="dir-category-filter" aria-label="Filter offerings by category" onchange="renderDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">All Categories</option>
+    </select>
+   </div>
+   <div id="dir-status" class="dir-note"></div>
+   <div id="dir-error" class="dir-error" role="alert" style="display:none;"></div>
+   <div id="dir-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);"></div>
+   <div id="dir-empty" class="dir-empty" style="display:none;"></div>
+  </div>
+
   <!-- Marketplace Section -->
-  <div id="market-section-marketplace">
+  <div id="market-section-marketplace" style="display:none;">
    <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:var(--space-md) 0;">
     <input type="text" id="market-search" aria-label="Search listings" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
     <select id="market-category-filter" aria-label="Filter by category" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">All Categories</option>
-     <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
-     <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
-     <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+     <option>Food</option><option>Water</option><option>Shelter</option><option>Energy</option><option>Health</option>
+     <option>Care</option><option>Clothing</option><option>Tools</option><option>Materials</option><option>Repair</option>
+     <option>Transport</option><option>Growing</option><option>Education</option><option>Communication</option><option>Services</option>
+     <option>Emergency</option><option>Other</option>
     </select>
     <select id="market-condition-filter" aria-label="Filter by condition" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">Any Condition</option>
@@ -207,6 +254,14 @@
    </div>
   </div>
 
+  <!-- Offering Detail Modal (Directory). Same shell as the classifieds
+       detail modal below, so both read as one page. -->
+  <div id="offering-detail-modal" role="dialog" aria-modal="true" aria-label="Offering details" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeOfferingDetail()">
+   <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
+    <div id="offering-detail-content"></div>
+   </div>
+  </div>
+
   <!-- Listing Detail Modal -->
   <div id="listing-detail-modal" role="dialog" aria-modal="true" aria-label="Listing details" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
@@ -232,9 +287,10 @@
       <div>
        <label for="listing-category" style="font-size:var(--text-sm);color:var(--text-muted);">Category *</label>
        <select id="listing-category" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
-        <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
-        <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
-        <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+        <option>Food</option><option>Water</option><option>Shelter</option><option>Energy</option><option>Health</option>
+        <option>Care</option><option>Clothing</option><option>Tools</option><option>Materials</option><option>Repair</option>
+        <option>Transport</option><option>Growing</option><option>Education</option><option>Communication</option><option>Services</option>
+        <option>Emergency</option><option>Other</option>
        </select>
       </div>
       <div>

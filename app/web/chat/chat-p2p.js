@@ -298,9 +298,10 @@ async function importContactCard(json) {
 
   addSystemMessage(`✅ Added contact: ${card.name}`);
 
-  // Send a Follow to the relay so they appear in our following list.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'follow', target_key: card.pub }));
+  // Follows removal (2026-08-24): following is client-side; a sealed
+  // control message notifies them and starts the friendship exchange.
+  if (typeof setFollowLocal === 'function') {
+    setFollowLocal(card.pub, true);
   }
 
   return card.name;
@@ -467,31 +468,37 @@ async function sendP2PMessage(peerPubKey, text) {
   const contact = p2pContacts[peerPubKey];
 
   if (dc && dc.readyState === 'open' && contact?.kyber_pub) {
-    // Happy path: dual-seal (Kyber768) and send over the open DataChannel.
+    // Happy path: sealed-sender v2 envelope over the open DataChannel.
+    // Same signed-inner format as the relay path, so the receiver
+    // verifies authorship identically (and can dedupe against relay
+    // copies of the same message).
     try {
-      const enc = await encryptDmContent(text, contact.kyber_pub);
-      if (enc) {
-        dc.send(JSON.stringify({ type: 'p2p_dm', ciphertext: enc.content, nonce: enc.nonce, ts: Date.now() }));
-        return;
+      const sentTs = Date.now();
+      const preimage = `hum/dm/v2\n${myKey}\n${peerPubKey}\n${sentTs}\n${text}`;
+      const sigBytes = await window.pqSignMessage(myDilithiumSecret, new TextEncoder().encode(preimage));
+      if (sigBytes) {
+        const inner = { v: 2, from: myKey, to: peerPubKey, ts: sentTs, text, sig: btoa(String.fromCharCode(...sigBytes)) };
+        const sealed = await window.pqDmSeal(contact.kyber_pub, JSON.stringify(inner));
+        if (sealed) {
+          const env = JSON.stringify({ v: 2, ek_ct_b64: sealed.ek_ct_b64, nonce_b64: sealed.nonce_b64, ct_b64: sealed.ct_b64 });
+          dc.send(JSON.stringify({ type: 'p2p_dm', env }));
+          if (window.hosDmStore && hosDmStore.ready) await hosDmStore.insert(inner);
+          return;
+        }
       }
     } catch {}
   }
 
-  // Fallback: relay DM, FAIL CLOSED. Only ever send sealed; never put
-  // plaintext on the relay (security review HIGH-1). If we can't seal
-  // (no peer Kyber key / PQ identity not ready), drop the relay fallback
-  // rather than leak. (The P2P direct path above is the happy path.)
+  // Fallback: relay mailbox deposit, FAIL CLOSED. Only ever send sealed
+  // v2 envelopes; there is no plaintext field in the protocol at all.
   if (ws && ws.readyState === WebSocket.OPEN) {
-    const peerKyber = getPeerEcdhPublic(peerPubKey); // Kyber768 pub
-    if (!peerKyber) return;
-    let enc = null;
-    try { enc = await encryptDmContent(text, peerKyber); } catch {}
-    if (!enc) return;
-    ws.send(JSON.stringify({
-      type: 'dm', from: myKey, from_name: myName, to: peerPubKey,
-      content: enc.content, nonce: enc.nonce, encrypted: true,
-      timestamp: Date.now(),
-    }));
+    const sentTs = Date.now();
+    let built = null;
+    try { built = await pqBuildDmPuts(text, peerPubKey, sentTs); } catch {}
+    if (!built) return;
+    ws.send(JSON.stringify(built.recipientPut));
+    ws.send(JSON.stringify(built.selfPut));
+    if (window.hosDmStore && hosDmStore.ready) await hosDmStore.insert(built.inner);
   }
 }
 
@@ -509,20 +516,25 @@ async function onDCMessage(event, peerKey) {
   const contact = p2pContacts[peerKey];
   const name    = contact?.name || peerKey.substring(0, 12) + '…';
 
-  let content = '[encrypted message]';
-  if (msg.ciphertext && msg.nonce) {
-    try {
-      const plain = await decryptDmContent(msg.ciphertext, msg.nonce, null);
-      if (plain !== null) content = plain;
-    } catch {}
+  // Sealed-sender v2: open with our own key, verify the inner Dilithium
+  // signature, and REQUIRE the verified sender to match the DataChannel
+  // peer — a spoofed inner never renders.
+  if (!msg.env) return;
+  let inner = null;
+  try { inner = await pqOpenDmEnvelope(msg.env); } catch {}
+  if (!inner || inner.from !== peerKey) return;
+  if (window.hosDmStore && hosDmStore.ready) {
+    const isNew = await hosDmStore.insert(inner);
+    if (!isNew) return; // already have it (relay copy arrived first)
   }
 
   // Render in the DM thread if it's active; otherwise show a notification.
   if (typeof addDmMessage === 'function' && activeDmPartner === peerKey) {
-    addDmMessage(name, content, msg.ts || Date.now(), peerKey, myKey, false);
+    addDmMessage(name, inner.text, inner.ts || Date.now(), peerKey, myKey, true);
   } else if (typeof notifyNewMessage === 'function') {
-    notifyNewMessage(name, content, true);
+    notifyNewMessage(name, inner.text, true);
   }
+  if (typeof loadDmListFromStore === 'function') loadDmListFromStore();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

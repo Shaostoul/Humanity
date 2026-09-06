@@ -55,69 +55,23 @@ handleMessage = function(msg) {
   if (msg.type === 'friend_code_result') {
     if (msg.success) {
       const name = esc(msg.name || 'them');
-      addSystemMessage(`🤝 Friend code redeemed! You and ${name} now follow each other.`);
-      // Refresh follow list
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'chat', content: '/friends', channel: activeChannel || 'general', from: myKey, from_name: myName, timestamp: Date.now() }));
+      addSystemMessage(`🤝 Friend code accepted! Following ${name} and sending your hello; when they add you back, you'll be friends.`);
+      // Follows removal (2026-08-24): the relay no longer creates the
+      // edges — the redeemer's client opens the friendship exchange.
+      if (msg.owner_key && typeof setFollowLocal === 'function') {
+        setFollowLocal(msg.owner_key, true);
       }
     } else {
       addSystemMessage(`⚠️ Friend code failed: ${esc(msg.message || 'Unknown error')}`);
     }
     return;
   }
-  if (msg.type === 'follow_list') {
-    myFollowing = new Set(msg.following || []);
-    myFollowers = new Set(msg.followers || []);
-    updateFriendIndicators();
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
-  if (msg.type === 'follow_update') {
-    if (msg.follower_key === myKey) {
-      if (msg.action === 'follow') myFollowing.add(msg.followed_key);
-      else myFollowing.delete(msg.followed_key);
-    }
-    if (msg.followed_key === myKey) {
-      if (msg.action === 'follow') myFollowers.add(msg.follower_key);
-      else myFollowers.delete(msg.follower_key);
-    }
-    updateFriendIndicators();
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
-  if (msg.type === 'group_list') {
-    myGroups = msg.groups || [];
-    renderGroupList();
-    return;
-  }
-  if (msg.type === 'group_message') {
-    if (activeGroupId === msg.group_id) {
-      const name = resolveSenderName(msg.from_name, msg.from);
-      const isYou = msg.from === myKey;
-      addMessageToChat(name, msg.content, msg.timestamp, isYou, msg.from);
-    } else {
-      // Track unread count for groups not currently in view
-      groupUnread[msg.group_id] = (groupUnread[msg.group_id] || 0) + 1;
-      renderGroupList();
-    }
-    return;
-  }
-  if (msg.type === 'group_history') {
-    if (msg.group_id === activeGroupId) {
-      const messagesDiv = document.getElementById('messages');
-      messagesDiv.innerHTML = '';
-      for (const m of (msg.messages || [])) {
-        const isYou = m.from === myKey;
-        addMessageToChat(resolveSenderName(m.from_name, m.from), m.content, m.timestamp, isYou, m.from);
-      }
-    }
-    return;
-  }
-  if (msg.type === 'group_members') {
-    groupMembersByGroup[msg.group_id] = (msg.members || []).map(([key, role]) => ({ key, role }));
-    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-    return;
-  }
+  // (follow_list/follow_update handlers removed 2026-08-24: the social
+  // graph is client-side, fed by sealed control messages + the local
+  // encrypted store. See the social layer at the bottom of this file.)
+  // (Legacy group_list/group_message/group_history/group_members handlers
+  // removed 2026-08-23: the plaintext relay-group system died server-side;
+  // groups are the E2EE P2P signed-object system in chat-groups-p2p.js.)
   _origHandleMessageFollow(msg);
 };
 
@@ -196,9 +150,8 @@ function addFollowContextMenu() {
       item.onmouseenter = () => { item.style.background = 'var(--bg-hover)'; };
       item.onmouseleave = () => { item.style.background = ''; };
       item.onclick = () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: following ? 'unfollow' : 'follow', target_key: key }));
-        }
+        // Follows removal (2026-08-24): sealed control message, no server edge.
+        setFollowLocal(key, !following);
         menu.remove();
       };
       menu.appendChild(item);
@@ -242,17 +195,7 @@ function renderGroupList() {
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${(g.members || []).length}</span>
     </div>`;
   }
-  // Legacy relay-mediated groups (shown until migrated, Phase 1 step e).
-  for (const g of myGroups) {
-    const isActive = activeGroupId === g.id;
-    const unread = groupUnread[g.id] || 0;
-    const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:var(--radius-lg);padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
-    html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
-      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
-      ${badge}
-    </div>`;
-  }
-  if (p2pGroups.length === 0 && myGroups.length === 0) {
+  if (p2pGroups.length === 0) {
     html += '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet. Create one, or paste an invite ticket to join.</div>';
   }
   html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
@@ -298,8 +241,10 @@ function renderGroupList() {
           }
         }},
         // Leave, available to anyone. Removes me from the roster (self-leave).
-        { label: '🚪 Leave group', action: () => {
-          if (!confirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.')) return;
+        // 3s hold (operator 2026-08-25): a short gate so a stray tap doesn't
+        // drop you from a group you're active in; rejoining needs a new invite.
+        { label: '🚪 Leave group', action: async () => {
+          if (!await holdConfirm('Leave group "' + g.name + '"? You can rejoin with a new invite ticket.', { seconds: 3 })) return;
           if (typeof window.leaveP2pGroup !== 'function') return;
           window.leaveP2pGroup(gid).catch((err) => {
             if (typeof addNotice === 'function') addNotice('Leave failed: ' + err.message, 'red', 6);
@@ -309,47 +254,14 @@ function renderGroupList() {
       // Disband, creator only (relay enforces; we hide it for non-creators to
       // avoid a confusing silent no-op). is_creator comes from /api/v2/groups.
       if (g.is_creator) {
-        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: () => {
-          if (!confirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.')) return;
+        items.push({ label: hosIcon('trash', 14) + ' Disband group (for everyone)', html: true, action: async () => {
+          if (!await holdConfirm('Disband "' + g.name + '" for EVERYONE? This cannot be undone.', { seconds: 5 })) return;
           if (typeof window.disbandP2pGroup !== 'function') return;
           window.disbandP2pGroup(gid).catch((err) => {
             if (typeof addNotice === 'function') addNotice('Disband failed: ' + err.message, 'red', 6);
           });
         }});
       }
-      items.forEach(it => {
-        const div = document.createElement('div');
-        div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
-        if (it.html) div.innerHTML = it.label; else div.textContent = it.label;
-        div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
-        div.onmouseleave = () => { div.style.background = ''; };
-        div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
-        menu.appendChild(div);
-      });
-      document.body.appendChild(menu);
-      const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
-      setTimeout(() => document.addEventListener('click', closeMenu), 0);
-    };
-  });
-  // Click handler for groups
-  container.querySelectorAll('[data-group-id]').forEach(el => {
-    el.onclick = () => openGroup(el.dataset.groupId);
-    el.oncontextmenu = (e) => {
-      e.preventDefault();
-      document.querySelectorAll('.group-ctx-menu').forEach(m => m.remove());
-      const gid = el.dataset.groupId;
-      const group = myGroups.find(g => g.id === gid);
-      if (!group) return;
-      const menu = document.createElement('div');
-      menu.className = 'group-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      const items = [
-        { label: hosIcon('copy', 14) + ' Copy Invite Code', html: true, action: () => { navigator.clipboard.writeText(group.invite_code).then(() => addSystemMessage('Invite code copied: ' + group.invite_code)); }},
-        { label: '👤 Invite User', action: () => { const name = prompt('Share this invite code with a user:\\n' + group.invite_code + '\\n\\nOr enter a username to tell them:'); if (name && name.trim()) { addSystemMessage('Share this invite code with ' + name.trim() + ': ' + group.invite_code); } }},
-        { label: '🚪 Leave Group', action: () => { if (confirm('Leave group "' + group.name + '"?') && ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'group_leave', group_id: gid })); if (activeGroupId === gid) { activeGroupId = null; activeGroupName = ''; } } }},
-      ];
       items.forEach(it => {
         const div = document.createElement('div');
         div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
@@ -453,33 +365,7 @@ function promptJoinGroup() {
   });
 }
 
-function openGroup(groupId) {
-  const group = myGroups.find(g => g.id === groupId);
-  if (!group) return;
-  activeGroupId = groupId;
-  activeGroupName = group.name;
-  groupUnread[groupId] = 0; // Clear unread on enter
-  activeDmPartner = null; // Exit DM view, also deselect server channel + DM highlights
-  renderChannelList();
-  if (typeof renderDmList === 'function') renderDmList();
-  // Update channel header, replace innerHTML fully so leftover DM spans don't linger.
-  const header = document.getElementById('channel-header');
-  if (header) {
-    header.style.display = 'flex';
-    header.innerHTML = `<span class="ch-name">${hosIcon('users', 16)} ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
-  }
-  // Clear messages, set group context (forest-green tint + green stripes), request history.
-  const msgsEl = document.getElementById('messages');
-  msgsEl.dataset.ctx = 'group';
-  if (typeof resetMsgStripe === 'function') resetMsgStripe();
-  msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
-    ws.send(JSON.stringify({ type: 'group_members_request', group_id: groupId }));
-  }
-  renderGroupList();
-  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
-}
+// (openGroup removed 2026-08-23 with the legacy relay-group system.)
 
 // When switching to a channel, clear group view
 const _origSwitchChannelFollow = switchChannel;
@@ -490,20 +376,9 @@ switchChannel = function(channelId) {
   if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
 };
 
-// Patch sendMessage to route to group_msg when a group is active.
-// Without this, pressing Enter while in a group view sends to the channel instead.
-const _origSendMessageGroup = sendMessage;
-sendMessage = async function() {
-  if (!activeGroupId) return _origSendMessageGroup();
-  const input = document.getElementById('msg-input');
-  const content = input.value.trim();
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
-  addMessageToChat(myName, content, Date.now(), true, myKey);
-  input.value = '';
-  input.style.height = 'auto';
-  input.focus();
-};
+// (Legacy group_msg sendMessage patch removed 2026-08-23; the P2P group
+// composer patch lives in chat-groups-p2p.js.)
+
 
 // Helper to add a message to the chat (for groups)
 function addMessageToChat(name, content, timestamp, isYou, fromKey) {
@@ -517,3 +392,105 @@ function addMessageToChat(name, content, timestamp, isYou, fromKey) {
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
+
+// ── Client-side social graph (follows removal, 2026-08-24) ────────────────
+// The server stores no follow edges. Following is local state persisted in
+// the encrypted DM store; follow/unfollow notices and friendship
+// certificates travel as sealed control messages over the DM mailbox, and
+// self-copies keep every device of the same identity in sync.
+
+/** Pull the social sets out of the store into the UI globals. */
+function syncSocialFromStore() {
+  if (!(window.hosDmStore && hosDmStore.ready)) return;
+  myFollowing = new Set(hosDmStore.following);
+  myFollowers = new Set(hosDmStore.followers);
+  updateFriendIndicators();
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+}
+window.syncSocialFromStore = syncSocialFromStore;
+
+/** Seal + send one control message (recipient copy + self copy). */
+async function sendDmControl(peer, text, ctlCert) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  const built = await pqBuildDmPuts(text, peer, Date.now(), ctlCert ? { ctlCert } : undefined);
+  if (!built) {
+    console.warn('control not sent (no key for peer yet):', text, peer.slice(0, 12));
+    return false;
+  }
+  ws.send(JSON.stringify(built.recipientPut));
+  ws.send(JSON.stringify(built.selfPut));
+  return true;
+}
+
+/** Issue + deliver MY friendship certificate to `peer` (idempotent). */
+async function sendFriendCertTo(peer) {
+  if (!(window.hosDmStore && hosDmStore.ready) || hosDmStore.certSentTo(peer)) return;
+  const cert = await pqBuildFriendCert(peer);
+  if (!cert) return;
+  if (await sendDmControl(peer, CTL_FRIEND_CERT, cert)) {
+    hosDmStore.markCertSent(peer);
+  }
+}
+
+/** Follow / unfollow (the UI entry point everywhere in the web client). */
+async function setFollowLocal(peer, on) {
+  if (!peer || peer === myKey) return;
+  if (window.hosDmStore && hosDmStore.ready) hosDmStore.setFollowing(peer, on);
+  if (on) myFollowing.add(peer); else myFollowing.delete(peer);
+  await sendDmControl(peer, on ? CTL_FOLLOW : CTL_UNFOLLOW);
+  if (on && myFollowers.has(peer)) {
+    // Mutual now: complete the friendship with our certificate.
+    await sendFriendCertTo(peer);
+  }
+  updateFriendIndicators();
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+  addSystemMessage(on
+    ? '✅ Following. If they follow you back, your clients exchange friendship credentials automatically.'
+    : '✅ Unfollowed.');
+}
+window.setFollowLocal = setFollowLocal;
+
+/**
+ * Act on a verified control message; returns true when it was one (the
+ * caller then skips rendering it). Self-copies sync our own state from
+ * other devices.
+ */
+async function ingestDmControl(inner) {
+  if (![CTL_FOLLOW, CTL_UNFOLLOW, CTL_FRIEND_CERT].includes(inner.text)) return false;
+  const fromMe = inner.from === myKey;
+  const peer = fromMe ? inner.to : inner.from;
+  const store = (window.hosDmStore && hosDmStore.ready) ? hosDmStore : null;
+  if (inner.text === CTL_FOLLOW) {
+    if (fromMe) {
+      if (store) store.setFollowing(peer, true);
+      myFollowing.add(peer);
+    } else {
+      if (store) store.setFollower(peer, true);
+      myFollowers.add(peer);
+      const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
+      addSystemMessage(`👁️ ${esc(peerName)} is now following you.`);
+      if (myFollowing.has(peer)) await sendFriendCertTo(peer);
+    }
+  } else if (inner.text === CTL_UNFOLLOW) {
+    if (fromMe) {
+      if (store) store.setFollowing(peer, false);
+      myFollowing.delete(peer);
+    } else {
+      if (store) store.setFollower(peer, false);
+      myFollowers.delete(peer);
+    }
+  } else if (inner.text === CTL_FRIEND_CERT && inner.cert) {
+    if (fromMe) {
+      if (store) store.markCertSent(peer);
+    } else if (await pqVerifyFriendCert(inner.from, myKey, inner.cert)) {
+      if (store) store.storeCertFrom(inner.from, inner.cert);
+      const peerName = (window.peerData && peerData[peer]?.display_name) || shortKey(peer);
+      addSystemMessage(`🤝 You and ${esc(peerName)} are friends now — messages between you are unlimited.`);
+    } else {
+      console.warn('friend-cert failed verification; dropped');
+    }
+  }
+  updateFriendIndicators();
+  return true;
+}
+window.ingestDmControl = ingestDmControl;
