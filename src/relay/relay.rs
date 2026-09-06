@@ -112,6 +112,11 @@ pub struct RelayState {
     /// In-memory only, sender-scoped — deliberately never a pair graph.
     /// (Follows-graph removal, 2026-08-24.)
     pub dm_knocks: RwLock<HashMap<String, (i64, u32)>>,
+    /// Last account-export time per key, for the per-minute limit on
+    /// POST /api/account/export. In-memory only: a missed limit after a
+    /// restart is harmless, a persisted one would be a new per-user table
+    /// recording when people asked for their own data.
+    pub account_export_last: RwLock<HashMap<String, std::time::Instant>>,
     /// Lockdown mode: when true, new name registrations are blocked.
     pub lockdown: RwLock<bool>,
     /// Whether the current lockdown was set automatically (vs manually).
@@ -339,6 +344,7 @@ impl RelayState {
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
             dm_knocks: RwLock::new(HashMap::new()),
+            account_export_last: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
             kicked_keys: RwLock::new(HashSet::new()),
@@ -1692,17 +1698,12 @@ pub enum RelayMessage {
 
     // ── Notification Preferences ──
 
-    /// Client requests a full export of their account data (2026-08-23).
-    #[serde(rename = "account_export")]
-    AccountExport {},
-
-    /// Server returns the export (targeted).
-    #[serde(rename = "account_export_data")]
-    AccountExportData {
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        target: Option<String>,
-        data: serde_json::Value,
-    },
+    // (account_export / account_export_data removed 2026-09-06: the export is
+    // now POST /api/account/export. It rode the socket as one message, and the
+    // relay has no per-connection sender, so delivery meant broadcasting the
+    // whole export to EVERY connected client's task and filtering it down to
+    // one afterwards, against a 128 KB message ceiling, on the one feature
+    // whose entire point is data sovereignty.)
 
     /// Client erases their account (2026-08-23). `confirm_name` must
     /// match the registered display name exactly (typed confirmation).
@@ -3108,15 +3109,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => {} // No target = broadcast to everyone, fall through
                     _ => {}   // Target matches, fall through
-                }
-            }
-
-            // AccountExportData: only deliver to the requesting client.
-            if let RelayMessage::AccountExportData { ref target, .. } = msg {
-                match target {
-                    Some(t) if t != &my_key_for_broadcast => continue,
-                    None => continue,
-                    _ => {}
                 }
             }
 
@@ -6043,9 +6035,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             // (Legacy group system removed 2026-08-23:
                             // groups are the E2EE P2P signed-object system.)
                             // ── Account sovereignty (2026-08-23) ──
-                            RelayMessage::AccountExport {} => {
-                                handle_account_export(&state_clone, &my_key_for_recv).await;
-                            }
                             RelayMessage::AccountDelete { confirm_name } => {
                                 handle_account_delete(&state_clone, &my_key_for_recv, confirm_name).await;
                             }

@@ -4165,6 +4165,94 @@ pub struct CreateBugRequest {
 fn default_severity() -> String { "medium".to_string() }
 fn default_category() -> String { "other".to_string() }
 
+/// Body for POST /api/account/export.
+#[derive(Debug, Deserialize)]
+pub struct AccountExportRequest {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+}
+
+/// POST /api/account/export — download everything this server holds about you.
+///
+/// This used to ride the WebSocket as an `account_export_data` message, which
+/// was wrong in two ways that both get worse as the export grows:
+///
+/// 1. FAN-OUT. The relay has no per-connection sender. Its only delivery
+///    mechanism is `broadcast_tx` plus a per-message target filter, and that
+///    filter runs inside each connection's receive loop, so EVERY connected
+///    client's task cloned the entire export before discarding it. One person
+///    exporting meant N copies of their personal data in memory across N
+///    unrelated sockets. Nobody else could read it, but nothing about that
+///    shape is defensible for the one feature whose whole point is data
+///    sovereignty.
+/// 2. SIZE. The socket is configured with a 128 KB message ceiling
+///    (`mod.rs`), and the export is one message. That put a hard cap on how
+///    much of a person's data the "download everything" button could ever
+///    actually hand over, which is exactly the wrong thing to have a silent
+///    cap on.
+///
+/// An export is a file download, so it is served as one: authenticated the same
+/// way every other identity-keyed endpoint here is, and returned with a
+/// Content-Disposition so a browser saves it directly.
+///
+/// Rate limited per key. The WebSocket path had no limit and no confirmation,
+/// and an export is an expensive read over a couple of dozen tables.
+pub async fn post_account_export(
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<AccountExportRequest>,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    use axum::response::IntoResponse;
+
+    verify_signed_actor(&req.key, req.timestamp, &req.sig, "account_export").await?;
+
+    // One export per key per minute. Generous for a human pressing a button,
+    // and it stops the endpoint from being a cheap way to make the relay do a
+    // couple of dozen table scans on demand.
+    {
+        let now = std::time::Instant::now();
+        let mut last = state.account_export_last.write().await;
+        if let Some(prev) = last.get(&req.key) {
+            let elapsed = now.duration_since(*prev).as_secs();
+            if elapsed < 60 {
+                return Err((
+                    StatusCode::TOO_MANY_REQUESTS,
+                    format!("You just exported. Try again in {} seconds.", 60 - elapsed),
+                ));
+            }
+        }
+        last.insert(req.key.clone(), now);
+        // Bound the map: this is the only thing that ever trims it, and an
+        // unbounded key-indexed map on a public endpoint is a slow leak.
+        if last.len() > 10_000 {
+            last.retain(|_, t| now.duration_since(*t).as_secs() < 3600);
+        }
+    }
+
+    let name = state.db.name_for_key(&req.key).ok().flatten().unwrap_or_default();
+    let data = state.db.export_account(&req.key, &name);
+    let body = serde_json::to_string_pretty(&data).unwrap_or_else(|_| "{}".to_string());
+
+    tracing::info!(
+        "Account export served for {}… ({} bytes)",
+        &req.key[..12.min(req.key.len())],
+        body.len()
+    );
+
+    Ok((
+        StatusCode::OK,
+        [
+            (axum::http::header::CONTENT_TYPE, "application/json; charset=utf-8"),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                "attachment; filename=\"humanityos-account-export.json\"",
+            ),
+        ],
+        body,
+    )
+        .into_response())
+}
+
 /// Prove a caller actually holds the key they claim, before any role or
 /// ownership decision is made from it.
 ///

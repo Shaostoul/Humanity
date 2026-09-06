@@ -418,7 +418,10 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     "privacy_update",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
-    "account_export", "account_export_data", "account_delete",
+    // (account_export/account_export_data moved to POST /api/account/export on
+    // 2026-09-06; that route is deliberately absent from ROUTE_FEATURES, so it
+    // cannot be switched off either.)
+    "account_delete",
     // Outbound notifications (server -> client echoes of state changes).
     "message_deleted", "pin_added", "pin_removed", "pins_sync", "reactions_sync",
     "channel_list", "channel_update", "profile_data", "announcements",

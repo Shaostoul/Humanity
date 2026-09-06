@@ -147,15 +147,40 @@ The stored-data classes removed or bounded after the sealed-sender cutover:
   the accumulated history purged. The live log remains (fail2ban needs it to
   ban abusers); two days is ample for that and keeps no meaningful visit
   history. (CLI-configured; tracked as GUI-first debt in in-app-ops.)
-- **Account sovereignty**: any member can self-service EXPORT everything the
-  server stores about them (`account_export` → JSON download / local file)
-  and ERASE it all (`account_delete`, typed-name confirmation): messages,
-  uploads + files on disk, profile, mailbox, vault, push subscriptions,
-  listings, reviews, tasks, membership, registered name. Admins must hand off
-  the admin role first so a server is never orphaned. secure_delete zeroes
-  the freed pages and the WAL is truncated; rotating backups hold prior
-  snapshots until they age out, as everywhere else in this document.
+- **Account sovereignty**: any member can self-service EXPORT what this server
+  stores about them and ERASE it. Both are self-service; no admin is involved.
+  - EXPORT is `POST /api/account/export`, Dilithium3-signed over
+    `account_export\ntimestamp`, rate limited per key, and served as a JSON
+    file download. It was a WebSocket message until 2026-09-06; the relay has
+    no per-connection sender, so delivering it meant broadcasting the whole
+    export to EVERY connected client task and filtering it down to one, against
+    a 128 KB socket message ceiling.
+  - ERASE is `account_delete` with typed-name confirmation: messages, uploads
+    and their files on disk, profile, mailbox, vault, push subscriptions,
+    listings, reviews, tasks, reactions, codes, membership, registered name.
+    Admins must hand off the admin role first so a server is never orphaned.
+    secure_delete zeroes the freed pages and the WAL is truncated; rotating
+    backups hold prior snapshots until they age out, as everywhere else here.
 
+  Two corrections to what this section said before 2026-09-06, both of which
+  were live for months:
+
+  1. The export and the erase each named two tables that DO NOT EXIST
+     (`uploads` and `tasks`; the real names are `user_uploads` and
+     `project_tasks`). Neither failed loudly: the export helper turns a bad
+     table name into an empty array and the delete helper only logged. So the
+     export reported the member had no uploads, and every uploaded FILE
+     survived "erase everything" on disk and in the database while the receipt
+     said otherwise. Guarded now by `tests/account_sql_lint.rs`.
+  2. Erasure is deliberately NOT total, and saying "permanently" without
+     saying what survives was itself misleading. Moderation records (bans,
+     mutes, reports you filed) and reputation history are kept, because a
+     record that exists to hold someone to account cannot be erasable by that
+     person: otherwise deleting your account is a self-service unban, and
+     `register_name` is a bare INSERT OR IGNORE with no ban check, so the same
+     key would simply walk back in. Every one of those records IS in the
+     export, so nothing is hidden from the person it concerns. The Settings
+     page now states this before the button, not after.
 ## Privacy maximization (2026-08-24, the follow-up arc)
 
 The remaining server-held data classes and length/transport leaks, closed:

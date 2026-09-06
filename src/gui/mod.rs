@@ -4226,6 +4226,9 @@ pub struct GuiState {
     /// The CHOSEN tier persists as settings.privacy_tier.
     /// Account export/erase UI transients (sovereignty, 2026-08-23).
     pub account_export_status: String,
+    /// Worker-thread result for POST /api/account/export. None when no
+    /// request is in flight. Never persisted: GuiState is not serialized.
+    pub account_export_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
     pub account_delete_confirm_input: String,
     pub privacy_tiers_cache: Vec<crate::gui::pages::privacy::PrivacyTier>,
     pub privacy_tier_selection: String,
@@ -5618,6 +5621,7 @@ impl Default for GuiState {
             notif_dnd_end: None,
             notif_prefs_loaded: false,
             account_export_status: String::new(),
+            account_export_rx: None,
             account_delete_confirm_input: String::new(),
             privacy_tiers_cache: Vec::new(),
             privacy_tier_selection: String::new(),

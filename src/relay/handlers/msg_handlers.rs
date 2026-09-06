@@ -1808,14 +1808,9 @@ pub async fn handle_friend_code_redeem(
 // ── Account sovereignty handlers (2026-08-23) ──
 
 /// Send the caller everything this server stores about them.
-pub async fn handle_account_export(state: &Arc<RelayState>, my_key: &str) {
-    let name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_default();
-    let data = state.db.export_account(my_key, &name);
-    let _ = state.broadcast_tx.send(RelayMessage::AccountExportData {
-        target: Some(my_key.to_string()),
-        data,
-    });
-}
+// (handle_account_export removed 2026-09-06: see POST /api/account/export in
+// api.rs. Exporting over the broadcast channel meant every connected client
+// cloned the payload before it was filtered down to a single recipient.)
 
 /// Erase the caller's account. Requires typing their exact registered
 /// name as confirmation; replies with a per-table receipt. Admin accounts

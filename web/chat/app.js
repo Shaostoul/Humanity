@@ -1037,23 +1037,8 @@ async function handleMessage(msg) {
       }
       break;
     }
-    case 'account_export_data': {
-      // Sovereignty (2026-08-23): everything the server stores about us,
-      // handed over as a downloadable JSON file.
-      try {
-        const blob = new Blob([JSON.stringify(msg.data || {}, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'humanityos-account-export-' + new Date().toISOString().slice(0, 10) + '.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        if (typeof addSystemMessage === 'function') addSystemMessage('Your account export downloaded.');
-      } catch (e) {
-        console.warn('account export download failed:', e && e.message);
-      }
-      break;
-    }
+    // (account_export_data removed 2026-09-06: the export is an authenticated
+    // HTTP download now, built in chat-privacy.js. See the note there.)
     case 'dm_purged': {
       // Confirmation of our own server-mailbox scrub.
       const n = Number(msg.count) || 0;

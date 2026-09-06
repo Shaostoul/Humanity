@@ -374,10 +374,26 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
         ui.horizontal(|ui| {
             if connected && widgets::secondary_button(ui, theme, "Export my data") {
-                if let Some(ref client) = state.ws_client {
-                    client.send(&serde_json::json!({ "type": "account_export" }).to_string());
+                // POST /api/account/export, signed, on a worker thread. This was
+                // a WebSocket request until 2026-09-06; the reply came back as
+                // one broadcast message that every connected client's task
+                // cloned before it was filtered down to us, against a 128 KB
+                // socket ceiling. An export is a file download, so it is one.
+                match (state.private_key_bytes.clone(), state.server_url.clone()) {
+                    (Some(seed), server) if !server.is_empty() => {
+                        let key = state.profile_public_key.clone();
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        std::thread::spawn(move || {
+                            let _ = tx.send(fetch_account_export_blocking(&server, &key, &seed));
+                        });
+                        state.account_export_rx = Some(rx);
+                        state.account_export_status = "Requesting your export...".to_string();
+                    }
+                    _ => {
+                        state.account_export_status =
+                            "Unlock your identity first, then try again.".to_string();
+                    }
                 }
-                state.account_export_status = "Requested; writing the export file when it arrives.".to_string();
             }
             if !connected {
                 ui.label(
@@ -387,6 +403,25 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 );
             }
         });
+        // Collect the worker's result. try_recv so the UI never blocks; the
+        // channel is dropped either way once an answer arrives.
+        if let Some(rx) = &state.account_export_rx {
+            match rx.try_recv() {
+                Ok(result) => {
+                    state.account_export_status = match result {
+                        Ok(path) => format!("Export saved: {path}"),
+                        Err(e) => format!("Export failed: {e}"),
+                    };
+                    state.account_export_rx = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    state.account_export_status =
+                        "Export failed: the request thread stopped unexpectedly.".to_string();
+                    state.account_export_rx = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
         if !state.account_export_status.is_empty() {
             ui.label(
                 egui::RichText::new(&state.account_export_status)
@@ -4505,4 +4540,54 @@ mod veg_lod_range_tests {
         assert_eq!(thousands(200_000.0), "200,000");
         assert_eq!(thousands(1_234_567.0), "1,234,567");
     }
+}
+
+/// Blocking POST /api/account/export (signed). Writes the export to the app's
+/// exports directory and returns the path it wrote.
+///
+/// Runs on a worker thread: ureq is blocking and the egui loop must not be.
+/// The relay rate-limits this per key, so a 429 is a normal answer and is
+/// surfaced verbatim rather than dressed up as a failure.
+fn fetch_account_export_blocking(
+    server_url: &str,
+    public_key: &str,
+    seed: &[u8],
+) -> Result<String, String> {
+    let base = server_url.trim_end_matches('/');
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let sig = crate::net::identity::pq_sign_chat(seed, "account_export", ts);
+    let body = serde_json::json!({
+        "key": public_key,
+        "timestamp": ts,
+        "sig": sig,
+    });
+
+    let text = match ureq::post(&format!("{base}/api/account/export"))
+        .set("Content-Type", "application/json")
+        .send_string(&body.to_string())
+    {
+        Ok(resp) => resp.into_string().map_err(|e| format!("read failed: {e}"))?,
+        Err(ureq::Error::Status(code, r)) => {
+            let msg = r.into_string().unwrap_or_default();
+            return Err(format!("({code}) {msg}"));
+        }
+        Err(e) => return Err(format!("{e}")),
+    };
+
+    let dir = if let Ok(appdata) = std::env::var("APPDATA") {
+        std::path::PathBuf::from(appdata).join("HumanityOS").join("exports")
+    } else {
+        std::path::PathBuf::from("exports")
+    };
+    std::fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let path = dir.join(format!("account-export-{secs}.json"));
+    std::fs::write(&path, text).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    Ok(path.display().to_string())
 }

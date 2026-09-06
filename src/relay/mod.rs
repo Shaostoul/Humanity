@@ -1033,6 +1033,11 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         // and a proxy would reject as 414 (the same reason admin stats grew a
         // POST form). Signs the purpose "admin_federation", not "admin_stats".
         .route("/api/admin/federation", post(api::post_admin_federation))
+        // Account export. POST because the Dilithium key plus signature are
+        // ~10 KB, which a GET would carry in the URL; and because it moved off
+        // the WebSocket, where it was broadcast to every connected client task
+        // before being filtered down to one, against a 128 KB message ceiling.
+        .route("/api/account/export", post(api::post_account_export))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
         // === API v2: signed objects substrate (Phase 0 PR 2) ===
