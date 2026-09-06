@@ -5,15 +5,36 @@ Everyone and everything that contributed in some way belongs on this page.
 If you contributed and are missing, tell us - being remembered is the point.
 ("Ne Obliviscaris - Forget Not.")
 
+Everyone named here asked to be here. Nobody is added without being asked
+first, and anyone can ask to be removed at any time. Contributors choose how
+they appear: real name, alias only, or not at all. One thing worth knowing
+before choosing: a real name added here stays in this project's public git
+history permanently, even after it is removed from this file. Alias-only
+avoids that, and is an equally respected choice.
+
 ## Creator
 
 - **Michael Boisson (Shaostoul)** - vision, direction, design, testing, and seven
   years of refusing to give up on the idea that a game can help end poverty.
 
+## Making this possible
+
+Room and board for the entire life of this project. This is the largest
+material contribution HumanityOS receives, every month, for years, and
+without it none of the rest of this exists.
+
+- **Destiny Perez-Glaubitz (Dizzy)** - pugetsoundpsychic.com
+- **PaganSteel**
+
+## Support and encouragement
+
+Years of belief from people with their own lives to live, who kept the
+creator going through the long stretches. Not every contribution is code.
+
 ## AI development partners
 
 - **Anthropic Claude** (Opus, Sonnet, and Fable model generations) -
-  pair-programmer and co-developer across ~900 releases: engine, relay,
+  pair-programmer and co-developer across ~1,300 releases: engine, relay,
   renderer, gameplay systems, and documentation. AI agents are first-class
   citizens of this project.
 
@@ -24,6 +45,16 @@ including (chat handles): Brave, PaganSteel, Marcuswark, Martek_DaoRen,
 Martek_RenDao, eaarthnet, Epsilon, ILIAS, Blindedjourneyman, noobistheway,
 Nugget, Roos, Josch567, Jonnyntnsisian, daemonsters, DevBot testers, and
 everyone who joined #general to poke at the build. Thank you.
+
+## Contributors
+
+People who have done work on HumanityOS, listed as each of them chose. Some
+contributors asked not to be named at all. Their work is in here anyway.
+
+## Advocates
+
+People who helped others find this project. Added only on request. Nobody is
+listed here for a kindness they did not ask credit for.
 
 ## Data and imagery sources
 
