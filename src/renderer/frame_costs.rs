@@ -520,8 +520,8 @@ pub fn sample_process_memory() {}
 // ────────────────────────────── GPU timestamps ──────────────────────────────
 
 /// How many render passes can be timed per frame. Each takes two timestamp
-/// slots (begin + end). 32 is far above the ~12 passes the engine submits.
-const MAX_TIMED_PASSES: usize = 32;
+/// slots (begin + end). 48: a world frame with the cloud caches uses ~22 passes, the far rung's calibration frame 2 more and its mip burst 6 more the engine submits.
+const MAX_TIMED_PASSES: usize = 48;
 
 /// wgpu timestamp-query ring. One query set is enough because we resolve the
 /// PREVIOUS frame's writes at the start of the next frame and read the result

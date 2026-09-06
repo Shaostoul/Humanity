@@ -3666,6 +3666,8 @@ const CLOUD_FR_REF_KZ: i32 = 2;
 const CLOUD_FR_CALIB_ROWS: i32 = 32;
 // canonical clouds averaged per archetype
 const CLOUD_FR_CALIB_SEEDS: i32 = 8;
+// Archetypes in the calibration table (humilis, congestus, stratocumulus, cumulonimbus); mirrors Rust CLOUD_FR_CALIB_ARCHETYPES.
+const CLOUD_FR_CALIB_ARCH: i32 = 4;
 // calibration cross-section grid per side
 const CLOUD_FR_CALIB_GRID: i32 = 64;
 // calibration row span in cloud heights (0..1.5)

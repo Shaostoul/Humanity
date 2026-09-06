@@ -4298,7 +4298,7 @@ impl Renderer {
                             run(
                                 &mut encoder,
                                 "Cloud Profile Mip Pass",
-                                None,
+                                Some("gpu.cloud_profile"),
                                 &self.pipeline.cloud_profile_mip_pipeline,
                                 &pc.view_mip[m as usize],
                                 &pc.group_mip_src[(m - 1) as usize].colour,

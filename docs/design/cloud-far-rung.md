@@ -162,7 +162,7 @@ row = clamp(i32(floor(y_rel / CLOUD_FR_CALIB_YMAX * 32.0)), 0, 31)
 cal = textureLoad(tree_atlas_tex, vec2<i32>(1536 + row, 1024 + arch_i), 0)   // the bound view is mip 1
 rho = cal.r; Dbar = cal.g
 if rho <= 0.0: a_i = 0; continue
-a_ax = pl.width_m * 0.5 * pl.sx * rho;  b_ax = pl.width_m * 0.5 * pl.sz * rho   // wind-frame semi-axes, metres
+a_ax = pl.width_m * pl.sx * rho;  b_ax = pl.width_m * pl.sz * rho   // wind-frame semi-axes, metres (rho = r_eq / width per stage 1, so no 0.5: the 0.5 would halve every semi-axis and quarter every area)
 // the cloud centre relative to the profile cell centre, metres east (x) and north (y) in the tangent plane
 m_per_cell = g * 1000.0
 ox = (cx_c - pl.centre_cells.x) * m_per_cell;  oy = (cy_c - pl.centre_cells.y) * m_per_cell   // cx_c, cy_c = the profile cell centre in cv2 coords
@@ -194,7 +194,7 @@ struct Cv2Placement { present: bool, seed: f32, arch_g: Cv2Arch, centre_cells: v
 fn cv2_place(ci: f32, cj: f32, arch_i: i32, wa: f32, cell_km: f32) -> Cv2Placement
 ```
 
-with `centre_cells = (ci + 0.5 + jx + stagger, cj + 0.5 + jy + jy_w)` in cv2 cell units, `sx/sy/sz` the EFFECTIVE axes (the shape-frame bit already applied), `width_m = arch_g.width_m` (post-growth), `height_m = width_m * arch_g.aspect`, and the body calls it and derives `ox = (cx - centre.x) * m_per_cell`, `oy = (cy - centre.y) * m_per_cell` from the sample's own `(cx, cy)` exactly as today. Second refactor: the body's tail from `let d_m = best - disp_m + erode_m` (41-cloud-bodies.wgsl:1065) to the return becomes `fn cv2_density_tail(best: f32, up_m: f32, height_m: f32, disp_m: f32, ewm: f32, turb: f32, rind0: f32, sat: f32) -> f32` (it keeps publishing `g_v2_int_dens`), which the body calls with its own values.
+with `centre_cells = (ci + 0.5 + jx + stagger, cj + 0.5 + jy + jy_w)` in cv2 cell units, `sx/sy/sz` the EFFECTIVE axes (the shape-frame bit already applied), `width_m = arch_g.width_m` (post-growth), `height_m = width_m * arch_g.aspect`, and the body calls it and derives `ox = (cx - centre.x) * m_per_cell`, `oy = (cy - centre.y) * m_per_cell` from the sample's own `(cx, cy)` exactly as today. Second refactor: the body's tail from the height phase (`hph`/`wor`/`edge_w`/`erode_m`, the phase that consumes `ewm`; as built, since the `let d_m` boundary first written here cannot take the `ewm` parameter the signature specifies) through the return becomes `fn cv2_density_tail(best: f32, up_m: f32, height_m: f32, disp_m: f32, ewm: f32, turb: f32, rind0: f32, sat: f32) -> f32` (it keeps publishing `g_v2_int_dens`), which the body calls with its own values.
 
 REFERENCE mode (knob 9): the same texel from the field itself: `CLOUD_FR_REF_K^2 * CLOUD_FR_REF_KZ` = 128 stratified points per bin (8x8 across the cell, 2 heights) of the full `cloud_density_hi` (`g_v2_allowed = true`, `g_sun_profile = 0`, `lodb = log2(cell_km_lat / 8)` = each point's own footprint), `f` = fraction of points above 0.02 at either height, `G` = mean. Slow: Rust bakes REF at `CLOUD_FR_REF_ROWS` = 4 storage rows per frame per level (2 for the global), so a level completes in 128 frames and the global in 512; REF fixtures settle 30 s.
 

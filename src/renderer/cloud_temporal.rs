@@ -2234,9 +2234,10 @@ mod cloud_profile_tests {
     fn wgsl_cloud_profile_constants_stay_in_sync() {
         let root = env!("CARGO_MANIFEST_DIR");
         let src = std::fs::read_to_string(format!("{root}/assets/shaders/pbr/40-clouds.wgsl")).expect("read 40-clouds.wgsl");
-        let pairs: [(&str, f64); 33] = [
+        let pairs: [(&str, f64); 34] = [
             ("CLOUD_FR_CALIB_ROWS", CLOUD_FR_CALIB_ROWS as f64),
             ("CLOUD_FR_CALIB_SEEDS", CLOUD_FR_CALIB_SEEDS as f64),
+            ("CLOUD_FR_CALIB_ARCH", CLOUD_FR_CALIB_ARCHETYPES as f64),
             ("CLOUD_FR_CELL0_KM", CLOUD_FR_CELL0_KM as f64),
             ("CLOUD_FR_LEVELS", CLOUD_FR_LEVELS as f64),
             ("CLOUD_FR_NX", CLOUD_FR_NX as f64),

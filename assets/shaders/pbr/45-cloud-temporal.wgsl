@@ -1113,7 +1113,7 @@ fn fs_cloud_profile_calib(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     let y = i32(px.y);
     let row = x - CLOUD_FR_CALIB_STAGE_X0;
     let ys = y - CLOUD_FR_CALIB_STAGE_Y0;
-    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || ys < 0 || ys >= 4 * CLOUD_FR_CALIB_SEEDS) {
+    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || ys < 0 || ys >= CLOUD_FR_CALIB_ARCH * CLOUD_FR_CALIB_SEEDS) {
         return vec4<f32>(0.0, 0.0, 0.0, 1.0);   // outside the staging area (the scissor never lands here)
     }
     let arch_i = ys / CLOUD_FR_CALIB_SEEDS;
@@ -1168,7 +1168,7 @@ fn fs_cloud_profile_calib_reduce(in: CloudScreenVsOut) -> @location(0) vec4<f32>
     let y = i32(px.y);
     let row = x - CLOUD_FR_CALIB_X0;
     let arch_i = y - CLOUD_FR_CALIB_Y0;
-    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || arch_i < 0 || arch_i >= 4) {
+    if (row < 0 || row >= CLOUD_FR_CALIB_ROWS || arch_i < 0 || arch_i >= CLOUD_FR_CALIB_ARCH) {
         return vec4<f32>(0.0, 0.0, 0.0, 1.0);   // outside the table (the scissor never lands here)
     }
     // The eight staging texels of this (row, archetype), through the bound
