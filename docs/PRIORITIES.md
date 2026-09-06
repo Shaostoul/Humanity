@@ -73,6 +73,30 @@
 > *Giardia* row of the water table softened to "less reliable" because CDC's own
 > two pages differ in emphasis and the cautious reading wins.
 >
+> TWO RENDERING DEFECTS FOUND BY LOOKING AT THE DEPLOYED PAGE, not the source,
+> and both were mine (fixed in the two commits after v0.1297.1):
+>
+> - **Markdown tables do not render in the Library.** `web/pages/library-app.js`
+>   has no table support at all: the deployed page showed 0 `<table>` elements
+>   and 10 visible `|---|` separator rows. All nine tables were rewritten as
+>   bulleted lists with every sourced number unchanged. **No Library document
+>   should contain a markdown table until the renderer supports one.** None of
+>   the six older Real Skills guides used a table, which is why this had never
+>   been hit.
+> - **A `**bold**` span that wraps across a line break never closes**, because
+>   the renderer processes markdown line by line, so the reader sees literal
+>   asterisks ("per pound**. Protein 2.1 g"). 22 lines across three guides, all
+>   from hard-wrapping at 72 columns without checking the emphasis markers
+>   survived. Now checked mechanically: every bold and italic span opens and
+>   closes on one source line.
+>
+> STILL OPEN, web lane, cosmetic: `library-app.js` renders each source line as
+> its own block, so a wrapped list item loses its hanging indent and the
+> continuation sits at the left margin. This affects all ten Real Skills guides
+> and every other Library document equally, and a document cannot work around it
+> without abandoning the 72-column wrap the whole docs tree uses. The fix is in
+> the renderer: join continuation lines within a list item and a paragraph.
+>
 > WIRING: `scripts/build-library.js` gains the four entries (it is in the same
 > "ui" lane as `docs/` and `data/library/` per `data/coordination/lanes.json`),
 > Real Skills is now a ten-rung ladder in order (grow, multiply, save seed, feed
