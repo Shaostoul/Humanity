@@ -422,9 +422,9 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     // dark because every ambient term was a transmittance and the sun
     // ladder resolved the shadows of the lobes around the eye.
     let mut msb = state.cloud_dev_ms;
-    test_mark(ui, theme, "In-cloud light (Eddington source; fog-white interiors; no lobe shadows through the eye)", &tests);
+    test_mark(ui, theme, "In-cloud light (Eddington source: changes the LIGHT only, coverage is identical; fog-white interiors, no lobe shadows through the eye)", &tests);
     if ui
-        .checkbox(&mut msb, "In-cloud light (Eddington source; fog-white interiors; no lobe shadows through the eye)")
+        .checkbox(&mut msb, "In-cloud light (Eddington source: changes the LIGHT only, coverage is identical; fog-white interiors, no lobe shadows through the eye)")
         .changed()
     {
         state.cloud_dev_ms = msb;
@@ -495,9 +495,9 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     }
     // v0.1272: the two fixes the estimator assessment designed.
     let mut estb = state.cloud_dev_est;
-    test_mark(ui, theme, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)", &tests);
+    test_mark(ui, theme, "Sample-anchored march (default ON since v0.1272; off = the OLD under-counting march for A/B only: see-through, misses whole bodies, glittery)", &tests);
     if ui
-        .checkbox(&mut estb, "Sample-anchored march (default ON since v0.1272; off = old march, glitter returns)")
+        .checkbox(&mut estb, "Sample-anchored march (default ON since v0.1272; off = the OLD under-counting march for A/B only: see-through, misses whole bodies, glittery)")
         .changed()
     {
         state.cloud_dev_est = estb;

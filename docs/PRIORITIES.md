@@ -1,5 +1,87 @@
 # HumanityOS: Priorities
 
+> **v0.1291 (2026-09-06): the operator's report answered in code: the F10
+> sidebar, the sun-cache band fix, and three measurements instead of three
+> guesses.** The five-finding workflow (16 agents: reader + adversarial
+> critic per finding, implementer + reviewer + repair where a fix survived)
+> returned two merges and three refutations of the orchestrator's own
+> stories.
+>
+> MERGED. (U1) The Cloud dev (F10) panel is a scrollable LEFT SIDEBAR; F10
+> frees the cursor through reconcile_cursor (the one cursor authority) and
+> restores it on close; a 22 px tab on the right edge collapses it and a
+> painted cross closes it; the tab is neither drawn nor click-sensed while
+> the cursor is grabbed (the reviewer's blocker: under a Confined grab the
+> hidden cursor pins at x = 0 and a fire click would have re-opened the
+> panel); slider readouts are focus-free labels so nothing on the panel can
+> swallow WASD; headless snapshots tests/snapshots/cloud_dev.png and
+> cloud_dev_collapsed.png. (F1) `CLOUD_LC_FAR_ANALYTIC` 1.0 -> 0.0. The
+> mechanism of record: the constant never governed what runs beyond the
+> coarse window (the per-pixel ladder always does, `cloud_sun_tau`'s
+> !cached path; `light_cache_tau` returns w = 1 there); it only set the
+> coarse outer band's blend TARGET, so with 1.0 the band ended on the
+> analytic noise-envelope column against the ladder one pixel beyond it,
+> and over built lobes (where the column charges the envelope crown the
+> ladder leaves within a rung) the band printed BLACK: the operator's 36.8 km
+> "square", reproduced on the rig as a ring along the coarse edge (diff cache
+> on/off mean 18.9 at nadir, 32 percent of pixels above 8 levels). The
+> critic's cheaper option (make the far field the analytic column too) was
+> rejected by the captures: the column is far darker than the ladder on
+> stratocumulus and congestus fields. Cost: the v0.1288 band saving reverses
+> (rain 26 km about 122 -> 152 ms). Gate on the v0.1291.1 exe: the square
+> fixture's on/off diff must fall to the parity floor and the Sun-source
+> channel must show no dark ring.
+>
+> REFUTED AND MEASURED. (F2) The horizon darkening under the step economy:
+> the reader blamed the footprint floor (29 to 231 m at 20 to 160 km from
+> 5 m) landing the first in-cloud sample past the rind; the critic voided
+> its evidence (the only on-disk horizon pair came from a sweep where the
+> eco knob was inert), refuted the ambient-ramp chain, and found the direct
+> term's sign plausibly opposite at sunset. First rig pair (humilis field,
+> 5 m sunset horizon) had NO cloud in frame; second pair with stratocumulus
+> and congestus fields in flight. (F3) "Distant clouds vanish with the warp
+> band-limit": the reader's 224-iteration-cap chain was refuted (bit 7 and
+> bit 8 feed one OR, so bit 8 alone cannot move the refine); the critic's
+> mechanism of record is `cloud_noise.rs:995` capping the mip
+> variance-restoring gain at 2.0 while a 2x2x2 box drops sigma about 2.83
+> per level, so the band-limited warp amplitude collapses geometrically with
+> mip; the full-amplitude warp's halo makes grazing rays saturate early, so
+> "more clouds" with it off is partly an artifact. First rig pair (cumulus
+> field from 4.5 km) showed no difference between arms; second pair over a
+> dense stratocumulus deck in flight. (F4) In-cloud light: the march's alpha
+> is invariant under the switch (only the resolve filter couples it,
+> bounded); the row is relabelled "changes the LIGHT only". (F5) The
+> sample-anchored march: the OFF arm's mechanism confirmed by a reproduced
+> twin (the old march measured the SDF stride at the sample and spent it
+> from the state, missing a 400 m body on 26 percent of jitter phases: the
+> static); the ON arm is Beer-Lambert within 1 percent on uniform slabs, BUT
+> the critic found a real defect on the DEFAULT arm: with the SDF stride
+> live, sub-gate wisps between bodies (the noise sheet unioned back in at
+> deck coverage, which the SDF cannot see) are over-credited x1.8 to x2.4
+> or missed outright by the right-endpoint anchoring. Deferred behind the
+> far rung (same function); the row is relabelled so OFF reads as the
+> known-wrong twin.
+>
+> THE FAR RUNG: the stub's runtime twin proof passed (v0.1290.1 against
+> v0.1289.1 on the same cells sits at the same-exe floor once the first boot
+> of a session is excluded; that first boot differs from every later run by
+> 0.3 percent of orbit pixels on ANY exe, a rig fact). The two-implementer
+> workflow was lost to the usage limit with nothing cached and relaunched
+> (wf_dda2f985). Baseline paragraph written into the contract's Gates.
+>
+> NEXT, in order:
+> 1. **F1 gate** on v0.1291.1 (the square fixture on/off, the Sun-source
+>    ring, rain-26km cost for the record); then the F2/F3 second pairs
+>    decide whether either needs a fix now or a measured "no defect".
+> 2. **Increment 4, the far rung**: merge the two branches serially onto
+>    main (the Rust side's cloud_dev.rs hunks re-applied over the sidebar
+>    rewrite), verify, then gates G0 to G7 in the contract's order.
+> 3. **F5, the stride over the noise sheet** (the default arm's over-credit):
+>    after the far rung, in cloud_march_core.
+> 4. The look ("still kinda look like spheres"), the per-cell cluster table
+>    (the 36.8 km class: 63 to 105 ms with the cache not helping), increment
+>    5, cloud layering, the planet pass arc.
+
 > **v0.1290 (2026-09-05): the far-rung contract v2, the operator's test
 > report on v0.1289, and the integration stub.** Two things landed and one
 > arc pivoted on the operator's eye.
@@ -103,8 +185,7 @@
 
 > **v0.1288 (2026-09-05): PERF INCREMENT 2, step economy, and THE DEFAULTS FLIP:
 > the sun-shadow cache, the body cluster cache and the step economy are ON by
-> default (F10 toggles kept for A/B); the sun cache's far fallback is the
-> analytic column.** The interior step floors are now
+> default (F10 toggles kept for A/B); the sun cache's coarse BAND target was the analytic column (reverted to the ladder in v0.1291, finding F1; the ladder always ran beyond the window).** The interior step floors are now
 > footprint-aware (a ray 300 km out no longer steps 22 m) and opaque rays
 > relax their step; strength in `light7_color.y` (`cloud_step_eco`).
 >
@@ -128,7 +209,7 @@
 >
 > SUN-CACHE FAR FALLBACK (the closeup, where the cache lost 76 to 131 ms):
 > ```
-> Both caches on, clock frozen, ladder beyond the coarse window vs the analytic column: closeup 108.7 vs 110.7 ms (same; its rays stay inside the windows), rain 26 km 151.5 vs 122.1 (19% cheaper), horizon look at 3 km 91.2 vs 82.7 (9% cheaper); look identical at the closeup and the horizon (diff mean 0.2 to 0.3) and within noise at rain (2.4, bands 209.6 vs 207.8). CLOUD_LC_FAR_ANALYTIC is now 1.0 (the analytic column beyond the windows). The closeup remains the weak spot of both caches (76 ms with neither, 109 with both): its rays look up and across through thin cloud where the ladder exits the slab in a rung or two while the cache read is a fixed cost; a follow-up.
+> Both caches on, clock frozen, ladder beyond the coarse window vs the analytic column: closeup 108.7 vs 110.7 ms (same; its rays stay inside the windows), rain 26 km 151.5 vs 122.1 (19% cheaper), horizon look at 3 km 91.2 vs 82.7 (9% cheaper); look identical at the closeup and the horizon (diff mean 0.2 to 0.3) and within noise at rain (2.4, bands 209.6 vs 207.8). CLOUD_LC_FAR_ANALYTIC is now 1.0 (the analytic column beyond the windows). [ANNOTATED v0.1291, finding F1: this constant never governed what runs beyond the coarse window (the ladder does, cloud_sun_tau's !cached path); it only set the coarse outer band's blend target. The band-target swap WAS measured here with the band in frame (the 29 ms swing at rain-26km-nadir proves it) and moved that stratiform picture by about 1.8 levels; its effect over BUILT cumulus lobes, where g_sun_tau_col is the envelope crown and the ladder taps the built body, was unmeasured, and there the band printed as a BLACK ring at the coarse edge (the operator's 36.8 km square, reproduced: diff cache on/off mean 18.9 at nadir). Reverted to 0.0; the 122 ms rain and 82.7 ms horizon numbers above no longer apply (expect about 152 and 91 again).] The closeup remains the weak spot of both caches (76 ms with neither, 109 with both): its rays look up and across through thin cloud where the ladder exits the slab in a rung or two while the cache read is a fixed cost; a follow-up.
 > ```
 >
 > NEXT, in order:
