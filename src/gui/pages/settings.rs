@@ -358,10 +358,18 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     // ── Your data: export + erase (sovereignty, 2026-08-23) ──
     widgets::subsection_header(ui, theme, accent, "Your data", "");
     widgets::card(ui, theme, |ui| {
+        // This used to say "download everything ... or erase it all". It was not
+        // true in either half: the export named two tables that do not exist and
+        // silently returned empty arrays for them, and the erase list was wider
+        // than the export list. Both are fixed, but the copy stays specific
+        // rather than absolute, because "everything" is a promise that quietly
+        // breaks every time a table is added.
         widgets::body_hint(
             ui, theme,
-            "Download everything the connected server stores about you, or erase it \
-             all, self-service, no admin needed. Data on this device is yours and stays.",
+            "Download what this server holds about you: your profile, messages, \
+             uploads, settings sync, reactions, codes, and the moderation and \
+             reputation records it keeps on you. Data on this device is yours and \
+             stays.",
         );
         let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
         ui.horizontal(|ui| {
@@ -389,9 +397,26 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         ui.add_space(theme.spacing_sm);
         widgets::body_hint(
             ui, theme,
-            "Erase: removes your messages, uploads, profile, follows, mailbox, and \
-             membership from this server, permanently. Type your display name exactly \
-             to arm the button.",
+            "Erase removes your account from this server: your messages, uploads, \
+             profile, settings sync, mailbox, reactions, codes and membership. Type \
+             your display name exactly to arm the button.",
+        );
+        ui.add_space(theme.spacing_sm);
+        // Saying what SURVIVES is the part that was missing, and it is the part a
+        // person is entitled to know before they press the button. The old copy
+        // said "permanently" and listed `follows`, a table dropped 2026-08-24.
+        widgets::body_hint(
+            ui, theme,
+            "Some things are kept, and you should know which before you decide. \
+             Moderation records stay: a ban, a mute or a report does not disappear \
+             because you delete your account, and it still applies if you come back \
+             with the same key. Reputation history stays for the same reason, because \
+             a record that exists to hold someone to account cannot be erasable by \
+             that person. Records that belong to two people stay with the other \
+             person. Anything you published as a signed object has already been \
+             copied to other servers and cannot be recalled from here. Copies other \
+             people already downloaded are theirs. Everything in this paragraph is in \
+             your export, so you can read it before you choose.",
         );
         ui.horizontal(|ui| {
             ui.add(

@@ -123,6 +123,59 @@ fn account_export_and_erase_only_name_tables_that_exist() {
     );
 }
 
+/// Anything erased must first have been offered for download.
+///
+/// `export_account` and `delete_account` are two hand-maintained lists in the
+/// same file, and they drifted: six tables were being DELETED with no matching
+/// `grab()`, so the server erased data it had never let the user see. That is
+/// backwards from the promise the Settings page makes, and it is the kind of
+/// gap that only ever grows, because nothing connects the two lists.
+///
+/// This is the invariant, and it only runs one way on purpose: export may
+/// legitimately be WIDER than delete (a ban is shown to you and never deleted,
+/// because a record that exists to constrain someone must not be erasable by
+/// that someone). Delete being wider than export is always a bug.
+#[test]
+fn everything_deleted_is_also_exported() {
+    let path = repo_root().join("src/relay/storage/account.rs");
+    let src = std::fs::read_to_string(&path).expect("read account.rs");
+
+    // Split at delete_account so each half is scanned separately.
+    let split = src
+        .find("pub fn delete_account")
+        .expect("delete_account not found; did the file get restructured?");
+    let (export_half, delete_half) = src.split_at(split);
+
+    let exported: HashSet<String> = referenced_tables(export_half)
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+
+    let mut missing: Vec<String> = referenced_tables(delete_half)
+        .into_iter()
+        .map(|(t, _)| t)
+        .filter(|t| !exported.contains(t))
+        .collect();
+    missing.sort();
+    missing.dedup();
+
+    assert!(
+        missing.is_empty(),
+        "\n\n[FAIL] delete_account erases {} table(s) that export_account never offers:\n\n{}\n\n\
+         A user is told they can download everything before erasing it. Deleting a\n\
+         table the export omits breaks that in the one direction that cannot be\n\
+         undone. Add a grab() for each, then delete it.\n\n\
+         (Export MAY be wider than delete. Sanction records are exported and never\n\
+         deleted on purpose. Only the reverse is a bug.)\n",
+        missing.len(),
+        missing
+            .iter()
+            .map(|t| format!("  {t}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+}
+
 /// The same check for the other file that deletes user data in bulk. A wrong
 /// table name there fails loudly rather than silently, but it is the same class
 /// of mistake and the scan is free.

@@ -63,7 +63,7 @@ impl Storage {
                 out.insert(label.to_string(), serde_json::Value::Array(rows));
             };
 
-            grab("registered_names", "SELECT name, public_key, registered_at FROM registered_names WHERE public_key = ?1", &[&key]);
+            grab("registered_names", "SELECT name, public_key, kyber_public, registered_at FROM registered_names WHERE public_key = ?1", &[&key]);
             grab("membership", "SELECT public_key, name, role, joined_at, last_seen, hide_presence FROM server_members WHERE public_key = ?1", &[&key]);
             grab("profile", "SELECT * FROM profiles WHERE name = ?1 COLLATE NOCASE", &[&name]);
             grab("signed_profiles", "SELECT * FROM signed_profiles WHERE public_key = ?1", &[&key]);
@@ -88,6 +88,46 @@ impl Storage {
             // Sealed mail queued for them (counts only; contents are sealed
             // envelopes their own client decrypts via dm_fetch).
             grab("dm_mailbox_queued", "SELECT COUNT(*) AS envelopes FROM dm_mailbox WHERE to_key = ?1", &[&key]);
+
+            // ── Things erase deletes but export never offered ──
+            // These six were in delete_account() with no matching grab here.
+            // That asymmetry is the signature of two hand-maintained lists, and
+            // it means the server was erasing data it had never let the user
+            // download. tests/account_sql_lint.rs now fails the build if a table
+            // is deleted without being exported.
+            grab("role", "SELECT public_key, role FROM user_roles WHERE public_key = ?1", &[&key]);
+            grab("status", "SELECT name, status, status_text FROM user_status WHERE name = ?1 COLLATE NOCASE", &[&name]);
+            grab("friend_codes", "SELECT code, public_key, created_at, expires_at, uses_remaining FROM friend_codes WHERE public_key = ?1", &[&key]);
+            grab("push_subscriptions", "SELECT id, endpoint, p256dh, auth, created_at FROM push_subscriptions WHERE public_key = ?1", &[&key]);
+            grab("reactions", "SELECT id, target_from, target_timestamp, emoji, channel, created_at FROM reactions WHERE reactor_key = ?1", &[&key]);
+            grab("listing_images", "SELECT i.id, i.listing_id, i.url, i.position, i.created_at FROM listing_images i JOIN marketplace_listings l ON l.id = i.listing_id WHERE l.seller_key = ?1", &[&key]);
+
+            // ── Moderation and reputation: visible to you, never deletable by you ──
+            // A sanction whose existence is hidden from the person it constrains
+            // is the opaque moderation the Accord objects to, so these ARE
+            // exported. None of them is ever deleted: a record that exists to
+            // constrain someone cannot be erasable by that someone, or account
+            // deletion becomes a way out of a ban. web/pages/rules.html says so
+            // in the same words.
+            //
+            // reporter_key and reputation_events.source_key are deliberately NOT
+            // selected in the about-me direction. Handing someone the identity of
+            // whoever reported or penalised them is a retaliation vector, and it
+            // is the reporter's data, not theirs. Do not "simplify" these to
+            // SELECT * later; the omission is the point.
+            //
+            // Reports ABOUT you are also deliberately absent. Their only handle is
+            // reported_name, free text typed by a reporter, and a display name is
+            // released on ban, kick and account deletion. Registering a departed
+            // member's name would otherwise return every accusation ever filed
+            // against them, to a stranger. That needs a reported_key column first.
+            grab("reports_filed", "SELECT id, reported_name, reason, created_at FROM reports WHERE reporter_key = ?1", &[&key]);
+            grab("chat_ban", "SELECT public_key, name, banned_at FROM banned_keys WHERE public_key = ?1", &[&key]);
+            grab("chat_mute", "SELECT public_key, name, muted_at FROM muted_members WHERE public_key = ?1", &[&key]);
+            grab("reputation", "SELECT public_key, score, level, updated_at FROM reputation WHERE public_key = ?1", &[&key]);
+            grab("reputation_events_about_me", "SELECT id, event_type, points, reason, created_at FROM reputation_events WHERE public_key = ?1 ORDER BY created_at ASC", &[&key]);
+            grab("bug_reports_filed", "SELECT id, title, severity, category, status, votes, created_at FROM bug_reports WHERE reporter_key = ?1 ORDER BY id ASC", &[&key]);
+            grab("bug_votes_cast", "SELECT bug_id, voted_at FROM bug_votes WHERE voter_key = ?1", &[&key]);
             Ok(())
         })
         .ok();
@@ -187,6 +227,51 @@ mod tests {
             .unwrap_or(0);
         let path = std::env::temp_dir().join(format!("hum_account_{pid}_{nanos}.db"));
         Storage::open(&path).expect("open test db")
+    }
+
+    /// The load-bearing safety property of this whole feature.
+    ///
+    /// A ban and a mute MUST be visible to the person they constrain, because a
+    /// sanction hidden from its subject is the opaque moderation the Accord
+    /// objects to and web/pages/rules.html promises against. And they MUST
+    /// survive erasure, because a record that exists to hold someone to account
+    /// cannot be erasable by that person: otherwise "delete my account" is a
+    /// self-service unban, and register_name is a bare INSERT OR IGNORE with no
+    /// ban check, so the same key would simply walk back in.
+    ///
+    /// Both halves are asserted here so neither can be lost to a later tidy-up.
+    #[test]
+    fn sanctions_are_visible_in_the_export_and_survive_erasure() {
+        let db = test_storage();
+        db.register_name("Rowan", "rowan_key").unwrap();
+        db.ban_user("rowan_key", "Rowan").unwrap();
+        db.mute_user("rowan_key", "Rowan").unwrap();
+
+        // Visible before erasing, so the decision is informed.
+        let export = db.export_account("rowan_key", "Rowan");
+        assert_eq!(
+            export["chat_ban"].as_array().expect("chat_ban array").len(),
+            1,
+            "a banned member must be able to see their own ban"
+        );
+        assert_eq!(
+            export["chat_mute"].as_array().expect("chat_mute array").len(),
+            1,
+            "and their own mute"
+        );
+
+        // Erase, then confirm the sanctions are STILL there.
+        db.delete_account("rowan_key", "Rowan");
+        assert!(
+            db.is_banned("rowan_key").unwrap_or(false),
+            "erasing the account must NOT lift the ban: that would make account \
+             deletion a self-service unban"
+        );
+        assert!(
+            db.is_muted("rowan_key").unwrap_or(false),
+            "nor the mute, which is the one a muted member can still reach, since \
+             mute leaves the socket working"
+        );
     }
 
     /// Uploads and tasks specifically, because those two were the ones that
