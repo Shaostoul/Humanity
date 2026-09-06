@@ -59,3 +59,48 @@ Every Market view is a query over `GET /api/v2/objects`:
 ```bash
 curl "https://united-humanity.us/api/v2/objects?object_type=offering_v1"
 ```
+
+## Taking something down
+
+There is no delete. A signed object cannot be withdrawn by the server, by an
+admin, or by anyone except the key that signed it, and even then the original
+object continues to exist. What you do instead is publish a NEWER revision that
+says the thing is no longer on offer, which is what the directory reads:
+
+- an offering comes down with `status = "withdrawn"`
+- a whole storefront comes down with the provider's `status = "closed"`
+
+Both Market views filter on `status == "active"`, so a withdrawn offering and a
+closed provider vanish from the directory. Republish the FULL payload with only
+that field changed, exactly as you would for any other update, and sign it with
+the same seed you published with. Someone else's key cannot take your listing
+down, and yours cannot take down theirs.
+
+```bash
+# Withdraw every offering in a catalogue file, then close the storefront.
+node -e '
+  const fs = require("fs");
+  const off = JSON.parse(fs.readFileSync("my-offerings.json", "utf8"));
+  off.forEach(o => { o.status = "withdrawn"; });
+  fs.writeFileSync("withdraw-offerings.json", JSON.stringify(off, null, 2));
+  const p = JSON.parse(fs.readFileSync("my-provider.json", "utf8"));
+  p.status = "closed";
+  fs.writeFileSync("close-provider.json", JSON.stringify(p, null, 2));
+'
+node scripts/import-offerings.mjs \
+  --server https://united-humanity.us \
+  --seed-file ~/.humanity-merchant-seed \
+  --provider close-provider.json \
+  --offerings withdraw-offerings.json
+```
+
+Rehearse with `--dry-run` first. If you no longer hold the seed that published
+something, you cannot take it down through this path at all, and the only
+remaining option is the server operator editing the database directly.
+
+Note that the importer refuses to publish the bundled `scripts/samples/*.json`
+to a non-local server (see the guard added 2026-09-06), because doing so once
+put an invented storefront, "Rivertown Bikes", into the live directory where it
+sat for months telling visitors the market had listings it did not have. Point
+`--provider` and `--offerings` at your own catalogue, or pass
+`--allow-sample-data` if you genuinely mean to publish the demo shop.
