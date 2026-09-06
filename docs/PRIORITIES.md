@@ -51,20 +51,38 @@
 >    `docs/design/signed_moderation_logs.md`. Until rung 2, a ban is still an
 >    unsigned row with no banned_by, no reason and no expiry, and /rules says so
 >    out loud.
-> 2. **Canonical CBOR is not canonical across clients.** `cborMap` in
->    `web/shared/canonical-cbor.js` SORTS keys; `cbor_map` in
->    `src/relay/core/encoding.rs` preserves insertion order (ciborium does not
->    sort). For any multi-key payload the two clients produce different bytes and
->    different object ids for identical content. Nothing breaks today (each signs
->    its own bytes, and fields are read by name) and vote_v1 has one key so its
->    KAT never caught it. Pick one order, change the other side, add a multi-key
->    KAT. Do this BEFORE rung 1 above, which introduces two more multi-key types.
-> 3. **A proposal has no readable title.** `/api/v2/proposals` returns type,
->    scope, dates, DID and object id; title and body live only in the signed
->    payload, so both clients render a proposal with no text. It matters more now
->    that web users can create them. Either index the two fields (schema change,
->    so read the BUG-046 note about ALTER-added columns first) or have clients
->    fetch and decode the object.
+> 2. ~~**Canonical CBOR is not canonical across clients.**~~ **WITHDRAWN
+>    2026-09-06, this was wrong and there is nothing to fix.** Rust DOES sort:
+>    `to_canonical_bytes` (`src/relay/core/encoding.rs:18`) calls `canonicalize`,
+>    which sorts map keys at `:62-66` by length then bytewise, the identical rule
+>    to `cborMap` in `web/shared/canonical-cbor.js:96-108`. `cbor_map` alone is
+>    unsorted and its own doc comment says so ("NOT yet canonicalized, call
+>    to_canonical_bytes"); `payload_cbor` routes through the canonical encoder.
+>    Multi-key payloads are byte-identical across languages, which is why a
+>    browser-built proposal verified on the Rust relay. The original claim came
+>    from reading `cbor_map` and stopping one function short. Rung 1 above is
+>    NOT blocked by this. Do not "fix" the encoder: changing a signing byte
+>    format that is already correct would break every client at once.
+>    (For text keys, RFC 7049 length-first and RFC 8949 bytewise are the same
+>    function, so the length-first rule is not a nonstandard variant. Byte-string
+>    keys are the only case where they diverge, and nothing uses them.)
+>    Separately and deliberately: `src/gui/pages/market_publish.rs:371` bypasses
+>    the canonical encoder via `payload_raw` because market prices are floats and
+>    the canonical encoder prohibits floats. That is documented in place and is
+>    not a bug, since the envelope signs the payload as opaque bytes.
+> 3. **A proposal has no readable title ON THE WEB.** Corrected 2026-09-06:
+>    NATIVE is fine. `src/gui/pages/governance.rs:91` `payload_texts` already
+>    decodes title and body from the signed payload. Only
+>    `web/pages/governance.html` is broken: it renders `proposal_type` as the
+>    card heading (`:298`) and the object_id as the body (`:304-305`). Fix on the
+>    CLIENT, not the relay: one extra bulk call to
+>    `GET /api/v2/objects?object_type=proposal_v1&limit=N` (the endpoint and the
+>    `listObjects` helper both exist, and the market pages already do exactly
+>    this), joined by object_id. Do NOT add the decode to the relay's proposals
+>    handler: `src/relay/storage/governance.rs` reads through `with_conn`, the
+>    single WRITER mutex, so a blob read plus CBOR decode per proposal would sit
+>    on the relay's only write connection behind a public unauthenticated
+>    endpoint.
 > 4. **The two moderation paths are not equivalent.** The `mod_action` path
 >    refuses self-targeting and refuses a non-admin acting on an admin
 >    (`src/relay/handlers/msg_handlers.rs`); the slash path in
@@ -78,9 +96,16 @@
 >    desktop client has no update path and no error. `just sign-release vX.Y.Z`
 >    needs the passphrase and cannot be done by an agent. `just brief` now shows
 >    the verdict on every session start, and the uptime workflow warns off-box.
-> 7. **`app/web/` is a 286-file tracked duplicate of the site that nothing
->    deploys** (`scripts/sync-web-root.sh` reads only `web/`). It already caught
->    this session mid-grep. Delete it or document it.
+> 7. **`app/web/` is a 286-file tracked duplicate that nothing DEPLOYS but
+>    something REGENERATES.** Corrected 2026-09-06: it is not unreferenced.
+>    `Justfile:43` runs `just bundle-web` inside `ship`, and `Justfile:55` runs
+>    `git add -- app/web`, so every `just ship` rebuilds those 286 files and
+>    stages them into whoever ran it. `scripts/sync-web-root.sh` still reads only
+>    `web/`, so none of it reaches the site. Deleting the directory alone is
+>    undone by the next `ship`. Remove `scripts/bundle-web.js` and the Justfile
+>    lines in the SAME commit, and mind the order: `:43` is unprefixed and fatal,
+>    so deleting the script first breaks `ship` after `bump` has already mutated
+>    tracked files. It has now misled two sessions mid-grep.
 >
 
 > **v0.1294 (2026-09-06): FAR RUNG 4c. The in-deck blackout and the band's
