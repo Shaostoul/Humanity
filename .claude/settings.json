@@ -31,9 +31,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "just clean-worktrees",
-            "timeout": 120,
-            "statusMessage": "Cleaning stale worktrees"
+            "command": "git worktree list",
+            "timeout": 30,
+            "statusMessage": "Listing worktrees (read-only)"
           }
         ]
       }
