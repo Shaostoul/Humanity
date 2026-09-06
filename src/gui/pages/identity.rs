@@ -27,6 +27,52 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.add_space(theme.spacing_md);
 
+                // ── Your own DID ──
+                //
+                // This page was lookup-only, in both clients, so you had to
+                // already know your DID to use the page that explains DIDs.
+                // Nothing anywhere showed it to you.
+                //
+                // Derived locally: a DID is base58 of the first 16 bytes of
+                // BLAKE3 over your Dilithium public key, so computing it sends
+                // nothing anywhere and works offline.
+                if !state.profile_public_key.is_empty() {
+                    if let Ok(pk) = hex::decode(&state.profile_public_key) {
+                        let did = crate::relay::core::did::did_for_pubkey(&pk);
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(
+                                RichText::new("YOUR DID")
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(&did)
+                                        .color(theme.text_primary())
+                                        .monospace(),
+                                );
+                                if Button::secondary("Copy").show(ui, theme) {
+                                    ui.ctx().copy_text(did.clone());
+                                    state.ws_status = "DID copied.".to_string();
+                                }
+                            });
+                            // Say plainly that it probably does not resolve yet.
+                            // A DID resolves from the signed objects you have
+                            // published, and most members have published none,
+                            // so a lookup 404s and looks broken rather than
+                            // merely unused.
+                            widgets::body_hint(
+                                ui, theme,
+                                "This is yours and it is valid offline: it is a hash of your \
+                                 public key. Looking it up on a server only works once you have \
+                                 published a signed object, so a new account resolves to nothing \
+                                 yet.",
+                            );
+                        });
+                        ui.add_space(theme.spacing_md);
+                    }
+                }
+
                 // DID lookup row
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("DID:").color(theme.text_secondary()));
