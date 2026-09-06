@@ -680,7 +680,15 @@ pub async fn handle_dm_put(
     let is_self_copy = to == my_key;
     let user_role = state.db.get_role(my_key).unwrap_or_default();
 
-    if user_role == "muted" {
+    // Mute has to consult the muted_members TABLE, not just the legacy role.
+    // Since v0.246 `/mute` writes only to that table and deliberately leaves
+    // user_roles alone (see the schema note on muted_members, and the
+    // `is_muted_is_table_only_not_legacy_role` test in storage/channels.rs), so
+    // a role check on its own matched nobody: every muted person could still
+    // DM, which is the harassment case mute exists for. Public chat has always
+    // called is_muted (relay.rs); this path never did. The legacy role is kept
+    // in the check because old rows may still carry it.
+    if user_role == "muted" || state.db.is_muted(my_key).unwrap_or(false) {
         let _ = state.broadcast_tx.send(RelayMessage::Private {
             to: my_key.to_string(),
             message: "You are muted and cannot send DMs.".to_string(),
@@ -4539,6 +4547,49 @@ mod dm_mailbox_tests {
             }
         }
         assert_eq!(refusals, 2, "both non-envelope puts must be refused with a reason");
+    }
+
+    /// A mute must actually stop DMs. `/mute` writes to the muted_members
+    /// TABLE and leaves user_roles alone (v0.246), but this path only ever
+    /// compared the legacy role, so from v0.246 until 2026-09-06 a muted
+    /// person could still DM the very people mute was meant to protect.
+    /// Public chat consulted `is_muted` the whole time, which is why the gap
+    /// stayed invisible.
+    #[test]
+    fn a_muted_sender_cannot_dm() {
+        let st = fresh_state();
+        st.db.register_name("Loud", "loud_key").unwrap();
+        st.db.register_name("Quiet", "quiet_key").unwrap();
+        // Mute the way the mod actions actually do it: table only, no role.
+        st.db.mute_user("loud_key", "Loud").unwrap();
+        assert_eq!(
+            st.db.get_role("loud_key").unwrap_or_default(),
+            "",
+            "precondition: muting does not set a role, which is what hid this"
+        );
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None));
+        assert!(
+            st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().is_empty(),
+            "a muted sender's DM must not land"
+        );
+        let mut told = false;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::Private { message, .. } = msg {
+                if message.contains("muted") {
+                    told = true;
+                }
+            }
+        }
+        assert!(told, "and they must be told why, not silently dropped");
+        // Unmuting restores the ability to write.
+        st.db.unmute_user("loud_key").unwrap();
+        block(handle_dm_put(&st, "loud_key", "quiet_key".to_string(), envelope(), None));
+        assert_eq!(
+            st.db.mailbox_fetch("quiet_key", 0, 10).unwrap().len(),
+            1,
+            "unmute must restore DMs"
+        );
     }
 
     /// No-gatekeeper default (2026-09-06): a brand-new member with NO role
