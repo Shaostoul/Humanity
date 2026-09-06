@@ -1,5 +1,96 @@
 # HumanityOS: Priorities
 
+> **v0.1294 (2026-09-06): FAR RUNG 4c. The in-deck blackout and the band's
+> veil are gone, the band costs what the march costs again, and the far
+> rung's remaining error is now one number.** Two usage cutoffs killed three
+> agent rounds; the work the first round had already produced and its critic
+> had already reviewed was on disk, so it was adopted by hand rather than
+> re-run.
+>
+> SHIPPED. **E1 lever 1**: the profile's hand-off weight and tap level read
+> the PIXEL footprint alone. The march's own step was inside that maximum,
+> and it grows as one over cosine on oblique rays and is uncapped on a
+> clear-air stride, so the profile fired on samples whose pixel never handed
+> off. **E2**: the sample's shading is evaluated twice inside the band and
+> the RADIANCE is lerped by the profile's share of the sample's alpha.
+> Mixing optical depths linearly let a weight of 0.007 carry a whole
+> in-cloud column into the field's own shading; the in-deck frame read 23
+> against 109 with the profile off and 124 at full weight, outside both
+> endpoints, which is the signature of a cross-term rather than a bad blend.
+> The sun column is taken from the field's own depth and never from a
+> blended one. **E1 lever 2**: the element law scales the horizontal element
+> by the same factor the vertical clamp applies, so a slant ray counts
+> crossings inside the layer rather than across the whole bin. **D4**: no
+> tap where the share is zero, and the tap is reused along the ray while the
+> sample stays in the same level and half-bin, within a sixteenth of a bin
+> vertically and a quarter cell horizontally, with the in-bin slope carried.
+> The vertical bound is the critic's: the fraction is read bilinearly
+> between bin centres and the element law is linear in it, so a tap frozen
+> across a half-bin would have printed a staircase, and worse, would have
+> contaminated the very gate that judges lever 2. **D5**, and its own
+> critic's blocker on it: the rolling bake is capped at 16 rows a level a
+> frame, but the FAST pass gets 32, because at 8 it took 32 to 64 seconds at
+> the rig's frame rate against every fixture's 12 to 14 second settle, so
+> the global map would never have validated inside a capture, the Low sheet
+> would have fallen back to its old path and its gate could not have failed.
+> **D2 REVERTED**: the profile share's exemption from the step economy
+> bought nothing. The coverage masks carry the same tiny-component census
+> with the economy on and off (10170 against 10136), so it removed no
+> coverage grain, while the band cost multiplied two to four times.
+>
+> GATES ON v0.1294.1 (sweep 20260906-054230). PASSED: the in-deck view is
+> fixed, both arms now reading the same frame (max 12, mean 0.36, 0.05
+> percent of pixels above 8 levels, against mean 93 and 99.999 percent
+> before), and its channel-10 twin decodes to exactly 0 in every annulus, so
+> the profile contributes nothing in-deck at all. The band's two standing
+> views agree to 0.02 levels (rain 26 km was 11 levels brighter, mid-alt had
+> 26 percent of its pixels moved). The band's cost is back: the 60 km rung
+> reads 127.6 ms with the profile on against 126.3 with it off, within one
+> percent, where it was 204; the 400 km rung 78 ms, orbit 21.6. The
+> sub-band rungs sit at their own coin-flip floor (60 km on-vs-off mean
+> 6.67 against a same-exe knob-0 floor of 6.63).
+>
+> STILL OPEN, and now stated as numbers. (1) THE RESIDUAL: with lever 2
+> judged honestly for the first time (the tracer's fixed-law prediction
+> against a capture RENDERED by the fixed law, correlation 0.990), the
+> render carries 27 to 29 percent more alpha than the law predicts, and the
+> excess is UNIFORM across every off-nadir band. A constant multiplicative
+> factor outside the element law is a narrow thing to hunt: the candidates
+> are the bake's fraction (the area above the 0.02 density gate, the rind's
+> faint skin, unioned over four heights, which a uniform 60 m reference
+> march measures at 8.55 percent coverage where the fraction claims 25 to
+> 30), the temporal resolve, and the composite. (2) THE LOW TIER: with the
+> global map validating for the first time, the Low sheet's profile path
+> paints 99.8 percent coverage against High's 34.2. It has never actually
+> run before tonight. (3) BELOW THE BAND the marched field's emptiness now
+> dominates undisguised: the 200 km rung reads 7.9 percent coverage against
+> the 620 km rung's 47.3, which is the vertical comb (a 928 m step through a
+> 150 to 400 m layer based at the slab floor), not a profile defect.
+> (4) The orbit picture is a pale wash with the window rectangles still
+> faintly readable; its near-opaque area fell to 4.7 percent against High's
+> 30.8, so it now under-covers in opacity while over-covering in area.
+>
+> RIG LESSON: a 26-cell sweep leaks weather pins into standing-vantage
+> twins. The in-deck cell read 36.5 on both arms tonight against 109.5 when
+> it ran in a three-cell battery, because it does not pin cover, type and
+> weather of its own and inherited the previous cell's. Relative
+> comparisons inside one sweep stay valid; absolute levels across sweeps do
+> not. Every standing twin needs its own weather pins.
+>
+> NEXT, in order:
+> 1. **The residual** (the uniform 28 percent): the one number between the
+>    far rung and its default. Instrument first, in this order: the bake's
+>    fraction against the uniform reference march at one camera, then the
+>    resolve, then the composite.
+> 2. **The Low sheet's profile path** (99.8 against 34.2), which the D5 fix
+>    exposed by making the global valid.
+> 3. **The vertical comb** below the band (the top bound was a null and a
+>    regression; its diagnosis is in flight), then the default flip, then
+>    deleting the fade constants and the twin.
+> 4. The look ("still kinda look like spheres"), the per-cell cluster table
+>    (the 36.8 km class), the horizon rung (the 5 m sunset), increment 5,
+>    cloud layering, the planet pass arc.
+
 > **v0.1293 (2026-09-06): FAR RUNG 4b, three G0 defects fixed and two more
 > found by G1..G7; the default stays off.** Two panels of readers and
 > critics on the v0.1292.1 captures, then a two-implementer workflow with
