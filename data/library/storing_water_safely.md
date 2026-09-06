@@ -165,6 +165,16 @@ Note what bleach and boiling do NOT fix: chemical contamination (fuel,
 pesticides, industrial spills). If water smells of chemicals, no home
 treatment makes it drinkable; find another source.
 
+One more gap worth knowing, because bleach is not the universal answer it
+looks like: chlorine and iodine do not reliably kill the parasite
+*Cryptosporidium*. The CDC states that iodine or chlorine tablets "kill
+most germs, but will not kill Cryptosporidium germs." Boiling does kill
+it, and so do chlorine dioxide tablets and a filter with an absolute pore
+size of 1 micron or smaller. If you are treating water from an unknown
+source rather than refreshing your own stored supply, read the companion
+guide, Making Water Safe to Drink, which covers the pathogen classes,
+what filters do and do not remove, and how to combine methods.
+
 ## What can go wrong (honest troubleshooting)
 
 - Plastic or flat taste. Common and usually harmless; water stored
