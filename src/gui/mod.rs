@@ -3410,6 +3410,22 @@ pub struct GuiState {
     /// F10 cloud dev panel (v0.1254.4, operator request): GUI buttons for
     /// the cloud bisect toggles that previously needed showcase file drops.
     pub show_cloud_dev_panel: bool,
+    /// F10 sidebar collapsed to its slim edge tab (2026-09-05, operator
+    /// request for a collapse button so F10 need not be pressed). Session
+    /// only, like everything on that panel. While collapsed the cursor is
+    /// grabbed again as if the panel were closed; F10 or the tab expands it.
+    pub cloud_dev_collapsed: bool,
+    /// Mirror of the OS cursor state (`EngineState::cursor_free`), written by
+    /// lib.rs `reconcile_cursor` every time it derives the cursor from the
+    /// flags, so GUI code can ask "can the operator actually click right
+    /// now?" without touching winit. Added 2026-09-05 for the F10 sidebar's
+    /// collapse tab (critic finding): under CursorGrabMode::Confined the
+    /// INVISIBLE cursor still slides to the window edge on a sustained turn,
+    /// so a click-sensing strip at x 0..22 would swallow the operator's next
+    /// fire/interact click and pop the sidebar open mid-flight. The tab is
+    /// therefore only drawn while this is true (F10 still expands it). Not
+    /// authoritative: read-only for GUI code, only lib.rs writes it.
+    pub cursor_free: bool,
     /// Panel state mirrored into the renderer flags by lib.rs each frame -
     /// the SAME flags the showcase pins set, so file drops and buttons agree.
     pub cloud_dev_dither_off: bool,
@@ -4867,6 +4883,19 @@ impl GuiState {
         self.chat_input_active || self.dev_edit_target.is_some() || self.npc_talk_target.is_some()
     }
 
+    /// The F10 Cloud dev sidebar is open AND expanded (2026-09-05). This is
+    /// the "hold Alt" condition made sticky: lib.rs frees the OS cursor and
+    /// suppresses mouse-look while it is true (reconcile_cursor + the
+    /// DeviceEvent::MouseMotion gate, the same two sites `alt_held` uses),
+    /// so the operator can scroll and click the panel without holding Alt.
+    /// It is deliberately NOT part of in_world_modal_open: that gate also
+    /// swallows key presses (F10 itself, movement keys, F9 flight), and the
+    /// operator flies around while flipping these switches. Collapsed or
+    /// closed = false = the cursor state the game would have anyway.
+    pub fn cloud_dev_sidebar_expanded(&self) -> bool {
+        self.show_cloud_dev_panel && !self.cloud_dev_collapsed
+    }
+
     /// THE dev-tooling gate (task #50): the play mode must grant DevTools
     /// (mode == Dev) AND the Settings "Developer cheats" switch must be on.
     /// Every dev affordance funnels through this one predicate -- the Dev
@@ -5315,6 +5344,10 @@ impl Default for GuiState {
             show_perf_overlay: false,
             show_weather_panel: false,
             show_cloud_dev_panel: false,
+            cloud_dev_collapsed: false,
+            // Matches EngineState::cursor_free's boot value; reconcile_cursor
+            // overwrites it on the first frame it runs.
+            cursor_free: false,
             cloud_dev_dither_off: false,
             cloud_dev_temporal_off: false,
             cloud_dev_map_diag: 0,

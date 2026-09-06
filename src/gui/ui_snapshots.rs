@@ -740,10 +740,33 @@ fn settings_panel(
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_cloud_dev() {
     // The F10 Cloud dev panel with its NEEDS TESTING list and per-row TEST
-    // tags (v0.1289, data/gui/dev_tests.json). 1400 tall: the panel is a
-    // long single column of switches.
-    render_page_png("cloud_dev", 420, 1400, |ctx, theme, state| {
+    // tags (v0.1289, data/gui/dev_tests.json). Since 2026-09-05 it is a
+    // LEFT SIDEBAR (egui SidePanel, default 420 wide) whose whole body
+    // scrolls, with a slim collapse tab on its right edge. 720 wide so the
+    // sidebar's right edge, its tab, and the empty world area beside it
+    // are all in the capture; 1400 tall shows the scroll bar clipping the
+    // long switch list rather than the list running off the canvas.
+    render_page_png("cloud_dev", 720, 1400, |ctx, theme, state| {
         state.show_cloud_dev_panel = true;
+        state.cloud_dev_collapsed = false;
+        crate::gui::pages::cloud_dev::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_cloud_dev_collapsed() {
+    // The same panel collapsed to its edge tab (2026-09-05): only the slim
+    // strip with the expand arrow should remain at the left screen edge.
+    // Short canvas: there is nothing below the arrow to review.
+    render_page_png("cloud_dev_collapsed", 320, 240, |ctx, theme, state| {
+        state.show_cloud_dev_panel = true;
+        state.cloud_dev_collapsed = true;
+        // The tab is only drawn while the cursor is free (a grabbed cursor
+        // must find no click target at the screen edge); the headless
+        // harness has no cursor, so say it is free, as it would be on a
+        // menu page or with Alt held.
+        state.cursor_free = true;
         crate::gui::pages::cloud_dev::draw(ctx, theme, state);
     });
 }
