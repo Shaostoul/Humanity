@@ -66,7 +66,24 @@ if (!latestRel) {
 const ci = sh('gh run list --repo Shaostoul/Humanity --workflow "Deploy to VPS" --limit 1');
 
 // ── 3. Release signing (the desktop auto-update gate) ──
-const signing = sh(`node "${path.join(__dirname, 'check-release-signing.js')}" 3`);
+// Ask for a wider window than we print: the check's VERDICT ("LATEST is
+// UNSIGNED, the updater offers nothing") is the last thing it writes, and the
+// brief used to print the FIRST three lines, which is the table header plus
+// two rows. So the one line that says the auto-update path is dead was the one
+// line reliably cut off. Select the lines that matter instead of the first N.
+const signingRaw = sh(`node "${path.join(__dirname, 'check-release-signing.js')}" 12`);
+let signing = null;
+if (signingRaw) {
+  const lines = signingRaw.split('\n').map((l) => l.trimEnd()).filter(Boolean);
+  const verdict = lines.filter((l) => l.trim().startsWith('>>'));
+  const latestRow = lines.find((l) => l.includes('(LATEST'));
+  const unsigned = lines.filter((l) => l.includes('UNSIGNED') && !l.trim().startsWith('>>')).length;
+  const picked = [];
+  if (latestRow) picked.push(latestRow.trim());
+  if (unsigned > 1) picked.push(`${unsigned} of the last 12 releases are unsigned.`);
+  for (const v of verdict) picked.push(v.trim());
+  signing = picked.length ? picked.join('\n          ') : lines.slice(0, 3).join('\n          ');
+}
 
 // ── 4. Journal: current focus + newest decision ──
 let focus = null, lastDecision = null;
@@ -89,7 +106,7 @@ L.push('');
 L.push('CI DEPLOY (latest):');
 L.push(ci ? '  ' + ci.split('\n')[0] : '  (unavailable -- offline? check: just ci)');
 L.push('');
-L.push('SIGNING:  ' + (signing ? signing.split('\n').slice(0, 3).join('\n          ') : '(check unavailable -- run: just check-signing)'));
+L.push('SIGNING:  ' + (signing || '(check unavailable -- run: just check-signing)'));
 L.push('');
 if (focus) {
   L.push('FOCUS (orchestrator_state.json):');

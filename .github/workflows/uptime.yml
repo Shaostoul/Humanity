@@ -69,6 +69,44 @@ jobs:
           echo "::error::relay /health unreachable after 3 attempts"
           exit 1
 
+      - name: The desktop update path is alive (warns, never fails)
+        run: |
+          set -euo pipefail
+          # A THIRD kind of quiet outage, same family as the two above: the
+          # v0.421+ updater only offers a release that carries
+          # release-manifest.json + its .sig.json, and signing is a manual
+          # operator step (`just sign-release`, needs the passphrase). Skip it
+          # and every desktop client is stranded on its current version with no
+          # error message anywhere. On 2026-09-06 the newest signed release was
+          # v0.1294.1 while the latest was v0.1294.3.
+          #
+          # This WARNS rather than failing. The job runs every 15 minutes and a
+          # failure emails the owner; an unsigned release can legitimately sit
+          # for hours until the operator is at the machine with the key, and
+          # emailing every 15 minutes about it is how you teach someone to
+          # ignore this workflow (see this file's own note on false alarms).
+          # `just brief` shows the same verdict at the top of every session.
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest"
+          if ! curl -fsS -m 20 -H 'Accept: application/vnd.github+json' "$api" -o /tmp/rel; then
+            echo "could not reach the releases API; skipping (not an outage of ours)"
+            exit 0
+          fi
+          tag=$(grep -o '"tag_name": *"[^"]*"' /tmp/rel | head -1 | cut -d'"' -f4)
+          if grep -q '"name": *"release-manifest.json.sig.json"' /tmp/rel; then
+            echo "desktop update path OK: $tag is signed"
+          else
+            echo "::warning::Latest release $tag is UNSIGNED, so the desktop updater offers nothing to any v0.421+ client. Fix (operator only): just sign-release $tag"
+            echo "### Desktop update path is dead" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Latest release \`$tag\` has no \`release-manifest.json.sig.json\` asset." >> "$GITHUB_STEP_SUMMARY"
+            echo "Every v0.421+ desktop client is stranded with no update and no error." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Fix (operator only, needs the passphrase):" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release $tag" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: TLS certificate is not about to expire
         run: |
           set -euo pipefail
