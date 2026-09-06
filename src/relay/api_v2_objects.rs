@@ -8,9 +8,29 @@
 //!
 //! Object format on the wire: JSON. The fields mirror `crate::relay::core::object::Object`,
 //! but binary fields (author_public_key, payload, signature) are base64-encoded for JSON
-//! transport. The server reconstructs the canonical CBOR form internally to verify the
-//! signature — clients NEVER need to canonicalize CBOR themselves; they sign their canonical
-//! bytes locally and submit the resulting fields.
+//! transport.
+//!
+//! A client MUST canonicalize. This note used to say clients "NEVER need to
+//! canonicalize CBOR themselves" and then, in the same sentence, that they
+//! "sign their canonical bytes locally", which is a contradiction that reads as
+//! permission to skip the hard part. Anyone who believed the first half would
+//! have every submission rejected and no idea why. What actually happens:
+//!
+//! - The server REBUILDS the envelope from the submitted JSON fields and runs it
+//!   through `Object::to_canonical_bytes`, which sorts the map keys
+//!   (`core::encoding::canonicalize`). It verifies the signature against THAT.
+//! - So the bytes a client signs must be the bytes the server rebuilds, which
+//!   means the client has to apply the identical canonical encoding. That is
+//!   exactly what `web/shared/canonical-cbor.js` and `pq-object.js` exist for,
+//!   and why they are locked to the Rust side by KAT tests. A client that signs
+//!   a differently-ordered envelope gets a 401 that looks like a key problem.
+//! - The `payload` is carried through as OPAQUE BYTES inside that envelope. The
+//!   server never re-encodes it, so payload bytes are whatever the client sent.
+//!   Canonical form is still wanted there (it is what makes the same logical
+//!   content hash to the same object_id in every client), but a non-canonical
+//!   payload will still verify, because the signature covers the bytes as sent.
+//!   `market_publish.rs` relies on that deliberately: prices are floats, and the
+//!   canonical encoder prohibits floats.
 
 use axum::{
     Json,

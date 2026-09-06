@@ -106,6 +106,14 @@
 >    lines in the SAME commit, and mind the order: `:43` is unprefixed and fatal,
 >    so deleting the script first breaks `ship` after `bump` has already mutated
 >    tracked files. It has now misled two sessions mid-grep.
+>    RESOLVED 2026-09-06 as far as an agent should take it: NOT deleted, because a
+>    July session already put keep-or-drop to the operator as an explicit decision
+>    (see the "STALE app/web/ BUNDLE" block further down this file) and dropping it
+>    removes a half-built offline-bundle feature rather than tidying junk. The trap
+>    is defused instead: `scripts/bundle-web.js` now writes `app/web/README.md`
+>    saying the tree is generated, where the real sources are, and that the
+>    keep-or-drop question is open. The bundle was also resynced (it had drifted 68
+>    files since 2026-07-31). What remains is the operator decision, unchanged.
 >
 
 > **v0.1294 (2026-09-06): FAR RUNG 4c. The in-deck blackout and the band's
