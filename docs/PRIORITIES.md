@@ -1,5 +1,88 @@
 # HumanityOS: Priorities
 
+> **v0.1296 (2026-09-06): THE FRONT DOOR. A verification pass measured the live
+> site and relay against what the project promises in public, and the first
+> minute of a stranger's visit was the worst part of the product.** Non-game
+> session, ran alongside the far-rung cloud arc without touching src/renderer,
+> assets/shaders or src/terrain.
+>
+> SHIPPED (v0.1295.0, v0.1296.0). **The DM verification wall is gone**: sending
+> a private message required the `verified` role, reachable only through the
+> admin-only /verify command, so writing to another person was a permission a
+> human granted one account at a time. The knock budget from the 2026-08-24
+> sealed-sender work (20 a day to strangers, lifted by a client-held friendship
+> certificate) sat BELOW that check and was therefore dead code for every
+> ordinary member. Role check removed, every other limit kept; the web client
+> enforced an even stricter rule and had to change too. **A muted person could
+> still DM**: /mute has written to the muted_members table and left user_roles
+> alone since v0.246, but the DM path only ever compared the legacy role, so it
+> matched nobody. Public chat called is_muted the whole time, which is why it
+> stayed invisible. Fixed, and red-proved by reverting the condition. **Federation
+> peer management became an admin surface**: POST /api/admin/federation (add,
+> add_key, trust, remove, signed over its own "admin_federation" purpose so a
+> stats signature cannot be replayed) plus web admin controls; native has had a
+> panel since v0.722, so STATUS.md saying "no admin UI to add/trust peers yet"
+> was stale. **The web can create proposals**, not only vote. **/rules is
+> published**: the rules, the real moderator powers read out of the enforcing
+> code, the appeals route including one that works while banned, and an explicit
+> list of the accountability this server does not have. Plus: technical jargon
+> defaults to hidden for first-time visitors, four pages that still called our
+> identity Ed25519 corrected, the download page's false "full access to all core
+> features" replaced, the market importer refusing to publish its demo catalog to
+> a real server, dev pages collapsed in the site menu, and `just brief` printing
+> the release-signing VERDICT instead of the table header that was hiding it.
+>
+> REFUTED, so nobody re-does them: the landing page's join form is NOT off
+> screen (it renders at scrollY 0 at both 1280 and 375; the original y=3483
+> measurement came from a browser pane with innerHeight 0, the same
+> zero-viewport trap that also produced a false overflow reading later the same
+> session). Web voting is NOT missing; governance.html has signed vote_v1
+> voting, KAT-locked. The Rivertown Bikes fixtures in market_payloads.rs are
+> inside a `#[cfg(test)]` module, so the live fake directory came from a manual
+> importer run, not from the relay.
+>
+> NEXT, in order, all discovered while doing the above:
+>
+> 1. **Signed moderation logs, rung 1.** The design was revised this session to
+>    resolve what blocked it for four months (the relay cannot sign, because it
+>    does not hold a moderator's key, so the moderator's CLIENT signs). Schemas
+>    and cross-language builders for `mod_action_v1` and `space_policy_v1` with
+>    a KAT, the way vote_v1 has one. Rung order is in
+>    `docs/design/signed_moderation_logs.md`. Until rung 2, a ban is still an
+>    unsigned row with no banned_by, no reason and no expiry, and /rules says so
+>    out loud.
+> 2. **Canonical CBOR is not canonical across clients.** `cborMap` in
+>    `web/shared/canonical-cbor.js` SORTS keys; `cbor_map` in
+>    `src/relay/core/encoding.rs` preserves insertion order (ciborium does not
+>    sort). For any multi-key payload the two clients produce different bytes and
+>    different object ids for identical content. Nothing breaks today (each signs
+>    its own bytes, and fields are read by name) and vote_v1 has one key so its
+>    KAT never caught it. Pick one order, change the other side, add a multi-key
+>    KAT. Do this BEFORE rung 1 above, which introduces two more multi-key types.
+> 3. **A proposal has no readable title.** `/api/v2/proposals` returns type,
+>    scope, dates, DID and object id; title and body live only in the signed
+>    payload, so both clients render a proposal with no text. It matters more now
+>    that web users can create them. Either index the two fields (schema change,
+>    so read the BUG-046 note about ALTER-added columns first) or have clients
+>    fetch and decode the object.
+> 4. **The two moderation paths are not equivalent.** The `mod_action` path
+>    refuses self-targeting and refuses a non-admin acting on an admin
+>    (`src/relay/handlers/msg_handlers.rs`); the slash path in
+>    `src/relay/handlers/broadcast.rs` has neither, so a mod can /kick or /mute an
+>    admin, and can kick themselves. Also /kick means two different things
+>    depending on which path was used.
+> 5. **Reports go nowhere trackable.** No status column, no resolution, and the
+>    notification reaches only moderators connected at that instant. /rules admits
+>    both, which is the honest stopgap, not the fix.
+> 6. **OPERATOR ONLY: 11 of the last 12 releases are unsigned**, so every v0.421+
+>    desktop client has no update path and no error. `just sign-release vX.Y.Z`
+>    needs the passphrase and cannot be done by an agent. `just brief` now shows
+>    the verdict on every session start, and the uptime workflow warns off-box.
+> 7. **`app/web/` is a 286-file tracked duplicate of the site that nothing
+>    deploys** (`scripts/sync-web-root.sh` reads only `web/`). It already caught
+>    this session mid-grep. Delete it or document it.
+>
+
 > **v0.1294 (2026-09-06): FAR RUNG 4c. The in-deck blackout and the band's
 > veil are gone, the band costs what the march costs again, and the far
 > rung's remaining error is now one number.** Two usage cutoffs killed three
