@@ -3499,6 +3499,13 @@ pub struct GuiState {
     /// level; 2..7 = level 0..5 forced; 8 = hard switch; 9 = reference
     /// bake). Showcase key `cloud_profile`.
     pub cloud_dev_profile_knob: i32,
+    /// D3 dev bit (2026-09-06): the built-body TOP BOUND. On = the march
+    /// finds thin built clouds from above (a from-above SDF lower bound
+    /// plus an in-cloud step floor capped at a quarter of the found
+    /// cloud's height); off = today's 928 m comb, the A/B twin. Flags-pad
+    /// bit 12 of light2_color.w, independent of the profile knob. Showcase
+    /// key `cloud_top_bound`.
+    pub cloud_dev_top_bound: bool,
     /// Gain on the in-scattered source, 0 = default.
     pub cloud_dev_ms_gain: f32,
     /// Increment C (v0.1282): interior saturation of the built bodies, 0..1.
@@ -5390,6 +5397,8 @@ impl Default for GuiState {
             cloud_dev_light: true,
             // Off until the far-rung gates G0..G6 pass (contract default).
             cloud_dev_profile_knob: 0,
+            // D3 dev bit: off until its gate passes (the A/B default).
+            cloud_dev_top_bound: false,
             cloud_dev_ms_gain: 0.0,
             cloud_dev_int_sat: 0.0,
             cloud_dev_res_div: 4,

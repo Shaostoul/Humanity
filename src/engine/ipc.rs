@@ -404,6 +404,29 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         };
         state.gui_state.cloud_dev_profile_knob = knob;
     }
+    // {"cloud_top_bound":"0|1"}: D3 (2026-09-06), the built-body TOP BOUND
+    // dev bit (flags-pad bit 12 of light2_color.w). "1" = the march finds
+    // thin built clouds from above (the body publishes the vertical gap to
+    // its admitted density region as a from-above SDF bound, and the step
+    // economy's in-cloud floor is capped at a quarter of the found cloud's
+    // height); "0" = today's 928 m comb, the A/B twin. Independent of
+    // `cloud_profile`: the gate cells prof-vert-250/60-r1-{prod,ref,fix}
+    // run it at knob 0. Sticky across cells like every showcase pin, so
+    // every far-rung cell pins it explicitly.
+    if let Some(t) = grab("cloud_top_bound") {
+        // This bit is the ARM SELECTOR of the D3 gate, so an unknown value
+        // ("true", "on", a typo in a fixture) must be LOUD, exactly like
+        // `cloud_profile` above: silently landing on OFF would run the prod
+        // arm while the sweep manifest says the cell was the fix arm (a gate
+        // that cannot fail). The bit stays off and the log says so; the 1 Hz
+        // `[CloudProfile] ... top_bound=` line in run.log records the arm.
+        let t = t.trim();
+        let on = t == "1";
+        if !on && t != "0" {
+            log::warn!("[showcase] cloud_top_bound: unknown value {t:?} (want 0|1), staying off");
+        }
+        state.gui_state.cloud_dev_top_bound = on;
+    }
     if let Some(m) = grab("cloud_ms_gain").and_then(|t| t.parse::<f32>().ok()) {
         state.gui_state.cloud_dev_ms_gain = m;
     }
@@ -1135,9 +1158,19 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
                 "dir": "debug",
                 "files": files,
                 "knob": state.renderer.cloud_profile_knob,
+                // D3 dev bit, so a dump records which arm it came from.
+                "top_bound": state.renderer.cloud_top_bound,
                 "ground_i0": pads[0],
                 "ground_j0": pads[1],
-                "flags": pads[3],
+                // D3: the flags the SHADER saw, i.e. the cache's validity
+                // bits with the top-bound bit ORed in exactly as the upload
+                // site (renderer/mod.rs, the pad write at offset 240) does
+                // it. The raw cache value would read 0 for a frame whose pad
+                // carried 4096, and a dump must not disagree with the GPU.
+                "flags": crate::renderer::cloud_temporal::cloud_fr_flags_with_top_bound(
+                    pads[3] as u32,
+                    state.renderer.cloud_top_bound,
+                ),
             })
         }
         Err(e) => serde_json::json!({"ok": false, "error": e}),

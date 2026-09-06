@@ -2,7 +2,7 @@
   "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
   "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
   "_clock_note": "READ THIS BEFORE PICKING A `time`. The showcase `time` field is a GLOBAL clock, not the local solar hour at the vantage (src/engine/ipc.rs:200-205 feeds it straight into the world clock). The local solar hour is roughly `time + lon/15`. So time 12.0 is local noon only near lon 0; at lon 138.8 (the Fuji vantages) time 12.0 is about 21:15 LOCAL and the frame comes back as a night scene. Pick `time = desired_local_hour - lon/15`, wrapped into 0..24. This trap cost `ground-storm-inslab` its whole purpose from v0.1070 to v0.1073: it was installed as the permanent BUG-049 daylight gate and was silently rendering at night, so every cloud LIGHTING change was being judged in the dark.",
-  "_profile_note": "FAR-RUNG CELLS (docs/design/cloud-far-rung.md, the cloud profile, perf increment 4). Showcase `cloud_profile` takes 0 (off, the bit-identical A/B twin), 1 (auto), hard (knob 8), ref (knob 9, the slow reference bake, settle 30 s) or L0..L5 (that level forced on every sample); an unknown value is logged as a warning and leaves the knob at 0, so grep run.log for `cloud_profile: unknown value` after a sweep. `dump_cloud_profile: true` makes probe-sweep.js dump every slice of the profile atlas after the capture(s) into <out>/<id>-profile/ (debug/cloud_profile_*.png moved there, plus dump.json) for scripts/cloud-profile-compare.js. Every far-rung cell pins the cache/eco/res keys explicitly because showcase pins are STICKY across cells. The nadir level in a cell's _note is computed as floor(log2((alt - 6 km) * pix_ang_march) + 2) with pix_ang_march = (1387 / 693) / floor(1387 / cloud_res).",
+  "_profile_note": "FAR-RUNG CELLS (docs/design/cloud-far-rung.md, the cloud profile, perf increment 4). Showcase `cloud_profile` takes 0 (off, the bit-identical A/B twin), 1 (auto), hard (knob 8), ref (knob 9, the slow reference bake, settle 30 s) or L0..L5 (that level forced on every sample); an unknown value is logged as a warning and leaves the knob at 0, so grep run.log for `cloud_profile: unknown value` after a sweep. `dump_cloud_profile: true` makes probe-sweep.js dump every slice of the profile atlas after the capture(s) into <out>/<id>-profile/ (debug/cloud_profile_*.png moved there, plus dump.json) for scripts/cloud-profile-compare.js. Every far-rung cell pins the cache/eco/res keys explicitly because showcase pins are STICKY across cells. The nadir level in a cell's _note is computed as floor(log2((alt - 6 km) * pix_ang_march) + 2) with pix_ang_march = (1387 / 693) / floor(1387 / cloud_res). `cloud_top_bound` (0 | 1, D3 2026-09-06) is the built-body top-bound dev bit (flags-pad bit 12), independent of `cloud_profile`; every far-rung cell pins it 0 and only the prof-vert-*-fix cells set it 1. The prof-vert-*-ref cells pin cloud_uniform_step 1 / cloud_step_m 60 and every other cell pins them 0 for the same stickiness reason.",
   "vantages": [
     {
       "id": "sahara-noon-ground",
@@ -4089,7 +4089,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4124,7 +4127,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4159,7 +4165,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4194,7 +4203,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4229,7 +4241,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4264,7 +4279,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4299,7 +4317,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4334,7 +4355,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4369,7 +4393,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4404,7 +4431,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4439,7 +4469,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4474,7 +4507,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4509,7 +4545,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4544,7 +4583,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4579,7 +4621,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4614,7 +4659,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4649,7 +4697,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4684,7 +4735,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4719,7 +4773,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4754,7 +4811,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4789,7 +4849,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4824,7 +4887,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4859,7 +4925,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4894,7 +4963,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4929,7 +5001,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4964,7 +5039,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -4999,7 +5077,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5034,7 +5115,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5069,7 +5153,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5104,7 +5191,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5139,7 +5229,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5174,7 +5267,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5209,7 +5305,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5244,7 +5343,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5279,7 +5381,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5314,7 +5419,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5351,12 +5459,15 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
       "id": "orbit-speckle-873-r1-mask",
-      "desc": "Far-rung fixture F2, the map_diag 1 twin (coverage alpha as opaque greyscale; every mask gate reads its LUMINANCE at 128, the census at 200), cloud_res 1.",
+      "desc": "Far-rung fixture F2, the map_diag 1 twin (coverage alpha as opaque greyscale; every mask gate reads its LUMINANCE at 128, the census at 200), cloud_res 1. D2 gate (in-window grain, 2026-09-06), the load-bearing arm: the automatic level at 873 km, where the carrier is the step economy's deep relaxation striding across the thin layer's bin in the profile share. Measured BEFORE the fix (--t=200, the script's central-80-percent census): comps 10612, speckles (16 px or less) 9996, white 27.98 percent, against orbit-tier-873-high-r1-mask's 184 / 161 / 30.83. After the fix (the profile share exempt from the relaxation and the footprint floor, both scaled by 1 - w_pf) the speckle count must fall to the profile-OFF bar or below; the forced-level pair prof-stepinv-1000-r1-eco0/eco1-mask is only the wiring check.",
       "expect": "diagnostic",
       "camera": {
         "body": "earth",
@@ -5383,7 +5494,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
@@ -5415,7 +5529,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
@@ -5448,7 +5565,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
@@ -5480,7 +5600,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
@@ -5512,7 +5635,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       }
     },
     {
@@ -5542,7 +5668,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5574,7 +5703,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5606,7 +5738,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5638,7 +5773,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5671,7 +5809,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "hard"
+        "cloud_profile": "hard",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5706,7 +5847,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5741,7 +5885,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "hard"
+        "cloud_profile": "hard",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5776,12 +5923,447 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
       "captures": 2,
       "pair_gap_s": 3
+    },
+    {
+      "id": "prof-vert-250-r1-prod",
+      "desc": "D3 gate (the marched field empties from above), the PRODUCTION arm: the shipped march (knob 0, no profile), cloud_top_bound 0, map_diag 1 (coverage as opaque greyscale), 250 km nadir on the Sahara camera, cloud_res 1. Reported: its coverage (luminance > 128 inside the converged crop) against the ref arm. Expected LOW: the 928 m vertical comb misses a 100-400 m humilis based at the slab base (only the one comb sample above the base can land in it), and the step economy's footprint floor skims what it finds. PRECONDITION (else the gate is VOID, not passed): the prod arm's coverage must be more than 4 points BELOW the ref arm (twice the tolerance). If prod is already within 2 points of ref the fixture does not exercise D3 at this altitude and no conclusion may be drawn from the fix arm. A fix arm whose steps twin shows any 255 inside the crop is ALSO void (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-ref",
+      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 250 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-ref-steps",
+      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop.",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "4",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-fix",
+      "desc": "D3 gate, the FIX arm: knob 0 with cloud_top_bound 1 (flags-pad bit 12: the body publishes the vertical gap to its admitted density region as a from-above SDF lower bound, so the stride finds the thin layer, and the economy's in-cloud floor is capped at a quarter of the found cloud's height), map_diag 1, 250 km, cloud_res 1. PASS: coverage (luminance > 128) within 2 points of the ref arm inside the converged crop (cloud-mask-iou.js --crop=0.25), with the ref above 20 points; the prod arm reported. PRECONDITION (else the gate is VOID, not passed): the prod arm's coverage must be more than 4 points BELOW the ref arm (twice the tolerance). If prod is already within 2 points of ref the fixture does not exercise D3 at this altitude and no conclusion may be drawn from the fix arm. A fix arm whose steps twin shows any 255 inside the crop is ALSO void (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "1",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-fix-steps",
+      "desc": "D3 gate, the FIX arm's STEPS twin: cloud_top_bound 1 (knob 0, the shipped adaptive step) with map_diag 4 (iterations / 224). D3 (a) makes a sample above a cloud publish a finite SDF, so the march enters the stride block; where the safe margin is used up the step clamps to the 30 m floor (top_prev is still the body's default above a cloud), and a slanted ray can burn the 224 budget in 30 m steps. Report the max byte inside the converged crop next to the ref-steps number: any 255 inside the crop VOIDS the fix arm's coverage at 250 km (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 250 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "4",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "1",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-prod-look40",
+      "desc": "D3 slant check, the PRODUCTION arm: cloud_top_bound 0, knob 0, map_diag 1, the Sahara camera at 250 km looking 40 deg off nadir. The bit-off half of the look-40 pair; its mask is the reference for NEW HOLES in the fix-look40 twin (a cloud the from-above stride stepped over sideways). Reported, not a coverage bar.",
+      "_note": "Slant arm, 40 deg off nadir at 250 km: NOT a coverage gate (no converged reference exists off-nadir; the 60 m fixed march hits the 224 cap on a 40 deg chord). It is the D3 (a) side-effect check: the from-above SDF bound is the vertical gap to THIS cloud, and a slanted stride of kilometres carries the ray sideways out of the 3x3 cell neighbourhood the bound was computed from, so a taller cloud two cells away can be stepped over. Instrument: node scripts/cloud-profile-compare.js --holes=<prod-look40 mask> --vs=<fix-look40 mask> --t=128 --crop=0.8 prints the pixels white in prod and black in fix (LOST, the new holes) and the reverse (GAINED, the thin layer found), each as points of frame and as a share of prod's mask, plus the largest lost blob in px. Bar (reported, then decided by the orchestrator before the bit defaults on): LOST under 1 point of frame and the largest lost blob under 400 px; a larger lost blob is a stepped-over cloud and the bit stays off.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 40
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-250-r1-fix-look40",
+      "desc": "D3 slant check, the FIX arm: cloud_top_bound 1, knob 0, map_diag 1, the Sahara camera at 250 km looking 40 deg off nadir. Compared against prod-look40 with cloud-profile-compare.js --holes (LOST pixels = white in prod, black in fix). Look for NEW HOLES, not just more coverage: a lost blob over 400 px is a taller cloud two cells away that the vertical-gap stride carried the ray past, and the bit must not default on until that is understood.",
+      "_note": "Slant arm, 40 deg off nadir at 250 km: NOT a coverage gate (no converged reference exists off-nadir; the 60 m fixed march hits the 224 cap on a 40 deg chord). It is the D3 (a) side-effect check: the from-above SDF bound is the vertical gap to THIS cloud, and a slanted stride of kilometres carries the ray sideways out of the 3x3 cell neighbourhood the bound was computed from, so a taller cloud two cells away can be stepped over. Instrument: node scripts/cloud-profile-compare.js --holes=<prod-look40 mask> --vs=<fix-look40 mask> --t=128 --crop=0.8 prints the pixels white in prod and black in fix (LOST, the new holes) and the reverse (GAINED, the thin layer found), each as points of frame and as a share of prod's mask, plus the largest lost blob in px. Bar (reported, then decided by the orchestrator before the bit defaults on): LOST under 1 point of frame and the largest lost blob under 400 px; a larger lost blob is a stepped-over cloud and the bit stays off.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 250,
+        "look_offset_deg": 40
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "1",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-60-r1-prod",
+      "desc": "D3 gate (the marched field empties from above), the PRODUCTION arm: the shipped march (knob 0, no profile), cloud_top_bound 0, map_diag 1 (coverage as opaque greyscale), 60 km nadir on the Sahara camera, cloud_res 1. Reported: its coverage (luminance > 128 inside the converged crop) against the ref arm. Expected LOW: the 928 m vertical comb misses a 100-400 m humilis based at the slab base (only the one comb sample above the base can land in it), and the step economy's footprint floor skims what it finds. PRECONDITION (else the gate is VOID, not passed): the prod arm's coverage must be more than 4 points BELOW the ref arm (twice the tolerance). If prod is already within 2 points of ref the fixture does not exercise D3 at this altitude and no conclusion may be drawn from the fix arm. A fix arm whose steps twin shows any 255 inside the crop is ALSO void (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-60-r1-ref",
+      "desc": "D3 gate, the CONVERGED REFERENCE arm: knob 0, cloud_top_bound 0, cloud_uniform_step 1 with cloud_step_m 60 (193 fixed steps through the 11.6 km nadir slab chord, under the 224 cap; the critic's correction of the 30 m form, which hit the cap and integrated the whole built layer as one discarded step), map_diag 1, settle 30, 60 km, cloud_res 1. PRECONDITION (else the gate is void): coverage above 20 points inside the converged crop, and the ref-steps twin shows no 255 pixel there (its values below 239 are the deep relaxation, which cloud_step_eco 1 keeps active under the fixed step, and are fine).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      }
+    },
+    {
+      "id": "prof-vert-60-r1-ref-steps",
+      "desc": "D3 gate, the reference arm's STEPS twin: the same fixed 60 m march (cloud_uniform_step 1, cloud_step_m 60, knob 0, cloud_top_bound 0) with map_diag 4 (iterations / 224). Proves the cap was not hit inside the converged crop: the bar is NO 255 pixel there (255 voids the reference at that pixel). Values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count (cloud_step_eco 1 stays active below transmittance 0.5 under the fixed step) and are fine; report the max byte inside the crop.",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "4",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "1",
+        "cloud_step_m": "60"
+      }
+    },
+    {
+      "id": "prof-vert-60-r1-fix",
+      "desc": "D3 gate, the FIX arm: knob 0 with cloud_top_bound 1 (flags-pad bit 12: the body publishes the vertical gap to its admitted density region as a from-above SDF lower bound, so the stride finds the thin layer, and the economy's in-cloud floor is capped at a quarter of the found cloud's height), map_diag 1, 60 km, cloud_res 1. PASS: coverage (luminance > 128) within 2 points of the ref arm inside the converged crop (cloud-mask-iou.js --crop=0.25), with the ref above 20 points; the prod arm reported. PRECONDITION (else the gate is VOID, not passed): the prod arm's coverage must be more than 4 points BELOW the ref arm (twice the tolerance). If prod is already within 2 points of ref the fixture does not exercise D3 at this altitude and no conclusion may be drawn from the fix arm. A fix arm whose steps twin shows any 255 inside the crop is ALSO void (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "1",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
+    },
+    {
+      "id": "prof-vert-60-r1-fix-steps",
+      "desc": "D3 gate, the FIX arm's STEPS twin: cloud_top_bound 1 (knob 0, the shipped adaptive step) with map_diag 4 (iterations / 224). D3 (a) makes a sample above a cloud publish a finite SDF, so the march enters the stride block; where the safe margin is used up the step clamps to the 30 m floor (top_prev is still the body's default above a cloud), and a slanted ray can burn the 224 budget in 30 m steps. Report the max byte inside the converged crop next to the ref-steps number: any 255 inside the crop VOIDS the fix arm's coverage at 60 km (iteration-cap truncation reads as low coverage and would be misdiagnosed as a failed fix).",
+      "_note": "Converged-reference region: the fixed 60 m step is under the 224-step cap while the slab chord is under 224 x 60 m = 13.44 km. Flat-frame bound (vertical FOV 90 deg, tanf = 1, half-height 693 px): chord = 11.6 km / cos(atan(r / 693)), so r <= 405 px from the nadir (1280, 693); planet curvature tilts the local vertical toward the camera on an off-axis ray and only RELAXES that bound, more at 60 km than lower, so the crop corner at 364 px is inside it at every gate altitude. The empirical guard is the steps twin, not this arithmetic. Gate crop: cloud-mask-iou.js --crop=0.25 (640 x 347 px, corner 364 px). Steps twins (map_diag 4 = iterations / 224 through the sRGB swapchain): the ONLY bar is NO 255 pixel inside the crop (255 = the cap was hit and that pixel is void); values below 239 (193 / 224 = 0.862 linear) are the deep relaxation shortening the count, because cloud_step_eco 1 at knob 0 keeps the relaxation active below transmittance 0.5 even under the fixed 60 m step, and are fine. Coverage bar: luminance > 128 on the sRGB-ENCODED capture = linear accumulated alpha > 0.216; this is a SILHOUETTE bar, not an opacity bar (a factor-2 alpha difference between arms can hide under it).",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "settle_s": 30,
+      "hold_altitude": true,
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "4",
+        "cloud_res": "1",
+        "cloud_profile": "0",
+        "cloud_top_bound": "1",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      }
     },
     {
       "id": "prof-moving-873-r1",
@@ -5811,7 +6393,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "captures": 2,
@@ -5845,7 +6430,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "captures": 2,
@@ -5879,7 +6467,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5912,7 +6503,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -5945,7 +6539,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -5980,7 +6577,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6014,7 +6614,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6047,7 +6650,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6082,7 +6688,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6116,7 +6725,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6149,7 +6761,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6184,7 +6799,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6218,7 +6836,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6251,7 +6872,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6286,7 +6910,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6320,7 +6947,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6353,7 +6983,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6388,7 +7021,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6422,7 +7058,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6455,7 +7094,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6490,7 +7132,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6524,7 +7169,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6557,7 +7205,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6591,7 +7242,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6624,7 +7278,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6658,7 +7315,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6691,7 +7351,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6725,7 +7388,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6758,7 +7424,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6793,7 +7462,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6827,7 +7499,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6860,7 +7535,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6895,7 +7573,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6929,7 +7610,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -6962,7 +7646,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -6997,7 +7684,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L5"
+        "cloud_profile": "L5",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7031,7 +7721,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7064,7 +7757,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7099,7 +7795,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7133,7 +7832,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7166,7 +7868,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7201,7 +7906,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7235,7 +7943,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7268,7 +7979,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7303,7 +8017,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7337,7 +8054,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7370,7 +8090,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7405,7 +8128,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7439,7 +8165,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7472,7 +8201,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7507,7 +8239,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7541,7 +8276,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7574,7 +8312,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7609,7 +8350,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L3"
+        "cloud_profile": "L3",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -7643,7 +8387,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7675,7 +8422,10 @@
         "cloud_step_eco": "1",
         "map_diag": "10",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7707,7 +8457,10 @@
         "cloud_step_eco": "1",
         "map_diag": "11",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7739,7 +8492,10 @@
         "cloud_step_eco": "1",
         "map_diag": "12",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7771,7 +8527,10 @@
         "cloud_step_eco": "1",
         "map_diag": "10",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7803,7 +8562,10 @@
         "cloud_step_eco": "1",
         "map_diag": "11",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7835,7 +8597,10 @@
         "cloud_step_eco": "1",
         "map_diag": "12",
         "cloud_res": "4",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7868,7 +8633,10 @@
         "cloud_step_eco": "1",
         "map_diag": "11",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7901,7 +8669,10 @@
         "cloud_step_eco": "1",
         "map_diag": "11",
         "cloud_res": "1",
-        "cloud_profile": "L4"
+        "cloud_profile": "L4",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -7934,10 +8705,49 @@
         "cloud_step_eco": "1",
         "map_diag": "11",
         "cloud_res": "1",
-        "cloud_profile": "hard"
+        "cloud_profile": "hard",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "prof-ch10-873-r1-hard",
+      "desc": "D1 gate (window-edge steps), the HARD channel-10 twin of prof-ch10-873-r1: map_diag 10 (the profile share accumulated with the colour's own weights) at knob 8 on the F2 camera (873 km, cloud_res 1). At 873 km w_pf is identically 1, so channel 10 IS the arm's accumulated alpha; the same-pixel band excess of auto over HARD is then lin(ch10_auto) / lin(ch10_hard) after sRGB decoding both captures (the diag channels leave through the sRGB swapchain; raw-byte ratios read L + r(6 - L)), a pure coverage ratio with no level arithmetic (the diagnosis's L_hard / L_auto form was the constant 1). scripts/cloud-profile-compare.js --cardinal with --hard10 prints it per 10 px bin along the four cardinal lines.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "10",
+        "cloud_res": "1",
+        "cloud_profile": "hard",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true,
+      "_note": "Red today (critic, same-exe captures): interiors 0.986 to 1.001, bands 1.06 to 1.28 (level 3 north 1.21 to 1.28 the worst). After the D1 fix (the collapsed walk re-walks from La + 1, so a band hands to the next window level, never to the global while a window contains the sample) the bands should fall to the per-level estimator floor of about 1.03 to 1.05."
     },
     {
       "id": "operator-bm12-prof-f0",
@@ -7980,7 +8790,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -8011,7 +8822,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_clock": "120",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8044,7 +8858,10 @@
         "cloud_step_eco": "0",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8077,7 +8894,82 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L2"
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-eco0-mask",
+      "desc": "D2 gate (in-window grain), the map_diag 1 twin of prof-stepinv-1000-r1-eco0: level 2 FORCED (knob 4) at 1000 km, cloud_res 1, cloud_step_eco 0, coverage as opaque greyscale. WIRING CHECK ONLY: at a forced level w_pf is identically 1, so after the fix (the profile share exempt from the deep relaxation and from the footprint floor, both scaled by 1 - w_pf) BOTH economy terms are multiplied by zero and eco 0 and eco 1 are the same march by construction; their censuses (scripts/cloud-speckle-census.js --t=200, the script's OWN central-80-percent census, it has no crop option; the critic's 2566 -> 108 was a nadir 600 x 600 crop of the colour renders and is not comparable) must agree within 20 percent, which proves the (1 - w_pf) wiring, not the grain. The GRAIN claim rests on the auto-arm census in the same sweep: orbit-speckle-873-r1-mask (profile ON, automatic level) against orbit-tier-873-high-r1-mask (profile OFF). Measured BEFORE (--t=200, existing captures): orbit-speckle comps 10612, speckles (16 px or less) 9996, white 27.98 percent; orbit-tier-high comps 184, speckles 161, white 30.83 percent. After the fix the profile-ON speckle count must fall toward the profile-OFF count (G5's bar: at or below it).",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "0",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-stepinv-1000-r1-eco1-mask",
+      "desc": "D2 gate (in-window grain), the map_diag 1 twin of prof-stepinv-1000-r1-eco1: level 2 FORCED (knob 4) at 1000 km, cloud_res 1, cloud_step_eco 1, coverage as opaque greyscale. WIRING CHECK ONLY: at a forced level w_pf is identically 1, so after the fix (the profile share exempt from the deep relaxation and from the footprint floor, both scaled by 1 - w_pf) BOTH economy terms are multiplied by zero and eco 0 and eco 1 are the same march by construction; their censuses (scripts/cloud-speckle-census.js --t=200, the script's OWN central-80-percent census, it has no crop option; the critic's 2566 -> 108 was a nadir 600 x 600 crop of the colour renders and is not comparable) must agree within 20 percent, which proves the (1 - w_pf) wiring, not the grain. The GRAIN claim rests on the auto-arm census in the same sweep: orbit-speckle-873-r1-mask (profile ON, automatic level) against orbit-tier-873-high-r1-mask (profile OFF). Measured BEFORE (--t=200, existing captures): orbit-speckle comps 10612, speckles (16 px or less) 9996, white 27.98 percent; orbit-tier-high comps 184, speckles 161, white 30.83 percent. After the fix the profile-ON speckle count must fall toward the profile-OFF count (G5's bar: at or below it).",
+      "_note": "Nadir level at 1000 km, cloud_res 1: lodb - LOD0 = 2.52 at mid-slab (2.53 at the slab base, 2.51 at the slab top; pix_ang_march 1.443e-3), so the automatic level is L2 and one coarser is L3.",
+      "expect": "diagnostic",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 1000,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "L2",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8110,7 +9002,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "ref"
+        "cloud_profile": "ref",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 30,
       "hold_altitude": true,
@@ -8144,7 +9039,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8178,7 +9076,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "ref"
+        "cloud_profile": "ref",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 30,
       "hold_altitude": true,
@@ -8212,7 +9113,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8246,7 +9150,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "ref"
+        "cloud_profile": "ref",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 30,
       "hold_altitude": true,
@@ -8280,7 +9187,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8313,7 +9223,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8345,7 +9258,10 @@
         "cloud_step_eco": "1",
         "map_diag": "1",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8377,7 +9293,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8411,7 +9330,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8445,7 +9367,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8479,7 +9404,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8513,7 +9441,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8547,7 +9478,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8581,7 +9515,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8615,7 +9552,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -8649,7 +9589,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_clock": "120",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8681,7 +9624,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_clock": "120",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true
@@ -8713,7 +9659,10 @@
         "map_diag": "0",
         "cloud_clock": "120",
         "cloud_profile": "1",
-        "cloud_quality": "ultra"
+        "cloud_quality": "ultra",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12
     },
@@ -8744,7 +9693,10 @@
         "map_diag": "0",
         "cloud_clock": "120",
         "cloud_profile": "0",
-        "cloud_quality": "ultra"
+        "cloud_quality": "ultra",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12
     },
@@ -8772,7 +9724,10 @@
         "map_diag": "0",
         "cloud_clock": "120",
         "cloud_profile": "1",
-        "cloud_quality": "ultra"
+        "cloud_quality": "ultra",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 10
     },
@@ -8800,7 +9755,10 @@
         "map_diag": "0",
         "cloud_clock": "120",
         "cloud_profile": "0",
-        "cloud_quality": "ultra"
+        "cloud_quality": "ultra",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 10
     },
@@ -8845,7 +9803,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -8890,7 +9849,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -8938,7 +9898,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -8986,7 +9947,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -9030,7 +9992,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "1"
+        "cloud_profile": "1",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -9074,7 +10037,8 @@
         "cloud_light": "1",
         "cloud_body_cache": "1",
         "cloud_step_eco": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0"
       },
       "settle_s": 14
     },
@@ -9106,7 +10070,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9140,7 +10107,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9175,7 +10145,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9209,7 +10182,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9244,7 +10220,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "1",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9279,7 +10258,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9313,7 +10295,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9348,7 +10333,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9382,7 +10370,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "0"
+        "cloud_profile": "0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,
@@ -9417,7 +10408,10 @@
         "cloud_step_eco": "1",
         "map_diag": "0",
         "cloud_res": "4",
-        "cloud_profile": "L0"
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
       },
       "settle_s": 12,
       "hold_altitude": true,

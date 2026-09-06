@@ -17,6 +17,14 @@
     {
       "label": "Field walls",
       "note": "Leave OFF. A null instrument from v0.1281 that costs about 10 percent."
+    },
+    {
+      "label": "Cloud profile",
+      "note": "Under test (the far rung, default off). From 250 to 900 km over a humilis field: tick it, look for coherent cloud sheets instead of sugar grain, and for the three defects being fixed: rectangular brightness steps at the window rims (D1), per-pixel grain inside them (D2), an empty marched field inside the hard ring at 250 km (D3)."
+    },
+    {
+      "label": "Built-body top bound",
+      "note": "Under test (D3, default off, independent of Cloud profile). At 60 to 250 km nadir over cumulus: tick it and the thin humilis layer the 928 m comb misses should appear as real coverage; untick for the A/B. Report the FPS change too."
     }
   ]
 }

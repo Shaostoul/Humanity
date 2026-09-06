@@ -18660,6 +18660,8 @@ mod native_app {
                                 state.renderer.cloud_step_eco = state.gui_state.cloud_dev_step_eco;
                                 state.renderer.cloud_light = state.gui_state.cloud_dev_light;
                                 state.renderer.cloud_profile_knob = state.gui_state.cloud_dev_profile_knob;
+                                // D3 dev bit (the built-body top bound): flags-pad bit 12, A/B'd by the rig.
+                                state.renderer.cloud_top_bound = state.gui_state.cloud_dev_top_bound;
                                 state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
                                 state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
                                 state.renderer.cloud_res_div =
