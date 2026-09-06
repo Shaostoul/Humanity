@@ -139,6 +139,13 @@ group-kat:
 vote-kat:
     node scripts/vote-object-kat.mjs
 
+# Cross-language moderation KAT: mod_action_v1 + space_policy_v1. The MODERATOR'S
+# CLIENT signs these (the relay cannot hold a moderator key), so a browser and the
+# Rust relay must encode them byte-identically or browser-signed moderation is
+# unverifiable. Pairs with moderation.rs::cross_language_kat.
+mod-kat:
+    node scripts/mod-object-kat.mjs
+
 # Rebuild the vendored same-origin post-quantum bundle (pins versions,
 # bundles with esbuild, verifies the KAT). Needs network for npm.
 pq-vendor:
@@ -378,6 +385,9 @@ verify:
     cargo check --features relay --no-default-features
     cargo test --features native --lib
     just lints
+    @echo "-- cross-language KATs: a browser and the relay must encode identically --"
+    just vote-kat
+    just mod-kat
     @echo "OK: verify passed"
     @echo "   (static only - nothing booted the app. For renderer/shader/world changes run: just verify-runtime)"
 

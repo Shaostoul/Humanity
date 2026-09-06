@@ -19,6 +19,10 @@ pub mod identity;
 pub mod kdf;
 /// Market signed-object payload validators (provider_v1, offering_v1).
 pub mod market_payloads;
+/// Signed moderation objects (mod_action_v1, space_policy_v1). Rung 1 of
+/// docs/design/signed_moderation_logs.md: the encoding half, byte-locked to
+/// the web twin by .
+pub mod moderation;
 pub mod merkle_disclosure;
 pub mod object;
 pub mod pq_crypto;
