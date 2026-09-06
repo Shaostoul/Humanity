@@ -3720,6 +3720,20 @@ fn cloud_profile_level_valid(L: i32) -> bool {
 fn cloud_profile_global_valid() -> bool {
     return cloud_profile_flag(1);
 }
+// D3 (the marched field empties from above), the dev bit for its A/B: flag
+// bit 12 (4096.0) of the same integer pad, OR'd in by Rust from the renderer
+// field `cloud_top_bound` (showcase `cloud_top_bound`, the F10 checkbox
+// "Built-body top bound"). Rust writes the flags lane even when no profile
+// atlas exists (the knob lane stays 0 then), so this bit is independent of
+// the profile knob. On: (a) cloud_v2_body publishes the vertical gap to a
+// cloud the sample sits above as a from-above SDF bound so the march's
+// stride finds the cloud instead of combing past it at 928 m, and (b) the
+// step economy's in-cloud footprint floor is capped at a quarter of the
+// found cloud's height (foot_floor_in in cloud_march_core). Off: today's
+// comb, bit-identical, for the A/B. Default off until the D3 gate passes.
+fn cloud_top_bound_on() -> bool {
+    return cloud_profile_flag(12);
+}
 
 // Positive modulus (the toroidal storage rule): pmod(a, n) = ((a mod n) + n) mod n.
 fn pmod(a: i32, n: i32) -> i32 {
@@ -4033,24 +4047,51 @@ fn cloud_profile_tap(dirp: vec3<f32>, h: f32, lodb: f32, knob: i32) -> ProfileTa
     La = cloud_profile_walk(La, lon, lat);
     Lb = cloud_profile_walk(Lb, lon, lat);
     if (La >= Lb) {
-        Lb = La;                                      // both walks landed on one level
+        // ── D1 (the window-edge steps), fix part (1) ──
+        // Both walks landed on one level: floor(lv)'s own window does not
+        // contain the sample, which at 873 km is EVERY sample outside the
+        // finest window (level 2 there), so this is the common case, not
+        // the corner. The shipped code collapsed `Lb = La`, rb was never
+        // fetched, and La's whole edge band was handed to the GLOBAL (the
+        // 19.55 km pooled map, a different estimator that renders 15 to 38
+        // percent more coverage on the same ground): every window rim
+        // printed as a bright strip rising toward the global and then a
+        // step back down to the next level's pure interior, the frames.
+        // Now Lb re-walks from La + 1: the NEXT containing window, or the
+        // global (CLOUD_FR_LEVELS) only when no window up to 5 contains the
+        // sample. At the rim ea reaches 1, so w_rb reaches 1, and one pixel
+        // past the rim the walk lands on that same level pure: continuous.
+        // The blend weight is still 0 (one level owns the interior); the
+        // edge band is what rb now catches. The select is safe under WGSL's
+        // eager evaluation: walk(6) and walk(7) run zero iterations and
+        // return CLOUD_FR_LEVELS. HARD is untouched (ea = eb = 0 below, so
+        // the re-walked rb carries no weight there); knob 0 never reaches
+        // this function.
         wl = 0.0;
+        Lb = select(CLOUD_FR_LEVELS, cloud_profile_walk(La + 1, lon, lat), La < CLOUD_FR_LEVELS - 1);
     }
     var ra = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
     var rb = ProfileLevel(false, 0.0, 0.0, 0.0, 0.0, 1.0);
     if (La < CLOUD_FR_LEVELS) {
         ra = cloud_profile_level(La, lon, lat, h);
     }
-    if (Lb < CLOUD_FR_LEVELS && Lb != La) {
-        rb = cloud_profile_level(Lb, lon, lat, h);
-    }
     // Hand-off weights: La's edge band hands to rb when rb was fetched, else
     // to the global; rb's edge band hands to the global. HARD: ea = eb = 0
     // (the walk already guarantees the fetched level contains the sample).
+    // D1: ea is computed BEFORE the rb fetch and AFTER the HARD override, so
+    // the fetch guard below can skip rb when it would carry no weight at all
+    // (wl = 0 and no edge band): an interior sample of a window whose lv is
+    // an exact integer, and every HARD sample. When wl > 0 or ea > 0 the
+    // fetch runs exactly as it did.
     var ea = select(1.0, ra.w_edge, ra.ok);
-    var eb = select(1.0, rb.w_edge, rb.ok);
     if (knob == CLOUD_FR_KNOB_HARD) {
         ea = 0.0;
+    }
+    if (Lb < CLOUD_FR_LEVELS && Lb != La && (wl > 0.0 || ea > 0.0)) {
+        rb = cloud_profile_level(Lb, lon, lat, h);
+    }
+    var eb = select(1.0, rb.w_edge, rb.ok);
+    if (knob == CLOUD_FR_KNOB_HARD) {
         eb = 0.0;
     }
     var share_a = 1.0 - wl;
@@ -4550,6 +4591,22 @@ fn cloud_march_core(
     // Follows the same one-step lag as dens_prev: the step has to commit
     // before the new sample is known, and the jitter decorrelates the lag.
     var sdf_prev = 1.0e9;
+    // D3 (b): the winning cloud's TOP at the previous sample, metres, the
+    // same one-step lag as sdf_prev, and set at exactly the same sites.
+    // Read by the in-cloud footprint floor cap (foot_floor_in). Never the
+    // live g_v2_top_m: the sun ladder's own density taps overwrite it and,
+    // unlike g_v2_sdf_m, nothing restored it (the critic's defect 3), so a
+    // live read would be a quarter of the last SUN tap's cloud from another
+    // point in the sky. 1.0 = the body's own "no winner" default.
+    var top_prev = 1.0;
+    // D2 (the in-window grain): the profile share w_pf of the PREVIOUS
+    // sample, the same one-step lag (the step commits before this sample's
+    // tap runs). The deep relaxation and the footprint floor below scale by
+    // (1 - w_pf_prev): 0 at knob 0 (w_pf is never set), so the twin is
+    // bit-identical, and 1 at a w = 1 sample, whose step is then the base
+    // law (the 928 m vertical ceiling, one bin per step) and no longer the
+    // economy's 2x relaxation striding across the thin layer's bin.
+    var w_pf_prev = 0.0;
     // Sample-anchored bookkeeping: the last sample position (the trapezoid
     // integrates from it) and the last CLEAR sample (the entry depth).
     var t_last = m0;
@@ -4572,6 +4629,7 @@ fn cloud_march_core(
                 + reg.cover_bias, 0.0, 1.0);
         dens_prev = cloud_density_hi(p0, t, seed, wa0, reg, 1.0, 1.0, 1.0, lodb0).x;
         sdf_prev = g_v2_sdf_m;
+        top_prev = g_v2_top_m;    // D3 (b): the eye tap's winner, same lag as sdf_prev
     }
     for (var i = 0; i < CLOUD_STEP_ITER_CAP; i = i + 1) {
         if (t_cur >= m1) {
@@ -4585,7 +4643,33 @@ fn cloud_march_core(
         let p_cur = ro + rd * t_cur;
         // Step economy (increment 2): half the sample footprint, the floor no
         // interior rule may step below; 0 with the knob off.
-        let foot_floor = 0.5 * t_cur * pix_ang * eco;
+        // D2 (the in-window grain): the profile share is EXEMPT from the
+        // economy. Scaled by (1 - w_pf_prev): the shipped value times 1.0 at
+        // knob 0 (w_pf_prev is never set there), 0 at a w = 1 sample so the
+        // full-field share that remains under a partial w keeps the base
+        // law's floors (the critic's eco control: at a forced level the
+        // census fell 2566 -> 108 with the economy off, so the economy's
+        // striding across the thin layer's 967 m bin is the carrier).
+        let foot_floor = 0.5 * t_cur * pix_ang * eco * (1.0 - w_pf_prev);
+        // D3 (b) (the marched field empties from above): the economy's
+        // in-cloud floor, capped at a QUARTER of the cloud the previous
+        // sample found (top_prev, metres: the eye tap's winner, never the
+        // sun ladder's), never below 30 m. Today a found 150 m humilis is
+        // skimmed by ONE 630 m (873 km, full res) economy-floored step that
+        // exits below its base and integrates half the entry skin: a tint,
+        // not a cloud. Only when the top-bound bit is on and a body was
+        // found (sdf_prev finite); otherwise exactly foot_floor, so the bit
+        // off and the knob 0 twin are the shipped law. Metres to drawn
+        // units: to_draw_m = 0.001 * g_cloud_upkm (the stride's own factor).
+        // top_prev is the body's 1.0 default while the sample sits ABOVE a
+        // cloud found through the from-above bound (D3 (a) does not assign
+        // the winner there), so the 30 m floor is what refines the descent
+        // through the margin zone onto the cloud's admitted plane.
+        let to_draw_m = 0.001 * g_cloud_upkm;
+        let foot_floor_in = select(
+            foot_floor,
+            min(foot_floor, max(0.25 * top_prev * to_draw_m, 30.0 * to_draw_m)),
+            cloud_top_bound_on() && sdf_prev < 1.0e8);
         let r_rate = abs(dot(normalize(p_cur), rd));
         let dt_vert = max(
             step_near,
@@ -4601,13 +4685,15 @@ fn cloud_march_core(
         );
         if (dens_prev > CLOUD_STEP_INTERIOR_GATE) {
             let dt_mfp = CLOUD_STEP_TAU_MAX / (sigma_v * dens_prev);
-            dt = min(dt, max(max(dt_mfp, slab_h * 0.002), foot_floor));
+            // D3 (b), floor site 1 of 3 (the MFP rule): foot_floor_in.
+            dt = min(dt, max(max(dt_mfp, slab_h * 0.002), foot_floor_in));
         }
         // Skirt floor (est): dt_mfp = 0.75/(sigma*dens) is 167 m at dens 0.1
         // and 333 m at 0.05 - it refines cores and abandons exactly the
         // skirt the eye sees. Hold the step to 0.5% of the slab there.
         if (est && dens_prev > CLOUD_STEP_INTERIOR_GATE && dens_prev < 0.3) {
-            dt = min(dt, max(slab_h * 0.005, foot_floor));
+            // D3 (b), floor site 2 of 3 (the skirt rule): foot_floor_in.
+            dt = min(dt, max(slab_h * 0.005, foot_floor_in));
         }
         // ── SDF-GUIDED STEP (v0.1230): stride the gaps, refine at surfaces ──
         //
@@ -4647,7 +4733,8 @@ fn cloud_march_core(
             } else {
                 // Inside or near a body: a quarter-rind step, but never below the
                 // sample footprint (increment 2): a 22 m step at 300 km is waste.
-                dt = min(dt, max(CLOUD_V2_RIND_M * select(0.5, 0.25, est || warp_bl) * to_draw, foot_floor));
+                // D3 (b), floor site 3 of 3 (the inside-body rule): foot_floor_in.
+                dt = min(dt, max(CLOUD_V2_RIND_M * select(0.5, 0.25, est || warp_bl) * to_draw, foot_floor_in));
             }
             dt = min(dt, m1 - t_cur);
         }
@@ -4694,7 +4781,15 @@ fn cloud_march_core(
         // Deep relaxation (increment 2), after every other dt rule: below
         // transmittance 0.5 the step grows to 2x at full opacity; those
         // samples contribute the least and the exit at 0.005 comes sooner.
-        dt = min(dt * (1.0 + eco * clamp((0.5 - trans) * 2.0, 0.0, 1.0)), m1 - t_cur);
+        // D2 (the in-window grain): the relaxation term is scaled by
+        // (1 - w_pf_prev), the previous sample's profile share. At w = 1 the
+        // only live economy term was this one (dens_prev = 0 and the sentinel
+        // sdf_prev kill the floors), stretching the 928 m comb to 1.86 km
+        // against 967 m bins with a per-pixel jittered phase: the vertical
+        // quadrature of the profile's bin structure that printed as grain
+        // (residual sd 8.9 eco1 against 2.0 eco0 at a forced level). Knob 0:
+        // w_pf_prev is 0, the factor is exactly 1.0, the twin is bit-identical.
+        dt = min(dt * (1.0 + eco * clamp((0.5 - trans) * 2.0, 0.0, 1.0) * (1.0 - w_pf_prev)), m1 - t_cur);
         if (i == CLOUD_STEP_ITER_CAP - 1) {
             dt = m1 - t_cur;
         }
@@ -4771,6 +4866,10 @@ fn cloud_march_core(
             }
             w_pf = select(0.0, w_pf, pf.ok);
         }
+        // D2: publish this sample's share for the NEXT step's economy terms
+        // (stays 0 at knob 0: the assignment is outside the knob branch but
+        // w_pf is 0 there).
+        w_pf_prev = w_pf;
         // Does the full field still own any of this sample?
         let full = w_pf < 1.0 - 1.0e-4;
         // The profile share's in-cloud columns (optical depths above and
@@ -4872,6 +4971,10 @@ fn cloud_march_core(
         // iteration reads it in margin_m. Restore the eye value after.
         var s_warp = 0.0;
         var s_sdf = 1.0e9;
+        // D3 (b): the eye tap's winning cloud top, snapshotted and restored
+        // around the sun ladder exactly as s_sdf is (the ladder's density
+        // taps overwrite g_v2_top_m and nothing restored it).
+        var s_top = 1.0;
         if (full) {
             weather_a = clamp(
                 cloud_alpha_from_field(
@@ -4899,6 +5002,7 @@ fn cloud_march_core(
             s_carve = g_cloud_carve;
             s_warp = g_v2_warp_m;
             s_sdf = g_v2_sdf_m;
+            s_top = g_v2_top_m;    // D3 (b)
         }
         // COARSE-ENTRY BACKTRACK (increment 10, the +45%-dark diagnosis):
         // a law-sized step that lands in dense cloud would accumulate its
@@ -4962,6 +5066,7 @@ fn cloud_march_core(
             t_last = hi;
             dens_prev = dens_hi;
             sdf_prev = g_v2_sdf_m;
+            top_prev = g_v2_top_m;    // D3 (b): the last bisection tap's winner, same lag as sdf_prev
             if (first_t < 0.0) {
                 first_t = hi;
                 g_march_first_depth_m = (hi - t_last_clear) / max(g_cloud_upkm, 1.0e-9) * 1000.0;
@@ -4975,6 +5080,7 @@ fn cloud_march_core(
             t_cur = t_cur - dt;
             dens_prev = dens;
             sdf_prev = g_v2_sdf_m;
+            top_prev = g_v2_top_m;    // D3 (b): same lag as sdf_prev
             continue;
         }
         // Capture the PREVIOUS step's density before dens_prev is
@@ -4987,6 +5093,10 @@ fn cloud_march_core(
         // A profile-only sample leaves the no-body sentinel behind so the
         // SDF stride block is bypassed and the next step is the base law.
         sdf_prev = select(1.0e9, g_v2_sdf_m, full);
+        // D3 (b): the eye tap's winner (this runs BEFORE the sun ladder, so
+        // g_v2_top_m is still the eye value here); the body default at a
+        // profile-only sample, matching the sentinel above.
+        top_prev = select(1.0, g_v2_top_m, full);
         if (dens <= CLOUD_STEP_INTERIOR_GATE) {
             t_last_clear = tm;
         }
@@ -5096,6 +5206,18 @@ fn cloud_march_core(
                 lodb);
             g_v2_warp_m = s_warp;
             g_v2_sdf_m = s_sdf;
+            // D3 (b): restore the eye value after the ladder, the invariant
+            // s_sdf keeps. top_prev itself never reads a post-ladder value
+            // (every site that sets it follows its own density tap, before
+            // the ladder), so this is belt and braces for any future reader
+            // of g_v2_top_m after the ladder. Gated on the bit so the bit
+            // OFF path executes no new write here (the critic's warning: an
+            // unconditional new store at knob 0, harmless but a changed
+            // instruction stream; G0(d) still has to be RUN, the D2 factor
+            // is unconditional).
+            if (cloud_top_bound_on()) {
+                g_v2_top_m = s_top;
+            }
         }
         if (w_pf > 0.0) {
             let tau_pf = tau_above_in / max(ndl, 0.15);

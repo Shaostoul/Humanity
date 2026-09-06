@@ -1060,6 +1060,33 @@ fn cloud_v2_body(p: vec3<f32>, wa: f32, tc: f32, lodb: f32) -> f32 {
                 continue;
             }
             if (up_m > height_m * sy_e + br) {
+                // ── D3 (a) (the marched field empties from above), DISCOVERY ──
+                // A sample above a cloud's admitted region used to skip it
+                // with nothing published: `best` stayed at its 1.0e9 sentinel,
+                // the march's SDF stride (gated on sdf_prev < 1.0e8) never
+                // fired from above, and a thin humilis pinned to the slab base
+                // was found only when the blind 928 m comb happened to land
+                // inside it (P = h / 928, 0.11 to 0.22): the shipped orbit
+                // emptiness. With the top-bound bit on, publish the VERTICAL
+                // GAP from this sample down to the plane that admits density
+                // (height_m * sy_e + br, the line above: br included, so this
+                // is conservative for THIS cloud, the critic's defect 4; any
+                // point of this cloud's density lies at or below that plane,
+                // so its Euclidean distance from the sample is at least the
+                // gap). Metres, positive (the sample is above the plane), the
+                // same units and sign as `best` itself: the march multiplies
+                // by 0.001 * g_cloud_upkm and subtracts its safety margin, so
+                // the stride leaps to the margin above the plane and the
+                // inside rule refines from there. The disc reject above stays
+                // as it is (a sample outside every disc still reads 1.0e9 and
+                // marches the comb). best_height_m / best_top_m are NOT
+                // assigned here: the sample is not inside this cloud, and
+                // the published top feeds col_above_b in the march (the
+                // critic's side effect). Bit off: the bare continue, the
+                // shipped path, bit-identical.
+                if (cloud_top_bound_on()) {
+                    best = min(best, up_m - (height_m * sy_e + br));
+                }
                 continue;
             }
             // Rotate into the wind frame, then divide by the axes.
