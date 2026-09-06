@@ -72,39 +72,41 @@ jobs:
       - name: The desktop update path is alive (warns, never fails)
         run: |
           set -euo pipefail
-          # A THIRD kind of quiet outage, same family as the two above: the
-          # v0.421+ updater only offers a release that carries
-          # release-manifest.json + its .sig.json, and signing is a manual
-          # operator step (`just sign-release`, needs the passphrase). Skip it
-          # and every desktop client is stranded on its current version with no
-          # error message anywhere. On 2026-09-06 the newest signed release was
-          # v0.1294.1 while the latest was v0.1294.3.
+          # What a desktop client is ACTUALLY offered. src/updater.rs filters the
+          # release list to eligible releases (non-prerelease, non-draft, carrying
+          # release-manifest.json once signing keys are provisioned) and takes the
+          # FIRST, so it offers the newest SIGNED release, not the newest release.
           #
-          # This WARNS rather than failing. The job runs every 15 minutes and a
-          # failure emails the owner; an unsigned release can legitimately sit
-          # for hours until the operator is at the machine with the key, and
-          # emailing every 15 minutes about it is how you teach someone to
-          # ignore this workflow (see this file's own note on false alarms).
-          # `just brief` shows the same verdict at the top of every session.
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest"
-          if ! curl -fsS -m 20 -H 'Accept: application/vnd.github+json' "$api" -o /tmp/rel; then
+          # An earlier version of this step said an unsigned newest release meant
+          # "the updater offers nothing". That was wrong, and it is the costly kind
+          # of wrong: reporting a working update path as broken is how a real alarm
+          # gets ignored. The only genuinely broken state is NO signed release.
+          #
+          # Warns, never fails. This job runs every 15 minutes and a failing
+          # scheduled job emails the owner; an unsigned release sits legitimately
+          # until the operator is at the machine with the signing key.
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=30"
+          if ! curl -fsS -m 20 -H 'Accept: application/vnd.github+json' "$api" -o rels.json; then
             echo "could not reach the releases API; skipping (not an outage of ours)"
             exit 0
           fi
-          tag=$(grep -o '"tag_name": *"[^"]*"' /tmp/rel | head -1 | cut -d'"' -f4)
-          if grep -q '"name": *"release-manifest.json.sig.json"' /tmp/rel; then
-            echo "desktop update path OK: $tag is signed"
+          pick() { node -e 'const rs=JSON.parse(require("fs").readFileSync("rels.json","utf8")).filter(r=>!r.prerelease&&!r.draft);const s=process.argv[1]==="signed";const m=s?rs.find(r=>(r.assets||[]).some(a=>a.name==="release-manifest.json.sig.json")):rs[0];process.stdout.write(m?m.tag_name:"")' "$1"; }
+          newest=$(pick newest || true)
+          offered=$(pick signed || true)
+          if [ -z "$newest" ]; then
+            echo "no published releases found; nothing to check"
+          elif [ -z "$offered" ]; then
+            echo "::warning::NO SIGNED RELEASE EXISTS in the last 30. Desktop auto-update offers nothing at all, and it fails silently: an ineligible release is invisible to the updater rather than an error. Fix (operator only): just sign-release $newest"
+            {
+              echo "### Desktop auto-update offers nothing"
+              echo ""
+              echo "No release in the last 30 carries the signature asset, so desktop"
+              echo "clients never update and are never told why."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$offered" != "$newest" ]; then
+            echo "desktop auto-update OK: clients are offered $offered (newest release $newest is not signed yet)"
           else
-            echo "::warning::Latest release $tag is UNSIGNED, so the desktop updater offers nothing to any v0.421+ client. Fix (operator only): just sign-release $tag"
-            echo "### Desktop update path is dead" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Latest release \`$tag\` has no \`release-manifest.json.sig.json\` asset." >> "$GITHUB_STEP_SUMMARY"
-            echo "Every v0.421+ desktop client is stranded with no update and no error." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Fix (operator only, needs the passphrase):" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "export HUMANITY_SIGNING_PASSPHRASE=... && just sign-release $tag" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "desktop auto-update OK and current: $offered"
           fi
 
       - name: TLS certificate is not about to expire

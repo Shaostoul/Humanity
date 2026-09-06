@@ -66,16 +66,19 @@ if (!latestRel) {
 const ci = sh('gh run list --repo Shaostoul/Humanity --workflow "Deploy to VPS" --limit 1');
 
 // ── 3. Release signing (the desktop auto-update gate) ──
-// Ask for a wider window than we print: the check's VERDICT ("LATEST is
-// UNSIGNED, the updater offers nothing") is the last thing it writes, and the
-// brief used to print the FIRST three lines, which is the table header plus
-// two rows. So the one line that says the auto-update path is dead was the one
-// line reliably cut off. Select the lines that matter instead of the first N.
+// Ask for a wider window than we print: the check writes its VERDICT last, and
+// the brief used to print the FIRST three lines, which is the table header plus
+// two rows, so the conclusion was the one line reliably cut off. Select the
+// lines that matter instead of the first N.
 const signingRaw = sh(`node "${path.join(__dirname, 'check-release-signing.js')}" 12`);
 let signing = null;
 if (signingRaw) {
   const lines = signingRaw.split('\n').map((l) => l.trimEnd()).filter(Boolean);
-  const verdict = lines.filter((l) => l.trim().startsWith('>>'));
+  // Both the alarm lines (">>", only when NO signed release exists) and the
+  // ordinary status lines, because the common case is not an alarm: an unsigned
+  // newest release leaves auto-update working but behind, and reporting that as
+  // a failure is what made a working update path look broken.
+  const verdict = lines.filter((l) => l.trim().startsWith('>>') || /auto-update is/i.test(l));
   const latestRow = lines.find((l) => l.includes('(LATEST'));
   const unsigned = lines.filter((l) => l.includes('UNSIGNED') && !l.trim().startsWith('>>')).length;
   const picked = [];
