@@ -2042,6 +2042,30 @@ impl Storage {
             info!("Migration: added hide_presence (server_members)");
         }
 
+        // Guarded ALTER (DID resolution, 2026-09-06) — same BUG-046 ordering
+        // rule as above: the ALTER and its index must come AFTER the CREATE,
+        // because on a live database the table already exists without the
+        // column and an index over it in the main batch would abort startup.
+        //
+        // did_fp is hex of BLAKE3(public_key)[..16], the same fingerprint a
+        // did:hum: is base58 of. It is stored rather than computed per lookup
+        // because resolution is a public unauthenticated endpoint, and hashing
+        // every member's 1952-byte key on each miss is a table scan someone can
+        // ask for as often as they like.
+        //
+        // Backfill lives in backfill_member_did_fp(), called after open.
+        if conn.prepare("SELECT did_fp FROM server_members LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE server_members ADD COLUMN did_fp TEXT;"
+            )?;
+            info!("Migration: added did_fp (server_members)");
+        }
+        // Index created unconditionally but AFTER the ALTER, so it is present
+        // on both a fresh database and a migrated one.
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_server_members_did_fp ON server_members(did_fp);"
+        )?;
+
         // FTS5 full-text search over chat messages.
         // Uses a content table (content=messages) so we don't duplicate data.
         // Triggers keep the index in sync with every insert/update/delete.

@@ -381,6 +381,14 @@ pub async fn run_relay() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // Fill in did_fp for members who joined before the column existed, so their
+    // DID resolves immediately rather than only after they publish something.
+    match db.backfill_member_did_fp() {
+        Ok(0) => {}
+        Ok(n) => tracing::info!("Backfilled DID fingerprints for {n} existing member(s)"),
+        Err(e) => tracing::error!("DID fingerprint backfill failed: {e}"),
+    }
+
     // Ensure the backup-encryption key exists from the first minute, so
     // the 30-minute VPS snapshot script can seal its very first run
     // instead of waiting for the 6-hour in-process backup to create it.

@@ -39,10 +39,16 @@ impl Storage {
     /// behavior (the ALTER default is 0 for existing rows).
     pub fn join_server(&self, public_key: &str, name: &str) -> Result<bool, rusqlite::Error> {
         self.with_conn(|conn| {
+            // did_fp is written here so a DID resolves the moment someone
+            // joins, without waiting for them to publish a signed object. It is
+            // hex of BLAKE3(pubkey)[..16], exactly what did:hum: encodes.
+            let fp_hex = hex::decode(public_key)
+                .ok()
+                .map(|pk| crate::relay::core::did::fingerprint_to_hex(&crate::relay::core::did::fingerprint_of(&pk)));
             let changed = conn.execute(
-                "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence)
-                 VALUES (?1, ?2, 'member', datetime('now'), NULL, 1)",
-                params![public_key, name],
+                "INSERT OR IGNORE INTO server_members (public_key, name, role, joined_at, last_seen, hide_presence, did_fp)
+                 VALUES (?1, ?2, 'member', datetime('now'), NULL, 1, ?3)",
+                params![public_key, name, fp_hex],
             )?;
             Ok(changed > 0)
         })

@@ -204,14 +204,39 @@ impl Storage {
         let activity_score = sigmoid(activity_types.len() as f64 / 4.0);
 
         // ---- age sub-score ----
-        let first_seen: Option<i64> = self.with_conn(|conn| {
+        //
+        // "How long have you been here", which is what an age score is for.
+        // This used to read MIN(received_at) over signed_objects, which measures
+        // when you first PUBLISHED. Those only correlate by accident: a member
+        // of two years who publishes their first object today scored as brand
+        // new, permanently and invisibly, and the ~93 percent of members who
+        // have never published anything scored zero on this component forever.
+        //
+        // server_members.joined_at is the real answer and was always available.
+        // It is SQLite datetime('now') text, so strftime converts it to seconds.
+        // Falls back to the old object-based figure for a DID that has objects
+        // but no membership row here, which is what a federated peer's identity
+        // looks like.
+        let joined_ms: Option<i64> = self.with_conn(|conn| {
             conn.query_row(
-                "SELECT MIN(received_at) FROM signed_objects WHERE author_fp = ?1",
+                "SELECT CAST(strftime('%s', joined_at) AS INTEGER) * 1000
+                 FROM server_members WHERE did_fp = ?1 LIMIT 1",
                 params![fp_hex],
                 |row| row.get::<_, Option<i64>>(0),
             )
             .ok()
             .flatten()
+        });
+        let first_seen: Option<i64> = joined_ms.or_else(|| {
+            self.with_conn(|conn| {
+                conn.query_row(
+                    "SELECT MIN(received_at) FROM signed_objects WHERE author_fp = ?1",
+                    params![fp_hex],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .ok()
+                .flatten()
+            })
         });
         let age_days = match first_seen {
             Some(ts) => ((now - ts) as f64 / (24.0 * 60.0 * 60.0 * 1000.0)).max(0.0),

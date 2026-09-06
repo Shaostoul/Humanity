@@ -24,9 +24,20 @@ pub struct DidResolutionResponse {
     pub current_pubkey_b64: String,
     pub author_fp_hex: String,
     pub crypto_suite: String,
-    pub first_seen: i64,
-    pub last_seen: i64,
-    pub object_count: u64,
+    /// "objects" when the key was found via something it signed, "membership"
+    /// when it was found on the member roster. The key is equally authoritative
+    /// either way (membership is written after the Dilithium nonce challenge at
+    /// identify), but only the first carries publication history.
+    pub source: String,
+    /// Omitted entirely for a membership hit. These used to be plain integers,
+    /// so a resolution with no history reported three zeros, which reads as
+    /// "joined at the epoch and never did anything" rather than "not known".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_seen: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_count: Option<u64>,
 }
 
 impl From<DidResolution> for DidResolutionResponse {
@@ -36,6 +47,7 @@ impl From<DidResolution> for DidResolutionResponse {
             current_pubkey_b64: B64.encode(&r.current_pubkey),
             author_fp_hex: r.author_fp_hex,
             crypto_suite: "ml-dsa-65".to_string(),
+            source: r.source.as_str().to_string(),
             first_seen: r.first_seen,
             last_seen: r.last_seen,
             object_count: r.object_count,
