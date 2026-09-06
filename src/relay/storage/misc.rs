@@ -490,26 +490,55 @@ impl Storage {
         })
     }
 
-    /// Get the server's own Ed25519 keypair (generated on first call, stored in server_state).
-    /// Returns (public_key_hex, secret_key_hex).
+    /// The server's own Dilithium3 identity: (public_key_hex, seed_hex).
+    ///
+    /// Generated on first call and stored in server_state. A SEED is stored,
+    /// not the expanded secret, so the row stays 32 bytes and the keypair is
+    /// re-derived exactly the way a user's is
+    /// (derive_dilithium_seed + DilithiumKeypair::from_seed).
+    ///
+    /// This was Ed25519 until 2026-09-06, which made server identity the last
+    /// thing in the system still signing with a scheme a quantum adversary can
+    /// forge, while every user identity around it had moved to ML-DSA-65 in the
+    /// v0.264 cutover. A federation hello, a federated chat message and every
+    /// server announcement were all authenticated by that key.
+    ///
+    /// BREAKING for federation: a peer that pinned the old 32-byte key will not
+    /// verify the new signatures, so both ends must upgrade and re-pin. There is
+    /// no compatibility shim, per the project's no-backwards-compat-before-launch
+    /// rule, and the new state keys are deliberately distinct so an old Ed25519
+    /// secret can never be mistaken for a PQ seed.
     pub fn get_or_create_server_keypair(&self) -> Result<(String, String), rusqlite::Error> {
-        // Check if already stored.
-        if let Some(pk) = self.get_state("server_public_key")? {
-            if let Some(sk) = self.get_state("server_secret_key")? {
-                return Ok((pk, sk));
+        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+
+        if let Some(seed_hex) = self.get_state("server_pq_seed")? {
+            if let Some(pk) = self.get_state("server_pq_public_key")? {
+                return Ok((pk, seed_hex));
             }
         }
-        // Generate new keypair using random bytes.
-        use ed25519_dalek::SigningKey;
-        let secret_bytes: [u8; 32] = rand::rng().random();
-        let signing_key = SigningKey::from_bytes(&secret_bytes);
-        let public_key = signing_key.verifying_key();
-        let pk_hex = hex::encode(public_key.as_bytes());
-        let sk_hex = hex::encode(signing_key.to_bytes());
-        self.set_state("server_public_key", &pk_hex)?;
-        self.set_state("server_secret_key", &sk_hex)?;
-        tracing::info!("Generated server Ed25519 keypair: {}", pk_hex);
-        Ok((pk_hex, sk_hex))
+        let seed: [u8; 32] = rand::rng().random();
+        let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed));
+        let pk_hex = hex::encode(kp.public_key());
+        let seed_hex = hex::encode(seed);
+        self.set_state("server_pq_public_key", &pk_hex)?;
+        self.set_state("server_pq_seed", &seed_hex)?;
+        tracing::info!(
+            "Generated server Dilithium3 identity: {}",
+            crate::relay::core::did::did_for_pubkey(&kp.public_key())
+        );
+        Ok((pk_hex, seed_hex))
+    }
+
+    /// This server's own `did:hum:` identifier.
+    ///
+    /// Derived the same way a person's is, so a server is addressable by the
+    /// same 22-character identifier a user is, instead of by a 3904-character
+    /// public key. The full key stays available via /api/server-info for
+    /// pinning and verification.
+    pub fn server_did(&self) -> Result<String, rusqlite::Error> {
+        let (pk_hex, _) = self.get_or_create_server_keypair()?;
+        let pk = hex::decode(&pk_hex).unwrap_or_default();
+        Ok(crate::relay::core::did::did_for_pubkey(&pk))
     }
 
     // ── Channel Category methods ──

@@ -2276,7 +2276,9 @@ pub async fn handle_federation_hello(
                     // the sender now signs. (The old verifier checked
                     // "{ts}\n{ts}" against a sender who signed "{ts}";
                     // repaired 2026-08-13.)
-                    verify_ed25519_signature(
+                    // Dilithium3 since 2026-09-06: server identity moved off
+                    // Ed25519, so a peer pinned before that must be re-pinned.
+                    crate::relay::handlers::broadcast::verify_dilithium_signature(
                         stored_pk,
                         &format!("fed_hello\n{}", server_id),
                         timestamp,
@@ -2367,7 +2369,7 @@ pub async fn handle_federated_chat(
     // verify_ed25519_signature appends; this is the same shape as profile gossip.
     let canonical = format!("fed_chat\n{}\n{}\n{}", from_name, channel, content);
     let sig_valid = match (signature.as_deref(), server.public_key.as_deref()) {
-        (Some(sig), Some(pk)) => verify_ed25519_signature(pk, &canonical, timestamp, sig),
+        (Some(sig), Some(pk)) => crate::relay::handlers::broadcast::verify_dilithium_signature(pk, &canonical, timestamp, sig),
         _ => false,
     };
     if !sig_valid {

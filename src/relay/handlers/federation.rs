@@ -11,16 +11,20 @@ use crate::relay::core::object::Object;
 use crate::relay::relay::{FederatedConnection, FederationServerStatus, RelayMessage, RelayState};
 use crate::relay::storage::Storage;
 
-/// Sign a message with the server's Ed25519 key.
+/// Sign a message with the server's Dilithium3 key.
+///
+/// Was Ed25519 until 2026-09-06. The stored value is a 32-byte SEED, expanded
+/// here the same way a user's identity is, so the signing key never sits in the
+/// database in expanded form.
 pub fn sign_with_server_key(db: &Storage, message: &str) -> Option<String> {
-    let (_, sk_hex) = db.get_or_create_server_keypair().ok()?;
-    let sk_bytes = hex::decode(&sk_hex).ok()?;
-    if sk_bytes.len() != 32 { return None; }
-    let sk_array: [u8; 32] = sk_bytes.try_into().ok()?;
-    use ed25519_dalek::{Signer, SigningKey};
-    let signing_key = SigningKey::from_bytes(&sk_array);
-    let sig = signing_key.sign(message.as_bytes());
-    Some(hex::encode(sig.to_bytes()))
+    use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+    let (_, seed_hex) = db.get_or_create_server_keypair().ok()?;
+    let seed = hex::decode(&seed_hex).ok()?;
+    if seed.len() != 32 {
+        return None;
+    }
+    let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&seed));
+    Some(hex::encode(kp.sign(message.as_bytes())))
 }
 
 /// Canonical message bytes that a profile signature commits to.
@@ -964,5 +968,80 @@ mod tests {
             &pk_hex, "Alice", "bio", "avatar", "banner", "socials",
             "pronouns", "location", "website", 1_700_000_000_000, &forged,
         ));
+    }
+}
+
+#[cfg(test)]
+mod server_identity_tests {
+    use super::*;
+    use crate::relay::handlers::broadcast::{verify_dilithium_signature, verify_ed25519_signature};
+    use crate::relay::storage::Storage;
+
+    fn test_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_srvid_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    /// The round trip a federation hello actually performs: this server signs
+    /// "fed_hello\n{id}" and a peer verifies it against the pinned public key.
+    ///
+    /// Server identity was Ed25519 until 2026-09-06 while every user identity
+    /// around it had been ML-DSA-65 since the v0.264 cutover, which left the
+    /// federation handshake, federated chat and every server announcement
+    /// authenticated by the one key a quantum adversary could forge.
+    #[test]
+    fn a_server_signature_verifies_under_dilithium() {
+        let db = test_db();
+        let (pk_hex, seed_hex) = db.get_or_create_server_keypair().unwrap();
+
+        // A Dilithium3 public key is 1952 bytes; the stored secret is a 32-byte
+        // SEED, not the expanded key, so the row stays small.
+        assert_eq!(pk_hex.len(), 1952 * 2, "server key must be Dilithium3");
+        assert_eq!(seed_hex.len(), 64, "the stored secret must be a 32-byte seed");
+
+        let ts = 1_751_328_000_000u64;
+        let preimage = "fed_hello\ntest-server";
+        let sig = sign_with_server_key(&db, &format!("{preimage}\n{ts}")).expect("signed");
+
+        assert!(
+            verify_dilithium_signature(&pk_hex, preimage, ts, &sig),
+            "a peer must be able to verify this server's hello"
+        );
+        // Tamper with the preimage: must fail.
+        assert!(
+            !verify_dilithium_signature(&pk_hex, "fed_hello\nsomeone-else", ts, &sig),
+            "a signature must not verify for a different server id"
+        );
+        // And the OLD verifier must not accept it, which is the whole point of
+        // the break: a peer still running the Ed25519 check cannot be fooled
+        // into accepting a PQ signature, it simply refuses and must re-pin.
+        assert!(
+            !verify_ed25519_signature(&pk_hex, preimage, ts, &sig),
+            "the Ed25519 path must reject, not silently accept"
+        );
+    }
+
+    /// The identity is stable across calls, because it is stored and re-derived
+    /// from the seed rather than regenerated.
+    #[test]
+    fn the_server_identity_is_stable_and_has_a_did() {
+        let db = test_db();
+        let (pk1, seed1) = db.get_or_create_server_keypair().unwrap();
+        let (pk2, seed2) = db.get_or_create_server_keypair().unwrap();
+        assert_eq!(pk1, pk2, "the server must not mint a new identity per call");
+        assert_eq!(seed1, seed2);
+
+        let did = db.server_did().unwrap();
+        assert!(did.starts_with("did:hum:"), "got {did}");
+        // Short enough to print on a card, unlike the 3904-char key.
+        assert!(did.len() < 40, "a server DID must be short, got {} chars", did.len());
+        // And it is the SAME derivation a person's DID uses.
+        let pk = hex::decode(&pk1).unwrap();
+        assert_eq!(did, crate::relay::core::did::did_for_pubkey(&pk));
     }
 }

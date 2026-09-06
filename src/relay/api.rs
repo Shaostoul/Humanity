@@ -1547,7 +1547,13 @@ pub struct ServerInfoResponse {
     /// co-presence can be confirmed from outside without an admin signature.
     pub game_players: usize,
     pub accord_compliant: bool,
+    /// This server's full Dilithium3 public key, for pinning and verification.
     pub public_key: String,
+    /// The same identity as a did:hum:, so a server is addressable by 22
+    /// characters instead of 3904. Servers had no DID at all before
+    /// 2026-09-06, and their key was Ed25519 while every user identity around
+    /// them was ML-DSA-65.
+    pub server_did: String,
     pub owner_key: String,
     pub member_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1621,6 +1627,7 @@ pub async fn get_server_info(
         users_online,
         game_players,
         accord_compliant: accord,
+        server_did: state.db.server_did().unwrap_or_default(),
         public_key: pk,
         owner_key,
         member_count,
