@@ -61,7 +61,56 @@ function fallback(urlPath) {
   return path.join(ROOT, 'web', 'pages', p.slice(1) + '.html');
 }
 
+// Optional same-origin proxy to a locally running relay, so a page that TALKS
+// to the relay can actually be exercised here instead of only being looked at.
+//
+//   node scripts/preview-server.js 8099 --api http://127.0.0.1:8787
+//   HUMANITY_PREVIEW_API=http://127.0.0.1:8787 node scripts/preview-server.js
+//
+// Without this, /api and /ws 404 and every relay-backed page can only be
+// verified as far as its empty state, which is how a broken admin call ships:
+// the page looks right and nobody ever watched a request leave it. Proxying
+// through the SAME origin also sidesteps the relay's browser-origin allowlist,
+// which does not (and should not) list this dev port.
+const API_TARGET = (() => {
+  const flag = process.argv.indexOf('--api');
+  const raw = (flag !== -1 && process.argv[flag + 1]) || process.env.HUMANITY_PREVIEW_API || '';
+  if (!raw) return null;
+  try {
+    return new URL(raw);
+  } catch {
+    console.warn(`preview server: ignoring unparseable --api value "${raw}"`);
+    return null;
+  }
+})();
+
+function proxyToRelay(req, res) {
+  const opts = {
+    hostname: API_TARGET.hostname,
+    port: API_TARGET.port || (API_TARGET.protocol === 'https:' ? 443 : 80),
+    path: req.url,
+    method: req.method,
+    // Present the relay's own origin as the Host so it sees a request that
+    // looks local to it, not one from this dev port.
+    headers: { ...req.headers, host: API_TARGET.host },
+  };
+  const client = API_TARGET.protocol === 'https:' ? require('https') : http;
+  const upstream = client.request(opts, (up) => {
+    res.writeHead(up.statusCode || 502, up.headers);
+    up.pipe(res);
+  });
+  upstream.on('error', (e) => {
+    res.writeHead(502, { 'Content-Type': 'text/plain' });
+    res.end(`502: relay at ${API_TARGET.origin} did not answer (${e.message})`);
+  });
+  req.pipe(upstream);
+}
+
 http.createServer((req, res) => {
+  if (API_TARGET && (req.url === '/health' || req.url.startsWith('/api/'))) {
+    proxyToRelay(req, res);
+    return;
+  }
   let file = resolve(req.url);
   fs.stat(file, (err, st) => {
     if (!err && st.isDirectory()) file = path.join(file, 'index.html');
@@ -82,4 +131,6 @@ http.createServer((req, res) => {
   });
 }).listen(PORT, () => {
   console.log(`preview server on http://localhost:${PORT}  (root: ${ROOT})`);
+  if (API_TARGET) console.log(`  /api and /health proxied to ${API_TARGET.origin}`);
+  else console.log('  /api not proxied (pass --api http://127.0.0.1:PORT to reach a local relay)');
 });
