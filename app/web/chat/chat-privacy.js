@@ -165,13 +165,50 @@ setTimeout(applyRelayCallsPreference, 300);
 
 // ── Account sovereignty controls (2026-08-23) ────────────────────────────
 // Export + erase, injected into the account/identity block so they are
-// one click from where the user manages who they are. The relay's
-// account_export_data reply triggers a JSON download (app.js).
+// one click from where the user manages who they are.
+//
+// The export is an HTTP download as of 2026-09-06. It used to be a WebSocket
+// request whose reply arrived as one account_export_data message, which meant
+// the relay broadcast the whole export to every connected client's task before
+// filtering it down to us, against a 128 KB socket message ceiling. A file
+// download is what this always was; now it is served as one.
 
-function exportMyAccountData() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'account_export' }));
-    if (typeof addSystemMessage === 'function') addSystemMessage('Export requested; the download starts when the server replies.');
+async function exportMyAccountData() {
+  const say = (m) => { if (typeof addSystemMessage === 'function') addSystemMessage(m); };
+  // Signed the same way every other chat-side REST call is: Dilithium3 over
+  // the purpose-plus-timestamp preimage via pqSignChatMessage.
+  // pq-relay-auth.js is for the standalone pages and is not loaded here.
+  const timestamp = Date.now();
+  const sig = await pqSignChatMessage('account_export', timestamp);
+  if (!sig) {
+    say('Cannot export: signing failed. Unlock your identity and try again.');
+    return;
+  }
+  const auth = { key: myIdentity.publicKeyHex, timestamp, sig };
+  say('Preparing your export...');
+  try {
+    const res = await fetch('/api/account/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(auth),
+    });
+    if (!res.ok) {
+      say('Export failed: ' + (await res.text() || ('HTTP ' + res.status)));
+      return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'humanityos-account-export-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoke on the next tick: revoking synchronously can cancel the download
+    // in some browsers before it has read the blob.
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    say('Your account export downloaded.');
+  } catch (e) {
+    say('Export failed: ' + (e && e.message ? e.message : e));
   }
 }
 
