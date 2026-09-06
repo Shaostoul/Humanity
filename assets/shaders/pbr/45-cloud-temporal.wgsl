@@ -668,8 +668,8 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     }
     // Per-bin results (only k_lo..k_hi are written; the rest stay 0 and are
     // never read by this texel's write).
-    var f_k: array<f32, 12>;
-    var G_k: array<f32, 12>;
+    var f_k: array<f32, CLOUD_FR_NZ>;
+    var G_k: array<f32, CLOUD_FR_NZ>;
     for (var k = 0; k < CLOUD_FR_NZ; k = k + 1) {
         f_k[k] = 0.0;
         G_k[k] = 0.0;
@@ -810,23 +810,46 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
             let half_y = 0.5 * cell_km_lat * 1000.0;
             let cell_area = cell_km_lon * cell_km_lat * 1.0e6;
             let fine = !is_global && L <= 2;
-            var ptx: array<f32, 16>;
-            var pty: array<f32, 16>;
-            for (var n = 0; n < CLOUD_FR_PTS; n = n + 1) {
-                let jx = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(n));
-                let jy = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(CLOUD_FR_PTS) + f32(n));
-                let qx = (f32(n % 4) + jx) / 4.0 - 0.5;
-                let qy = (f32(n / 4) + jy) / 4.0 - 0.5;
-                ptx[n] = qx * cell_km_lon * 1000.0;
-                pty[n] = qy * cell_km_lat * 1000.0;
+            var ptx: array<f32, CLOUD_FR_PTS>;
+            var pty: array<f32, CLOUD_FR_PTS>;
+            if (fine) {
+                // Only the fine levels test points; the coarse form (levels
+                // 3..5 and the global, the bulk of the pass) attributes
+                // whole clouds and never reads ptx/pty, so the 32 hashes
+                // are skipped there.
+                for (var n = 0; n < CLOUD_FR_PTS; n = n + 1) {
+                    let jx = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(n));
+                    let jy = cv2_hash(vec2<f32>(f32(key_i), f32(key_j)), 43.0 + f32(CLOUD_FR_PTS) + f32(n));
+                    let qx = (f32(n % 4) + jx) / 4.0 - 0.5;
+                    let qy = (f32(n / 4) + jy) / 4.0 - 0.5;
+                    ptx[n] = qx * cell_km_lon * 1000.0;
+                    pty[n] = qy * cell_km_lat * 1000.0;
+                }
+            }
+            // The calibration table row for this texel's family, hoisted
+            // once per fragment: arch_i is uniform over the texel and the
+            // table is CLOUD_FR_CALIB_ROWS texels wide, so reading it per
+            // (candidate, bin, height) slot would be ~10k dependent fetches
+            // on an equatorial global texel (the critic's cost finding).
+            // The bound view is mip 1: the reduced table (stage 2 of the
+            // calibration, fs_cloud_profile_calib_reduce). .r = rho (the
+            // equivalent-circle radius as a fraction of the width), .g =
+            // Dbar (the mean in-cloud density) per height row.
+            var cal_rho: array<f32, CLOUD_FR_CALIB_ROWS>;
+            var cal_dbar: array<f32, CLOUD_FR_CALIB_ROWS>;
+            for (var rr = 0; rr < CLOUD_FR_CALIB_ROWS; rr = rr + 1) {
+                let cal = textureLoad(tree_atlas_tex,
+                    vec2<i32>(CLOUD_FR_CALIB_X0 + rr, CLOUD_FR_CALIB_Y0 + arch_i), 0);
+                cal_rho[rr] = cal.r;
+                cal_dbar[rr] = cal.g;
             }
             // Accumulators per (bin, height) slot: the union product, the
             // area sum (the Poisson form and the density weight) and the
             // area-weighted in-cloud density.
-            var acc_u: array<f32, 48>;
-            var acc_a: array<f32, 48>;
-            var acc_ad: array<f32, 48>;
-            for (var n = 0; n < 48; n = n + 1) {
+            var acc_u: array<f32, CLOUD_FR_NZ * CLOUD_FR_ZSUB>;
+            var acc_a: array<f32, CLOUD_FR_NZ * CLOUD_FR_ZSUB>;
+            var acc_ad: array<f32, CLOUD_FR_NZ * CLOUD_FR_ZSUB>;
+            for (var n = 0; n < CLOUD_FR_NZ * CLOUD_FR_ZSUB; n = n + 1) {
                 acc_u[n] = 1.0;
                 acc_a[n] = 0.0;
                 acc_ad[n] = 0.0;
@@ -887,11 +910,10 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
                                 continue;
                             }
                             let row = clamp(i32(floor(y_rel / CLOUD_FR_CALIB_YMAX * f32(CLOUD_FR_CALIB_ROWS))), 0, CLOUD_FR_CALIB_ROWS - 1);
-                            // The bound view is mip 1: the reduced table.
-                            let cal = textureLoad(tree_atlas_tex,
-                                vec2<i32>(CLOUD_FR_CALIB_X0 + row, CLOUD_FR_CALIB_Y0 + arch_i), 0);
-                            let rho = cal.r;
-                            let dbar = cal.g;
+                            // The hoisted table row (fetched once per
+                            // fragment above).
+                            let rho = cal_rho[row];
+                            let dbar = cal_dbar[row];
                             if (rho <= 0.0) {
                                 continue;
                             }
@@ -987,7 +1009,7 @@ fn fs_cloud_profile_bake(in: CloudScreenVsOut) -> @location(0) vec4<f32> {
     // The columns C_k = sum of G over the bins ABOVE k (exclusive; C_11 is
     // identically zero, and its channel carries the whole column T instead),
     // in slab-bin units, sqrt-encoded.
-    var C_k: array<f32, 12>;
+    var C_k: array<f32, CLOUD_FR_NZ>;
     var run = 0.0;
     for (var k = CLOUD_FR_NZ - 1; k >= 0; k = k - 1) {
         C_k[k] = run;

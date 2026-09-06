@@ -233,11 +233,14 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 //          Medium consuming params.w for the first time is exactly what
 //          caused BUG-049. It gets its own bounds only once it has its own
 //          storm + in-slab vantage.
-//   Low    (cloud_layer_flat)       - never reads them at all. It used to
-//          hold the ONLY assignment, which was unobservable: `var<private>`
-//          is per-invocation storage and cloud_layer dispatches to exactly
-//          ONE path per invocation, so the Low path's write could never
-//          reach the High path's read.
+//   Low    (cloud_layer_flat)       - the old cloud_weather path never reads
+//          them at all. It used to hold the ONLY assignment, which was
+//          unobservable: `var<private>` is per-invocation storage and
+//          cloud_layer dispatches to exactly ONE path per invocation, so the
+//          Low path's write could never reach the High path's read. The far
+//          rung's profile branch (cloud_layer_flat_profile, v0.1290+) DOES
+//          read them (slab height for the pooled bins) and calls
+//          cloud_set_slab_bounds itself first.
 //
 // WHAT THE DEAD WRITE COST: High fell back to the static CLOUD_RB/RT
 // (0.996032 / 1.003968), but src/lib.rs raises the DRAWN shell to
@@ -1541,10 +1544,13 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // so column 0's length IS the shell radius and column 3 the center.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
-    // No slab bounds here: the Low path paints ONE field sample at the
-    // fragment, so it has no altitude bounds to set and never reads
-    // g_cloud_rb/rt. (It used to write them - the dead write described in
-    // the g_cloud_rb declaration comment, removed 2026-07-31.)
+    // No slab bounds here: the old cloud_weather path below paints ONE
+    // field sample at the fragment, so it has no altitude bounds to set and
+    // never reads g_cloud_rb/rt. (It used to write them - the dead write
+    // described in the g_cloud_rb declaration comment, removed 2026-07-31.)
+    // The far rung's profile branch (cloud_layer_flat_profile, gated below)
+    // DOES read g_cloud_rb/rt for the slab height and calls
+    // cloud_set_slab_bounds itself before its first read.
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -1576,7 +1582,15 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // Low tier all draw one map from one law. Knob 0, or before the first
     // pass completes: today's cloud_weather path below, so the sheet never
     // goes blank while the first pass bakes.
-    if (cloud_profile_knob() != CLOUD_FR_KNOB_OFF && cloud_profile_global_valid()) {
+    // The last two terms are the guards the march path already has:
+    // cloud_profile_tap refuses a material with no planet radius
+    // (params2.z), and cloud_set_slab_bounds only sets the slab when the
+    // material carries params.w (planet_r / drawn_r). Without them a shell
+    // drawn from a non-planet material would reach cloud_profile_global
+    // with planet_km = 0 (log2(0) in the mip pick, the legacy slab
+    // constants for dist_km) and paint garbage instead of falling through.
+    if (cloud_profile_knob() != CLOUD_FR_KNOB_OFF && cloud_profile_global_valid()
+        && material.params2.z >= 0.5 && material.params.w > 0.001) {
         return cloud_layer_flat_profile(world_position, center, shell_r, dir, inv_model, cam_inside, t, seed);
     }
 
