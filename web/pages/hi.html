@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width,initial-scale=1.0">
+  <title>Hi, HumanityOS</title>
+  <meta name="description" content="Free, practical guides for growing food, collecting water and making power. Start with one.">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* Phone first, and genuinely one screen. This page is the target of a QR
+       code on a printed card: it is read once, standing up, by someone who has
+       just been handed the card and knows nothing about any of this. It has to
+       answer "what is this" and "what do I do" before a thumb reaches to scroll.
+       Everything here is sized so the greeting, the sentence, the button and the
+       address all fit above the fold on a 375x667 phone, the smallest common
+       screen. */
+    .hi {
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: var(--space-lg);
+      max-width: 32rem;
+      margin: 0 auto;
+      padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .hi h1 {
+      font-size: clamp(2rem, 9vw, 3rem);
+      margin: 0;
+      line-height: 1.05;
+    }
+    .hi .lede {
+      font-size: clamp(1.05rem, 4.4vw, 1.3rem);
+      line-height: 1.5;
+      color: var(--text);
+      margin: 0;
+    }
+    .hi .sub {
+      font-size: 0.95rem;
+      line-height: 1.55;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    .hi .cta {
+      display: block;
+      background: var(--accent);
+      color: var(--text-on-accent, #000);
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius, 10px);
+      margin: var(--space-sm) 0 0;
+    }
+    .hi .cta small {
+      display: block;
+      font-weight: 500;
+      font-size: 0.82rem;
+      opacity: 0.8;
+      margin-top: 3px;
+    }
+    .hi .addr {
+      font-size: 1rem;
+      color: var(--text);
+      letter-spacing: 0.01em;
+      margin: 0;
+    }
+    .hi .addr a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .hi .more {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: center;
+      flex-wrap: wrap;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .hi .more a { color: var(--text-muted); }
+    .hi hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      width: 3rem;
+      margin: var(--space-xs) auto;
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="hi"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div class="hi">
+
+  <h1>Hi.</h1>
+
+  <p class="lede">
+    This is a free library of plain, practical guides for growing food,
+    collecting water and making power.
+  </p>
+
+  <p class="sub">
+    Nothing to buy, nothing to sign up for, no advertising. It is public and it
+    stays free.
+  </p>
+
+  <a class="cta" href="/library#your-first-tomato">
+    Grow one tomato
+    <small>A short guide. Start today, on a windowsill.</small>
+  </a>
+
+  <hr>
+
+  <p class="addr">
+    Come back any time at<br>
+    <a href="/">united-humanity.us</a>
+  </p>
+
+  <p class="more">
+    <a href="/library#collecting-rainwater">Collecting rainwater</a>
+    <a href="/library">All the guides</a>
+    <a href="/humanity">Why this exists</a>
+  </p>
+
+</div>
+</body>
+</html>
