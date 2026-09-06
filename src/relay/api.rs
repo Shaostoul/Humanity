@@ -4165,17 +4165,71 @@ pub struct CreateBugRequest {
 fn default_severity() -> String { "medium".to_string() }
 fn default_category() -> String { "other".to_string() }
 
+/// Prove a caller actually holds the key they claim, before any role or
+/// ownership decision is made from it.
+///
+/// Every identity-keyed endpoint in this file already does exactly this inline:
+/// a 5 minute freshness window, then a Dilithium3 verify of `purpose\ntimestamp`
+/// off the async executor (the verify is CPU-bound, and a panic inside it must
+/// fail CLOSED rather than pass). PATCH /api/bugs/{id} was written without it
+/// and simply believed the key in the request body, which is not a check at
+/// all: public keys are broadcast to every connected client.
+///
+/// Factored out here so the next endpoint gets the whole check by calling one
+/// function, instead of a sixth hand-rolled copy with one line missing.
+async fn verify_signed_actor(
+    key: &str,
+    timestamp: u64,
+    sig: &str,
+    purpose: &'static str,
+) -> Result<(), (StatusCode, String)> {
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+    let (vk, vsig) = (key.to_string(), sig.to_string());
+    let ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, purpose, timestamp, &vsig)
+    })
+    .await
+    .unwrap_or(false);
+    if !ok {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+    Ok(())
+}
+
 /// Request body for PATCH /api/bugs/{id}.
+///
+/// Carries the same signed-admin auth every other role-gated endpoint here
+/// uses. It used to carry a bare `admin_key` and look its role up directly,
+/// which authorized on a key the caller merely NAMED rather than one they
+/// proved they hold. Public keys are broadcast to every connected client in the
+/// user list, so that was an open door wearing a lock.
 #[derive(Debug, Deserialize)]
 pub struct UpdateBugRequest {
     pub status: String,
-    pub admin_key: String,
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
 }
 
 /// Request body for POST /api/bugs/{id}/vote.
+///
+/// Same treatment, for the same reason: `voter_key` was taken on trust, so
+/// anyone could cast a vote in anyone else's name (public keys are not
+/// secrets). A bug vote is low stakes, but an identity claim nobody checks is
+/// not something to leave lying around next to one that mattered.
 #[derive(Debug, Deserialize)]
 pub struct VoteBugRequest {
     pub voter_key: String,
+    pub timestamp: u64,
+    pub sig: String,
 }
 
 fn bug_to_json(b: &crate::relay::storage::BugReport) -> serde_json::Value {
@@ -4280,9 +4334,14 @@ pub async fn update_bug_status(
     Path(id): Path<i64>,
     Json(req): Json<UpdateBugRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Check admin role.
-    let role = state.db.get_role(&req.admin_key).unwrap_or_default();
-    if role != "admin" && role != "moderator" {
+    // Prove the caller holds the key before believing anything about its role.
+    verify_signed_actor(&req.key, req.timestamp, &req.sig, "bug_status").await?;
+
+    // "moderator" is checked alongside "mod" because both strings exist in this
+    // codebase and only one of them is ever written; accepting both is what the
+    // sibling gates do, and dropping the unwritten one silently narrows access.
+    let role = state.db.get_role(&req.key).unwrap_or_default();
+    if role != "admin" && role != "mod" && role != "moderator" {
         return Err((StatusCode::FORBIDDEN, "Admin or moderator role required.".into()));
     }
 
@@ -4309,6 +4368,7 @@ pub async fn vote_bug(
     if req.voter_key.trim().is_empty() {
         return Err((StatusCode::BAD_REQUEST, "voter_key is required.".into()));
     }
+    verify_signed_actor(&req.voter_key, req.timestamp, &req.sig, "bug_vote").await?;
 
     match state.db.vote_bug(id, &req.voter_key) {
         Ok((voted, count)) => Ok(Json(serde_json::json!({
