@@ -690,15 +690,17 @@ pub async fn handle_dm_put(
 
     // Abuse gates apply to mail addressed to OTHER people. The self-copy
     // (sender depositing sent history into their own mailbox) skips the
-    // friendship/verification gates — you can always write to yourself.
+    // friendship gate — you can always write to yourself.
+    //
+    // No-gatekeeper default (2026-09-06): sending a DM used to require the
+    // "verified" or "donor" role, and the ONLY routes to "verified" were the
+    // admin-only /verify command and the admin-only verify mod action. That
+    // made a private message a permission a human had to grant, which is the
+    // opposite of what this platform promises, and it made the knock budget
+    // below unreachable dead code for every ordinary member. The abuse
+    // ceiling is the knock budget + the Fibonacci limiter + the new-account
+    // delay, all of which still apply; role is no longer part of it.
     if !is_self_copy && user_role != "admin" && user_role != "mod" {
-        if user_role != "verified" && user_role != "donor" {
-            let _ = state.broadcast_tx.send(RelayMessage::Private {
-                to: my_key.to_string(),
-                message: "🔒 Verify your account to send DMs.".to_string(),
-            });
-            return;
-        }
         // Follows-graph removal (2026-08-24): the server keeps no friends
         // table. A friendship CERTIFICATE (issued by the recipient,
         // Dilithium-signed, delivered to the sender over the sealed
@@ -4539,6 +4541,50 @@ mod dm_mailbox_tests {
         assert_eq!(refusals, 2, "both non-envelope puts must be refused with a reason");
     }
 
+    /// No-gatekeeper default (2026-09-06): a brand-new member with NO role
+    /// at all can send a DM. Sending used to require the "verified" or
+    /// "donor" role, and both were reachable only through an admin-only
+    /// command, so a private message was a permission a human granted. The
+    /// knock budget is the abuse ceiling now, not an operator's attention.
+    #[test]
+    fn plain_member_can_dm_without_admin_verification() {
+        let st = fresh_state();
+        st.db.register_name("Newcomer", "newcomer_key").unwrap();
+        st.db.register_name("Stranger", "stranger_key").unwrap();
+        assert_eq!(
+            st.db.get_role("newcomer_key").unwrap_or_default(),
+            "",
+            "precondition: the newcomer holds no granted role"
+        );
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None));
+        assert_eq!(
+            st.db.mailbox_fetch("stranger_key", 0, 10).unwrap().len(),
+            1,
+            "an unverified newcomer's first DM must land"
+        );
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::Private { message, .. } = msg {
+                assert!(
+                    !message.contains("Verify your account"),
+                    "no verification wall may be shown: {message}"
+                );
+            }
+        }
+        // The ceiling still holds: the knock budget bounds a stranger's reach.
+        for _ in 0..(DM_KNOCKS_PER_DAY + 5) {
+            block(async {
+                st.rate_limits.write().await.remove("newcomer_key");
+                handle_dm_put(&st, "newcomer_key", "stranger_key".to_string(), envelope(), None).await;
+            });
+        }
+        assert_eq!(
+            st.db.mailbox_fetch("stranger_key", 0, 200).unwrap().len() as u32,
+            DM_KNOCKS_PER_DAY,
+            "removing the role gate must not remove the abuse ceiling"
+        );
+    }
+
     /// Follows-graph removal (2026-08-24): certless mail to a stranger is
     /// a "knock" — allowed (client tags it a request) but capped per
     /// sender per day; the self-copy path stays exempt; a FORGED cert
@@ -4599,16 +4645,26 @@ mod dm_mailbox_tests {
         );
     }
 
-    /// Unverified senders can't deposit into other mailboxes, and bots
-    /// (no seal keypair) can't DM at all.
+    /// Bots (no seal keypair) can't DM at all. An unverified human CAN:
+    /// that gate was removed 2026-09-06, see
+    /// `plain_member_can_dm_without_admin_verification` above. This test
+    /// keeps the bot half honest and pins the boundary between the two.
     #[test]
-    fn unverified_and_bot_senders_rejected() {
+    fn bot_senders_rejected_but_unverified_humans_are_not() {
         let st = fresh_state();
         st.db.register_name("Newbie", "newbie_key").unwrap();
         st.db.register_name("Target", "target_key").unwrap();
-        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None));
         block(handle_dm_put(&st, "bot_helper", "target_key".to_string(), envelope(), None));
-        assert!(st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty());
+        assert!(
+            st.db.mailbox_fetch("target_key", 0, 10).unwrap().is_empty(),
+            "a bot has no seal keypair, so it can never deposit a sealed DM"
+        );
+        block(handle_dm_put(&st, "newbie_key", "target_key".to_string(), envelope(), None));
+        assert_eq!(
+            st.db.mailbox_fetch("target_key", 0, 10).unwrap().len(),
+            1,
+            "an unverified human's knock lands: no admin grants permission to speak"
+        );
     }
 
     /// Fetch pages the caller's own mailbox with a correct done flag, and

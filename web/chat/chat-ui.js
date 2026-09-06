@@ -612,18 +612,12 @@ function dmFromCtx() {
   const name = ctxMenuTarget.name;
   const pk = ctxMenuTarget.publicKey;
   hideContextMenu();
-  // DM permission check
-  const myRole = (window.myPeerRole || '').toLowerCase();
-  if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-    if (myRole !== 'verified' && myRole !== 'donor') {
-      addSystemMessage('🔒 Verify your account to send DMs.');
-      return;
-    }
-    if (typeof isFriend === 'function' && !isFriend(pk)) {
-      addSystemMessage('🔒 You must be friends with this user to DM them. Use /follow ' + name);
-      return;
-    }
-  }
+  // No-gatekeeper default (2026-09-06): opening a DM is never gated. This
+  // used to demand the admin-granted "verified" role AND an existing
+  // friendship, so a new member could not write to anybody. The relay's
+  // knock budget (a capped number of messages per day to people who have
+  // not befriended you) is the abuse ceiling; it does not need an
+  // operator in the loop, and it is enforced server-side either way.
   openDmConversation(pk, name);
 }
 
@@ -1257,6 +1251,10 @@ sendMessage = async function() {
 // bug fixed 2026-07-04: attach/paste/drop used to always post a public
 // `chat` while echoing into the DM pane, so it looked private and was not).
 // Returns true if it sent, false if blocked (permissions, no key, too long).
+//
+// Partners we have already explained the introduction-request cap to, so the
+// note appears once per conversation per session rather than on every send.
+const knockNoticeShown = new Set();
 async function sendComposedContent(content) {
   if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
 
@@ -1266,16 +1264,14 @@ async function sendComposedContent(content) {
   // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
   // relay and never fall back to a public channel. Mirrors the text-DM path.
   if (activeDmPartner) {
-    const myRole = (window.myPeerRole || '').toLowerCase();
-    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-      if (myRole !== 'verified' && myRole !== 'donor') {
-        addSystemMessage('🔒 Verify your account to send DMs.');
-        return false;
-      }
-      if (!isFriend(activeDmPartner)) {
-        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
-        return false;
-      }
+    // No-gatekeeper default (2026-09-06): no role gate, no hard friendship
+    // gate. Writing to someone who has not befriended you is a "knock" —
+    // it goes through, capped per day by the relay. We say so once per
+    // partner so the cap is not a surprise, then get out of the way.
+    if (typeof isFriend === 'function' && !isFriend(activeDmPartner)
+        && !knockNoticeShown.has(activeDmPartner)) {
+      knockNoticeShown.add(activeDmPartner);
+      addSystemMessage('This person has not added you yet, so this is an introduction request. A limited number of these can be sent per day. Once they add you back, messages are unlimited.');
     }
     const DM_PLAINTEXT_MAX = 2000;
     if (content.length > DM_PLAINTEXT_MAX) {
