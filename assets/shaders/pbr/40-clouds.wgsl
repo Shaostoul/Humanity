@@ -4927,11 +4927,9 @@ fn cloud_march_core(
     // D2 (the in-window grain): the profile share w_pf of the PREVIOUS
     // sample, the same one-step lag (the step commits before this sample's
     // tap runs). The deep relaxation and the footprint floor below scale by
-    // (1 - w_pf_prev): 0 at knob 0 (w_pf is never set), so the twin is
     // bit-identical, and 1 at a w = 1 sample, whose step is then the base
     // law (the 928 m vertical ceiling, one bin per step) and no longer the
     // economy's 2x relaxation striding across the thin layer's bin.
-    var w_pf_prev = 0.0;
     // D4 (the band tap cost): the tap cache, per ray. The last tap's result
     // and where it was taken: the sample direction, its height in bin
     // units, its half-bin index and the requested level. The profile block
@@ -4981,13 +4979,11 @@ fn cloud_march_core(
         // Step economy (increment 2): half the sample footprint, the floor no
         // interior rule may step below; 0 with the knob off.
         // D2 (the in-window grain): the profile share is EXEMPT from the
-        // economy. Scaled by (1 - w_pf_prev): the shipped value times 1.0 at
-        // knob 0 (w_pf_prev is never set there), 0 at a w = 1 sample so the
         // full-field share that remains under a partial w keeps the base
         // law's floors (the critic's eco control: at a forced level the
         // census fell 2566 -> 108 with the economy off, so the economy's
         // striding across the thin layer's 967 m bin is the carrier).
-        let foot_floor = 0.5 * t_cur * pix_ang * eco * (1.0 - w_pf_prev);
+        let foot_floor = 0.5 * t_cur * pix_ang * eco;
         // D3 (b) (the marched field empties from above): the economy's
         // in-cloud floor, capped at a QUARTER of the cloud the previous
         // sample found (top_prev, metres: the eye tap's winner, never the
@@ -5119,14 +5115,12 @@ fn cloud_march_core(
         // transmittance 0.5 the step grows to 2x at full opacity; those
         // samples contribute the least and the exit at 0.005 comes sooner.
         // D2 (the in-window grain): the relaxation term is scaled by
-        // (1 - w_pf_prev), the previous sample's profile share. At w = 1 the
         // only live economy term was this one (dens_prev = 0 and the sentinel
         // sdf_prev kill the floors), stretching the 928 m comb to 1.86 km
         // against 967 m bins with a per-pixel jittered phase: the vertical
         // quadrature of the profile's bin structure that printed as grain
         // (residual sd 8.9 eco1 against 2.0 eco0 at a forced level). Knob 0:
-        // w_pf_prev is 0, the factor is exactly 1.0, the twin is bit-identical.
-        dt = min(dt * (1.0 + eco * clamp((0.5 - trans) * 2.0, 0.0, 1.0) * (1.0 - w_pf_prev)), m1 - t_cur);
+        dt = min(dt * (1.0 + eco * clamp((0.5 - trans) * 2.0, 0.0, 1.0)), m1 - t_cur);
         if (i == CLOUD_STEP_ITER_CAP - 1) {
             dt = m1 - t_cur;
         }
@@ -5247,7 +5241,17 @@ fn cloud_march_core(
                 // walk can only land COARSER than the request, and the
                 // global's cell is coarser still, so this is conservative).
                 let cell_q = 0.25 * CLOUD_FR_CELL0_KM * exp2(f32(lvl)) / max(material.params2.z, 1.0e-3);
+                // The vertical predicate is TIGHTER than the half-bin: f and
+                // G are read bilinearly between adjacent bin centres (weight
+                // wk = hz - 0.5 - floor(...)), and a reused tap freezes them
+                // at the fetch height while the true value keeps moving. tau
+                // gets an exact in-bin carry below, but f has no carry and the
+                // element law is linear in it, so a frozen f is a staircase at
+                // every half-bin boundary. Hold the drift to a sixteenth of a
+                // bin (about 60 m in a 10 km slab), which still reuses across
+                // the tens-of-metre refine steps D4 exists for.
                 let reuse = pf_have && hbin == pf_hbin && lvl == pf_lvl
+                    && abs(hz_pf - pf_hz) < 0.0625
                     && length(dirp - pf_dir) < cell_q;
                 if (reuse) {
                     pf = pf_cache;
@@ -5273,7 +5277,6 @@ fn cloud_march_core(
         // D2: publish this sample's share for the NEXT step's economy terms
         // (stays 0 at knob 0: the assignment is outside the knob branch but
         // w_pf is 0 there).
-        w_pf_prev = w_pf;
         // Does the full field still own any of this sample?
         let full = w_pf < 1.0 - 1.0e-4;
         // The profile share's in-cloud columns (optical depths above and
