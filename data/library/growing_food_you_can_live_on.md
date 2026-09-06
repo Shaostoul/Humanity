@@ -33,17 +33,17 @@ Every figure below comes from a university extension service or from
 USDA food composition data. The multiplication is ours and we show it, so
 you can check it or redo it with your own local figures.
 
-**Calorie density (USDA FoodData Central, per 100 grams raw, converted to
-pounds by us at 453.6 grams to the pound):**
+**Calorie density**, from USDA FoodData Central, per 100 grams raw. The
+conversion to pounds is ours, at 453.6 grams to the pound.
 
-- **Tomato**, red ripe, raw: 18 calories per 100 g, so about **82 per
-  pound**. Protein 0.9 g per 100 g.
-- **Potato**, flesh and skin, raw: 77 calories per 100 g, so about **350
-  per pound**. Protein 2.1 g per 100 g.
-- **Winter squash**, butternut, raw: 45 calories per 100 g, so about
-  **205 per pound**. Protein 1.0 g per 100 g.
-- **Dry beans**, black, mature seeds, raw: 341 calories per 100 g, so
-  about **1,550 per pound**. Protein 21.6 g per 100 g.
+- **Tomato**, red ripe, raw: 18 calories per 100 g, protein 0.9 g.
+  Per pound, **about 82 calories**.
+- **Potato**, flesh and skin, raw: 77 calories per 100 g, protein 2.1 g.
+  Per pound, **about 350 calories**.
+- **Winter squash**, butternut, raw: 45 calories per 100 g, protein 1.0 g.
+  Per pound, **about 205 calories**.
+- **Dry beans**, black, mature seeds, raw: 341 calories per 100 g,
+  protein 21.6 g. Per pound, **about 1,550 calories**.
 
 **Yield per 100 feet of row (extension figures):**
 
@@ -69,13 +69,10 @@ estimate rather than a promise, and plan on the low number.
 Calories from one 100-foot row, and how many days of one adult's food
 energy that is:
 
-- **Potatoes, Utah figure:** 26,000 to 35,000 calories, which is **13 to
-  18 days**.
-- **Potatoes, Iowa figure:** 70,000 to 105,000 calories, which is **35 to
-  53 days**.
-- **Dry beans:** 31,000 to 39,000 calories, which is **15 to 19 days**.
-- **Winter squash:** 15,000 to 20,000 calories, which is **8 to 10
-  days**.
+- **Potatoes, Utah figure:** 26,000 to 35,000 calories, **13 to 18 days**.
+- **Potatoes, Iowa figure:** 70,000 to 105,000 calories, **35 to 53 days**.
+- **Dry beans:** 31,000 to 39,000 calories, **15 to 19 days**.
+- **Winter squash:** 15,000 to 20,000 calories, **8 to 10 days**.
 
 The days figures use 2,000 calories a day, which the FDA states is
 "used as a general guide for nutrition advice," while noting that your
@@ -181,8 +178,8 @@ cover; a soaked, half-dried bean crop molds.
 **Storage.** Sealed containers in a cool dry place. Beans that are
 properly dry rattle hard and cannot be dented with a fingernail.
 
-**Dry beans must be fully cooked, and this is a real safety rule, not a
-matter of taste.** Raw and undercooked dry beans contain a natural toxin
+**Dry beans must be fully cooked.** This is a real safety rule, not a
+matter of taste. Raw and undercooked dry beans contain a natural toxin
 called phytohaemagglutinin. The FDA's Bad Bug Book records that red
 kidney beans carry the most of it, and that as few as four or five
 improperly cooked red kidney beans can cause severe vomiting within a few

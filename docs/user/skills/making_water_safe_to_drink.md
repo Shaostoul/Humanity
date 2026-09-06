@@ -199,10 +199,10 @@ Match the method to what you are worried about:
   chlorine dioxide yes.
 - **Viruses:** boiling yes, microfilter **no**, bleach or iodine yes,
   chlorine dioxide yes.
-- ***Giardia*:** boiling yes, microfilter yes, bleach or iodine **less
-  reliable**, chlorine dioxide yes.
-- ***Cryptosporidium*:** boiling yes, microfilter yes, bleach or iodine
-  **no**, chlorine dioxide yes.
+- **Giardia:** boiling yes, microfilter yes, chlorine dioxide yes,
+  bleach or iodine **less reliable**.
+- **Cryptosporidium:** boiling yes, microfilter yes, chlorine dioxide
+  yes, bleach or iodine **no**.
 - **Chemicals:** boiling **no**, microfilter **no**, bleach or iodine
   **no**, chlorine dioxide **no**.
 

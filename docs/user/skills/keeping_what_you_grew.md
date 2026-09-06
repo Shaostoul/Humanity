@@ -50,8 +50,8 @@ temperature, the more easily they are destroyed."
 
 Which produces the rule:
 
-> **Low-acid foods CANNOT be safely canned in a boiling water bath. They
-> require a pressure canner.** NCHFP: "Pressure canning is the only
+> **Low-acid foods CANNOT be safely canned in a boiling water bath.**
+> **They require a pressure canner.** NCHFP: "Pressure canning is the only
 > recommended method for canning meat, poultry, seafood, and vegetables,"
 > and "using boiling water canners for these foods poses a real risk of
 > botulism poisoning."
@@ -110,8 +110,8 @@ Times are per vegetable and per method, and they are short. CSU's
 examples: green beans 4 minutes in water; broccoli 4 minutes in water or
 6 in steam; diced carrots 3 minutes in water.
 
-**Read that table's own footnote before you use those numbers, because it
-is a good lesson in where a published figure comes from.** Colorado State
+**Read that table's own footnote before you use those numbers.** It is a
+good lesson in where a published figure comes from. Colorado State
 notes that its "blanching times given are for 5,000 feet or higher. At
 altitudes below 5000 feet, subtract one minute from times given." Colorado
 is a high-altitude state and wrote its table for its own readers. Most of
@@ -155,8 +155,8 @@ works only if yours will genuinely hold a low temperature: Penn State
 says you need to set it to 140 to 150 F and prop the door open 2 to 3
 inches. Many ovens will not go that low.
 
-**Sun drying is region-dependent, and this is a good example of why you
-should look up local guidance rather than trusting any single article.**
+**Sun drying is region-dependent.** It is a good example of why you
+should look up local guidance rather than trust any single article.
 Penn State says outright that "the high humidity in Pennsylvania makes
 this method impractical here." In a hot dry climate it is a traditional
 and effective method. The variable is your humidity, not your intent.
