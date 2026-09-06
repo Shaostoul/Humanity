@@ -25,6 +25,14 @@
     {
       "label": "Built-body top bound",
       "note": "Under test (D3, default off, independent of Cloud profile). At 60 to 250 km nadir over cumulus: tick it and the thin humilis layer the 928 m comb misses should appear as real coverage; untick for the A/B. Report the FPS change too."
+    },
+    {
+      "label": "Cloud profile hand-off (E1)",
+      "note": "Under test (E1, 2026-09-06). With Cloud profile ticked, below 150 km (in any deck, 3 to 60 km) the picture must be IDENTICAL to unticked: the hand-off now reads the pixel footprint, never the march step, so no profile share leaks onto the oblique rays at the frame edge. From 200 to 620 km slant clouds read thinner than before (a slant ray no longer counts horizontal element crossings over the whole bin); on the Low tier the sheet's slant coverage drops toward High's."
+    },
+    {
+      "label": "Cloud profile band shading (E2)",
+      "note": "Under test (E2, 2026-09-06). With Cloud profile ticked, inside a deck (bm-12, 1.6 km) and at 26 to 45 km the frame must be as bright as unticked (it went dark-grey fog, mean 23 against 109, when the marched field was lit by the profile's column through a linear tau mix). Between 200 and 620 km the two arms now blend in radiance: no pale veil, no brightness step across the hand-off ring."
     }
   ]
 }

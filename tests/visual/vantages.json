@@ -10561,6 +10561,269 @@
       "hold_altitude": true,
       "captures": 2,
       "pair_gap_s": 3
+    },
+    {
+      "id": "operator-bm12-prof-ch10",
+      "desc": "E1 lever 1 / E2 gate (2026-09-06): operator-bm12 at knob 1 with map_diag 10 (the accumulated profile share w_pf). The hand-off now reads the PIXEL footprint (slant * pix_ang), never the dt-floored march foot, so in-deck at 1.63 km every sample has w_pf = 0 and this channel must be BLACK: sRGB-decoded mean exactly 0 (node scripts/cloud-radial-profile.js 1280 693 --srgb <this>.png prints 0 in every annulus). Before the fix the dt floor (928 m / cos(theta) vertical ceiling, the SDF stride) lit the share on every in-deck sample and the same frame rendered at mean 23 against 109 with the knob off (the blackout).",
+      "_note": "Pinned exactly as operator-bm12-prof-on but map_diag 10. Red today by prediction: the pre-fix build reads a non-zero share rising with screen radius (the E2 reader's annulus law).",
+      "expect": "A black frame: channel 10 decoded mean 0.000 in every 150 px annulus about (1280, 693).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": -11.09,
+        "lon": -153.95,
+        "altitude_km": 1.63,
+        "look_offset_deg": 2,
+        "time": 12
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "weather": "clear",
+        "cloud_res": "2",
+        "cloud_shape": "1",
+        "cloud_clock": "120",
+        "cloud_chord_foot": "0",
+        "cloud_temporal": "1",
+        "cloud_world_shape": "0",
+        "cloud_dither": "0",
+        "cloud_ring_cure": "0",
+        "cloud_uniform_step": "0",
+        "cloud_wide_edge": "0",
+        "cloud_step_m": "0",
+        "cloud_norm_floor": "0",
+        "cloud_iso_step": "0",
+        "cloud_thin_deck": "0",
+        "cloud_est": "1",
+        "cloud_warp_bl": "1",
+        "map_diag": "10",
+        "cloud_hv_warp": "0",
+        "cloud_shear": "0",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0"
+      },
+      "settle_s": 14
+    },
+    {
+      "id": "prof-ladder-60-r1-f0-mask",
+      "desc": "Bake-vs-field gate (2026-09-06): the map_diag 1 twin of prof-ladder-60-r1-f0 (forced level 0, w = 1 on every sample, cloud_res 1). Compared with prof-vert-60-r1-ref (knob 0, cloud_uniform_step 1 / cloud_step_m 60, eco 0: the uniform 60 m reference march at the same camera, which resolves the 234 m humilis layer the production 928 m comb steps over): node scripts/cloud-mask-iou.js --crop=0.25 \"f0=<this>.png\" \"ref=<prof-vert-60-r1-ref>.png\" prints both coverages; the bar is coverage within 4 points inside the crop. Red today by prediction: forced L0 painted 67 to 100 percent white at 60 km r4 / the c90t100 cell against a reference field that is not comb-missed (E1 critic: the forced-level excess is a nadir pedestal, the bake's f per weather cell).",
+      "_note": "Single capture (the -f0 colour cell keeps its 3 s pair). Same pins as prof-ladder-60-r1-f0 with map_diag 1; the reference cell pins eco 0 and the uniform 60 m step, this one keeps eco 1 because at a forced level the profile share is exempt from the economy (D2), so the pair differs only in what is marched.",
+      "expect": "Luminance-mask coverage inside the central 25 percent crop within 4 points of prof-vert-60-r1-ref.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 60,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "L0",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-low-873-r1",
+      "desc": "E1 lever 2 gate, the Low tier (2026-09-06): the F2 camera (lat 23, lon 13, 873 km, look 0, cover 0.5, type 0.34, cloud_res 1) at cloud_quality low with cloud_profile 1, so the Low sheet (cloud_layer_flat) draws from the global profile map through the element law. The sheet's call used l_v = max(L_v, dz_pool) with dz_pool about 2.9 km but L_h unscaled, so a slant ray counted horizontal element crossings over the whole pooled bin: about 12x over-counted for humilis (L_v 234 m). With l_h = L_h * (l_v_eff / L_v) the slant alpha drops materially. Gate: the -mask twin's luminance-mask coverage (byte 128 = linear 0.216) within 5 points of High's at the same camera (orbit-tier-873-high-r1-mask): node scripts/cloud-mask-iou.js \"low=<orbit-low-873-r1-mask>.png\" \"high=<orbit-tier-873-high-r1-mask>.png\". Red today by prediction.",
+      "_note": "The colour cell (reported: the look of the Low sheet on the global map beside High's field). Every dev key pinned; cloud_profile 1 because at knob 0 no atlas exists and the sheet falls back to the cloud_weather path.",
+      "expect": "A coherent humilis field on the Low sheet at coverage comparable to High's, no white veil on the slant.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "low",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "0",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "orbit-low-873-r1-mask",
+      "desc": "E1 lever 2 gate, the Low tier (2026-09-06): the F2 camera (lat 23, lon 13, 873 km, look 0, cover 0.5, type 0.34, cloud_res 1) at cloud_quality low with cloud_profile 1, so the Low sheet (cloud_layer_flat) draws from the global profile map through the element law. The sheet's call used l_v = max(L_v, dz_pool) with dz_pool about 2.9 km but L_h unscaled, so a slant ray counted horizontal element crossings over the whole pooled bin: about 12x over-counted for humilis (L_v 234 m). With l_h = L_h * (l_v_eff / L_v) the slant alpha drops materially. Gate: the -mask twin's luminance-mask coverage (byte 128 = linear 0.216) within 5 points of High's at the same camera (orbit-tier-873-high-r1-mask): node scripts/cloud-mask-iou.js \"low=<orbit-low-873-r1-mask>.png\" \"high=<orbit-tier-873-high-r1-mask>.png\". Red today by prediction.",
+      "_note": "The map_diag 1 twin: the gate's coverage is read here (central 80 percent, luminance threshold 128).",
+      "expect": "Mask coverage within 5 points of orbit-tier-873-high-r1-mask at the 0.216 linear threshold.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 873,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "low",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-200-r1-mask",
+      "desc": "E2-in-the-band gate (2026-09-06): the map_diag 1 twin of prof-ladder-200-r1 (cloud_res 1, the Sahara camera, knob 1). At full res the 200 km rung is INSIDE the hand-off band (nadir foot 0.27 km, 0 < w_pf < 1), where the radiance-space blend replaces the linear tau mix. Gate: the luminance-mask coverage (central 80 percent, threshold 128) of the 200 and 310 km rungs within 5 points of the 620 km rung's: no pale veil where the band blends the marched field with the profile. node scripts/cloud-mask-iou.js \"200=<prof-ladder-200-r1-mask>.png\" \"310=<prof-ladder-310-r1-mask>.png\" \"620=<prof-ladder-620-r1-mask>.png\" prints the three coverages.",
+      "_note": "Single capture, map_diag 1; every other pin as the colour rung. The r4 masks that exist at these rungs sit at w = 1 (quarter res) and cannot see the band.",
+      "expect": "Coverage within 5 points across the three rungs (the field is the same weather seen from three altitudes).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 200,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-310-r1-mask",
+      "desc": "E2-in-the-band gate (2026-09-06): the map_diag 1 twin of prof-ladder-310-r1 (cloud_res 1, the Sahara camera, knob 1). At full res the 310 km rung is INSIDE the hand-off band (nadir foot 0.43 km, 0 < w_pf < 1), where the radiance-space blend replaces the linear tau mix. Gate: the luminance-mask coverage (central 80 percent, threshold 128) of the 200 and 310 km rungs within 5 points of the 620 km rung's: no pale veil where the band blends the marched field with the profile. node scripts/cloud-mask-iou.js \"200=<prof-ladder-200-r1-mask>.png\" \"310=<prof-ladder-310-r1-mask>.png\" \"620=<prof-ladder-620-r1-mask>.png\" prints the three coverages.",
+      "_note": "Single capture, map_diag 1; every other pin as the colour rung. The r4 masks that exist at these rungs sit at w = 1 (quarter res) and cannot see the band.",
+      "expect": "Coverage within 5 points across the three rungs (the field is the same weather seen from three altitudes).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 310,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "prof-ladder-620-r1-mask",
+      "desc": "E2-in-the-band gate (2026-09-06): the map_diag 1 twin of prof-ladder-620-r1 (cloud_res 1, the Sahara camera, knob 1). At full res the 620 km rung sits at the top of the hand-off band (nadir slant 608 km, foot 0.88 km, w near 1): the coverage REFERENCE for the 200 and 310 km rungs. Gate: the luminance-mask coverage (central 80 percent, threshold 128) of the 200 and 310 km rungs within 5 points of the 620 km rung's: no pale veil where the band blends the marched field with the profile. node scripts/cloud-mask-iou.js \"200=<prof-ladder-200-r1-mask>.png\" \"310=<prof-ladder-310-r1-mask>.png\" \"620=<prof-ladder-620-r1-mask>.png\" prints the three coverages.",
+      "_note": "Single capture, map_diag 1; every other pin as the colour rung. The r4 masks that exist at these rungs sit at w = 1 (quarter res) and cannot see the band.",
+      "expect": "Coverage within 5 points across the three rungs (the field is the same weather seen from three altitudes).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "time": 12,
+        "altitude_km": 620,
+        "look_offset_deg": 0
+      },
+      "showcase": {
+        "cloud_quality": "ultra",
+        "clouds": "1",
+        "cloud_cover": "0.5",
+        "cloud_type": "0.34",
+        "weather": "clear",
+        "cloud_clock": "120",
+        "cloud_light": "1",
+        "cloud_body_cache": "1",
+        "cloud_step_eco": "1",
+        "map_diag": "1",
+        "cloud_res": "1",
+        "cloud_profile": "1",
+        "cloud_top_bound": "0",
+        "cloud_uniform_step": "0",
+        "cloud_step_m": "0"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ],
   "ladder": {

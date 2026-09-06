@@ -1272,6 +1272,26 @@ pub const CLOUD_FR_REFRESH_S: f64 = 2.0;
 pub const CLOUD_FR_GLOBAL_REFRESH_S: f64 = 60.0;
 /// Storage rows per frame per level during a FILL (1/8 of the level).
 pub const CLOUD_FR_FILL_ROWS: u32 = 64;
+/// D5 (the bake cadence at low frame rates, 2026-09-06): the MOST rows one
+/// level's rolling REFRESH may bake in one frame, CLOUD_FR_FILL_ROWS / 4.
+/// The refresh is time based (ceil(512 * dt / CLOUD_FR_REFRESH_S) rows), so
+/// at a low frame rate one frame asked for many rows: at the rig's 4 fps
+/// (dt 0.25 s) that was 64 rows per level per frame, the whole per-second
+/// bake cost landing on every frame (gpu.cloud_profile 17.8 ms per frame at
+/// bm12). With this cap the per-frame cost is bounded by the FRAME, not by
+/// the second: at 60 fps (5 rows per frame) the 2 s refresh is unchanged;
+/// at 4 fps a level's refresh stretches to 512 / 16 = 32 frames, about 8 s,
+/// which is harmless (clouds evolve slowly; the old map serves meanwhile).
+/// The FILL keeps its own 64-row cap (a fill is a one-off, and the level is
+/// invisible until it completes). Rust-only.
+pub const CLOUD_FR_REFRESH_ROWS_MAX: u32 = CLOUD_FR_FILL_ROWS / 4;
+/// D5: the most rows the GLOBAL pass may bake in one frame (the fast pass
+/// and the rolling pass alike; REF mode keeps its own 2). At 60 fps the fast
+/// 2 s pass asked for ceil(1024 / 120) = 9 rows per frame and now takes 8
+/// (128 frames, 2.13 s); at 4 fps it asked for 128 rows per frame (a full
+/// 6144-wide, 128-row bake on every frame) and now takes 8 (32 s for the
+/// fast pass at that frame rate, bounded per frame). Rust-only.
+pub const CLOUD_FR_GLOBAL_ROWS_MAX: u32 = 8;
 /// Storage rows per frame in REF mode for the windows (the global uses 2).
 pub const CLOUD_FR_REF_ROWS: u32 = 4;
 /// Storage rows per frame in REF mode for the global.
@@ -1826,12 +1846,17 @@ impl CloudProfileState {
                 continue;
             }
             // (3) Refresh rects: ceil(NX * dt / REFRESH_S) rows (at most
-            // FILL_ROWS; REF: REF_ROWS) at the refresh cursor, wrapping.
+            // REFRESH_ROWS_MAX; REF: REF_ROWS) at the refresh cursor, wrapping.
+            // D5: the cap was FILL_ROWS (64), which a 0.25 s frame reached
+            // outright, so the per-frame bake cost scaled with 1 / fps; now
+            // the cap is 16 rows and the cost is bounded per FRAME (the
+            // refresh takes longer at a low frame rate instead of costing
+            // more per frame; see CLOUD_FR_REFRESH_ROWS_MAX).
             if lv.valid.get() {
                 let n = if ref_mode {
                     CLOUD_FR_REF_ROWS
                 } else {
-                    ((nx as f64 * dt / CLOUD_FR_REFRESH_S).ceil() as u32).clamp(1, CLOUD_FR_FILL_ROWS)
+                    ((nx as f64 * dt / CLOUD_FR_REFRESH_S).ceil() as u32).clamp(1, CLOUD_FR_REFRESH_ROWS_MAX)
                 };
                 let start = lv.refresh_cursor.get().floor() as i64;
                 for (off, len) in cloud_fr_storage_runs(start, n) {
@@ -1845,13 +1870,17 @@ impl CloudProfileState {
         }
         // (4) The global: n rows at the pass cursor across all three slices
         // (width 6144); a completed pass sets mips_pending and valid.
+        // D5: the row count is capped at CLOUD_FR_GLOBAL_ROWS_MAX (8) per
+        // frame (it was clamped only to the whole 1024-row map, so a 0.25 s
+        // frame baked 128 rows of 6144 texels in one go); the pass takes
+        // more frames at a low frame rate instead of costing more per frame.
         if self.global_started {
             let fast = self.global_pass_fast.get();
             let n = if ref_mode {
                 CLOUD_FR_REF_GLOBAL_ROWS
             } else {
                 let span = if fast { CLOUD_FR_REFRESH_S } else { CLOUD_FR_GLOBAL_REFRESH_S };
-                ((CLOUD_FR_GLOBAL_H as f64 * dt / span).ceil() as u32).clamp(1, CLOUD_FR_GLOBAL_H)
+                ((CLOUD_FR_GLOBAL_H as f64 * dt / span).ceil() as u32).clamp(1, CLOUD_FR_GLOBAL_ROWS_MAX)
             };
             let c = self.global_pass_cursor.get().floor() as u32;
             let n = n.min(CLOUD_FR_GLOBAL_H - c);
@@ -2621,15 +2650,16 @@ mod cloud_profile_tests {
             st
         };
         let st = drive(CLOUD_FR_KNOB_FORCE0);
-        // The fast global pass is still running (9 rows per 1/60 frame ->
-        // 114 frames); its rect is the one at y >= 2560.
+        // The fast global pass is still running (ceil(1024 / 120) = 9 rows
+        // per 1/60 frame, capped by D5 at CLOUD_FR_GLOBAL_ROWS_MAX = 8 ->
+        // 128 frames); its rect is the one at y >= 2560.
         let r = st.take_bake_rects(1.0 / 60.0);
         let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
         let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
         assert_eq!(win.len(), 9);
         assert_eq!(win[0].3, 5, "1/60 s at 2 s per 512 rows = ceil(4.27) = 5 rows");
         assert_eq!(glob.len(), 1);
-        assert_eq!(glob[0].3, 9, "fast global: ceil(1024 / 120) = 9 rows");
+        assert_eq!(glob[0].3, CLOUD_FR_GLOBAL_ROWS_MAX, "fast global: min(ceil(1024 / 120) = 9, the D5 cap 8) = 8 rows");
         assert_eq!(glob[0].2, CLOUD_FR_ATLAS_W);
         let r = st.take_bake_rects(1.0 / 30.0);
         let win: Vec<_> = r.iter().filter(|r| r.1 < CLOUD_FR_GLOBAL_Y0).collect();
@@ -2665,6 +2695,61 @@ mod cloud_profile_tests {
         let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
         assert_eq!(win[0].3, CLOUD_FR_REF_ROWS);
         assert_eq!(glob[0].3, CLOUD_FR_REF_GLOBAL_ROWS);
+    }
+
+    /// D5 (the bake cadence at low frame rates): at dt 0.3 s (about 3 fps,
+    /// the rig's slow cells) a level's refresh never bakes more than
+    /// CLOUD_FR_REFRESH_ROWS_MAX rows per frame and the global never more
+    /// than CLOUD_FR_GLOBAL_ROWS_MAX, so the per-frame cost is bounded by
+    /// the frame and not by the second (uncapped, 0.3 s asked for 77 window
+    /// rows per level and 154 global rows in ONE frame); and a level still
+    /// completes a full refresh (512 rows in exactly 32 frames), the global
+    /// its fast pass (1024 rows in 128 frames).
+    #[test]
+    fn low_frame_rate_caps_rows_per_frame_and_still_completes_a_refresh() {
+        let mut st = CloudProfileState::default();
+        st.plan(frame_at(12000.0, 1, CLOUD_FR_KNOB_FORCE0));
+        st.take_calib();
+        st.take_bake_rects(0.0);
+        // The FILL keeps its 64-row cap (8 frames whatever the dt).
+        for _ in 0..8 {
+            let r = st.take_bake_rects(0.3);
+            let fill_rows: u32 = r.iter().filter(|r| r.0 == 0 && r.1 < 512 && r.2 == 512).map(|r| r.3).sum();
+            assert_eq!(fill_rows, CLOUD_FR_FILL_ROWS, "a fill frame bakes 64 rows of slice 0");
+        }
+        assert!(st.levels[0].valid.get());
+        let start = st.levels[0].refresh_cursor.get();
+        let mut refreshed = 0u32;
+        let mut global_done_at = None;
+        for frame in 1..=128u32 {
+            let r = st.take_bake_rects(0.3);
+            // Level 0's refresh rows this frame: the rects of its slice 0
+            // (origin (0, 0), full width), one or two runs when wrapping.
+            let win_rows: u32 = r.iter().filter(|r| r.0 == 0 && r.1 < 512 && r.2 == 512).map(|r| r.3).sum();
+            assert!(win_rows >= 1 && win_rows <= CLOUD_FR_REFRESH_ROWS_MAX, "frame {frame}: {win_rows} refresh rows");
+            let glob: Vec<_> = r.iter().filter(|r| r.1 >= CLOUD_FR_GLOBAL_Y0).collect();
+            for g in &glob {
+                assert!(g.3 >= 1 && g.3 <= CLOUD_FR_GLOBAL_ROWS_MAX, "frame {frame}: {} global rows", g.3);
+                assert_eq!(g.2, CLOUD_FR_ATLAS_W);
+            }
+            if frame <= 32 {
+                refreshed += win_rows;
+            }
+            if frame == 32 {
+                // 512 rows at 16 per frame: the cursor is back where it
+                // started, one whole refresh done in 32 frames (9.6 s at
+                // 0.3 s per frame; 2 s at 60 fps, unchanged there).
+                assert_eq!(refreshed, CLOUD_FR_NX, "a full refresh in 32 frames");
+                assert_eq!(st.levels[0].refresh_cursor.get(), start, "the refresh cursor wrapped to its start");
+            }
+            if global_done_at.is_none() && st.global_valid.get() {
+                global_done_at = Some(frame);
+            }
+        }
+        // The fast global pass at 8 rows per frame: the first frame (dt 0)
+        // baked 1 row and the eight fill frames 64, so 959 rows remain =
+        // 119 full frames plus a 7-row frame: done at loop frame 120.
+        assert_eq!(global_done_at, Some(120), "the fast global pass completes at 8 rows per frame");
     }
 
     /// The active level range at 3, 60, 873 and 12000 km for cloud_res 1
