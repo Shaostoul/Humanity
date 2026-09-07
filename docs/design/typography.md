@@ -1441,3 +1441,169 @@ treating them as established. The prepend-is-safe argument rests on Atkinson's
 before it ships, because if that number is wrong in the other direction it
 changes nothing, but if the fallback chain is disturbed it changes everything.
 
+
+
+---
+
+# Second evaluation: widening the search, and what it overturned
+
+The operator asked whether anything better existed than the two faces offered.
+A second 15-agent pass parsed real binaries for Noto, Fira, the SIL faces,
+Source Sans 3, Public Sans, Lexend, Recursive, Luciole, Intel One Mono, B612,
+APHont, Tiresias, Lexica Ultralegible, Inclusive Sans and nine monospaces, and
+re-measured the incumbents as a parser control. One agent wrote a TTF parser
+and validated it by reproducing every incumbent baseline exactly before
+trusting a single new number.
+
+It overturned three things from the first evaluation, and surfaced one defect
+that outranks the whole font question.
+
+## THE FINDING: the most dangerous string in the app is set in a proportional Light face
+
+`src/gui/pages/settings.rs:612` renders the 24-word BIP39 seed phrase as a bare
+`ui.label(RichText::new(&phrase).color(theme.warning()).size(theme.font_size_small))`,
+with no `.monospace()`, inside a warning-framed box whose own comment calls it
+"the single most dangerous string in the app". Forty lines of onboarding away,
+`src/gui/pages/main_menu.rs:474` renders the SAME 24 words with
+`.monospace().size(13.0)`. Same content, two fonts, one product.
+
+Eight call sites render a string a human must read character by character, and
+none of them selects a monospace face:
+
+- `settings.rs:531` public key
+- `settings.rs:612` the 24-word seed phrase
+- `settings.rs:732` the recovery TextEdit, which needs
+  `.font(FontId::monospace(..))` because TextEdit takes no RichText
+- `settings.rs:752` recovered-key confirmation
+- `profile.rs:174` public key
+- `chat.rs:5808` member key
+- `chat.rs:6272` and `chat.rs:6455` the base64 group invite ticket, plain
+  `TextEdit::multiline`
+
+`settings.rs` and `profile.rs` contain zero `.monospace()` calls today.
+
+The base64 ticket is the ONLY string type in this product where 0, O, I and l
+all coexist, and it is proportional. Hack is already fonts[0] of the Monospace
+family, already has a dotted zero, a serifed I and a tailed l in its default
+instance, and costs zero bytes. Routing those eight sites is a larger
+real-world legibility win than any typeface swap in either evaluation, and it
+is a handful of lines.
+
+## Overturned 1: the slashed-zero test measured a confusion this product cannot express
+
+The first evaluation implicitly required the PROPORTIONAL face to carry a
+slashed zero, and that single assumption promoted Atkinson, Lexica, Andika,
+Luciole, APHont and Tiresias, weakened IBM Plex, and eliminated Inter. It was
+the wrong test. DIDs and the Solana address are base58
+(`src/relay/core/did.rs`), whose alphabet omits 0, O, I and l by construction.
+Public keys are lowercase Dilithium hex, so no O, I or l can occur. The BIP39
+wordlist (`src/net/bip39_wordlist.rs`) is pure lowercase a to z. The only
+surface carrying the full confusable set is the base64 invite ticket, and the
+fix for that is monospace routing using a face already shipped.
+
+Worse, the faces that test promoted carry a cost nobody measured: PROPORTIONAL
+default digits. Atkinson 59.2 percent digit advance spread, Lexica 61.2, Public
+Sans 59.2, Fira Sans 28.9, with tabular figures locked behind the `tnum`
+feature, which is exactly as unreachable as the slashed zero. This app renders
+live numbers constantly, so those faces would fix an impossible confusion while
+introducing permanent horizontal shimmer in every readout and slider value.
+Ubuntu-Light (564 flat), IBM Plex Sans (600 flat) and Noto Sans (572 flat) are
+tabular by default.
+
+**Tabular figures was the constraint that should have occupied the slashed-zero
+slot.**
+
+## Overturned 2: IBM Plex Sans is a script REGRESSION against what ships today
+
+Measured, not quoted. IBM Plex Sans carries 891 to 895 codepoints against
+Ubuntu-Light's 1194. Cyrillic 192/256 against Ubuntu-Light's 214/256, so FEWER
+than the face it would replace. Greek Extended 0/256 against Ubuntu-Light's
+233/256. Cyrillic Supplement 2/48. Latin Extended-B 33/208. A bare Plex swap
+loses scripts. It is only safe because epaint family lists are an ordered
+per-glyph fallback chain, so keeping Ubuntu-Light as the SECOND entry backfills
+at zero cost, since it is already compiled in.
+
+Noto Sans measures 2965 codepoints: Cyrillic 256/256, Cyrillic Supplement
+48/48, Greek 121/144 plus Greek Extended 233/256, Latin Extended-B 208/208,
+Latin Extended Additional 256/256, complete Vietnamese. It is also OFL-1.1 with
+NO Reserved Font Name, verified in both the upstream OFL.txt and the binary's
+name table, where IBM Plex reserves "Plex". That matters concretely: zero.slash
+already exists as glyph 2251 in the shipped Noto static, so a one-time cmap
+remap of U+0030 gives a slashed zero in the default instance with no GSUB and
+no renaming. The same edit on Plex would legally require a rename and a
+permanent fork.
+
+What Plex still wins, and it is the axis that gates a one-session ship: set
+width. Plex n advance 568 against Ubuntu-Light's 569, a 0.2 percent match, a
+true horizontal drop-in. Noto is 618, plus 8.6 percent. `src/gui/` holds roughly
+340 fixed-width call sites (133 `desired_width`, 93 `allocate_exact_size`, 72
+`min_size`, 42 `set_min_width`, 19 `columns`) plus `sidebar_width` 200.36 and
+`modal_width` 300.0 in theme.ron. Vertical growth is a slider and is
+recoverable; horizontal set width is not a slider and moves all of them.
+
+## Overturned 3: IBM Plex Mono should be retired from the recommendation entirely
+
+Hack, the incumbent that arrives free with `epaint_default_fonts`, beats it
+outright and the margin is not close.
+
+- **Hack:** 1548 codepoints, Arrows 109/112, Math Operators 177/256, Box
+  Drawing 128/128, line box 1.1641 em (tightest in the field), dotted zero,
+  serifed I at ink 405 against a tailed l at 427.
+- **IBM Plex Mono:** about 1049 codepoints, Arrows 22/112, Math Operators
+  13/256, line box 1.300 em, exactly ONE codepoint in the entire Greek block,
+  its good slashed zero locked behind the unreachable `zero` feature, its
+  dot-zero the faintest of nine monos measured (0.097 against Hack's 0.257),
+  and its capital I and lowercase l rendering as effectively the same bitmap at
+  11px (separation 0.118, worst of nine).
+
+The F2/F3/F4 debug overlays and cosmos.rs live on box drawing and arrows. Every
+mono swap measured trades symbol coverage for a taller row, for a property Hack
+already has.
+
+## The spacing knobs that were available the whole time
+
+egui 0.31.1 exposes `RichText::extra_letter_spacing(f32)` at
+`egui-0.31.1/src/widget_text.rs:134` and `RichText::line_height(Option<f32>)` at
+`:148`, both backed by TextFormat fields in epaint `text_layout_types.rs:259`
+and `:268`. Letter spacing and line height are precisely what the accessibility
+evidence supports, they are per call site, and they need no font change, no
+licence question and no reflow. Two evaluations and eight research agents
+discriminated between typefaces on an unusable property while these sat unused
+in a crate already compiled in.
+
+## The install site must be fixed before any of this
+
+`src/gui/fonts.rs` is the ONLY `ctx.set_fonts` call in the tree
+(`src/lib.rs:1420` its only caller). It builds a fresh
+`FontDefinitions::default()` INSIDE the per-path loop, inside the
+`if let Ok(bytes)` success branch, calls `set_fonts` and returns. Any font
+registered elsewhere is discarded, and on a machine where no system emoji font
+is found at a hardcoded path, `set_fonts` is never called at all and a new face
+silently does not install. Hoist the construction and the `set_fonts` call out
+of the loop, register the UI face unconditionally, and append the emoji font
+only when one was actually read.
+
+## The decision, as it now stands
+
+**Settled, and free.** Route the eight character-by-character sites to
+`FontFamily::Monospace`. Keep Hack as the monospace face, unchanged. Fix the
+`fonts.rs` install site. Raise `font_size_small` from 11.902083, which is
+currently the size used for the highest-stakes string in the app. Add
+`extra_letter_spacing` to the key and seed-phrase rows. Extend the existing
+system-font probe in `fonts.rs` with CJK paths so Japanese and Chinese stop
+rendering as tofu, for zero redistributed bytes. None of this needs a typeface
+decision and all of it outranks one.
+
+**Open, and a genuine fork.** The proportional face:
+
+- **IBM Plex Sans** ships in one session with zero horizontal reflow, and needs
+  Ubuntu-Light kept behind it because on its own it loses scripts.
+- **Noto Sans** is the correct face for a project whose stated mission is all
+  humans: three times the coverage, complete Cyrillic and Greek, no Reserved
+  Font Name so the zero can be fixed in place. It costs a global 8.6 percent
+  set-width reflow across roughly 340 fixed-width call sites, which is a
+  verification burden rather than a risk, and which gets more expensive the
+  longer it is deferred.
+
+The trigger is dated and clear: the day this project ships a Cyrillic or Greek
+UI, Noto is the answer and the reflow has to be paid anyway.
