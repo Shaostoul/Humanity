@@ -53,20 +53,48 @@
             attribution_required: false,
             shown_in: ["Credits"],
         ),
+        // THREE star rows, because the app ships three catalogues and lets the
+        // player choose between them in Settings > Sky (Standard / Extended /
+        // Ultra), so that people on lesser hardware can pick a smaller one.
+        // Until v0.1300 a single row labelled "athyg" claimed to be the
+        // "standard ~120k catalogue", which is HYG. One row was doing the work
+        // of three and naming the wrong dataset for the tier it described.
+        //
+        // The licence was recorded as the placeholder "See the ATHYG
+        // repository" and CREDITS.md, LICENSES.md and maps-multi-scale.md each
+        // gave a different answer. It is now pinned: astronexus publishes BOTH
+        // HYG and ATHYG under CC BY-SA 4.0, verified by fetching the LICENSE
+        // file from both repositories on 2026-09-07.
+        //
+        // CC BY-SA is SHARE-ALIKE, not merely attribution. data/stars.csv is
+        // the HYG catalogue and data/stars.bin is built from it by
+        // scripts/build-stars-bin.js, so both are adapted material and both
+        // ship in every release. LICENSES.md carries the consequence.
+        (
+            id: "hyg",
+            name: "HYG star database (astronexus)",
+            used_for: "The Standard star catalogue (~120k stars) that ships with the app: positions, magnitudes and colours for the night sky. This is the tier every player sees by default.",
+            licence: "CC BY-SA 4.0",
+            notice: "Star data from the HYG database (astronexus), CC BY-SA 4.0",
+            url: "https://github.com/astronexus/HYG-Database",
+            attribution_required: true,
+            shown_in: ["Credits"],
+        ),
         (
             id: "athyg",
-            name: "ATHYG star database",
-            used_for: "The standard star catalogue (~120k stars): positions, magnitudes and colours for the night sky.",
-            licence: "See the ATHYG repository",
-            notice: "Star data from the ATHYG database (astronexus)",
-            url: "https://github.com/astronexus/ATHYG-Database",
+            name: "ATHYG star database (astronexus)",
+            used_for: "The Extended star catalogue (~2.5M stars), an optional in-app download that renders the visible Milky Way star by star. HYG combined with the Tycho-2 catalogue.",
+            licence: "CC BY-SA 4.0",
+            notice: "Star data from the ATHYG database (astronexus), CC BY-SA 4.0",
+            // The GitHub repository is archived; the project moved to Codeberg.
+            url: "https://codeberg.org/astronexus/athyg",
             attribution_required: true,
             shown_in: ["Credits"],
         ),
         (
             id: "esa_gaia",
             name: "ESA Gaia",
-            used_for: "The extended star catalogue (Gaia G<14, ~25M stars), an optional in-app download, and the integrated galaxy glow built from it.",
+            used_for: "The Ultra star catalogue (Gaia G<14, ~25M stars), an optional in-app download that resolves the full deep-sky census, and the integrated galaxy glow baked from it.",
             licence: "ESA Gaia data, freely available with acknowledgement",
             // Gaia asks for this specific acknowledgement. Keep the wording.
             notice: "This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium).",

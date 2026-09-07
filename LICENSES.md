@@ -50,12 +50,47 @@ the ODbL text disagree, the licence governs.
 NASA imagery is generally public domain and carries no attribution requirement.
 It is credited anyway.
 
-## Star catalogues
+## Star catalogues - the second share-alike source
 
-- **ATHYG database** (astronexus) - the standard ~120k-star catalogue behind the
-  night sky. <https://github.com/astronexus/ATHYG-Database>
-- **ESA Gaia** - the optional extended catalogue (G<14, ~25M stars) and the
-  integrated galaxy glow built from it. Gaia asks for this acknowledgement:
+The app ships THREE star catalogues and lets the player choose between them in
+Settings > Sky, so people on lesser hardware can pick a smaller one. Two of the
+three come from astronexus and **both are CC BY-SA 4.0**, verified by fetching
+the LICENSE file from each repository on 2026-09-07. Before v0.1300 this file,
+`CREDITS.md`, `data/credits.ron` and `docs/design/maps-multi-scale.md` each gave
+a different answer, and `credits.ron` recorded the licence as the placeholder
+"See the ATHYG repository".
+
+- **HYG database** (astronexus), **CC BY-SA 4.0** - the STANDARD ~120k-star
+  catalogue that ships with the app and is what every player sees by default.
+  `data/stars.csv` is this catalogue, and `data/stars.bin` is built from it by
+  `scripts/build-stars-bin.js`. <https://github.com/astronexus/HYG-Database>
+- **ATHYG database** (astronexus), **CC BY-SA 4.0** - the EXTENDED ~2.5M-star
+  catalogue, an optional in-app download. HYG combined with Tycho-2. The GitHub
+  repository is archived; the project moved to
+  <https://codeberg.org/astronexus/athyg>
+
+**CC BY-SA is share-alike, not merely attribution, and that has two
+consequences this project has to state rather than assume.**
+
+1. `data/stars.csv` and `data/stars.bin` are adapted material. They are tracked
+   in git and copied into every release archive by the wholesale `cp -r data/`
+   in `.github/workflows/build-desktop.yml`. Distributing them means offering
+   them under CC BY-SA 4.0, which is hereby done. If you redistribute a release
+   bundle, you carry that obligation forward, exactly as with the OpenStreetMap
+   region files above.
+2. `stars-athyg.bin` is published by this project as a GitHub release asset
+   (`assets-stars-1`) and fetched by the in-app downloader at
+   `src/renderer/stars.rs`. That is redistribution of adapted material from our
+   own server, and no licence text currently travels with it.
+
+This is the same shape as the OpenStreetMap problem and it means the root
+`LICENSE`, a bare CC0 dedication, does not describe the whole tree. The project
+dedicates to the public domain what its contributors wrote. It also
+redistributes third-party works, some share-alike, that it cannot and does not
+dedicate.
+
+- **ESA Gaia** - the optional ULTRA catalogue (G<14, ~25M stars) and the
+  integrated galaxy glow baked from it. Gaia asks for this acknowledgement:
 
   > This work has made use of data from the European Space Agency (ESA) mission
   > Gaia (<https://www.cosmos.esa.int/gaia>), processed by the Gaia Data

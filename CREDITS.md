@@ -64,9 +64,17 @@ listed here for a kindness they did not ask credit for.
   domain.
 - **NASA GIBS / MODIS** live cloud-fraction imagery (the in-game live
   weather) - public domain.
-- **ESA Gaia DR3** and the **AT-HYG** star catalog compilation (the night
-  sky's 25M-star bake) - ESA/Gaia/DPAC (CC-BY-SA-IGO 3.0) and AT-HYG
-  (CC-BY-SA / public-domain components).
+- **HYG database** (astronexus) - the Standard 120,000-star catalog that ships
+  with the app and is the night sky most players see. CC BY-SA 4.0.
+  https://github.com/astronexus/HYG-Database
+- **ATHYG database** (astronexus) - the Extended 2.5-million-star catalog, an
+  optional in-app download. HYG combined with Tycho-2. CC BY-SA 4.0.
+  https://codeberg.org/astronexus/athyg
+- **ESA Gaia DR3** - the Ultra 25-million-star catalog and the galaxy glow
+  baked from it. ESA/Gaia/DPAC.
+- **OpenStreetMap contributors** - real roads and building footprints for the
+  Earth regions you can walk through, and the Maps planet view. ODbL 1.0.
+  https://www.openstreetmap.org/copyright
 - **Solar System Scope textures** (Moon, Mars planetary imagery bakes) -
   CC-BY 4.0, https://www.solarsystemscope.com/textures/ - based on NASA
   elevation and imagery data.
