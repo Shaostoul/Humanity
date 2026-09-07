@@ -3101,10 +3101,21 @@
 >    review date. Native first per the Rust-first rule, then web mirrors.
 > 5. Petition threshold for early reopening.
 >
-> **Blocked-ish dependency worth knowing:** casting a vote is NATIVE ONLY today.
-> Web's vote button is a stub because it needs canonical-CBOR signing in JS plus
-> a cross-language KAT. Re-votes are worth little if most people land on the web
-> and cannot vote, so web voting is arguably the prerequisite item.
+> ~~**Blocked-ish dependency worth knowing:** casting a vote is NATIVE ONLY
+> today. Web's vote button is a stub because it needs canonical-CBOR signing in
+> JS plus a cross-language KAT.~~ **STALE, withdrawn 2026-09-07. This item is
+> NOT blocked and web voting does not need building.** Verified in the tree:
+> `web/pages/governance.html:482` `castVote` builds a Dilithium3-signed
+> `vote_v1` through `buildVoteV1`, signs with `window.pqSignMessage`, posts via
+> `window.HumOS.pq.postObject` and refreshes the tally; the file's own comment
+> at `:395` reads "Real voting: Dilithium3-signed vote_v1 objects" with
+> KAT-locked derivation through `/chat/pq.js` into canonical CBOR, and the KAT
+> itself is `src/relay/core/pq_kat_vote_submission.json`. The same file also
+> creates signed `proposal_v1` objects. The v0.1296 block below already refuted
+> this once ("Web voting is NOT missing; governance.html has signed vote_v1
+> voting, KAT-locked") and the refutation never reached this paragraph, so the
+> two blocks contradicted each other and this is the one that was wrong.
+> Scheduled re-votes can proceed straight to step 1.
 >
 > **Open, and the operator's to answer, not ours:** he holds that free speech and
 > self-defense are universal rights that ought to be global. Asserting that
