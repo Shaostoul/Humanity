@@ -1,5 +1,78 @@
 # HumanityOS: Priorities
 
+> **TYPOGRAPHY, v0.1300.0 to v0.1301.1 (2026-09-07). The operator asked why the
+> project uses so many different fonts and whether one could be cohesive between
+> web and app. The answer was that nobody had ever chosen one, twice: native
+> inherited egui's four bundled faces, web took a system stack that renders a
+> different typeface on every operating system. He then chose the long-term
+> answer on three criteria: user safety, ease of use, and global access.**
+>
+> Two evaluations, 33 agents, recorded in full in `docs/design/typography.md`.
+> The decisive finding was not about typefaces. A 2026 Annals of Dyslexia
+> meta-analysis pooled 15 studies, 91 effect sizes and N=688 on special dyslexia
+> typefaces and found g = -0.04. Marinus et al. 2016 explains why the folklore
+> survives: Dyslexie beat Arial by 7 percent, then they matched Arial's SPACING
+> to Dyslexie's and the advantage vanished. **The benefit is spacing, and
+> spacing is a CSS property and an egui parameter, not a font file.**
+>
+> SHIPPED:
+>
+> - **The seed phrase was proportional.** `settings.rs` rendered the 24 BIP39
+>   words as a bare proportional label at 11.9px inside a frame whose own
+>   comment calls it "the single most dangerous string in the app", while
+>   `main_menu.rs` rendered the same words in monospace 40 lines away. Eight
+>   character-by-character sites now use Hack, including both base64 invite
+>   ticket fields, which are the only strings in the product where 0, O, I and l
+>   coexist (base58 omits all four, keys are lowercase hex, BIP39 is lowercase
+>   a-z). Zero bytes.
+> - **Every arrow in the proportional UI was tofu on Linux and macOS.** Measured:
+>   Ubuntu-Light carries 0 of 112 arrows, Hack carries 109, and epaint puts Hack
+>   in Monospace only. U+2192 appears 111 times in `src/gui`. Hack is now the
+>   computed-position fallback in Proportional. Four entries left BROKEN_GLYPHS.
+> - **`set_fonts` lived inside the emoji branch**, so on a machine with no system
+>   emoji font it never ran at all. Hoisted out.
+> - **Japanese and Chinese were tofu**: no bundled face has a single CJK
+>   codepoint. The system-font probe now covers CJK for zero redistributed bytes.
+> - **The snapshot rig rendered a font stack nobody runs** (bare contexts, no
+>   fonts installed) and BROKEN_GLYPHS was partly derived from it. All seven
+>   contexts now install the app's real chains.
+> - **Noto Sans is the interface face**, native and web. 2,965 codepoints against
+>   Ubuntu-Light's 1,194, complete Cyrillic and Greek Extended. IBM Plex Sans,
+>   which I had recommended, measured as a script REGRESSION: 895 codepoints and
+>   FEWER Cyrillic than the face it would replace. Web self-hosts 8 variable
+>   woff2 subsets with unicode-range, so an English reader pulls 35 KB; the CSP
+>   already said `font-src 'self'`.
+> - **The web dyslexia toggle was a placebo AND a no-op** on Linux and Android
+>   (fontconfig ships no Comic Sans metric alias). Now "Reading Comfort" at the
+>   WCAG 1.4.12 doses, with word spacing coupled to letter spacing because
+>   raising letter spacing alone measurably slows readers.
+> - **The star catalogues are CC BY-SA 4.0**, verified from both upstream LICENSE
+>   files. `data/stars.csv` and `stars.bin` are adapted material shipping in
+>   every release, so LICENSES.md now carries a second share-alike offer.
+>   `credits.ron` had ONE star row labelled `athyg` describing HYG; now three,
+>   matching the three tiers the UI offers.
+>
+> NEXT, in this lane, in order:
+>
+> 1. **Emphasis is conveyed by colour alone in the native app.** egui's
+>    `strong()` changes colour, not weight, and no Bold ships. That is a real
+>    accessibility gap. Needs a named bold family plus a `widgets` helper. Noto
+>    Sans Bold was downloaded and deliberately deleted rather than shipped
+>    unusable.
+> 2. **Native has no Reading Comfort control**, which is the dual-UI drift
+>    CLAUDE.md forbids. `RichText::extra_letter_spacing` and `line_height` exist
+>    and are already used on the seed phrase; wiring them to a theme token is
+>    the work.
+> 3. **`font_size_small` is 11.9 and is the size used for the highest-stakes
+>    string.** Raising it is the best-supported accessibility change left.
+> 4. **`data/credits.ron` is only loaded inside `load_world`**, so Settings >
+>    Credits shows a "could not read" warning until the user first enters the 3D
+>    world, blaming a file that ships fine.
+> 5. **The Library markdown renderer** still has no table support and splits
+>    emphasis across line breaks.
+>
+> ---
+>
 > **NEXT IN THE NON-GAME LANE: signed moderation logs, rung 3.** Rungs 1 and 2
 > shipped today (v0.1298.0 schemas + KAT, v0.1299.0 relay-side enforcement with
 > 15 tests, attacked twice, seven holes found and fixed). Rung 3 converts the
