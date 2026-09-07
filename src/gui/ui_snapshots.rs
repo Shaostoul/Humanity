@@ -19,6 +19,27 @@ use crate::gui::{
     TaskStatus, WalletTransaction,
 };
 
+/// An egui context with the SAME font chains the running app installs.
+///
+/// This exists because for a long time it did not. Every context in this file
+/// was a bare `egui::Context::default()`, which installs no fonts at all,
+/// while the app calls `fonts::install_font_fallbacks` at `lib.rs`. So the
+/// snapshot rig rendered a font stack no user has ever seen, and the
+/// `BROKEN_GLYPHS` list in `tests/icon_glyph_lint.rs` was partly derived from
+/// those snapshots. A rig whose output cannot show what the product shows is
+/// not evidence.
+///
+/// One honest consequence: the CJK and emoji fallbacks read fonts from the
+/// machine running the test, so snapshots are now machine-dependent for those
+/// codepoints. That is the correct trade for a review rig, because the
+/// alternative is a picture of something nobody runs. The Hack fallback, which
+/// is the one that fixes arrows and box drawing, is machine-independent.
+fn snapshot_ctx() -> egui::Context {
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    ctx
+}
+
 /// Build a `GuiState` populated with REALISTIC demo content so the snapshots
 /// reflect the loaded app, not the empty first-run state. Data-driven fields use
 /// the real loaders (reading `data/`, cwd = repo root under `cargo test`); the
@@ -325,7 +346,7 @@ fn render_page_png(name: &str, w: u32, h: u32, frame: impl Fn(&egui::Context, &m
         let format = wgpu::TextureFormat::Rgba8Unorm;
 
         // ── egui frame ──
-        let ctx = egui::Context::default();
+        let ctx = snapshot_ctx();
         let mut theme = load_theme();
         theme.apply_to_egui(&ctx);
         let mut state = demo_state();
@@ -467,7 +488,7 @@ fn headless_run(
     frames: &[Vec<egui::Event>],
     mut build: impl FnMut(&egui::Context),
 ) -> egui::Context {
-    let ctx = egui::Context::default();
+    let ctx = snapshot_ctx();
     for ev in frames {
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), screen)),
@@ -530,7 +551,7 @@ fn spike_synthetic_click_registers() {
 /// headless lib test. No GPU: pure egui layout + hit-testing.
 #[test]
 fn inventory_container_header_click_toggles_open() {
-    let ctx = egui::Context::default();
+    let ctx = snapshot_ctx();
     let theme = load_theme();
     theme.apply_to_egui(&ctx);
     let mut state = demo_state();
@@ -599,7 +620,7 @@ fn inventory_container_header_click_toggles_open() {
 /// reveal. No GPU: pure egui layout + `ctx.load_texture` (CPU-side).
 #[test]
 fn account_link_device_qr_is_discoverable_and_builds() {
-    let ctx = egui::Context::default();
+    let ctx = snapshot_ctx();
     let theme = load_theme();
     theme.apply_to_egui(&ctx);
     let mut state = demo_state();
@@ -1623,7 +1644,7 @@ fn snapshot_help_f1_prose_page() {
 /// local noon must set the global clock to 04:00.
 #[test]
 fn weather_panel_time_stop_publishes_converted_global_hour() {
-    let ctx = egui::Context::default();
+    let ctx = snapshot_ctx();
     let theme = load_theme();
     theme.apply_to_egui(&ctx);
     let mut state = demo_state();

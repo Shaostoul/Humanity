@@ -5804,8 +5804,11 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
                             .color(theme.text_muted()),
                     );
                     ui.add_space(6.0);
+                    // Monospace: a member key is compared character by
+                    // character against another screen.
                     ui.label(
                         RichText::new(&display_key)
+                            .monospace()
                             .size(theme.font_size_small)
                             .color(theme.text_secondary()),
                     );
@@ -6270,8 +6273,16 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
             );
             ui.add_space(theme.spacing_sm);
             let mut display = ticket.clone();
+            // MONOSPACE, and of every string in this product this is the one
+            // that most needs it: base64 is the only alphabet here containing
+            // 0, O, I and l at once. base58 (DIDs, the Solana address) omits
+            // all four by construction, public keys are lowercase hex, and
+            // BIP39 is lowercase a-z, so this ticket is the sole surface where
+            // those characters can be confused. Hack, already compiled in, has
+            // a dotted zero and a serifed I in its default instance.
             ui.add(
                 egui::TextEdit::multiline(&mut display)
+                    .font(egui::FontId::monospace(theme.font_size_small))
                     .desired_width(360.0)
                     .desired_rows(3)
                     .interactive(false),
@@ -6451,8 +6462,13 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
             );
             ui.add_space(theme.spacing_sm);
             widgets::form_row(ui, theme, "Invite ticket", |ui| {
+                // Monospace for the same reason as the ticket display above:
+                // base64 is the one alphabet here where 0, O, I and l coexist,
+                // and this field is where a mistyped character silently fails
+                // a join.
                 ui.add(
                     egui::TextEdit::multiline(&mut state.join_group_invite_code)
+                        .font(egui::FontId::monospace(theme.font_size_small))
                         .desired_width(360.0)
                         .desired_rows(3)
                         .hint_text("paste base64 ticket here"),

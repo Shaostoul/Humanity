@@ -34,9 +34,10 @@ use std::path::PathBuf;
 const BROKEN_GLYPHS: &[(char, &str)] = &[
     // Variation selector — always trails its emoji as a square.
     ('\u{FE0F}', "U+FE0F variation selector — always renders as tofu"),
-    // Math Operators block (some work like ∞, but these don't):
-    ('\u{22A0}', "⊠ U+22A0 SQUARED TIMES — confirmed broken (was used for pin)"),
-    ('\u{2261}', "≡ U+2261 IDENTICAL TO — confirmed broken (was used for nav layout toggle)"),
+    // Math Operators block. NOTE: U+22A0 and U+2261 were removed from this
+    // list in the v0.1299 font work. Both are present in Hack, and Hack is now
+    // the first fallback in the Proportional chain (src/gui/fonts.rs), so they
+    // resolve. Measured from the shipped binary's cmap rather than assumed.
     // Dingbats block (mostly broken):
     ('\u{270E}', "✎ U+270E LOWER RIGHT PENCIL — confirmed broken (was used for edit)"),
     ('\u{270F}', "✏ U+270F PENCIL — same block, assume broken"),
@@ -46,11 +47,24 @@ const BROKEN_GLYPHS: &[(char, &str)] = &[
     ('\u{25A4}', "▤ U+25A4 SQUARE WITH HORIZONTAL FILL — confirmed broken"),
     // Misc Symbols & Pictographs (emoji) — egui default font has no coverage:
     ('\u{1F512}', "🔒 U+1F512 LOCK — emoji, tofus in egui (use the word 'encrypted' or paint_lock instead)"),
-    // Arrows block — CLAUDE.md lists it as reliable, but these two tofu'd in
-    // the 2026-07-06 follow-badge snapshot. U+2192 right arrow DOES work
-    // (in wide use). Use icons::paint_arrow_left / paint_arrow_both instead.
-    ('\u{2190}', "U+2190 LEFTWARDS ARROW — snapshot-confirmed tofu (follow badge); paint_arrow_left instead"),
-    ('\u{2194}', "U+2194 LEFT RIGHT ARROW — same risk; paint_arrow_both instead"),
+    // Arrows block: FIXED in v0.1299, entries removed. The 2026-07-06 reading
+    // of this block was right about the symptom and wrong about the cause, and
+    // the wrong cause was written in here as fact.
+    //
+    // What was actually true, measured from the cmaps of the two shipped
+    // binaries: Ubuntu-Light carries 0 of the 112 codepoints in the Arrows
+    // block, and Hack carries 109. epaint's default Proportional chain is
+    // [Ubuntu-Light, NotoEmoji-Regular, emoji-icon-font] and puts Hack in
+    // Monospace ONLY. So EVERY arrow in the proportional UI, including the
+    // U+2192 this comment used to record as working "in wide use", was
+    // resolving off the operator's Segoe UI Emoji and was blank or tofu on
+    // Linux and macOS. U+2190 and U+2194 tofu'd in the snapshot because the
+    // snapshot rig installed no system font at all, which is separately fixed.
+    //
+    // src/gui/fonts.rs now inserts Hack as the first fallback in Proportional,
+    // so the whole block resolves on every platform for zero bytes. The
+    // icons::paint_arrow_* helpers remain valid and are still preferable where
+    // a shape is wanted rather than a glyph.
 ];
 
 /// Files scanned. Only UI-rendering trees.

@@ -171,7 +171,9 @@ fn draw_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             } else {
                 state.profile_public_key.clone()
             };
-            ui.label(RichText::new(&key_display).color(theme.text_muted()).size(theme.font_size_small));
+            // Monospace: read character by character when verifying an
+            // identity against another screen. Matches settings.rs.
+            ui.label(RichText::new(&key_display).monospace().color(theme.text_muted()).size(theme.font_size_small));
             if widgets::secondary_button(ui, theme, "Copy") {
                 ui.ctx().copy_text(state.profile_public_key.clone());
             }

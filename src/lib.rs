@@ -1412,12 +1412,13 @@ mod native_app {
             );
             let theme = crate::gui::theme::load_theme();
             theme.apply_to_egui(&egui_ctx);
-            // Install the OS-installed emoji font as a fallback so glyphs
-            // outside egui's bundled subset (colored hearts, hand gestures,
-            // most emoji past the base set) render properly instead of
-            // showing as tofu (▢). Silent no-op if the platform font is
-            // unavailable. See src/gui/fonts.rs.
-            crate::gui::fonts::install_system_emoji_fallback(&egui_ctx);
+            // Install every font fallback chain: Hack into the Proportional
+            // family (so arrows and box drawing stop being tofu on Linux and
+            // macOS), plus the OS-installed CJK and emoji fonts, which are
+            // read from the user's machine and never redistributed. Each is
+            // independent and a missing one is a silent no-op, but set_fonts
+            // itself always runs. See src/gui/fonts.rs.
+            crate::gui::fonts::install_font_fallbacks(&egui_ctx);
             // Load + cache the in-app glossary (data/glossary.json) so
             // widgets::definition_text can pop term definitions on
             // Alt+hover. Silent no-op if the file is missing — definition

@@ -528,7 +528,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             } else {
                 state.profile_public_key.clone()
             };
-            ui.label(RichText::new(&key_display).color(theme.text_muted()).size(theme.font_size_small));
+            // Monospace: a public key is read character by character when
+            // someone verifies it against another screen.
+            ui.label(RichText::new(&key_display).monospace().color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_sm);
             if widgets::secondary_button(ui, theme, "Copy") {
                 ui.ctx().copy_text(state.profile_public_key.clone());
@@ -609,7 +611,24 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     .inner_margin(8.0)
                     .stroke(Stroke::new(1.0, theme.warning()))
                     .show(ui, |ui| {
-                        ui.label(RichText::new(&phrase).color(theme.warning()).size(theme.font_size_small));
+                        // MONOSPACE, and this is a safety requirement rather
+                        // than a style choice. These 24 words are the one
+                        // string a user copies by hand, and a proportional
+                        // face packs them so the eye loses its place mid-line.
+                        // The onboarding path at main_menu.rs already renders
+                        // the same words in monospace; this was the surface
+                        // that had drifted. extra_letter_spacing is the
+                        // intervention the reading research actually supports
+                        // (letterform novelty is not: pooled effect g = -0.04
+                        // across 15 studies), and egui has exposed it all
+                        // along. See docs/design/typography.md.
+                        ui.label(
+                            RichText::new(&phrase)
+                                .monospace()
+                                .extra_letter_spacing(0.6)
+                                .color(theme.warning())
+                                .size(theme.font_size_small),
+                        );
                         ui.add_space(theme.spacing_xs);
                         if widgets::secondary_button(ui, theme, "Copy") {
                             ui.ctx().copy_text(phrase.clone());
@@ -729,7 +748,12 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui.label(RichText::new("Enter your 24-word seed phrase:").color(theme.text_secondary()).size(theme.font_size_small));
             ui.add_space(theme.spacing_xs);
 
+            // TextEdit takes no RichText, so monospace is selected with
+            // .font(). Typing 24 recovery words is the highest-stakes text
+            // entry in the product and it belongs in a face where the
+            // letterforms separate.
             ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
+                .font(egui::FontId::monospace(theme.font_size_small))
                 .desired_width(ui.available_width())
                 .desired_rows(3)
                 .hint_text("word1 word2 word3 ... (24 words)"));
