@@ -3093,10 +3093,32 @@
 >   faster than the cadence.
 >
 > Work required, roughly in order:
-> 1. Schema: `review_after` / `review_cadence` and `supersedes` on proposal
->    objects (data/governance/proposal_types.ron + the signed-object shape).
-> 2. Relay: resolve a chain to its current standing decision; expose the chain.
-> 3. A scheduler that opens the successor proposal when a review date arrives.
+> 1. ~~Schema: `review_after` / `review_cadence` and `supersedes` on proposal
+>    objects.~~ **DONE v0.1302.0.** Three nullable columns on `proposals`, read
+>    off the CBOR payload in `index_proposal`. A cadence with no explicit date
+>    implies the first review one cadence after close. BUG-046 discipline
+>    proven, not asserted: the index over `supersedes` sits after the ALTER
+>    block, and moving it into the main batch was injected deliberately to
+>    confirm `opens_a_pre_revote_database_and_migrates_it` goes red.
+> 2. ~~Relay: resolve a chain to its current standing decision; expose the
+>    chain.~~ **DONE v0.1303.0.** `standing_decision` walks forward from any
+>    link; `decision_chain` returns the ordered history; both are cycle-safe
+>    because `supersedes` arrives inside a signed object from an untrusted
+>    author. `GET /api/v2/proposals/{id}/chain` serves it. `ProposalIndex`
+>    carries the three fields so a client gets the next-review date without a
+>    second request. Verified against the LIVE migrated database: the proposals
+>    endpoint returns `[]` rather than a 500, which is what proves the new
+>    columns exist on the pre-existing table.
+> 3. **NEXT: a scheduler that opens the successor proposal when a review date
+>    arrives.** `proposals_due_for_review(now)` is the query it needs and is
+>    already idempotent: a `NOT EXISTS` clause means once a successor exists the
+>    old proposal stops coming back, so a scheduler that runs twice does not
+>    open two re-votes. What is missing is the thing that calls it on a timer
+>    and builds the successor object. Note the successor must be a properly
+>    signed `proposal_v1`, and the relay holds no user key, so the honest
+>    question to settle first is WHO signs an automatically-opened re-vote: the
+>    server's own identity, the original proposer, or nobody until a human
+>    confirms it. That is a design call, not a coding one.
 > 4. UI on both clients: show the standing answer, the history, and the next
 >    review date. Native first per the Rust-first rule, then web mirrors.
 > 5. Petition threshold for early reopening.
