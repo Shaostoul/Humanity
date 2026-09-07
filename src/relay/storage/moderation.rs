@@ -90,19 +90,36 @@ fn payload_text(object: &Object, key: &str) -> Option<String> {
     payload_text_bytes(&object.payload, key)
 }
 
-fn payload_int(object: &Object, key: &str) -> Option<i64> {
-    let value = from_canonical_bytes(&object.payload).ok()?;
-    let ciborium::Value::Map(entries) = value else { return None };
+/// A numeric payload field, distinguishing ABSENT from PRESENT-BUT-UNREADABLE.
+///
+/// The difference matters for expires_at. Collapsing both to "0" made the
+/// refusal opt-out: a hand-rolled object carrying expires_at as CBOR text, or
+/// as an integer too large for i64, parsed as absent and applied as a
+/// PERMANENT ban whose own signed record says it expires. The honest clients
+/// cannot produce that (canonical-cbor.js throws on a non-integer uint) but
+/// the payload is opaque bytes on the wire and nothing re-validates it at
+/// ingest, so a hand-rolled object can.
+enum NumField {
+    Absent,
+    Value(i64),
+    Malformed,
+}
+
+fn payload_int(object: &Object, key: &str) -> NumField {
+    let Ok(value) = from_canonical_bytes(&object.payload) else { return NumField::Malformed };
+    let ciborium::Value::Map(entries) = value else { return NumField::Malformed };
     for (k, v) in entries {
         if let ciborium::Value::Text(k) = k {
             if k == key {
-                if let ciborium::Value::Integer(i) = v {
-                    return i128::from(i).try_into().ok();
-                }
+                let ciborium::Value::Integer(i) = v else { return NumField::Malformed };
+                return match i128::from(i).try_into() {
+                    Ok(n) => NumField::Value(n),
+                    Err(_) => NumField::Malformed,
+                };
             }
         }
     }
-    None
+    NumField::Absent
 }
 
 impl Storage {
@@ -117,11 +134,30 @@ impl Storage {
         space_id: Option<&str>,
     ) -> Result<Option<(String, Vec<String>)>, rusqlite::Error> {
         let rows: Vec<(Vec<u8>, Vec<u8>)> = self.with_read_conn(|conn| {
+            // Filtered to ADMIN-SIGNED policies in SQL, and bounded.
+            //
+            // Without the join this loaded and CBOR-decoded every space_policy_v1
+            // row for the space before rejecting them in Rust, and anyone can
+            // submit those: fresh Dilithium keys are free, so the per-key quota
+            // does not bound the total. Every later moderation action then paid
+            // for that pile. Filtering here means the scan only ever covers
+            // policies that could actually win.
+            //
+            // Ordered by created_at, matching the design doc, with the object id
+            // as the tie-break so every reader agrees. created_at is
+            // attacker-controlled, which is survivable only BECAUSE the rows are
+            // already restricted to this server's admins: a stranger cannot get
+            // a row into this result set to backdate or postdate at all.
             let mut stmt = conn.prepare(
                 "SELECT payload, author_pubkey FROM signed_objects
                  WHERE object_type = 'space_policy_v1'
                    AND (space_id = ?1 OR (?1 IS NULL AND space_id IS NULL))
-                 ORDER BY received_at DESC",
+                   AND lower(hex(author_pubkey)) IN (
+                       SELECT lower(public_key) FROM user_roles
+                       WHERE role IN ('admin', 'owner')
+                   )
+                 ORDER BY created_at DESC, object_id ASC
+                 LIMIT 32",
             )?;
             let v: Vec<(Vec<u8>, Vec<u8>)> = stmt
                 .query_map(params![space_id], |r| Ok((r.get(0)?, r.get(1)?)))?
@@ -152,6 +188,13 @@ impl Storage {
             // the server, so its owner is the server's admin. A policy chain
             // where policy N+1 is signed by policy N's owner, which would let
             // ownership move without the role table, is rung 3 work.
+            // TWO mechanisms enforce this, deliberately: the SQL above already
+            // restricts the rows to admin-signed policies, and this re-checks in
+            // Rust. Removing EITHER leaves the property protected and every test
+            // green; removing BOTH turns
+            // a_stranger_cannot_self_declare_a_policy_for_our_own_space red. So do
+            // not delete this as redundant without checking that the SQL filter is
+            // still there, and vice versa.
             let owner_role = self.get_role(&owner).unwrap_or_default();
             if owner_role != "admin" && owner_role != "owner" {
                 continue;
@@ -247,10 +290,17 @@ impl Storage {
                 "content hiding is not implemented on this relay".into(),
             ));
         }
-        if payload_int(object, "expires_at").unwrap_or(0) != 0 {
-            return Ok(ModOutcome::Unsupported(
-                "timed actions are not enforced yet, so this would become permanent".into(),
-            ));
+        match payload_int(object, "expires_at") {
+            NumField::Absent => {}
+            NumField::Value(0) => {}
+            // Both a real expiry and an unreadable one are refused. Applying
+            // either would make a permanent sanction out of an action whose
+            // published record claims it lapses.
+            NumField::Value(_) | NumField::Malformed => {
+                return Ok(ModOutcome::Unsupported(
+                    "timed actions are not enforced yet, so this would become permanent".into(),
+                ));
+            }
         }
         if kind != "identity" {
             return Ok(ModOutcome::Unsupported(format!(
@@ -261,17 +311,46 @@ impl Storage {
         // ── the same two guards both other moderation paths use ──
         // Divergence between the paths is the bug that was fixed on the typed
         // path today; a third path with different rules would reintroduce it.
-        if matches!(action.as_str(), "ban" | "mute") && target == signer_hex {
+        // Resolve EVERY key registered to the target's name, not just the one
+        // the submitter named. One person holds several device keys and roles
+        // are per key, so checking a single key lets a moderator reach an
+        // admin's SECOND device: get_role on that key returns "" and the guard
+        // waves it through. Both other paths resolve the full key set for
+        // exactly this reason (the v0.247 name-bypass fix); checking one key
+        // here would have quietly reopened it on a third path.
+        let mut target_keys = vec![target.clone()];
+        if let Ok(Some(n)) = self.name_for_key(&target) {
+            if let Ok(more) = self.keys_for_name(&n) {
+                target_keys.extend(more);
+            }
+        }
+        target_keys.sort();
+        target_keys.dedup();
+
+        if matches!(action.as_str(), "ban" | "mute") && target_keys.iter().any(|k| *k == signer_hex) {
             return Ok(ModOutcome::SelfTarget);
         }
         if !signer_is_admin {
-            let target_role = self.get_role(&target).unwrap_or_default();
-            if target_role == "admin" || target_role == "owner" {
+            let touches_protected = target_keys.iter().any(|k| {
+                let r = self.get_role(k).unwrap_or_default();
+                r == "admin" || r == "owner"
+            });
+            if touches_protected {
                 return Ok(ModOutcome::ProtectedTarget);
             }
         }
 
         // ── apply ──
+        // ban and unban are ADMIN ONLY, matching handle_mod_command
+        // ("Only admins can ban users") and handle_mod_action, which both refuse
+        // ban for a non-admin. Letting a plain moderator ban through this path
+        // would not just diverge from them, it would falsify web/pages/rules.html,
+        // which publishes "Ban: admin only" and says the table is taken from the
+        // code that enforces it. unban is the sharper half: without this a
+        // moderator could quietly lift a ban an admin imposed.
+        if matches!(action.as_str(), "ban" | "unban") && !signer_is_admin {
+            return Ok(ModOutcome::NotAuthorized);
+        }
         let name = self.name_for_key(&target).ok().flatten().unwrap_or_default();
         match action.as_str() {
             "ban" => self.ban_user(&target, &name)?,
@@ -288,6 +367,18 @@ impl Storage {
                 // moderator promotes themselves.
                 if !signer_is_admin {
                     return Ok(ModOutcome::NotAuthorized);
+                }
+                // And only from a known set. set_role writes whatever string it
+                // is given, and roughly twenty sites treat "admin" and "owner" as
+                // admin-or-better, so an arbitrary string here mints privilege.
+                // "moderator" is deliberately excluded: two paths accept it as a
+                // moderator and one does not, so granting it produces a member
+                // with a role that half the system honours.
+                const GRANTABLE: [&str; 4] = ["member", "unverified", "verified", "donor"];
+                if !GRANTABLE.contains(&role.as_str()) && role != "mod" {
+                    return Ok(ModOutcome::Unsupported(format!(
+                        "role '{role}' cannot be granted through a signed action"
+                    )));
                 }
                 self.set_role(&target, &role)?
             }
@@ -628,6 +719,225 @@ mod tests {
 
         // The object itself is still storable: it is somebody else's record.
         assert!(db.put_signed_object(&obj, Some("peer.example")).unwrap());
+    }
+
+    /// ISOLATES THE OWNER ANCHOR. The stranger declares a policy for THIS
+    /// server's own space, so the space gate cannot save us and the anchor is
+    /// the only thing left.
+    ///
+    /// The earlier stranger test does not do this: it uses an invented space, so
+    /// it exits at ForeignSpace before authority is consulted. Deleting the
+    /// anchor left all nine tests green, which is a check that cannot fail, the
+    /// exact defect class this project keeps a note about. Delete the anchor now
+    /// and THIS test goes red.
+    #[test]
+    fn a_stranger_cannot_self_declare_a_policy_for_our_own_space() {
+        let db = db();
+        let space = db.server_did().unwrap();
+        let attacker_seed = [42u8; 32];
+        let attacker = key_of(&attacker_seed);
+        let victim = key_of(&[2u8; 32]);
+        db.register_name("Victim", &victim).unwrap();
+        db.register_name("Nobody", &attacker).unwrap();
+        assert_eq!(db.get_role(&attacker).unwrap_or_default(), "", "attacker has no role");
+
+        let mods: Vec<String> = vec![];
+        let allowed: Vec<String> = vec![];
+        let policy = build_space_policy_v1(
+            &attacker_seed,
+            &space,
+            &SpacePolicy {
+                owner: &attacker,
+                moderators: &mods,
+                rules_url: "",
+                rules_hash: "",
+                appeals: "",
+                unsigned_allowed: &allowed,
+            },
+            1,
+        )
+        .unwrap();
+        db.put_signed_object(&policy, None).unwrap();
+
+        assert!(
+            db.current_space_policy(Some(&space)).unwrap().is_none(),
+            "a policy whose named owner is not an admin here must not be honoured"
+        );
+
+        let mute = build_mod_action_v1(
+            &attacker_seed,
+            &space,
+            &action("mute", Box::leak(victim.clone().into_boxed_str())),
+            2,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(db.apply_mod_action(&mute).unwrap(), ModOutcome::NotAuthorized);
+        assert!(!db.is_muted(&victim).unwrap(), "the victim must not be muted");
+    }
+
+    /// ISOLATES THE SIGNED-BY-ITS-NAMED-OWNER CHECK. The named owner IS an admin
+    /// here, so the anchor passes; only the signature check can refuse it.
+    #[test]
+    fn a_policy_naming_a_real_admin_but_signed_by_someone_else_is_ignored() {
+        let db = db();
+        let space = db.server_did().unwrap();
+        let real_admin = key_of(&[3u8; 32]);
+        let usurper_seed = [7u8; 32];
+        db.register_name("Boss", &real_admin).unwrap();
+        db.set_role(&real_admin, "admin").unwrap();
+
+        let mods = vec![key_of(&usurper_seed)];
+        let allowed: Vec<String> = vec![];
+        let forged = build_space_policy_v1(
+            &usurper_seed,
+            &space,
+            &SpacePolicy {
+                owner: &real_admin,
+                moderators: &mods,
+                rules_url: "",
+                rules_hash: "",
+                appeals: "",
+                unsigned_allowed: &allowed,
+            },
+            1,
+        )
+        .unwrap();
+        db.put_signed_object(&forged, None).unwrap();
+
+        assert!(
+            db.current_space_policy(Some(&space)).unwrap().is_none(),
+            "a policy must be signed by the owner it names, even a real admin"
+        );
+    }
+
+    /// ban and unban are admin-only, matching both other moderation paths and
+    /// the powers table published on /rules.
+    #[test]
+    fn a_moderator_cannot_ban_or_unban() {
+        let db = db();
+        let space = db.server_did().unwrap();
+        let mod_seed = [1u8; 32];
+        let mod_key = key_of(&mod_seed);
+        let target = key_of(&[2u8; 32]);
+        db.register_name("Mod", &mod_key).unwrap();
+        db.set_role(&mod_key, "mod").unwrap();
+        db.register_name("Target", &target).unwrap();
+        let t: &'static str = Box::leak(target.clone().into_boxed_str());
+
+        let ban = build_mod_action_v1(&mod_seed, &space, &action("ban", t), 1, &[]).unwrap();
+        assert_eq!(db.apply_mod_action(&ban).unwrap(), ModOutcome::NotAuthorized);
+        assert!(!db.is_banned(&target).unwrap());
+
+        // The sharper half: a moderator must not be able to lift an admin's ban.
+        db.ban_user(&target, "Target").unwrap();
+        let unban = build_mod_action_v1(&mod_seed, &space, &action("unban", t), 2, &[]).unwrap();
+        assert_eq!(db.apply_mod_action(&unban).unwrap(), ModOutcome::NotAuthorized);
+        assert!(db.is_banned(&target).unwrap(), "the admin's ban must still stand");
+
+        // A mute, which IS a moderator power, still works.
+        let mute = build_mod_action_v1(&mod_seed, &space, &action("mute", t), 3, &[]).unwrap();
+        assert!(matches!(db.apply_mod_action(&mute).unwrap(), ModOutcome::Applied { .. }));
+    }
+
+    /// A moderator must not reach an admin's SECOND device key. Roles are per
+    /// key and one person holds several, so a guard that checks only the named
+    /// key waves this through.
+    #[test]
+    fn the_protected_guard_covers_every_device_key_of_the_target() {
+        let db = db();
+        let space = db.server_did().unwrap();
+        let mod_seed = [1u8; 32];
+        let mod_key = key_of(&mod_seed);
+        db.register_name("Mod", &mod_key).unwrap();
+        db.set_role(&mod_key, "mod").unwrap();
+
+        // One person, two keys, only one of them carrying the admin role.
+        let boss_laptop = key_of(&[6u8; 32]);
+        let boss_phone = key_of(&[8u8; 32]);
+        db.register_name("Boss", &boss_laptop).unwrap();
+        db.register_name("Boss", &boss_phone).unwrap();
+        db.set_role(&boss_laptop, "admin").unwrap();
+        assert_eq!(db.get_role(&boss_phone).unwrap_or_default(), "", "the phone key has no role");
+
+        let phone: &'static str = Box::leak(boss_phone.clone().into_boxed_str());
+        let obj = build_mod_action_v1(&mod_seed, &space, &action("mute", phone), 1, &[]).unwrap();
+        assert_eq!(db.apply_mod_action(&obj).unwrap(), ModOutcome::ProtectedTarget);
+        assert!(!db.is_muted(&boss_phone).unwrap());
+    }
+
+    /// A malformed expires_at must refuse, not read as absent. Applying it makes
+    /// a permanent sanction out of an action whose own record says it lapses.
+    #[test]
+    fn an_unreadable_expiry_is_refused_rather_than_treated_as_none() {
+        use crate::relay::core::encoding::{cbor_map, cbor_text};
+        use crate::relay::core::object::ObjectBuilder;
+        use crate::relay::core::pq_crypto::{derive_dilithium_seed, DilithiumKeypair};
+
+        let db = db();
+        let space = db.server_did().unwrap();
+        let admin_seed = [1u8; 32];
+        let admin = key_of(&admin_seed);
+        let target = key_of(&[2u8; 32]);
+        db.register_name("Admin", &admin).unwrap();
+        db.set_role(&admin, "admin").unwrap();
+        db.register_name("Target", &target).unwrap();
+
+        // Hand-rolled: expires_at as TEXT. The honest builders cannot produce
+        // this, but the payload is opaque bytes on the wire and nothing
+        // re-validates it at ingest.
+        let payload = cbor_map(vec![
+            ("action", cbor_text("mute")),
+            ("target", cbor_text(&target)),
+            ("target_kind", cbor_text("identity")),
+            ("reason", cbor_text("looks temporary, is not")),
+            ("rule", cbor_text("")),
+            ("expires_at", cbor_text("1751328000000")),
+            ("role", cbor_text("")),
+        ]);
+        let kp = DilithiumKeypair::from_seed(&derive_dilithium_seed(&admin_seed));
+        let obj = ObjectBuilder::new("mod_action_v1")
+            .space_id(&space)
+            .created_at(1)
+            .payload_cbor(&payload)
+            .unwrap()
+            .sign(&kp)
+            .unwrap();
+
+        assert!(matches!(db.apply_mod_action(&obj).unwrap(), ModOutcome::Unsupported(_)));
+        assert!(!db.is_muted(&target).unwrap(), "an unreadable expiry must not apply");
+    }
+
+    /// grant_role may not mint an elevated or unknown role.
+    #[test]
+    fn grant_role_cannot_mint_admin_or_an_arbitrary_string() {
+        let db = db();
+        let space = db.server_did().unwrap();
+        let admin_seed = [1u8; 32];
+        let admin = key_of(&admin_seed);
+        let target = key_of(&[2u8; 32]);
+        db.register_name("Admin", &admin).unwrap();
+        db.set_role(&admin, "admin").unwrap();
+        db.register_name("Target", &target).unwrap();
+        let t: &'static str = Box::leak(target.clone().into_boxed_str());
+
+        for bad in ["admin", "owner", "moderator", "wizard"] {
+            let mut g = action("grant_role", t);
+            g.role = bad;
+            let obj = build_mod_action_v1(&admin_seed, &space, &g, 1, &[]).unwrap();
+            assert!(
+                matches!(db.apply_mod_action(&obj).unwrap(), ModOutcome::Unsupported(_)),
+                "granting '{bad}' must be refused"
+            );
+            assert_ne!(db.get_role(&target).unwrap_or_default(), bad);
+        }
+
+        // A legitimate grant still works.
+        let mut ok = action("grant_role", t);
+        ok.role = "verified";
+        let obj = build_mod_action_v1(&admin_seed, &space, &ok, 2, &[]).unwrap();
+        assert!(matches!(db.apply_mod_action(&obj).unwrap(), ModOutcome::Applied { .. }));
+        assert_eq!(db.get_role(&target).unwrap(), "verified");
     }
 
     /// A plain moderator may not hand out roles, or they promote themselves.
