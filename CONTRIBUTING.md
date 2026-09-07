@@ -19,8 +19,10 @@ cargo build --release --features relay --no-default-features
 # Relay starts at http://localhost:3210
 
 # 3. Open the chat
-# Visit http://localhost:3210 in your browser — that's it.
-# No npm install, no build step, no Docker.
+# The relay serves the API and the WebSocket, not the website. Serve the web/
+# folder with any static file server, or copy web/ into a folder named client/
+# beside the binary and the relay will serve it at http://localhost:3210.
+# Either way: no npm install, no build step, no Docker.
 
 # 4. Or build the full desktop client (renderer + relay + game)
 cargo build --release --features native
@@ -59,10 +61,10 @@ Humanity/
 │   ├── lib.rs              ← Engine init, main loop.
 │   ├── relay/              ← Backend (was server/src/ pre-v0.90.0).
 │   │   ├── relay.rs        ← WebSocket routing (~5800 LOC).
-│   │   ├── api.rs          ← REST API (~2800 LOC).
+│   │   ├── api.rs          ← REST API (~4500 LOC).
 │   │   ├── core/           ← Crypto, encoding, identity, signing.
 │   │   ├── handlers/       ← broadcast, federation, game_state, msg_handlers.
-│   │   └── storage/        ← SQLite domain modules (~30 files).
+│   │   └── storage/        ← SQLite domain modules (~50 files).
 │   ├── gui/                ← egui native UI: theme, widgets, pages.
 │   ├── renderer/           ← wgpu PBR pipeline, particles, bloom, sky.
 │   ├── ecs/                ← hecs ECS, components, System trait, SystemRunner.
@@ -81,7 +83,7 @@ Humanity/
 │   │   └── theme.css       ← Auto-generated from data/gui/theme.ron — do not hand-edit colors.
 │   ├── chat/               ← Chat client (app.js, crypto.js, chat-*.js).
 │   └── pages/              ← Standalone pages (tasks, maps, settings, etc.).
-├── data/                   ← Hot-reloadable game/config data (CSV/TOML/RON/JSON, ~108 files).
+├── data/                   ← Hot-reloadable game/config data (CSV/TOML/RON/JSON, ~350 files).
 ├── schemas/                ← TOML schema definitions for data files.
 ├── assets/                 ← Shared media (icons, shaders, models, textures, audio).
 ├── docs/
@@ -134,9 +136,11 @@ The chat client lives in `web/chat/`. It's split into modules loaded in order:
 | `chat-dms.js` | DM state, `openDmConversation()`, `addDmMessage()`, conversation list |
 | `chat-social.js` | Follow/friend system, `isFriend()`, groups |
 | `chat-ui.js` | Notifications, sidebar nav, search, help modal, command palette, unread indicators |
-| `chat-voice.js` | Voice rooms, 1-on-1 calls, video panel, unified right sidebar |
+| `chat-voice-*.js` | Voice rooms, 1-on-1 calls, video panel and screen share, split across `-calls`, `-rooms`, `-webrtc`, `-modal`, `-streaming` |
 | `chat-profile.js` | Profile edit and view modals |
 | `chat-p2p.js` | P2P contact cards (signed, QR), WebRTC DataChannel |
+| `pq.js` | Dilithium3 and Kyber768 primitives |
+| `chat-dm-store.js` | Encrypted local DM history and the client-side social graph |
 
 **All modules share global scope** — functions defined in `app.js` are callable from `chat-ui.js` without imports. This is intentional; no build step required.
 
@@ -144,7 +148,7 @@ When adding a feature:
 - If it touches message display → `chat-messages.js`
 - If it touches DMs → `chat-dms.js`
 - If it touches the sidebar or notifications → `chat-ui.js`
-- If it touches voice/video → `chat-voice.js`
+- If it touches voice/video → the matching `chat-voice-*.js`
 - Core WebSocket protocol → `app.js`
 
 To extend `handleMessage()` without editing `app.js`, use the monkey-patch pattern already used throughout the modules:
@@ -189,7 +193,7 @@ When you add a new message type:
 4. Add a handler function under `src/relay/handlers/` if logic grows past a
    few lines (`msg_handlers.rs` is the catch-all)
 
-**`src/relay/storage/`** is split by domain (~30 modules). Add new SQL queries
+**`src/relay/storage/`** is split by domain (~50 modules). Add new SQL queries
 to the module that matches the domain (e.g., social features → `storage/social.rs`)
 and use parameterised `params![]` macros — never string-format SQL.
 

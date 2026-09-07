@@ -13,13 +13,13 @@ A free app where people chat, plan, trade, and build together. No accounts, no o
 | | What | How it helps |
 |---|---|---|
 | 💬 | **Talk to anyone, privately** | Text, voice, video calls. Direct messages are locked end-to-end with post-quantum math - only the people in the conversation can read them, not even the server. Threads, search, reactions, screen share. |
-| 📋 | **Organize anything** | Kanban boards, calendars, private encrypted notes, skill tracking. Run a team, a club, or your whole life from one place. |
-| 🛒 | **Buy, sell, and trade** | Built-in marketplace with listings, reviews, seller ratings, and escrowed trades. A separate multi-layer trust score (identity, vouching, activity - no surveillance) shows who you're dealing with. |
+| 📋 | **Organize anything** | Kanban boards, calendars, notes with optional per-note passphrase encryption, skill tracking. Run a team, a club, or your whole life from one place. |
+| 🛒 | **Buy, sell, and trade** | Built-in marketplace with signed listings, reviews, and seller ratings. The platform introduces buyers and sellers and never touches the money, so no operator can freeze your sale. A separate multi-layer trust score (identity, vouching, activity, no surveillance) is computed for every identity, with every input published so nobody has to trust a black box. You look it up on the Identity page today; escrowed payment for real goods and trust badges inside listings are next. |
 | 🆔 | **Prove who you are** | Schools, employers, and communities can issue Verifiable Credentials over the open API. Signed, revocable, auditable by anyone. (Choosing exactly what to disclose - selective disclosure - is in development.) |
 | 🗳️ | **Help decide things** | Local server proposals or civilization-wide votes. Vote weight comes from your reputation, capped so no single person can dominate. |
 | 🌱 | **Play and learn survival** | A full 3D homestead: farm real crops, cook, craft, fight, trade, and build a multi-deck ship under a night sky of real stars. |
 
-Add the desktop app and the whole toolset - including the 3D world - runs offline with local saves. Chat, market, and voting pick back up when you reconnect.
+Add the desktop app and the 3D world runs fully offline with local saves. The collaboration tools (chat, market, tasks, voting) are server-backed by design and pick back up when you reconnect.
 
 ---
 
@@ -27,7 +27,7 @@ Add the desktop app and the whole toolset - including the 3D world - runs offlin
 
 ### 1. Your identity is yours, forever
 
-When you sign up, your phone or computer creates a **post-quantum cryptographic key** - math so strong it will still be secure when quantum computers arrive. No username, no password. Your 24-word backup phrase recovers everything if you lose your device. Forgot your phrase too? Guardian-based recovery (Shamir secret sharing - no single friend can do it alone) is being built: the server side is live, the in-app flow is in development.
+When you sign up, your phone or computer creates a **post-quantum cryptographic key** - math so strong it will still be secure when quantum computers arrive. No username, no password. Your 24-word backup phrase restores your identity on any device, and with it everything the server holds. Your private message history is deliberately **not** on the server: it lives encrypted on your own device, and undelivered mail expires after 30 days. That is exactly what makes the relay unable to read or hand over your conversations, and it also means your device holds the only copy of that history. Forgot your phrase too? Guardian-based recovery (Shamir secret sharing - no single friend can do it alone) is being built: the server side is live, the in-app flow is in development.
 
 ### 2. Nobody can deplatform you
 
@@ -35,7 +35,7 @@ There's no lock-in to a central server. Anyone can run a copy. **Your identity w
 
 ### 3. Public domain - really
 
-Every line of code, every design doc, every commit is in the public domain ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)). Copy it, fork it, sell it, teach from it. **No attribution required.** Built by volunteers, owned by humanity.
+The code, the docs and the commits we wrote are in the public domain ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)). Copy it, fork it, sell it, teach from it. **No attribution required.** A few real-world datasets we ship keep their own open terms and travel with the bundle: the OpenStreetMap map regions are ODbL 1.0 and ask for credit on any map drawn from them, the Gaia star catalogue is CC-BY-SA-IGO 3.0, and some planetary textures are CC-BY 4.0. Every one is listed with its obligation in [LICENSES.md](LICENSES.md). Built by volunteers, owned by humanity.
 
 ---
 
@@ -62,7 +62,7 @@ Every line of code, every design doc, every commit is in the public domain ([CC0
 ### Organize your life
 - Kanban project boards
 - Calendar & event planning
-- Encrypted notes
+- Notes (optional per-note encryption)
 - Skills & XP tracking
 - Inventory tracker
 - Maps (real + simulation)
@@ -129,12 +129,12 @@ Works **fully offline**. Native 3D world bundled.
 <td valign="top" width="33%">
 
 ### 🏠 Run your own server
-1. `git clone https://github.com/Shaostoul/Humanity.git`
-2. `cargo build --release --features relay --no-default-features`
-3. `./target/release/HumanityOS --headless`
+1. Download `HumanityOS-linux-x64` from [Releases](https://github.com/Shaostoul/Humanity/releases/latest)
+2. `chmod +x HumanityOS-linux-x64`
+3. `./HumanityOS-linux-x64 --headless`
 4. nginx + systemd in front
 
-Under 10 minutes from zero to live. **[Full guide →](docs/admin/SELF-HOSTING.md)**
+No compiler, no Docker. Under 10 minutes from download to live. Building from source instead adds roughly 7 minutes of compile time. **[Full guide →](docs/admin/SELF-HOSTING.md)**
 
 </td>
 </tr>
@@ -153,7 +153,7 @@ Under 10 minutes from zero to live. **[Full guide →](docs/admin/SELF-HOSTING.m
 | **Hashing** | BLAKE3 - fast and quantum-resistant |
 | **Transport** | WebSocket over TLS 1.2+, HSTS, CSP + full security-header set |
 | **Storage** | Encrypted vaults - server stores only ciphertext |
-| **Logs** | No analytics, no tracking pixels; the relay database never stores IP addresses (IPs touch memory only for abuse rate-limiting) |
+| **Logs** | No analytics, no tracking pixels. The relay database has no IP column at all. The web server in front keeps access logs for 2 days so it can ban abusers, and the relay writes an IP into its own log only when a rate limit trips. For no IP at all, reach the server over the Tor onion service. |
 | **Privilege** | Non-root systemd service with hardened sandboxing |
 | **Audit** | Ongoing cadence → [SECURITY-CADENCE.md](docs/SECURITY-CADENCE.md) (initial Feb 2026 audit archived at [docs/history/SECURITY_AUDIT_2026-02-12.md](docs/history/SECURITY_AUDIT_2026-02-12.md)) |
 
@@ -213,7 +213,7 @@ Humanity/
 │   └── terrain/             ← Icosphere planets, voxel asteroids, ship interiors
 ├── web/                     ← Plain JS/HTML/CSS site (served by nginx)
 │   ├── chat/                ← Chat client modules
-│   ├── pages/               ← Standalone pages (36 of them)
+│   ├── pages/               ← Standalone pages (43 of them)
 │   └── shared/              ← shell.js, theme.css, pq-identity.js bridge
 ├── data/                    ← Hot-reloadable game + identity + coordination data
 │   ├── chemistry/           ← 483 elements, compounds, alloys, gases, toxins

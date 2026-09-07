@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to HumanityOS. Versions follow [semver](https://semver.org/):
+Historical changelog, kept by hand through v0.43.0 (2026-03-24) and no longer
+maintained here. The per-release record now lives in
+[GitHub Releases](https://github.com/Shaostoul/Humanity/releases), the narrative
+record in [docs/history/](docs/history/) and the
+[devlog](https://united-humanity.us/devlog).
+
+Versions follow [semver](https://semver.org/):
 `0.X.0` = Rust changes (server or desktop), `0.X.Y` = non-Rust changes (HTML/JS/CSS/docs).
 
 ---
