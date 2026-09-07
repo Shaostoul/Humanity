@@ -162,10 +162,14 @@
       state of it:
     </p>
     <ul>
-      <li><strong>There is no moderation audit log.</strong> A ban is a row in a database with no
-        record of who issued it, why, or when it might end. The design for signed, tamper-evident
-        moderation records exists and is not built. Until it is, "attributable" means you can ask
-        and get an answer, not that you can verify one independently.</li>
+      <li><strong>The moderation audit log is half built.</strong> A moderator can now take an
+        action as a signed record: it names who acted, carries a written reason, and anyone can
+        fetch it and check the signature without trusting this server. Where a moderator uses that
+        path, the action is genuinely attributable rather than attributable-if-we-tell-you.
+        <br>What is NOT done: the older ways of moderating (a typed command, a button) still change
+        the database directly with no signed record, so not every action is logged yet, and this
+        server has not yet published the signed policy that declares who may moderate it. Until
+        both land, treat the log as a growing record rather than a complete one, and keep asking.</li>
       <li><strong>Reports have no tracked outcome.</strong> There is no status on a report, so you
         will not automatically hear what happened to one you filed. Ask if you want to know.</li>
       <li><strong>Reports only reach moderators who are online</strong> when you file them. There is
