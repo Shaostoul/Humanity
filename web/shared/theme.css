@@ -217,14 +217,49 @@ h4 { font-size: var(--text-base); }
   border-radius: 2px;
 }
 
-/* Dyslexia-Friendly Font: switch the whole UI to a high-legibility font stack
-   with wider letter spacing and looser word spacing. Uses widely available
-   system faces (no web-font download needed on old / offline hardware). */
+/* Reading comfort: open out the text spacing.
+   (The attribute keeps its old name so stored preferences keep working.)
+
+   This used to swap the whole UI to a "Comic Sans MS, Trebuchet MS, Verdana"
+   stack. Two things were wrong with that, and both are why the font override
+   is gone rather than merely changed.
+
+   1. It did not work. fontconfig ships metric aliases for Arial, Times New
+      Roman, Courier New, Georgia, Cambria and Calibri, and none for Comic
+      Sans, so on Linux and Android the family override was already a no-op
+      and those users silently got Trebuchet or Verdana.
+
+   2. The evidence does not support it. A 2026 Annals of Dyslexia
+      meta-analysis pooled 15 studies, 91 effect sizes and N=688 on special
+      dyslexia typefaces and found a pooled Hedges g of -0.04, CI
+      [-0.15, 0.07]: indistinguishable from zero. Marinus et al. (2016)
+      explains why the belief persists. Dyslexie beat Arial by 7 percent, then
+      they matched Arial's SPACING to Dyslexie's and the advantage vanished.
+      The benefit was never the letterforms. It was the spacing.
+
+   So this rule now only does the thing that works, at a dose that is actually
+   the studied one. The old values, 0.03em letter and 0.08em word, were roughly
+   a quarter of it and were being presented to users as an accessibility
+   feature.
+
+   The numbers are the WCAG 2.2 SC 1.4.12 Text Spacing anchors: letter spacing
+   at least 0.12 times the font size, word spacing at least 0.16 times, line
+   height at least 1.5 times, and paragraph spacing at least 2 times.
+
+   Word spacing MUST rise with letter spacing and never alone. Galliussi et al.
+   (2020) found that increasing letter spacing while leaving word spacing at
+   default significantly slowed BOTH dyslexic and typical readers, because
+   words stop segmenting when the two gaps start to look alike.
+
+   Full evidence and sources: docs/design/typography.md */
 [data-dyslexia-font],
 [data-dyslexia-font] * {
-  font-family: "Comic Sans MS", "Trebuchet MS", Verdana, Tahoma, sans-serif !important;
-  letter-spacing: 0.03em !important;
-  word-spacing: 0.08em !important;
+  letter-spacing: 0.12em !important;
+  word-spacing: 0.16em !important;
+  line-height: 1.5 !important;
+}
+[data-dyslexia-font] p {
+  margin-bottom: 2em !important;
 }
 
 /* Scrollbar */
