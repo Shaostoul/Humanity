@@ -1,5 +1,50 @@
 # HumanityOS: Priorities
 
+> **v0.1299.1 (2026-09-06): THE PUBLIC CLAIMS AUDIT, front-door and Library
+> lane.** `docs/history/2026-09-06-public-claims-audit.md` verified 35 claims
+> against the code; the 22 under `web/pages/`, `docs/outreach/` and
+> `data/library/` are now fixed, the 13 root-document ones were the other
+> session's lane and are already committed.
+>
+> The download page said "It keeps itself up to date" and "You never need to
+> re-download manually". The updater only installs a release carrying
+> `release-manifest.json`, and 11 of the last 12 releases are unsigned, so a
+> user on the exact build that page hands them is offered nothing. Reworded to
+> describe the gate, not the current signing state, because unsigned-latest is
+> this project's normal condition. The public-leaders brief promised a fork
+> "owes nothing to anyone: no fee, no credit"; the OpenStreetMap regions we
+> commit are ODbL with attribution and share-alike. It also named marketplace
+> listings and shared tasks as "signed entries that cannot be quietly altered",
+> in a section titled "The guarantee", when both are plain mutable SQLite rows.
+>
+> **WHAT THE AUDIT EXPOSED THAT IS A PRODUCT GAP, NOT A COPY GAP.** Each of
+> these was fixed in the wording; the underlying hole is still open, and each
+> is small:
+>
+> 1. **The web marketplace's message box is dead.** `market-app.js` still
+>    sends `{type:'listing_message_send'}`, a message type deleted server-side
+>    in the sealed-sender cutover, so it fails to deserialize and is dropped at
+>    `relay.rs`. A buyer types a question, presses Send, sees the box clear and
+>    "No messages yet", and nothing was sent and no error was shown. The app
+>    does this correctly (`market.rs` "Message Seller" opens an E2EE DM); the
+>    web page just needs the same treatment. **Cheapest real win on this list.**
+> 2. **The desktop task board never persists.** `tasks.rs` New Task pushes a
+>    struct into memory; there is no `ws_client` send and no save path, and the
+>    next `task_list_response` clears it. So the board is empty offline, every
+>    time, which is exactly the scenario the outreach docs invite a reader to
+>    test. Desktop notes are the same shape (`GuiNote`, no serde, no save).
+> 3. **The trust score is computed and shown nowhere useful.**
+>    `GET /api/v2/trust/{did}` answers live and every input is published, but
+>    neither marketplace UI mentions it; you must paste a DID into the Identity
+>    page. Putting it on a listing is the point of having it.
+>
+> Left for another lane: root `CREDITS.md:37` still says "~1,300 releases"
+> (2,041 is the real figure, and it was the third disagreeing number of three).
+> And `index.html`'s FRAUD block says "Records are cryptographically signed and
+> cannot be quietly altered", the same overreach as the one fixed in the
+> leaders brief, but it was not itself an audited finding so it was flagged
+> rather than rewritten.
+
 > **REAL SKILLS, SECOND RUNG (2026-09-06). Four new Library guides, written
 > because a verified account with a real audience reposted the project that day
 > and sent traffic to /library, and the operator replied in public "more going
