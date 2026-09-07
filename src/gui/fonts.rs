@@ -52,15 +52,65 @@ pub fn install_font_fallbacks(ctx: &egui::Context) {
 fn build_font_definitions() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
 
+    // ── 0. Noto Sans as the face people actually read ──
+    // Chosen for global access: 2,965 codepoints against Ubuntu-Light's 1,194,
+    // with complete Cyrillic (256/256), Cyrillic Supplement (48/48), Greek
+    // Extended (233/256), Latin Extended-B (208/208) and Vietnamese. The
+    // project's stated mission is to account for all humans, and this is the
+    // only family whose own stated mission is the same shape: no tofu for any
+    // human language.
+    //
+    // Also a weight fix. Nobody ever chose Ubuntu-LIGHT; it arrived with
+    // egui's default_fonts feature. Light weights measure worse for legibility
+    // with higher oculomotor load (Burmistrov et al. 2016, NordiCHI), and that
+    // penalty landed on every user on every platform with nothing toggled.
+    //
+    // Static, not variable, and that is forced: epaint's FontData exposes only
+    // font, index and tweak, and nothing in epaint or egui ever calls
+    // ab_glyph's set_variation, so a variable file would render at its default
+    // instance forever. Unhinted, because ttf-parser (via ab_glyph) has no
+    // hinting interpreter at all, so the ~190 KB of hinting per file cannot
+    // change a single rendered pixel here.
+    //
+    // Ubuntu-Light stays in the chain below rather than being removed: it
+    // carries U+221E and a few other symbols Noto Sans does not, and it is
+    // already compiled in, so keeping it costs nothing.
+    //
+    // OFL-1.1, and its copyright statement declares no Reserved Font Name, so
+    // unlike most alternatives this face may be modified and still shipped
+    // under its own name. Licence text ships at data/fonts/OFL.txt.
+    // See docs/design/typography.md.
+    fonts.font_data.insert(
+        "NotoSans".to_owned(),
+        std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+            "../../data/fonts/NotoSans-Regular.ttf"
+        ))),
+    );
+    if let Some(proportional) = fonts.families.get_mut(&FontFamily::Proportional) {
+        proportional.insert(0, "NotoSans".to_owned());
+    }
+
     // ── 1. Hack into the Proportional chain ──
-    // Second, not first: Ubuntu-Light stays the face you read, and Hack only
-    // supplies codepoints Ubuntu-Light does not have (arrows, box drawing,
-    // most of Math Operators). "Hack" is already in `font_data` because
-    // epaint bundles it for Monospace, so this costs nothing to add.
+    // Behind BOTH text faces, so it only ever supplies codepoints neither of
+    // them has: arrows, box drawing, most of Math Operators. Noto Sans carries
+    // 0 of the 112 codepoints in the Arrows block and Ubuntu-Light carries 0
+    // as well, while Hack carries 109, and epaint puts Hack in Monospace only.
+    // That is why U+2192, which appears 111 times across src/gui, was blank or
+    // tofu on Linux and macOS and rendered on Windows purely because Segoe UI
+    // Emoji happened to cover it.
+    //
+    // The position is computed rather than hardcoded, so adding or reordering
+    // a text face above cannot silently push Hack in front of one of them.
+    // "Hack" is already in `font_data` because epaint bundles it for
+    // Monospace, so this costs zero bytes.
     if let Some(proportional) = fonts.families.get_mut(&FontFamily::Proportional) {
         if !proportional.iter().any(|f| f == "Hack") {
-            let at = usize::min(1, proportional.len());
-            proportional.insert(at, "Hack".to_owned());
+            let after_text_faces = proportional
+                .iter()
+                .position(|f| f == "Ubuntu-Light")
+                .map(|i| i + 1)
+                .unwrap_or_else(|| usize::min(1, proportional.len()));
+            proportional.insert(after_text_faces, "Hack".to_owned());
         }
     }
 
@@ -196,14 +246,30 @@ mod tests {
             .get(&FontFamily::Proportional)
             .expect("proportional family exists");
 
+        let idx = |name: &str| {
+            proportional
+                .iter()
+                .position(|f| f == name)
+                .unwrap_or_else(|| panic!("{name} missing from the Proportional chain"))
+        };
+
         assert_eq!(
-            proportional[0], "Ubuntu-Light",
-            "Latin must still come from Ubuntu-Light, not from a monospace face"
+            proportional[0], "NotoSans",
+            "Noto Sans must be the face people read"
         );
-        assert_eq!(
-            proportional[1], "Hack",
-            "Hack must be the FIRST fallback so arrows and box drawing resolve \
-             before the emoji faces are reached"
+        assert!(
+            idx("Ubuntu-Light") > idx("NotoSans"),
+            "Ubuntu-Light is a coverage backfill (it carries U+221E), not the primary face"
+        );
+        assert!(
+            idx("Hack") > idx("Ubuntu-Light"),
+            "Hack must sit behind BOTH text faces, or a monospace glyph would win \
+             for a codepoint a text face already has"
+        );
+        assert!(
+            idx("Hack") < idx("NotoEmoji-Regular"),
+            "Hack must come before the emoji faces so arrows and box drawing \
+             resolve from it rather than tofuing"
         );
     }
 

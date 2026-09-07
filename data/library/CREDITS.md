@@ -92,6 +92,25 @@ listed here for a kindness they did not ask credit for.
   docs/reference/asset-and-map-sources.md; anything that ships gets
   credited here.
 
+## Typefaces
+
+The letters you are reading right now, in the app and on this site.
+
+- **Noto Sans** - the Noto Project Authors, SIL Open Font License 1.1. The
+  face the interface is set in. Chosen because its stated mission is the same
+  shape as ours: no tofu for any human language. Licence text ships at
+  `data/fonts/OFL.txt`. https://notofonts.github.io
+- **Hack** - Christopher Simpkins and contributors, MIT plus the Bitstream Vera
+  licence. Every monospace surface: identity keys, seed phrases, invite
+  tickets, the debug overlays, and the arrows and box-drawing characters the
+  rest of the interface borrows from it.
+- **Ubuntu** - Canonical, Ubuntu Font Licence 1.0. Kept in the fallback chain
+  for the handful of symbols Noto Sans does not carry.
+- **Noto Emoji** and **emoji-icon-font** - SIL OFL 1.1 and MIT respectively.
+- The emoji and CJK characters you see come from fonts already installed on
+  your own machine. We read them; we do not redistribute them, so Microsoft
+  and Apple faces stay where they are.
+
 ## Technology
 
 Rust, wgpu, egui, hecs, rapier3d, kira, axum, SQLite, and the whole
