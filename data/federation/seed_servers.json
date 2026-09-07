@@ -1,0 +1,30 @@
+{
+  "_comment": "Suggested first peers for a new HumanityOS server. NOTHING here is added automatically: an operator picks from this list, enters their own address, or stays isolated. A seed list that joined itself would make whoever ships the list the root of the network, which is the opposite of what this project is for. Fork the repo and replace this file to ship your own defaults; the admin Federation panel reads whatever is here.",
+  "version": 1,
+  "updated": "2026-09-06",
+  "servers": [
+    {
+      "name": "united-humanity.us",
+      "url": "https://united-humanity.us",
+      "operator": "Shaostoul",
+      "description": "The project's own server, and the largest. Most existing members are here, so peering with it is the shortest route to reaching people.",
+      "suggested_trust_tier": 2
+    },
+    {
+      "name": "public.guide",
+      "url": "https://public.guide",
+      "operator": "Shaostoul",
+      "description": "A second server run by the same operator. Useful mainly as a second peer while the network is small.",
+      "suggested_trust_tier": 2
+    }
+  ],
+  "_what_peering_does": [
+    "Federated channels: chat on a channel marked federated crosses between peers.",
+    "Signed objects: P2P groups, governance proposals and votes, credentials and market listings replicate to peers.",
+    "Profiles: signed profiles propagate, so members are visible across servers.",
+    "Nothing is peered below trust tier 2, and the operator sets the tier by hand."
+  ],
+  "_what_peering_does_not_do": [
+    "Direct messages do NOT federate, with peers or without. A DM is deposited in a sealed mailbox on the server both people are connected to, so two people must use the SAME server to exchange DMs. Peering does not change that."
+  ]
+}
