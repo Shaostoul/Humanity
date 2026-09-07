@@ -134,6 +134,28 @@ copyright link.
 
 **LEGAL_OBLIGATION** (3/3 confirmed)
 
+> **OPERATOR CORRECTION, 2026-09-06, applied after this audit ran.** The
+> framing below is wrong where it says ATHYG is "NOT shipped" and treats the
+> multiple catalogues as an error. All three catalogues are DELIBERATE, and
+> they are a hardware ladder the player chooses between in Settings > Sky:
+> Standard is HYG at 120k and ships with the app, Extended is ATHYG at 2.5M as
+> an in-app download, Ultra is Gaia G<14 at 25M as an in-app download. That
+> design is documented at src/renderer/stars.rs:5-9 and surfaced in the
+> Settings UI with per-tier sizes and Remove buttons. People on lesser hardware
+> pick a smaller tier; that is the point.
+>
+> What survives is NARROWER and still real: credits.ron has ONE star row, and
+> it is labelled `athyg` while its `used_for` describes "The standard star
+> catalogue (~120k stars)", which is HYG. One row is doing the work of three
+> datasets and names the wrong one for the tier it describes. Two rows are
+> needed, or three. The licence placeholder (b) and the four contradictory
+> answers (c) stand as written.
+>
+> The deeper point belongs to the completeness critic, not to this finding:
+> ATHYG and Gaia are not merely used, they are REDISTRIBUTED by this project
+> from its own GitHub release page (assets-stars-1), which is a distribution
+> surface no sweep angle audited and which carries no licence text.
+
 Four compounding problems in one row. (a) data/stars.bin, the ~120k catalogue
 every player sees by default, is HYG; credits.ron has no row for it and
 instead attributes its work to ATHYG, a different (2.5M-row) astronexus
