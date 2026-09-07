@@ -8,10 +8,13 @@ opposite. It leads with the parts that usually get buried.
 ## Read this part first
 
 There is nothing to invest in here in the traditional sense. There is no
-company, no nonprofit, no equity, no revenue, and no exit. HumanityOS is
-released into the public domain under CC0, which means nobody owns it, so
-none of the usual instruments apply. You cannot buy a stake in it, and
-neither can anyone else.
+company, no nonprofit, no equity, no revenue, and no exit. Everything we write is
+released into the public domain under CC0, so nobody owns it and none of the
+usual instruments apply. You cannot buy a stake in it, and neither can
+anyone else. (A few third-party data files we ship with it, such as
+planetary imagery and star catalogues, stay under their own free licences
+and are credited by name on our Credits page. Nothing in the stack is
+proprietary and nothing requires a payment or a permission.)
 
 What exists instead is a chance to fund a public good directly, and to
 watch every dollar become something everyone owns. If that is not what you
@@ -62,9 +65,9 @@ Three things, concretely:
   project continues either way.
 
 The transparency is total because it has to be. Every line of code, every
-change, and every decision is public. Roughly 1,000 releases have shipped
-in the open so far, each one visible and verifiable at
-https://github.com/Shaostoul/Humanity. You do not have to trust a report
+change, and every decision is public. More than 2,000 tagged releases have shipped
+in the open so far, 2,041 as of 6 September 2026, each one visible and
+verifiable at https://github.com/Shaostoul/Humanity. You do not have to trust a report
 we wrote about our progress. You can watch the work itself, any day, and
 so can anyone you ask to check it for you.
 
@@ -77,9 +80,9 @@ change, this section changes.
 Income, per month:
 
 - Funding from my side-job: $600/month.
-- Patreon: about $21 net over the last twelve months. (Twelve years of
-  history there: $15,812 lifetime net since 2014, with a peak around
-  $220 a month in 2019.)
+- Patreon: about $21 a month, averaged over the last twelve months.
+  (Twelve years of history there: $15,812 lifetime net since 2014, with a
+  peak around $220 a month in 2019.)
 
 Total: about $620 a month.
 
@@ -140,7 +143,11 @@ that return is paid to everyone, including you.
 No promises, only honest possibilities. Substantial support could mean:
 
 - faster development, including additional paid contributors
-- more languages, so the tools reach people the current five miss
+- translation, starting from almost nothing. Five language files exist, but
+  they cover 37 strings and no screen reads them yet, so today the app is
+  English only. Real localisation is one of the clearest things money would
+  buy, and one of the biggest barriers between these tools and the people
+  who need them most
 - hardware for testing on the cheap, old, low-power devices real people
   actually own
 - real-world pilot programs: taking the tools to actual households and

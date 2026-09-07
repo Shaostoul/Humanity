@@ -46,13 +46,14 @@ everyone who depends on them fails at once. Communities of capable
 households do not fail at once. A storm or a supply disruption breaks one
 link, and the neighbors hold.
 
-HumanityOS is built for that reality. The desktop app keeps its data on the
-user's own device and is designed to work without an internet connection:
-the library, the plans, the records stay usable in a blackout or a remote
-valley. More important than the software, the skills it teaches keep
-working when nothing else does. Every capable household is one less
-household in line during a crisis, and one more that can help its
-neighbors. Our reasoning on this is written out in
+HumanityOS is built for that reality. The desktop app keeps the library,
+your notes and your records on the user's own device, so they stay readable
+in a blackout or a remote valley, and more important than the software, the
+skills it teaches keep working when nothing else does. Shared task lists are
+today's exception: they live on the server and need a connection. Making
+them work offline and sync later is on the list. Every capable household
+is one less household in line during a crisis, and one more that can help
+its neighbors. Our reasoning on this is written out in
 https://united-humanity.us/library#why-homesteading-works.
 
 ## Sovereignty
@@ -67,13 +68,21 @@ copy of the code and your own server would keep working unchanged.
 
 ## No lock-in, by construction
 
-The entire project is released under CC0, the most permissive public-domain
-dedication that exists. Legally, that means any government, school, or
-community may fork it, translate it, rename it, rebrand it, adapt it to
-local crops and local law, and owes nothing to anyone: no fee, no credit,
-no permission. This is not a promise we might later withdraw. Public domain
-cannot be taken back. Lock-in is not merely avoided; it is impossible by
-construction.
+The project's own code, documents and game data are released under CC0, the
+most permissive public-domain dedication that exists: any government, school
+or community may fork it, translate it, rename it, rebrand it and adapt it
+to local crops and local law, owing us nothing and asking nobody.
+
+A few third-party datasets we ship keep their original open terms and travel
+with the bundle. The OpenStreetMap region files are ODbL, which asks for
+credit on any map drawn from them and for the same terms if you pass them
+on, and some star and planet imagery is CC-BY. Every one is listed with what
+it asks in
+https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md. Nothing in that
+list costs money, and nothing can be revoked.
+
+This is not a promise we might later withdraw. Public domain cannot be taken
+back. Lock-in is not merely avoided; it is impossible by construction.
 
 ## The encryption question, answered plainly
 
@@ -84,12 +93,15 @@ way a sealed letter or a kitchen-table conversation is private. A family's
 conversations stay theirs. We cannot read them either; the server holds
 only unreadable data.
 
-Public life on the platform is the opposite: open by design. Community
-coordination, marketplace listings, shared tasks, and governance decisions
-happen in public, recorded as signed entries that cannot be quietly
-altered. Our position is simple and applies to ourselves first: private
-citizens deserve privacy, and public power deserves scrutiny. The design
-reasoning is public in
+Public life on the platform is the opposite: open by design. Governance
+proposals and votes are recorded as signed objects that cannot be quietly
+altered, and every chat message carries its sender's signature. Marketplace
+listings and shared tasks are public too, but they are ordinary server
+records today, which means the person running the server could edit them
+without leaving a trace. Signing those is on the list; until it lands, the
+argument for trusting the server does not extend to them. Our position is
+simple and applies to ourselves first: private citizens deserve privacy,
+and public power deserves scrutiny. The design reasoning is public in
 https://united-humanity.us/library#the-five-adversaries, and the binding
 rules are in the Humanity Accord at https://united-humanity.us/accord.
 

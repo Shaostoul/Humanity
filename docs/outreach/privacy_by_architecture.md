@@ -97,9 +97,12 @@ Two more categories of conversation were still stored in plain, readable text.
 Marketplace messages between buyers and sellers were kept unencrypted on the
 server, and, worse, were broadcast to every connected client. The old group
 chat system stored its membership rosters and every message in the clear too.
-Both are now gone. Contacting a seller opens a normal end to end encrypted
-direct message. Groups run entirely on encrypted, signed data the server cannot
-read. Both plaintext tables were dropped from the database outright.
+Both are now gone. In the desktop app, contacting a seller opens a normal end
+to end encrypted direct message. The web marketplace has not been moved over
+yet, and its old message box does nothing at all, which is a bug we are
+fixing; until then, contact a seller from the app or by direct message in
+chat. Groups run entirely on encrypted, signed data the server cannot read.
+Both plaintext tables were dropped from the database outright.
 
 ### Where your photos were taken
 

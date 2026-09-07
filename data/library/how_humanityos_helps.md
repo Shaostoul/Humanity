@@ -34,8 +34,12 @@ into your actual garden, your actual rain barrel, your actual power
 budget. The game world is in active development and is not fully
 playable yet.
 
-Everything, the code, the data, the documents, is released into the
-public domain. No company owns it. No one ever will.
+The code and the documents are released into the public domain, and so is
+the game data we made ourselves. A few outside datasets we ship, such as the
+OpenStreetMap town maps and some star and planet imagery, keep their own
+free licences, which ask for credit rather than money;
+https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md lists every one.
+No company owns HumanityOS. No one ever will.
 
 ## What help looks like
 

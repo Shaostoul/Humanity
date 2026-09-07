@@ -32,7 +32,7 @@ infrastructure a community needs: chat with post-quantum end-to-end
 encrypted private messages, task planning, maps, a person-to-person
 marketplace, and a library of the project's founding documents. It has
 been my full-time work for seven years (started as Project Universe in
-2019), with roughly 1,100 public releases, built as one human pair
+2019), with more than 2,000 public releases, built as one human pair
 programming with AI in the open.
 
 Live: https://united-humanity.us
@@ -48,9 +48,13 @@ WHY IT FITS FUTO
 - Self-hostable and federated. Anyone can run their own server in
   minutes; identities move freely between servers. No single point of
   failure or control.
-- Public domain (CC0), not just open source. Nobody, including me, can
-  ever fence it off, relicense it, or sell it back to the people it
-  was built for. Capture is structurally impossible.
+- Public domain (CC0), which goes further than open source in one
+  direction and not at all in another. Nobody, including me, can
+  withdraw it, revoke a licence, or make the public copy disappear,
+  because there is no licence to revoke. Anyone can fork it, including
+  a company that wants to sell its own build; CC0 does not forbid that
+  and I do not want it to. What matters is that the free version can
+  never be taken away from the people using it.
 - It runs on a $20 a month server, and works offline, because the
   people who need it most have the least.
 
@@ -94,3 +98,10 @@ shaostoul@gmail.com
 ## Outcome log
 
 - 2026-08-02 10:35: sent by Michael to grantapps@futo.org. Awaiting reply.
+- 2026-09-06: corrected two claims in the text above, AFTER sending. The
+  copy FUTO received said "Capture is structurally impossible" and
+  "roughly 1,100 public releases". The first is wrong: CC0 imposes no
+  conditions on derivative works, so a third party can relicense their own
+  modified build under proprietary terms. The second undercounted (2,041
+  releases as of 6 September 2026). If FUTO replies, correct both without
+  being asked. Source: docs/history/2026-09-06-public-claims-audit.md.
