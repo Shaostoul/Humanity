@@ -33,6 +33,11 @@ pub struct ProposalIndex {
     pub opens_at: i64,
     pub closes_at: i64,
     pub created_at: i64,
+    /// Scheduled re-votes (v0.1302). All optional; None everywhere means this
+    /// proposal behaves exactly as proposals did before the feature existed.
+    pub review_after: Option<i64>,
+    pub review_cadence_ms: Option<i64>,
+    pub supersedes: Option<String>,
 }
 
 /// Vote tally for a proposal.
@@ -197,6 +202,65 @@ impl Storage {
         })
     }
 
+    /// The whole supersession chain containing a proposal, oldest first.
+    ///
+    /// This is the read that makes superseding worth more than editing. A
+    /// client can show not just today's answer but how the question has been
+    /// settled over time: what was decided, when, and how many times it has
+    /// been reaffirmed. The last element is the standing decision.
+    ///
+    /// Returns an empty vector if the id names no proposal.
+    pub fn decision_chain(&self, proposal_object_id: &str) -> Result<Vec<ProposalIndex>, rusqlite::Error> {
+        // Walk back to the root first, so callers can hand us any link.
+        let mut root = match self.get_proposal(proposal_object_id)? {
+            Some(p) => p,
+            None => return Ok(Vec::new()),
+        };
+        let mut seen = std::collections::HashSet::new();
+        seen.insert(root.proposal_object_id.clone());
+        while let Some(parent_id) = root.supersedes.clone() {
+            if !seen.insert(parent_id.clone()) {
+                break; // cycle; stop where we are
+            }
+            match self.get_proposal(&parent_id)? {
+                // A dangling `supersedes` means the parent was never seen by
+                // this server, which is normal in a federated world. Treat the
+                // link we do have as the root rather than failing.
+                None => break,
+                Some(p) => root = p,
+            }
+        }
+
+        // Then forward to the head, collecting the chain.
+        let mut chain = vec![root.clone()];
+        let mut seen_fwd = std::collections::HashSet::new();
+        seen_fwd.insert(root.proposal_object_id.clone());
+        let mut current = root.proposal_object_id;
+        loop {
+            let next: Option<String> = self.with_conn(|conn| {
+                conn.query_row(
+                    "SELECT proposal_object_id FROM proposals
+                      WHERE supersedes = ?1
+                      ORDER BY created_at DESC, proposal_object_id ASC
+                      LIMIT 1",
+                    params![&current],
+                    |r| r.get(0),
+                )
+                .optional()
+            })?;
+            match next {
+                Some(n) if seen_fwd.insert(n.clone()) => {
+                    if let Some(p) = self.get_proposal(&n)? {
+                        chain.push(p);
+                    }
+                    current = n;
+                }
+                _ => break,
+            }
+        }
+        Ok(chain)
+    }
+
     /// Proposals whose scheduled review date has arrived and that nothing has
     /// superseded yet. This is what a scheduler asks for when it opens the
     /// successor proposal.
@@ -323,7 +387,8 @@ impl Storage {
         self.with_conn(|conn| {
             conn.query_row(
                 "SELECT proposal_object_id, proposer_did, proposal_type, scope,
-                        space_id, opens_at, closes_at, created_at
+                        space_id, opens_at, closes_at, created_at,
+                        review_after, review_cadence_ms, supersedes
                  FROM proposals WHERE proposal_object_id = ?1",
                 params![proposal_object_id],
                 |row| {
@@ -336,6 +401,9 @@ impl Storage {
                         opens_at: row.get(5)?,
                         closes_at: row.get(6)?,
                         created_at: row.get(7)?,
+                        review_after: row.get(8)?,
+                        review_cadence_ms: row.get(9)?,
+                        supersedes: row.get(10)?,
                     })
                 },
             )
@@ -356,7 +424,8 @@ impl Storage {
 
         let mut sql = String::from(
             "SELECT proposal_object_id, proposer_did, proposal_type, scope,
-                    space_id, opens_at, closes_at, created_at
+                    space_id, opens_at, closes_at, created_at,
+                        review_after, review_cadence_ms, supersedes
              FROM proposals WHERE 1=1",
         );
         let mut binds: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -394,6 +463,9 @@ impl Storage {
                         opens_at: row.get(5)?,
                         closes_at: row.get(6)?,
                         created_at: row.get(7)?,
+                        review_after: row.get(8)?,
+                        review_cadence_ms: row.get(9)?,
+                        supersedes: row.get(10)?,
                     })
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -717,6 +789,77 @@ mod tests {
         let k = DilithiumKeypair::generate().unwrap();
         let _a = put(&db, &make_proposal_with(&k, vec![]));
         assert!(db.proposals_due_for_review(i64::MAX).unwrap().is_empty());
+    }
+
+    /// The chain read is what makes superseding worth more than editing: the
+    /// history has to survive and be ordered, or "reaffirmed three times"
+    /// cannot be shown to anyone.
+    #[test]
+    fn decision_chain_returns_the_history_oldest_first_from_any_link() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+
+        let a = put(&db, &make_proposal_with(&k, vec![]));
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        let c = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&b))]));
+
+        // Handing it ANY link yields the same full chain, oldest first.
+        for entry in [&a, &b, &c] {
+            let chain = db.decision_chain(entry).unwrap();
+            let ids: Vec<String> = chain.iter().map(|p| p.proposal_object_id.clone()).collect();
+            assert_eq!(ids, vec![a.clone(), b.clone(), c.clone()], "entered at {entry}");
+            assert_eq!(
+                chain.last().unwrap().proposal_object_id,
+                db.standing_decision(entry).unwrap().unwrap(),
+                "the last link must be the standing decision"
+            );
+        }
+    }
+
+    #[test]
+    fn decision_chain_is_empty_for_an_unknown_proposal() {
+        let db = make_test_storage();
+        assert!(db.decision_chain("no_such_proposal").unwrap().is_empty());
+    }
+
+    /// Federation means a server can legitimately hold a successor whose parent
+    /// it never received. That must read as a chain root, not an error and not
+    /// an infinite walk.
+    #[test]
+    fn decision_chain_treats_a_dangling_parent_as_the_root() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+        let orphan = put(
+            &db,
+            &make_proposal_with(&k, vec![("supersedes", cbor_text("never_seen_here"))]),
+        );
+
+        let chain = db.decision_chain(&orphan).unwrap();
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].proposal_object_id, orphan);
+        assert_eq!(chain[0].supersedes.as_deref(), Some("never_seen_here"),
+            "the dangling pointer is preserved, so it is still auditable");
+    }
+
+    /// Same hostile input as the standing_decision cycle test, on the read that
+    /// walks in both directions and so has two chances to hang.
+    #[test]
+    fn decision_chain_survives_a_cycle() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+        let a = put(&db, &make_proposal_with(&k, vec![]));
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE proposals SET supersedes = ?1 WHERE proposal_object_id = ?2",
+                params![&b, &a],
+            )?;
+            Ok::<(), rusqlite::Error>(())
+        })
+        .unwrap();
+
+        let chain = db.decision_chain(&a).unwrap();
+        assert!(!chain.is_empty() && chain.len() <= 2, "bounded, got {}", chain.len());
     }
 
     /// BUG-046 guard. The live relay's proposals table predates these three

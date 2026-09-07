@@ -1068,6 +1068,7 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/v2/proposals", get(api_v2_governance::list_proposals))
         .route("/api/v2/proposals/{id}", get(api_v2_governance::get_proposal))
         .route("/api/v2/proposals/{id}/tally", get(api_v2_governance::tally_proposal))
+        .route("/api/v2/proposals/{id}/chain", get(api_v2_governance::proposal_chain))
         // === API v2: AI-as-citizen status (Phase 8 PR 1) ===
         .route("/api/v2/ai-status/{did}", get(api_v2_ai::get_ai_status))
         // === API v2: Social key recovery (Phase 4 PR 1+2) ===

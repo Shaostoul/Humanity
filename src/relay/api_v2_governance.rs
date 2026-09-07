@@ -84,6 +84,45 @@ pub async fn get_proposal(
     }
 }
 
+/// `GET /api/v2/proposals/{id}/chain`
+///
+/// The supersession chain this proposal belongs to, oldest first, plus which
+/// link currently stands. Scheduled re-votes never mutate a decision; they open
+/// a successor, so "what is the answer right now" and "how did we get here" are
+/// two different questions and this endpoint answers both at once.
+///
+/// A proposal that has never been revisited returns a one-element chain, which
+/// is the honest answer rather than an error.
+pub async fn proposal_chain(
+    State(state): State<Arc<RelayState>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    match state.db.decision_chain(&id) {
+        Ok(chain) if chain.is_empty() => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "not found"})),
+        )
+            .into_response(),
+        Ok(chain) => {
+            let standing = chain.last().map(|p| p.proposal_object_id.clone());
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "standing": standing,
+                    "revisions": chain.len(),
+                    "chain": chain,
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("storage: {e}")})),
+        )
+            .into_response(),
+    }
+}
+
 // ── Proposal-type rules (v0.759, ladder rung 10): vote rules are DATA ──
 // data/governance/proposal_types.ron authored quorum/pass rules per proposal
 // kind in Phase 5 PR 1, then nothing ever loaded it. The tally endpoint now
