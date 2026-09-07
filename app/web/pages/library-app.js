@@ -49,7 +49,7 @@
   }
   function openHashDoc() {
     var hit = findBySlug(location.hash.replace(/^#/, ''));
-    if (hit) openDoc(hit.ci, hit.di);
+    if (hit) openDoc(hit.ci, hit.di, true);
     return !!hit;
   }
 
@@ -111,15 +111,54 @@
     });
     rail.querySelectorAll('[data-ci]').forEach(function(b) {
       b.addEventListener('click', function() {
-        openDoc(+b.getAttribute('data-ci'), +b.getAttribute('data-di'));
+        openDoc(+b.getAttribute('data-ci'), +b.getAttribute('data-di'), true);
       });
     });
     var dictBtn = rail.querySelector('[data-dict]');
     if (dictBtn) dictBtn.addEventListener('click', openDictionary);
   }
 
+  /**
+   * Put the reader in front of the document they asked for.
+   *
+   * The page is a rail plus a content pane. On a WIDE screen those sit side by
+   * side and the content is already at the top, so nothing needs to move. On a
+   * NARROW screen the flex direction is column, so the rail stacks ABOVE the
+   * content, and on this site that rail is every category and every document
+   * title: about 2565px of it. Opening a document left the window at scrollY 0,
+   * so the reader landed on the table of contents and had to scroll nearly three
+   * screens to reach the thing they clicked.
+   *
+   * That hit deep links hardest, because /library#your-first-tomato is a link
+   * someone follows from outside expecting to LAND on the article, but it hit an
+   * ordinary tap in the rail exactly the same way.
+   *
+   * Detects the stacked case from geometry rather than a width breakpoint, so it
+   * stays correct if the CSS breakpoint moves.
+   */
+  function revealReader() {
+    var rail = document.getElementById('lib-rail');
+    var el = contentEl();
+    if (!rail || !el) return;
+    var rr = rail.getBoundingClientRect();
+    var cr = el.getBoundingClientRect();
+    // Side by side: the content starts at or above the rail's bottom edge.
+    if (cr.top < rr.bottom - 1) return;
+    // Stacked. Only move if the content is not already the thing on screen.
+    if (cr.top > 8) {
+      el.scrollIntoView({ block: 'start' });
+    }
+  }
+
   /* ── Reader ── */
-  function openDoc(ci, di) {
+  /**
+   * @param reveal true when the reader ASKED for this document (a deep link, or
+   *   a tap in the rail). A bare /library opens the first document by default,
+   *   matching the native page, and that is a browsing visitor who wants the
+   *   index: scrolling them into "Credits and Thanks" would be worse than the
+   *   bug this fixes.
+   */
+  function openDoc(ci, di, reveal) {
     var cat = (manifest.categories || [])[ci];
     var doc = cat && (cat.docs || [])[di];
     if (!doc) return;
@@ -132,6 +171,7 @@
     if (docCache[doc.file]) {
       el.innerHTML = '<div class="md-viewer">' + md(docCache[doc.file]) + '</div>';
       el.scrollTop = 0;
+      if (reveal) revealReader();
       return;
     }
     el.innerHTML = '<div class="lib-empty">Loading ' + esc(doc.title) + '...</div>';
@@ -146,6 +186,7 @@
         if (current && current.ci === ci && current.di === di) {
           el.innerHTML = '<div class="md-viewer">' + md(text) + '</div>';
           el.scrollTop = 0;
+          if (reveal) revealReader();
         }
       })
       .catch(function(err) {

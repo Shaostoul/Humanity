@@ -152,6 +152,133 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
   }
 }
 
+/* ── Signed moderation (rung 1; src/relay/core/moderation.rs) ───────────
+ *
+ * The MODERATOR'S CLIENT signs a moderation action, never the relay. A relay
+ * cannot hold a moderator's key, and a log signed by the party whose behaviour
+ * it exists to constrain proves only that the relay agrees with itself. So
+ * these are built and signed here, exactly like a vote, and the relay verifies.
+ *
+ * Byte-locked to the Rust encoder by scripts/mod-object-kat.mjs
+ * <-> src/relay/core/moderation.rs::cross_language_kat (`just mod-kat`).
+ * If these drift, an action signed in a browser is unverifiable and the audit
+ * log silently contains only what was done from the other client.
+ */
+
+/** Actions a mod_action_v1 may carry. Mirrors moderation.rs::MOD_ACTIONS. */
+export const MOD_ACTIONS = [
+  'ban', 'unban', 'mute', 'unmute', 'hide', 'unhide', 'grant_role', 'revoke_role', 'revoke',
+];
+
+/** What a target names. Mirrors moderation.rs::TARGET_KINDS. */
+export const TARGET_KINDS = ['identity', 'object'];
+
+/**
+ * `mod_action_v1` payload. Validation mirrors moderation.rs::mod_action_payload
+ * exactly, including the mandatory reason: an action nobody can explain cannot
+ * be appealed, and a schema that permits an empty reason will collect them.
+ */
+export function modActionV1Payload({ action, target, targetKind, reason, rule, expiresAt, role }) {
+  if (!MOD_ACTIONS.includes(action)) {
+    throw new Error(`mod_action_v1: unknown action "${action}"`);
+  }
+  if (!TARGET_KINDS.includes(targetKind)) {
+    throw new Error(`mod_action_v1: target_kind must be identity or object, got "${targetKind}"`);
+  }
+  if (!String(target || '').trim()) throw new Error('mod_action_v1: target is required');
+  if (!String(reason || '').trim()) {
+    throw new Error(
+      'mod_action_v1: a reason is required, because an unexplained moderation action is what the appeals requirement exists to prevent',
+    );
+  }
+  const roleAction = action === 'grant_role' || action === 'revoke_role';
+  const roleStr = String(role || '');
+  if (roleAction && !roleStr.trim()) {
+    throw new Error('mod_action_v1: grant_role and revoke_role require a role');
+  }
+  if (!roleAction && roleStr.trim()) {
+    throw new Error('mod_action_v1: role is only meaningful for grant_role and revoke_role');
+  }
+  // Key ORDER does not matter: cborMap sorts, and the Rust side canonicalizes
+  // with the identical rule. Listed in the schema's reading order regardless.
+  return cborMap([
+    [cborText('action'), cborText(action)],
+    [cborText('target'), cborText(target)],
+    [cborText('target_kind'), cborText(targetKind)],
+    [cborText('reason'), cborText(reason)],
+    [cborText('rule'), cborText(String(rule || ''))],
+    [cborText('expires_at'), cborUint(Number(expiresAt) || 0)],
+    [cborText('role'), cborText(roleStr)],
+  ]);
+}
+
+/**
+ * Build + sign a `mod_action_v1`. `references` carries the superseded object
+ * id for a `revoke` and is empty otherwise, which is how supersession is
+ * expressed without mutating an append-only log.
+ */
+export async function buildModActionV1({
+  spaceId, action, target, targetKind, reason, rule, expiresAt, role,
+  references, authorPublicKey, sign, blake3, createdAt,
+}) {
+  return buildSignedObject({
+    objectType: 'mod_action_v1',
+    spaceId,
+    payload: modActionV1Payload({ action, target, targetKind, reason, rule, expiresAt, role }),
+    references: references || [],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
+/**
+ * `space_policy_v1` payload: who may moderate this space and under what rules.
+ * Mirrors moderation.rs::space_policy_payload.
+ *
+ * `rulesHash` is what makes "the rules were published before you participated"
+ * checkable rather than merely asserted: a client can prove which text was in
+ * force when an action was taken.
+ */
+export function spacePolicyV1Payload({ owner, moderators, rulesUrl, rulesHash, appeals, unsignedAllowed }) {
+  if (!String(owner || '').trim()) throw new Error('space_policy_v1: owner is required');
+  const mods = moderators || [];
+  const allowed = unsignedAllowed || [];
+  for (const a of allowed) {
+    if (!MOD_ACTIONS.includes(a)) {
+      throw new Error(`space_policy_v1: unknown action "${a}" in unsigned_allowed`);
+    }
+  }
+  const arr = (v) => cborArray(v.map((x) => cborText(String(x))));
+  return cborMap([
+    [cborText('owner'), cborText(owner)],
+    [cborText('moderators'), arr(mods)],
+    [cborText('rules_url'), cborText(String(rulesUrl || ''))],
+    [cborText('rules_hash'), cborText(String(rulesHash || ''))],
+    [cborText('appeals'), cborText(String(appeals || ''))],
+    [cborText('unsigned_allowed'), arr(allowed)],
+  ]);
+}
+
+/**
+ * Build + sign a `space_policy_v1`. Must be signed by the CURRENT owner; the
+ * newest valid policy signed by the current owner wins. Changing the owner key
+ * is how a space forks, which the Accord treats as legitimate, so the mechanism
+ * is deliberately available rather than prevented.
+ */
+export async function buildSpacePolicyV1({
+  spaceId, owner, moderators, rulesUrl, rulesHash, appeals, unsignedAllowed,
+  authorPublicKey, sign, blake3, createdAt,
+}) {
+  return buildSignedObject({
+    objectType: 'space_policy_v1',
+    spaceId,
+    payload: spacePolicyV1Payload({ owner, moderators, rulesUrl, rulesHash, appeals, unsignedAllowed }),
+    references: [],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
+}
+
 /* ── Governance payloads (Phase 5; src/relay/storage/governance.rs) ────── */
 
 /** `vote_v1` payload: `{ choice }` where choice is "yes" | "no" | "abstain".

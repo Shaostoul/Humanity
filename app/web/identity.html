@@ -16,6 +16,26 @@
     .id-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
     .id-hero h1 em { font-style: normal; color: var(--accent); }
 
+    .my-did {
+      border: 1px solid var(--border); border-left: 3px solid var(--accent);
+      border-radius: var(--radius, 8px); background: var(--bg-card);
+      padding: 14px 16px; margin-bottom: 20px;
+    }
+    .my-did-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-muted); margin-bottom: 6px;
+    }
+    .my-did-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .my-did-row code {
+      font-size: 0.95rem; color: var(--text); word-break: break-all; flex: 1; min-width: 12rem;
+    }
+    .my-did-row button {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .my-did-row button:hover { border-color: var(--accent); color: var(--accent); }
+    .my-did-note { font-size: 0.82rem; color: var(--text-muted); margin: 8px 0 0; line-height: 1.5; }
     .did-input-row { display: flex; gap: 8px; margin-bottom: 24px; }
     .did-input-row input {
       flex: 1; padding: 10px 14px; border-radius: var(--radius);
@@ -78,12 +98,29 @@
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/pq-identity.js"></script>
+  <!-- Your OWN DID: pq.js provides the KAT-locked Dilithium3 derivation,
+       pq-relay-auth.js reads the seed out of localStorage. Same pair the
+       governance page uses to sign a vote. -->
+  <script src="/chat/pq.js?v=1"></script>
+  <script src="/shared/pq-relay-auth.js?v=1"></script>
 
   <div class="container">
     <header class="id-hero">
       <h1>Identity &amp; <em>Credentials</em></h1>
       <p style="color: var(--text-muted);">Look up any DID. See its current key, trust score breakdown, every Verifiable Credential issued to it, and its AI-status declaration. Inputs always exposed \u2014 no black-box reputation.</p>
     </header>
+
+    <!-- Your own DID. This page was lookup-only, so you had to already know
+         your DID to use the page that explains DIDs. Nothing anywhere showed
+         it to you. -->
+    <div id="my-did-box" class="my-did" style="display:none;">
+      <div class="my-did-label">Your DID</div>
+      <div class="my-did-row">
+        <code id="my-did-value">...</code>
+        <button id="my-did-copy" type="button">Copy</button>
+      </div>
+      <p id="my-did-note" class="my-did-note"></p>
+    </div>
 
     <div class="did-input-row">
       <input type="text" id="did-input" placeholder="did:hum:ABC...XYZ" />
@@ -98,6 +135,46 @@
   <script>
     'use strict';
     document.getElementById('lookup-btn').addEventListener('click', doLookup);
+    // Show the reader their own DID, derived locally from their key. Nothing
+    // is sent anywhere to compute it: a DID IS a hash of your public key.
+    (async function showMyDid() {
+      var box = document.getElementById('my-did-box');
+      if (!box || typeof window.getPqIdentity !== 'function') return;
+      var id = null;
+      try { id = await window.getPqIdentity(); } catch (e) { /* no identity here */ }
+      if (!id || !id.dilithiumPublicHex) return;
+      var bytes = new Uint8Array(id.dilithiumPublicHex.length / 2);
+      for (var i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(id.dilithiumPublicHex.substr(i * 2, 2), 16);
+      }
+      var did = await window.HumOS.pq.did_for_pubkey(bytes);
+      document.getElementById('my-did-value').textContent = did;
+      box.style.display = '';
+
+      var btn = document.getElementById('my-did-copy');
+      btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(did).then(function () {
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+        });
+      });
+
+      // Say plainly whether it resolves yet, because it usually does not, and a
+      // DID that 404s looks broken rather than merely unused. A DID resolves
+      // against signed objects you have published; a member who has not
+      // published one has a perfectly valid DID that no server can look up.
+      var note = document.getElementById('my-did-note');
+      note.textContent = 'Checking whether this server can resolve it...';
+      try {
+        var r = await window.HumOS.pq.resolveDid(did);
+        note.textContent = r
+          ? 'This server can resolve your DID from the signed objects you have published.'
+          : 'Not resolvable here yet. A DID is resolved from the signed objects you have published, and you have not published any. Your DID is still valid and still yours: it is a hash of your public key, so it exists whether or not any server has seen it.';
+      } catch (e) {
+        note.textContent = 'Not resolvable here yet. A DID is resolved from the signed objects you have published, and you have not published any. Your DID is still valid and still yours: it is a hash of your public key, so it exists whether or not any server has seen it.';
+      }
+    })();
+
     document.getElementById('did-input').addEventListener('keydown', function(e){
       if (e.key === 'Enter') doLookup();
     });

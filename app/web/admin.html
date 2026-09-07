@@ -75,6 +75,15 @@
     .fed-status { font-size: var(--text-sm); margin: var(--space-md) 0; min-height: 1.2em; }
     .fed-status.err { color: var(--danger); }
     .fed-status.ok { color: var(--success); }
+    .fed-seed { display: flex; gap: var(--space-md); align-items: flex-start; padding: var(--space-md); border: 1px solid var(--border); border-radius: 6px; margin-bottom: var(--space-md); }
+    .fed-seed div { flex: 1; }
+    .fed-seed .fed-name { font-size: 0.85rem; }
+    .fed-seed .fed-url { margin-bottom: 4px; }
+    .fed-seed .fed-desc { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5; }
+    .fed-isolated { margin: var(--space-lg) 0; }
+    .fed-isolated > summary { cursor: pointer; font-size: var(--text-sm); color: var(--accent); padding: var(--space-sm) 0; }
+    .fed-isolated ul { margin: 0 0 var(--space-md); padding-left: 1.2rem; }
+    .fed-isolated li { margin-bottom: var(--space-sm); }
 
     /* Auth gate */
     #auth-gate { text-align: center; padding: 80px 20px; }
@@ -189,7 +198,51 @@
       </div>
       <div id="fed-status" class="fed-status"></div>
       <div class="fed-add">
-        <h3>Add a peer</h3>
+        <h3>Suggested peers</h3>
+        <p class="fed-help">
+          Nothing below is added automatically. A seed list that joined itself would
+          make whoever ships the list the root of the network, which is the opposite
+          of what this project is for. Pick one, enter your own address further down,
+          or stay on your own.
+        </p>
+        <div id="fed-seed-list"><p class="fed-help">Loading suggestions...</p></div>
+
+        <details class="fed-isolated">
+          <summary>What happens if you peer with nobody</summary>
+          <p class="fed-help">
+            Your server works completely on its own. Accounts, chat, groups,
+            governance and the library all run locally, and nothing your members
+            publish leaves the machine. That is a legitimate choice for a family or
+            a small community, not a broken state.
+          </p>
+          <p class="fed-help">What you give up, precisely:</p>
+          <ul class="fed-help">
+            <li><strong>Federated channels.</strong> A channel marked federated has
+              nobody to carry it to, so it behaves like an ordinary local channel.</li>
+            <li><strong>Groups that span servers.</strong> P2P groups are signed
+              objects that replicate to peers. A group whose members are all on your
+              server is unaffected; one with a member elsewhere will not sync.</li>
+            <li><strong>Civilization-scope governance.</strong> Proposals that need
+              federation-wide quorum cannot reach it. Local-scope proposals and votes
+              work normally.</li>
+            <li><strong>Being found.</strong> Your members' profiles and DIDs resolve
+              on your server but nowhere else, so someone on another server cannot
+              look them up.</li>
+          </ul>
+          <p class="fed-help">
+            What does <strong>not</strong> change, and is worth knowing because it is
+            the usual assumption: <strong>direct messages never federate anyway.</strong>
+            A DM is deposited in a sealed mailbox on the server both people are
+            connected to, so two people already have to use the same server to
+            exchange DMs. Peering does not change that in either direction.
+          </p>
+          <p class="fed-help">
+            None of this is one-way. Add a peer whenever you like and the federated
+            parts start working from that moment.
+          </p>
+        </details>
+
+        <h3>Add a peer yourself</h3>
         <p class="fed-help">
           By address if the other server is reachable on the open internet. By key if it
           is behind a home router: it cannot be dialed, but it can dial out, and pinning

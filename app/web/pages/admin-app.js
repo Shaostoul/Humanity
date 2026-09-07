@@ -310,7 +310,8 @@
     const container = document.getElementById('federation-list');
     if (!container) return;
     if (!servers.length) {
-      container.innerHTML = '<p style="color:var(--text-muted)">No peers yet. Add one below.</p>';
+      container.innerHTML = '<p style="color:var(--text-muted)">No peers yet. Add one below, or stay on your own: see what that means.</p>';
+      renderSeedServers(servers);
       return;
     }
     container.innerHTML = servers.map(function (s) {
@@ -347,6 +348,8 @@
         );
       });
     });
+    renderSeedServers(servers);
+
     container.querySelectorAll('[data-fed-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         const id = btn.dataset.fedRemove;
@@ -354,6 +357,60 @@
         // a live link, so it asks once.
         if (!window.confirm('Stop federating with ' + id + '?')) return;
         fedAction({ action: 'remove', server_id: id }, 'Removing...');
+      });
+    });
+  }
+
+  /**
+   * Suggested first peers, read from data/federation/seed_servers.json.
+   *
+   * The list is DATA, not code, so a fork ships its own defaults by replacing
+   * one file. And nothing here joins itself: each entry is a button. A seed
+   * list that auto-peered would quietly make whoever ships it the root of the
+   * network, and "no operator can revoke your access" does not survive a root.
+   *
+   * A suggestion already in the peer table is hidden rather than shown as a
+   * dead button.
+   */
+  async function renderSeedServers(existing) {
+    const box = document.getElementById('fed-seed-list');
+    if (!box) return;
+    let data = null;
+    try {
+      const res = await fetch('/data/federation/seed_servers.json', { cache: 'no-cache' });
+      if (res.ok) data = await res.json();
+    } catch (e) { /* handled below */ }
+    if (!data || !Array.isArray(data.servers)) {
+      box.innerHTML = '<p class="fed-help">No suggestion list shipped with this build. Add a peer by address below.</p>';
+      return;
+    }
+    const have = new Set((existing || []).map(function (s) {
+      return String(s.url || '').replace(/\/+$/, '');
+    }));
+    const rows = data.servers.filter(function (s) {
+      return !have.has(String(s.url || '').replace(/\/+$/, ''));
+    });
+    if (!rows.length) {
+      box.innerHTML = '<p class="fed-help">You are already peered with every suggested server.</p>';
+      return;
+    }
+    box.innerHTML = rows.map(function (s) {
+      return '<div class="fed-seed">'
+        + '<div>'
+        +   '<div class="fed-name">' + escapeHtml(s.name || s.url) + '</div>'
+        +   '<div class="fed-url">' + escapeHtml(s.url) + (s.operator ? ' &middot; run by ' + escapeHtml(s.operator) : '') + '</div>'
+        +   '<div class="fed-desc">' + escapeHtml(s.description || '') + '</div>'
+        + '</div>'
+        + '<button type="button" data-seed-url="' + escapeHtml(s.url) + '" data-seed-name="' + escapeHtml(s.name || '') + '">Add</button>'
+        + '</div>';
+    }).join('');
+
+    box.querySelectorAll('[data-seed-url]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fedAction(
+          { action: 'add', url: btn.dataset.seedUrl, name: btn.dataset.seedName },
+          'Adding ' + btn.dataset.seedName + '...'
+        );
       });
     });
   }
