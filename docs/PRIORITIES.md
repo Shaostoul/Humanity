@@ -1,5 +1,24 @@
 # HumanityOS: Priorities
 
+> **NEXT IN THE NON-GAME LANE: signed moderation logs, rung 3.** Rungs 1 and 2
+> shipped today (v0.1298.0 schemas + KAT, v0.1299.0 relay-side enforcement with
+> 15 tests, attacked twice, seven holes found and fixed). Rung 3 converts the
+> remaining unsigned mutation paths: `/ban` and `/mute` typed in chat, and the
+> profile-modal buttons, which still write to the database with no signed
+> record. Until it lands the log records only actions taken through the new
+> path, which is why `web/pages/rules.html` says "the moderation audit log is
+> half built" and why that sentence must change in the same commit.
+>
+> Read `docs/design/signed_moderation_logs.md` first: its "Current state"
+> section now carries what rung 2 actually does, and the two independent
+> authority guards that must both survive (the space_id equality check and the
+> owner-is-already-admin anchor). Deleting either one leaves the whole suite
+> green, so they are easy to mistake for redundant.
+>
+> Also open in this lane, all small, all surfaced by the public claims audit
+> below: the web marketplace's dead message box, desktop task-board
+> persistence, and putting the trust score on a listing.
+
 > **v0.1299.1 (2026-09-06): THE PUBLIC CLAIMS AUDIT, front-door and Library
 > lane.** `docs/history/2026-09-06-public-claims-audit.md` verified 35 claims
 > against the code; the 22 under `web/pages/`, `docs/outreach/` and

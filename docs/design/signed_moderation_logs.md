@@ -251,11 +251,46 @@ provides.
 5. Client-side deterministic replay, which is what makes offline enforcement
    and forking work.
 
-## Current state (2026-09-06)
+## Current state (2026-09-06, end of day)
 
-None of the above is implemented. There is no `mod_action_v1`, no
-`space_policy_v1`, and no audit row of any kind: a ban is an unsigned,
-unexplained, unreadable row in one SQLite file. The rules and appeals page
-published on 2026-09-06 describes what moderators may do and how to appeal, and
-says plainly that the audit trail does not exist yet, because promising it
-before it is built is the failure mode this document is trying to avoid.
+**Rungs 1 and 2 are SHIPPED. Rung 3 is next and nothing above it is started.**
+
+- **Rung 1, v0.1298.0.** `space_policy_v1` and `mod_action_v1` schemas and
+  builders in `src/relay/core/moderation.rs`, cross-checked by
+  `scripts/mod-object-kat.mjs` (`just mod-kat`) the way `vote_v1` is by
+  `just vote-kat`. A Dilithium verify over JS-computed bytes is the proof that
+  the builders agree byte for byte.
+- **Rung 2, v0.1299.0.** Relay-side ingest in `src/relay/storage/moderation.rs`,
+  wired into `put_signed_object`'s side-effects block: verify the signature,
+  check the signer against the space's declared authority, apply
+  ban/unban/mute/unmute/grant_role/revoke_role, store the object. 15 tests.
+
+  It was attacked twice before shipping and both passes found real holes.
+  Seven fixes, each with a test: ban and unban are admin-only (a moderator
+  could otherwise silently lift an admin's ban); the protected-target guard
+  resolves the target's WHOLE key set, because roles are per key and one person
+  holds several devices, so checking one key reopened the v0.247 name bypass on
+  a third path; `expires_at` fails CLOSED (anything not an i64 previously read
+  as absent, so a hand-rolled object with a text `expires_at` applied as a
+  PERMANENT ban whose own signed record says it lapses); `grant_role` is bounded
+  to a known set; the policy scan is filtered to admin-signed rows in SQL and
+  bounded; and ordering is by `created_at`, not arrival.
+
+  The authority anchor is the one to understand before touching this:
+  `POST /api/v2/objects` is unauthenticated, so a stranger could sign a policy
+  naming THEMSELVES owner of a space they invented and moderate this relay
+  through it. Two independent guards stop that, and BOTH are load-bearing: the
+  action's `space_id` must equal this server's own DID, and the policy's named
+  owner must already hold admin or owner here. Verified by deletion, all three
+  ways: remove either one and the suite still passes; remove both and it goes
+  red. Do not delete one as redundant.
+
+- **NOT built: rung 3.** `/ban` and `/mute` typed in chat, and the profile-modal
+  buttons, still mutate the database directly with no signed record. So the log
+  is a growing record, not a complete one. `web/pages/rules.html` says exactly
+  that ("the moderation audit log is half built") and must be updated in the
+  same commit that closes rung 3.
+- **NOT built: rungs 4 and 5**, the public log read plus audit page, and
+  client-side deterministic replay. This server has also not yet published its
+  own `space_policy_v1`, so today the authority check falls back to the role
+  table rather than a signed declaration.
