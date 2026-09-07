@@ -107,12 +107,29 @@ impl Storage {
             )))?;
         let created_at = super::now_millis() as i64;
 
+        // Scheduled re-votes (v0.1302). All three are optional: a proposal that
+        // names none of them behaves exactly as proposals did before.
+        //
+        // `review_cadence_ms` without an explicit `review_after` implies the
+        // first review one cadence after the vote closes, which is what a
+        // proposer means by "revisit this every year" and saves them computing
+        // a timestamp by hand.
+        let review_cadence_ms = read_int(object, "review_cadence_ms").filter(|ms| *ms > 0);
+        let review_after = read_int(object, "review_after")
+            .or_else(|| review_cadence_ms.map(|ms| closes_at.saturating_add(ms)));
+        // The proposal this one replaces. Not verified here: the chain is
+        // resolved at read time by `standing_decision`, which walks only rows
+        // that actually exist, so a dangling id degrades to a chain root
+        // rather than corrupting anything.
+        let supersedes = read_text(object, "supersedes").filter(|s| !s.is_empty());
+
         self.with_conn(|conn| {
             let rows = conn.execute(
                 "INSERT OR IGNORE INTO proposals
                     (proposal_object_id, proposer_did, proposal_type, scope, space_id,
-                     opens_at, closes_at, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                     opens_at, closes_at, created_at,
+                     review_after, review_cadence_ms, supersedes)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     proposal_object_id,
                     proposer_did,
@@ -122,9 +139,85 @@ impl Storage {
                     opens_at,
                     closes_at,
                     created_at,
+                    review_after,
+                    review_cadence_ms,
+                    supersedes,
                 ],
             )?;
             Ok(rows > 0)
+        })
+    }
+
+    /// Walk a supersession chain to the decision that currently stands.
+    ///
+    /// A vote is never mutated and a proposal is never edited. When a question
+    /// is revisited, a NEW proposal is opened carrying `supersedes` pointing at
+    /// the old one, so the whole history stays readable: what was decided, when,
+    /// and how many times it has been reaffirmed. This resolves "what is the
+    /// answer right now" without losing any of that.
+    ///
+    /// Given any id in a chain, returns the newest proposal reachable by
+    /// following `supersedes` links forward. Returns the input id unchanged if
+    /// nothing supersedes it, and `None` if the id names no proposal at all.
+    ///
+    /// Cycle-safe. `supersedes` arrives inside a signed object from an
+    /// untrusted author, so A-supersedes-B-supersedes-A is a thing a hostile
+    /// or buggy client can submit; the visited set means that costs a bounded
+    /// walk rather than hanging the request.
+    pub fn standing_decision(&self, proposal_object_id: &str) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let exists: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM proposals WHERE proposal_object_id = ?1",
+                params![proposal_object_id],
+                |r| r.get(0),
+            )?;
+            if exists == 0 {
+                return Ok(None);
+            }
+            let mut current = proposal_object_id.to_string();
+            let mut visited = std::collections::HashSet::new();
+            visited.insert(current.clone());
+            loop {
+                let next: Option<String> = conn
+                    .query_row(
+                        "SELECT proposal_object_id FROM proposals
+                          WHERE supersedes = ?1
+                          ORDER BY created_at DESC, proposal_object_id ASC
+                          LIMIT 1",
+                        params![current],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+                match next {
+                    Some(n) if visited.insert(n.clone()) => current = n,
+                    // Either nothing supersedes it, or we have looped.
+                    _ => return Ok(Some(current)),
+                }
+            }
+        })
+    }
+
+    /// Proposals whose scheduled review date has arrived and that nothing has
+    /// superseded yet. This is what a scheduler asks for when it opens the
+    /// successor proposal.
+    ///
+    /// The `NOT EXISTS` clause is what makes calling this repeatedly safe: once
+    /// a successor exists, the old proposal stops being returned, so a
+    /// scheduler that runs twice does not open two successors.
+    pub fn proposals_due_for_review(&self, now_ms: i64) -> Result<Vec<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT p.proposal_object_id FROM proposals p
+                  WHERE p.review_after IS NOT NULL
+                    AND p.review_after <= ?1
+                    AND p.closes_at <= ?1
+                    AND NOT EXISTS (
+                        SELECT 1 FROM proposals s WHERE s.supersedes = p.proposal_object_id
+                    )
+                  ORDER BY p.review_after ASC",
+            )?;
+            let rows = stmt.query_map(params![now_ms], |r| r.get::<_, String>(0))?;
+            rows.collect()
         })
     }
 
@@ -465,5 +558,213 @@ mod tests {
         let civ = db.list_proposals(Some("civilization"), None, None, None, None).unwrap();
         assert_eq!(civ.len(), 1);
         assert_eq!(civ[0].proposal_type, "accord_amendment");
+    }
+
+    // ── Scheduled re-votes (v0.1302) ──────────────────────────────────────
+    //
+    // The operator's design: never mutate a vote, SUPERSEDE a decision. A cast
+    // vote stays immutable and final; revisiting a question opens a NEW
+    // proposal linked to the old one, and the standing answer is the newest
+    // link in the chain. The whole chain stays visible, which is the point:
+    // seeing that a rule was reaffirmed three times is itself information.
+
+    /// A proposal carrying extra payload keys on top of the standard shape.
+    fn make_proposal_with(
+        proposer: &DilithiumKeypair,
+        extra: Vec<(&str, ciborium::Value)>,
+    ) -> Object {
+        let now: u64 = super::super::now_millis();
+        let mut fields: Vec<(&str, ciborium::Value)> = vec![
+            ("proposal_type", cbor_text("parameter_change")),
+            ("scope", cbor_text("local")),
+            ("title", cbor_text("Test proposal")),
+            ("body", cbor_text("Body text")),
+            ("opens_at", cbor_int(now)),
+            ("closes_at", cbor_int(now + 86_400_000)),
+        ];
+        fields.extend(extra);
+        ObjectBuilder::new("proposal_v1")
+            .space_id("test_server")
+            .created_at(now)
+            .payload_cbor(&cbor_map(fields))
+            .unwrap()
+            .sign(proposer)
+            .unwrap()
+    }
+
+    fn put(db: &Storage, o: &Object) -> String {
+        db.put_signed_object(o, None).unwrap();
+        o.object_id().unwrap().to_hex()
+    }
+
+    /// The core of the feature: given any link in a chain, the standing answer
+    /// is the newest one, and every earlier link still resolves to it.
+    #[test]
+    fn standing_decision_walks_the_supersession_chain() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+
+        let a = put(&db, &make_proposal_with(&k, vec![]));
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        let c = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&b))]));
+
+        // Asking about ANY link gives the same answer.
+        assert_eq!(db.standing_decision(&a).unwrap().as_deref(), Some(c.as_str()));
+        assert_eq!(db.standing_decision(&b).unwrap().as_deref(), Some(c.as_str()));
+        assert_eq!(db.standing_decision(&c).unwrap().as_deref(), Some(c.as_str()));
+
+        // And the history is still there, which is the whole reason for
+        // superseding rather than editing.
+        assert!(db.get_proposal(&a).unwrap().is_some(), "the superseded decision must survive");
+        assert!(db.get_proposal(&b).unwrap().is_some());
+    }
+
+    /// `supersedes` arrives inside a signed object from an untrusted author, so
+    /// a cycle is something a hostile or buggy client can submit. It must cost
+    /// a bounded walk, not a hung request.
+    #[test]
+    fn standing_decision_survives_a_supersession_cycle() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+
+        let a = put(&db, &make_proposal_with(&k, vec![]));
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        // Close the loop by hand: no honest client would, which is the point.
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE proposals SET supersedes = ?1 WHERE proposal_object_id = ?2",
+                params![&b, &a],
+            )?;
+            Ok::<(), rusqlite::Error>(())
+        })
+        .unwrap();
+
+        // Terminates, and returns a real member of the cycle.
+        let standing = db.standing_decision(&a).unwrap().expect("some answer");
+        assert!(standing == a || standing == b, "got {standing}");
+    }
+
+    #[test]
+    fn standing_decision_is_none_for_an_unknown_proposal() {
+        let db = make_test_storage();
+        assert!(db.standing_decision("no_such_proposal").unwrap().is_none());
+    }
+
+    /// "Revisit this every year" should not require the proposer to compute a
+    /// timestamp: a cadence with no explicit date means one cadence after the
+    /// vote closes.
+    #[test]
+    fn review_cadence_implies_a_first_review_after_close() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+        let year_ms: u64 = 365 * 24 * 60 * 60 * 1000;
+
+        let id = put(&db, &make_proposal_with(&k, vec![("review_cadence_ms", cbor_int(year_ms))]));
+
+        let (review_after, closes_at): (Option<i64>, i64) = db
+            .with_conn(|conn| {
+                conn.query_row(
+                    "SELECT review_after, closes_at FROM proposals WHERE proposal_object_id = ?1",
+                    params![&id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+            })
+            .unwrap();
+        assert_eq!(
+            review_after,
+            Some(closes_at + year_ms as i64),
+            "a cadence with no explicit date means one cadence after close"
+        );
+    }
+
+    /// The idempotence guard. A scheduler runs on a timer and WILL run twice;
+    /// once a successor exists the old proposal must stop coming back, or every
+    /// tick opens another duplicate re-vote.
+    #[test]
+    fn proposals_due_for_review_stop_once_superseded() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+
+        // Due in the past, and its vote has closed.
+        let a = put(&db, &make_proposal_with(&k, vec![("review_after", cbor_int(1))]));
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE proposals SET closes_at = 1 WHERE proposal_object_id = ?1",
+                params![&a],
+            )?;
+            Ok::<(), rusqlite::Error>(())
+        })
+        .unwrap();
+
+        let now = 1_000_000_000_i64;
+        assert_eq!(db.proposals_due_for_review(now).unwrap(), vec![a.clone()]);
+
+        // The scheduler opens the successor...
+        let _b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+
+        // ...and the next tick must not open a second one.
+        assert!(
+            db.proposals_due_for_review(now).unwrap().is_empty(),
+            "a superseded proposal must not come due again"
+        );
+    }
+
+    /// A proposal that names no review date is untouched by any of this, which
+    /// is what makes the whole feature additive.
+    #[test]
+    fn a_proposal_without_a_review_date_is_never_due() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+        let _a = put(&db, &make_proposal_with(&k, vec![]));
+        assert!(db.proposals_due_for_review(i64::MAX).unwrap().is_empty());
+    }
+
+    /// BUG-046 guard. The live relay's proposals table predates these three
+    /// columns, and an index over an ALTER-added column placed in the main
+    /// schema batch passes every fresh-DB test and aborts startup on the real
+    /// database. This opens a DB in the OLD shape, with a row in it, and
+    /// requires that startup survives and the new paths work.
+    #[test]
+    fn opens_a_pre_revote_database_and_migrates_it() {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_gov_mig_{pid}_{nanos}.db"));
+
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "CREATE TABLE proposals (
+                    proposal_object_id  TEXT PRIMARY KEY,
+                    proposer_did        TEXT NOT NULL,
+                    proposal_type       TEXT NOT NULL,
+                    scope               TEXT NOT NULL,
+                    space_id            TEXT,
+                    opens_at            INTEGER NOT NULL,
+                    closes_at           INTEGER NOT NULL,
+                    created_at          INTEGER NOT NULL
+                );
+                INSERT INTO proposals
+                    (proposal_object_id, proposer_did, proposal_type, scope,
+                     space_id, opens_at, closes_at, created_at)
+                 VALUES ('old_prop', 'did:hum:someone', 'parameter_change',
+                         'local', 'test_server', 1, 2, 1);",
+            )
+            .expect("seed old-shape table");
+        }
+
+        // The line that would have crashed on the live DB.
+        let db = Storage::open(&path).expect("startup must survive a pre-revote DB");
+
+        // The old row survived and resolves as its own standing decision.
+        assert!(db.get_proposal("old_prop").unwrap().is_some());
+        assert_eq!(db.standing_decision("old_prop").unwrap().as_deref(), Some("old_prop"));
+
+        // The new columns exist and the new paths work on the migrated table.
+        let k = DilithiumKeypair::generate().unwrap();
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text("old_prop"))]));
+        assert_eq!(db.standing_decision("old_prop").unwrap().as_deref(), Some(b.as_str()));
     }
 }

@@ -1890,7 +1890,17 @@ impl Storage {
                 space_id            TEXT,
                 opens_at            INTEGER NOT NULL,
                 closes_at           INTEGER NOT NULL,
-                created_at          INTEGER NOT NULL
+                created_at          INTEGER NOT NULL,
+                -- Scheduled re-votes (v0.1302). A decision is never mutated; it
+                -- is SUPERSEDED by a later proposal on the same question, so the
+                -- chain stays a real audit trail. All three are nullable and a
+                -- proposal with all three NULL behaves exactly as before.
+                --   review_after      absolute ms when this should be reviewed
+                --   review_cadence_ms recurring interval, set the next review
+                --   supersedes        proposal_object_id this one replaces
+                review_after        INTEGER,
+                review_cadence_ms   INTEGER,
+                supersedes          TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_proposals_scope ON proposals(scope);
             CREATE INDEX IF NOT EXISTS idx_proposals_type  ON proposals(proposal_type);
@@ -2013,6 +2023,33 @@ impl Storage {
             );
             info!("Migration: added disbanded column to p2p_groups");
         }
+
+        // Migration (v0.1302): scheduled re-votes. A live DB created its
+        // proposals table before these three columns existed; fresh DBs get
+        // them from the CREATE above. All nullable, so every existing proposal
+        // keeps behaving exactly as it did.
+        //
+        // BUG-046 discipline: these are ALTER-added, so the index over
+        // `supersedes` lives HERE, after the ALTERs, and NOT in the main schema
+        // batch. An index over an ALTER-added column in that batch passes on
+        // every fresh-DB test and aborts the whole batch on the live database,
+        // which is exactly how the relay went down for 25 minutes in v0.675.0.
+        for (col, ddl) in [
+            ("review_after", "ALTER TABLE proposals ADD COLUMN review_after INTEGER"),
+            ("review_cadence_ms", "ALTER TABLE proposals ADD COLUMN review_cadence_ms INTEGER"),
+            ("supersedes", "ALTER TABLE proposals ADD COLUMN supersedes TEXT"),
+        ] {
+            let probe = format!("SELECT {col} FROM proposals LIMIT 0");
+            if conn.prepare(&probe).is_err() {
+                let _ = conn.execute(ddl, []);
+                info!("Migration: added {col} column to proposals");
+            }
+        }
+        // Safe only because it follows the ALTERs above.
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_proposals_supersedes ON proposals(supersedes);
+             CREATE INDEX IF NOT EXISTS idx_proposals_review ON proposals(review_after);"
+        )?;
 
         // Server members table (membership tiers: member, contributor, mod, admin).
         // Guests have no row — they're just connected WebSocket peers.
