@@ -2247,6 +2247,9 @@ mod dms;
 mod key_rotation;
 mod marketplace;
 mod messages;
+/// Rung 2 of the signed moderation logs: verify a signed action against the
+/// space authority and apply it. See docs/design/signed_moderation_logs.md.
+pub mod moderation;
 mod misc;
 mod pins;
 mod profile;

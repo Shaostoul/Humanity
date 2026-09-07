@@ -226,6 +226,24 @@ impl Storage {
             // Auto-index governance proposals + votes.
             let _ = self.index_proposal(object);
             let _ = self.index_vote(object);
+            // Signed moderation (rung 2): verify the signer against the space's
+            // declared authority and APPLY the effect. The signature is already
+            // verified above, so what happens here is the authority check and the
+            // ban/mute/role change itself. An action from a signer the space has
+            // not authorized is stored (it is a signed statement someone made) but
+            // has no effect, and the outcome is logged either way so a refusal is
+            // visible rather than silent.
+            match self.apply_mod_action(object) {
+                Ok(super::moderation::ModOutcome::NotApplicable) => {}
+                Ok(outcome) => {
+                    tracing::info!(
+                        "mod_action_v1 from {}: {:?}",
+                        &hex::encode(&object.author_public_key)[..16.min(object.author_public_key.len() * 2)],
+                        outcome
+                    );
+                }
+                Err(e) => tracing::error!("mod_action_v1 apply failed: {e}"),
+            }
             // Auto-index AI status declarations.
             let _ = self.index_subject_class(object);
             let _ = self.index_controlled_by(object);
