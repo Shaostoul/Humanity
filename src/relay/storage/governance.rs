@@ -122,11 +122,53 @@ impl Storage {
         let review_cadence_ms = read_int(object, "review_cadence_ms").filter(|ms| *ms > 0);
         let review_after = read_int(object, "review_after")
             .or_else(|| review_cadence_ms.map(|ms| closes_at.saturating_add(ms)));
-        // The proposal this one replaces. Not verified here: the chain is
-        // resolved at read time by `standing_decision`, which walks only rows
-        // that actually exist, so a dangling id degrades to a chain root
-        // rather than corrupting anything.
-        let supersedes = read_text(object, "supersedes").filter(|s| !s.is_empty());
+        // The proposal this one replaces.
+        //
+        // AUTHORIZED, not merely recorded. v0.1303.0 stored this pointer
+        // unverified, and that was a live hole: POST /api/v2/objects needs no
+        // account, only a valid self-signature and a rate limit, so any
+        // keypair on the internet could publish a proposal claiming to
+        // supersede any decision and take over its chain.
+        //
+        // The rule: a successor links only if its author is the same identity
+        // that proposed the link it claims to replace. Anything else is stored
+        // as an ordinary, unlinked proposal, which is the conservative
+        // outcome: the submission is not lost, it just does not get to move
+        // someone else's decision.
+        //
+        // This is deliberately the narrowest rule that closes the hole. Richer
+        // entitlements (a petition threshold, a delegation certificate, a
+        // constrained scheduler) are separate designs and each needs its own
+        // authorization path; none of them should arrive by leaving this open.
+        let claimed = read_text(object, "supersedes").filter(|s| !s.is_empty());
+        let supersedes = match claimed {
+            None => None,
+            Some(parent_id) => {
+                let parent_proposer: Option<String> = self.with_conn(|conn| {
+                    conn.query_row(
+                        "SELECT proposer_did FROM proposals WHERE proposal_object_id = ?1",
+                        params![&parent_id],
+                        |r| r.get(0),
+                    )
+                    .optional()
+                })?;
+                match parent_proposer {
+                    // Unknown parent. Normal in federation: a peer can hold a
+                    // successor whose parent it never received. Keep the
+                    // pointer so the link resolves if the parent arrives, and
+                    // so it stays auditable.
+                    None => Some(parent_id),
+                    Some(owner) if owner == proposer_did => Some(parent_id),
+                    Some(owner) => {
+                        log::warn!(
+                            "governance: refusing supersedes {parent_id} from {proposer_did}, \
+                             that chain belongs to {owner}; storing as an unlinked proposal"
+                        );
+                        None
+                    }
+                }
+            }
+        };
 
         self.with_conn(|conn| {
             let rows = conn.execute(
@@ -161,14 +203,36 @@ impl Storage {
     /// and how many times it has been reaffirmed. This resolves "what is the
     /// answer right now" without losing any of that.
     ///
-    /// Given any id in a chain, returns the newest proposal reachable by
-    /// following `supersedes` links forward. Returns the input id unchanged if
-    /// nothing supersedes it, and `None` if the id names no proposal at all.
+    /// Returns the newest link in the chain that has actually been RATIFIED,
+    /// which `docs/PRIORITIES.md` defines as "the most recent closed decision
+    /// in the chain".
     ///
-    /// Cycle-safe. `supersedes` arrives inside a signed object from an
-    /// untrusted author, so A-supersedes-B-supersedes-A is a thing a hostile
-    /// or buggy client can submit; the visited set means that costs a bounded
-    /// walk rather than hanging the request.
+    /// v0.1303.0 got this wrong and returned the newest link outright, with no
+    /// check on whether it had closed or how it went. That meant the standing
+    /// answer flipped to a successor the moment it was indexed: before it
+    /// opened, before a single vote was cast. Opening a review would have
+    /// silently blanked the answer it was reviewing, which is the opposite of
+    /// the design's whole point.
+    ///
+    /// A link takes over only when both are true:
+    /// - its voting window has closed (`closes_at <= now`), and
+    /// - it was decided in favour (`yes_weight > no_weight`, with at least one
+    ///   vote cast, since a proposal nobody voted on has decided nothing).
+    ///
+    /// A pending re-vote therefore changes nothing until it closes and passes,
+    /// and a re-vote that FAILS leaves the previous decision standing, which is
+    /// what "reaffirmed" has to mean if the word is to mean anything.
+    ///
+    /// SCOPE, stated rather than implied: this applies the universal minimum,
+    /// a simple majority of decisive weight. The per-type quorum and pass
+    /// thresholds in `data/governance/proposal_types.ron` are richer, and they
+    /// are read in the API layer, so a successor that clears a simple majority
+    /// but not its type's supermajority will currently take over. Consulting
+    /// the registry here is the next increment; this is strictly closer to the
+    /// spec than what it replaces.
+    ///
+    /// Cycle-safe. `supersedes` arrives inside a signed object, so
+    /// A-supersedes-B-supersedes-A is submittable; the visited set bounds it.
     pub fn standing_decision(&self, proposal_object_id: &str) -> Result<Option<String>, rusqlite::Error> {
         self.with_conn(|conn| {
             let exists: i64 = conn.query_row(
@@ -179,25 +243,55 @@ impl Storage {
             if exists == 0 {
                 return Ok(None);
             }
+            let now = super::now_millis() as i64;
             let mut current = proposal_object_id.to_string();
+            // The answer falls back to the link we were asked about when no
+            // review has yet closed and carried, which is the case for every
+            // chain that has never been revisited.
+            let mut standing = current.clone();
             let mut visited = std::collections::HashSet::new();
             visited.insert(current.clone());
             loop {
-                let next: Option<String> = conn
+                let next: Option<(String, i64)> = conn
                     .query_row(
-                        "SELECT proposal_object_id FROM proposals
+                        "SELECT proposal_object_id, closes_at FROM proposals
                           WHERE supersedes = ?1
                           ORDER BY created_at DESC, proposal_object_id ASC
                           LIMIT 1",
                         params![current],
-                        |r| r.get(0),
+                        |r| Ok((r.get(0)?, r.get(1)?)),
                     )
                     .optional()?;
-                match next {
-                    Some(n) if visited.insert(n.clone()) => current = n,
-                    // Either nothing supersedes it, or we have looped.
-                    _ => return Ok(Some(current)),
+                let (candidate, closes_at) = match next {
+                    // Nothing supersedes it, or we have looped.
+                    Some(pair) if visited.insert(pair.0.clone()) => pair,
+                    _ => return Ok(Some(standing)),
+                };
+
+                // Walk the WHOLE chain rather than stopping at the first link
+                // that has not carried. A defeated review does not end the
+                // chain: the question can be asked again, and a later review
+                // that carries is the answer. Stopping early would mean one
+                // failed re-vote froze a question forever.
+                let ratified = closes_at <= now && {
+                    let (yes, no, votes): (f64, f64, i64) = conn.query_row(
+                        "SELECT
+                           COALESCE(SUM(CASE WHEN choice = 'yes' THEN weight_at_vote END), 0.0),
+                           COALESCE(SUM(CASE WHEN choice = 'no'  THEN weight_at_vote END), 0.0),
+                           COUNT(*)
+                         FROM votes WHERE proposal_object_id = ?1",
+                        params![&candidate],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )?;
+                    // A simple majority of decisive weight, and at least one
+                    // vote, because a proposal nobody voted on has decided
+                    // nothing and must not displace one that was decided.
+                    votes > 0 && yes > no
+                };
+                if ratified {
+                    standing = candidate.clone();
                 }
+                current = candidate;
             }
         })
     }
@@ -669,26 +763,128 @@ mod tests {
         o.object_id().unwrap().to_hex()
     }
 
-    /// The core of the feature: given any link in a chain, the standing answer
-    /// is the newest one, and every earlier link still resolves to it.
+    /// Close a proposal's voting window and record a decisive result, so a
+    /// test can exercise the ratified path rather than only the pending one.
+    fn ratify(db: &Storage, id: &str, yes: f64, no: f64) {
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE proposals SET closes_at = 1 WHERE proposal_object_id = ?1",
+                params![id],
+            )?;
+            for (i, (choice, w)) in [("yes", yes), ("no", no)].iter().enumerate() {
+                if *w > 0.0 {
+                    conn.execute(
+                        "INSERT OR REPLACE INTO votes
+                            (vote_object_id, proposal_object_id, voter_did, choice,
+                             weight_at_vote, cast_at)
+                         VALUES (?1, ?2, ?3, ?4, ?5, 1)",
+                        params![format!("{id}_v{i}"), id, format!("did:test:{i}"), choice, w],
+                    )?;
+                }
+            }
+            Ok::<(), rusqlite::Error>(())
+        })
+        .unwrap();
+    }
+
+    /// THE CORE SEMANTIC, and v0.1303.0 had it backwards.
+    ///
+    /// `docs/PRIORITIES.md` defines the standing answer as "the most recent
+    /// CLOSED decision in the chain". The first implementation returned the
+    /// newest link outright, so merely opening a review flipped the answer
+    /// before anyone voted. This pins the corrected behaviour at every stage.
     #[test]
-    fn standing_decision_walks_the_supersession_chain() {
+    fn a_review_does_not_change_the_answer_until_it_closes_and_passes() {
         let db = make_test_storage();
         let k = DilithiumKeypair::generate().unwrap();
 
         let a = put(&db, &make_proposal_with(&k, vec![]));
-        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
-        let c = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&b))]));
+        ratify(&db, &a, 3.0, 0.0);
+        assert_eq!(db.standing_decision(&a).unwrap().as_deref(), Some(a.as_str()));
 
-        // Asking about ANY link gives the same answer.
-        assert_eq!(db.standing_decision(&a).unwrap().as_deref(), Some(c.as_str()));
+        // A review is opened. It has NOT closed. Nothing changes.
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        assert_eq!(
+            db.standing_decision(&a).unwrap().as_deref(),
+            Some(a.as_str()),
+            "an OPEN review must not displace the decision it is reviewing"
+        );
+
+        // It closes, and is defeated. The original still stands.
+        ratify(&db, &b, 1.0, 4.0);
+        assert_eq!(
+            db.standing_decision(&a).unwrap().as_deref(),
+            Some(a.as_str()),
+            "a DEFEATED review must leave the previous decision standing"
+        );
+
+        // A later review closes and carries. Now the answer moves.
+        let c = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&b))]));
+        ratify(&db, &c, 5.0, 1.0);
+        assert_eq!(
+            db.standing_decision(&a).unwrap().as_deref(),
+            Some(c.as_str()),
+            "a review that closed and carried becomes the standing answer"
+        );
+
+        // Asking from any link gives the same answer.
         assert_eq!(db.standing_decision(&b).unwrap().as_deref(), Some(c.as_str()));
         assert_eq!(db.standing_decision(&c).unwrap().as_deref(), Some(c.as_str()));
 
-        // And the history is still there, which is the whole reason for
-        // superseding rather than editing.
+        // And the history survives, which is the whole reason for superseding.
         assert!(db.get_proposal(&a).unwrap().is_some(), "the superseded decision must survive");
-        assert!(db.get_proposal(&b).unwrap().is_some());
+        assert!(db.get_proposal(&b).unwrap().is_some(), "even the defeated review must survive");
+    }
+
+    /// A closed review that nobody voted in has decided nothing, so it must not
+    /// displace a decision that was actually taken. Without this, opening a
+    /// review in a quiet community would silently repeal the thing it reviews.
+    #[test]
+    fn a_review_with_no_votes_never_takes_over() {
+        let db = make_test_storage();
+        let k = DilithiumKeypair::generate().unwrap();
+        let a = put(&db, &make_proposal_with(&k, vec![]));
+        ratify(&db, &a, 2.0, 0.0);
+        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text(&a))]));
+        ratify(&db, &b, 0.0, 0.0); // closed, zero votes
+
+        assert_eq!(db.standing_decision(&a).unwrap().as_deref(), Some(a.as_str()));
+    }
+
+    /// AUTHORIZATION. v0.1303.0 stored `supersedes` unverified, and
+    /// POST /api/v2/objects needs no account, only a valid self-signature. So
+    /// any keypair on the internet could publish a proposal claiming to
+    /// supersede any decision and take over its chain.
+    #[test]
+    fn a_stranger_cannot_supersede_someone_elses_decision() {
+        let db = make_test_storage();
+        let owner = DilithiumKeypair::generate().unwrap();
+        let stranger = DilithiumKeypair::generate().unwrap();
+
+        let a = put(&db, &make_proposal_with(&owner, vec![]));
+        ratify(&db, &a, 3.0, 0.0);
+
+        // The stranger's proposal is still STORED. It just does not link.
+        let hijack = put(&db, &make_proposal_with(&stranger, vec![("supersedes", cbor_text(&a))]));
+        assert!(db.get_proposal(&hijack).unwrap().is_some(), "the submission is not discarded");
+        assert_eq!(
+            db.get_proposal(&hijack).unwrap().unwrap().supersedes,
+            None,
+            "an unauthorized supersedes pointer must be dropped, not stored"
+        );
+        ratify(&db, &hijack, 9.0, 0.0); // even with overwhelming support
+
+        assert_eq!(
+            db.standing_decision(&a).unwrap().as_deref(),
+            Some(a.as_str()),
+            "a stranger must not be able to move someone else's standing decision"
+        );
+        assert_eq!(db.decision_chain(&a).unwrap().len(), 1, "and must not join the chain");
+
+        // The original proposer still can.
+        let real = put(&db, &make_proposal_with(&owner, vec![("supersedes", cbor_text(&a))]));
+        ratify(&db, &real, 4.0, 0.0);
+        assert_eq!(db.standing_decision(&a).unwrap().as_deref(), Some(real.as_str()));
     }
 
     /// `supersedes` arrives inside a signed object from an untrusted author, so
@@ -808,12 +1004,22 @@ mod tests {
             let chain = db.decision_chain(entry).unwrap();
             let ids: Vec<String> = chain.iter().map(|p| p.proposal_object_id.clone()).collect();
             assert_eq!(ids, vec![a.clone(), b.clone(), c.clone()], "entered at {entry}");
-            assert_eq!(
-                chain.last().unwrap().proposal_object_id,
-                db.standing_decision(entry).unwrap().unwrap(),
-                "the last link must be the standing decision"
-            );
         }
+
+        // The chain is the HISTORY, which is a different question from what
+        // currently stands. These three reviews are open and undecided, so the
+        // newest link is emphatically NOT the standing answer. Conflating the
+        // two was the v0.1303.0 bug and this pins them apart.
+        assert_eq!(
+            db.standing_decision(&a).unwrap().as_deref(),
+            Some(a.as_str()),
+            "nothing has closed, so the original still stands even though the chain is 3 long"
+        );
+        assert_ne!(
+            db.decision_chain(&a).unwrap().last().unwrap().proposal_object_id,
+            db.standing_decision(&a).unwrap().unwrap(),
+            "the newest proposal and the standing decision are different things"
+        );
     }
 
     #[test]
@@ -906,8 +1112,16 @@ mod tests {
         assert_eq!(db.standing_decision("old_prop").unwrap().as_deref(), Some("old_prop"));
 
         // The new columns exist and the new paths work on the migrated table.
+        // Note the seeded row's proposer is 'did:hum:someone', so a freshly
+        // generated key is a STRANGER to it and correctly cannot supersede it.
         let k = DilithiumKeypair::generate().unwrap();
-        let b = put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text("old_prop"))]));
-        assert_eq!(db.standing_decision("old_prop").unwrap().as_deref(), Some(b.as_str()));
+        let stranger_attempt =
+            put(&db, &make_proposal_with(&k, vec![("supersedes", cbor_text("old_prop"))]));
+        assert_eq!(
+            db.get_proposal(&stranger_attempt).unwrap().unwrap().supersedes,
+            None,
+            "authorization applies to migrated rows too"
+        );
+        assert_eq!(db.standing_decision("old_prop").unwrap().as_deref(), Some("old_prop"));
     }
 }

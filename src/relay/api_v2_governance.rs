@@ -104,7 +104,14 @@ pub async fn proposal_chain(
         )
             .into_response(),
         Ok(chain) => {
-            let standing = chain.last().map(|p| p.proposal_object_id.clone());
+            // NOT chain.last(). The newest link is the newest PROPOSAL, which
+            // may be open, or closed and defeated. The standing answer is the
+            // newest link that actually carried, which is what
+            // standing_decision computes. v0.1303.0 conflated the two, so
+            // merely opening a review appeared to change the answer.
+            let standing = chain
+                .first()
+                .and_then(|p| state.db.standing_decision(&p.proposal_object_id).ok().flatten());
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
