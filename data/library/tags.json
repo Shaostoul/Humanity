@@ -1,0 +1,50 @@
+{
+  "_comment": "Library tag vocabulary. Tags cross-cut the categories in catalog.json: a category is the ONE shelf a document sits on, a tag is every other way somebody might look for it. Both clients render these as filter chips (native src/gui/pages/library.rs, web web/pages/library-app.js). Adding a tag means adding a row here and using its id in catalog.json; `scripts/build-library.js` fails the build if a catalog tag is not defined here, so the two cannot drift. Grouped by axis, and rendered in the order given.",
+  "groups": [
+    {
+      "id": "reality",
+      "label": "Reality",
+      "note": "Which side of the Real/Sim toggle this belongs to (docs/design/two-realities.md). A doc can be both.",
+      "tags": [
+        { "id": "real", "label": "Real life" },
+        { "id": "sim", "label": "In the sim" }
+      ]
+    },
+    {
+      "id": "domain",
+      "label": "Domain",
+      "note": "What the document is actually about.",
+      "tags": [
+        { "id": "food", "label": "Food" },
+        { "id": "water", "label": "Water" },
+        { "id": "power", "label": "Power" },
+        { "id": "making", "label": "Making and repair" },
+        { "id": "materials", "label": "Materials" },
+        { "id": "governance", "label": "Governance" },
+        { "id": "mission", "label": "Mission" },
+        { "id": "project", "label": "Project" }
+      ]
+    },
+    {
+      "id": "nature",
+      "label": "Kind of document",
+      "note": "How to read it. A guide is worked through once; a reference is looked up repeatedly.",
+      "tags": [
+        { "id": "guide", "label": "Step-by-step guide" },
+        { "id": "reference", "label": "Reference" },
+        { "id": "safety", "label": "Safety critical" }
+      ]
+    },
+    {
+      "id": "audience",
+      "label": "Who it is for",
+      "tags": [
+        { "id": "beginner", "label": "Start here" },
+        { "id": "admin", "label": "Server operators" },
+        { "id": "contributor", "label": "Contributors" },
+        { "id": "technical", "label": "Technical" },
+        { "id": "ai", "label": "AI participants" }
+      ]
+    }
+  ]
+}

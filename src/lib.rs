@@ -1457,7 +1457,9 @@ mod native_app {
             gui_state.tower_configs = crate::gui::load_tower_configs(&data_dir);
             gui_state.garden_areas = crate::gui::load_garden_areas(&data_dir);
             gui_state.grow_media = crate::gui::load_grow_media(&data_dir);
-            gui_state.library = crate::gui::load_library(&data_dir);
+            let lib = crate::gui::load_library(&data_dir);
+            gui_state.library = lib.sections;
+            gui_state.library_tags = lib.tag_groups;
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
             gui_state.bug_severities = sevs;

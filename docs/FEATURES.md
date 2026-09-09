@@ -504,6 +504,36 @@ document - click any word for its definition, dictionary hits underlined.
 - Native: `src/gui/glossary.rs`, Dictionary + define mode in `src/gui/pages/library.rs`
 - Data: `data/glossary.json`
 
+### Library Tags (v0.1305)
+Cross-cutting filter chips on the Library, in both clients, grouped by four
+axes: reality (real life / in the sim), domain (food, water, power, making,
+materials, governance, mission, project), kind of document (guide, reference,
+safety critical) and audience (start here, server operators, contributors,
+technical, AI participants). A category is the ONE shelf a document sits on;
+tags are every other way somebody might look for it, so a doc reachable under
+"Making and Repair" is also reachable under "Safety critical". Picking a chip
+narrows the rail without changing what is open; categories that end up empty
+are hidden; the open document shows its own tags, and clicking one jumps to its
+siblings.
+- Taxonomy: `data/library/catalog.json` (categories + per-doc tags, the source
+  of truth), `data/library/tags.json` (the vocabulary)
+- Generated manifest: `data/library/index.json` via `scripts/build-library.js`,
+  which FAILS the build on a tag the vocabulary does not define
+- Native: `src/gui/pages/library.rs`, loader in `src/gui/mod.rs` (`load_library`)
+- Web: `web/pages/library-app.js`, `web/pages/library.html`
+
+### Markdown Tables and Line Joining (v0.1305)
+Both markdown renderers gained pipe tables, and both now JOIN wrapped source
+lines the way markdown requires. Before this a paragraph rendered as one ragged
+element per source line, a bullet ended at its first indented continuation line
+(42 of the 81 Library documents wrap their bullets), inline markup spanning a
+line break never matched (`humanity_accord.md` showed seven bold spans as
+literal asterisks), and the 14 documents containing tables showed raw pipe text.
+- Native: `src/gui/widgets/markdown.rs` (tables render as an `egui::Grid`)
+- Web: `web/shared/markdown.js` (table CSS ships with the renderer, so every
+  consumer gets it without a fourth copy of the `.md-viewer` rules)
+- Snapshot: `tests/snapshots/markdown_features.png` via `just snapshot markdown_features`
+
 ### Admin Dashboard
 Server analytics for admins. Users, messages, channels, federation, game state.
 - Web: `web/pages/admin.html`, `web/pages/admin-app.js`

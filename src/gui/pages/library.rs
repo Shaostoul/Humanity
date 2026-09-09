@@ -38,6 +38,10 @@ struct LibState {
     define_mode: bool,
     /// A word the reader clicked in define mode - drives the popup.
     define_popup: Option<String>,
+    /// Active document tag filter (a tag id from `data/library/tags.json`).
+    /// None shows everything. Narrows the rail without changing what is open,
+    /// so filtering never yanks the document you are reading out from under you.
+    tag_filter: Option<String>,
 }
 
 fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
@@ -52,6 +56,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             dict_cat: None,
             define_mode: false,
             define_popup: None,
+            tag_filter: None,
         });
     }
     S.with(|s| f(&mut s.borrow_mut()))
@@ -92,6 +97,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
+            // ── Tag filter: one wrapping row of chips per axis ──
+            // Full width, above both panes, because the 250px rail cannot hold
+            // four groups of chips. Tags cross-cut the categories: a doc sits in
+            // exactly one category but carries as many tags as apply, so this is
+            // the only way to ask "show me everything safety-critical".
+            if !state.library_tags.is_empty() {
+                let active = lib_state(|s| s.tag_filter.clone());
+                let mut picked: Option<Option<String>> = None;
+                for group in state.library_tags.iter() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new(group.label.as_str())
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                        for t in group.tags.iter() {
+                            let is_on = active.as_deref() == Some(t.id.as_str());
+                            if tag_chip(ui, theme, t.label.as_str(), is_on) {
+                                // Clicking the active chip clears the filter.
+                                picked = Some(if is_on { None } else { Some(t.id.clone()) });
+                            }
+                        }
+                    });
+                }
+                if active.is_some() {
+                    ui.horizontal(|ui| {
+                        if crate::gui::widgets::Button::secondary("Clear filter").show(ui, theme) {
+                            picked = Some(None);
+                        }
+                    });
+                }
+                if let Some(next) = picked {
+                    lib_state(|s| s.tag_filter = next);
+                }
+                ui.add_space(theme.spacing_xs);
+                ui.separator();
+            }
+
             let rail_w = 250.0;
             let content_w = (ui.available_width() - rail_w - 24.0).max(320.0);
             let body_h = ui.available_height();
@@ -102,9 +145,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ScrollArea::vertical().id_salt("library_rail").auto_shrink([false, false]).show(ui, |ui| {
                         lib_state(|s| {
                             for (si, section) in state.library.iter().enumerate() {
-                                let has_docs = section.categories.iter().any(|c| !c.entries.is_empty());
+                                // Never render a section header with nothing under
+                                // it, which an active tag filter can easily cause.
+                                let has_docs = section.categories.iter().any(|c| {
+                                    c.entries.iter().any(|e| {
+                                        s.tag_filter.as_ref().map_or(true, |t| e.tags.iter().any(|x| x == t))
+                                    })
+                                });
                                 if !has_docs {
-                                    continue; // defensive: never render an empty section header
+                                    continue;
                                 }
                                 egui::CollapsingHeader::new(
                                     RichText::new(section.name.as_str()).size(theme.font_size_body).strong().color(theme.text_primary()),
@@ -117,6 +166,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .entries
                                             .iter()
                                             .enumerate()
+                                            .filter(|(_, e)| {
+                                                s.tag_filter
+                                                    .as_ref()
+                                                    .map_or(true, |t| e.tags.iter().any(|x| x == t))
+                                            })
                                             .map(|(ei, e)| (ei, e.title.as_str()))
                                             .collect();
                                         if docs.is_empty() {
@@ -141,6 +195,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 });
                             }
 
+                            // A filter that matches nothing would otherwise leave
+                            // a rail containing only "Dictionary", which reads as
+                            // a broken page rather than an empty result.
+                            if let Some(tag) = s.tag_filter.clone() {
+                                let none = !state.library.iter().any(|sec| {
+                                    sec.categories.iter().any(|c| {
+                                        c.entries.iter().any(|e| e.tags.iter().any(|x| *x == tag))
+                                    })
+                                });
+                                if none {
+                                    ui.label(
+                                        RichText::new("No documents carry that tag yet.")
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                }
+                            }
+
                             ui.add_space(theme.spacing_sm);
                             let dict_active = s.sel == Sel::Dictionary;
                             let dcolor = if dict_active { theme.bg_primary() } else { theme.text_primary() };
@@ -160,12 +232,43 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.allocate_ui_with_layout(Vec2::new(content_w, body_h), Layout::top_down(Align::Min), |ui| {
                     lib_state(|s| match s.sel.clone() {
                         Sel::Doc(si, ci, ei) => {
-                            let body = state
+                            let entry = state
                                 .library
                                 .get(si)
                                 .and_then(|sec| sec.categories.get(ci))
-                                .and_then(|c| c.entries.get(ei))
-                                .map(|e| e.body.as_str());
+                                .and_then(|c| c.entries.get(ei));
+                            let body = entry.map(|e| e.body.as_str());
+
+                            // The open document's own tags, clickable so a reader
+                            // who likes this doc can find its siblings in one tap.
+                            if let Some(e) = entry {
+                                if !e.tags.is_empty() && !state.library_tags.is_empty() {
+                                    let mut jump: Option<String> = None;
+                                    ui.horizontal_wrapped(|ui| {
+                                        for id in e.tags.iter() {
+                                            // Show the human label, fall back to the
+                                            // raw id so an unregistered tag is visible
+                                            // rather than silently dropped.
+                                            let label = state
+                                                .library_tags
+                                                .iter()
+                                                .flat_map(|g| g.tags.iter())
+                                                .find(|t| t.id == *id)
+                                                .map(|t| t.label.as_str())
+                                                .unwrap_or(id.as_str());
+                                            let is_on = s.tag_filter.as_deref() == Some(id.as_str());
+                                            if tag_chip(ui, theme, label, is_on) {
+                                                jump = Some(id.clone());
+                                            }
+                                        }
+                                    });
+                                    if let Some(id) = jump {
+                                        s.tag_filter =
+                                            if s.tag_filter.as_deref() == Some(id.as_str()) { None } else { Some(id) };
+                                    }
+                                    ui.add_space(theme.spacing_xs);
+                                }
+                            }
                             // Define-words toggle (v0.989): on = click any word
                             // in the document for its definition; dictionary
                             // hits show underlined. Plain fast rendering when off.

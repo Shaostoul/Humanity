@@ -88,7 +88,9 @@ fn demo_state() -> GuiState {
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
     s.craft_recipes = crate::gui::load_crafting_recipes(data);
     s.market_categories = crate::gui::load_market_categories(data);
-    s.library = crate::gui::load_library(data);
+    let lib = crate::gui::load_library(data);
+    s.library = lib.sections;
+    s.library_tags = lib.tag_groups;
     s.garden_areas = crate::gui::load_garden_areas(data);
     s.grow_media = crate::gui::load_grow_media(data);
     s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
@@ -859,6 +861,45 @@ fn snapshot_toast() {
         let now = ctx.input(|i| i.time);
         state.toast("Theme saved", crate::gui::ToastKind::Success, now);
         crate::gui::widgets::draw_toasts(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_markdown_features() {
+    // The markdown renderer's three v0.1305 behaviours, in one picture, because
+    // the Library snapshot happens to open a document that exercises none of
+    // them. Each block below renders WRONG under the old line-at-a-time
+    // renderer: the paragraph would be four ragged one-line paragraphs, the
+    // bullet would end at "that", and the table would be raw pipe text.
+    // Mirrored by the web renderer's unit cases in web/shared/markdown.js.
+    const SAMPLE: &str = "\
+# Markdown features
+
+A paragraph hard-wrapped in the source across
+several lines, which markdown joins into one
+paragraph, and **bold that spans a line
+break** has to survive the join.
+
+- A bullet whose text runs past the end of
+  the first line and continues indented, which
+  is how 42 of the 81 Library documents write.
+- A short bullet.
+
+| Material | Fails at | How |
+|---|---|---|
+| Epoxy matrix | 120 C | Softens |
+| Kevlar | 450 C | Chars |
+| Titanium | 1668 C | Melts |
+
+Closing paragraph after the table.";
+
+    render_page_png("markdown_features", 760, 560, |_ctx, theme, _state| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
+            .show(_ctx, |ui| {
+                crate::gui::widgets::markdown::render_markdown(ui, theme, SAMPLE);
+            });
     });
 }
 

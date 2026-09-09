@@ -15,6 +15,7 @@
   var current = null;       // {ci, di} of the open doc, or 'dictionary'
   var docCache = {};        // file -> markdown text
   var dictQuery = '';
+  var tagFilter = null;     // active tag id, or null for everything
 
   function esc(s) {
     if (!s) return '';
@@ -53,6 +54,68 @@
     return !!hit;
   }
 
+  /* ── Tags ──
+     Tags cross-cut the categories: a document sits in exactly one category but
+     carries as many tags as apply, which is the only way to ask for "everything
+     safety-critical" across shelves. Vocabulary comes from data/library/tags.json
+     via the manifest, so web and native filter on identical ids. */
+
+  function docHasTag(doc, tag) {
+    if (!tag) return true;
+    var tags = doc.tags || [];
+    for (var i = 0; i < tags.length; i++) if (tags[i] === tag) return true;
+    return false;
+  }
+
+  /** Human label for a tag id, falling back to the id so an unregistered tag is
+      visible rather than silently dropped. */
+  function tagLabel(id) {
+    var groups = (manifest && manifest.tags) || [];
+    for (var g = 0; g < groups.length; g++) {
+      var ts = groups[g].tags || [];
+      for (var i = 0; i < ts.length; i++) if (ts[i].id === id) return ts[i].label || id;
+    }
+    return id;
+  }
+
+  function setTagFilter(tag) {
+    tagFilter = (tagFilter === tag) ? null : tag;   // clicking the active chip clears it
+    renderTagBar();
+    renderRail();
+  }
+
+  function renderTagBar() {
+    var bar = document.getElementById('lib-tags');
+    if (!bar) return;
+    var groups = (manifest && manifest.tags) || [];
+    if (!groups.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+
+    var html = groups.map(function(g) {
+      var chips = (g.tags || []).map(function(t) {
+        var on = tagFilter === t.id;
+        return '<button class="lib-tag' + (on ? ' active' : '') + '" data-tag="' +
+          esc(t.id) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+          esc(t.label || t.id) + '</button>';
+      }).join('');
+      if (!chips) return '';
+      return '<div class="lib-tag-group"><span class="lib-tag-label">' +
+        esc(g.label || '') + '</span>' + chips + '</div>';
+    }).join('');
+
+    if (tagFilter) {
+      html += '<div class="lib-tag-group"><button class="lib-tag" data-clear="1">' +
+        'Clear filter</button></div>';
+    }
+    bar.innerHTML = html;
+
+    bar.querySelectorAll('[data-tag]').forEach(function(b) {
+      b.addEventListener('click', function() { setTagFilter(b.getAttribute('data-tag')); });
+    });
+    var clear = bar.querySelector('[data-clear]');
+    if (clear) clear.addEventListener('click', function() { tagFilter = null; renderTagBar(); renderRail(); });
+  }
+
   /* ── Left rail: nested category tree, mirroring the native collapsing headers ── */
   function renderRail() {
     var rail = document.getElementById('lib-rail');
@@ -69,23 +132,32 @@
     }
 
     var html = '';
+    var shown = 0;
     cats.forEach(function(cat, ci) {
       var docs = cat.docs || [];
-      if (!docs.length) return;
+      // Keep each doc's real index so openDoc(ci, di) still addresses the
+      // unfiltered manifest; filtering must not renumber anything.
+      var visible = docs.map(function(d, di) { return { d: d, di: di }; })
+                        .filter(function(x) { return docHasTag(x.d, tagFilter); });
+      if (!visible.length) return;   // never render an empty category header
+      shown += visible.length;
       html += '<div class="lib-cat">' +
         '<div class="lib-cat-head" role="button" tabindex="0" data-cat="' + ci + '">' +
           '<span class="lib-cat-arrow" id="lib-arrow-' + ci + '">&#9660;</span>' +
           '<span>' + esc(cat.name) + '</span>' +
         '</div>' +
         '<div class="lib-cat-docs" id="lib-docs-' + ci + '">' +
-          docs.map(function(d, di) {
-            var active = current && current.ci === ci && current.di === di;
+          visible.map(function(x) {
+            var active = current && current.ci === ci && current.di === x.di;
             return '<button class="lib-doc' + (active ? ' active' : '') +
-              '" data-ci="' + ci + '" data-di="' + di + '">' + esc(d.title) + '</button>';
+              '" data-ci="' + ci + '" data-di="' + x.di + '">' + esc(x.d.title) + '</button>';
           }).join('') +
         '</div>' +
       '</div>';
     });
+    if (!shown && tagFilter) {
+      html += '<div class="lib-empty">No documents carry that tag yet.</div>';
+    }
 
     html += '<div class="lib-special">' +
       '<button class="lib-doc' + (current === 'dictionary' ? ' active' : '') +
@@ -151,6 +223,25 @@
   }
 
   /* ── Reader ── */
+  /** The open document's own tags, clickable so a reader who likes this doc can
+      find its siblings in one tap. Mirrors the native doc pane. */
+  function docTagsHtml(doc) {
+    var tags = doc.tags || [];
+    if (!tags.length || !((manifest && manifest.tags) || []).length) return '';
+    return '<div class="lib-doc-tags">' + tags.map(function(id) {
+      var on = tagFilter === id;
+      return '<button class="lib-tag' + (on ? ' active' : '') + '" data-doctag="' +
+        esc(id) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+        esc(tagLabel(id)) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function bindDocTags(el) {
+    el.querySelectorAll('[data-doctag]').forEach(function(b) {
+      b.addEventListener('click', function() { setTagFilter(b.getAttribute('data-doctag')); });
+    });
+  }
+
   /**
    * @param reveal true when the reader ASKED for this document (a deep link, or
    *   a tap in the rail). A bare /library opens the first document by default,
@@ -169,7 +260,8 @@
 
     var el = contentEl();
     if (docCache[doc.file]) {
-      el.innerHTML = '<div class="md-viewer">' + md(docCache[doc.file]) + '</div>';
+      el.innerHTML = docTagsHtml(doc) + '<div class="md-viewer">' + md(docCache[doc.file]) + '</div>';
+      bindDocTags(el);
       el.scrollTop = 0;
       if (reveal) revealReader();
       return;
@@ -184,7 +276,8 @@
         docCache[doc.file] = text;
         // Guard against a slow fetch landing after the reader moved on.
         if (current && current.ci === ci && current.di === di) {
-          el.innerHTML = '<div class="md-viewer">' + md(text) + '</div>';
+          el.innerHTML = docTagsHtml(doc) + '<div class="md-viewer">' + md(text) + '</div>';
+          bindDocTags(el);
           el.scrollTop = 0;
           if (reveal) revealReader();
         }
@@ -270,6 +363,7 @@
       })
       .then(function(j) {
         manifest = j;
+        renderTagBar();
         renderRail();
         // A #slug in the URL wins; otherwise open the first document,
         // matching the native page's default.

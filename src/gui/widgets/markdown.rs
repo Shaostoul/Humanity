@@ -2,10 +2,21 @@
 //! viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`).
 //!
 //! Renders headings (`#`, `##`, `###`), bullets (`-`, `*`), horizontal rules
-//! (`---`), and paragraphs; inline emphasis markers (`**`, `*`, `` ` ``) are
-//! stripped for plain, readable text styled by the theme. Not a full parser, just
-//! enough to read a document cleanly. The bullet glyph is U+00B7 ("·"), a
-//! confirmed-rendering symbol in the bundled font.
+//! (`---`), pipe tables, and paragraphs; inline emphasis markers (`**`, `*`,
+//! `` ` ``) are stripped for plain, readable text styled by the theme. Not a
+//! full parser, just enough to read a document cleanly. The bullet glyph is
+//! U+00B7 ("·"), a confirmed-rendering symbol in the bundled font.
+//!
+//! Wrapped source lines are JOINED before rendering, which markdown requires and
+//! this did not do until v0.1305: a paragraph or a bullet may span as many source
+//! lines as it likes and only a blank line ends it. Before that, every
+//! hard-wrapped document rendered as a stack of one-line fragments, and a bullet
+//! ended at its first continuation line (42 of the 81 Library documents wrap
+//! their bullets). Tables landed in the same pass; 14 documents already used
+//! them and showed raw pipe text.
+//!
+//! Mirrored by the web renderer, `web/shared/markdown.js`. Keep the two in step:
+//! they render the SAME files from `data/library/`.
 
 use egui::RichText;
 use crate::gui::theme::Theme;
@@ -33,6 +44,25 @@ pub fn render_markdown_defining(
     render_markdown_impl(ui, theme, md, true, &mut c);
 }
 
+/// A GFM table separator row (`|---|:--:|`): pipes, dashes, colons and space
+/// only, with at least one dash AND one pipe. The pipe requirement is what
+/// keeps a bare `---` horizontal rule from being read as a separator.
+fn is_separator_row(s: &str) -> bool {
+    let t = s.trim();
+    t.contains('-')
+        && t.contains('|')
+        && !t.is_empty()
+        && t.chars().all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace())
+}
+
+/// Split one pipe row into trimmed cells, tolerating optional outer pipes.
+fn table_cells(row: &str) -> Vec<String> {
+    let mut s = row.trim();
+    s = s.strip_prefix('|').unwrap_or(s);
+    s = s.strip_suffix('|').unwrap_or(s);
+    s.split('|').map(|c| strip_md(c.trim())).collect()
+}
+
 fn render_markdown_impl(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -40,41 +70,165 @@ fn render_markdown_impl(
     define: bool,
     clicked: &mut Option<&mut Option<String>>,
 ) {
-    for raw in md.lines() {
+    // Collected so tables can look ahead one line for their separator row.
+    let lines: Vec<&str> = md.lines().collect();
+
+    // Markdown joins wrapped source lines; rendering one element per LINE (what
+    // this did before) split every hard-wrapped paragraph into ragged pieces and
+    // silently ended a bullet at its first continuation line. 42 of the 81
+    // Library documents wrap their list items. Buffer, then flush.
+    let mut para: Vec<String> = Vec::new();
+    let mut li: Option<Vec<String>> = None;
+
+    macro_rules! flush_para {
+        () => {
+            if !para.is_empty() {
+                let text = strip_md(&para.join(" "));
+                if define {
+                    defining_words(ui, theme, &text, theme.font_size_small, clicked);
+                } else {
+                    ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                para.clear();
+            }
+        };
+    }
+    macro_rules! flush_li {
+        () => {
+            if let Some(parts) = li.take() {
+                let text = strip_md(&parts.join(" "));
+                ui.horizontal_top(|ui| {
+                    ui.add_space(theme.spacing_sm);
+                    ui.label(RichText::new("\u{00b7}").color(theme.accent()));
+                    if define {
+                        defining_words(ui, theme, &text, theme.font_size_small, clicked);
+                    } else {
+                        ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
+                    }
+                });
+            }
+        };
+    }
+
+    let mut i = 0usize;
+    while i < lines.len() {
+        let raw = lines[i];
         let trimmed = raw.trim_start();
+
         if trimmed.is_empty() {
+            flush_li!();
+            flush_para!();
             ui.add_space(theme.spacing_sm);
+            i += 1;
             continue;
         }
+
+        let bullet = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* "));
+
+        // A wrapped list item: indented, not itself a bullet, and a bullet is
+        // open. Belongs to that bullet rather than to a paragraph of its own.
+        if li.is_some() && bullet.is_none() && raw.starts_with(char::is_whitespace) {
+            if let Some(parts) = li.as_mut() {
+                parts.push(trimmed.to_string());
+            }
+            i += 1;
+            continue;
+        }
+
+        // Horizontal rule, checked before bullets so "---" is never a bullet.
         if trimmed.starts_with("---") && trimmed.chars().all(|c| c == '-') {
+            flush_li!();
+            flush_para!();
             ui.separator();
+            i += 1;
             continue;
         }
+
+        // Tables. A pipe row followed by a separator row opens one; it runs
+        // until the first blank or pipe-less line. 14 Library documents use
+        // tables and rendered as raw pipe text before this existed.
+        if trimmed.contains('|') && lines.get(i + 1).is_some_and(|n| is_separator_row(n)) {
+            flush_li!();
+            flush_para!();
+            let header = table_cells(trimmed);
+            let cols = header.len().max(1);
+            let mut rows: Vec<Vec<String>> = Vec::new();
+            let mut n = i + 2;
+            while n < lines.len() {
+                let r = lines[n];
+                if r.trim().is_empty() || !r.contains('|') {
+                    break;
+                }
+                rows.push(table_cells(r));
+                n += 1;
+            }
+
+            // Split the pane evenly and let each cell wrap inside its share, so
+            // a long prose cell grows downward instead of pushing the table
+            // wider than the reading pane.
+            let avail = ui.available_width();
+            let col_w = ((avail - theme.spacing_sm * (cols as f32 + 1.0)) / cols as f32).max(60.0);
+            ui.add_space(theme.spacing_xs);
+            egui::Grid::new(("md_table", i))
+                .striped(true)
+                .num_columns(cols)
+                .show(ui, |ui| {
+                    for h in header.iter() {
+                        ui.scope(|ui| {
+                            ui.set_max_width(col_w);
+                            ui.label(
+                                RichText::new(h).size(theme.font_size_small).strong().color(theme.text_primary()),
+                            );
+                        });
+                    }
+                    ui.end_row();
+                    for row in rows.iter() {
+                        for c in 0..cols {
+                            ui.scope(|ui| {
+                                ui.set_max_width(col_w);
+                                let cell = row.get(c).map(String::as_str).unwrap_or("");
+                                ui.label(
+                                    RichText::new(cell)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                            });
+                        }
+                        ui.end_row();
+                    }
+                });
+            ui.add_space(theme.spacing_xs);
+            i = n;
+            continue;
+        }
+
         if let Some(rest) = trimmed.strip_prefix("### ") {
+            flush_li!();
+            flush_para!();
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_body).strong().color(theme.accent()));
         } else if let Some(rest) = trimmed.strip_prefix("## ") {
+            flush_li!();
+            flush_para!();
             ui.add_space(theme.spacing_sm);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_heading).strong().color(theme.text_primary()));
         } else if let Some(rest) = trimmed.strip_prefix("# ") {
+            flush_li!();
+            flush_para!();
             ui.add_space(theme.spacing_sm);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_title).strong().color(theme.text_primary()));
-        } else if let Some(rest) = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* ")) {
-            ui.horizontal_top(|ui| {
-                ui.add_space(theme.spacing_sm);
-                ui.label(RichText::new("\u{00b7}").color(theme.accent()));
-                if define {
-                    defining_words(ui, theme, &strip_md(rest), theme.font_size_small, clicked);
-                } else {
-                    ui.label(RichText::new(strip_md(rest)).size(theme.font_size_small).color(theme.text_secondary()));
-                }
-            });
-        } else if define {
-            defining_words(ui, theme, &strip_md(trimmed), theme.font_size_small, clicked);
+        } else if let Some(rest) = bullet {
+            flush_li!();
+            flush_para!();
+            li = Some(vec![rest.to_string()]);
         } else {
-            ui.label(RichText::new(strip_md(trimmed)).size(theme.font_size_small).color(theme.text_secondary()));
+            para.push(trimmed.to_string());
         }
+        i += 1;
     }
+
+    flush_li!();
+    flush_para!();
 }
 
 /// One prose line as clickable words, wrapping like normal text. Dictionary

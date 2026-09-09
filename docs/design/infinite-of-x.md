@@ -90,6 +90,18 @@ missing/malformed input, pages render an empty filter row rather than crashing.
 |-------|------|-------------|-------|
 | `src/gui/pages/inventory.rs` | Hardcoded `GrowMedium` enum + `grow_medium()` match + the per-medium garden edit form (aeroponic / soil bed / grain tray / mushroom / aquaponic / field) | `data/garden/grow_media.ron` | Loader: `load_grow_media()` -> `state.grow_media: Vec<GrowMedium>`. The garden edit modal renders each medium's label / note / controls (`Slider` / `Crop` / `Toggle`) from the registry, matched to a garden machine by id (exact / prefix / suffix, first match wins). Adding a plot-type is now a data edit, not code (the long-deferred garden plot-types arc). |
 
+### Migrated in v0.1305.0
+
+| Where | What | Target file | Notes |
+|-------|------|-------------|-------|
+| `scripts/build-library.js` | The ENTIRE Library taxonomy: 16 categories and 80 documents as a `const CATEGORIES = [...]` literal, holding every category name, document title and source path | `data/library/catalog.json` + `data/library/tags.json` | The script now READS the catalog and generates `data/library/index.json` from it, instead of owning the list. Adding a document is a row in the catalog and nothing else. Tags cross-cut the categories (a category is the one shelf a doc sits on, tags are every other way to look for it) and the build FAILS on a tag that `tags.json` does not define, so the two cannot drift. Rendered as filter chips by `src/gui/pages/library.rs` and `web/pages/library-app.js` from the same manifest. |
+
+This one is worth reading as a cautionary example: the list was already being
+written INTO a data file, which made it look compliant. It was not. The source
+of truth was still a code literal, and a doc could only be added by editing a
+script. "Generates a data file" is not the same as "is data driven"; the test is
+whether a non-programmer can add the second instance.
+
 ### Still outstanding (lower-priority)
 
 | Where | What | Target file | Notes |
