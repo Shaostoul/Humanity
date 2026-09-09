@@ -892,6 +892,11 @@ break** has to survive the join.
 | Kevlar | 450 C | Chars |
 | Titanium | 1668 C | Melts |
 
+> **Ratification history.** A multi-line block quote, which is how the
+> Constitution separates House Manual editorial matter from constitutional
+> text. Before v0.1305 this had no branch at all and the marker rendered
+> as literal text.
+
 Closing paragraph after the table.";
 
     render_page_png("markdown_features", 760, 560, |_ctx, theme, _state| {

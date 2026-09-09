@@ -89,8 +89,20 @@
        bold spans as literal asterisks. Flush before emitting anything else. */
     let para = [];
     let liBuf = null;
+    let quote = [];
 
+    // A block quote spans consecutive "> " lines and is ONE quote, not one per
+    // line. The Constitution's ratification notes are four-line quotes, which
+    // the per-line version rendered as four stacked quote boxes.
+    function flushQuote() {
+      if (!quote.length) return;
+      html += '<blockquote>' + inlineMarkdown(quote.join(' ').trim()) + '</blockquote>';
+      quote = [];
+    }
     function flushPara() {
+      // Every branch that ends a paragraph also ends a quote, so folding the
+      // quote flush in here means no other call site needs to change.
+      flushQuote();
       if (!para.length) return;
       html += '<p>' + inlineMarkdown(para.join(' ')) + '</p>';
       para = [];
@@ -183,10 +195,16 @@
         continue;
       }
 
-      // Blockquote.
-      if (line.startsWith('> ')) {
-        flushPara();
-        html += '<blockquote>' + inlineMarkdown(line.slice(2)) + '</blockquote>';
+      // Blockquote. Accumulate; a run of "> " lines is one quote. Matches a
+      // bare ">" too, which is how a blank line inside a quote is written.
+      if (line.startsWith('>')) {
+        // End a pending paragraph, but do NOT flush the quote being built, so
+        // this cannot go through flushPara().
+        if (para.length) {
+          html += '<p>' + inlineMarkdown(para.join(' ')) + '</p>';
+          para = [];
+        }
+        quote.push(line.replace(/^>\s?/, ''));
         continue;
       }
 

@@ -18,7 +18,7 @@
 //! Mirrored by the web renderer, `web/shared/markdown.js`. Keep the two in step:
 //! they render the SAME files from `data/library/`.
 
-use egui::RichText;
+use egui::{Label, RichText};
 use crate::gui::theme::Theme;
 
 /// Render `md` as themed, readable text into `ui`.
@@ -79,6 +79,7 @@ fn render_markdown_impl(
     // Library documents wrap their list items. Buffer, then flush.
     let mut para: Vec<String> = Vec::new();
     let mut li: Option<Vec<String>> = None;
+    let mut quote: Vec<String> = Vec::new();
 
     macro_rules! flush_para {
         () => {
@@ -93,6 +94,39 @@ fn render_markdown_impl(
             }
         };
     }
+    // Block quotes had NO branch at all before v0.1305: a "> " line fell through
+    // to the paragraph branch and rendered its own marker as literal text. The
+    // Constitution's ratification notes are multi-line quotes, so they are
+    // joined and drawn once, indented and muted with an accent rule, which is
+    // what separates editorial matter from constitutional text on screen.
+    macro_rules! flush_quote {
+        () => {
+            if !quote.is_empty() {
+                let text = strip_md(&quote.join(" "));
+                ui.horizontal_top(|ui| {
+                    ui.add_space(theme.spacing_sm);
+                    ui.label(RichText::new("\u{2502}").color(theme.accent()));
+                    // Inside a horizontal layout a plain label does NOT wrap: it
+                    // runs off the right edge and is clipped. Constraining the
+                    // remaining width and asking the label to wrap is what makes
+                    // a long quote (or bullet) reflow instead of vanishing.
+                    ui.scope(|ui| {
+                        ui.set_max_width(ui.available_width());
+                        ui.add(
+                            Label::new(
+                                RichText::new(text)
+                                    .size(theme.font_size_small)
+                                    .italics()
+                                    .color(theme.text_muted()),
+                            )
+                            .wrap(),
+                        );
+                    });
+                });
+                quote.clear();
+            }
+        };
+    }
     macro_rules! flush_li {
         () => {
             if let Some(parts) = li.take() {
@@ -103,7 +137,21 @@ fn render_markdown_impl(
                     if define {
                         defining_words(ui, theme, &text, theme.font_size_small, clicked);
                     } else {
-                        ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
+                        // Same wrapping problem as the block quote: a long bullet
+                        // was clipped at the right edge rather than reflowing.
+                        // Visible in the Credits page, where the longest line ran
+                        // off the pane. Pre-existing; fixed here with the joining.
+                        ui.scope(|ui| {
+                            ui.set_max_width(ui.available_width());
+                            ui.add(
+                                Label::new(
+                                    RichText::new(text)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                )
+                                .wrap(),
+                            );
+                        });
                     }
                 });
             }
@@ -116,6 +164,7 @@ fn render_markdown_impl(
         let trimmed = raw.trim_start();
 
         if trimmed.is_empty() {
+            flush_quote!();
             flush_li!();
             flush_para!();
             ui.add_space(theme.spacing_sm);
@@ -135,8 +184,20 @@ fn render_markdown_impl(
             continue;
         }
 
+        // Block quote. A run of "> " lines is ONE quote, so accumulate here and
+        // let the next non-quote line flush it. Matches a bare ">" too, which is
+        // how a blank line inside a quote is written.
+        if trimmed.starts_with('>') {
+            flush_li!();
+            flush_para!();
+            quote.push(trimmed.trim_start_matches('>').trim().to_string());
+            i += 1;
+            continue;
+        }
+
         // Horizontal rule, checked before bullets so "---" is never a bullet.
         if trimmed.starts_with("---") && trimmed.chars().all(|c| c == '-') {
+            flush_quote!();
             flush_li!();
             flush_para!();
             ui.separator();
@@ -148,6 +209,7 @@ fn render_markdown_impl(
         // until the first blank or pipe-less line. 14 Library documents use
         // tables and rendered as raw pipe text before this existed.
         if trimmed.contains('|') && lines.get(i + 1).is_some_and(|n| is_separator_row(n)) {
+            flush_quote!();
             flush_li!();
             flush_para!();
             let header = table_cells(trimmed);
@@ -203,21 +265,25 @@ fn render_markdown_impl(
         }
 
         if let Some(rest) = trimmed.strip_prefix("### ") {
+            flush_quote!();
             flush_li!();
             flush_para!();
             ui.add_space(theme.spacing_xs);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_body).strong().color(theme.accent()));
         } else if let Some(rest) = trimmed.strip_prefix("## ") {
+            flush_quote!();
             flush_li!();
             flush_para!();
             ui.add_space(theme.spacing_sm);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_heading).strong().color(theme.text_primary()));
         } else if let Some(rest) = trimmed.strip_prefix("# ") {
+            flush_quote!();
             flush_li!();
             flush_para!();
             ui.add_space(theme.spacing_sm);
             ui.label(RichText::new(strip_md(rest)).size(theme.font_size_title).strong().color(theme.text_primary()));
         } else if let Some(rest) = bullet {
+            flush_quote!();
             flush_li!();
             flush_para!();
             li = Some(vec![rest.to_string()]);
@@ -227,6 +293,7 @@ fn render_markdown_impl(
         i += 1;
     }
 
+    flush_quote!();
     flush_li!();
     flush_para!();
 }
