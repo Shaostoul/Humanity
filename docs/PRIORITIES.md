@@ -1,5 +1,41 @@
 # HumanityOS: Priorities
 
+> **LIBRARY DOCUMENTATION AUDIT, 2026-09-14 (v0.1306.x). The operator asked
+> whether the docs we ship are accurate, starting with the US Constitution.
+> Both halves of that question are now answered and neither answer was good.**
+>
+> The Constitution was rebuilt from the National Archives parchment
+> transcription after the House Rules and Manual proved to be the wrong kind of
+> source: it carried three genuine word errors into the shipped text, 14
+> manufactured `* * * * * *` elision marks inside complete sentences, 5 invented
+> bracketed subjects printed as constitutional text, and it dropped Article I
+> Section 8's granting clause so the enumerated powers shipped with no grantee.
+> Full account in the v0.1306.1 commit and `scripts/build-constitution.js`.
+>
+> Then an eight-batch adversarial sweep covered the other 80 Library documents:
+> 223 agents, 107 findings, **55 unanimous across two verifiers**. The two
+> criticals are fixed (a quoted heredoc that gave every self-hoster the same
+> published `API_SECRET`; a social-recovery promise with no implementation
+> behind it). **53 unanimous findings remain open**, listed per file with
+> location, reason and fix in `docs/history/2026-09-14-library-audit.md`.
+>
+> NEXT, in rough value order:
+>
+> - **Contributor docs describe a product that no longer exists.** `01-VISION.md`
+>   and `two-realities.md` both describe a Real/Sim toggle removed in v0.197.0,
+>   `06-SOURCE-OF-TRUTH-MAP.md` calls shipped domain systems "early/planned",
+>   `development_loop.md` tells contributors to `cd server && cargo check`.
+> - **SELF-HOSTING has 4 more unanimous findings**, including an nginx
+>   `limit_req_zone` inside `server {}` that nginx refuses to load, and a Quick
+>   Start that hands self-hosters the desktop GPU binary instead of the relay.
+> - **`ui-system.md` has 5**, including a migration table marking shipped items
+>   unshipped and token tables that disagree with `data/gui/theme.ron`.
+> - **`fire_staff_materials.md` has 6**, all mine from 2026-09-08: two wrong
+>   flash points, a cost-table price for the spec the document says not to buy.
+> - **22 contested findings are UNADJUDICATED**, not refuted. The water-filter
+>   one is a real CDC-vs-CDC conflict worth resolving deliberately.
+
+
 > **TYPOGRAPHY, v0.1300.0 to v0.1301.1 (2026-09-07). The operator asked why the
 > project uses so many different fonts and whether one could be cohesive between
 > web and app. The answer was that nobody had ever chosen one, twice: native
