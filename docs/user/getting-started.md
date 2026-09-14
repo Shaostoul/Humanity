@@ -81,8 +81,10 @@ That is it. You are in, and you own it.
 - **Your private messages are truly private.** The encryption is post-quantum (built to
   stay safe even against future quantum computers). The server stores only scrambled
   text it cannot read.
-- **If you lose your device,** your 24 words bring your identity back. There is also
-  social recovery (trusted friends can help), so a lost phrase is not the end.
+- **If you lose your device,** your 24 words bring your identity back. They are the
+  ONLY way back: write them down and keep them somewhere safe. Social recovery through
+  trusted friends is designed and partly built, but the piece that splits your seed is
+  not implemented yet, so do not count on it.
 - **Stuck or curious about a word?** The app has a built-in glossary and plain-language
   hints. You are not expected to already know any of this.
 

@@ -25,6 +25,10 @@ community a home without becoming its gatekeeper.
 - **[release-signing.md](release-signing.md)** how releases are cryptographically signed
   so the auto-updater only ever installs trusted code. Read this before you publish
   builds.
+- **[tor-onion-service.md](tor-onion-service.md)** optional: run a Tor v3 onion service
+  so users can reach your relay without revealing their IP address. Opt-in and additive;
+  the clearnet endpoint is unchanged. The application-layer answer to connection-level
+  IP exposure.
 - **[distribution-mirrors.md](distribution-mirrors.md)** distributing HumanityOS beyond
   GitHub (mirrors, torrents, archives) so it survives any single host going down.
 - **[torrent-infrastructure.md](torrent-infrastructure.md)** the BitTorrent seeder setup

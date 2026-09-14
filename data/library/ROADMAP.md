@@ -122,7 +122,8 @@ server operator cannot read your private messages.
 - `[done]` End-to-end encrypted DMs: pure Kyber768 / ML-KEM-768 to BLAKE3-KDF to
   AES-256-GCM. The relay stores only ciphertext.
 - `[done]` Encrypted vault (PBKDF2 600k both clients) with three auto-unlock modes.
-- `[done]` BIP39 24-word recovery and social recovery, so losing a device never locks
+- `[done]` BIP39 24-word recovery, so losing a device never locks
+- `[wip]` Social key recovery: the recovery page and relay storage exist, the client-side seed splitting does not, so it cannot be relied on yet
   you out forever.
 - `[done]` Proof-of-possession at connect: a signed challenge-response before the
   relay binds your identity (closes identity spoofing).

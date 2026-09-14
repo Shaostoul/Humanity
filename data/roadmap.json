@@ -134,7 +134,12 @@
         {
           "status": "done",
           "version": null,
-          "text": "BIP39 24-word recovery and social recovery, so losing a device never locks you out forever."
+          "text": "BIP39 24-word recovery, so losing a device never locks"
+        },
+        {
+          "status": "wip",
+          "version": null,
+          "text": "Social key recovery: the recovery page and relay storage exist, the client-side seed splitting does not, so it cannot be relied on yet you out forever."
         },
         {
           "status": "done",
@@ -173,7 +178,7 @@
         }
       ],
       "done": 6,
-      "total": 11
+      "total": 12
     },
     {
       "title": "Communication and federation",
@@ -865,6 +870,6 @@
   ],
   "summary": {
     "done": 44,
-    "total": 103
+    "total": 104
   }
 }

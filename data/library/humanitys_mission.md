@@ -160,9 +160,10 @@ down, or rented back to you.
 
 **You can never be locked out.** There is no account to suspend and no
 password to lose. Your identity is a key on your own device,
-recoverable from your seed phrase or from trusted friends who each hold
-an encrypted piece of it. No company, and no fee, stands between you
-and your own name.
+recoverable from the 24-word seed phrase you write down and keep. No
+company, and no fee, stands between you and your own name. (Recovery
+through trusted friends who each hold an encrypted piece is designed and
+partly built, but not finished; the seed phrase is what works today.)
 
 **Rules made by the people they bind.** The community sets its own
 rules through transparent voting, weighted by trust and capped so that
@@ -196,9 +197,9 @@ because it is yours, not an account on someone else's machine. Take one
 server down and the rest carry on.
 
 **When you lose your device.** Recover everything from your 24-word
-seed phrase, or from trusted friends who each hold an encrypted piece
-of it. No email, no phone number, no recovery fee, and no company that
-can refuse you.
+seed phrase. No email, no phone number, no recovery fee, and no company
+that can refuse you. Recovery through trusted friends is coming and is
+not ready, so the phrase is the thing to protect.
 
 **When you have no money, papers, or bank.** No accounts, no
 subscriptions, no fees. Reputation you earn and credentials your

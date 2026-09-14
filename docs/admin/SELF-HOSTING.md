@@ -364,13 +364,23 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# Create .env with secrets
-sudo tee /opt/Humanity/.env << 'EOF'
+# Create .env with secrets.
+#
+# Note the heredoc delimiter is UNQUOTED. With <<'EOF' the shell suppresses
+# command substitution and writes the literal characters $(openssl rand -hex 32)
+# into the file, so every node that followed this recipe would share one
+# publicly documented API_SECRET. Unquoted, the command actually runs.
+sudo tee /opt/Humanity/.env > /dev/null << EOF
 ADMIN_KEYS=your_public_key_here
 API_SECRET=$(openssl rand -hex 32)
 RUST_LOG=info
 EOF
 sudo chmod 600 /opt/Humanity/.env
+
+# Confirm you got a real secret and not the literal text. This must print 64
+# hex characters; if it prints "$(openssl rand -hex 32)", the heredoc was
+# quoted and the secret is not secret.
+sudo grep API_SECRET /opt/Humanity/.env
 
 # Enable and start
 sudo systemctl daemon-reload

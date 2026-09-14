@@ -189,6 +189,31 @@ lives in the app, a /chat-command, a config file, or the server shell - is in
 Admin map**. If the Admin map says an action is `vps-shell`, only then do you
 need to SSH in; everything else never requires a terminal.
 
+## Your own homepage (per-node website differentiation)
+
+Every node serves the same web app, but the FRONT DOOR is yours. nginx
+prefers `/var/www/humanity-site/index.html` (a directory deploys never touch)
+over the stock landing page; delete the file to fall back. Ready-made flavors
+ship in the repo under `web/home/`:
+
+- `web/home/technical.html`: the engineer-facing intro (architecture, crypto,
+  federation, self-hosting, the Market as signed objects). This is what
+  public.guide runs, while united-humanity.us keeps the mission-first page:
+  two front doors, one platform.
+
+```bash
+# pick a flavor
+sudo cp /var/www/humanity/home/technical.html /var/www/humanity-site/index.html
+# or write your own; /shared/theme.css and /shared/shell.js keep working,
+# so a custom page inherits the site nav and theme. Extra assets go in
+# /var/www/humanity-site/site/ and are served under /site/.
+```
+
+Nodes provisioned before this seam existed need the updated nginx config once:
+copy `scripts/nginx/humanity.conf` over `/etc/nginx/sites-available/humanity`,
+re-run the domain substitution from `provision-vps.sh` step 11, then
+`nginx -t && systemctl reload nginx`.
+
 ## Choosing what your server hosts (the capability manifest)
 
 One binary can be a chat server, a shared game world, a market directory, and a
@@ -266,6 +291,12 @@ All configuration is via environment variables. Create a `.env` file or set them
 ADMIN_KEYS=your_dilithium3_public_key_hex # Comma-separated admin public keys (Dilithium3 / ML-DSA-65 hex)
 API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 
+# Required for BROWSER chat on your own domain (v0.1139+). The relay's
+# WebSocket Origin check, CORS, and CSP all build from this one list; without
+# it, browsers on your domain get 403 and only the desktop app can connect.
+# The desktop app and the node's own localhost web client are always allowed.
+ALLOWED_ORIGINS=https://your-domain.example,https://chat.your-domain.example
+
 # Optional
 WEBHOOK_URL=https://your-webhook-endpoint # Notified on new messages
 WEBHOOK_TOKEN=your_webhook_bearer_token   # Auth for webhook calls
@@ -333,13 +364,23 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-# Create .env with secrets
-sudo tee /opt/Humanity/.env << 'EOF'
+# Create .env with secrets.
+#
+# Note the heredoc delimiter is UNQUOTED. With <<'EOF' the shell suppresses
+# command substitution and writes the literal characters $(openssl rand -hex 32)
+# into the file, so every node that followed this recipe would share one
+# publicly documented API_SECRET. Unquoted, the command actually runs.
+sudo tee /opt/Humanity/.env > /dev/null << EOF
 ADMIN_KEYS=your_public_key_here
 API_SECRET=$(openssl rand -hex 32)
 RUST_LOG=info
 EOF
 sudo chmod 600 /opt/Humanity/.env
+
+# Confirm you got a real secret and not the literal text. This must print 64
+# hex characters; if it prints "$(openssl rand -hex 32)", the heredoc was
+# quoted and the secret is not secret.
+sudo grep API_SECRET /opt/Humanity/.env
 
 # Enable and start
 sudo systemctl daemon-reload
