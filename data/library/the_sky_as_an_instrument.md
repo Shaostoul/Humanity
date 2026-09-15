@@ -37,7 +37,7 @@ north. Find the Big Dipper. Find Polaris using the two stars at the
 outer lip of the Dipper's cup, which is the next section. Then estimate
 how high above the horizon Polaris sits.
 
-At Silverdale it will be a little under halfway from the horizon to
+At Silverdale it will be a little over halfway from the horizon to
 straight overhead. Not quite five fists at arm's length. If you measure
 it and get something near 48 degrees, you have just determined your
 latitude from first principles, standing in your yard, with no
@@ -196,10 +196,14 @@ Three ways to do better, in increasing order of effort.
 **Average it.** The error is a circle, so it cancels. Measure Polaris,
 wait about twelve hours, measure it again, and take the mean of the two.
 Most of the offset disappears. This is a rule of thumb rather than a
-published procedure, but it follows directly from the geometry, and you
-can see it working in the table above: the two December readings average
-to 47.13, while the December and September readings average to 47.59,
-which is within a twentieth of a degree of the truth.
+published procedure, but it follows directly from the geometry. The table
+above does not happen to contain a twelve-hour pair to demonstrate it,
+and it is worth saying so rather than pointing at the nearest thing: the
+two December readings are only four hours and thirteen minutes apart, and
+their mean of 47.13 is no better than the better of the two alone. The
+December and September readings land on opposite sides of the circle by
+coincidence of phase rather than by this procedure, and average to 47.59,
+which is within six hundredths of a degree of the truth.
 
 **Watch for the crossings.** Twice a day Polaris passes directly above
 or directly below the pole, and at those two moments the error is at its
@@ -221,7 +225,9 @@ crawls in a slow circle among the stars, so the pole star changes.
 
 NASA's own example: about 14,000 years ago the pole pointed at Vega,
 and it will point at Vega again in about 12,000 years. The constellation
-file this project ships says the same thing in its note on Lyra, and its
+file this project ships carries the same story in its note on Lyra, with
+one figure to distrust, because it gives the past epoch as about 12,000
+years ago where NASA gives 14,000, and its
 note on Draco records that Thuban held the job when the pyramids were
 built.
 
@@ -425,7 +431,8 @@ this guide after Polaris.
 A star whose declination is zero sits on the celestial equator, and a
 star on the celestial equator rises due east and sets due west from
 everywhere on Earth. Not approximately, and not only at certain
-latitudes. Everywhere.
+latitudes. Everywhere except the two poles, where such a star neither
+rises nor sets but circles the horizon.
 
 Orion's Belt has one. Mintaka, the westernmost of the three belt stars,
 sits at declination -0.299 in the game's own catalogue, which is a third
@@ -453,7 +460,7 @@ east.** That is NOAA's World Magnetic Model WMM-2025, queried for
 
 Fifteen degrees is not a subtlety. Walk one kilometre on a bearing you
 believe is true north but is actually magnetic north, and you finish
-267 metres to the side of where you meant to be. Walk five kilometres
+about 258 metres to the side of where you meant to be. Walk five kilometres
 and you are 1.3 kilometres out. On the Kitsap Peninsula that is the
 difference between hitting a road and hitting a different drainage.
 
@@ -617,11 +624,14 @@ point, and NOAA publishes a school lesson built on it. On either
 equinox, the angle between a vertical stick and the line from its top to
 the tip of its shadow, measured at local solar noon, equals your
 latitude. That is the same measurement Eratosthenes used around
-240 BC to work out the size of the Earth, which NOAA recounts: he
-compared noon shadows at Alexandria and Syene, found the angle
-difference was 7.2 degrees or one fiftieth of a circle, and multiplied
-the distance between the cities by fifty. He got a figure within a few
-percent of the true polar circumference of 40,009 kilometres.
+240 BC to work out the size of the Earth, which NOAA recounts in
+Learning Lesson: The Shadow Knows I: he compared noon shadows at
+Alexandria and Syene, found the angle difference was 7.2 degrees or one
+fiftieth of a circle, and multiplied the 5,000 stadia between the cities
+by fifty. NOAA converts his 250,000 stadia to 45,984 kilometres against a
+true polar circumference of 40,009, so he landed about 15 percent high.
+The uncertainty there is the length of a stadion, not his geometry, and
+the geometry is the part worth copying.
 
 Both versions matter for the same practical reason. A horizon calendar
 and a shadow calendar both keep working when you have lost track of the
@@ -755,13 +765,16 @@ hour and four minutes per degree are the same fact written twice.
 
 So the instrument you need is a clock that still reads Greenwich time
 correctly after weeks at sea, and until the eighteenth century no such
-thing existed. NIST tells the story: mariners already knew how to get
-latitude from celestial observations, and what was missing was shipboard
-timekeeping. The British government passed the Longitude Act and offered
-a prize. John Harrison, a carpenter and self-taught clockmaker, built a
+thing existed. NIST tells the clock half of this story, and only that
+half: John Harrison, a carpenter and self-taught clockmaker, built a
 marine chronometer by 1761 that kept time on a rolling ship to about one
 fifth of a second a day, roughly as well as a pendulum clock did on
-land, and about ten times better than the prize required. NIST puts the
+land, and about ten times better than the prize required. The prize was
+worth more than ten million dollars in today's money. The rest of the
+story is context NIST does not supply and this guide does not cite it
+for: the prize was created by the Longitude Act of 1714, and the reason
+it was a clock prize rather than a sky prize is that getting latitude
+from the sky was already routine. NIST puts the
 prize at over ten million dollars in today's money.
 
 That is not a colourful historical aside. It is the measure of how hard
@@ -808,10 +821,16 @@ apart. A half-lit moon is a quarter moon and you are about a week from
 either side of new. That gives you the date to within a couple of days
 from a single glance, indefinitely, with no calendar.
 
-It also predicts itself. A 29.5 day cycle spread over 24 hours means the
-moon rises about 49 minutes later each night, which is arithmetic on the
-Observatory's figure rather than a number it prints. The direction of
-the shift is the useful half: tomorrow's moon is later than tonight's.
+It also predicts itself, though less precisely than the arithmetic looks.
+A 29.5 day cycle spread over 24 hours gives about 49 minutes later each
+night, which is arithmetic on the Observatory's figure rather than a
+number it prints, and it is an average over the whole Earth and the whole
+year. At this latitude the real delay swings from about 20 minutes near
+the September equinox, which is the harvest moon and is the very example
+used below, to about 70 minutes near the March equinox. The cause is the
+angle the ecliptic makes with the horizon, so it is set by season and by
+latitude, not by where you are in the month. The direction of the shift
+is the reliable half: tomorrow's moon is later than tonight's.
 
 **What it tells you about direction, honestly: not much, with one clean
 exception.** Because a full moon is opposite the sun, it does what the
@@ -821,9 +840,14 @@ same as the noon sun.
 
 Both halves check out for Silverdale on the full moon of
 26 September 2026. The Naval Observatory has the moon rising at 17:46
-and the sun setting at 18:00, fourteen minutes apart. And at 00:50 the
-next morning the moon stood at azimuth 188.8, which is within nine
-degrees of due south, at an altitude of 50.4 degrees.
+and the sun setting at 18:00, fourteen minutes apart. For the second
+half you have to catch the right minute, and it is worth seeing why. The
+Observatory puts the moon's upper transit at 00:27 the next morning, and
+at that instant it stood at azimuth 180.1, altitude 50.6, which is a
+seventh of a degree off due south. By 00:50 it had swung to 188.8. An
+earlier draft of this guide sampled 00:50 and offered the resulting nine
+degrees as the confirmation, which proves nothing: sample any minute but
+the transit and you get an off-south answer however right the rule is.
 
 Away from full, the moon is a poor compass. Its orbit is tilted to the
 Earth's, so its rising point wanders across a wider band of horizon than
@@ -891,12 +915,19 @@ left at home. That is a real and valuable role. It is not a replacement.
 Which brings this back to the simulation, and to why this particular
 skill sits differently in this project than most of the others.
 
-HumanityOS draws its night sky from `data/stars.csv`, a catalogue of
-119,626 real stars with real positions, and its constellation lines from
-`data/constellations.json`, which names 88 real constellations. Those are
-not decoration painted on a dome. They are the same catalogue
-professional software uses, and the renderer resolves every constellation
-line to a real star in it.
+HumanityOS draws its night sky from the HYG catalogue, which ships as
+`data/stars.csv` and is loaded at runtime from the packed `data/stars.bin`
+built from it. It holds 119,626 rows of which 119,625 are drawn, because
+row zero is the Sun sitting at the origin and the loader discards it. The
+constellation lines come from
+`data/constellations.json`, which names 86 of the 88 IAU constellations.
+Cepheus and Hydrus are not in the file yet, and Cepheus is the awkward
+one to be missing here, because it is the circumpolar constellation next
+to Polaris on the Cassiopeia side. Those are
+not decoration painted on a dome. The catalogue is a compilation built
+from the same professional astrometry that research catalogues use, and
+the renderer resolves every constellation line to a real star in it: all
+594 line segments, with no unresolved endpoints.
 
 Which means the numbers cross over. The 5.374 degree gap between Dubhe
 and Merak quoted at the top of this guide was computed from that file,
@@ -1036,7 +1067,9 @@ authority with the facts restated here in our own words.
   122.6949 W on 15 September 2026 of 14.950 degrees east, with an
   uncertainty of 0.385 degrees and an annual change of -0.124 degrees
   per year).
-  https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat1=47.6445&lon1=-122.6949&resultFormat=json&startYear=2026&startMonth=9&startDay=15
+  https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml (the keyed
+  JSON endpoint behind this page returns HTTP 400 without a free NCEI
+  API key, so the reader-facing calculator is the link given here)
   The interactive version, for looking up any other place, is at
   https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml
 - NOAA NCEI. The World Magnetic Model (declination as the angle between
@@ -1124,7 +1157,7 @@ authority with the facts restated here in our own words.
 
 ### Project data
 
-- `data/stars.csv`. The 119,626-star HYG catalogue the 3D sky renderer
+- `data/stars.csv`. The 119,626-row HYG catalogue the 3D sky renderer
   draws from. Source of every star position quoted here: Polaris at
   declination 89.2641 for epoch J2000, Dubhe at 61.7510, Merak at
   56.3824, Alkaid at 49.3133, Schedar at 56.5373, Kochab at 74.1555,
@@ -1132,7 +1165,7 @@ authority with the facts restated here in our own words.
   computed from it, 5.374 degrees Dubhe to Merak, 28.707 Dubhe to
   Polaris, 34.070 Merak to Polaris, 32.813 Schedar to Polaris and 16.578
   Kochab to Polaris, are arithmetic done here on those positions.
-- `data/constellations.json`. The 88 constellations and their line
+- `data/constellations.json`. The 86 constellations in the file and their line
   figures, including the notes that Dubhe and Merak point to Polaris,
   that Polaris lies within 1 degree of the celestial north pole, that
   Vega held the job about 12,000 years ago, and that Thuban was the pole

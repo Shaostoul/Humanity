@@ -40,7 +40,7 @@
  {"name":"Aquila","abbr":"Aql","lines":[["Tarazed","Altair"],["Altair","Alshain"],["Altair","del aql"],["eps aql","Okab"],["Okab","del aql"],["del aql","lam aql"],["del aql","eta aql"],["eta aql","the aql"]],
   "myth":"The Eagle, Carried Zeus' thunderbolts. Altair forms the Summer Triangle with Vega and Deneb.","season":"Summer (N)","keyStars":["Altair (one of closest bright stars, 16.7 ly, rapid rotator)"]},
  {"name":"Lyra","abbr":"Lyr","lines":[["Vega","eps-1 lyr"],["Vega","zet-1 lyr"],["zet-1 lyr","Sheliak"],["Sheliak","Sulafat"],["Sulafat","del-2 lyr"],["del-2 lyr","zet-1 lyr"]],
-  "myth":"The Lyre, Orpheus' instrument. Vega was the North Star ~12,000 years ago and will be again in ~12,000 years.","season":"Summer (N)",
+  "myth":"The Lyre, Orpheus' instrument. Vega was the North Star about 14,000 years ago and will be again in about 12,000 years; the two figures differ because the precession cycle is roughly 26,000 years, not 24,000.","season":"Summer (N)",
   "keyStars":["Vega (0.03 mag, standard reference star)"],"objects":["Ring Nebula (M57)"],
   "funFact":"Vega was the first star (after the Sun) to be photographed, in 1850."},
  {"name":"Pegasus","abbr":"Peg","lines":[["Markab","Scheat"],["Scheat","Alpheratz"],["Alpheratz","Algenib"],["Algenib","Markab"],["Markab","Homam"],["Homam","Biham"],["Biham","Enif"],["Scheat","Matar"],["Matar","pi-2 peg"],["Scheat","Sadalbari"],["Sadalbari","lam peg"],["lam peg","iot peg"],["iot peg","kap peg"]],
