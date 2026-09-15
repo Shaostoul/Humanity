@@ -118,6 +118,10 @@ for (const cat of categories) {
     rewrites.push({ file, src: d.src });
     const doc = { title: d.title, file };
     if (d.tags && d.tags.length) doc.tags = d.tags;
+    // A verbatim transcription of somebody else's text. Carried into the
+    // manifest so scripts/check-library-dashes.js knows its punctuation is not
+    // ours to normalise: the Constitution's dashes are the 1787 parchment's.
+    if (d.verbatim) doc.verbatim = true;
     entry.docs.push(doc);
     copied++;
   }

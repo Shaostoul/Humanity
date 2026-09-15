@@ -1082,7 +1082,8 @@
             "governance",
             "reference",
             "real"
-          ]
+          ],
+          "verbatim": true
         }
       ],
       "section": "Reference Library"

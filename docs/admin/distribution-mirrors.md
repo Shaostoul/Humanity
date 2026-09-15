@@ -330,7 +330,7 @@ The path that gets the most decoupling per unit of effort:
 2. **Codeberg mirror**, non-profit external mirror, signup +
    `git remote add`. ~30 min.
 3. **VPS release mirror** ✅ shipped v0.128.0, live at
-   <https://united-humanity.us/releases/>. Backfilled v0.122.0–v0.127.0;
+   <https://united-humanity.us/releases/>. Backfilled v0.122.0-v0.127.0;
    CI mirrors every future tagged release via `appleboy/scp-action`,
    and the manifest at `/releases/manifest.json` is regenerated
    automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
@@ -355,7 +355,7 @@ The path that gets the most decoupling per unit of effort:
    per-file SHA-256 hash + Forgejo per-file URL. Enables file-level
    delta sync: a 4 KB recipe edit becomes a 4 KB update, not 38 MB.
    50 torrents now seeding (~3.6 GB) covering both whole-bundle and
-   data-only archives across v0.122.0–v0.129.0.
+   data-only archives across v0.122.0-v0.129.0.
 5. **Internet Archive uploads**, manual at first; automated later. Adds
    a permanent free seeder to every torrent.
 6. **Software Heritage Save Code Now**, one form, then it's automatic
@@ -371,6 +371,6 @@ The path that gets the most decoupling per unit of effort:
 11. **Pinata / web3.storage**, only if IPFS becomes a primary channel
     and the self-hosted node alone isn't enough redundancy.
 
-Steps 1–4 are the meaningful sovereignty work. Steps 5–7 are
+Steps 1-4 are the meaningful sovereignty work. Steps 5-7 are
 low-effort, high-resilience additions. Steps 8+ are scope-driven, 
 pick them up as the project grows.

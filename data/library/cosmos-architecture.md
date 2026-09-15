@@ -226,7 +226,7 @@ Why a single global time:
 
 **Time speed is server-controlled** with per-region overrides:
 - Default speed: 1× real time (a real second = a sim second).
-- Inside a "fast travel" volume (between systems): 100×–10000× by
+- Inside a "fast travel" volume (between systems): 100x to 10000x by
   vote / per-fleet captain authority.
 - Combat / crowded scenes: forced to 1× to keep things fair.
 
@@ -523,7 +523,7 @@ data/ships/
 
 ## 14. Implementation phases
 
-This is multi-month work. Phases sized to ship in 1–3 release cycles each.
+This is multi-month work. Phases sized to ship in 1-3 release cycles each.
 
 **Phase 1, Data restructure (no code change to position model yet)**
 - Move `data/solar_system/bodies.json` → `data/star_systems/sol.json`
@@ -957,7 +957,7 @@ Bodies render in three regimes depending on **screen-space radius**
 | Regime | Screen radius | Render |
 |--------|---------------|--------|
 | Far | < 2 px | A single bright dot, magnitude-scaled. ~119k stars from `data/stars.csv` (Hipparcos catalog, planned Phase 4b) render exclusively in this regime. |
-| Sprite | 2 – 64 px | Pre-rendered RGBA texture of the body (round disk with shading, low-cost). Loaded from `assets/bodies/<id>.png`, falls back to procedural disk colored by `SolBody::color`. Lit by the Sun's screen-position via a single directional-light shader uniform. |
+| Sprite | 2 to 64 px | Pre-rendered RGBA texture of the body (round disk with shading, low-cost). Loaded from `assets/bodies/<id>.png`, falls back to procedural disk colored by `SolBody::color`. Lit by the Sun's screen-position via a single directional-light shader uniform. |
 | Mesh | ≥ 64 px | Full 3D textured sphere mesh, wgpu pipeline, PBR shader, planet texture + normal + roughness maps, sun-as-directional-light. |
 
 The transition zone (around 64 px) cross-fades sprite-α down to 0 as
@@ -1204,8 +1204,8 @@ rings around a focused planet when the camera is close enough:
 
 | Orbit | Altitude above Earth | Period |
 |-------|---------------------|--------|
-| **LEO** (Low Earth Orbit) | 160 – 2,000 km | 90 – 130 min |
-| **MEO** (Medium Earth Orbit) | 2,000 – 35,786 km | 2 – 24 h |
+| **LEO** (Low Earth Orbit) | 160, 2,000 km | 90, 130 min |
+| **MEO** (Medium Earth Orbit) | 2,000, 35,786 km | 2, 24 h |
 | **GEO** (Geostationary) | 35,786 km | 24 h (matches Earth's rotation) |
 | **GSO** (Geosynchronous) | 35,786 km | 24 h (inclined variants of GEO) |
 | **HEO** (High Earth Orbit) | > 35,786 km | > 24 h |

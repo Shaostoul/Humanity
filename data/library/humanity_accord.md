@@ -175,7 +175,7 @@ Every State shall ensure that all official records, treaties, scientific data, f
 
 Local solar, civil, or planetary time may be used for human display, scheduling, and biological rhythms, provided the canonical UTC timestamp remains embedded, auditable, and convertible without loss of fidelity.  
 
-For multi-planetary, interstellar, or intergalactic coordination, participating civilizations shall adopt mutually agreed relativistic reference frames (such as barycentric coordinate time or cosmic microwave background–rest standards) for shared metadata. Each civilization shall publish its own proper time alongside any shared timestamp, together with the necessary positional, velocity, and gravitational context for any participant to perform the conversion.  
+For multi-planetary, interstellar, or intergalactic coordination, participating civilizations shall adopt mutually agreed relativistic reference frames (such as barycentric coordinate time or cosmic microwave background-rest standards) for shared metadata. Each civilization shall publish its own proper time alongside any shared timestamp, together with the necessary positional, velocity, and gravitational context for any participant to perform the conversion.  
 
 No civilization shall be required to alter its internal biological or cultural timekeeping; transparent, auditable mapping is the only requirement. These standards shall evolve through the amendment process in Article 19 as new physics or new civilizations join the Accord.
 

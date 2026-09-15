@@ -454,6 +454,7 @@ preflight:
     node scripts/check-doc-links.js
     node scripts/curriculum-status.js
     node scripts/check-locale-species.js
+    node scripts/check-library-dashes.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -464,6 +465,14 @@ preflight:
 locale-docs:
     node scripts/build-locale-doc.js
     node scripts/build-library.js
+
+# Refuse an em or en dash in any document the Library ships. The house rule says
+# no em dashes anywhere including docs, and the only thing enforcing it scanned
+# src/gui/, so eight shipped documents had drifted, the Humanity Accord among
+# them. A document marked "verbatim" in the catalogue is exempt, because the US
+# Constitution's dashes are the 1787 parchment's and not ours to tidy.
+check-dashes:
+    node scripts/check-library-dashes.js
 # Validate every locale's species.json: the shape, and the rule that matters,
 # which is that anything edible or toxic must name what it is confused with and
 # say how to tell them apart. An empty lookalike list was the single most common

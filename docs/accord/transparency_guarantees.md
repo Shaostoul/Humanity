@@ -52,7 +52,7 @@ Transparency must be understandable to non-experts.
 This requires:
 - plain-language summaries
 - clear indicators of uncertainty
-- visible cause–effect relationships
+- visible cause-effect relationships
 
 Technical depth may exist, but legibility is mandatory.
 

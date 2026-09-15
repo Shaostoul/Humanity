@@ -58,7 +58,7 @@ Your identity is a Dilithium3 (ML-DSA-65, post-quantum) cryptographic keypair, d
 
 4. **Connect to a server via WebSocket** at `wss://server-url/ws`.
 
-5. **Identify — a TWO-phase challenge (proof of possession, closes HIGH-2).**
+5. **Identify, a TWO-phase challenge (proof of possession, closes HIGH-2).**
    Send `identify` with your public key:
    ```json
    {
@@ -80,7 +80,7 @@ Your identity is a Dilithium3 (ML-DSA-65, post-quantum) cryptographic keypair, d
    key begins with `bot_` skip the challenge and auth via `bot_secret` instead.)
 
 6. **Publish your profile** so other servers can replicate your identity. The
-   message type is `profile_update` (the fields below are the real ones — there
+   message type is `profile_update` (the fields below are the real ones, there
    is no `name`/`timestamp`/`signature` here; those belong to the separate
    federation `profile_gossip` object):
    ```json

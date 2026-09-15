@@ -9,7 +9,7 @@ Validation is a mandatory gate that must pass before any simulation, replay, or 
 ## Required checks (must fail hard)
 1. Unknown-field rejection
 2. Enum validation (exact match)
-3. Numeric bounds (no negatives unless declared; 0–1 indices enforced)
+3. Numeric bounds (no negatives unless declared; 0-1 indices enforced)
 4. Unit presence where required (liters, mg, m3, C, factors)
 5. Reference resolution:
    - every `*_id` reference points to an existing file/object

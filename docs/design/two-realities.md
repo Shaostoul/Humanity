@@ -8,12 +8,12 @@
 
 Every domain in HumanityOS exists twice:
 
-1. **A video game** — for fun, education, and socialization. The 3D sim: your character,
+1. **A video game**, for fun, education, and socialization. The 3D sim: your character,
    the homestead, the ship, crafting, farming, the solar system you explore.
-2. **A real-life tool** — for actually living. Your real possessions, your real body, your
+2. **A real-life tool**, for actually living. Your real possessions, your real body, your
    real tasks, your real money, your real location.
 
-**No Real/Sim toggle.** (Operator, 2026-07-16, revising the earlier draft of this doc — a
+**No Real/Sim toggle.** (Operator, 2026-07-16, revising the earlier draft of this doc, a
 mode toggle was tried and deliberately removed before; do NOT bring it back.) A toggle only
 exists because one page is trying to show two datasets. The fix is to stop making one page do
 double duty: **the app IS your real life, and the game is a place you walk into.**
@@ -22,7 +22,7 @@ double duty: **the app IS your real life, and the game is a place you walk into.
   always. No mode, nothing to switch. Your real possessions live in Home; your real body
   lives in Home. It just *is* real, because that is what the app is.
 - The game is a door: **Play**. Inside the 3D world you have a game character, game inventory,
-  game crafting — reached from *inside* the world (a backpack / in-game menu). Step out
+  game crafting, reached from *inside* the world (a backpack / in-game menu). Step out
   (Esc / back) and you are in your life again.
 
 So the two realities are separated by **navigation, not a button**. Entering the world IS the
@@ -32,7 +32,7 @@ skills by mirroring them in the game.** The game is the safe practice space; the
 where it counts.
 
 Operator's rule of thumb: *"Not everything needs to affect the player character, but
-everything does affect our real bodies."* So the real side is never a toy — it is a genuine
+everything does affect our real bodies."* So the real side is never a toy, it is a genuine
 life-management app that happens to share its interface (and its teaching) with a game.
 
 ## What the REAL side must actually do
@@ -83,7 +83,7 @@ form the relay operator can read; never let one user's backup consume another's 
 - **Home = your real life.** The real-life dashboard: Real Me (body/health/fitness/diet),
   your possessions (with backup status), your real tasks and money at a glance. "Me."
 - **Play = your game self.** The character, inventory, and crafting live *inside* the world,
-  reached from a backpack / in-game menu — not from the app chrome.
+  reached from a backpack / in-game menu, not from the app chrome.
 - **No shared toggled pages.** The real-life tools are the app's pages (always real); the game
   systems live inside the sim (always game). Similar UI components, different places. You move
   between the two realities by entering or leaving the world, never by flipping a mode switch.
