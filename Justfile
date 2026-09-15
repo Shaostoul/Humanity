@@ -455,6 +455,7 @@ preflight:
     node scripts/curriculum-status.js
     node scripts/check-locale-species.js
     node scripts/check-library-dashes.js
+    node scripts/check-library-fresh.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -466,6 +467,12 @@ locale-docs:
     node scripts/build-locale-doc.js
     node scripts/build-library.js
 
+# Refuse a shipped Library copy that no longer matches its source. data/library/
+# is GENERATED from docs/, so editing a source without rebuilding ships the old
+# text while everything still looks right. CLAUDE.md records that this drifted
+# silently for months once; this is the check it says did not exist.
+check-library-fresh:
+    node scripts/check-library-fresh.js
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among

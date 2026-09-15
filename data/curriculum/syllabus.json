@@ -1141,15 +1141,17 @@
         "firewood"
       ],
       "sources": [
-        "fpl-wood-handbook",
-        "usfs",
-        "epa",
         "cdc",
         "cpsc",
-        "usfa",
-        "usda-aphis",
         "eia",
-        "regional-air-agency"
+        "epa",
+        "fpl-wood-handbook",
+        "nist",
+        "osha",
+        "regional-air-agency",
+        "usda-aphis",
+        "usfa",
+        "usfs"
       ]
     },
     {

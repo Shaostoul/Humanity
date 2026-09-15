@@ -331,6 +331,47 @@ rather than widespread, confined to dry prairie edges and open south
 facing slopes, and it supports deer, squirrels and birds. Take it if a
 tree is already down. Do not take one down for fuel.
 
+## What a cord is worth against other fuels
+
+Worth knowing before you commit a winter to it, because the answer is
+lopsided in one direction and the catch is not in the price.
+
+The Forest Products Laboratory's Fuel Value Calculator works the
+comparison for a 100 million Btu heating season, at its own example
+prices. **Those prices are illustrative and old, and every one of them has
+moved**, so read the ordering rather than the dollars.
+
+| Fuel | Appliance efficiency | Example price | Cost for the season |
+|---|---|---|---|
+| Seasoned firewood | 77% | $115 per cord | $747 |
+| Natural gas | 80% | $7 per 1,000 cubic feet | $854 |
+| Premium wood pellets | 83% | $120 per ton | $882 |
+| Fuel oil #2 | 83% | $1.40 per gallon | $1,220 |
+| Propane | 79% | $1.25 per gallon | $1,730 |
+| Electricity | 98% | $0.08 per kWh | $2,390 |
+
+FPL's own conclusion is that seasoned firewood is the least expensive
+fuel, with natural gas and wood pellets a close second and third. And its
+own caveat is the honest one: to decide whether firewood is the fuel of
+choice you have to compare the heating systems too, and work out how much
+time and effort you are willing to spend processing and handling the fuel,
+because fossil fuel heating systems typically cost less up front, sometimes
+significantly so, than firewood and wood pellet furnaces.
+
+That is the shape of the trade. **Wood is cheap per Btu and expensive per
+hour.** Nothing on that list except pellets asks you to cut, split, stack,
+turn, carry and sweep. Six cords is not a purchase; it is a season of
+weekends, and an oil tank is not.
+
+For scale, the Energy Information Administration's 2012 survey found about
+2.5 million United States households, 2.1 percent, using wood as their
+main heating fuel, up from 1.7 percent in 2005, with a further 9 million
+households, 7.7 percent, burning it as a secondary fuel. Together that is
+roughly 500 trillion Btu a year, about the same as residential propane and
+slightly less than fuel oil. Heating stoves are the commonest equipment
+for households whose main heat is wood; fireplaces are the commonest for
+secondary heat.
+
 ## Creosote and chimney fires
 
 Fire is the ordinary failure of this whole subject, and the chimney is
@@ -704,11 +745,12 @@ department both publish the current areas.
 
 **Away from the house.** USFA's wildfire guidance is to keep the first 5
 feet around a home clear of anything flammable, and it names woodpiles
-first on the list. A cord of dry wood stacked against a wall is several
-tons of kiln-dry fuel with a large surface area, positioned exactly where
-you least want it in a wildfire and directly under the eaves in an ember
-shower. Put the main stack well away, and keep only a few days of wood
-close in.
+first on the list. By the arithmetic in the species table above, a cord of
+seasoned Douglas-fir weighs close to a ton and a half, and every ounce of
+it is dry fuel with an enormous surface area. Stacked against the house it
+sits exactly where you least want it in a wildfire, and directly under the
+eaves in an ember shower. Put the main stack well away, and keep only a
+few days of wood close in.
 
 **Off the ground.** Pallets, rails, gravel, anything. Ground contact wicks
 water into the bottom course and holds it there, which puts that wood back
