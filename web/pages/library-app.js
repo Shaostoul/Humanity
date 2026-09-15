@@ -253,9 +253,20 @@
     var cat = (manifest.categories || [])[ci];
     var doc = cat && (cat.docs || [])[di];
     if (!doc) return;
+    var wasFirst = current === null;
     current = { ci: ci, di: di };
-    // Keep the address bar shareable without growing history on every click.
-    if (history.replaceState) history.replaceState(null, '', '#' + slugOf(doc.file));
+    // PUSH rather than replace, so the browser Back button steps back through
+    // the documents you actually read. replaceState kept the address bar
+    // shareable but left one history entry for the whole Library, which meant
+    // Back threw you out of it entirely: following a cross-reference was a
+    // one-way trip. The very first document is a replace, so arriving at
+    // /library does not need two Backs to leave.
+    var hash = '#' + slugOf(doc.file);
+    if (history.pushState && !wasFirst && location.hash !== hash) {
+      history.pushState(null, '', hash);
+    } else if (history.replaceState) {
+      history.replaceState(null, '', hash);
+    }
     renderRail();
 
     var el = contentEl();

@@ -38,6 +38,11 @@ struct LibState {
     define_mode: bool,
     /// A word the reader clicked in define mode - drives the popup.
     define_popup: Option<String>,
+    /// Where the reader came from, so following a cross-reference is
+    /// reversible. Pushed on every link jump, popped by Back. Without it a
+    /// document that sends you somewhere else is a one-way trip, which is the
+    /// thing that makes people avoid following links at all.
+    back: Vec<Sel>,
     /// Active document tag filter (a tag id from `data/library/tags.json`).
     /// None shows everything. Narrows the rail without changing what is open,
     /// so filtering never yanks the document you are reading out from under you.
@@ -56,6 +61,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             dict_cat: None,
             define_mode: false,
             define_popup: None,
+            back: Vec::new(),
             tag_filter: None,
         });
     }
@@ -138,6 +144,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let rail_w = 250.0;
             let content_w = (ui.available_width() - rail_w - 24.0).max(320.0);
             let body_h = ui.available_height();
+
+            // Set by a click on an inline link in the doc pane; resolved after
+            // the panes are drawn, because resolving needs the whole library and
+            // the pane closure only has the open document.
+            let mut nav_request: Option<String> = None;
 
             ui.horizontal_top(|ui| {
                 // ── Left rail: document tree + the Dictionary entry ──
@@ -273,6 +284,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             // in the document for its definition; dictionary
                             // hits show underlined. Plain fast rendering when off.
                             ui.horizontal(|ui| {
+                                // Back first, so following a cross-reference is
+                                // visibly reversible. Only shown when there is
+                                // somewhere to go, rather than a dead control.
+                                if !s.back.is_empty() {
+                                    let n = s.back.len();
+                                    let label = if n == 1 { "Back".to_string() } else { format!("Back ({n})") };
+                                    if crate::gui::widgets::Button::secondary(&label).show(ui, theme) {
+                                        if let Some(prev) = s.back.pop() {
+                                            s.sel = prev;
+                                        }
+                                    }
+                                }
                                 let label = if s.define_mode {
                                     "Define words: ON (click any word)"
                                 } else {
@@ -302,7 +325,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             s.define_popup = clicked;
                                         }
                                     } else {
-                                        markdown::render_markdown(ui, theme, body);
+                                        let mut link: Option<String> = None;
+                                        markdown::render_markdown_linked(ui, theme, body, &mut link);
+                                        if let Some(target) = link {
+                                            nav_request = Some(target);
+                                        }
                                     }
                                 } else {
                                     ui.label(RichText::new("Select a document on the left.").size(theme.font_size_small).color(theme.text_muted()));
@@ -426,6 +453,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     });
                 });
             });
+
+            // ── Follow a cross-reference ──
+            // `/library#some-slug` is the Library's own deep-link grammar, the
+            // same one the web client uses, so one link form works in both. An
+            // external http link is left alone: opening a browser from here is a
+            // separate decision and is not what these links are for.
+            if let Some(target) = nav_request {
+                if let Some(slug) = target.strip_prefix("/library#") {
+                    let found = state.library.iter().enumerate().find_map(|(si, sec)| {
+                        sec.categories.iter().enumerate().find_map(|(ci, c)| {
+                            c.entries.iter().position(|e| e.slug == slug
+                                )
+                                .map(|ei| Sel::Doc(si, ci, ei))
+                        })
+                    });
+                    if let Some(next) = found {
+                        lib_state(|s| {
+                            let prev = s.sel.clone();
+                            if prev != next {
+                                s.back.push(prev);
+                                s.sel = next;
+                            }
+                        });
+                    }
+                }
+            }
         });
 }
 

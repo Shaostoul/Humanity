@@ -6747,6 +6747,12 @@ mod tower_compat_tests {
 /// catalog in v0.1063, so every Library entry is now a document.)
 pub struct LibraryEntry {
     pub title: String,
+    /// Deep-link slug, derived from the shipped filename exactly the way
+    /// `web/pages/library-app.js` derives it (basename minus .md, underscores
+    /// to hyphens, lowercased). Having it here is what lets a `/library#slug`
+    /// cross-reference resolve to a document in the native client too, so one
+    /// link form works in both.
+    pub slug: String,
     /// Raw markdown body, read from `data/library/<file>` at startup.
     pub body: String,
     /// Tag ids that cross-cut the categories (`data/library/tags.json` defines
@@ -6845,7 +6851,17 @@ pub fn load_library(data_dir: &std::path::Path) -> LibraryData {
                         .filter_map(|d| {
                             std::fs::read_to_string(dir.join(&d.file))
                                 .ok()
-                                .map(|body| LibraryEntry { title: d.title, body, tags: d.tags })
+                                .map(|body| LibraryEntry {
+                                    slug: d
+                                        .file
+                                        .trim_end_matches(".md")
+                                        .trim_end_matches(".MD")
+                                        .replace('_', "-")
+                                        .to_lowercase(),
+                                    title: d.title,
+                                    body,
+                                    tags: d.tags,
+                                })
                         })
                         .collect(),
                 })

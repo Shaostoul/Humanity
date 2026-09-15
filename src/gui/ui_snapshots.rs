@@ -897,13 +897,19 @@ break** has to survive the join.
 > text. Before v0.1305 this had no branch at all and the marker rendered
 > as literal text.
 
+A paragraph carrying a cross-reference to the
+[self-hosting guide](/library#self-hosting) and another to
+[the roadmap](/library#roadmap), which before v0.1306.9 printed their own
+brackets and URLs on screen because the native reader had no link handling.
+
 Closing paragraph after the table.";
 
     render_page_png("markdown_features", 760, 560, |_ctx, theme, _state| {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
             .show(_ctx, |ui| {
-                crate::gui::widgets::markdown::render_markdown(ui, theme, SAMPLE);
+                let mut _link: Option<String> = None;
+                crate::gui::widgets::markdown::render_markdown_linked(ui, theme, SAMPLE, &mut _link);
             });
     });
 }

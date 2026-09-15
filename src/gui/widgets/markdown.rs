@@ -23,7 +23,24 @@ use crate::gui::theme::Theme;
 
 /// Render `md` as themed, readable text into `ui`.
 pub fn render_markdown(ui: &mut egui::Ui, theme: &Theme, md: &str) {
-    render_markdown_impl(ui, theme, md, false, &mut None);
+    render_markdown_impl(ui, theme, md, false, &mut None, &mut None);
+}
+
+/// Render `md` with its inline links CLICKABLE. A click stores the link target
+/// (for example `/library#self-hosting`) into `link`; the caller decides what
+/// that means, which for the Library page is "navigate to that document".
+///
+/// Without this the native reader had no link handling at all and printed the
+/// raw markdown: 107 links across 15 shipped documents read as
+/// `[the roadmap](/library#roadmap)` on screen.
+pub fn render_markdown_linked(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    md: &str,
+    link: &mut Option<String>,
+) {
+    let mut l = Some(link);
+    render_markdown_impl(ui, theme, md, false, &mut None, &mut l);
 }
 
 /// Render `md` with DEFINE MODE on (v0.989, operator: "clicking a button to
@@ -41,7 +58,7 @@ pub fn render_markdown_defining(
     clicked: &mut Option<String>,
 ) {
     let mut c = Some(clicked);
-    render_markdown_impl(ui, theme, md, true, &mut c);
+    render_markdown_impl(ui, theme, md, true, &mut c, &mut None);
 }
 
 /// A GFM table separator row (`|---|:--:|`): pipes, dashes, colons and space
@@ -69,6 +86,7 @@ fn render_markdown_impl(
     md: &str,
     define: bool,
     clicked: &mut Option<&mut Option<String>>,
+    link: &mut Option<&mut Option<String>>,
 ) {
     // Collected so tables can look ahead one line for their separator row.
     let lines: Vec<&str> = md.lines().collect();
@@ -84,10 +102,54 @@ fn render_markdown_impl(
     macro_rules! flush_para {
         () => {
             if !para.is_empty() {
-                let text = strip_md(&para.join(" "));
+                let joined = para.join(" ");
                 if define {
+                    let text = strip_md(&joined);
                     defining_words(ui, theme, &text, theme.font_size_small, clicked);
+                } else if link.is_some() && joined.contains("](") {
+                    // Lay the paragraph out segment by segment so the link parts
+                    // can be their own clickable labels. Only taken when the
+                    // paragraph actually has a link, so ordinary prose keeps the
+                    // cheap single-label path.
+                    let segs = link_segments(&joined);
+                    let mut hit: Option<String> = None;
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        for (text, target) in segs {
+                            let shown = strip_md(&text);
+                            match target {
+                                Some(t) => {
+                                    let r = ui.add(
+                                        Label::new(
+                                            RichText::new(shown)
+                                                .size(theme.font_size_small)
+                                                .underline()
+                                                .color(theme.accent()),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    );
+                                    if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                        hit = Some(t);
+                                    }
+                                }
+                                None => {
+                                    ui.add(
+                                        Label::new(
+                                            RichText::new(shown)
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_secondary()),
+                                        )
+                                        .wrap(),
+                                    );
+                                }
+                            }
+                        }
+                    });
+                    if let (Some(t), Some(sink)) = (hit, link.as_deref_mut()) {
+                        *sink = Some(t);
+                    }
                 } else {
+                    let text = strip_md(&joined);
                     ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_secondary()));
                 }
                 para.clear();
@@ -330,5 +392,75 @@ fn defining_words(
 
 /// Strip the common inline markdown markers so text reads cleanly as plain text.
 pub fn strip_md(s: &str) -> String {
+    let s = strip_links(s);
     s.replace("**", "").replace('`', "").replace('*', "")
+}
+
+/// Reduce every inline link to just its visible text.
+///
+/// Without this a reader sees the raw punctuation and the URL: the Library's own
+/// cross-references came out as `[the roadmap](/library#roadmap)` on screen, 107
+/// of them across 15 shipped documents, because the native reader had no link
+/// handling at all. The paragraph path below goes further and makes them
+/// clickable; this is the floor that keeps every OTHER surface (headings,
+/// bullets, table cells, block quotes) readable.
+pub fn strip_links(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let b: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == '[' {
+            if let Some((text, _target, next)) = parse_link(&b, i) {
+                out.push_str(&text);
+                i = next;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    out
+}
+
+/// Parse `[text](target)` starting at `open`. Returns (text, target, index just
+/// past the closing paren). Rejects anything that is not a complete link so a
+/// bare `[` in prose is left alone.
+fn parse_link(b: &[char], open: usize) -> Option<(String, String, usize)> {
+    let close = (open + 1..b.len()).find(|&k| b[k] == ']')?;
+    if close + 1 >= b.len() || b[close + 1] != '(' {
+        return None;
+    }
+    let end = (close + 2..b.len()).find(|&k| b[k] == ')')?;
+    let text: String = b[open + 1..close].iter().collect();
+    let target: String = b[close + 2..end].iter().collect();
+    if text.is_empty() {
+        return None;
+    }
+    Some((text, target, end + 1))
+}
+
+/// Split a line into plain and link segments, for the clickable paragraph path.
+pub(crate) fn link_segments(s: &str) -> Vec<(String, Option<String>)> {
+    let mut out: Vec<(String, Option<String>)> = Vec::new();
+    let b: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    let mut plain = String::new();
+    while i < b.len() {
+        if b[i] == '[' {
+            if let Some((text, target, next)) = parse_link(&b, i) {
+                if !plain.is_empty() {
+                    out.push((std::mem::take(&mut plain), None));
+                }
+                out.push((text, Some(target)));
+                i = next;
+                continue;
+            }
+        }
+        plain.push(b[i]);
+        i += 1;
+    }
+    if !plain.is_empty() {
+        out.push((plain, None));
+    }
+    out
 }
