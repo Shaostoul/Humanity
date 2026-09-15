@@ -80,9 +80,10 @@ reliable evidence you have. Trust the umbles over the reassurance.
 
 **The stage where shivering stops.** This is the one people misread.
 NIOSH's late symptoms are: no shivering, blue skin, dilated pupils,
-slowed pulse and breathing, loss of consciousness. MedlinePlus phrases
-it as "Shivering that cannot be controlled (although at extremely low
-body temperatures, shivering may stop)."
+slowed pulse and breathing, loss of consciousness. MedlinePlus makes the
+same point about shivering: it describes shivering that cannot be
+controlled as a symptom, and notes that at extremely low body temperatures
+the shivering may stop altogether.
 
 Read that again with the person in front of you. They were shivering
 violently. Now they are calm and still. Nothing improved. The body ran
@@ -123,8 +124,8 @@ This is the single most counterintuitive fact about cold, it is real
 clinical guidance rather than folklore, and the federal sources say it
 in plain words.
 
-MedlinePlus: **"Do not assume that someone found lying motionless in the
-cold is already dead."** CDC's winter weather guidance says the same
+MedlinePlus is explicit on the point: **a person found lying motionless in
+the cold must not be assumed to be dead.** CDC's winter weather guidance says the same
 thing operationally: give CPR and keep giving it, because people who
 appear dead from hypothermia have been revived.
 
@@ -197,8 +198,8 @@ That single mechanism explains almost every rewarming error.
 
 **A hot bath is wrong.** It dilates every peripheral vessel at once,
 which is the fastest possible way to flush cold blood into an unstable
-heart. MedlinePlus is direct: "Do not use direct heat (such as hot
-water, a heating pad, or a heat lamp)." The Park Service guidance says
+heart. MedlinePlus is direct about it, saying not to apply direct heat and
+naming hot water, a heating pad and a heat lamp as the things to avoid. The Park Service guidance says
 direct heat "can do extreme damage to the skin" and to use slow methods
 instead.
 
@@ -335,8 +336,9 @@ at the scene on the basis of how bad it looks.
 consistent across three of them. The military guideline: "Rapid active
 re-warming is done in 104-108 F (40-42 C) water for 15- 30 minutes as
 long as care can occur in an environment where there is no risk of
-refreezing." MedlinePlus: "The recommended water temperature is 104 F to
-108 F (40 C to 42.2 C)," soaked for 15 to 30 minutes. The CMAJ review:
+refreezing." MedlinePlus gives the same window, recommending water between
+104 and 108 degrees F, which is 40 to 42.2 C, with the part soaked for 15
+to 30 minutes. The CMAJ review:
 "Rapid rewarming of a frostbitten extremity in a bath of water between
 40 C and 42 C for 15 to 30 minutes may minimize tissue loss."
 
@@ -525,7 +527,7 @@ locations for breaks, limits on time outside, and a bag with spare
 socks, gloves, hat, jacket and a thermos of something hot.
 
 **Stay fed.** Shivering is muscular work and it runs on food. MedlinePlus
-lists "Not enough food, drinks, or rest during cold weather" among the
+lists going without enough food, drink or rest in cold weather among the
 causes of hypothermia, in the same breath as falling into cold water. The
 2021 clinical guidance treats calories as part of the recovery, saying a
 patient should have taken calories and shivered for about 30 minutes

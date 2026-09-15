@@ -47,7 +47,7 @@ acetylene,C2H2,Acetylene,hydrocarbon,26.04,1.097,192.3,189.15,1.0g/L,,true,true,
 ethanol,C2H5OH,Ethanol,organic,46.07,0.789,159.05,351.44,miscible,,true,false,false,7060,liquid,Drinking alcohol; biofuel; solvent; antiseptic; produced by fermentation
 methanol,CH3OH,Methanol,organic,32.04,0.792,175.47,337.7,miscible,,true,false,true,100,liquid,Toxic alcohol causing blindness; fuel; solvent; antifreeze component
 isopropanol,C3H7OH,Isopropanol,organic,60.10,0.786,185.26,355.41,miscible,,true,false,false,5045,liquid,Rubbing alcohol; common disinfectant; solvent; less toxic than methanol
-glycerol,C3H8O3,Glycerol,organic,92.09,1.261,291.15,563,,miscible,,false,false,false,0,liquid,Sweet syrupy liquid; moisturizer; used in food and nitroglycerin production
+glycerol,C3H8O3,Glycerol,organic,92.09,1.261,291.15,563,,miscible,false,false,false,0,liquid,Sweet syrupy liquid; moisturizer; used in food and nitroglycerin production
 formaldehyde,CH2O,Formaldehyde,organic,30.03,0.815,181,254,miscible,,true,false,true,100,gas,Pungent preservative (formalin); carcinogenic; used in resins and plastics
 acetone,C3H6O,Acetone,organic,58.08,0.784,178.5,329.2,miscible,,true,false,false,5800,liquid,Common solvent; nail polish remover; naturally produced in body
 formic_acid,CH2O2,Formic Acid,organic,46.03,1.22,281.55,373.95,miscible,2.3,true,false,true,1100,liquid,Simplest carboxylic acid; found in ant venom; leather tanning
@@ -56,7 +56,7 @@ urea,CH4N2O,Urea,organic,60.06,1.32,406,,1079g/L,7.0,false,false,false,8471,soli
 glucose,C6H12O6,Glucose,organic,180.16,1.54,423,,909g/L,,false,false,false,25800,solid,Primary energy source for cells; blood sugar; fermentation substrate
 sucrose,C12H22O11,Sucrose,organic,342.30,1.587,459,,2000g/L,,false,false,false,29700,solid,Table sugar; extracted from sugarcane and beets
 ethyl_acetate,C4H8O2,Ethyl Acetate,organic,88.11,0.902,189.55,350.21,83g/L,,true,false,false,5620,liquid,Fruity-smelling solvent; nail polish remover; decaffeination agent
-dimethyl_sulfoxide,C2H6OS,DMSO,organic,78.13,1.10,291.67,462,,miscible,,true,false,false,14500,liquid,Powerful solvent; penetrates skin rapidly; used in cryopreservation
+dimethyl_sulfoxide,C2H6OS,DMSO,organic,78.13,1.10,291.67,462,,miscible,true,false,false,14500,liquid,Powerful solvent; penetrates skin rapidly; used in cryopreservation
 hydrogen_peroxide,H2O2,Hydrogen Peroxide,oxide,34.01,1.45,272.72,423.35,miscible,4.5,false,true,true,1232,liquid,Oxidizer and bleach; antiseptic; rocket propellant at high concentrations
 hydrogen_gas,H2,Hydrogen,gas,2.016,0.0899,14.01,20.28,0.0016g/L,,true,true,false,0,gas,Lightest gas; clean fuel producing only water; extremely flammable
 oxygen_gas,O2,Oxygen,gas,32.00,1.429,54.36,90.20,0.040g/L,,false,false,false,0,gas,Essential for respiration; supports combustion; 21% of atmosphere
@@ -93,16 +93,16 @@ nicotine,C10H14N2,Nicotine,organic,162.23,1.01,247,520,miscible,,false,false,tru
 capsaicin,C18H27NO3,Capsaicin,organic,305.41,1.08,335,,0.013g/L,,false,false,false,118,solid,Active component of chili peppers; pain relief cream ingredient
 thc,C21H30O2,THC (Tetrahydrocannabinol),organic,314.46,1.04,346,,insoluble,,false,false,false,1270,solid,Primary psychoactive compound in cannabis; medical and recreational use
 penicillamine,C5H11NO2S,Penicillamine,medicine,149.21,1.16,475,,soluble,,false,false,false,365,solid,Chelation therapy drug for heavy metal poisoning; Wilson disease treatment
-polyethylene,(C2H4)n,Polyethylene (PE),polymer,,,383,,,,,false,false,false,0,solid,Most common plastic; bags and bottles; low and high density forms
-polypropylene,(C3H6)n,Polypropylene (PP),polymer,,,443,,,,,false,false,false,0,solid,Rigid plastic for containers and automotive parts; recyclable
-pvc,(C2H3Cl)n,Polyvinyl Chloride (PVC),polymer,,,373,,,,,false,false,false,0,solid,Rigid or flexible plastic for pipes and insulation; releases HCl when burned
-nylon_66,(C12H22N2O2)n,Nylon 6-6,polymer,,,538,,,,,false,false,false,0,solid,Strong synthetic fiber; gears and bearings; first commercial synthetic polymer
-kevlar,(C14H10N2O2)n,Kevlar (Poly-p-phenyleneterephthalamide),polymer,,,773,,,,,false,false,false,0,solid,Ultra-strong aramid fiber; body armor and tire reinforcement; 5x stronger than steel
-teflon,(C2F4)n,Teflon (PTFE),polymer,,,600,,,,,false,false,false,0,solid,Non-stick coating; extremely low friction; chemically inert; heat resistant
-silicone,(SiO(CH3)2)n,Silicone (Polydimethylsiloxane),polymer,,,230,,,,,false,false,false,0,liquid,Flexible polymer; sealants and implants; heat resistant; water repellent
-polycarbonate,(C16H14O3)n,Polycarbonate (PC),polymer,,,420,,,,,false,false,false,0,solid,Transparent impact-resistant plastic; bulletproof glass; CDs and eyewear
-abs,(C8H8_C4H6_C3H3N)n,ABS (Acrylonitrile Butadiene Styrene),polymer,,,378,,,,,false,false,false,0,solid,Tough thermoplastic; LEGO bricks; 3D printing filament; automotive trim
-epoxy,C21H25ClO5,Epoxy Resin,polymer,,,423,,,,,false,false,true,11400,solid,Two-part adhesive and coating; fiberglass matrix; excellent chemical resistance
+polyethylene,(C2H4)n,Polyethylene (PE),polymer,,,383,,,,false,false,false,0,solid,Most common plastic; bags and bottles; low and high density forms
+polypropylene,(C3H6)n,Polypropylene (PP),polymer,,,443,,,,false,false,false,0,solid,Rigid plastic for containers and automotive parts; recyclable
+pvc,(C2H3Cl)n,Polyvinyl Chloride (PVC),polymer,,,373,,,,false,false,false,0,solid,Rigid or flexible plastic for pipes and insulation; releases HCl when burned
+nylon_66,(C12H22N2O2)n,Nylon 6-6,polymer,,,538,,,,false,false,false,0,solid,Strong synthetic fiber; gears and bearings; first commercial synthetic polymer
+kevlar,(C14H10N2O2)n,Kevlar (Poly-p-phenyleneterephthalamide),polymer,,,773,,,,false,false,false,0,solid,Ultra-strong aramid fiber; body armor and tire reinforcement; 5x stronger than steel
+teflon,(C2F4)n,Teflon (PTFE),polymer,,,600,,,,false,false,false,0,solid,Non-stick coating; extremely low friction; chemically inert; heat resistant
+silicone,(SiO(CH3)2)n,Silicone (Polydimethylsiloxane),polymer,,,230,,,,false,false,false,0,liquid,Flexible polymer; sealants and implants; heat resistant; water repellent
+polycarbonate,(C16H14O3)n,Polycarbonate (PC),polymer,,,420,,,,false,false,false,0,solid,Transparent impact-resistant plastic; bulletproof glass; CDs and eyewear
+abs,(C8H8_C4H6_C3H3N)n,ABS (Acrylonitrile Butadiene Styrene),polymer,,,378,,,,false,false,false,0,solid,Tough thermoplastic; LEGO bricks; 3D printing filament; automotive trim
+epoxy,C21H25ClO5,Epoxy Resin,polymer,,,423,,,,false,false,true,11400,solid,Two-part adhesive and coating; fiberglass matrix; excellent chemical resistance
 sodium_hypochlorite,NaClO,Sodium Hypochlorite (Bleach),salt,74.44,1.11,291,,miscible,12.0,false,false,true,8910,liquid,Common bleach and disinfectant; water purification; generates chlorine gas with acid
 calcium_hypochlorite,Ca(ClO)2,Calcium Hypochlorite (Pool Shock),salt,142.98,2.35,373,,210g/L,11.0,false,false,true,850,solid,Pool disinfectant; stronger than liquid bleach; strong oxidizer
 potassium_permanganate,KMnO4,Potassium Permanganate,salt,158.03,2.703,513,,64g/L,,false,false,true,1090,solid,Purple oxidizer; water treatment; wound antiseptic; fire starter
@@ -143,16 +143,16 @@ kerosene,C12H26,Kerosene (Jet Fuel),fuel,170.34,0.81,,423,insoluble,,true,false,
 biodiesel,C19H36O2,Biodiesel (Methyl Oleate),fuel,296.49,0.88,,623,insoluble,,true,false,false,0,liquid,Renewable fuel from vegetable oil transesterification; blended with diesel
 dimethyl_ether,C2H6O,Dimethyl Ether,fuel,46.07,1.97,131.65,248.31,71g/L,,true,true,false,623,gas,Clean-burning aerosol propellant; diesel substitute; low emissions
 nitromethane,CH3NO2,Nitromethane,fuel,61.04,1.137,244.15,374.35,111g/L,,true,true,false,940,liquid,Drag racing fuel; model engine fuel; can detonate under confinement
-polyurethane,(C3H8N2O)n,Polyurethane (PU),polymer,,,473,,,,,false,false,false,0,solid,Versatile foam and elastomer; insulation and cushioning; coatings and adhesives
-polyester,(C10H8O4)n,Polyester (PET),polymer,,,533,,,,,false,false,false,0,solid,Common textile fiber and bottle plastic; recyclable; polyethylene terephthalate
-acrylic,(C5H8O2)n,Acrylic (PMMA),polymer,,,433,,,,,false,false,false,0,solid,Transparent thermoplastic; shatter-resistant glass substitute (Plexiglas)
-natural_rubber,(C5H8)n,Natural Rubber (Polyisoprene),polymer,,,473,,,,,true,false,false,0,solid,Elastic polymer from latex; tires and seals; vulcanized with sulfur for durability
-cellulose,(C6H10O5)n,Cellulose,polymer,,,533,,,,,true,false,false,0,solid,Most abundant organic polymer on Earth; structural component of plant cell walls
-neoprene,(C4H5Cl)n,Neoprene (Polychloroprene),polymer,,,353,,,,,false,false,false,0,solid,Synthetic rubber; wetsuits and gaskets; oil and weather resistant
+polyurethane,(C3H8N2O)n,Polyurethane (PU),polymer,,,473,,,,false,false,false,0,solid,Versatile foam and elastomer; insulation and cushioning; coatings and adhesives
+polyester,(C10H8O4)n,Polyester (PET),polymer,,,533,,,,false,false,false,0,solid,Common textile fiber and bottle plastic; recyclable; polyethylene terephthalate
+acrylic,(C5H8O2)n,Acrylic (PMMA),polymer,,,433,,,,false,false,false,0,solid,Transparent thermoplastic; shatter-resistant glass substitute (Plexiglas)
+natural_rubber,(C5H8)n,Natural Rubber (Polyisoprene),polymer,,,473,,,,true,false,false,0,solid,Elastic polymer from latex; tires and seals; vulcanized with sulfur for durability
+cellulose,(C6H10O5)n,Cellulose,polymer,,,533,,,,true,false,false,0,solid,Most abundant organic polymer on Earth; structural component of plant cell walls
+neoprene,(C4H5Cl)n,Neoprene (Polychloroprene),polymer,,,353,,,,false,false,false,0,solid,Synthetic rubber; wetsuits and gaskets; oil and weather resistant
 sodium_silicate,Na2SiO3,Sodium Silicate (Water Glass),salt,122.06,2.40,1361,,soluble,11.3,false,false,false,0,solid,Liquid glass; fireproofing agent; sealant; used in egg preservation
 potassium_carbonate,K2CO3,Potassium Carbonate (Potash),salt,138.21,2.43,1164,1882,1120g/L,11.6,false,false,false,0,solid,Soap and glass making; used in cocoa processing; fireproofing agent
 sodium_persulfate,Na2S2O8,Sodium Persulfate,salt,238.10,2.59,453,,556g/L,,false,false,true,0,solid,PCB etching agent; strong oxidizer; used in hair bleaching products
-stearic_acid,C18H36O2,Stearic Acid,organic,284.48,0.941,342.75,634,,insoluble,,true,false,false,0,solid,Common fatty acid in animal fat; candle making; soap production; lubricant
+stearic_acid,C18H36O2,Stearic Acid,organic,284.48,0.941,342.75,634,,insoluble,true,false,false,0,solid,Common fatty acid in animal fat; candle making; soap production; lubricant
 lactic_acid,C3H6O3,Lactic Acid,organic,90.08,1.209,290,,miscible,2.4,false,false,false,3730,liquid,Produced by muscles during exercise; food preservative; biodegradable plastic
 tartaric_acid,C4H6O6,Tartaric Acid,organic,150.09,1.79,444,,1390g/L,2.2,false,false,false,4360,solid,Found in grapes; cream of tartar in baking; wine stabilizer
 salicylic_acid,C7H6O3,Salicylic Acid,organic,138.12,1.44,432,,2.0g/L,2.4,false,false,false,891,solid,Acne treatment; wart removal; precursor to aspirin; found in willow bark

@@ -70,8 +70,8 @@ blood flow, and says ice or ice water should not be used. MedlinePlus
 lists ice among the things never to put on a burn.
 
 There is one more wrinkle worth understanding, because it looks like a
-contradiction. MedlinePlus says "do not place a severe burn in cold
-water. This can cause shock." Both things are true. Running cool water
+contradiction. MedlinePlus says not to put a severe burn into cold water,
+because doing so can cause shock. Both things are true. Running cool water
 over a burn is right. Immersing a large burn, or a whole person, in cold
 water is not, because burned skin loses heat fast and a cold person is a
 new emergency on top of the burn. Military burn guidance notes that
@@ -272,8 +272,9 @@ burn: do not put a pillow under their head. It closes the airway further.
 
 ## What not to put on a burn
 
-MedlinePlus is unambiguous. Do not apply "oil, butter, ice, medicines,
-cream, oil spray, or any household remedy to a severe burn."
+MedlinePlus is unambiguous, and names the list: no oil, butter, ice,
+medicines, cream or oil spray, and no household remedy of any kind, on a
+severe burn.
 
 Taking them one at a time, because knowing why makes it stick:
 

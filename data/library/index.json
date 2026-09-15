@@ -360,6 +360,15 @@
           ]
         },
         {
+          "title": "Water Chemistry",
+          "file": "water_chemistry.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
+          ]
+        },
+        {
           "title": "Collecting Rainwater",
           "file": "collecting_rainwater.md",
           "tags": [
@@ -487,6 +496,14 @@
             "real",
             "health",
             "safety"
+          ]
+        },
+        {
+          "title": "Bleeding and Wounds",
+          "file": "bleeding_and_wounds.md",
+          "tags": [
+            "guide",
+            "real"
           ]
         },
         {

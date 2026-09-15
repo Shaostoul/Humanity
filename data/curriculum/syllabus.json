@@ -1431,18 +1431,23 @@
       "subject": "health",
       "title": "Bleeding and wounds",
       "summary": "Stop bleeding and clean a wound so it heals instead of infecting.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
-        "red-cross",
-        "cdc"
+        "cdc",
+        "medlineplus",
+        "dod-jts",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
         "data/medical.ron"
+      ],
+      "reading": [
+        "bleeding-and-wounds"
       ]
     },
     {
@@ -1798,18 +1803,28 @@
       "subject": "chemistry",
       "title": "Water chemistry",
       "summary": "Understand hardness, pH and dissolved contaminants.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "alchemy"
       ],
       "sources": [
+        "usgs",
         "epa",
-        "usgs"
+        "cdc",
+        "atsdr",
+        "nps",
+        "noaa",
+        "fda",
+        "who",
+        "state-extension"
       ],
       "locale_dependent": true,
       "hazard": "serious",
       "data": [
         "data/chemistry/compounds.csv"
+      ],
+      "reading": [
+        "water-chemistry"
       ]
     },
     {

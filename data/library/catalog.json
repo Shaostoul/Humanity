@@ -245,6 +245,15 @@
           ]
         },
         {
+          "title": "Water Chemistry",
+          "src": "docs/user/skills/water_chemistry.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
+          ]
+        },
+        {
           "title": "Collecting Rainwater",
           "src": "docs/user/skills/collecting_rainwater.md",
           "tags": [
@@ -372,6 +381,14 @@
             "real",
             "health",
             "safety"
+          ]
+        },
+        {
+          "title": "Bleeding and Wounds",
+          "src": "docs/user/skills/bleeding_and_wounds.md",
+          "tags": [
+            "guide",
+            "real"
           ]
         },
         {

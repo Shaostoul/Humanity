@@ -156,10 +156,16 @@
             severity: "moderate",
             body_part: "any",
             symptoms: ["bleeding", "infected_wound"],
-            treatment_options: ["suturing", "medication_course"],
+            // Deliberately NOT suturing. Closing a puncture is the specific
+            // error the guidance warns against: a narrow deep track carries
+            // contamination inward and sealing it traps it. This record used
+            // to offer suturing, so the simulation rewarded the wrong action.
+            // There is no field here for a CONTRAINDICATED treatment, only for
+            // options, which is a schema gap worth closing.
+            treatment_options: ["bandaging", "medication_course"],
             untreated_progression: Some("infection_bacterial"),
             recovery_time_s: 129600,
-            description: "A narrow, deep wound from a pointed object. High infection risk.",
+            description: "A narrow, deep wound from a pointed object. High infection risk, and it must be cleaned and left open rather than closed.",
         ),
 
         (

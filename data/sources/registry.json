@@ -494,10 +494,10 @@
       "publisher": "US National Library of Medicine, National Institutes of Health",
       "url": "https://medlineplus.gov/",
       "kind": "authority",
-      "licence": "public-domain-us-gov",
-      "use": "verbatim",
-      "bundle": true,
-      "note": "Plain-language first aid and symptom guidance from a federal library. The public-domain answer for anything the Red Cross would otherwise be cited for."
+      "licence": "mixed",
+      "use": "facts",
+      "bundle": false,
+      "note": "SPLIT LICENCE, AND THE HALF WE ACTUALLY CITE IS THE COPYRIGHTED HALF. MedlinePlus states that the A.D.A.M. Medical Encyclopedia, which is every /ency/ URL, is copyrighted and licensed only for use on MedlinePlus. All the first-aid and symptom content lives under /ency/. Public domain covers the health topic summaries, medical test pages, genetics pages, recipes, videos and illustrations carrying an NLM watermark; those may be quoted and bundled with the attribution MedlinePlus asks for. Default to restating the fact in our own words, which is what use: facts means, and never paste /ency/ prose into a shipped document. This entry read public-domain-us-gov / verbatim / bundle true until 2026-09-15, which told seven guides the opposite."
     },
     {
       "id": "dupont-technical",
