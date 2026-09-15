@@ -699,4 +699,77 @@ mod tests {
             "expected a second \"Section 1\"; the dedupe rule is no longer exercised"
         );
     }
+
+    /// The web reader is guarded by `scripts/check-library-render.js`, which
+    /// runs the real renderer over every shipped document. The native reader
+    /// draws straight into an `egui::Ui`, so there is no rendered string to
+    /// inspect; these pin the pure functions that decide the same things.
+    ///
+    /// Added after the web reader was found to have shipped two defects that
+    /// native did NOT have, which is its own warning: the two readers diverge
+    /// silently, and only one of them was being checked.
+    #[test]
+    fn a_separator_row_is_a_table_and_a_horizontal_rule_is_not() {
+        assert!(is_separator_row("|---|---|"));
+        assert!(is_separator_row("|--------------------|----------------------------|"));
+        assert!(is_separator_row(" |:---|:--:|---:| "));
+        // A bare rule is the common false positive, and reading one as a table
+        // separator would swallow the paragraph above it into a header row.
+        assert!(!is_separator_row("---"));
+        assert!(!is_separator_row("***"));
+        assert!(!is_separator_row(""));
+        // Content in the row means it is a real table row, not a separator.
+        assert!(!is_separator_row("| Species | Eats |"));
+    }
+
+    #[test]
+    fn table_cells_splits_on_pipes_and_strips_markup() {
+        assert_eq!(table_cells("| Species | Eats |"), vec!["Species", "Eats"]);
+        // Outer pipes are optional in GFM.
+        assert_eq!(table_cells("Species | Eats"), vec!["Species", "Eats"]);
+        // Cells carry inline markup, which must not reach the drawn text.
+        assert_eq!(table_cells("| **Otter** | `crab` |"), vec!["Otter", "crab"]);
+    }
+
+    /// The web reader mangled every underscored link target for a while,
+    /// because it ran a regex for `_italic_` before extracting links, so
+    /// `what_soil_is.md` became `what<em>soil</em>is.md`. Native parses links
+    /// character by character and never had the bug. This pins that, because
+    /// the Library's cross-references and a set of its cited source URLs are
+    /// full of underscores and the failure is invisible in the outline.
+    #[test]
+    fn an_underscored_link_target_survives_and_only_the_text_is_kept() {
+        assert_eq!(strip_links("See [What Soil Is](what_soil_is.md) first."), "See What Soil Is first.");
+        assert_eq!(
+            strip_links("[a](https://www.ncei.noaa.gov/x_y_z/Readme_By-Variable.txt)"),
+            "a"
+        );
+        // An underscore in ordinary prose is not emphasis and must be left alone,
+        // because the Library teaches from records whose ids are snake_case.
+        assert_eq!(strip_md("The record id is poison_hemlock."), "The record id is poison_hemlock.");
+        assert_eq!(strip_md("Locale silverdale_wa, species.json."), "Locale silverdale_wa, species.json.");
+    }
+
+    /// Every shipped Library document hard-wraps at 72 columns, so bold spans
+    /// cross line breaks constantly: 532 of them across 34 documents. The two
+    /// readers survive that differently, and the difference is worth writing
+    /// down because it is why only web ever showed stray asterisks.
+    ///
+    /// Web pairs `**` with `**` to build a `<strong>`, so an unclosed marker
+    /// on one source line reached the reader as literal punctuation until the
+    /// renderer was taught to buffer and join. Native never pairs anything: it
+    /// deletes the markers outright, so a split span was never visible as
+    /// punctuation here. What the join buys native is the paragraph itself,
+    /// one flowing block instead of one ragged label per source line.
+    #[test]
+    fn a_wrapped_paragraph_joins_into_one_flowing_block() {
+        let wrapped = ["Use it carefully. **Rule of thumb, not a sourced", "claim:** ask what it does."];
+        assert_eq!(
+            strip_md(&wrapped.join(" ")),
+            "Use it carefully. Rule of thumb, not a sourced claim: ask what it does."
+        );
+        // Native's own behaviour, stated so a future reader does not assume it
+        // shares web's failure mode: a marker with no partner is simply gone.
+        assert_eq!(strip_md(wrapped[0]), "Use it carefully. Rule of thumb, not a sourced");
+    }
 }
