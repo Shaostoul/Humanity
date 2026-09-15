@@ -2,153 +2,6 @@
   "_comment": "Library taxonomy: the SOURCE OF TRUTH for what the in-app Library contains. scripts/build-library.js reads this, copies each `src` into data/library/, and generates the runtime manifest index.json from it. Add a doc by adding a row HERE, never by editing code (see docs/design/infinite-of-x.md). `tags` cross-cut the categories: the category is the one shelf a doc sits on, tags are every other way someone might look for it. Every tag id must exist in tags.json.",
   "categories": [
     {
-      "name": "Credits",
-      "docs": [
-        {
-          "title": "Credits and Thanks",
-          "src": "CREDITS.md",
-          "tags": [
-            "reference"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Founding Documents",
-      "docs": [
-        {
-          "title": "The Constitution of the United States",
-          "src": "docs/reference/us-constitution.md",
-          "tags": [
-            "governance",
-            "reference",
-            "real"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "The Mission",
-      "docs": [
-        {
-          "title": "Humanity's Mission",
-          "src": "docs/mission/humanitys_mission.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        },
-        {
-          "title": "The Five Adversaries",
-          "src": "docs/mission/the_five_adversaries.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        },
-        {
-          "title": "What Is a Good Human",
-          "src": "docs/mission/what_is_a_good_human.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        },
-        {
-          "title": "What Is a Good AI",
-          "src": "docs/mission/what_is_a_good_ai.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        },
-        {
-          "title": "Why Homesteading Works",
-          "src": "docs/mission/why_homesteading_works.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        },
-        {
-          "title": "Interstellar Civilization Governance",
-          "src": "docs/mission/interstellar_civilization_governance.md",
-          "tags": [
-            "mission",
-            "real"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "How It Helps",
-      "docs": [
-        {
-          "title": "How HumanityOS Helps",
-          "src": "docs/outreach/how_humanityos_helps.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "For You",
-          "src": "docs/outreach/for_individuals.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "For Families",
-          "src": "docs/outreach/for_families.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "For Public Leaders",
-          "src": "docs/outreach/for_public_leaders.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "For Funders and Sponsors",
-          "src": "docs/outreach/for_funders_and_sponsors.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "For Affiliate Partners",
-          "src": "docs/outreach/for_affiliate_partners.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        },
-        {
-          "title": "What to Expect: Playing",
-          "src": "docs/outreach/what_to_expect_playing.md",
-          "tags": [
-            "mission",
-            "beginner",
-            "real"
-          ]
-        }
-      ]
-    },
-    {
       "name": "Real Skills",
       "docs": [
         {
@@ -246,7 +99,8 @@
             "safety"
           ]
         }
-      ]
+      ],
+      "section": "Learn"
     },
     {
       "name": "Making and Repair",
@@ -262,7 +116,8 @@
             "safety"
           ]
         }
-      ]
+      ],
+      "section": "Learn"
     },
     {
       "name": "The Accord",
@@ -284,7 +139,8 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "The Accord"
     },
     {
       "name": "Your Rights and Consent",
@@ -326,7 +182,8 @@
             "safety"
           ]
         }
-      ]
+      ],
+      "section": "The Accord"
     },
     {
       "name": "How We Decide",
@@ -380,7 +237,8 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "The Accord"
     },
     {
       "name": "Safety and Care",
@@ -440,7 +298,8 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "The Accord"
     },
     {
       "name": "Reference",
@@ -474,7 +333,131 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "The Accord"
+    },
+    {
+      "name": "The Mission",
+      "docs": [
+        {
+          "title": "Humanity's Mission",
+          "src": "docs/mission/humanitys_mission.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "The Five Adversaries",
+          "src": "docs/mission/the_five_adversaries.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "What Is a Good Human",
+          "src": "docs/mission/what_is_a_good_human.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "What Is a Good AI",
+          "src": "docs/mission/what_is_a_good_ai.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "Why Homesteading Works",
+          "src": "docs/mission/why_homesteading_works.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        },
+        {
+          "title": "Interstellar Civilization Governance",
+          "src": "docs/mission/interstellar_civilization_governance.md",
+          "tags": [
+            "mission",
+            "real"
+          ]
+        }
+      ],
+      "section": "About HumanityOS"
+    },
+    {
+      "name": "How It Helps",
+      "docs": [
+        {
+          "title": "How HumanityOS Helps",
+          "src": "docs/outreach/how_humanityos_helps.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "For You",
+          "src": "docs/outreach/for_individuals.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "For Families",
+          "src": "docs/outreach/for_families.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "For Public Leaders",
+          "src": "docs/outreach/for_public_leaders.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "For Funders and Sponsors",
+          "src": "docs/outreach/for_funders_and_sponsors.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "For Affiliate Partners",
+          "src": "docs/outreach/for_affiliate_partners.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        },
+        {
+          "title": "What to Expect: Playing",
+          "src": "docs/outreach/what_to_expect_playing.md",
+          "tags": [
+            "mission",
+            "beginner",
+            "real"
+          ]
+        }
+      ],
+      "section": "About HumanityOS"
     },
     {
       "name": "Getting Started",
@@ -506,7 +489,8 @@
             "sim"
           ]
         }
-      ]
+      ],
+      "section": "About HumanityOS"
     },
     {
       "name": "Creating Content",
@@ -610,7 +594,8 @@
             "sim"
           ]
         }
-      ]
+      ],
+      "section": "Build and Contribute"
     },
     {
       "name": "Running Your Own Server",
@@ -651,7 +636,8 @@
             "technical"
           ]
         }
-      ]
+      ],
+      "section": "Build and Contribute"
     },
     {
       "name": "For Contributors",
@@ -720,7 +706,8 @@
             "technical"
           ]
         }
-      ]
+      ],
+      "section": "Build and Contribute"
     },
     {
       "name": "How It Is Designed",
@@ -790,7 +777,36 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "Build and Contribute"
+    },
+    {
+      "name": "Credits",
+      "docs": [
+        {
+          "title": "Credits and Thanks",
+          "src": "CREDITS.md",
+          "tags": [
+            "reference"
+          ]
+        }
+      ],
+      "section": "Reference Library"
+    },
+    {
+      "name": "Founding Documents",
+      "docs": [
+        {
+          "title": "The Constitution of the United States",
+          "src": "docs/reference/us-constitution.md",
+          "tags": [
+            "governance",
+            "reference",
+            "real"
+          ]
+        }
+      ],
+      "section": "Reference Library"
     },
     {
       "name": "Project",
@@ -811,7 +827,15 @@
             "reference"
           ]
         }
-      ]
+      ],
+      "section": "Reference Library"
     }
+  ],
+  "_sections": [
+    "Learn",
+    "The Accord",
+    "About HumanityOS",
+    "Build and Contribute",
+    "Reference Library"
   ]
 }

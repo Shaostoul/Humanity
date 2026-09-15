@@ -21,6 +21,8 @@
 
     /* ── Left rail: nested document tree ── */
     .lib-rail { flex:0 0 280px; max-height:calc(100vh - 220px); overflow-y:auto; border-right:1px solid var(--border); padding-right:var(--space-md); }
+    .lib-section { font-size:var(--text-sm); font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text); margin:var(--space-lg) 0 var(--space-xs); padding-bottom:4px; border-bottom:1px solid var(--border); }
+    .lib-section:first-child { margin-top:0; }
     .lib-cat { margin-bottom:var(--space-xs); }
     .lib-cat-head { display:flex; align-items:center; gap:var(--space-sm); cursor:pointer; padding:6px 0; user-select:none; font-weight:600; color:var(--accent); font-size:var(--text-sm); }
     .lib-cat-head:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--radius); }

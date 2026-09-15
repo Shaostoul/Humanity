@@ -264,30 +264,69 @@
       return;
     }
 
+    // Three tiers: section > category > document. Group the categories by the
+    // section the manifest assigned, in the manifest's declared order, so web
+    // and native present the same shape.
+    var order = (manifest.sections || []).slice();
+    cats.forEach(function(c) {
+      if (c.section && order.indexOf(c.section) < 0) order.push(c.section);
+    });
+    if (!order.length) order = [null];   // older manifest: one unnamed group
+
     var html = '';
     var shown = 0;
-    cats.forEach(function(cat, ci) {
+    order.forEach(function(sectionName) {
+      var inSection = cats
+        .map(function(cat, ci) { return { cat: cat, ci: ci }; })
+        .filter(function(x) {
+          return sectionName === null ? true : x.cat.section === sectionName;
+        });
+      if (!inSection.length) return;
+
+      // Only draw the section header once we know it has a visible document
+      // under it, which an active tag filter can easily make false.
+      var sectionHtml = '';
+      var sectionShown = 0;
+      inSection.forEach(function(x) {
+        var r = renderCategory(x.cat, x.ci);
+        sectionHtml += r.html;
+        sectionShown += r.count;
+      });
+      if (!sectionShown) return;
+      shown += sectionShown;
+      if (sectionName) {
+        html += '<div class="lib-section">' + esc(sectionName) + '</div>';
+      }
+      html += sectionHtml;
+    });
+
+    // Returns its own markup and count rather than mutating the outer state,
+    // so the section pass above can decide whether a section has anything
+    // visible in it BEFORE drawing that section's header.
+    function renderCategory(cat, ci) {
       var docs = cat.docs || [];
       // Keep each doc's real index so openDoc(ci, di) still addresses the
       // unfiltered manifest; filtering must not renumber anything.
       var visible = docs.map(function(d, di) { return { d: d, di: di }; })
                         .filter(function(x) { return docHasTag(x.d, tagFilter); });
-      if (!visible.length) return;   // never render an empty category header
-      shown += visible.length;
-      html += '<div class="lib-cat">' +
-        '<div class="lib-cat-head" role="button" tabindex="0" data-cat="' + ci + '">' +
-          '<span class="lib-cat-arrow" id="lib-arrow-' + ci + '">&#9660;</span>' +
-          '<span>' + esc(cat.name) + '</span>' +
-        '</div>' +
-        '<div class="lib-cat-docs" id="lib-docs-' + ci + '">' +
-          visible.map(function(x) {
-            var active = current && current.ci === ci && current.di === x.di;
-            return '<button class="lib-doc' + (active ? ' active' : '') +
-              '" data-ci="' + ci + '" data-di="' + x.di + '">' + esc(x.d.title) + '</button>';
-          }).join('') +
-        '</div>' +
-      '</div>';
-    });
+      if (!visible.length) return { html: '', count: 0 };
+      return {
+        count: visible.length,
+        html: '<div class="lib-cat">' +
+          '<div class="lib-cat-head" role="button" tabindex="0" data-cat="' + ci + '">' +
+            '<span class="lib-cat-arrow" id="lib-arrow-' + ci + '">&#9660;</span>' +
+            '<span>' + esc(cat.name) + '</span>' +
+          '</div>' +
+          '<div class="lib-cat-docs" id="lib-docs-' + ci + '">' +
+            visible.map(function(x) {
+              var active = current && current.ci === ci && current.di === x.di;
+              return '<button class="lib-doc' + (active ? ' active' : '') +
+                '" data-ci="' + ci + '" data-di="' + x.di + '">' + esc(x.d.title) + '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>',
+      };
+    }
     if (!shown && tagFilter) {
       html += '<div class="lib-empty">No documents carry that tag yet.</div>';
     }

@@ -68,6 +68,7 @@ const manifest = {
     'categories of reference docs; the app reads each doc from ' +
     'data/library/<file>. `tags` are defined in data/library/tags.json.',
   tags: tagsDoc.groups || [],
+  sections: catalog._sections || [],
   categories: [],
 };
 
@@ -78,6 +79,10 @@ const rewrites = [];  // {file, src} for the link-rewrite pass
 
 for (const cat of categories) {
   const entry = { name: cat.name, docs: [] };
+  // The section a category belongs to. Three tiers (section > category >
+  // document) rather than two, because a flat 17-category rail was already a
+  // long scroll and the syllabus commits us to far more.
+  if (cat.section) entry.section = cat.section;
   // The Accord subset is flagged so /accord can render exactly those
   // categories from THIS manifest instead of a separate relay endpoint.
   if (cat.accord) entry.accord = true;

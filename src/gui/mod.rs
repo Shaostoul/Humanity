@@ -6817,6 +6817,10 @@ pub fn load_library(data_dir: &std::path::Path) -> LibraryData {
         #[derive(serde::Deserialize)]
         struct DocCat {
             name: String,
+            /// Which top-level section this category belongs to. Absent in older
+            /// manifests, which then all fall into one section as before.
+            #[serde(default)]
+            section: Option<String>,
             #[serde(default)]
             docs: Vec<DocEntry>,
         }
@@ -6835,15 +6839,21 @@ pub fn load_library(data_dir: &std::path::Path) -> LibraryData {
         struct Manifest {
             #[serde(default)]
             categories: Vec<DocCat>,
+            /// Section order, so both clients group identically.
+            #[serde(default)]
+            sections: Vec<String>,
             #[serde(default)]
             tags: Vec<TagGroupDef>,
         }
         if let Some(m) = read_data_json::<Manifest>(data_dir, "library/index.json") {
             let dir = data_dir.join("library");
-            let cats: Vec<LibraryCategory> = m
+            let section_order = m.sections.clone();
+            // (section name, category) pairs, so the grouping below can honour
+            // the manifest's declared section order rather than inventing one.
+            let cats: Vec<(Option<String>, LibraryCategory)> = m
                 .categories
                 .into_iter()
-                .map(|c| LibraryCategory {
+                .map(|c| (c.section.clone(), LibraryCategory {
                     name: c.name,
                     entries: c
                         .docs
@@ -6864,11 +6874,52 @@ pub fn load_library(data_dir: &std::path::Path) -> LibraryData {
                                 })
                         })
                         .collect(),
-                })
-                .filter(|c| !c.entries.is_empty())
+                }))
+                .filter(|(_, c)| !c.entries.is_empty())
                 .collect();
+
+            // Three tiers: section > category > document. Until v0.1308 this
+            // hardcoded ONE section called "HumanityOS" and hung all seventeen
+            // categories off it, so the rail was a flat seventeen-item scroll.
+            // A manifest with no sections still works: everything falls into a
+            // single unnamed group, exactly as before.
             if !cats.is_empty() {
-                sections.push(LibrarySection { name: "HumanityOS".to_string(), categories: cats });
+                let mut order: Vec<String> = section_order;
+                for (sec, _) in cats.iter() {
+                    if let Some(name) = sec {
+                        if !order.iter().any(|o| o == name) {
+                            order.push(name.clone());
+                        }
+                    }
+                }
+                if order.is_empty() {
+                    sections.push(LibrarySection {
+                        name: "HumanityOS".to_string(),
+                        categories: cats.into_iter().map(|(_, c)| c).collect(),
+                    });
+                } else {
+                    let mut remaining = cats;
+                    for name in order {
+                        let (mine, rest): (Vec<_>, Vec<_>) = remaining
+                            .into_iter()
+                            .partition(|(sec, _)| sec.as_deref() == Some(name.as_str()));
+                        remaining = rest;
+                        if !mine.is_empty() {
+                            sections.push(LibrarySection {
+                                name,
+                                categories: mine.into_iter().map(|(_, c)| c).collect(),
+                            });
+                        }
+                    }
+                    // Anything the manifest forgot to place still ships, rather
+                    // than silently vanishing from the Library.
+                    if !remaining.is_empty() {
+                        sections.push(LibrarySection {
+                            name: "Other".to_string(),
+                            categories: remaining.into_iter().map(|(_, c)| c).collect(),
+                        });
+                    }
+                }
             }
             tag_groups = m
                 .tags
