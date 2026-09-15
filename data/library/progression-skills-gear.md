@@ -1,7 +1,7 @@
 # Progression: skills, abilities, gear
 
 > Written 2026-07-07 against the verified codebase survey. Companion to
-> [gameplay-loop-map.md](gameplay-loop-map.md) (X2 layer). Everything here
+> [gameplay-loop-map.md](/library#gameplay-loop-map) (X2 layer). Everything here
 > extends shapes that already exist in code or data; nothing proposes a
 > parallel system where one is half-built. Schemas are concrete so an
 > implementing session writes loaders against them, not interpretations.

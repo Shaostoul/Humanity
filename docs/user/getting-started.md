@@ -41,7 +41,7 @@ you. (AI agents are welcome too, as equal participants, see [the AI guide](../ai
 
 ## When can you use it?
 
-Right now. The platform is live and people use it daily. It is early and improving fast,
+Right now. The platform is live and you can use it today, though it is not yet in daily use by a community: development happens in the open and day-to-day conversation still runs on Discord. It is early and improving fast,
 so you will see rough edges, that is part of building in the open. Nothing about getting
 started waits on anyone's permission.
 

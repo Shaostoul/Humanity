@@ -1,10 +1,15 @@
 # HumanityOS Roadmap
 
-> **This is the single source of truth for where HumanityOS is going.** It is both
+> **STRATEGIC roadmap. For what is being worked on RIGHT NOW, read
+> `docs/PRIORITIES.md`,** which is the tactical list and moves far faster than
+> this file. This document is the themed, public view; when the two disagree,
+> PRIORITIES is newer.
+>
+> **This is the source of truth for where HumanityOS is going.** It is both
 > the public roadmap (so anyone can see what we are building and why) and the build
 > to-do list (the maintainers work the items here in order). When the to-do list
 > changes, this file changes, and the public roadmap at
-> [united-humanity.us/roadmap](https://united-humanity.us/pages/roadmap.html)
+> [united-humanity.us/roadmap](https://united-humanity.us/roadmap)
 > updates with it. One list. Everyone sees the same thing.
 
 **Mission:** end poverty and unite humanity, by giving every person (and every AI)
@@ -130,7 +135,11 @@ server operator cannot read your private messages.
 - `[done]` Release signing: a hybrid Ed25519 + Dilithium3 signature on every release
   (both must verify), so a compromised GitHub or a stray tag can never push code to
   your machine (v0.418 to v0.421).
-- `[next]` Member-directory opt-out: a privacy setting so you can join a server
+- `[done]` Member-directory opt-out, plus the rest of the 2026-08 privacy arc:
+  sealed-sender DMs (the relay stores no sender and no DM social graph), removal
+  of the server-side follows graph, client-held friendship certificates, DM size
+  padding, encrypted backups, EXIF stripping on upload, and an opt-in Tor onion
+  service. A privacy setting so you can join a server
   without appearing in its public member list, with a user-facing toggle.
 - `[planned]` Self-custodial vs server-authoritative characters: your identity and look
   are always yours; a server holds your in-world progression only when you choose its

@@ -14,110 +14,33 @@ Last updated: v0.113.0 (2026-04-25).
 
 4. **Component parity.** A widget that exists in native has a matching CSS class in web with the same visual signature. A widget that exists only in web is a bug unless explicitly marked web-only in this doc.
 
-5. **Infinite-of-X.** Anything that can exist more than once is a data file, not code. See [`infinite-of-x.md`](./infinite-of-x.md).
+5. **Infinite-of-X.** Anything that can exist more than once is a data file, not code. See [`infinite-of-x.md`](/library#infinite-of-x).
 
 6. **Settings-page theming.** Because every widget reads from theme tokens, the Settings page only needs to override `:root` CSS variables (web) or mutate `Theme` fields (native) to restyle the entire app. New widgets must follow this rule or they break the settings contract.
 
-## Canonical color palette
+## Tokens: colour, spacing, typography, radii
 
-The values below are in `data/gui/theme.ron`. When this doc disagrees with the RON file, the RON file wins and this doc needs updating.
+**The tokens are not listed here, deliberately.** `data/gui/theme.ron` is the
+canonical source, native reads it directly, and `scripts/gen-theme-css.js`
+regenerates `web/shared/theme.css` from it. Earlier revisions of this document
+transcribed every value into three tables and they drifted, which is the
+predictable outcome: the RON stores colours as float tuples while the tables
+showed hex, so the two could never be compared by eye, and the file is
+live-edited from the Settings theme editor, so any snapshot is stale as soon as
+somebody moves a slider.
 
-| Token | Hex | Used for |
-|-------|-----|----------|
-| `bg_primary` | `#0a0a0c` | Deepest surface, app background |
-| `bg_secondary` | `#141418` | Next-deepest (chat center panel, modal body) |
-| `bg_tertiary` | `#252530` | Raised surfaces, hover states |
-| `bg_card` | `#1a1a22` | Cards, content containers |
-| `bg_modal` | `rgba(0,0,0,0.7)` | Modal backdrop scrim |
-| `bg_panel` | `#141419` | Standard page content panels |
-| `bg_sidebar` | `#16161c` | Sidebar column |
-| `bg_sidebar_dark` | `#1e1e24` | Darker sidebar (chat left panel) |
-| `accent` | `#ED8C24` | Primary orange (buttons, highlights, focus) |
-| `accent_hover` | `#FFA63D` | Hovered accent |
-| `accent_pressed` | `#CC7319` | Pressed accent |
-| `text_primary` | `#e8e8ea` | Main text |
-| `text_secondary` | `#888894` | Labels, secondary text |
-| `text_muted` | `#6a6a75` | Hints, captions |
-| `text_on_accent` | `#0d0d0d` | Text on orange buttons |
-| `success` | `#33bf4d` | Positive state (green) |
-| `warning` | `#f2bf1a` | Caution (amber) |
-| `danger` | `#e6403d` | Errors, destructive |
-| `info` | `#3380e6` | Informational blue |
-| `border` | `#2a2a35` | Default borders |
-| `border_focus` | `#ED8C24` | Focused border (accent) |
+To read the current values, open `data/gui/theme.ron`, or open Settings and
+look at the theme editor, which renders every token by definition:
+`cargo test --test theme_editor_coverage` fails if a token exists without an
+editable row.
 
-**Role badge colors** (used by native `role_badge` widget and web chat badges):
+The rules that do belong here, because they are rules rather than values:
 
-| Token | Hex | Role |
-|-------|-----|------|
-| `badge_admin` | `#e68021` | Admin |
-| `badge_mod` | `#26ad61` | Moderator |
-| `badge_verified` | `#3394d9` | Verified |
-| `badge_donor` | `#9c59b5` | Donor |
-| `badge_live` | `#e64d3d` | Live / streaming |
-
-**Chat tint colors** (context-aware backgrounds):
-
-| Token | Hex | Area |
-|-------|-----|------|
-| `dm_bg` / `dm_row_bg` / `dm_row_hover` | red tints | DM section |
-| `group_bg` / `group_row_bg` / `group_row_hover` | green tints | Groups |
-| `server_bg` / `server_row_bg` / `server_row_hover` | blue tints | Servers |
-
-## Spacing and sizing
-
-| Token | Value | Web equivalent |
-|-------|-------|----------------|
-| `spacing_xs` | 2 | `--space-xs` |
-| `spacing_sm` | 4 | `--space-sm` |
-| `spacing_md` | 8 | `--space-md` |
-| `spacing_lg` | 12 | `--space-lg` |
-| `spacing_xl` | 16 | `--space-xl` |
-| `row_gap` | 2 | used inline |
-| `section_gap` | 4 | used inline |
-| `item_padding` | 4 | used inline |
-| `panel_margin` | 6 | used inline |
-| `card_padding` | 8 | used inline |
-
-Sizes (component heights, widget sizing):
-
-| Token | Value |
-|-------|-------|
-| `button_height` | 24 |
-| `button_padding_h` | 10 |
-| `input_height` | 24 |
-| `sidebar_width` | 240 |
-| `modal_width` | 440 |
-| `icon_size` | 14 |
-| `icon_small` | 12 |
-| `row_height` | 18 |
-| `header_height` | 24 |
-| `status_dot_size` | 6 |
-| `checkbox_size` | 14 |
-| `settings_label_width` | 160 |
-
-## Typography
-
-| Token | Value | Notes |
-|-------|-------|-------|
-| `font_size_small` | 11 | Captions, badges |
-| `font_size_body` | 13 | Body copy |
-| `font_size_heading` | 16 | Section heading |
-| `font_size_title` | 22 | Page title |
-| `name_size` | 13 | User names in chat |
-| `body_size` | 13 | Widget body |
-| `small_size` | 11 | Widget captions |
-| `heading_size` | 15 | Widget section |
-| `title_size` | 20 | Widget title |
-
-## Radii
-
-| Token | Value | Used for |
-|-------|-------|----------|
-| `border_radius` | 4 | Standard buttons, cards |
-| `border_radius_lg` | 8 | Modals |
-| `border_radius_widget` | 3 | Widget containers |
-| `badge_radius` | 3 | Role badges, chips |
+- Never hardcode a colour. `cargo test --test theme_token_lint` fails the build
+  on a new `Color32::from_rgb(...)` under `src/gui/` or `src/renderer/`.
+- Add a token to `theme.ron` AND an accessor in `src/gui/theme.rs`. Adding one
+  without wiring it into the Settings editor breaks the coverage test.
+- Do not hand-edit `web/shared/theme.css`. Edit the RON and run `just theme`.
 
 ## Component registry
 
@@ -154,7 +77,7 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 | Sidebar frame | `sidebar_frame` | `.sidebar` | `bg_sidebar`, `panel_margin` |
 | Section header | `section_header` | `h2.section-heading` | `heading_size`, `text_primary`, `section_gap`, `row_gap` |
 | Themed separator | `themed_separator` | `<hr>` | `section_gap` |
-| Modal | `modal::modal_dialog` | `.hos-help-backdrop` + `.hos-help-modal` | `bg_modal`, `bg_card`, `border`, `border_radius_lg`, `card_padding`, `modal_width` |
+| Modal | `widgets::dialog::dialog` / `dialog_anchored` | `.hos-help-backdrop` + `.hos-help-modal` | `bg_modal`, `bg_card`, `border`, `border_radius_lg`, `card_padding`, `modal_width` |
 | Help button (`?`) | (new, see below) | `.hos-help-btn` | `border`, `text_muted`, `accent` |
 | Help modal | (new, see below) | already done | same as modal |
 | Onboarding quest chain | (new, see below) | `.quest-chain` / `.quest-step` | card tokens + `accent`, `border`, `small_size` |
@@ -264,17 +187,16 @@ To add a help button next to any UI element:
 
 - [x] `data/gui/theme.ron` is the canonical token source.
 - [x] `src/gui/theme.rs` loads theme.ron natively.
-- [ ] `scripts/gen-theme-css.js` generates `web/shared/theme.css` from `theme.ron`. **In progress v0.91.5.**
-- [ ] Web color palette aligned with native. **Migration required; web currently uses `#FF8811` but native uses `#ED8C24`.**
+- [x] `scripts/gen-theme-css.js` generates `web/shared/theme.css` from `theme.ron`.
+- [x] Web colour palette aligned with native (one source, regenerated by `just theme`).
 - [x] Universal help modal (web).
-- [ ] Universal help modal (native). **In progress v0.91.5.**
-- [x] Onboarding page (web, `/onboarding`).
-- [ ] Onboarding page (native, `GuiPage::Onboarding`). **In progress v0.91.5.**
-- [ ] Toast notifications (both).
+- [x] Universal help modal (native), `src/gui/widgets/help_modal.rs`.
+- [x] Onboarding (web, `/onboarding`).
+- [x] Onboarding (native). The standalone page was folded into Tasks/Quests in
+      v0.415.0; `onboarding::draw_quests` is called from `src/gui/pages/tasks.rs`.
+- [x] Toast notifications (native, `widgets::draw_toasts`).
 - [ ] Confirmation dialog (both).
-- [ ] Context menu with role-colored sections (both).
-
-When a checkbox flips to `[x]`, bump its status and the version in the "Last updated" line above.
+- [ ] Context menu with role-coloured sections (both).
 
 ## Every page must earn its existence (operator principle, 2026-06-30)
 
@@ -290,58 +212,21 @@ merge, name specifically what would be lost by the other choice.
 
 ## Page parity (web ↔ native)
 
-The dual-UI rule from CLAUDE.md: every UI pattern must be implementable in
-native egui first; web mirrors. Pages that don't have parity must be documented
-here with the reason.
+**The inventory is not duplicated here any more.** This document used to carry a
+hand-maintained list snapshotted at v0.124.0, and by 2026-09 it named three pages
+that exist in neither client and two that are no longer native pages at all.
 
-Inventory at v0.124.0:
+The enforced sources, which cannot drift without failing a build:
 
-### Both (true parity)
+- `docs/PAGES.md` is the canonical page registry, and its heading carries the
+  live native and web page counts.
+- `cargo test --test page_registry_lint` checks every page is registered.
+- `cargo test --test page_parity_lint` checks the web and native sets against
+  each other and requires a written reason for each deliberate difference.
 
-These pages exist in both `web/pages/<name>.html` and `src/gui/pages/<name>.rs`
-and surface the same data. Changes to one should land in the other.
-
-`agents`, `ai_usage`, `bugs`, `calculator`, `calendar`, `civilization`,
-`crafting`, `donate`, `files`, `governance`, `guilds`, `identity`, `inventory`,
-`maps`, `market`, `notes`, `onboarding`, `profile`, `recovery`, `resources`,
-`settings`, `tasks`, `tools`, `trade`, `wallet`.
-
-### Web-only (documented exception)
-
-| Page | Reason for exception |
-|------|----------------------|
-| `index.html`, `home.html` | Landing pages, entry points before identity, render server-name + onboarding CTA. Not meaningful in the native client (which jumps straight to chat). |
-| `dashboard.html` | Operator-facing live metrics view, web-rendered for at-a-glance check-ins. The native equivalent is the in-game HUD. |
-| `download.html` | Install links for the desktop binary. Trivially redundant inside the desktop binary. |
-| `web.html` | About-the-web-version explainer. Native users don't need it. |
-| `roadmap.html` | Public-facing roadmap, marketing-shaped. Could port if a native version is desired. |
-| `projects.html` | Project Universe historical timeline. Marketing-shaped; not gameplay. |
-| `data.html` | Local-storage management for the browser tab (saves, USB import/export). Native has its own data flow via `%APPDATA%\HumanityOS\`. |
-
-### Web-only (parity gap: port to native if a native admin emerges)
-
-| Page | Notes |
-|------|-------|
-| `admin.html` | Server admin dashboard. Operators today run this from the web. A native equivalent would let admins drive the relay from the desktop client. Open question; not blocking. |
-| `ops.html` | Operations console (build info, debug controls). Same situation as `admin.html`. |
-| `dev.html` | Developer tools (debug logs, perf overlay). Could absorb into the native `escape_menu` debug section instead of a standalone page. |
-| `wallet-guide.html` | 9-section beginner crypto guide. Long-form text; suits a web reading experience. Low priority for native port. |
-
-### Native-only (documented exception)
-
-| Page | Reason for exception |
-|------|----------------------|
-| `main_menu.rs`, `escape_menu.rs`, `hud.rs` | In-game overlays. The web client doesn't have a 3D world to overlay onto. |
-| `chat.rs` | Desktop 3-panel chat. The web version is the multi-page client at `web/chat/` (different shape, split across `app.js`, `chat-*.js` modules). Both surface the same relay API; the native version is not a 1:1 mirror of any single web HTML page. |
-| `studio.rs` | Streaming/broadcasting studio. Bound to local OS capture devices (camera, screen, microphone) which the browser sandbox cannot access in the same way. Not portable as-is. |
-| `server_settings.rs` | Local relay configuration for self-hosters running the desktop binary in `--headless` mode on the same machine. Duplicates `/admin` for the local operator. |
-| `placeholder.rs` | Template for new pages, not user-visible. |
-
-### Maintenance rule
-
-When a new page lands in either UI, update this table. If the page is
-intentionally one-sided, it must appear under "documented exception" with the
-reason. Empty boxes in the parity audit are a dual-UI bug.
+The RULE still belongs here: when a web feature adds a UI pattern, ask whether
+native needs it. If yes, port it before shipping. If no, record why in the
+parity lint rather than letting the two silently diverge.
 
 ## Verifying the native UI (snapshots + headless interaction)
 

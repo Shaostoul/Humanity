@@ -334,7 +334,7 @@ The path that gets the most decoupling per unit of effort:
    CI mirrors every future tagged release via `appleboy/scp-action`,
    and the manifest at `/releases/manifest.json` is regenerated
    automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
-   `latest` is a symlink to the newest `vX.Y.Z` directory. The
+   (A `latest` symlink is NOT published: /releases/latest/ returns 404 as of 2026-09-14. Read `manifest.json` for the newest tag instead.) The
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
    URL in a follow-up, for now it's a working mirror that anyone can
    `wget` from independently of GitHub.

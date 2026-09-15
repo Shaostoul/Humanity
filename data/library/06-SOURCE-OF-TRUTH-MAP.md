@@ -7,8 +7,8 @@ This file links **vision -> design docs -> implementation status** so new humans
 > `design/product/`, `design/systems/`, `design/core/`) are **illustrative groupings,
 > not the on-disk layout**, the actual `docs/design/` folder is **flat** (files live
 > directly in `design/`, not in product/systems/core subfolders). For the real, current
-> picture use **[../../CLAUDE.md](../../CLAUDE.md)** (architecture + file map) and the
-> docs router **[../README.md](../README.md)**. Treat the cited subpaths below as
+> picture use **[../../CLAUDE.md](https://github.com/Shaostoul/Humanity/blob/main/CLAUDE.md)** (architecture + file map) and the
+> docs router **[../README.md](https://github.com/Shaostoul/Humanity/blob/main/docs/README.md)**. Treat the cited subpaths below as
 > "the design doc named X exists somewhere under design/", not as exact paths.
 
 Last updated: 2026-05-15 (reality note added 2026-06-12)

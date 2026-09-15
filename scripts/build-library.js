@@ -74,6 +74,7 @@ const manifest = {
 let copied = 0;
 const missing = [];
 const used = new Set();
+const rewrites = [];  // {file, src} for the link-rewrite pass
 
 for (const cat of categories) {
   const entry = { name: cat.name, docs: [] };
@@ -96,7 +97,20 @@ for (const cat of categories) {
     }
     used.add(file.toLowerCase());
 
+    // Rewrite the doc's own cross-references as it is copied. Sources live in
+    // a folder tree (docs/user/, docs/admin/, ...) and link to each other
+    // relatively, but the Library flattens everything into one directory, so
+    // every "../admin/SELF-HOSTING.md" style link was dead in the shipped app
+    // and on the website. 21 of them across 6 documents, including the
+    // getting-started hand-off to self-hosting.
+    //
+    // A link whose target IS in the catalogue becomes the Library's own deep
+    // link (/library#<slug>, the grammar web/pages/library-app.js already
+    // implements). A link to something NOT shipped becomes a GitHub URL, which
+    // at least resolves. Both are computed in pass 2 below, once every
+    // catalogue entry's flat filename is known.
     fs.copyFileSync(d.src, path.join(LIB, file));
+    rewrites.push({ file, src: d.src });
     const doc = { title: d.title, file };
     if (d.tags && d.tags.length) doc.tags = d.tags;
     entry.docs.push(doc);
@@ -106,6 +120,34 @@ for (const cat of categories) {
   if (entry.docs.length) manifest.categories.push(entry);
 }
 
+// ── Pass 2: rewrite cross-document links now that every flat name is known ──
+// srcPath -> flat shipped filename, for everything in the catalogue.
+const shipped = new Map();
+const toPosix = p => p.split(path.sep).join('/').replace(/\\/g, '/');
+for (const r of rewrites) shipped.set(path.posix.normalize(toPosix(r.src)), r.file);
+
+const GITHUB = 'https://github.com/Shaostoul/Humanity/blob/main/';
+const slugOf = f => f.replace(/\.md$/i, '').replace(/_/g, '-').toLowerCase();
+
+let linksRewritten = 0, linksToGithub = 0;
+for (const r of rewrites) {
+  const p = path.join(LIB, r.file);
+  const before = fs.readFileSync(p, 'utf8');
+  const srcDir = path.posix.dirname(toPosix(r.src));
+
+  const after = before.replace(/\]\(([^)\s]+\.md)(#[^)]*)?\)/g, (whole, target, frag) => {
+    if (/^https?:/i.test(target)) return whole;
+    const abs = path.posix.normalize(path.posix.join(srcDir, target));
+    const flat = shipped.get(abs);
+    if (flat) { linksRewritten++; return '](/library#' + slugOf(flat) + ')'; }
+    // Not shipped in the Library: point at the repo so it at least resolves.
+    linksToGithub++;
+    return '](' + GITHUB + abs + (frag || '') + ')';
+  });
+
+  if (after !== before) fs.writeFileSync(p, after);
+}
+console.log('library: rewrote ' + linksRewritten + ' cross-doc links to /library#slug, ' + linksToGithub + ' to GitHub');
 fs.writeFileSync(path.join(LIB, 'index.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log(
   'library: copied ' + copied + ' docs into ' + LIB + '/ across ' +

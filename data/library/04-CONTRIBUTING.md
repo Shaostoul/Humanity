@@ -6,8 +6,8 @@ Make it easy for humans and AIs to contribute safely with minimal onboarding.
 
 ## Before coding
 
-1. Read [`00-START-HERE.md`](./00-START-HERE.md)
-2. Read [`02-ARCHITECTURE.md`](./02-ARCHITECTURE.md) and `../../CLAUDE.md`
+1. Read [`00-START-HERE.md`](/library#00-start-here)
+2. Read [`02-ARCHITECTURE.md`](/library#02-architecture) and `../../CLAUDE.md`
 3. Check `docs/FEATURES.md`, don't rebuild what exists
 4. If your change shifts strategic scope, update `docs/ROADMAP.md` in the same
    change (there is no separate ADR/`docs/decisions/` process, decisions live in

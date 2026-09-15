@@ -62,7 +62,7 @@ Everything here is public domain. This belongs to everyone, present and future.
 
 ## The State of the Project
 
-The platform is **live and actively used** at
+The platform is **live and open to use**, though not yet in daily community use, at
 [united-humanity.us](https://united-humanity.us). It ships new releases continuously
 (hundreds shipped since early 2026), so any specific feature count or file layout
 written here would be stale within days. For a snapshot that stays accurate, read:

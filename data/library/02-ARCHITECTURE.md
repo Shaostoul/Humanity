@@ -2,7 +2,7 @@
 
 > The full, always-current architecture (file map, build commands, the canonical
 > cryptography table, the non-negotiable design rules) lives in
-> **[../../CLAUDE.md](../../CLAUDE.md)**. This page is the orientation; CLAUDE.md is the
+> **[../../CLAUDE.md](https://github.com/Shaostoul/Humanity/blob/main/CLAUDE.md)**. This page is the orientation; CLAUDE.md is the
 > source of truth.
 
 ## One crate, one binary
@@ -66,7 +66,7 @@ code, but in brief:
 
 ## Where to go next
 
-- **[03-MODULE-MAP.md](03-MODULE-MAP.md)** what each module is for, in plain language.
-- **[06-SOURCE-OF-TRUTH-MAP.md](06-SOURCE-OF-TRUTH-MAP.md)** which file wins when docs
+- **[03-MODULE-MAP.md](/library#03-module-map)** what each module is for, in plain language.
+- **[06-SOURCE-OF-TRUTH-MAP.md](/library#06-source-of-truth-map)** which file wins when docs
   disagree, and what is real versus planned.
 - **[../design/](../design/)** the deeper design specs per system.

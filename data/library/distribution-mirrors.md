@@ -326,7 +326,7 @@ small-scale usage.
 The path that gets the most decoupling per unit of effort:
 
 1. **Self-hosted Forgejo on the VPS** ✅ shipped v0.127.0, see
-   [`forgejo-setup.md`](forgejo-setup.md).
+   [`forgejo-setup.md`](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/forgejo-setup.md).
 2. **Codeberg mirror**, non-profit external mirror, signup +
    `git remote add`. ~30 min.
 3. **VPS release mirror** ✅ shipped v0.128.0, live at
@@ -334,12 +334,12 @@ The path that gets the most decoupling per unit of effort:
    CI mirrors every future tagged release via `appleboy/scp-action`,
    and the manifest at `/releases/manifest.json` is regenerated
    automatically by `/usr/local/bin/regen-releases-manifest` on the VPS.
-   `latest` is a symlink to the newest `vX.Y.Z` directory. The
+   (A `latest` symlink is NOT published: /releases/latest/ returns 404 as of 2026-09-14. Read `manifest.json` for the newest tag instead.) The
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
    URL in a follow-up, for now it's a working mirror that anyone can
    `wget` from independently of GitHub.
 4. **BitTorrent seeder + magnet URIs** ⚠ built v0.129.0, NOT SERVING as of
-   2026-09-14, see [`torrent-infrastructure.md`](torrent-infrastructure.md).
+   2026-09-14, see [`torrent-infrastructure.md`](/library#torrent-infrastructure).
    The transmission-daemon wiring shipped, but the live
    `/releases/manifest.json` carries zero magnet fields across its ten
    releases and `.torrent` siblings 404. HTTPS is the only working fetch
@@ -349,7 +349,7 @@ The path that gets the most decoupling per unit of effort:
    per-file URLs point at `git.united-humanity.us`, which is absent from its
    TLS certificate's SAN list, so delta sync fails for any client that
    validates TLS. Server fix, noted in torrent-infrastructure.md. 
-   see [`torrent-infrastructure.md#layered-architecture`](torrent-infrastructure.md).
+   see [`torrent-infrastructure.md#layered-architecture`](/library#torrent-infrastructure).
    Each release now ships a separate `HumanityOS-data-<version>.tar.gz`
    (data + assets, no binary) and a `data-manifest-<version>.json` with
    per-file SHA-256 hash + Forgejo per-file URL. Enables file-level

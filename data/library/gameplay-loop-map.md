@@ -13,9 +13,9 @@
 > claim checked against lib.rs register calls + tests/engine_wiring_lint.rs).
 > This was the CURRENT-STATE vs DESIGNED-STATE picture of every gameplay loop,
 > with an ordered closure ladder at the end. Companion docs:
-> [progression-skills-gear.md](progression-skills-gear.md) (skills, abilities,
-> gear), [engagement-modes.md](engagement-modes.md) (one sim depth, five
-> engagement modes), [decision-briefs.md](decision-briefs.md) (open taste
+> [progression-skills-gear.md](/library#progression-skills-gear) (skills, abilities,
+> gear), [engagement-modes.md](https://github.com/Shaostoul/Humanity/blob/main/docs/design/engagement-modes.md) (one sim depth, five
+> engagement modes), [decision-briefs.md](https://github.com/Shaostoul/Humanity/blob/main/docs/design/decision-briefs.md) (open taste
 > calls), docs/FEATURES.md (feature inventory).
 >
 > **The thesis (from the vision):** the hierarchy of needs IS the progression
@@ -236,7 +236,7 @@ not a separate genre bolted on.
 
 ## X2: PROGRESSION
 
-Covered in full in [progression-skills-gear.md](progression-skills-gear.md).
+Covered in full in [progression-skills-gear.md](/library#progression-skills-gear).
 Summary of current state: 20 skills live with learn-by-doing XP (10 have no
 trainer); quests tick but 3 of 5 objective types have no event emitters, no
 accept UI, and no persistence; equipment slots are cosmetic page-state;

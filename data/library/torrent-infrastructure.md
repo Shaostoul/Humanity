@@ -1,7 +1,7 @@
 # BitTorrent Seeder + Magnet URIs
 
 > Status: BUILT but NOT CURRENTLY SERVING (checked 2026-09-14).
-> Step 4 of the [distribution-sovereignty](distribution-mirrors.md) plan.
+> Step 4 of the [distribution-sovereignty](/library#distribution-mirrors) plan.
 >
 > The seeder and the manifest wiring shipped in v0.129.0, but the live
 > manifest carries no magnets today. Fetched on 2026-09-14 it lists ten
@@ -21,7 +21,7 @@ published in the manifest at
 [united-humanity.us/releases/manifest.json](https://united-humanity.us/releases/manifest.json).
 Client devices that download a release become seeders themselves, so the
 swarm scales with users, exactly the architecture
-[`distribution-mirrors.md`](distribution-mirrors.md) describes.
+[`distribution-mirrors.md`](/library#distribution-mirrors) describes.
 
 ## What's running
 

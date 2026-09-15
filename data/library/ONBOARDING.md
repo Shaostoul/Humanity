@@ -1,10 +1,10 @@
 # Humanity: The Fuller Story
 
-You've read [getting-started.md](getting-started.md). This is the longer version, the
+You've read [getting-started.md](/library#getting-started). This is the longer version, the
 two layers, the Humanity Accord, and where the project actually stands today.
 
 If you want to build or contribute rather than just use it, this is the wrong door,
-go to **[docs/contributor/00-START-HERE.md](../contributor/00-START-HERE.md)** instead.
+go to **[docs/contributor/00-START-HERE.md](/library#00-start-here)** instead.
 It has the real architecture, file map, and a "first day in this repo" walkthrough kept
 current with the code (this document is not, by design, it is for users, not builders).
 
@@ -26,8 +26,8 @@ life-OS, but:
 What's live right now: chat channels, end-to-end encrypted DMs, voice/video calls,
 streaming, follow system, project boards, marketplace, asset library, inventory
 tracking, skills, maps, calendar, dashboard, and more. See
-**[docs/STATUS.md](../STATUS.md)** for the full, currently-accurate feature inventory
-and **[docs/ROADMAP.md](../ROADMAP.md)** for what's coming next; both are living
+**[docs/STATUS.md](https://github.com/Shaostoul/Humanity/blob/main/docs/STATUS.md)** for the full, currently-accurate feature inventory
+and **[docs/ROADMAP.md](/library#roadmap)** for what's coming next; both are living
 documents updated every release, unlike the snapshot below.
 
 ### Layer 2: The simulation (the game)
@@ -43,7 +43,7 @@ toggle" section if you're curious why it isn't called "Game").
 A living document of civilizational principles, non-negotiable ethical foundations that
 all servers must adopt to earn verified status. Think of it as the constitution.
 Everything in this project must conform to it. Read it at
-**[docs/accord/humanity_accord.md](../accord/humanity_accord.md)**.
+**[docs/accord/humanity_accord.md](/library#humanity-accord)**.
 
 ---
 
@@ -62,21 +62,21 @@ Everything here is public domain. This belongs to everyone, present and future.
 
 ## The State of the Project
 
-The platform is **live and actively used** at
+The platform is **live and open to use**, though not yet in daily community use, at
 [united-humanity.us](https://united-humanity.us). It ships new releases continuously
 (hundreds shipped since early 2026), so any specific feature count or file layout
 written here would be stale within days. For a snapshot that stays accurate, read:
 
-- **[docs/STATUS.md](../STATUS.md)**, what's built, partial, or planned, feature by feature
-- **[docs/ROADMAP.md](../ROADMAP.md)**, the public strategic roadmap
-- **[docs/PAGES.md](../PAGES.md)**, every page in the app (native + web) with its purpose
+- **[docs/STATUS.md](https://github.com/Shaostoul/Humanity/blob/main/docs/STATUS.md)**, what's built, partial, or planned, feature by feature
+- **[docs/ROADMAP.md](/library#roadmap)**, the public strategic roadmap
+- **[docs/PAGES.md](https://github.com/Shaostoul/Humanity/blob/main/docs/PAGES.md)**, every page in the app (native + web) with its purpose
 
 What's solid and working: chat, DMs, voice/video, streaming, the full communication
 layer; post-quantum cryptographic identity and end-to-end encryption; federation
 (server discovery, trust tiers); construction/home-building; farming and skills;
 inventory and marketplace.
 
-What's actively being built: check the top of **[docs/PRIORITIES.md](../PRIORITIES.md)**,
+What's actively being built: check the top of **[docs/PRIORITIES.md](https://github.com/Shaostoul/Humanity/blob/main/docs/PRIORITIES.md)**,
 that is the single ranked source for "what's happening right now."
 
 ---
@@ -100,14 +100,14 @@ key exchange, deriving an AES-256-GCM key so the server never sees DM content.
 
 This is a summary. The canonical, always-current crypto inventory (with exact algorithm
 names, file locations, and activation status) lives in the "Cryptography" section of
-**[CLAUDE.md](../../CLAUDE.md)**, read that before quoting any algorithm in your own
+**[CLAUDE.md](https://github.com/Shaostoul/Humanity/blob/main/CLAUDE.md)**, read that before quoting any algorithm in your own
 writing.
 
 ---
 
 ## The Accord (Read Before Proposing Changes)
 
-The [Humanity Accord](../accord/humanity_accord.md) defines what this project must
+The [Humanity Accord](/library#humanity-accord) defines what this project must
 never do. It's short. Read it.
 
 Non-negotiable prohibitions include anything involving sexual violence, child
@@ -122,7 +122,7 @@ different backgrounds to cooperate.
 ## Want to Help Build It?
 
 Good work speaks for itself. Start at
-**[docs/contributor/00-START-HERE.md](../contributor/00-START-HERE.md)**, it has the
+**[docs/contributor/00-START-HERE.md](/library#00-start-here)**, it has the
 real, currently-maintained architecture map, module layout, and a first safe task to
 try. This document intentionally stops here, anything more technical belongs there, not
 in the user-facing folder.

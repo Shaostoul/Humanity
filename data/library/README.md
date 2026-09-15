@@ -7,9 +7,9 @@ you want to actually own your data while you do it.
 
 ## Start here
 
-- **[getting-started.md](getting-started.md)** the plain-language quickstart: what
+- **[getting-started.md](/library#getting-started)** the plain-language quickstart: what
   HumanityOS is, why it exists, and how to begin in a few minutes.
-- **[ONBOARDING.md](ONBOARDING.md)** the fuller story: the two layers (the platform and
+- **[ONBOARDING.md](/library#onboarding)** the fuller story: the two layers (the platform and
   the game), the Humanity Accord, and where the project stands.
 
 ## What you can do today

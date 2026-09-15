@@ -13,36 +13,36 @@ community a home without becoming its gatekeeper.
 
 ## Start here
 
-- **[SELF-HOSTING.md](SELF-HOSTING.md)** run your own relay in under 10 minutes. One
+- **[SELF-HOSTING.md](/library#self-hosting)** run your own relay in under 10 minutes. One
   binary, SQLite built in, no external services required.
 
 ## Operations and infrastructure
 
-- **[security-hardening-tasks.md](security-hardening-tasks.md)** the operator-only
+- **[security-hardening-tasks.md](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/security-hardening-tasks.md)** the operator-only
   security items from the 2026-06-12 audit (nginx edge rate limit, GitHub branch
   protection, release signing). The code-side fixes are already shipped; these live in
   GitHub settings or the VPS config.
-- **[release-signing.md](release-signing.md)** how releases are cryptographically signed
+- **[release-signing.md](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/release-signing.md)** how releases are cryptographically signed
   so the auto-updater only ever installs trusted code. Read this before you publish
   builds.
-- **[tor-onion-service.md](tor-onion-service.md)** optional: run a Tor v3 onion service
+- **[tor-onion-service.md](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/tor-onion-service.md)** optional: run a Tor v3 onion service
   so users can reach your relay without revealing their IP address. Opt-in and additive;
   the clearnet endpoint is unchanged. The application-layer answer to connection-level
   IP exposure.
-- **[distribution-mirrors.md](distribution-mirrors.md)** distributing HumanityOS beyond
+- **[distribution-mirrors.md](/library#distribution-mirrors)** distributing HumanityOS beyond
   GitHub (mirrors, torrents, archives) so it survives any single host going down.
-- **[torrent-infrastructure.md](torrent-infrastructure.md)** the BitTorrent seeder setup
+- **[torrent-infrastructure.md](/library#torrent-infrastructure)** the BitTorrent seeder setup
   for sovereign, censorship-resistant distribution.
-- **[forgejo-setup.md](forgejo-setup.md)** running the self-hosted Forgejo git mirror.
+- **[forgejo-setup.md](https://github.com/Shaostoul/Humanity/blob/main/docs/admin/forgejo-setup.md)** running the self-hosted Forgejo git mirror.
 
 ## Related
 
 - Live-ops notes (backup replication and the like) live in
   **[../operations/](../operations/)**.
 - Incident recipes for when something breaks are in
-  **[../INCIDENT-PLAYBOOK.md](../INCIDENT-PLAYBOOK.md)**.
-- The team's operational posture: **[../SECURITY-CADENCE.md](../SECURITY-CADENCE.md)**,
-  **[../HEALTH-DASHBOARD.md](../HEALTH-DASHBOARD.md)**, **[../BUS-FACTOR.md](../BUS-FACTOR.md)**.
+  **[../INCIDENT-PLAYBOOK.md](https://github.com/Shaostoul/Humanity/blob/main/docs/INCIDENT-PLAYBOOK.md)**.
+- The team's operational posture: **[../SECURITY-CADENCE.md](https://github.com/Shaostoul/Humanity/blob/main/docs/SECURITY-CADENCE.md)**,
+  **[../HEALTH-DASHBOARD.md](https://github.com/Shaostoul/Humanity/blob/main/docs/HEALTH-DASHBOARD.md)**, **[../BUS-FACTOR.md](https://github.com/Shaostoul/Humanity/blob/main/docs/BUS-FACTOR.md)**.
 
 ## A note on the GUI-first goal
 

@@ -152,9 +152,9 @@
           "text": "Release signing: a hybrid Ed25519 + Dilithium3 signature on every release (both must verify), so a compromised GitHub or a stray tag can never push code to your machine."
         },
         {
-          "status": "next",
+          "status": "done",
           "version": null,
-          "text": "Member-directory opt-out: a privacy setting so you can join a server without appearing in its public member list, with a user-facing toggle."
+          "text": "Member-directory opt-out, plus the rest of the 2026-08 privacy arc: sealed-sender DMs (the relay stores no sender and no DM social graph), removal of the server-side follows graph, client-held friendship certificates, DM size padding, encrypted backups, EXIF stripping on upload, and an opt-in Tor onion service. A privacy setting so you can join a server without appearing in its public member list, with a user-facing toggle."
         },
         {
           "status": "planned",
@@ -177,7 +177,7 @@
           "text": "STARK selective disclosure: prove a fact about yourself without revealing the underlying data."
         }
       ],
-      "done": 6,
+      "done": 7,
       "total": 12
     },
     {
@@ -869,7 +869,7 @@
     }
   ],
   "summary": {
-    "done": 44,
+    "done": 45,
     "total": 104
   }
 }
