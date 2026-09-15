@@ -80,6 +80,25 @@ high-g burn catastrophic**, which is exactly the drama the operator asked for.
 The missile-evasion burn does not need scripted consequences; the consequences
 are the vector sum.
 
+### It also settles the drum's orientation
+
+The drum axis should be **parallel to the thrust axis**, and the reason is in the
+arithmetic rather than in taste.
+
+With the axis parallel to thrust, spin gravity (radial) is perpendicular to
+thrust gravity (axial) at every point on the rim, so the total is the same
+magnitude and the same tilt everywhere: at 0.1 g thrust, 1.005 g and 5.7 degrees,
+uniformly.
+
+With the axis perpendicular to thrust, the spin radial sweeps THROUGH the thrust
+direction as you walk around the circumference, so the two terms add at one point
+and cancel at the opposite one. At the same 0.1 g thrust that is 1.100 g at the
+aft-most point and 0.900 g at the fore-most: a 20 percent gravity swing depending
+where you stand, with the tilt direction rotating too. Unlivable, and a nightmare
+to build farms in.
+
+So: drum axis along the thrust axis. Which is also what the references show.
+
 ### What this settles
 
 - **The drum and the spine are not two gravity systems.** They are one field with
@@ -96,6 +115,75 @@ are the vector sum.
   takes time and energy. Do it and the drum is zero-g plus thrust, so its floor is
   the aft endcap and everything not tied down has already fallen. Do not do it and
   you get the tilted 5 g above. Either way the farm suffers.
+
+## What already exists (verified against code, 2026-09-15)
+
+Rather more than expected, and in one case the design was already sitting in a
+data file nobody reads.
+
+**The EVA kit is already authored.** `data/docking.ron` carries a magnetic
+grapple (`:54`), `maneuvering_unit` ("Jetpack attachment providing 6-axis
+thrust", `:157`), `tether_line` ("50-meter retractable cable", `:168`) and
+`mag_boots` ("Electromagnet-soled boots for walking on ferrous hull surfaces in
+zero-g", `:179`). `DockingSystem` deserializes them as
+`eva_equipment: Vec<ron::Value>` (`src/systems/docking.rs:28`) and **never reads
+them**. That is four of the operator's six tools already named, described and
+loaded. It is the schema anchor for the `locomotion_aid` rows below.
+
+**`vertical_step` is already written as a jetpack.**
+(`src/surface_walk.rs:295-338`.) It takes a thrust as a TARGET RATE and ramps
+velocity toward it, works from either side so an upward burn arrests a fall, and
+terminal-clamps free fall. Its own doc comment calls it "a jetpack spool, not a
+teleport". What it lacks is a fuel hook and any axis but the radial one.
+
+**Mag boots are the cheapest tool, and the precedent is the elevator.** The
+elevator moves the player by moving the FLOOR under him
+(`src/lib.rs:3482-3488`), needing no movement-mode work at all. Mag boots are the
+same trick: hold the player to a surface and let the existing walking controller
+run with `g_accel` near zero. First tool to build, by a distance.
+
+**The `zero_gravity` status effect row already exists**
+(`data/status_effects.csv:82`, `speed:0.6:multiply`), as does a live stressor
+loop to hang a `high_g` sibling on.
+
+### The five real gaps
+
+1. **There is no lateral velocity anywhere.** Tangential motion is a
+   DISPLACEMENT, not a velocity: `anchor += tangential.normalize() * step`
+   (`src/lib.rs:4607-4609`). Only the radial axis carries state
+   (`state.surface_vr`). Release the stick and you stop dead. **Zero-g is the
+   exact opposite: release and you keep drifting.** This is the single biggest
+   gap, and it is upstream of every dynamic tool.
+2. **Two parallel movement systems, and zero-g lives in the primitive one.**
+   The interior controller (`renderer/camera.rs:960-1140`) is world-Y with
+   ladders, elevators and teleporters. The surface controller
+   (`lib.rs:4369-4900` into `surface_move.rs`) has variable-up, ballistics and
+   swimming but no ladders. They are mutually exclusive
+   (`surface_translation_owned`, `camera.rs:1041`). Zero-g happens aboard ship,
+   which is the side WITHOUT the good movement model.
+3. **True zero g is unreachable by construction.** Both paths clamp: interior
+   `g.clamp(0.01, 50.0)` (`camera.rs:921`) and surface `.max(0.01)`
+   (`lib.rs:4830`). The comment explains why (a literal zero made jumps one-way
+   trips), which is sound for today and is exactly the blocker for real zero-g.
+4. **No long-range raycast against world geometry.** Everything shipping is
+   short-range or AABB-only: crosshair interaction is capped at 3 m
+   (`systems/interaction.rs:15`), the terrain mesh raycast is test-only, and
+   rapier's `cast_ray` sits in a world that is never populated. **A grappling
+   hook needs a target point and there is nothing to ask.** This is the grapple's
+   real cost, not the tether maths.
+5. **No data-driven item-verb path.** Equipment is data-driven for passive stats
+   only (armor, speed, carry capacity, swing damage). The only thing an equipped
+   item can DO is one hardcoded attack swing (`lib.rs:13502-13560`). Even the
+   ability system is data for parameters and hardcoded for verbs
+   (`systems/abilities.rs:283-300`). Without an `on_use` path, each tool is
+   bespoke code, which is precisely what the three-primitive design is trying to
+   avoid.
+
+**Swimming is the right shape and the wrong integrator.** It already does
+no-floor, look-direction control with a medium-specific speed cap. But it is a
+neutral hold (`v_r = 0.0` unconditionally, `surface_move.rs:239-249`), so
+momentum is exactly the thing it does not model. Copy its control scheme, not its
+physics.
 
 ## G-load effects: one number, many consumers
 
@@ -119,10 +207,50 @@ Proposed tolerances, as data rather than code, per the Infinite-of-X rule:
 - **Loose objects.** Everything unsecured moves. This is where the cost lives,
   not in the gravity maths (see below).
 
-Where it plugs in is an open question pending the systems inventory: the
-`EnvironmentContext` already assembled per frame (vacuum outside the hull,
-weather cold, unbreathable air on power loss) is the natural carrier, since it is
-already the channel through which environment reaches gameplay.
+### Where it plugs in, verified
+
+Two of the three consumers already have a live environmental-stress pathway, so
+this is an extension rather than an invention. (Note `gameplay-loop-map.md` says
+otherwise on both counts; it is stale by several hundred versions and those gaps
+closed in v0.745 and v0.749.)
+
+- **Crew: about eight lines.** `src/systems/food.rs:450-616` runs one query with
+  five live health drains (starvation, dehydration, suffocation, freezing, heat
+  exhaustion). Every stressor has the identical shape, e.g. the cold one at
+  `food.rs:543-550`: apply a condition, compute an amount scaled by gear resist,
+  add to `health_drain`, record it if it is the worst. A g-stressor written that
+  way inherits gear-resistance scaling, the death-cause tracker, death itself and
+  the HUD readout for free. Add a `high_g` row next to the existing
+  `zero_gravity` one.
+- **Plants: about three lines, and the template is RF.**
+  `src/systems/farming/mod.rs:1006-1008` already does
+  `crop.health -= RF_HEALTH_PENALTY * home_rf * dt` for an ambient scalar field,
+  and `:1011-1015` kills the crop to `STAGE_DEAD`. A g-load line beside it gives
+  the operator's "plants die under a sustained 5 g burn" literally, not scripted.
+- **Animals: the one genuinely new mechanism.** Livestock get `Health` and `Dead`
+  and dead animals stop producing, but nothing environmental has ever damaged
+  them; combat is the only path. The template to copy is the dormant
+  `DisasterSystem` (`systems/disasters.rs:227-290`), which already does
+  radius-falloff damage to anything with `Transform + Health`.
+- **Equipment: from scratch.** There is no durability model. Item `durability` is
+  display-only, `ShipSystems { hull_integrity, ... }` is never constructed, and
+  the structural-load analysis module is orphaned. The one live precedent is
+  `Container.damage_ratio` (`systems/inventory/containers.rs:159`).
+
+`EnvironmentContext` (`src/ecs/components.rs:146-164`, built at
+`src/lib.rs:5501-5561`) is the natural carrier: it already has exactly three
+fields and one real gameplay consumer, so adding `g_load: f32` with a safe
+default is short plumbing. Farming does not read it, so the plant path needs its
+own read.
+
+**Important: nothing can currently PRODUCE a g-load.** The ship is on rails.
+`src/station/orbit.rs` is closed-form Keplerian kinematics evaluated from the
+clock, with no forces, no mass and no integration. `PropulsionDef` exists as a
+type (`systems/vehicles/propulsion.rs:9`), is referenced by nothing, and cites a
+`data/propulsion.csv` that does not exist. So the burn state has to be AUTHORED
+(a ship flight-plan with thrust over time) before any of the consequences above
+have an input. That is the first piece of work in this arc, and it is the one
+with no existing foundation at all.
 
 ## The locomotion toolkit: three primitives, not six features
 
