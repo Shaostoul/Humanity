@@ -708,6 +708,15 @@
       "note": "The standard that governs how much a dwelling must be ventilated, and the one most building codes adopt by reference. Copyrighted and sold, like NFPA 30: state the requirement in our own words and never reproduce its tables. Where a federal regulation says the same thing, cite the regulation instead (HUD 24 CFR 3280 carries ventilation requirements that are quotable)."
     },
     {
+      "id": "regional-air-agency",
+      "name": "The regional air quality agency",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Declares burn bans and publishes the local air quality. A burn ban is a legal prohibition with a date on it, so this is one of the authorities a reader must check on the day rather than read once. Different body in every region."
+    },
+    {
       "id": "placeholder-alloy-data",
       "name": "Published alloy and fibre data (unresolved)",
       "kind": "placeholder",

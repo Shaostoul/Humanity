@@ -132,6 +132,16 @@
           ]
         },
         {
+          "title": "The Species Where You Live",
+          "file": "the_species_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
           "title": "Reading the Tide",
           "file": "reading_the_tide.md",
           "tags": [
@@ -285,6 +295,16 @@
             "water",
             "safety"
           ]
+        },
+        {
+          "title": "Where Water Goes",
+          "file": "where_water_goes.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -320,6 +340,16 @@
             "real",
             "shelter",
             "health"
+          ]
+        },
+        {
+          "title": "Firewood",
+          "file": "firewood.md",
+          "tags": [
+            "guide",
+            "real",
+            "power",
+            "safety"
           ]
         }
       ],
@@ -364,6 +394,16 @@
     {
       "name": "Making and Repair",
       "docs": [
+        {
+          "title": "Units and Converting Them",
+          "file": "units_and_converting_them.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "technical"
+          ]
+        },
         {
           "title": "Sharpening",
           "file": "sharpening.md",

@@ -58,6 +58,11 @@
     "soil-testing-lab": {
       "name": "WSU Puyallup, Soils",
       "url": "https://puyallup.wsu.edu/soils/"
+    },
+    "regional-air-agency": {
+      "name": "Puget Sound Clean Air Agency",
+      "url": "https://pscleanair.gov/",
+      "note": "Declares burn bans for King, Kitsap, Pierce and Snohomish counties. Check on the day you intend to burn, not once a season."
     }
   },
   "weather_service": {

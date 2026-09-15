@@ -1127,7 +1127,7 @@
       "subject": "energy",
       "title": "Firewood",
       "summary": "Choose, season and store wood for heat.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "fire_making",
         "woodworking"
@@ -1136,7 +1136,21 @@
         "data/vegetation/trees.ron"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "firewood"
+      ],
+      "sources": [
+        "fpl-wood-handbook",
+        "usfs",
+        "epa",
+        "cdc",
+        "cpsc",
+        "usfa",
+        "usda-aphis",
+        "eia",
+        "regional-air-agency"
+      ]
     },
     {
       "id": "energy_micro_hydro",
@@ -1484,12 +1498,20 @@
       "subject": "measurement",
       "title": "Units and converting them",
       "summary": "Move between units without the error that ruins the batch.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "engineering"
       ],
       "locale_dependent": false,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "units-and-converting-them"
+      ],
+      "sources": [
+        "nist",
+        "nasa-ntrs",
+        "fda"
+      ]
     },
     {
       "id": "measure_estimation",
@@ -1844,7 +1866,7 @@
       "subject": "biology",
       "title": "The species where you live",
       "summary": "Know the plants, animals, fungi and fish of your own place by name.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -1852,12 +1874,20 @@
         "data/locales/<id>/species.json"
       ],
       "sources": [
+        "itis",
         "usda-plants",
+        "usfs-feis",
+        "fws",
+        "noaa",
         "state-fish-wildlife",
-        "usgs"
+        "state-health-biotoxin",
+        "state-noxious-weeds"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "the-species-where-you-live"
+      ]
     },
     {
       "id": "bio_invasive",
@@ -1914,15 +1944,25 @@
       "subject": "earth",
       "title": "Where water goes",
       "summary": "Follow water through your watershed, and know what is upstream of you.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "water_purification"
       ],
       "sources": [
-        "usgs"
+        "usgs",
+        "epa",
+        "usda-nrcs",
+        "state-water-agency",
+        "state-health-biotoxin"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "where-water-goes"
+      ],
+      "data": [
+        "data/locales/<id>/water.json"
+      ]
     },
     {
       "id": "earth_soil_types",

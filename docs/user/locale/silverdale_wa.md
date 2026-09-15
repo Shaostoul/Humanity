@@ -835,6 +835,7 @@ water you may legally draw. These are the bodies that answer them here.
 - **Washington State Noxious Weed Control Board** (https://www.nwcb.wa.gov/). Lists the county board contacts, including Kitsap.  
 - **Washington State Department of Ecology, Water Rights** (https://ecology.wa.gov/water-shorelines/water-supply/water-rights). WRIA 15 overrides the statewide groundwater permit exemption, so what you may legally draw here is not the statewide answer.  
 - **WSU Puyallup, Soils** (https://puyallup.wsu.edu/soils/)  
+- **Puget Sound Clean Air Agency** (https://pscleanair.gov/). Declares burn bans for King, Kitsap, Pierce and Snohomish counties. Check on the day you intend to burn, not once a season.  
 
 ## Sources
 
