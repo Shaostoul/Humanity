@@ -130,12 +130,32 @@
             "food",
             "shelter"
           ]
+        },
+        {
+          "title": "Reading the Tide",
+          "file": "reading_the_tide.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Hazards Where You Live",
+          "file": "the_hazards_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
     },
     {
-      "name": "Real Skills",
+      "name": "Grow Food",
       "docs": [
         {
           "title": "Your First Tomato",
@@ -220,7 +240,13 @@
             "real",
             "food"
           ]
-        },
+        }
+      ],
+      "section": "Learn"
+    },
+    {
+      "name": "Water",
+      "docs": [
         {
           "title": "Where Water Comes From",
           "file": "where_water_comes_from.md",
@@ -259,7 +285,13 @@
             "water",
             "safety"
           ]
-        },
+        }
+      ],
+      "section": "Learn"
+    },
+    {
+      "name": "Shelter and Power",
+      "docs": [
         {
           "title": "Your First Solar Power",
           "file": "first_solar_power.md",
@@ -289,27 +321,13 @@
             "shelter",
             "health"
           ]
-        },
-        {
-          "title": "Reading the Tide",
-          "file": "reading_the_tide.md",
-          "tags": [
-            "guide",
-            "real",
-            "water",
-            "safety"
-          ]
-        },
-        {
-          "title": "The Hazards Where You Live",
-          "file": "the_hazards_where_you_live.md",
-          "tags": [
-            "guide",
-            "real",
-            "shelter",
-            "safety"
-          ]
-        },
+        }
+      ],
+      "section": "Learn"
+    },
+    {
+      "name": "When Somebody Is Hurt",
+      "docs": [
         {
           "title": "Handwashing and Hygiene",
           "file": "handwashing_and_hygiene.md",

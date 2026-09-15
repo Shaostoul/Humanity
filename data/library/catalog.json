@@ -15,11 +15,32 @@
             "food",
             "shelter"
           ]
+        },
+        {
+          "title": "Reading the Tide",
+          "src": "docs/user/skills/reading_the_tide.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Hazards Where You Live",
+          "src": "docs/user/skills/the_hazards_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
         }
       ]
     },
     {
-      "name": "Real Skills",
+      "name": "Grow Food",
+      "section": "Learn",
       "docs": [
         {
           "title": "Your First Tomato",
@@ -104,7 +125,13 @@
             "real",
             "food"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "Water",
+      "section": "Learn",
+      "docs": [
         {
           "title": "Where Water Comes From",
           "src": "docs/user/skills/where_water_comes_from.md",
@@ -143,7 +170,13 @@
             "water",
             "safety"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "Shelter and Power",
+      "section": "Learn",
+      "docs": [
         {
           "title": "Your First Solar Power",
           "src": "docs/user/skills/first_solar_power.md",
@@ -173,27 +206,13 @@
             "shelter",
             "health"
           ]
-        },
-        {
-          "title": "Reading the Tide",
-          "src": "docs/user/skills/reading_the_tide.md",
-          "tags": [
-            "guide",
-            "real",
-            "water",
-            "safety"
-          ]
-        },
-        {
-          "title": "The Hazards Where You Live",
-          "src": "docs/user/skills/the_hazards_where_you_live.md",
-          "tags": [
-            "guide",
-            "real",
-            "shelter",
-            "safety"
-          ]
-        },
+        }
+      ]
+    },
+    {
+      "name": "When Somebody Is Hurt",
+      "section": "Learn",
+      "docs": [
         {
           "title": "Handwashing and Hygiene",
           "src": "docs/user/skills/handwashing_and_hygiene.md",
@@ -224,8 +243,7 @@
             "safety"
           ]
         }
-      ],
-      "section": "Learn"
+      ]
     },
     {
       "name": "Making and Repair",
@@ -983,5 +1001,5 @@
     "Build and Contribute",
     "Reference Library"
   ],
-  "_ordering_note": "Real Skills is an ORDERED LADDER, not an alphabetical shelf: grow something, multiply it, save its seed, feed yourself from it, keep what you grew, feed the soil back, then understand the soil, then water from source to storage, then power, then the building around it, then what to do when somebody gets hurt. A new guide goes at its RUNG, not on the end. An earlier note here proposed splitting Learn into the syllabus's 18 subjects once curriculum landed. That was reconsidered on 2026-09-15 and rejected: splitting a deliberate progression into seven categories of one or two documents destroys the order a beginner walks, and the subject view already exists in the Library's Curriculum face, which renders data/curriculum/syllabus.json directly. Two views of the same content, each doing what it is good at."
+  "_ordering_note": "Learn is an ORDERED LADDER cut into its natural STAGES: Where You Are, Grow Food, Water, Shelter and Power, When Somebody Is Hurt, Making and Repair. Reading them in order, and the documents within each in order, walks the ladder rung for rung. A new guide goes at its RUNG, not on the end of whatever category looks closest. An earlier note proposed splitting Learn into the syllabus's 18 subjects once curriculum landed. That was reconsidered on 2026-09-15 and rejected: subject shelves of one or two documents destroy the order a beginner walks, and the subject view already exists in the Library's Curriculum face, which renders data/curriculum/syllabus.json directly. Cutting at the STAGES costs nothing, because the reading order across them is unchanged. It was done when Real Skills reached 21 documents and became the long scroll that sections were introduced to fix."
 }
