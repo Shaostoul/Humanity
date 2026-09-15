@@ -40,39 +40,50 @@
 > - The markdown renderer had no code-fence handling at all, so SELF-HOSTING.md
 >   drew 50 shell comments at title size and buried its real sections.
 >
+> WHERE IT STANDS AT THE END OF 2026-09-15:
+>
+> - **29 of 143 topics have a document (20 percent), 14 are sourced, 11 are
+>   verified, and 5 are complete experiences with all four layers.** Every
+>   `data` reference in the syllabus resolves for the first time. Read it with
+>   `just curriculum`.
+> - **Silverdale is complete as data**: eight locale files plus 122 species,
+>   every value from a federal source, and a readable gazetteer generated from
+>   the same data the simulation runs on.
+> - **The Library has three faces** (documents, dictionary, curriculum), three
+>   tiers, tag filters, lazy full-text search, cross-references, Back, a
+>   Contents outline per document, heading anchors shared by both clients, and
+>   ladder navigation at the foot of every page. Learn is cut into six ordered
+>   stages so the rail stays scannable as it grows.
+>
 > NEXT, in value order:
 >
-> - **Content. 122 of 143 topics have no document and 67 cite nobody.** This is
->   the number the operator actually asked about. First wave SHIPPED (v0.1310):
->   soil_basics, shelter_insulation, materials_wood, health_burns,
->   water_sources, each chosen for having a strong public-domain authority, and
->   materials_wood is the FIRST topic with all four layers present. The
->   lethal-hazard topics (canning, foraging, wiring, heating) need the same
->   treatment the fire staff guide just got and should not be written fast.
-> - **Silverdale is LANDED** (v0.1310 to v0.1311.1): eight locale files from a
->   66-agent research run, 122 species, and a readable gazetteer generated from
->   the same data the simulation runs on, first in Learn. Every value from a
->   federal source, nothing from a share-alike one. STILL MISSING: phenology.json
->   (the year as a calendar of bloom, fruit, run and migration), which is the
->   last unmet data promise in the syllabus, and it wants its own research pass
->   rather than derivation from the species prose, which would be lossy in
->   exactly the way that looks complete. Fifteen lookalike species are still
->   named-but-absent, all non-lethal (knotweeds, brooms, gorse, tansy,
->   groundsel); the deadly pairs are closed.
-> - **Terrain.** The locale points at USGS 3DEP and NOAA hydrography rather than
->   embedding them. Making Silverdale the world you walk around in, with real
->   elevation and real shoreline, is still ahead.
-> - **The runtime fetch layer.** Four registry entries (GBIF, iNaturalist,
->   OpenStreetMap, Wikipedia) are marked `use: fetch` and nothing fetches yet.
->   Until it exists, the share-alike half of the licensing decision is a promise
->   with no mechanism.
-> - **`just verify` is red on the monolith ratchet**, not on any test. Six files
->   past budget, about 5000 lines accumulated across several sessions: lib.rs
->   +1392, renderer/mod.rs +1540, chat.rs +1053, gui/mod.rs +695, api.rs +275,
->   planet_chunks.rs +49. It wants a quiet checkout: extracting from lib.rs and
->   renderer/mod.rs while other sessions are live in them is exactly the
->   three-way merge hazard CLAUDE.md warns about. Everything else is green, 1753
->   lib tests pass and both feature builds check clean.
+> - **Content. 114 of 143 topics still have no document.** That is the honest
+>   headline and the whole remaining job on this axis. Prefer topics whose
+>   LOCALE DATA already exists, because those complete all four layers in one
+>   pass: that is how earth_tides, earth_hazards, earth_soil_types and
+>   grow_calendar became complete experiences.
+> - **The lethal-hazard subjects are the hard part and must not be written
+>   fast**: water-bath and pressure canning, botulism, every foraging topic,
+>   where amateur electrical work stops, generators, heating a space, human
+>   waste, and hunting. Each needs the treatment the fire staff guide got, and
+>   the pattern that worked for species data applies: write it, then have a
+>   separate pass try to refute it.
+> - **Terrain.** The locale POINTS AT USGS 3DEP and NOAA hydrography rather
+>   than embedding them, so Silverdale is not yet the ground you walk on. This
+>   is the largest single piece of the operator's "Silverdale is the world"
+>   decision that remains untouched.
+> - **The runtime fetch layer.** Five registry entries (GBIF, iNaturalist,
+>   OpenStreetMap, Wikipedia) are marked `use: fetch` and nothing fetches yet,
+>   so the share-alike half of the licensing decision is still a promise with
+>   no mechanism.
+> - **Fifteen lookalike species are named-but-absent**, all non-lethal
+>   (knotweeds, brooms, gorse, tansy, groundsel). The deadly pairs are closed.
+> - **`just verify` is red on the monolith ratchet**, not on any test. Six
+>   files past budget, about 5000 lines across several sessions. It wants a
+>   quiet checkout: extracting from lib.rs and renderer/mod.rs while other
+>   sessions are live in them is the three-way merge hazard CLAUDE.md warns
+>   about. Everything else is green, and a fresh release binary was built and
+>   booted on 2026-09-15 with 0 panics and 0 errors.
 
 
 
