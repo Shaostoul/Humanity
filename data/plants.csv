@@ -5,7 +5,12 @@
 #   id                    - Unique plant identifier (snake_case)
 #   name                  - Common display name
 #   description           - Short description
-#   type                  - Category: fruit, vegetable, grain, legume, herb, fiber
+#   type                  - Category. The file uses ten, not the six this line once listed:
+#                           vegetable 45, fruit 39, herb 21, grain 19, legume 18, alien 12,
+#                           tree 11, medicinal 10, decorative 7, fiber 7.
+#                           NOTE: oyster_mushroom, shiitake and button_mushroom are typed
+#                           vegetable and are fungi. Several columns mean something different
+#                           for them, since a mushroom has no roots drawing a soil solution.
 #   growth_days           - Total days from planting to harvest (real-world basis, game may scale)
 #   water_liters_per_day  - Water requirement in liters per plant per day
 #   nutrient_n            - Nitrogen need (kg/hectare equivalent, scaled to single plant)
@@ -27,6 +32,7 @@
 #   seed_source           - Where seeds can be obtained (colon-separated)
 #   companion_plants      - Plants that grow well nearby (colon-separated ids)
 #   adverse_plants        - Plants that should not be grown nearby (colon-separated ids)
+#   harvest_item          - Item id this crop yields, resolved against data/items.csv
 #
 # Sources: USDA Plant Hardiness, FAO crop water requirements, Purdue/Cornell extension data
 #

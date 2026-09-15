@@ -2655,6 +2655,53 @@ id,proper,mag,ci,x,y,z,bayer,con
         assert_eq!(v0[1].direction, v1[1].direction);
     }
 
+    /// Every endpoint in the REAL shipped `data/constellations.json` resolves
+    /// against the REAL shipped `data/stars.bin`.
+    ///
+    /// The test above this one exercises the resolver thoroughly and proves the
+    /// csv and bin paths agree, but it does it against a fixture catalogue and a
+    /// hand-written JSON snippet: it never opens either shipped file, so it
+    /// cannot notice a constellation figure that names a star we do not have.
+    /// A segment whose endpoint does not resolve is silently skipped rather than
+    /// drawn wrong, which is the right runtime behaviour and also means the
+    /// figure just quietly loses a line and nobody finds out.
+    ///
+    /// Added 2026-09-15 with Cepheus and Hydrus, which brought the file to the
+    /// full 88 constellations. Proven red by pointing one of their endpoints at
+    /// a star that does not exist.
+    ///
+    /// Reads `stars.bin` (1.8 MB) rather than the 34 MB csv, so it is fast
+    /// enough to run by default.
+    #[test]
+    fn every_shipped_constellation_endpoint_resolves() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+        // No silent skip on a missing file: a test that returns early when it
+        // cannot find its input passes with the rule it guards deleted.
+        let bin = std::fs::read(root.join("stars.bin"))
+            .unwrap_or_else(|e| panic!("cannot read data/stars.bin: {e}"));
+        let cat = StarCatalog::from_bin(&bin).expect("stars.bin parses");
+        let json = std::fs::read_to_string(root.join("constellations.json"))
+            .unwrap_or_else(|e| panic!("cannot read data/constellations.json: {e}"));
+
+        let rgba = [1.0, 1.0, 1.0, 1.0];
+        let (_v, resolved, total) = resolve_constellation_segments(&cat, &json, rgba);
+
+        // And the file really is the full set, so this is not passing because
+        // the file happens to be nearly empty.
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("constellations.json parses");
+        let n = parsed.as_array().expect("an array of constellations").len();
+        assert_eq!(n, 88, "expected all 88 IAU constellations, found {n}");
+        assert!(total > 500, "expected the real line data, got {total} segments");
+
+        assert_eq!(
+            resolved, total,
+            "{} of {total} constellation segments name a star that is not in the \
+             catalogue. An unresolved segment is skipped at runtime, so the \
+             figure loses a line silently.",
+            total - resolved
+        );
+    }
+
     /// FULL-CATALOG equivalence + timing, against the real committed data
     /// files. Ignored by default (it parses the 34 MB CSV, which is slow in
     /// debug builds); run manually after regenerating stars.bin:

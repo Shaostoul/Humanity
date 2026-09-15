@@ -920,14 +920,17 @@ HumanityOS draws its night sky from the HYG catalogue, which ships as
 built from it. It holds 119,626 rows of which 119,625 are drawn, because
 row zero is the Sun sitting at the origin and the loader discards it. The
 constellation lines come from
-`data/constellations.json`, which names 86 of the 88 IAU constellations.
-Cepheus and Hydrus are not in the file yet, and Cepheus is the awkward
-one to be missing here, because it is the circumpolar constellation next
-to Polaris on the Cassiopeia side. Those are
-not decoration painted on a dome. The catalogue is a compilation built
-from the same professional astrometry that research catalogues use, and
-the renderer resolves every constellation line to a real star in it: all
-594 line segments, with no unresolved endpoints.
+`data/constellations.json`, which names all 88 IAU constellations. Two of
+them, Cepheus and Hydrus, were missing until this guide went looking and
+found they were not there; Cepheus was the awkward one, being the
+circumpolar constellation next to Polaris on the Cassiopeia side, which
+is the patch of sky this whole guide works in. Those figures are not
+decoration painted on a dome. The catalogue is a compilation built from
+the same professional astrometry that research catalogues use, and the
+renderer resolves every constellation line to a real star in it: all 602
+line segments, with no unresolved endpoints. That is now a test rather
+than a claim, so a figure cannot quietly lose a line to a star we do not
+have.
 
 Which means the numbers cross over. The 5.374 degree gap between Dubhe
 and Merak quoted at the top of this guide was computed from that file,
@@ -1165,7 +1168,7 @@ authority with the facts restated here in our own words.
   computed from it, 5.374 degrees Dubhe to Merak, 28.707 Dubhe to
   Polaris, 34.070 Merak to Polaris, 32.813 Schedar to Polaris and 16.578
   Kochab to Polaris, are arithmetic done here on those positions.
-- `data/constellations.json`. The 86 constellations in the file and their line
+- `data/constellations.json`. All 88 constellations and their line
   figures, including the notes that Dubhe and Merak point to Polaris,
   that Polaris lies within 1 degree of the celestial north pole, that
   Vega held the job about 12,000 years ago, and that Thuban was the pole
