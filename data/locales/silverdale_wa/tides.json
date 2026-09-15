@@ -1,0 +1,225 @@
+{
+  "_comment": "Tidal behaviour. Gates shoreline foraging, boat access and drowning risk. Shape: schemas/locale.toml. Dyes Inlet has no published datums of its own, so the reference station values and the derived estimate are BOTH carried here rather than silently substituting one for the other.",
+  "regime": {
+    "classification": "Mixed, mainly semidiurnal",
+    "derivation": "Form factor F = (K1 + O1) / (M2 + S2) = (0.832 + 0.456) / (1.096 + 0.272) = 0.942, computed from the published harmonic constituents at NOAA station 9445958. F between 0.25 and 1.5 is the standard definition of mixed, mainly semidiurnal.",
+    "plain_meaning": "Two highs and two lows per day, but the pair are markedly unequal. The mean diurnal high water inequality at Bremerton is 0.273 m and the mean diurnal LOW water inequality is 0.870 m, so it is the two lows that differ most. One of the two daily low tides is much lower than the other, which is why local low-tide beach access is so uneven day to day.",
+    "constituent_amplitudes_m": {
+      "M2": 1.096,
+      "S2": 0.272,
+      "N2": 0.214,
+      "K2": 0.08,
+      "K1": 0.832,
+      "O1": 0.456,
+      "P1": 0.253,
+      "Q1": 0.072
+    },
+    "source": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9445958/harcon.json?units=metric"
+  },
+  "nearest_station": {
+    "id": "9445901",
+    "name": "Tracyton, Dyes Inlet",
+    "lat": 47.61,
+    "lon": -122.66,
+    "distance_km_from_silverdale": 4.67,
+    "station_type": "S (subordinate / tide prediction only)",
+    "in_dyes_inlet": true,
+    "datums_published": false,
+    "datums_note": "This is the closest NOAA CO-OPS station to Silverdale and the only one actually inside Dyes Inlet, but NOAA publishes NO tidal datums for it. Its datums API returns nulls. It exists purely as a prediction station driven by offsets from Seattle.",
+    "prediction_offsets": {
+      "reference_station_id": "9447130",
+      "reference_station_name": "Seattle, WA",
+      "height_ratio_high_tide": 1.06,
+      "height_ratio_low_tide": 0.95,
+      "time_offset_high_tide_minutes": 28,
+      "time_offset_low_tide_minutes": 53,
+      "height_adjustment_type": "R (ratio)"
+    },
+    "source": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9445901/tidepredoffsets.json and https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9445901.json"
+  },
+  "nearest_station_with_datums": {
+    "id": "9445958",
+    "name": "Bremerton, Sinclair Inlet, Port Orchard",
+    "lat": 47.5617,
+    "lon": -122.623,
+    "distance_km_from_silverdale": 10.7,
+    "station_type": "R (reference / harmonic), NOAA PORTS station, code 'ks'",
+    "established": "1977-04-06",
+    "noaa_chart": "18449",
+    "timezone": "PST (UTC-8)",
+    "datum_epoch": "1983-2001 National Tidal Datum Epoch",
+    "datums_accepted": "2023-07-12",
+    "control_station_for_datums": "9447130 Seattle, WA",
+    "datum_analysis_period": "2021-09-01 to 2022-08-31",
+    "orthometric_datum": "NAVD88",
+    "datums_m_above_MLLW": {
+      "MHHW": 3.571,
+      "MHW": 3.298,
+      "MTL": 2.084,
+      "MSL": 2.077,
+      "DTL": 1.786,
+      "MLW": 0.87,
+      "MLLW": 0
+    },
+    "datums_m_on_station_datum_as_published": {
+      "STND": 0,
+      "MHHW": 7.041,
+      "MHW": 6.768,
+      "MTL": 5.554,
+      "MSL": 5.547,
+      "DTL": 5.256,
+      "MLW": 4.34,
+      "MLLW": 3.47
+    },
+    "conversion_note": "NOAA publishes these on the arbitrary station datum (STND). The MLLW-referenced column above is the published value minus the published MLLW of 3.470 m, which is the standard and exact conversion, not an estimate.",
+    "ranges_m": {
+      "mean_range_MN": 2.428,
+      "great_diurnal_range_GT": 3.571,
+      "mean_diurnal_high_water_inequality_DHQ": 0.273,
+      "mean_diurnal_low_water_inequality_DLQ": 0.87
+    },
+    "greenwich_intervals_hours": {
+      "high_water_HWI": 0.527,
+      "low_water_LWI": 6.839
+    },
+    "astronomical_extremes_m_above_MLLW": {
+      "HAT": 4.294,
+      "HAT_datetime": "2001-01-11 15:00",
+      "LAT": -1.406,
+      "LAT_datetime": "2026-06-15 18:54",
+      "note": "Highest and Lowest Astronomical Tide, from 19 years of predictions. Predicted, not observed."
+    },
+    "observed_extremes_m_above_MLLW": {
+      "highest_observed": 4.74,
+      "highest_observed_datetime": "2022-12-27 21:48",
+      "lowest_observed": -1.247,
+      "lowest_observed_datetime": "2021-12-06 12:48",
+      "note": "The 2022-12-27 high is the December 2022 Puget Sound king tide plus storm surge; it exceeded HAT by 0.45 m, which is the surge component."
+    },
+    "total_observed_water_level_swing_m": 5.987,
+    "source": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9445958/datums.json?units=metric"
+  },
+  "reference_station": {
+    "id": "9447130",
+    "name": "Seattle, WA",
+    "distance_km_from_silverdale": 27.1,
+    "why_listed": "It is the reference station that NOAA uses to generate the Tracyton, Dyes Inlet predictions, so its datums plus the Tracyton offsets are what actually drive any tide prediction for Dyes Inlet.",
+    "datum_epoch": "1983-2001",
+    "datum_analysis_period": "1983-01-01 to 2001-12-31",
+    "datums_accepted": "2003-04-17",
+    "datums_m_above_MLLW": {
+      "MHHW": 3.463,
+      "MHW": 3.199,
+      "MTL": 2.032,
+      "MSL": 2.024,
+      "DTL": 1.732,
+      "MLW": 0.865,
+      "MLLW": 0,
+      "NAVD88": 0.715
+    },
+    "navd88_relationship": "MLLW = NAVD88 minus 0.715 m at Seattle. NOAA publishes no NAVD88 tie for Bremerton, so do not reuse this offset there.",
+    "ranges_m": {
+      "mean_range_MN": 2.334,
+      "great_diurnal_range_GT": 3.462
+    },
+    "astronomical_extremes_m_above_MLLW": {
+      "HAT": 4.035,
+      "HAT_datetime": "2014-01-04 15:24",
+      "LAT": -1.31,
+      "LAT_datetime": "2026-06-15 18:36"
+    },
+    "observed_extremes_m_above_MLLW": {
+      "highest_observed": 4.61,
+      "highest_observed_datetime": "2022-12-27 16:42",
+      "lowest_observed": -1.535,
+      "lowest_observed_datetime": "1916-01-04"
+    },
+    "source": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9447130/datums.json?units=metric"
+  },
+  "derived_estimate_for_dyes_inlet": {
+    "is_published": false,
+    "warning": "NOT a NOAA published datum. Derived here by applying NOAA's own subordinate-station ratio method to the Seattle datums. Use it for planning only; for anything you would wade or anchor by, use the live predictions for station 9445901 or the published Bremerton datums.",
+    "method": "Seattle datum above MLLW multiplied by the Tracyton height ratio: high-water datums by 1.06, low-water datums by 0.95. MLLW is 0.000 at every station by definition.",
+    "estimated_m_above_local_MLLW": {
+      "MHHW": 3.67,
+      "MHW": 3.39,
+      "MLW": 0.82,
+      "MLLW": 0,
+      "great_diurnal_range": 3.67
+    },
+    "timing": "High water at Tracyton runs about 28 minutes after Seattle, low water about 53 minutes after. The 25 minute spread between them means the ebb inside Dyes Inlet is longer than the flood."
+  },
+  "tidal_currents": {
+    "why_this_matters": "Dyes Inlet drains through one narrow throat, Port Washington Narrows. That is where the drowning risk concentrates, not on the open inlet.",
+    "station_id": "PUG1510",
+    "station_name": "Port Washington Narrows, Warren Ave. Bridge",
+    "lat": 47.57957,
+    "lon": -122.63065,
+    "distance_km_from_silverdale": 8.71,
+    "station_type": "H (harmonic current station)",
+    "bin_used": 6,
+    "bin_depth_m": 1.22,
+    "mean_flood_direction_deg_true": 286,
+    "mean_ebb_direction_deg_true": 99,
+    "predicted_2026": {
+      "max_flood_m_s": 2.337,
+      "max_flood_knots": 4.54,
+      "max_ebb_m_s": 2.064,
+      "max_ebb_knots": 4.01,
+      "mean_of_daily_max_floods_m_s": 1.205,
+      "mean_of_daily_max_floods_knots": 2.34,
+      "mean_of_daily_max_ebbs_m_s": 1.16,
+      "mean_of_daily_max_ebbs_knots": 2.26,
+      "flood_events": 731,
+      "ebb_events": 706
+    },
+    "plain_meaning": "Peak currents through the Narrows reach about 4.5 knots on the flood and 4 knots on the ebb, and the typical daily maximum is over 2 knots. That is faster than a person can swim. Slack water windows exist between each reversal and are the only safe crossing times.",
+    "source": "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=currents_predictions&begin_date=20260101&end_date=20261231&station=PUG1510&bin=6&time_zone=lst_ldt&interval=MAX_SLACK&units=metric&format=json (values returned in cm/s; knots cross-checked against the same query in english units)"
+  },
+  "nearby_stations": [
+    {
+      "km": 4.67,
+      "id": "9445901",
+      "name": "Tracyton, Dyes Inlet",
+      "type": "S"
+    },
+    {
+      "km": 6,
+      "id": "9445832",
+      "name": "Brownsville, Port Orchard",
+      "type": "S"
+    },
+    {
+      "km": 9.9,
+      "id": "9445719",
+      "name": "Poulsbo, Liberty Bay",
+      "type": "S"
+    },
+    {
+      "km": 10.1,
+      "id": "9445303",
+      "name": "Seabeck, Seabeck Bay",
+      "type": "S"
+    },
+    {
+      "km": 10.7,
+      "id": "9445958",
+      "name": "Bremerton, Sinclair Inlet, Port Orchard",
+      "type": "R"
+    },
+    {
+      "km": 11.9,
+      "id": "9445133",
+      "name": "Bangor Wharf",
+      "type": "R"
+    }
+  ],
+  "licence": "Public domain. Every value in this file comes from a US federal source (17 U.S.C. 105) unless an entry says otherwise, so it may ship inside the release bundle. Nothing here was taken from Wikipedia, OpenStreetMap, GBIF or iNaturalist, whose share-alike terms would travel with every copy.",
+  "sources": [
+    {
+      "what": "Tidal datums, harmonic constituents, predictions and currents",
+      "url": "https://tidesandcurrents.noaa.gov/",
+      "publisher": "NOAA CO-OPS"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "_comment": "What can realistically kill you HERE, not a generic list. Somewhere on a subduction zone has a different honest preparedness answer from somewhere on a floodplain, and preparing a reader for the wrong one is worse than silence. Shape: schemas/locale.toml.",
+  "hazards": [
+    {
+      "hazard": "Cascadia Subduction Zone megathrust earthquake (M~9)",
+      "likelihood": "10-15 percent chance of an approximately magnitude 9 earthquake on the Cascadia Subduction Zone in the next 50 years (USGS, 2025).",
+      "severity": "The defining regional event. Cascadia's fault is more than 800 km (500 miles) long and shaking from these earthquakes 'can last for a few minutes' (WA DNR). Silverdale sits well inland of the offshore rupture, so it is a long-duration, moderate-to-strong shaking problem rather than near-fault violent shaking: the hazards here are duration-driven - liquefaction of the Clear Creek delta fill at the head of Dyes Inlet and the waterfront, landslides on the Dyes Inlet bluffs, and multi-week loss of lifelines across a peninsula reached by two bridges and ferries.",
+      "warning_time": "No warning of the earthquake itself beyond ShakeAlert: in the Pacific Northwest warning times for people experiencing strong shaking are typically less than 10 seconds, and 50-80 seconds only for users far from the epicentre of an offshore megathrust. For the tsunami, see the Cascadia tsunami entry - hours, not minutes, inside Puget Sound.",
+      "return_period": "Full-margin ruptures approximately every 500 years; partial-margin ruptures approximately every 1,000 years (USGS Fact Sheet 2025-3050, fig. 4). The last event was the winter of 1699-1700, about 325 years ago. NOTE: the '330-year' figure in that fact sheet is for SOUTHERN Cascadia only and does not apply here.",
+      "local_effect": "Long-duration shaking; liquefaction risk concentrated on artificial fill, tidal flats and stream sediments (the Silverdale waterfront and Clear Creek mouth sit on exactly that); bluff landsliding around Dyes Inlet; prolonged isolation of the Kitsap Peninsula.",
+      "source_url": "https://pubs.usgs.gov/fs/2025/3050/fs20253050.pdf"
+    },
+    {
+      "hazard": "Deep intraslab (Benioff zone) earthquake, M6.5+",
+      "likelihood": "85 percent chance of a magnitude 6.5 or greater deep (intraslab) earthquake in the Puget Sound region in the next 50 years (USGS, 2025). This is by far the most likely damaging earthquake to occur in a given lifetime here.",
+      "severity": "Moderate but widespread. Because the source is deep (tens of km), peak shaking intensity is lower than for an equivalent-magnitude shallow crustal earthquake, and these events rarely generate tsunamis. The three modern examples all damaged this region: 1949 M6.8 Olympia, 1965 M6.5 Seattle, 2001 M6.8 Nisqually. WA DNR notes the deep April 1949 Tacoma earthquake caused damage from southern Oregon to British Columbia.",
+      "warning_time": "Seconds at most, via ShakeAlert (typically under 10 seconds where shaking is strong). No other warning.",
+      "return_period": "Observed intervals in the instrumental record: 1949 to 1965 is 16 years, 1965 to 2001 is 36 years (USGS Fact Sheet 2025-3050, fig. 3). 24 years have now elapsed since 2001.",
+      "local_effect": "Shaking damage to unreinforced masonry and chimneys, liquefaction on waterfront fill, and landslides on saturated bluffs. The 1949 event triggered the Tacoma Narrows landslide, which generated a local wave.",
+      "source_url": "https://pubs.usgs.gov/fs/2025/3050/fs20253050.pdf"
+    },
+    {
+      "hazard": "Shallow crustal earthquake on the Seattle Fault zone (M6.5-7.5)",
+      "likelihood": "17 percent chance of a magnitude 6.5 or greater crustal fault earthquake in the Puget Sound region in the next 50 years (USGS, 2025). The Seattle fault zone passes immediately east and south of Silverdale; recent geologic mapping suggests it extends from the Olympic Mountains on the west to the Cascades on the east, and trenching at Waterman Point and Point Glover in Kitsap County found evidence of surface-rupturing earthquakes about 1,100 years ago.",
+      "severity": "The worst-case shaking for this location, because it is shallow and close. The state/FEMA scenario models a M7.2 rupture on the northernmost strand from the Kitsap Peninsula to just east of Lake Sammamish (63 km / 40 miles). The 923-924 CE event lifted parts of Restoration Point on Bainbridge Island 23 feet straight up, generated a tsunami in Puget Sound, and triggered a large landslide into Lake Washington.",
+      "warning_time": "Effectively none. Silverdale is within the fault zone's near field, so ShakeAlert may deliver little or no useful lead time; strong shaking can arrive with the alert.",
+      "return_period": "Uncertain and long. An 8,000-year investigation found evidence for possibly one additional earthquake about 6,900 years ago, 'suggesting a recurrence interval of thousands of years for large earthquakes'. Trenching on the Bainbridge Island scarp revealed evidence for up to three surface-rupturing earthquakes in the past 2,500 years. Last known event: winter 923-924 CE.",
+      "local_effect": "Severe shaking, possible surface rupture, liquefaction, coseismic landsliding on the Dyes Inlet bluffs, and a locally generated tsunami arriving within minutes (see tsunami entry).",
+      "source_url": "https://www.dnr.wa.gov/Publications/ger_seismic_scenario_seattle.pdf"
+    },
+    {
+      "hazard": "Tsunami from a large Seattle Fault earthquake (the near-field, minutes-not-hours case)",
+      "likelihood": "Tied to a large Seattle Fault rupture (see above). The Washington Geological Survey's modelled inundation extent for this scenario does reach the head of Dyes Inlet at Silverdale.",
+      "severity": "Modelled at the Silverdale point (47.64518, -122.68845): maximum amplitude 5 ft. Nearby modelled points: Bremerton/Sinclair Inlet 9 ft, Point White 16 ft, Liberty Bay 7 ft, Agate Passage 11 ft, Bangor 3 ft. The scenario is described by WGS as 'modeled after a simulated large magnitude Seattle fault earthquake, similar to that of the 923 CE event'.",
+      "warning_time": "5 minutes to the inundating wave at Silverdale (WGS modelled arrival time). Elsewhere on this shoreline it is worse: 'less than 3 min' at Bremerton/Sinclair Inlet, Point White and the Bainbridge ferry terminal. There is no time for an official warning. The earthquake itself is the warning - WA DNR states that for people in Washington, the single biggest warning of a potential tsunami is a large earthquake. This is a self-evacuation-on-shaking hazard, so preparation beats reaction.",
+      "return_period": "Governed by Seattle Fault recurrence: thousands of years between large earthquakes; last event 923-924 CE.",
+      "local_effect": "A roughly 5 ft wave at the head of Dyes Inlet about 5 minutes after shaking stops, on top of whatever the tide is doing (mean tidal range here is about 11.7 ft, so tide stage dominates the outcome). Low ground at the Silverdale waterfront, Old Town, and the Clear Creek mouth is the exposed area.",
+      "source_url": "https://gis.dnr.wa.gov/site3/rest/services/Geology/Tsunami_Hazard/MapServer/25"
+    },
+    {
+      "hazard": "Tsunami from a Cascadia M9.0 megathrust earthquake (the far-field, hours case)",
+      "likelihood": "Accompanies the Cascadia megathrust event (10-15 percent in 50 years).",
+      "severity": "Much smaller inside Puget Sound than the local Seattle Fault case, because the wave must refract through the Strait of Juan de Fuca and Admiralty Inlet. The WGS L1 M9.0 model has no separate Silverdale point; the nearest modelled point, Bremerton, gives a maximum amplitude of 2.5 ft. Bangor 9 ft, Lynch Cove 12 ft.",
+      "warning_time": "About 2 hours 40 minutes to Bremerton (WGS modelled inundating-wave arrival). Hours of warning inside Puget Sound, unlike the outer coast. This is the one tsunami case here where official warning and organised evacuation are realistic.",
+      "return_period": "Approximately 500 years for full-margin Cascadia ruptures.",
+      "local_effect": "Modest water-level surge and strong currents in Dyes Inlet hours after the shaking; the dominant local problem from Cascadia is the shaking and the multi-week infrastructure outage, not the wave.",
+      "source_url": "https://gis.dnr.wa.gov/site3/rest/services/Geology/Tsunami_Hazard/MapServer/34"
+    },
+    {
+      "hazard": "Seiche and landslide-generated waves in Puget Sound",
+      "likelihood": "Not quantified in any source located. WA DNR defines a seiche as 'the sloshing of a closed body of water from earthquake shaking' and lists seiches among the secondary effects of both megathrust and shallow crustal earthquakes. Landslide-generated waves are separately documented: WA DNR states numerous deposits from landslide-generated tsunamis triggered by local earthquakes are found throughout Puget Sound, and that delta failures and landslides caused by shaking may create or amplify tsunamis.",
+      "severity": "The concrete local precedent is the April 1949 deep M~7 earthquake, which triggered a large landslide on 90 m (300 ft) high bluffs at the Tacoma Narrows three days later; that slide caused a local tsunami. Dyes Inlet is a small, enclosed, steep-sided basin with bluffs around it, which is the geometry in which both effects occur.",
+      "warning_time": "None. Both are triggered by shaking and arrive within seconds to minutes; the delayed 1949 Narrows slide shows failures can also occur days after the earthquake, so the bluffs stay dangerous after the shaking ends.",
+      "return_period": "Not published for Dyes Inlet specifically.",
+      "local_effect": "Sloshing and abrupt local waves in Dyes Inlet independent of any open-ocean tsunami; bluff collapse into the inlet displacing water.",
+      "source_url": "https://dnr.wa.gov/washington-geological-survey/geologic-hazards-and-environment/earthquakes-and-faults"
+    },
+    {
+      "hazard": "Landslides on coastal bluffs (the everyday geologic hazard here)",
+      "likelihood": "High and recurring. USGS mapped 231 landslides in Kitsap County from lidar, covering 0.8 percent of the county's land area, and found that 67 percent of the mapped landslide area lies within 500 metres of the present coastline. About 77 percent of mapped landslides involve Vashon advance outwash deposits. Two mapped landslides sit directly on the Dyes Inlet shoreline near Silverdale: landslides 104a/104b (27,200 m2 and 5,030 m2, high confidence, on the coastal bluffs of the east shore and northern end of Dyes Inlet, with 'possible evidence of recent activity'), and landslide 139 (8,990 m2, west of Dyes Inlet, north of Chico).",
+      "severity": "Lethal and expensive. In the winter of 1996-1997 coastal landslides in Kitsap County destroyed millions of dollars of public and private property and killed a family of four on Bainbridge Island. NOAA's storm record for the Kitsap Peninsula zones logs 10 debris-flow events since 1996, including a 2007 fatality (a Mason County man killed in bed by a landslide) and a December 2010 episode causing about 1 million dollars of damage.",
+      "warning_time": "Hours to days for the rainfall that drives them (NWS forecasts the atmospheric-river storms), but the failure itself is sudden and gives no useful warning. Above-normal precipitation was the principal triggering mechanism in 1996-1997. The mechanism is a perched water table: permeable Esperance-type advance outwash sand over the low-permeability Lawton Clay, so pore pressure builds during sustained wet weather and the bluff face fails.",
+      "return_period": "Not expressed as a return period. Empirically: landslide-producing winters recur on a scale of years, and Kitsap has about 338 km of saltwater coastline that is 'especially susceptible'.",
+      "local_effect": "Bluff failure around the Dyes Inlet shoreline, taking out shoreline houses, roads and the ground beneath them; road offsets at headscarps. Triggers are precipitation, coastal erosion at the bluff toe, and seismic shaking.",
+      "source_url": "https://pubs.usgs.gov/of/2008/1292/downloads/OF08-1292.pdf"
+    },
+    {
+      "hazard": "Winter windstorms",
+      "likelihood": "Near-annual, and the most frequent damaging hazard here. In NOAA's storm record for the NWS zones covering the Kitsap Peninsula, 1996-2025, 24 of 30 years had at least one High Wind or Strong Wind event; 80 wind events total (45 High Wind, 35 Strong Wind).",
+      "severity": "Peak values in that record reach 77 mph (14 Dec 2000) and 71 mph (30 Mar 1997); the 14 Dec 2006 storm produced a measured 64 mph gust. Kitsap-specific documented effects: on 15 Nov 2006 about 8,000 people lost power in Kitsap County, three roads were closed or partly blocked by downed trees and power lines, and the Hood Canal Bridge was closed for several hours. The largest killer is indirect: the 14 Dec 2006 storm caused eight indirect fatalities from carbon monoxide poisoning from improper indoor use of barbecues and generators during the outage.",
+      "warning_time": "Hours to a few days. These are synoptic-scale Pacific storms that are forecast well in advance, and NWS Seattle issues High Wind Watches and Warnings for zone WAZ323. NWS does not publish a fixed numerical lead time - each office sets local criteria - but this is the one hazard on this list where preparation time is genuinely available.",
+      "return_period": "Empirically about 0.8 High/Strong Wind events per year in these zones over 1996-2025; a damaging regional windstorm roughly every 1-2 years, with the severe ones (65 mph+) clustering in 1997-2000 and 2006.",
+      "local_effect": "Trees down across a heavily forested peninsula, multi-day power outages, closure of the Hood Canal Bridge, and carbon-monoxide deaths from generators and barbecues used indoors. In a peninsula community the outage, not the wind, is the hazard.",
+      "source_url": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+    },
+    {
+      "hazard": "Flooding (coastal/tidal and small-stream)",
+      "likelihood": "Mapped and regulated. FEMA's National Flood Hazard Layer shows a 1-percent-annual-chance (100-year) special flood hazard area along the Dyes Inlet shoreline at Silverdale and up the creek corridors, with 0.2-percent-annual-chance (500-year) Zone X beyond it. Point checks: the Silverdale waterfront at the head of Dyes Inlet is Zone AE with a base flood elevation of 14 ft; the Chico Creek mouth is Zone AE with BFE 13 ft; the Barker Creek mouth is Zone AE FLOODWAY. The built-up upland of Silverdale (CDP centroid, Clear Creek at Silverdale Way, Bucklin Hill) is Zone X, area of minimal flood hazard.",
+      "severity": "Localised rather than catastrophic - there is no large river here. NOAA logs 18 Flood and 3 Coastal Flood events for these zones since 1996. The coastal cases are tide-driven: on 17 Dec 2012 record high tides flooded roads and properties around Puget Sound (the Seattle gauge recorded 14.48 ft) with flooding of a street and apartment parking lots in Port Orchard; on 27 Dec 2022 flooding damaged business space in Port Orchard and Hood Canal water rose above Seabeck Highway.",
+      "warning_time": "Hours to days. Coastal flooding here is the predictable combination of a high astronomical tide, low barometric pressure and onshore wind, so NWS coastal flood advisories are issued in advance; small-stream flooding follows forecast heavy-rain events.",
+      "return_period": "1 percent annual chance (100-year) for the mapped AE zones; 0.2 percent annual chance (500-year) for the shaded X zone. Kitsap County FIRM panels covering Silverdale are effective 2010-11-04 and 2017-02-03, DFIRM 53035C, scale 1:6000.",
+      "local_effect": "Saltwater flooding of the low Silverdale waterfront and Old Town at extreme high tides, and floodway flooding along Clear, Barker and Chico Creeks. Mean tidal range at the reference station is about 11.7 ft, so tide stage governs.",
+      "source_url": "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28"
+    },
+    {
+      "hazard": "Wildfire",
+      "likelihood": "Low by Washington standards, but not zero, and it is the hazard most likely to be underestimated here. The interagency fire perimeter history contains no modern (post-1900) mapped fire perimeter within about 15 km of Silverdale; the only perimeters intersecting that area are three very large pre-settlement fire events dated 1308, 1508 and 1701 CE. NOAA's storm record logs a single Wildfire event for these zones in 30 years: 4-13 Oct 2012, 230 acres of timber north of Shelton, after 'little or no precipitation had fallen since mid July'.",
+      "severity": "The westside Douglas-fir fire regime is infrequent but stand-replacing: the mapped historical events here are hundreds of thousands to over a million acres. The modern risk is a late-summer/early-autumn ignition in continuous second-growth timber during the annual summer drought, in a wildland-urban interface with limited road egress off the peninsula.",
+      "warning_time": "Days for the fire-weather setup (NWS issues Red Flag Warnings for fire weather zone WAZ654), but minutes to hours for an actual fire run.",
+      "return_period": "The mapped large-fire intervals near Silverdale are 1308, 1508, 1701 - roughly 200 and 193 years apart - with nothing mapped since. Treat as a centuries-scale, high-severity regime rather than an annual one. No published modern return period for this location was found.",
+      "local_effect": "Late-season timber fire in second-growth forest around Green and Gold Mountains and the peninsula interior; the constraint is evacuation off a peninsula, not fire behaviour alone.",
+      "source_url": "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/InterAgencyFirePerimeterHistory_All_Years_View/FeatureServer/0"
+    },
+    {
+      "hazard": "Heavy snow and ice (included because the record says it outranks wind by count)",
+      "likelihood": "48 Heavy Snow events, 19 Winter Weather, 4 Winter Storm and 3 Ice Storm events in NOAA's record for these zones since 1996 - more logged events than High Wind. Heavy-snow years occurred in 18 of the 30 years.",
+      "severity": "Wet, heavy lowland snow near freezing, which loads trees and brings down limbs and power lines; combined with the terrain it isolates hillside neighbourhoods.",
+      "warning_time": "Days. Forecast well in advance by NWS Seattle.",
+      "return_period": "Roughly 3 of every 5 winters produce at least one heavy-snow, winter-storm or ice-storm event in these zones.",
+      "local_effect": "Power loss and road closures on the steep Bucklin Hill / bluff-top roads; same generator carbon-monoxide risk as windstorms.",
+      "source_url": "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
+    }
+  ],
+  "licence": "Public domain. Every value in this file comes from a US federal source (17 U.S.C. 105) unless an entry says otherwise, so it may ship inside the release bundle. Nothing here was taken from Wikipedia, OpenStreetMap, GBIF or iNaturalist, whose share-alike terms would travel with every copy."
+}

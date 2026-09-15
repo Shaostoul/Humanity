@@ -1,0 +1,529 @@
+{
+  "_comment": "Where water comes from, goes to, and who is upstream. Shape: schemas/locale.toml. Tidal behaviour lives in tides.json.",
+  "watershed": {
+    "wria": {
+      "number": 15,
+      "name": "Kitsap",
+      "authority": "Washington Water Resource Inventory Area",
+      "note": "WRIA 15 is named in RCW 90.94.030(2)(a) as one of eight watersheds with a Streamflow Restoration committee. Ecology adopted the WRIA 15 watershed plan in December 2024.",
+      "source": "https://app.leg.wa.gov/RCW/default.aspx?cite=90.94.030"
+    },
+    "huc": {
+      "huc2": {
+        "code": "17",
+        "name": "Pacific Northwest"
+      },
+      "huc8": {
+        "code": "17110019",
+        "name": "Puget Sound",
+        "area_sqkm": 6369.61,
+        "source": "https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/4 (USGS Watershed Boundary Dataset, point query at 47.644, -122.694)"
+      },
+      "huc10": {
+        "code": "1711001907",
+        "name": "Olalla Valley-Frontal Puget Sound",
+        "area_sqkm": 746.59,
+        "source": "https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/5"
+      },
+      "huc12": {
+        "code": "171100190706",
+        "name": "Barker Creek-Frontal Dyes Inlet",
+        "area_sqkm": 92.38,
+        "area_acres": 22828.07,
+        "hu_type": "F (frontal)",
+        "drains_to_huc12": "171100191000",
+        "note": "Silverdale town centre, the lower Clear Creek valley and the upper Clear Creek headwaters all fall inside this one HUC12 (verified by three separate point queries). Chico Creek, immediately south, is a different HUC12: 171100190705 'Chico Creek-Frontal Sinclair Inlet', 62.38 km2.",
+        "source": "https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/6"
+      }
+    },
+    "drainage_path_to_ocean": {
+      "description": "Runoff at Silverdale reaches the open ocean through a chain of tidal basins, not a river. Each step below is the USGS Watershed Boundary Dataset 'tohuc' pointer, followed from the Silverdale HUC12 outward.",
+      "steps": [
+        {
+          "huc12": "171100190706",
+          "name": "Barker Creek-Frontal Dyes Inlet",
+          "plain": "local creeks discharge into Dyes Inlet"
+        },
+        {
+          "huc12": "171100191000",
+          "name": "Port Orchard",
+          "plain": "Dyes Inlet exits south through Port Washington Narrows into Sinclair Inlet / Port Orchard"
+        },
+        {
+          "huc12": "171100191200",
+          "name": "Puget Sound",
+          "plain": "main basin of Puget Sound"
+        },
+        {
+          "huc12": "171100191300",
+          "name": "Rosario Strait-Strait of Juan de Fuca"
+        },
+        {
+          "huc12": "171100200700",
+          "name": "Discovery Bay-Strait of Juan de Fuca"
+        }
+      ],
+      "ultimate_receiving_water": "Strait of Juan de Fuca, then the North Pacific Ocean",
+      "source": "https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/6 (tohuc field, chained)"
+    },
+    "precipitation": {
+      "headline_mm_per_year": 1192.5,
+      "headline_in_per_year": 46.95,
+      "headline_basis": "NOAA NCEI Climate at a Glance, area-averaged annual precipitation for Kitsap County, WA, 1991-2020 (30 full years). Chosen as the headline because Silverdale sits between two COOP stations whose normals differ by 15 inches, so a single station would mislead.",
+      "headline_source": "https://www.ncei.noaa.gov/access/monitoring/climate-at-a-glance/county/time-series/WA-035/pcp/ann/12/1991-2020.csv",
+      "county_interannual_range": {
+        "driest_year": {
+          "year": 2013,
+          "in": 32.23,
+          "mm": 818.6
+        },
+        "wettest_year": {
+          "year": 1999,
+          "in": 60.81,
+          "mm": 1544.6
+        },
+        "median_in": 46.41,
+        "comment": "Nearly a 2x swing between the driest and wettest year in 30 years. Any rain-catchment sizing should use the dry year, not the mean."
+      },
+      "nearest_stations": [
+        {
+          "id": "USC00450872",
+          "name": "BREMERTON, WA US",
+          "lat": 47.5689,
+          "lon": -122.6828,
+          "elevation_m": 33.5,
+          "distance_km_from_silverdale": 8.5,
+          "normal_period": "1991-2020",
+          "annual_precip_in": 56.93,
+          "annual_precip_mm": 1446,
+          "seasonal_in": {
+            "DJF": 25.03,
+            "MAM": 12.59,
+            "JJA": 3.53,
+            "SON": 15.78
+          },
+          "monthly_precip_mm": [
+            235.7,
+            148.1,
+            161.8,
+            98,
+            59.9,
+            40.9,
+            21.1,
+            27.7,
+            45.7,
+            130.6,
+            224.5,
+            252
+          ],
+          "monthly_precip_in": [
+            9.28,
+            5.83,
+            6.37,
+            3.86,
+            2.36,
+            1.61,
+            0.83,
+            1.09,
+            1.8,
+            5.14,
+            8.84,
+            9.92
+          ],
+          "days_with_ge_0p01in_per_year": 167.1,
+          "days_with_ge_0p10in_per_year": 102.3,
+          "annual_snow_in": 3,
+          "source": "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv and https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/USC00450872.csv"
+        },
+        {
+          "id": "USC00456706",
+          "name": "POULSBO 1NW, WA US",
+          "lat": 47.8061,
+          "lon": -122.6517,
+          "distance_km_from_silverdale": 18.2,
+          "normal_period": "1991-2020",
+          "annual_precip_in": 41.39,
+          "annual_precip_mm": 1051.3,
+          "source": "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00456706.csv"
+        }
+      ],
+      "soil_survey_cross_check": {
+        "map_unit": "Urban land-Alderwood complex, 0 to 8 percent slopes (mukey 74237)",
+        "component": "Alderwood (20 percent of the unit)",
+        "mean_annual_precip_mm_representative": 1080,
+        "mean_annual_precip_mm_range": [
+          635,
+          1524
+        ],
+        "mean_annual_air_temp_c": 10,
+        "frost_free_days": 200,
+        "source": "USDA NRCS Soil Data Access, SSURGO component table, point query at 47.644, -122.694: https://sdmdataaccess.nrcs.usda.gov/Tabular/post.rest"
+      },
+      "seasonality_warning": "The wet season is extreme and the dry season is near-desert: Bremerton normals run 252 mm in December against 21 mm in July. Roughly 44 percent of the year's rain falls in December-February and about 6 percent in June-August. Summer water at Silverdale is a storage problem, not a rainfall problem."
+    }
+  },
+  "surface_waters": [
+    {
+      "name": "Dyes Inlet",
+      "type": "tidal inlet (saltwater)",
+      "role": "The receiving water for every creek in Silverdale. Silverdale sits at its head (north end).",
+      "connects_to": "Port Washington Narrows at its south end, which leads to Sinclair Inlet / Port Orchard and thence the main basin of Puget Sound",
+      "distance_km_from_silverdale": 0.5,
+      "shellfish_growing_area_classification": {
+        "authority": "Washington State Department of Health, Commercial Shellfish Growing Areas",
+        "as_of": "2026-09-04",
+        "total_acres": 3738.75,
+        "total_sqkm": 15.13,
+        "approved_acres": 102.91,
+        "conditionally_approved_acres": 1291.1,
+        "restricted_acres": 0,
+        "prohibited_acres": 2344.74,
+        "prohibited_percent": 62.7,
+        "prohibited_reasons": [
+          "Wastewater Treatment Plant Outfall, Nonpoint Pollution",
+          "Nonpoint Pollution"
+        ],
+        "conditional_reason": "Greater than 100,000 gallons treated CSO discharge in combination with a loss of disinfection, or greater than 10,000 gallons untreated CSO discharge, or greater than 2,000 gallons raw sewage during specific tide event.",
+        "practical_meaning": "Nearly two thirds of Dyes Inlet is closed to shellfish harvest outright, and most of the rest is only conditionally open and can shut after a sewage or CSO event. Do not treat a low tide here as an open larder. Check the current DOH status before any shellfish harvest.",
+        "source": "https://services8.arcgis.com/rGGrs6HCnw87OFOT/arcgis/rest/services/Commercial_Shellfish_Growing_Areas/FeatureServer/0 (WA DOH, layer 'growingareas'); programme page https://doh.wa.gov/community-and-environment/shellfish/growing-areas"
+      }
+    },
+    {
+      "name": "Clear Creek",
+      "type": "stream",
+      "gnis_id": 1504003,
+      "mouth": {
+        "lat": 47.65038,
+        "lon": -122.68544
+      },
+      "mouth_distance_km_from_silverdale": 0.94,
+      "flows_into": "Dyes Inlet",
+      "drainage_area_sqmi": 8.5,
+      "drainage_area_sqkm": 22.01,
+      "usgs_gage": {
+        "id": "12070500",
+        "name": "CLEAR CREEK NEAR SILVERDALE, WA",
+        "lat": 47.6637054,
+        "lon": -122.6818143
+      },
+      "flow_record": "None continuous. USGS holds 9 surface-water field measurements, 1951-08-13 to 1959-08-07. There is no published mean or low flow for Clear Creek.",
+      "sources": [
+        "https://carto.nationalmap.gov/arcgis/rest/services/geonames/MapServer/6 (USGS GNIS, Stream mouth)",
+        "https://waterservices.usgs.gov/nwis/site/?format=rdb&sites=12070500&seriesCatalogOutput=true"
+      ]
+    },
+    {
+      "name": "West Fork Clear Creek",
+      "type": "stream",
+      "flows_into": "Clear Creek",
+      "drainage_area_sqmi": 3.68,
+      "drainage_area_sqkm": 9.53,
+      "usgs_gage": {
+        "id": "12070495",
+        "name": "WEST FORK CLEAR CREEK AT MOUTH NEAR SILVERDALE, WA",
+        "lat": 47.6650943,
+        "lon": -122.6832034
+      },
+      "source": "https://waterservices.usgs.gov/nwis/site/?format=rdb&sites=12070495&siteOutput=expanded"
+    },
+    {
+      "name": "Strawberry Creek",
+      "type": "stream",
+      "flows_into": "Dyes Inlet",
+      "drainage_area_sqmi": 4.96,
+      "drainage_area_sqkm": 12.85,
+      "usgs_gage": {
+        "id": "12070610",
+        "name": "STRAWBERRY CREEK NEAR MOUTH AT SILVERDALE, WA",
+        "lat": 47.64620527,
+        "lon": -122.6951476
+      },
+      "distance_km_from_silverdale": 0.16,
+      "note": "The closest named stream to the Silverdale reference point, effectively in the town centre. An upstream site, 12070605 at Silverdale Way, drains 3.01 sq mi (7.80 km2).",
+      "flow_record": "None. Inventory site only.",
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12070610/"
+    },
+    {
+      "name": "Barker Creek",
+      "type": "stream",
+      "gnis_id": 1503168,
+      "mouth": {
+        "lat": 47.63677,
+        "lon": -122.67266
+      },
+      "mouth_distance_km_from_silverdale": 1.89,
+      "flows_into": "Dyes Inlet",
+      "drainage_area_sqmi": 4.03,
+      "drainage_area_sqkm": 10.44,
+      "usgs_gages": [
+        {
+          "id": "12070470",
+          "name": "BARKER CREEK NEAR SILVERDALE, WA",
+          "drainage_area_sqmi": 4.03
+        },
+        {
+          "id": "12070475",
+          "name": "BARKER CREEK AT MOUTH NEAR SILVERDALE, WA",
+          "drainage_area_sqmi": 4.02
+        },
+        {
+          "id": "12070458",
+          "name": "BARKER CREEK BELOW ISLAND LAKE NEAR SILVERDALE, WA"
+        }
+      ],
+      "note": "The HUC12 that contains Silverdale is named for this creek. Its headwaters include Island Lake.",
+      "sources": [
+        "https://carto.nationalmap.gov/arcgis/rest/services/geonames/MapServer/6",
+        "https://waterdata.usgs.gov/monitoring-location/USGS-12070475/"
+      ]
+    },
+    {
+      "name": "Koch Creek",
+      "type": "stream",
+      "flows_into": "Dyes Inlet",
+      "drainage_area_sqmi": 0.28,
+      "drainage_area_sqkm": 0.73,
+      "usgs_gage": {
+        "id": "12070615",
+        "name": "KOCH CREEK NEAR MOUTH NEAR SILVERDALE, WA",
+        "lat": 47.64064966,
+        "lon": -122.6998699
+      },
+      "distance_km_from_silverdale": 0.59,
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12070615/"
+    },
+    {
+      "name": "Chico Creek",
+      "type": "stream",
+      "gnis_id": 1505120,
+      "flows_into": "Chico Bay, at the south end of Dyes Inlet",
+      "drainage_area_sqmi": 15.3,
+      "drainage_area_sqkm": 39.63,
+      "distance_km_from_silverdale": 6.18,
+      "usgs_gage": {
+        "id": "12072000",
+        "name": "CHICO CREEK NEAR BREMERTON, WA",
+        "lat": 47.59009406,
+        "lon": -122.7095896
+      },
+      "flow_record": {
+        "type": "daily mean discharge",
+        "begin": "1947-07-01",
+        "end": "1974-10-01",
+        "days": 6119,
+        "monthly_mean_discharge_cfs": {
+          "Jan": 92.24,
+          "Feb": 73.84,
+          "Mar": 68.58,
+          "Apr": 34.47,
+          "May": 16.95,
+          "Jun": 8.25,
+          "Jul": 3.85,
+          "Aug": 1.99,
+          "Sep": 2.7,
+          "Oct": 9.31,
+          "Nov": 36.18,
+          "Dec": 83.08
+        },
+        "monthly_mean_discharge_m3s": {
+          "Jan": 2.612,
+          "Feb": 2.091,
+          "Mar": 1.942,
+          "Apr": 0.976,
+          "May": 0.48,
+          "Jun": 0.234,
+          "Jul": 0.109,
+          "Aug": 0.056,
+          "Sep": 0.076,
+          "Oct": 0.264,
+          "Nov": 1.025,
+          "Dec": 2.353
+        },
+        "interpretation": "The only creek in the Dyes Inlet basin with a real long flow record. August mean flow is 0.056 m3/s, about 1/47th of the January mean. The largest local stream nearly stops in late summer; smaller creeks like Koch and Strawberry can be assumed to do worse.",
+        "source": "https://waterservices.usgs.gov/nwis/stat/?format=rdb&sites=12072000&statReportType=monthly&statTypeCd=mean&parameterCd=00060"
+      }
+    },
+    {
+      "name": "Dickerson Creek",
+      "type": "stream",
+      "gnis_id": 1504478,
+      "flows_into": "Chico Creek",
+      "drainage_area_sqmi": 2.19,
+      "drainage_area_sqkm": 5.67,
+      "usgs_gage": {
+        "id": "12071300",
+        "name": "DICKERSON CREEK NEAR MOUTH NEAR BREMERTON, WA"
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12071300/"
+    },
+    {
+      "name": "Wildcat Creek",
+      "type": "stream",
+      "gnis_id": 1528135,
+      "flows_into": "Chico Creek",
+      "drainage_area_sqmi": 2.5,
+      "drainage_area_sqkm": 6.47,
+      "usgs_gage": {
+        "id": "12071025",
+        "name": "WILDCAT CREEK BELOW WILDCAT LAKE NEAR CHICO, WA"
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12071025/"
+    },
+    {
+      "name": "Mosher Creek",
+      "type": "stream",
+      "gnis_id": 1506807,
+      "flows_into": "Dyes Inlet at Tracyton",
+      "drainage_area_sqmi": 1.58,
+      "drainage_area_sqkm": 4.09,
+      "usgs_gage": {
+        "id": "12070350",
+        "name": "MOSHER CREEK AT TRACYTON, WA"
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12070350/"
+    },
+    {
+      "name": "Island Lake",
+      "type": "lake",
+      "gnis_id": 1505759,
+      "drains_to": "Barker Creek, then Dyes Inlet",
+      "distance_km_from_silverdale": 4.53,
+      "usgs_site": {
+        "id": "12070455",
+        "name": "ISLAND LAKE NEAR KEYPORT, WA",
+        "lat": 47.67815019,
+        "lon": -122.6601466
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12070455/"
+    },
+    {
+      "name": "Kitsap Lake",
+      "type": "lake",
+      "drains_to": "Kitsap Creek, then Chico Creek, then Dyes Inlet",
+      "distance_km_from_silverdale": 7.35,
+      "outlet_drainage_area_sqmi": 2.73,
+      "outlet_drainage_area_sqkm": 7.07,
+      "usgs_site": {
+        "id": "12071500",
+        "name": "KITSAP LAKE NEAR BREMERTON, WA"
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12071500/"
+    },
+    {
+      "name": "Wildcat Lake",
+      "type": "lake",
+      "gnis_id": 1528139,
+      "drains_to": "Wildcat Creek, then Chico Creek, then Dyes Inlet",
+      "distance_km_from_silverdale": 7.06,
+      "usgs_site": {
+        "id": "12071000",
+        "name": "WILDCAT LAKE NEAR BREMERTON, WA"
+      },
+      "source": "https://waterdata.usgs.gov/monitoring-location/USGS-12071000/"
+    }
+  ],
+  "groundwater": {
+    "viability": "Yes. Groundwater is the normal domestic water source on the Kitsap Peninsula, and it is the only one: the peninsula is surrounded by saltwater and, as USGS puts it, 'the hydrologic setting is similar to that of an island'. There is no upstream river to divert from.",
+    "aquifer_system": {
+      "national_aquifer_code": "S100PGTSND",
+      "national_aquifer_name": "Puget Sound aquifer system",
+      "framework": "USGS grouped the geologic units of the Kitsap Peninsula into 12 hydrogeologic units: a set of aquifers, confining units, and an underlying bedrock unit.",
+      "aquifer_material": "Unconsolidated aquifers are moderately to well sorted alluvial and glacial outwash sand, gravel and cobbles with minor silt and clay lenses. The bodies are often discontinuous or isolated and highly variable in thickness.",
+      "confinement": "Unconfined where an aquifer unit reaches the land surface, but much of the peninsula is mantled by glacial till, so confined conditions are common.",
+      "flow_direction": "Groundwater flows radially off the peninsula toward Puget Sound and Hood Canal, complicated locally by low permeability confining units acting as flow barriers.",
+      "source": "Welch, W.B., Frans, L.M., and Olsen, T.D., 2014, USGS Scientific Investigations Report 2014-5106, https://pubs.usgs.gov/sir/2014/5106/"
+    },
+    "well_depths": {
+      "method": "Computed from the well_depth_va field of every USGS NWIS groundwater site inventory record in Kitsap County (FIPS 53035) that carries a recorded depth. Not an estimate, a distribution of real drilled wells.",
+      "near_silverdale": {
+        "radius_note": "sites within about 6 km of 47.644, -122.694",
+        "sites_with_depth": 646,
+        "min_ft": 1.55,
+        "p25_ft": 41,
+        "median_ft": 98,
+        "p75_ft": 255,
+        "max_ft": 1200,
+        "min_m": 0.5,
+        "p25_m": 12.5,
+        "median_m": 29.9,
+        "p75_m": 77.7,
+        "max_m": 365.8
+      },
+      "kitsap_county_wide": {
+        "sites_with_depth": 3856,
+        "p10_ft": 16.5,
+        "p25_ft": 47,
+        "median_ft": 109,
+        "p75_ft": 228,
+        "p90_ft": 366,
+        "mean_ft": 171.7,
+        "p10_m": 5,
+        "p25_m": 14.3,
+        "median_m": 33.2,
+        "p75_m": 69.5,
+        "p90_m": 111.6,
+        "mean_m": 52.3
+      },
+      "typical_answer": "A typical domestic well near Silverdale is about 30 m (100 ft) deep; half of local wells fall between roughly 12 m and 78 m (41 to 255 ft). Shallow wells under 15 m exist and work, but sit in the unconfined surficial unit and are the most exposed to surface contamination and to seasonal decline.",
+      "source": "https://waterservices.usgs.gov/nwis/site/?format=rdb&countyCd=53035&siteType=GW&siteOutput=expanded"
+    },
+    "seasonal_water_level_fluctuation": {
+      "unconsolidated_units_ft": [
+        1,
+        20
+      ],
+      "unconsolidated_units_m": [
+        0.3,
+        6.1
+      ],
+      "bedrock_max_observed_ft": 33,
+      "bedrock_max_observed_m": 10.1,
+      "monitoring_period": "2011-2012",
+      "source": "USGS SIR 2014-5106, https://pubs.usgs.gov/sir/2014/5106/"
+    },
+    "water_budget": {
+      "year": 2012,
+      "year_note": "an above average precipitation year",
+      "recharge_from_precipitation_acre_ft": 664610,
+      "recharge_from_return_flows_acre_ft": 22122,
+      "fate_of_recharge_percent": {
+        "discharge_to_streams": 66,
+        "withdrawn_from_wells": 4,
+        "discharge_to_Hood_Canal_and_Puget_Sound": 30
+      },
+      "implication": "Only about 4 percent of recharge is currently pumped, but two thirds of it is what keeps the creeks running. Extra withdrawal comes out of summer streamflow, which is exactly the flow shown as near zero in the Chico Creek record.",
+      "source": "USGS SIR 2014-5106, https://pubs.usgs.gov/sir/2014/5106/"
+    },
+    "seawater_intrusion": {
+      "status": "No widespread seawater contamination of wells on the Kitsap Peninsula.",
+      "local_exceedances": "Local areas where chloride in well water exceeds 25 mg/L: the southern Longbranch peninsula, Horsehead Bay, Point Evans, Sinclair Inlet, Eagle Harbor, Fletcher Bay, the north end of Bainbridge Island, and the north tip of the Kitsap peninsula.",
+      "silverdale_specific": "Silverdale and Dyes Inlet are not on that list. Sinclair Inlet, about 11 km south, is.",
+      "mechanism": "Increased withdrawals cause decreased streamflow, declining water levels, and increased seawater contamination.",
+      "vintage_warning": "This finding is from 1980 field data. It is the most specific published federal statement found, but it is 45 years old; a shoreline well should be tested for chloride rather than assumed clean.",
+      "source": "Hansen, A.J., and Bolke, E., 1980, Ground-water availability on the Kitsap Peninsula, Washington: USGS Open-File Report 80-1186, https://pubs.usgs.gov/publication/ofr801186",
+      "state_monitoring_programme": "https://ecology.wa.gov/water-shorelines/water-supply/water-rights/seawater-intrusion"
+    },
+    "legal_limits_on_new_wells": {
+      "statewide_permit_exemption": {
+        "domestic_gpd": 5000,
+        "industrial_gpd": 5000,
+        "lawn_or_garden": "half an acre or less",
+        "stockwater": "no stated gallon limit",
+        "source": "https://ecology.wa.gov/water-shorelines/water-supply/water-rights/groundwater-permit-exemption"
+      },
+      "wria_15_override": {
+        "applies_to": "new domestic permit-exempt withdrawals in WRIA 15 (Kitsap), which is named in RCW 90.94.030(2)(a)",
+        "max_annual_average_gpd_per_connection": 950,
+        "max_annual_average_lpd_per_connection": 3596,
+        "drought_curtailment_gpd_per_connection": 350,
+        "drought_curtailment_note": "indoor use only, on issuance of a drought emergency order under RCW 43.83B.405; water for a fire control buffer is still allowed",
+        "fee_to_permitting_authority_usd": 500,
+        "stormwater_condition": "applicant must manage stormwater runoff on-site to the extent practicable by maximising infiltration",
+        "duration": "These are the interim statutory measures that apply 'until rules have been adopted that specify otherwise'. Ecology adopted the WRIA 15 watershed plan in December 2024 and rulemaking follows, so confirm the current rule before relying on the number.",
+        "source": "RCW 90.94.030, https://app.leg.wa.gov/RCW/default.aspx?cite=90.94.030"
+      }
+    }
+  },
+  "units": "SI first (metres, km, km2, mm, m3/s). Original US customary values are kept alongside where the source publishes them, so nothing is lost in conversion.",
+  "licence": "All values below are from US federal (USGS, NOAA, USDA-NRCS) or Washington State (Ecology, DOH, RCW) sources. Federal works are public domain; the Washington State sources are state government records used per the task's allowance. No Wikipedia, OSM, iNaturalist, GBIF or other share-alike source was used."
+}

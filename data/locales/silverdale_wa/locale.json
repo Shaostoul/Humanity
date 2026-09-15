@@ -1,0 +1,95 @@
+{
+  "_comment": "Who and where this place is. Shape: schemas/locale.toml. Operator decision 2026-09-15: Silverdale is the canonical world, not a reference dataset beside a generic one. Nothing in src/ or web/ may name this locale; it is selected by id, so adding a second town stays a data drop.",
+  "id": "silverdale_wa",
+  "name": "Silverdale",
+  "region": "Washington",
+  "country": "US",
+  "setting": "Head of Dyes Inlet, an arm of Puget Sound, on the Kitsap Peninsula",
+  "jurisdictions": [
+    "humanity",
+    "earth",
+    "usa",
+    "wa",
+    "kitsap",
+    "silverdale"
+  ],
+  "centre": {
+    "lat": 47.6445,
+    "lon": -122.6949
+  },
+  "centre_note": "GNIS populated place 1512662. The census designated place centroid (2408740) is at 47.6664, -122.6828, uphill and north of the town itself.",
+  "bounds": {
+    "north": 47.7,
+    "south": 47.58,
+    "east": -122.62,
+    "west": -122.75
+  },
+  "elevation_m": {
+    "min": 0,
+    "max": 178,
+    "mean": 64
+  },
+  "timezone": "America/Los_Angeles",
+  "county_fips": "53035",
+  "authorities": {
+    "state-extension": {
+      "name": "WSU Extension, Kitsap County",
+      "url": "https://extension.wsu.edu/kitsap/"
+    },
+    "state-fish-wildlife": {
+      "name": "Washington Department of Fish and Wildlife",
+      "url": "https://wdfw.wa.gov/"
+    },
+    "state-health-biotoxin": {
+      "name": "Washington State Department of Health, Marine Biotoxins",
+      "url": "https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/biotoxins",
+      "note": "Check before every shellfish harvest, not once. Cooking and freezing do not destroy paralytic shellfish poison. Hotline 1-800-562-5632."
+    },
+    "state-noxious-weeds": {
+      "name": "Washington State Noxious Weed Control Board",
+      "url": "https://www.nwcb.wa.gov/",
+      "note": "Lists the county board contacts, including Kitsap."
+    },
+    "state-water-agency": {
+      "name": "Washington State Department of Ecology, Water Rights",
+      "url": "https://ecology.wa.gov/water-shorelines/water-supply/water-rights",
+      "note": "WRIA 15 overrides the statewide groundwater permit exemption, so what you may legally draw here is not the statewide answer."
+    },
+    "soil-testing-lab": {
+      "name": "WSU Puyallup, Soils",
+      "url": "https://puyallup.wsu.edu/soils/"
+    }
+  },
+  "weather_service": {
+    "office": "Seattle WFO (SEW)",
+    "public_forecast_zone": "WAZ323 Eastern Kitsap County",
+    "fire_weather_zone": "WAZ654",
+    "radar": "KATX",
+    "url": "https://api.weather.gov/points/47.6445,-122.6949"
+  },
+  "usgs_quadrangles": [
+    "Poulsbo",
+    "Bremerton West",
+    "Suquamish",
+    "Seabeck",
+    "Wildcat Lake"
+  ],
+  "licence": "Public domain. Every value in this file comes from a US federal source (17 U.S.C. 105) unless an entry says otherwise, so it may ship inside the release bundle. Nothing here was taken from Wikipedia, OpenStreetMap, GBIF or iNaturalist, whose share-alike terms would travel with every copy.",
+  "sources": [
+    {
+      "what": "Place name, feature ids and coordinates",
+      "url": "https://edits.nationalmap.gov/apps/gaz-domestic/public/search/names",
+      "publisher": "USGS Geographic Names Information System"
+    },
+    {
+      "what": "Forecast office, zones and radar",
+      "url": "https://api.weather.gov/points/47.6445,-122.6949",
+      "publisher": "NOAA National Weather Service"
+    },
+    {
+      "what": "Elevation statistics",
+      "url": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer",
+      "publisher": "USGS 3DEP"
+    }
+  ]
+}

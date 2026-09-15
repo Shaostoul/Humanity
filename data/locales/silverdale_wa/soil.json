@@ -1,0 +1,444 @@
+{
+  "_comment": "Soil series and properties from the official survey rather than from feel. Percentages are of MAPPED LAND: Dyes Inlet is water and SSURGO does not map it. Shape: schemas/locale.toml.",
+  "area_of_interest": {
+    "description": "Silverdale / Central Kitsap, Kitsap County, Washington. Bounding box 47.59 to 47.70 N, -122.76 to -122.62 W (about 10.5 km east-west by 12.2 km north-south, centered on Silverdale at roughly 47.645 N, -122.69 W). Includes Dyes Inlet, which SSURGO does not map as soil, so the percentages below are of MAPPED LAND only.",
+    "survey_areas_used": [
+      "WA635 - Kitsap County Area, Washington (covers essentially all of the box; SSURGO version dated 2025-08-28)",
+      "WA778 - Bangor Naval Station, Washington (a small sliver in the northwest, about 6 percent of the box)"
+    ],
+    "method": "USDA NRCS Soil Data Access (SSURGO) spatial query: every mupolygon intersecting the box, clipped to the box, area-weighted, then split among its components by comppct_r. Shares are therefore component-percent-weighted, not just map-unit-name-weighted, so minor components inside named map units (for example Everett inside Alderwood units) are counted.",
+    "percent_basis": "Percent of mapped land area in the box, with open water map units removed (open water was only 0.33 percent; marine water is not mapped at all)."
+  },
+  "series": [
+    {
+      "name": "Alderwood",
+      "pct": 49.9,
+      "texture": "Gravelly sandy loam surface (0-18 cm), very gravelly sandy loam subsoil (18-89 cm), then dense noncoherent glacial till (2Cd). About 65-70 percent sand, 22-27 percent silt, 5-8 percent clay above the till.",
+      "drainage": "Moderately well drained. Hydrologic group B. Seasonal perched water table as shallow as 65 cm.",
+      "ph_range": "5.1-6.5",
+      "depth_to_restriction_cm": 56,
+      "limitations": {
+        "restriction_kind": "Densic material (dense glacial till), noncoherent. Representative 56 cm in the dominant phases; full mapped range 50-102 cm.",
+        "available_water_storage_0_150cm_cm": 8.7,
+        "rated_very_limited_for": [
+          "Dwellings with basements - perched ground water 75-180 cm, and slope on the 8-15 and 15-30 percent phases",
+          "Septic tank absorption fields - slope plus wetness at 120-180 cm",
+          "Shallow excavations - wetness 75-180 cm, dense layer at 50-150 cm"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings without basements, local roads and streets, small commercial buildings (slope and wetness on the flatter phases)"
+        ],
+        "grower_notes": "Only about 8.7 cm of plant-available water in the top 150 cm, so this soil is droughty through a dry Puget Sound summer despite winter saturation above the till. The gravelly mantle above the till is thin; deep-rooted crops hit the hardpan. Farmland class varies by phase from prime-if-irrigated to not-prime."
+      }
+    },
+    {
+      "name": "Indianola",
+      "pct": 10.3,
+      "texture": "Loamy sand to sand throughout (about 85-90 percent sand, 8-16 percent silt, 2-4 percent clay). Very deep, no textural change.",
+      "drainage": "Somewhat excessively drained. Hydrologic group A. Very high saturated hydraulic conductivity.",
+      "ph_range": "5.1-6.8",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None. Very deep sandy glacial outwash, no densic or lithic contact recorded.",
+        "available_water_storage_0_150cm_cm": 9.7,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - seepage through the bottom layer and inadequate filtering in the 60-150 cm filter field zone. This is a groundwater-contamination limitation, not a drainage failure.",
+          "Shallow excavations - unstable excavation walls (sand caves in)",
+          "Dwellings and roads on the 15-30 percent slope phases (slope only)"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Droughty and low in natural fertility; nutrients and lime leach quickly. Farmland class is prime-only-if-irrigated on the flatter phases. Good for early spring warm-up and root crops if irrigation exists; poor for anything unirrigated in July and August."
+      }
+    },
+    {
+      "name": "Norma",
+      "pct": 6.1,
+      "texture": "Ashy fine sandy loam (0-20 cm) over fine sandy loam (20-56 cm), then stratified loamy sand to clay loam. About 63 percent sand, 27 percent silt, 10 percent clay in the upper solum.",
+      "drainage": "Poorly drained. Hydrologic group B/D. Apparent water table at 0 cm (at the surface) and ponding in winter and spring. Hydric soil.",
+      "ph_range": "5.6-7.3",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical. The limiting feature is the water table at the surface.",
+        "available_water_storage_0_150cm_cm": 21,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - ponding over 4 hours, ground water at the surface",
+          "Local roads and streets - ponding, ground water 30-75 cm",
+          "Septic tank absorption fields - wetness at 120-180 cm, ponding, restricted percolation",
+          "Small commercial buildings and shallow excavations - ponding and wetness"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Classed as prime farmland ONLY if drained. High water holding capacity (21 cm) and good organic matter (7.5 percent in the surface) make it productive pasture or hay ground once drained, but it is a regulated hydric soil, so drainage is a permitting question, not just an engineering one."
+      }
+    },
+    {
+      "name": "Kapowsin",
+      "pct": 5.3,
+      "texture": "Gravelly ashy loam (0-38 cm) over loam, with a weakly cemented 3Bstm horizon then dense till. About 45 percent sand, 45 percent silt, 10 percent clay.",
+      "drainage": "Moderately well drained. Hydrologic group B. Perched water table as shallow as 50 cm, December through spring.",
+      "ph_range": "5.1-6.5",
+      "depth_to_restriction_cm": 64,
+      "limitations": {
+        "restriction_kind": "Weakly coherent cemented horizon at about 64 cm, densic material at about 74 cm.",
+        "available_water_storage_0_150cm_cm": 14.2,
+        "rated_very_limited_for": [
+          "Dwellings with basements - perched water 75-180 cm",
+          "Septic tank absorption fields - wetness at 120-180 cm",
+          "Shallow excavations - wetness and the dense layer at 50-150 cm"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings without basements and local roads and streets (wetness)"
+        ],
+        "grower_notes": "The best cropland soil in this area: the ONLY series here classed 'All areas are prime farmland'. Holds 14.2 cm of available water, has 6 percent organic matter in the plow layer, and is ashy (volcanic-ash influenced) so it is friable. Its problem is a cemented pan at roughly two feet, so deep-rooted perennials and drainfields both hit it."
+      }
+    },
+    {
+      "name": "Kitsap",
+      "pct": 4.2,
+      "texture": "Silt loam surface (0-15 cm, about 65-71 percent silt) over silty clay loam subsoil and substratum (25-150 cm, about 27-30 percent clay). Formed in glacial lacustrine sediments.",
+      "drainage": "Moderately well drained to somewhat poorly drained depending on the map unit. Hydrologic group C. Seasonal water table at 61 cm; the somewhat poorly drained phase has an apparent table at 30-90 cm from December to May.",
+      "ph_range": "5.6-7.3",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical (very deep). The limiting features are slow percolation in the silty clay loam and a seasonal high water table.",
+        "available_water_storage_0_150cm_cm": 28.6,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - restricted percolation at 60-180 cm, slope, and wetness at 120-180 cm",
+          "Dwellings with basements - slope, perched water 75-180 cm, shrink-swell",
+          "Shallow excavations - slope and wetness"
+        ],
+        "rated_somewhat_limited_for": [
+          "Local roads and streets - low strength (AASHTO group index), shrink-swell, wetness",
+          "Dwellings without basements and small commercial buildings on gentler phases"
+        ],
+        "grower_notes": "The highest water-holding mineral soil in the area at 28.6 cm, and the flat 2-8 percent phase is classed prime farmland. The steep phases are a different animal: Kitsap is mapped on terrace escarpments to 70 percent slopes (including an Indianola-Kitsap complex at 45-70 percent), where slope rates as a limitation for every use."
+      }
+    },
+    {
+      "name": "Dystric Xerorthents",
+      "pct": 3.4,
+      "texture": "Very gravelly sandy loam throughout (about 64-66 percent sand, 2.5-5 percent clay). A taxonomic group rather than a named series, mapped on raw escarpment faces.",
+      "drainage": "Moderately well drained. Hydrologic group A.",
+      "ph_range": "5.1-7.3",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None recorded.",
+        "available_water_storage_0_150cm_cm": 7,
+        "rated_very_limited_for": [
+          "Every rated use, because this unit is mapped only on 45 to 70 percent slopes"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Not prime farmland. Thin, gravelly, only 7 cm of available water, on cliff-grade slopes. Treat as steep-slope forest or leave-alone ground, not as a building or growing site."
+      }
+    },
+    {
+      "name": "Everett",
+      "pct": 3,
+      "texture": "Very gravelly sandy loam over very gravelly loamy sand and extremely cobbly sand. Glacial outwash.",
+      "drainage": "Somewhat excessively drained. High to very high saturated hydraulic conductivity.",
+      "ph_range": "4.5-6.0",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None. Very deep outwash.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "Not separately rated here: in this area of interest Everett is never a major component. It appears only as a 5-10 percent minor inclusion inside Alderwood and Indianola map units and in the Alderwood-Kitsap complex."
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Included for completeness because it accumulates to about 3 percent of the land as inclusions. Behaves like Indianola but stonier: droughty, rapid permeability, poor filtering under drainfields. The most acid of the local outwash soils at pH 4.5-6.0."
+      }
+    },
+    {
+      "name": "Harstine",
+      "pct": 2.8,
+      "texture": "Gravelly ashy sandy loam (3-81 cm) under a thin forest litter layer, over dense glacial till. About 70 percent sand, 20-22 percent silt, 8-10 percent clay.",
+      "drainage": "Moderately well drained. Hydrologic group C. Perched water table at 75 cm.",
+      "ph_range": "4.5-6.0",
+      "depth_to_restriction_cm": 81,
+      "limitations": {
+        "restriction_kind": "Densic material (dense glacial till), noncoherent. Representative 81 cm; mapped range 50-100 cm.",
+        "available_water_storage_0_150cm_cm": 12.8,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - wetness at 120-180 cm plus slope on steeper phases",
+          "Shallow excavations - wetness 75-180 cm and the dense layer at 50-150 cm",
+          "Dwellings with basements - perched water and slope"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings without basements, local roads and streets (slope)"
+        ],
+        "grower_notes": "Strongly acid (down to pH 4.5 in the upper solum) so it wants lime for most vegetables. Better water holding than Alderwood at 12.8 cm. Prime-if-irrigated on the 0-6 percent phase."
+      }
+    },
+    {
+      "name": "McKenna",
+      "pct": 2.6,
+      "texture": "Gravelly ashy loam (0-15 cm) over very gravelly loam (15-71 cm), then very gravelly sandy loam on dense till. About 37-43 percent sand, 17-26 percent clay.",
+      "drainage": "Poorly drained. Hydrologic group D. Water table at 0 cm and ponding. Hydric soil.",
+      "ph_range": "5.1-6.5",
+      "depth_to_restriction_cm": 71,
+      "limitations": {
+        "restriction_kind": "Densic material (dense glacial till), noncoherent. Representative 71 cm; mapped range 50-100 cm.",
+        "available_water_storage_0_150cm_cm": 9.4,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - ponding over 4 hours, ground water at the surface",
+          "Local roads and streets - ponding and wetness",
+          "Septic tank absorption fields - restricted percolation at 60-180 cm, wetness, ponding",
+          "Shallow excavations - ponding, wetness, dense layer",
+          "Small commercial buildings - ponding and wetness"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "The worst of both worlds: a dense till pan holding a perched table at the surface over a gravelly, low-water-holding solum. Prime farmland only if drained, and only in some phases. Hydric, so wetland rules apply."
+      }
+    },
+    {
+      "name": "Shalcar",
+      "pct": 2.4,
+      "texture": "Muck (highly decomposed organic material, 45-65 percent organic matter) from 0 to 81 cm, over stratified loamy sand to silty clay loam.",
+      "drainage": "Very poorly drained. Water table at 0 cm, ponded. Hydric soil.",
+      "ph_range": "unknown",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical. Organic soil material over mineral substratum at 81 cm.",
+        "available_water_storage_0_150cm_cm": 50.3,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - ponding, ground water at the surface, over 30 cm of total subsidence, organic material at 25-100 cm",
+          "Local roads and streets - ponding, wetness, subsidence, very low strength",
+          "Septic tank absorption fields - ponding, wetness, over 60 cm total subsidence",
+          "Shallow excavations and small commercial buildings - ponding and wetness"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Prime farmland if drained, and it holds 50 cm of available water. But the survey explicitly rates it for more than 60 cm of SUBSIDENCE: drain this soil and the ground surface drops as the peat oxidizes. Do not build on it and do not drain it casually. SSURGO carries no 1:1 water pH for the organic horizons in this survey, so the pH is left unknown rather than guessed."
+      }
+    },
+    {
+      "name": "Shelton",
+      "pct": 2.1,
+      "texture": "Very gravelly medial sandy loam (0-56 or 0-64 cm) over very gravelly sandy loam on dense till. About 67 percent sand, 23 percent silt, 10 percent clay. Medial means volcanic-ash dominated.",
+      "drainage": "Moderately well drained. Perched water table at 52 cm.",
+      "ph_range": "5.1-6.5",
+      "depth_to_restriction_cm": 56,
+      "limitations": {
+        "restriction_kind": "Densic material (dense glacial till), noncoherent. Representative 56 cm in one phase and 64 cm in another; mapped range 51-89 cm.",
+        "available_water_storage_0_150cm_cm": 5.2,
+        "rated_very_limited_for": [
+          "Dwellings with basements - perched water 75-180 cm and slope",
+          "Septic tank absorption fields - wetness, slope, inadequate filter field at 60-150 cm",
+          "Shallow excavations - wetness, slope, dense layer"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings without basements, local roads and streets, small commercial buildings"
+        ],
+        "grower_notes": "Among the droughtiest soils mapped here: only 4.6 to 5.2 cm of available water in 150 cm, because it is extremely gravelly above a shallow pan. Wet in winter, bone dry by midsummer. Prime-if-irrigated at best."
+      }
+    },
+    {
+      "name": "Grove",
+      "pct": 1.5,
+      "texture": "Very gravelly sandy loam (0-43 cm) over extremely gravelly loamy sand (43-76 cm) and very gravelly sand (76-152 cm). Reaches about 95 percent sand at depth.",
+      "drainage": "Somewhat excessively drained. Hydrologic group A.",
+      "ph_range": "5.1-6.0",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None. Very deep gravelly outwash.",
+        "available_water_storage_0_150cm_cm": 7.3,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - seepage in the bottom layer and inadequate 60-150 cm filter field",
+          "Shallow excavations - unstable excavation walls"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings and roads on steeper phases (slope only)"
+        ],
+        "grower_notes": "Droughty at 7.3 cm available water. Good surface organic matter (6 percent in the top 43 cm) but nothing underneath to hold water or nutrients. Prime-if-irrigated on the 0-3 percent phase."
+      }
+    },
+    {
+      "name": "Neilton",
+      "pct": 1.4,
+      "texture": "Gravelly loamy sand (0-10 cm) over very gravelly loamy sand (10-48 cm) and very gravelly sand (48-152 cm). About 81 percent sand near the surface, 96 percent at depth.",
+      "drainage": "Excessively drained. Hydrologic group A.",
+      "ph_range": "5.1-6.0",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None. Very deep sandy and gravelly outwash.",
+        "available_water_storage_0_150cm_cm": 5.2,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - seepage in the bottom layer, inadequate filter field at 60-150 cm",
+          "Shallow excavations - unstable excavation walls"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings and roads on the 15-30 percent phase (slope)"
+        ],
+        "grower_notes": "The driest soil in the area: 5.2 cm of available water in 150 cm, and classed 'Not prime farmland' in every phase. Unirrigated cropping is not realistic here."
+      }
+    },
+    {
+      "name": "Kapowsin variant",
+      "pct": 1.2,
+      "texture": "Gravelly clay loam (0-18 cm, about 31 percent clay) over gravelly silty clay loam (18-51 cm, about 30 percent clay), then very gravelly sandy loam. Much finer than typical Kapowsin.",
+      "drainage": "Moderately well drained but hydrologic group D, the highest-runoff class. Water table at 46 cm.",
+      "ph_range": "5.1-6.5",
+      "depth_to_restriction_cm": 51,
+      "limitations": {
+        "restriction_kind": "Densic material (dense glacial till), noncoherent. Representative 51 cm; mapped range 51-89 cm.",
+        "available_water_storage_0_150cm_cm": 8.5,
+        "rated_very_limited_for": [
+          "Dwellings with basements - perched water 75-180 cm",
+          "Septic tank absorption fields - wetness at 120-180 cm",
+          "Shallow excavations - wetness and the dense layer"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings without basements, local roads and streets, small commercial buildings"
+        ],
+        "grower_notes": "Clay loam over a pan at 51 cm and rated hydrologic group D, so it sheds water rather than taking it: the highest runoff and erosion risk of the upland soils here. Prime-if-irrigated only."
+      }
+    },
+    {
+      "name": "Urban land",
+      "pct": 0.7,
+      "texture": "Not a soil. Areas covered by pavement, buildings and engineered fill, mapped here as the Urban land-Alderwood complex.",
+      "drainage": "Not rated",
+      "ph_range": "unknown",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "Not applicable. The Alderwood component of this complex carries a perched water table at 46 cm and the usual till pan.",
+        "available_water_storage_0_150cm_cm": 4.5,
+        "rated_very_limited_for": [],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Included because it is real mapped area in the Silverdale commercial core. No survey interpretations apply to the urban land component itself; site-specific investigation is required."
+      }
+    },
+    {
+      "name": "Ragnar",
+      "pct": 0.6,
+      "texture": "Ashy fine sandy loam (0-53 cm) over loamy fine sand and sand. Coarse-loamy over sandy, with a strongly contrasting textural break.",
+      "drainage": "Well drained.",
+      "ph_range": "5.6-6.5",
+      "depth_to_restriction_cm": 53,
+      "limitations": {
+        "restriction_kind": "Strongly contrasting textural stratification (fine sandy loam abruptly over sand), noncoherent. Representative 53 cm; mapped range 51-102 cm.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields - seepage in the bottom layer, slope, wetness at 120-180 cm, restricted percolation"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings, roads and shallow excavations on the sloping phases"
+        ],
+        "grower_notes": "The best-drained fine-textured soil of the group and classed prime farmland in some phases. The sand at roughly half a metre is the catch: effluent and irrigation water both run out the bottom."
+      }
+    },
+    {
+      "name": "Cathcart",
+      "pct": 0.5,
+      "texture": "Medial silt loam (0-23 cm) over medial loam (23-96 cm) and clay loam below 96 cm. Volcanic-ash dominated (a Haploxerand).",
+      "drainage": "Moderately well drained.",
+      "ph_range": "4.5-5.0",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None recorded. Very deep.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "Septic tank absorption fields on sloping phases - slope plus restricted percolation at 60-180 cm"
+        ],
+        "rated_somewhat_limited_for": [
+          "Dwellings, roads, shallow excavations on the 8-15 and 15-30 percent phases (slope is the only listed reason; the 2-8 percent phase rates Not limited for several uses)"
+        ],
+        "grower_notes": "The most acid soil mapped here at pH 4.5-5.0 throughout, so liming is not optional for most vegetables. Otherwise the 2-8 percent phase is classed 'All areas are prime farmland' and is the least engineering-constrained soil in the area."
+      }
+    },
+    {
+      "name": "Bellingham",
+      "pct": 0.4,
+      "texture": "Silty clay loam (0-20 cm, about 33 percent clay) over silty clay (20-152 cm, about 47 percent clay). Vertic, so it shrinks and swells.",
+      "drainage": "Poorly drained. Ponded. Hydric soil.",
+      "ph_range": "5.6-6.5",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical. Limits come from clay, shrink-swell, ponding and a high water table.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - shrink-swell, ground water near the surface, ponding over 4 hours",
+          "Local roads and streets - low strength (AASHTO group index), shrink-swell, wetness, ponding",
+          "Septic tank absorption fields - restricted percolation at 60-180 cm, wetness, ponding",
+          "Shallow excavations - wetness, ponding, unstable walls, clayey material 50-180 cm",
+          "Small commercial buildings - shrink-swell, wetness, ponding"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Prime farmland if drained. The one soil here that combines heavy clay, shrink-swell and ponding, which is the classic cracked-in-August, soup-in-February profile. Foundations on it need engineering."
+      }
+    },
+    {
+      "name": "Mukilteo",
+      "pct": 0.4,
+      "texture": "Peat (slightly to moderately decomposed organic material, 25-40 percent organic matter) from 0 to 152 cm. A Haplohemist, dysic (acid) class.",
+      "drainage": "Very poorly drained. Water table at 0 cm, ponded. Hydric soil.",
+      "ph_range": "unknown",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical. Organic soil all the way down.",
+        "available_water_storage_0_150cm_cm": 67.5,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - ponding, over 30 cm total subsidence, wetness, humus layers",
+          "Local roads and streets - ponding, wetness, subsidence, very low strength",
+          "Septic tank absorption fields - wetness, over 60 cm total subsidence, ponding",
+          "Shallow excavations and small commercial buildings - humus, wetness, ponding"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Prime farmland if drained, holds 67.5 cm of water, and subsides more than 30 cm if you drain it. The taxonomic class is dysic, which means acid, but SSURGO carries no 1:1 water pH value for these horizons in this survey so the number is left unknown."
+      }
+    },
+    {
+      "name": "Tacoma",
+      "pct": 0.3,
+      "texture": "Mucky silt loam (0-15 cm, 15 percent organic matter) over loam (15-91 cm) and very gravelly coarse sand below 91 cm. Taxonomic class: coarse-silty, mixed, superactive, acid, mesic Sulfic Endoaquepts.",
+      "drainage": "Very poorly drained. Ponded and subject to flooding. Hydric soil.",
+      "ph_range": "4.5-5.5",
+      "depth_to_restriction_cm": null,
+      "limitations": {
+        "restriction_kind": "None physical. The 'Sulfic' in the taxonomic class denotes sulfidic materials in the profile.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "Dwellings with and without basements - wetness, flooding, ponding",
+          "Local roads and streets - ponding, wetness, flooding",
+          "Septic tank absorption fields - flooding, restricted percolation at 60-180 cm, wetness, ponding",
+          "Shallow excavations and small commercial buildings - wetness, ponding, flooding"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Classed 'Not prime farmland' in every phase. Tidally influenced low ground at the heads of the inlets: floods, ponds, strongly acid at pH 4.5-5.5, and carries sulfidic material. Leave it alone."
+      }
+    },
+    {
+      "name": "Schneider",
+      "pct": 0.3,
+      "texture": "Ashy very gravelly loam (0-15 cm) over extremely gravelly loam and extremely gravelly silt loam, on unweathered bedrock. Mapped here only on 45-70 percent slopes.",
+      "drainage": "Well drained.",
+      "ph_range": "unknown",
+      "depth_to_restriction_cm": 122,
+      "limitations": {
+        "restriction_kind": "Lithic bedrock. Representative 122 cm; mapped range 102-152 cm. This is the ONLY series in the area of interest whose restriction is bedrock rather than glacial till.",
+        "available_water_storage_0_150cm_cm": null,
+        "rated_very_limited_for": [
+          "All uses, because the only phase mapped here is 45 to 70 percent slopes"
+        ],
+        "rated_somewhat_limited_for": [],
+        "grower_notes": "Included because it is the local exception to the till story. Too steep and too stony for anything but forest."
+      }
+    }
+  ],
+  "remainder": {
+    "pct": 0.7,
+    "note": "The balance of the mapped land is Dupont (0.2 percent, very poorly drained diatomaceous organic soil), Semiahmoo (0.2 percent, muck, very poorly drained), Beaches (0.2 percent, stratified gravel to sand), Pits (0.2 percent, gravel extraction), plus trace amounts. Open water map units were 0.33 percent of the box and were excluded from the percent basis. All shares are rounded to 0.1 percent, so the column sums to within a few tenths of 100."
+  },
+  "summary": "Half the land around Silverdale (49.9 percent) is one soil: Alderwood, a moderately well drained gravelly sandy loam sitting on dense glacial till at roughly 50 to 100 cm. Add the other till soils (Kapowsin 5.3, Harstine 2.8, McKenna 2.6, Shelton 2.1, Kapowsin variant 1.2) and about 64 percent of the area is a thin gravelly mantle over a hardpan. That single geometry explains almost every practical problem here: water perches on the till through the wet season (tables at 46 to 75 cm), then the shallow mantle above it dries out completely in the Puget Sound summer rain shadow, because Alderwood holds only about 8.7 cm of plant-available water in a metre and a half and Shelton holds barely 5. Winter-wet and summer-droughty on the same ground is the default condition, not an anomaly.\n\nThe second block, about 16 percent, is glacial outwash sand and gravel: Indianola (10.3), Everett (3.0), Grove (1.5) and Neilton (1.4). These have no restrictive layer at all and drain very fast. Their limitation is the mirror image of the till soils: the survey rates them Very limited for septic drainfields not because effluent will not soak away, but because it seeps through the bottom layer without adequate filtering, and Very limited for shallow excavations because the sidewalls cave in. For a grower they are the driest ground in the county, 5 to 10 cm of available water, low fertility, and rapid leaching of lime and nutrients.\n\nThe third block, about 13 percent, is the wet bottoms: Norma (6.1), McKenna (2.6), Shalcar (2.4), Bellingham (0.4), Mukilteo (0.4), Tacoma (0.3) and traces. All are hydric, most have a water table at the surface with ponding over 4 hours, and all rate Very limited for every building, road and septic use. Several are prime farmland IF drained, and the survey warns that draining the organic ones (Shalcar, Mukilteo) causes more than 30 to 60 cm of subsidence.\n\nWhat this means in practice. For a builder: the binding constraint in Central Kitsap is not bedrock (only Schneider, 0.3 percent, has any) but dense till at two to three feet plus a perched winter water table. Basements rate Very limited across almost the whole area. Septic drainfields rate Very limited on essentially every major series in the area of interest, for opposite reasons depending on which block you are on: too slow on the till and lacustrine soils, too fast on the outwash sands. For a grower: plan on liming (most soils run pH 5.1 to 6.5, and Cathcart and Tacoma go to 4.5), plan on summer irrigation almost everywhere, and know that the two soils actually worth farming are Kapowsin (the only 'All areas are prime farmland' unit here, 14.2 cm of available water) and the flat phases of Kitsap silt loam (28.6 cm, the highest water-holding mineral soil in the area). Kitsap silt loam is also the shape-shifter: gentle phases are prime farmland, but the same series is mapped on terrace escarpments to 70 percent slopes around Dyes Inlet, where slope dominates every rating.",
+  "licence": "Public domain. Every value in this file comes from a US federal source (17 U.S.C. 105) unless an entry says otherwise, so it may ship inside the release bundle. Nothing here was taken from Wikipedia, OpenStreetMap, GBIF or iNaturalist, whose share-alike terms would travel with every copy.",
+  "sources": [
+    {
+      "what": "SSURGO soil map units and series properties for survey area WA635",
+      "url": "https://websoilsurvey.nrcs.usda.gov/",
+      "publisher": "USDA Natural Resources Conservation Service"
+    },
+    {
+      "what": "Official Series Descriptions",
+      "url": "https://soilseries.sc.egov.usda.gov/",
+      "publisher": "USDA Natural Resources Conservation Service"
+    }
+  ]
+}

@@ -1,0 +1,389 @@
+{
+  "_comment": "The shape of the ground, for building the real place. POINTS AT public elevation and hydrography products rather than embedding them, because a real DEM is far too large for a release bundle. Shape: schemas/locale.toml.",
+  "elevation_range": {
+    "sampled_area": "Bounding box 47.58 to 47.70 N, -122.75 to -122.62 W (the Silverdale area, about 10 km east-west by 13 km north-south)",
+    "min_m": 0,
+    "max_m": 178,
+    "mean_m": 64,
+    "method": "Statistics computed over the box from the USGS 3DEP seamless elevation service (computeStatisticsHistograms) at approximately 10 m and 30 m sampling; both gave the same result to within 1 m.",
+    "note": "Sea level in Dyes Inlet to about 178 m on the upland plateau. The town itself is low: the GNIS Silverdale point is 4.8 m (16 ft) and the Clear Creek mouth 2.8 m (9 ft), while the CDP centroid uphill is 15.7 m (51 ft) and Bucklin Hill is 69 m (227 ft).",
+    "source_url": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer"
+  },
+  "regional_high_points": {
+    "note": "Sampled from USGS 3DEP at and around the GNIS summit coordinates; these are 3DEP-derived values, not published benchmark elevations.",
+    "gold_mountain_m": 537,
+    "gold_mountain_ft": 1762,
+    "green_mountain_m": 517,
+    "green_mountain_ft": 1697,
+    "comment": "The Gold Mountain-Green Mountain hills, about 12.6-12.7 km southwest of Silverdale, are the high ground of the Kitsap Peninsula and the one place USGS notes where older Pleistocene deposits and Tertiary bedrock are exposed away from the coastal bluffs.",
+    "source_url": "https://epqs.nationalmap.gov/v1/json"
+  },
+  "elevation_products": [
+    {
+      "product": "USGS 1-metre DEM (3DEP)",
+      "project": "WA_Olympic_Peninsula_Lidar_2017_B17 (also published as 'WA Olympic Peninsula 1A 2017' and 'C1 2017')",
+      "resolution": "1 m bare-earth",
+      "source_lidar": "2017 Olympic Peninsula 3DEP QL1 lidar",
+      "tiles_covering_silverdale": [
+        "x51y527",
+        "x51y528",
+        "x51y529",
+        "x52y527",
+        "x52y528",
+        "x52y529",
+        "10 x52y529"
+      ],
+      "format": "GeoTIFF, 10,000 x 10,000 m tiles, UTM / NAD83, bare-earth elevations",
+      "coverage_note": "Covers the whole Silverdale area including the Green/Gold Mountain uplands (tile x51y527). This is the best product for this area and the one to use.",
+      "published": "2020-01 (1A/C1 tiles) and 2024-03-27 (B17 tile)",
+      "source_url": "https://tnmaccess.nationalmap.gov/api/v1/products?datasets=Digital%20Elevation%20Model%20(DEM)%201%20meter&bbox=-122.75,47.58,-122.62,47.70"
+    },
+    {
+      "product": "USGS 1/9 arc-second DEM (NED)",
+      "tiles": [
+        "ned19_n47x75_w122x75_wa_puget_sound_2000",
+        "ned19_n47x75_w123x00_wa_puget_sound_2000"
+      ],
+      "resolution": "1/9 arc-second, approximately 3 m",
+      "format": "IMG, 15 x 15 minute tiles",
+      "published": "2012 (from 2000-era Puget Sound lidar)",
+      "source_url": "https://www.sciencebase.gov/catalog/item/581d2eece4b08da350d68408"
+    },
+    {
+      "product": "USGS Original Product Resolution (OPR) DEM",
+      "tile": "WA_Olympic_Peninsula_Lidar_2017_B17 q47122F51",
+      "published": "2023-04-20",
+      "source_url": "https://www.sciencebase.gov/catalog/item/644374a3d34ee8d4ade9eb49"
+    },
+    {
+      "product": "Topobathymetric lidar DEM",
+      "availability": "NONE. The National Map returns zero topobathy products for this area, so there is no seamless land-to-seabed elevation surface for Dyes Inlet. Seamless 1-m DEM (S1M) also returns zero here.",
+      "source_url": "https://tnmaccess.nationalmap.gov/api/v1/products"
+    }
+  ],
+  "shoreline_and_hydrography": [
+    {
+      "dataset": "NOAA NGS Continually Updated Shoreline Product (CUSP)",
+      "role": "The NOAA shoreline dataset covering this coast.",
+      "horizontal_datum": "NAD83, EPSG:4269, GRS 1980 ellipsoid",
+      "method": "Office interpretation of imagery or derived from lidar",
+      "format": "Vector GIS (zipped)",
+      "publisher": "NOAA National Geodetic Survey",
+      "use_constraints": "Not for use in litigation; NOAA attribution requested",
+      "caveat": "The InPort metadata record does not state which tidal datum the shoreline represents; NOAA's shoreline programme generally references mean high water, but that is not stated in this record.",
+      "source_url": "https://www.fisheries.noaa.gov/inport/item/60812"
+    },
+    {
+      "dataset": "USGS National Hydrography Dataset (NHD), best resolution",
+      "role": "The USGS hydrography covering Dyes Inlet.",
+      "dyes_inlet_representation": "Dyes Inlet is an NHDArea feature of FType 312 (Bay/Inlet). Adjacent NHDArea Bay/Inlet features: Chico Bay, Mud Bay, Ostrich Bay, Phinney Bay, Port Washington Narrows, Anderson Cove. The enclosing NHDWaterbody is Puget Sound, FType 493 (Estuary).",
+      "streams_entering_locally": [
+        "Clear Creek",
+        "Barker Creek",
+        "Chico Creek",
+        "Crouch Creek",
+        "Dickerson Creek",
+        "Hoot Creek"
+      ],
+      "source_url": "https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer"
+    },
+    {
+      "dataset": "USGS 3D Hydrography Program (3DHP)",
+      "role": "Successor to NHD; CONUS-wide coverage including this area, published as FileGDB and GeoPackage.",
+      "source_url": "https://www.sciencebase.gov/catalog/item/69743a66d4be0260181a1222"
+    }
+  ],
+  "tidal_datums": {
+    "note": "Dyes Inlet has its own NOAA subordinate tide station, but NOAA publishes no datums for it; the datums below are from its reference station at Bremerton. Values are feet relative to Station Datum, epoch 1983-2001.",
+    "dyes_inlet_station": {
+      "id": "9445901",
+      "name": "Tracyton, Dyes Inlet",
+      "lat": 47.61,
+      "lon": -122.66,
+      "type": "subordinate"
+    },
+    "reference_station": {
+      "id": "9445958",
+      "name": "Bremerton, Sinclair Inlet, Port Orchard",
+      "lat": 47.5617,
+      "lon": -122.623,
+      "type": "reference"
+    },
+    "MHHW_ft": 23.1,
+    "MHW_ft": 22.2,
+    "MSL_ft": 18.2,
+    "MLW_ft": 14.24,
+    "MLLW_ft": 11.38,
+    "great_diurnal_range_ft": 11.72,
+    "mean_range_of_tide_ft": 7.97,
+    "practical_note": "A great diurnal range of about 11.7 ft is large. Tide stage dominates both coastal flooding and tsunami outcomes here, and it governs shellfish and shoreline access.",
+    "source_url": "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9445958/datums.json?units=english"
+  },
+  "named_features_for_orientation": {
+    "note": "All from the USGS Geographic Names Information System (GNIS), Washington domestic names file. Distances are from the GNIS Silverdale point.",
+    "water": [
+      {
+        "name": "Dyes Inlet",
+        "class": "Bay",
+        "lat": 47.6149,
+        "lon": -122.6854,
+        "km": 3.4,
+        "gnis_id": 1533036
+      },
+      {
+        "name": "Chico Bay",
+        "class": "Bay",
+        "lat": 47.6074,
+        "lon": -122.7013,
+        "km": 4.2,
+        "gnis_id": 1503951
+      },
+      {
+        "name": "Ostrich Bay",
+        "class": "Bay",
+        "lat": 47.5845,
+        "lon": -122.6827,
+        "km": 6.8,
+        "gnis_id": 1507215
+      },
+      {
+        "name": "Mud Bay",
+        "class": "Bay",
+        "lat": 47.5919,
+        "lon": -122.6727,
+        "km": 6.1,
+        "gnis_id": 1506858
+      },
+      {
+        "name": "Phinney Bay",
+        "class": "Bay",
+        "lat": 47.5858,
+        "lon": -122.662,
+        "km": 7,
+        "gnis_id": 1507406
+      },
+      {
+        "name": "Port Washington Narrows",
+        "class": "Bay",
+        "lat": 47.5837,
+        "lon": -122.6426,
+        "km": 7.8,
+        "gnis_id": 1507577,
+        "note": "The outlet connecting Dyes Inlet to Sinclair Inlet and the rest of Puget Sound."
+      },
+      {
+        "name": "Port Orchard",
+        "class": "Bay",
+        "lat": 47.6391,
+        "lon": -122.5927,
+        "km": 7.7,
+        "gnis_id": 1507575
+      },
+      {
+        "name": "Island Lake",
+        "class": "Lake",
+        "lat": 47.6819,
+        "lon": -122.6603,
+        "km": 4.9,
+        "gnis_id": 1505759,
+        "elev_m": 66.6
+      },
+      {
+        "name": "Kitsap Lake",
+        "class": "Lake",
+        "lat": 47.5724,
+        "lon": -122.7051,
+        "km": 8.1,
+        "gnis_id": 1510714,
+        "elev_m": 48.8
+      },
+      {
+        "name": "Wildcat Lake",
+        "class": "Lake",
+        "lat": 47.5996,
+        "lon": -122.7673,
+        "km": 7.4,
+        "gnis_id": 1528139
+      }
+    ],
+    "streams": [
+      {
+        "name": "Clear Creek",
+        "lat": 47.6504,
+        "lon": -122.6854,
+        "km": 0.9,
+        "gnis_id": 1504003,
+        "note": "The creek through Silverdale; its delta is the low ground at the head of Dyes Inlet."
+      },
+      {
+        "name": "Barker Creek",
+        "lat": 47.6368,
+        "lon": -122.6726,
+        "km": 1.9,
+        "gnis_id": 1503168
+      },
+      {
+        "name": "Chico Creek",
+        "lat": 47.6029,
+        "lon": -122.7051,
+        "km": 4.7,
+        "gnis_id": 1505120
+      },
+      {
+        "name": "Dickerson Creek",
+        "lat": 47.5868,
+        "lon": -122.7143,
+        "km": 6.6,
+        "gnis_id": 1504478
+      },
+      {
+        "name": "Anderson Creek",
+        "lat": 47.6654,
+        "lon": -122.7577,
+        "km": 5.2,
+        "gnis_id": 1515865
+      },
+      {
+        "name": "Big Beef Creek",
+        "lat": 47.652,
+        "lon": -122.7832,
+        "km": 6.7,
+        "gnis_id": 1516465
+      }
+    ],
+    "high_ground": [
+      {
+        "name": "Bucklin Hill",
+        "class": "Slope",
+        "lat": 47.6504,
+        "lon": -122.6685,
+        "km": 2.1,
+        "gnis_id": 1512045,
+        "elev_m": 69.1
+      },
+      {
+        "name": "Gold Mountain",
+        "class": "Summit",
+        "lat": 47.5486,
+        "lon": -122.7866,
+        "km": 12.7,
+        "gnis_id": 1520105,
+        "elev_m": 537
+      },
+      {
+        "name": "Green Mountain",
+        "class": "Summit",
+        "lat": 47.5616,
+        "lon": -122.8083,
+        "km": 12.6,
+        "gnis_id": 1520307,
+        "elev_m": 517
+      },
+      {
+        "name": "Clear Creek Valley",
+        "class": "Valley",
+        "lat": 47.6437,
+        "lon": -122.6888,
+        "km": 0.5,
+        "gnis_id": 1504006
+      }
+    ],
+    "points_and_capes": [
+      {
+        "name": "Windy Point",
+        "lat": 47.6243,
+        "lon": -122.6771,
+        "km": 2.6,
+        "gnis_id": 1509594
+      },
+      {
+        "name": "Erlands Point",
+        "lat": 47.6059,
+        "lon": -122.6865,
+        "km": 4.4,
+        "gnis_id": 1512955
+      },
+      {
+        "name": "Rocky Point",
+        "lat": 47.6037,
+        "lon": -122.6679,
+        "km": 5,
+        "gnis_id": 1507883
+      },
+      {
+        "name": "Elwood Point",
+        "lat": 47.5909,
+        "lon": -122.6846,
+        "km": 6,
+        "gnis_id": 1504747
+      },
+      {
+        "name": "Madrona Point",
+        "lat": 47.5818,
+        "lon": -122.6793,
+        "km": 7.1,
+        "gnis_id": 1531939
+      }
+    ],
+    "settlements": [
+      {
+        "name": "Silverdale",
+        "lat": 47.6445,
+        "lon": -122.6949,
+        "km": 0,
+        "gnis_id": 1512662
+      },
+      {
+        "name": "Chico",
+        "lat": 47.6115,
+        "lon": -122.7104,
+        "km": 3.9,
+        "gnis_id": 1512090
+      },
+      {
+        "name": "Tracyton",
+        "lat": 47.609,
+        "lon": -122.6551,
+        "km": 5,
+        "gnis_id": 1512735
+      },
+      {
+        "name": "Erlands Point",
+        "lat": 47.5998,
+        "lon": -122.6929,
+        "km": 5,
+        "gnis_id": 1512194
+      },
+      {
+        "name": "Brownsville",
+        "lat": 47.6557,
+        "lon": -122.6165,
+        "km": 6,
+        "gnis_id": 1510841
+      },
+      {
+        "name": "East Bremerton",
+        "lat": 47.5979,
+        "lon": -122.6296,
+        "km": 7.2,
+        "gnis_id": 1512169
+      }
+    ],
+    "islands": [
+      {
+        "name": "Bainbridge Island",
+        "lat": 47.6429,
+        "lon": -122.5424,
+        "km": 11.4,
+        "gnis_id": 1503126,
+        "note": "Where the Seattle Fault's 923-924 CE uplift and fault scarps are best recorded."
+      }
+    ],
+    "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/DomesticNames/DomesticNames_WA_Text.zip"
+  },
+  "surficial_geology_context": {
+    "summary": "Kitsap County lies near the centre of the Puget Lowland between Hood Canal and Puget Sound, land area about 1,020 km2, with about 338 km of saltwater coastline and 53 km of freshwater frontage. It is mantled by late Pleistocene glacial, glaciofluvial and glaciolacustrine deposits of the Vashon stade of the Fraser glaciation. Older Pleistocene deposits and Tertiary bedrock are exposed only along the lower parts of coastal bluffs and some valley flanks, with the exception of the Gold Mountain-Green Mountain hills. The landslide-critical stratigraphy is permeable Vashon advance outwash (Esperance-type sand) over the low-permeability Lawton Clay, which perches groundwater and drives bluff failure.",
+    "source_url": "https://pubs.usgs.gov/of/2008/1292/downloads/OF08-1292.pdf"
+  },
+  "licence": "Public domain. Every value in this file comes from a US federal source (17 U.S.C. 105) unless an entry says otherwise, so it may ship inside the release bundle. Nothing here was taken from Wikipedia, OpenStreetMap, GBIF or iNaturalist, whose share-alike terms would travel with every copy."
+}
