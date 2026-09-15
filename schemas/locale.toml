@@ -1,0 +1,175 @@
+# Locale schema
+#
+# WHY THIS EXISTS
+# 66 of the 143 curriculum topics (46%) are locale_dependent: the correct answer
+# changes with place. Which plants are edible, when the last frost is, what the
+# tide does, which species are protected, which disasters are realistic, what the
+# soil will grow. A simulation that teaches real life has to be a simulation of a
+# REAL place, or it teaches a place that does not exist.
+#
+# Operator decision, 2026-09-15: Silverdale, Washington is canonical. Not a
+# reference dataset alongside a generic world, but the default world itself, with
+# real elevation, real shoreline and real species.
+#
+# THE RULE THAT MAKES THAT SAFE
+# Every field here is location-GENERIC. Silverdale is `data/locales/silverdale_wa/`
+# and nothing about the schema knows that. Adding another town is a data drop, not
+# a code change. The moment a locale id appears in Rust or JS, this has failed.
+#
+# LICENSING (operator decision, 2026-09-15)
+# Anything that SHIPS in data/ must be public domain: US government and
+# equivalent. USDA, USGS, NOAA, NASA, EPA, CDC, WDFW, university extension.
+# Richer share-alike sources (GBIF occurrence records, iNaturalist, OSM,
+# Wikipedia) are FETCHED AT RUNTIME and cached locally, never redistributed in
+# the release bundle, because the bundle's licence travels with every copy. Each
+# file records its own `source` and `licence` so this is auditable rather than
+# remembered.
+
+[schema]
+name = "locale"
+directory = "data/locales/<locale_id>/"
+description = "Everything true about one real place that the simulation and the Library both need."
+
+# ── locale.json: identity and the jurisdiction chain ──
+[files.locale]
+path = "locale.json"
+description = "Who and where this place is."
+required = true
+
+[files.locale.fields]
+id = "snake_case directory name; the stable key everything else references"
+name = "Display name"
+region = "State or province"
+country = "ISO country code"
+jurisdictions = "Ordered chain from broadest to narrowest, matching the ids in data/laws/laws.json so the Laws page and the world agree on where you are"
+centre = "{ lat, lon } decimal degrees, WGS84"
+bounds = "{ north, south, east, west } the simulated extent"
+elevation_m = "{ min, max, mean } metres"
+timezone = "IANA timezone id"
+sources = "Array of { what, url, licence } for every claim in this file"
+
+# ── climate.json: what the weather does here, normally ──
+[files.climate]
+path = "climate.json"
+description = "Normals, not forecasts. Drives the growing calendar, heating load and season logic."
+required = true
+
+[files.climate.fields]
+koppen = "Koppen classification"
+hardiness_zone = "USDA plant hardiness zone, which is what seed packets speak"
+frost_last_spring = "Average last frost, with the 10% and 90% dates, because planting to the average kills half your crops half the time"
+frost_first_autumn = "Average first frost, same three dates"
+growing_season_days = "Median frost-free days"
+monthly = "12 entries: mean high C, mean low C, precipitation mm, mean daylight hours"
+extremes = "Record high and low, and the design temperatures a building must survive"
+sources = "NOAA normals; USDA for the zone"
+
+# ── soil.json: what the ground will grow ──
+[files.soil]
+path = "soil.json"
+description = "Soil series and properties, from the official survey rather than from feel."
+required = false
+
+[files.soil.fields]
+series = "Named soil series present, with percentage of the area"
+texture = "Dominant texture class"
+drainage = "Drainage class"
+ph_range = "Typical pH range"
+depth_to_restriction_cm = "Depth to hardpan, water table or bedrock"
+limitations = "What the survey says this soil is bad for"
+sources = "USDA NRCS Web Soil Survey"
+
+# ── water.json: the watershed you are standing in ──
+[files.water]
+path = "water.json"
+description = "Where water comes from, goes to, and who is upstream."
+required = false
+
+[files.water.fields]
+watershed = "Name and HUC code"
+receiving_water = "What the runoff ultimately reaches"
+surface_waters = "Named creeks, lakes and inlets within bounds"
+groundwater = "Aquifer, typical depth, whether wells are viable"
+annual_precip_mm = "Average annual precipitation, the input to any catchment sum"
+sources = "USGS, state ecology department"
+
+# ── tides.json: only for places on tidal water ──
+[files.tides]
+path = "tides.json"
+description = "Tidal behaviour. Gates shoreline foraging, boat access and drowning risk."
+required = false
+
+[files.tides.fields]
+station = "NOAA CO-OPS station id and name"
+datum = "Tidal datums in metres: MLLW, MSL, MHHW"
+mean_range_m = "Mean tidal range"
+diurnal_type = "semidiurnal / mixed / diurnal"
+extremes = "Highest and lowest observed"
+sources = "NOAA CO-OPS"
+
+# ── species.json: the living things that are actually here ──
+[files.species]
+path = "species.json"
+description = """
+The plants, animals, fungi and fish of this place. This is the file that makes
+foraging, hunting, farming and ecology teach something true rather than generic.
+Every entry carries its status HERE, because a plant that is a crop in one place
+is a noxious weed in another.
+"""
+required = true
+
+[files.species.fields]
+id = "snake_case, stable"
+common_name = "What a person here calls it"
+scientific_name = "Binomial, so the claim is checkable"
+taxon_rank = "species / subspecies / genus"
+kind = "plant / mammal / bird / fish / shellfish / fungus / insect / reptile / amphibian"
+status = "native / introduced / invasive / cultivated"
+protected = "Legal protection here, if any, with the rule that protects it"
+edible = "no / yes / conditional, and conditional means the condition is stated"
+toxic = "Toxicity to humans, with the part and the effect"
+lookalikes = "Species ids it is confused with, which is the whole safety problem in foraging"
+season = "Months it is available or active"
+habitat = "Where within this place to expect it"
+uses = "Food, medicine, material, fuel"
+sources = "USDA PLANTS, WDFW, USGS, state extension"
+
+# ── phenology.json: what happens when ──
+[files.phenology]
+path = "phenology.json"
+description = "The year as a calendar of events: bloom, fruit, run, migration, frost."
+required = false
+
+# ── hazards.json: what can realistically kill you here ──
+[files.hazards]
+path = "hazards.json"
+description = """
+The disasters this place actually has, not a generic list. Somewhere on a
+subduction zone has a different honest preparedness answer from somewhere on a
+floodplain, and telling a reader to prepare for the wrong one is worse than
+silence.
+"""
+required = false
+
+[files.hazards.fields]
+hazard = "earthquake / tsunami / flood / landslide / wildfire / windstorm / volcanic / drought / winter storm"
+likelihood = "Qualitative, with the return period where one is published"
+severity = "What it does here specifically"
+warning_time = "How much notice you get, which determines whether preparation or reaction is the useful skill"
+sources = "USGS, FEMA, NOAA, state emergency management"
+
+# ── terrain.json: the shape of the ground, for the canonical world ──
+[files.terrain]
+path = "terrain.json"
+description = """
+Elevation and shoreline references for building the real place in the simulation.
+Points at public-domain elevation and hydrography data rather than embedding it,
+because a real DEM is far too large for the release bundle.
+"""
+required = false
+
+[files.terrain.fields]
+dem_source = "Which USGS 3DEP product and resolution"
+shoreline_source = "NOAA or USGS hydrography dataset"
+notable_features = "Named hills, inlets, creeks a player would orient by"
+sources = "USGS 3DEP, NOAA"
