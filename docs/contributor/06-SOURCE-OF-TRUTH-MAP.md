@@ -122,9 +122,11 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
 ## F) Desktop app distribution
 
 - Design sources:
-  - `docs/design/runtime/update_distribution_architecture.md`
+  - `docs/admin/distribution-mirrors.md` and `docs/admin/torrent-infrastructure.md`
+    (the old `docs/design/runtime/update_distribution_architecture.md` is gone)
 - Implementation now:
-  - Tauri desktop app (deprecated; native binary replaces it)
+  - The native binary, published per-platform by `.github/workflows/build-desktop.yml`,
+    mirrored to the VPS release directory. Tauri was deprecated and removed.
 - Status:
   - **Documented: present**
   - **Implemented: deprecated**
@@ -132,7 +134,8 @@ Most domain systems are documented in `docs/design/` AND implemented as modules 
 ## G) Website/docs publishing
 
 - Design sources:
-  - `docs/design/docs/history/md_information_architecture_plan.md`
+  - `docs/history/md_information_architecture_plan.md` (the path here had an
+    extra `docs/design/` prefix and pointed at nothing)
 - Implementation now:
   - `docs/website/` + mirrored/public docs strategy
 - Status:

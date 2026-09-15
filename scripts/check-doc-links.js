@@ -130,7 +130,15 @@ const DOC_REF_RE = /\b(docs\/[\w./-]+\.md)\b/g;
 // said at the time, not live pointers - fixing them would be revisionism (same
 // reason the markdown pass skips docs/history/). announcements_archive.json is
 // re-seeded verbatim to #announcements on a wipe.
-const DATA_SKIP = [path.join('data', 'announcements_archive.json')];
+// data/library/search-index.json is not a data file with pointers in it: it is a
+// verbatim copy of every Library document's TEXT, generated for search. Scanning
+// it re-reports every path that appears in any document's prose, attributed to
+// the index instead of to the document that actually contains it, which points
+// the reader at a generated file they must not edit.
+const DATA_SKIP = [
+  path.join('data', 'announcements_archive.json'),
+  path.join('data', 'library', 'search-index.json'),
+];
 let dataChecked = 0;
 for (const file of walkExt(path.join(ROOT, 'data'), ['.json', '.ron'], [])) {
   const relFile = path.relative(ROOT, file);

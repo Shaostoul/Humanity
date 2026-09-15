@@ -38,6 +38,10 @@ struct LibState {
     define_mode: bool,
     /// A word the reader clicked in define mode - drives the popup.
     define_popup: Option<String>,
+    /// Document search text. Native searches the in-memory bodies directly:
+    /// every document is already loaded, so unlike web there is no index to
+    /// fetch and no cost to searching.
+    search: String,
     /// Where the reader came from, so following a cross-reference is
     /// reversible. Pushed on every link jump, popped by Back. Without it a
     /// document that sends you somewhere else is a one-way trip, which is the
@@ -62,6 +66,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             define_mode: false,
             define_popup: None,
             back: Vec::new(),
+            search: String::new(),
             tag_filter: None,
         });
     }
@@ -153,7 +158,79 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.horizontal_top(|ui| {
                 // ── Left rail: document tree + the Dictionary entry ──
                 ui.allocate_ui_with_layout(Vec2::new(rail_w, body_h), Layout::top_down(Align::Min), |ui| {
+                    // ── Document search ──
+                    // The Library had none: the only search box on this page
+                    // searched the Dictionary's glossary terms. Browsing a
+                    // 17-category rail works at 83 documents and not at 500.
+                    lib_state(|s| {
+                        ui.add(
+                            TextEdit::singleline(&mut s.search)
+                                .hint_text("Search all documents")
+                                .desired_width(rail_w - 8.0),
+                        );
+                    });
+                    ui.add_space(theme.spacing_xs);
+
                     ScrollArea::vertical().id_salt("library_rail").auto_shrink([false, false]).show(ui, |ui| {
+                        // Results REPLACE the tree while searching, so the rail
+                        // shows one thing at a time rather than two competing
+                        // navigations.
+                        let q = lib_state(|s| s.search.trim().to_lowercase());
+                        if !q.is_empty() {
+                            let mut hits: Vec<(usize, usize, usize, &str, i32)> = Vec::new();
+                            for (si, sec) in state.library.iter().enumerate() {
+                                for (ci, c) in sec.categories.iter().enumerate() {
+                                    for (ei, e) in c.entries.iter().enumerate() {
+                                        let t = e.title.to_lowercase();
+                                        let b = e.body.to_lowercase();
+                                        // Title beats body: somebody searching
+                                        // "botulism" wants the document about it,
+                                        // not one that mentions it in passing.
+                                        let score = if t.contains(&q) { 10 } else { 0 }
+                                            + if b.contains(&q) { 1 } else { 0 };
+                                        if score > 0 {
+                                            hits.push((si, ci, ei, e.title.as_str(), score));
+                                        }
+                                    }
+                                }
+                            }
+                            hits.sort_by(|a, b| b.4.cmp(&a.4));
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} result{}",
+                                    hits.len(),
+                                    if hits.len() == 1 { "" } else { "s" }
+                                ))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                            );
+                            ui.add_space(theme.spacing_xs);
+                            let mut picked: Option<Sel> = None;
+                            for (si, ci, ei, title, _) in hits.into_iter().take(40) {
+                                if ui
+                                    .selectable_label(
+                                        false,
+                                        RichText::new(title)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_primary()),
+                                    )
+                                    .clicked()
+                                {
+                                    picked = Some(Sel::Doc(si, ci, ei));
+                                }
+                            }
+                            if let Some(next) = picked {
+                                lib_state(|s| {
+                                    let prev = s.sel.clone();
+                                    if prev != next {
+                                        s.back.push(prev);
+                                        s.sel = next;
+                                    }
+                                });
+                            }
+                            return;
+                        }
+
                         lib_state(|s| {
                             for (si, section) in state.library.iter().enumerate() {
                                 // Never render a section header with nothing under

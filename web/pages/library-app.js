@@ -9,6 +9,7 @@
   var MANIFEST_URL = '/data/library/index.json';
   var DOC_BASE = '/data/library/';
   var GLOSSARY_URL = '/data/glossary.json';
+  var SEARCH_URL = '/data/library/search-index.json';
 
   var manifest = null;
   var glossary = null;
@@ -16,6 +17,9 @@
   var docCache = {};        // file -> markdown text
   var dictQuery = '';
   var tagFilter = null;     // active tag id, or null for everything
+  var searchIndex = null;   // lazy: fetched on the first keystroke, never on load
+  var searchLoading = false;
+  var searchQuery = '';
 
   function esc(s) {
     if (!s) return '';
@@ -114,6 +118,135 @@
     });
     var clear = bar.querySelector('[data-clear]');
     if (clear) clear.addEventListener('click', function() { tagFilter = null; renderTagBar(); renderRail(); });
+  }
+
+  /* ── Document search ──
+     The index carries full text so a result can show a real snippet instead of
+     just a title, which costs about 800 KB. So it is LAZY: nothing is fetched
+     until the first keystroke, and nobody who only browses ever pays for it. */
+
+  function loadSearchIndex(then) {
+    if (searchIndex || searchLoading) { if (searchIndex) then(); return; }
+    searchLoading = true;
+    renderResults();   // show the loading note
+    fetch(SEARCH_URL, { cache: 'no-cache' })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j) { searchIndex = j.docs || []; searchLoading = false; then(); })
+      .catch(function(err) {
+        console.error('library: search index failed to load', err);
+        searchIndex = []; searchLoading = false; then();
+      });
+  }
+
+  /** Score a document against the query terms, and find where the best hit is.
+      Title and heading matches outrank body matches, because someone searching
+      "botulism" wants the section about botulism, not the doc that mentions it
+      once in passing. */
+  function searchDocs(q) {
+    var terms = q.toLowerCase().split(/\s+/).filter(function(t) { return t.length > 1; });
+    if (!terms.length) return [];
+    var out = [];
+    (searchIndex || []).forEach(function(d) {
+      var hay = d.text.toLowerCase();
+      var title = (d.title || '').toLowerCase();
+      var score = 0, missing = false;
+      terms.forEach(function(t) {
+        var inTitle = title.indexOf(t) >= 0;
+        var inHead = d.headings.some(function(h) { return h.toLowerCase().indexOf(t) >= 0; });
+        var inBody = hay.indexOf(t) >= 0;
+        var inTag = (d.tags || []).some(function(x) { return x.indexOf(t) >= 0; });
+        if (!inTitle && !inHead && !inBody && !inTag) { missing = true; return; }
+        if (inTitle) score += 10;
+        if (inHead) score += 5;
+        if (inTag) score += 3;
+        if (inBody) score += 1;
+      });
+      if (missing || !score) return;   // every term must appear somewhere
+
+      // Which heading is the hit under? Walk headings and pick the last one
+      // that precedes the first body match.
+      var first = hay.indexOf(terms[0]);
+      var where = '';
+      if (first >= 0) {
+        var best = -1;
+        d.headings.forEach(function(h) {
+          var at = hay.indexOf(h.toLowerCase());
+          if (at >= 0 && at <= first && at > best) { best = at; where = h; }
+        });
+      }
+      out.push({ doc: d, score: score, snippet: snippetFor(d.text, terms[0]), where: where });
+    });
+    return out.sort(function(a, b) { return b.score - a.score; }).slice(0, 25);
+  }
+
+  function snippetFor(text, term) {
+    var at = text.toLowerCase().indexOf(term);
+    if (at < 0) return text.slice(0, 160) + '...';
+    var start = Math.max(0, at - 70);
+    var raw = (start > 0 ? '...' : '') + text.slice(start, at + 110) + '...';
+    // Escape first, then re-introduce the one tag we want, so a document
+    // containing markup cannot inject anything.
+    var safe = esc(raw);
+    // Escape every non-alphanumeric so a term like "C++" or "3.5" cannot become
+    // a regex. Broad on purpose: over-escaping is harmless, under-escaping throws.
+    var esc2 = term.replace(/[^a-z0-9 ]/gi, function(c) { return '\\' + c; });
+    var re = new RegExp('(' + esc2 + ')', 'ig');
+    return safe.replace(re, '<mark>$1</mark>');
+  }
+
+  function renderResults() {
+    var box = document.getElementById('lib-results');
+    var tree = document.getElementById('lib-rail');
+    if (!box) return;
+    if (!searchQuery) {
+      box.hidden = true; box.innerHTML = '';
+      if (tree) tree.hidden = false;
+      return;
+    }
+    box.hidden = false;
+    if (tree) tree.hidden = true;   // results replace the tree while searching
+
+    if (searchLoading) {
+      box.innerHTML = '<div class="lib-search-note">Loading the index...</div>';
+      return;
+    }
+    var hits = searchDocs(searchQuery);
+    if (!hits.length) {
+      box.innerHTML = '<div class="lib-search-note">Nothing matches "' + esc(searchQuery) + '".</div>';
+      return;
+    }
+    box.innerHTML = '<div class="lib-search-note">' + hits.length +
+      (hits.length === 25 ? '+' : '') + ' result' + (hits.length === 1 ? '' : 's') + '</div>' +
+      hits.map(function(h) {
+        return '<button class="lib-result" data-slug="' + esc(h.doc.slug) + '">' +
+          '<div class="lib-result-title">' + esc(h.doc.title) +
+            (h.where && h.where !== h.doc.title
+              ? ' <span class="lib-result-where">&rsaquo; ' + esc(h.where) + '</span>' : '') +
+          '</div>' +
+          '<div class="lib-result-snip">' + h.snippet + '</div>' +
+        '</button>';
+      }).join('');
+
+    box.querySelectorAll('[data-slug]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        var hit = findBySlug(b.getAttribute('data-slug'));
+        if (hit) openDoc(hit.ci, hit.di, true);
+      });
+    });
+  }
+
+  function wireSearch() {
+    var input = document.getElementById('lib-search');
+    if (!input) return;
+    input.addEventListener('input', function() {
+      searchQuery = input.value.trim();
+      if (!searchQuery) { renderResults(); return; }
+      loadSearchIndex(renderResults);
+      if (searchIndex) renderResults();
+    });
+    input.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape') { input.value = ''; searchQuery = ''; renderResults(); }
+    });
   }
 
   /* ── Left rail: nested category tree, mirroring the native collapsing headers ── */
@@ -375,6 +508,7 @@
       .then(function(j) {
         manifest = j;
         renderTagBar();
+        wireSearch();
         renderRail();
         // A #slug in the URL wins; otherwise open the first document,
         // matching the native page's default.
