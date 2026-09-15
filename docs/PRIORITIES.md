@@ -1,5 +1,71 @@
 # HumanityOS: Priorities
 
+> **THE LIBRARY AS A TEACHING SYSTEM, 2026-09-15 (v0.1307 to v0.1309). The
+> operator: "let's focus on getting the library to 100% UX/UI/content wise. The
+> real library content and the databases of stuff (like plants, animals, cities,
+> planets, equipment, etc.) essentially functions as our framework for the
+> gameplay. We want to teach real-life through a simulation." Backend first, by
+> his agreement, then content.**
+>
+> BACKEND, now complete:
+>
+> - **A denominator.** `data/curriculum/syllabus.json`, 143 topics across 18
+>   subjects, practical-first. "How complete is the Library" had no answer
+>   before this because there was nothing to divide by. Read it with
+>   `just curriculum`.
+> - **Four layers per topic** (reading, skill, data, source), because a topic
+>   with a document and no data is a book, and a topic with data and no document
+>   is a mechanic nobody understands. At the time of writing: skills 100
+>   percent, documents 11, simulation data 20, sources 52, all four 0.
+> - **A source registry.** `data/sources/registry.json`, 54 authorities each
+>   carrying a licence and a use rule, so the operator decision "public domain
+>   in the bundle, share-alike fetched at runtime" is checkable rather than
+>   remembered. Roles like `state-fish-wildlife` resolve per locale, which is
+>   how a topic stays location-generic.
+> - **A locale schema.** `schemas/locale.toml`. 66 of the 143 topics (46
+>   percent) have no correct answer until you name a place.
+> - **Library structure**: three tiers (section, category, document), a tag
+>   filter on four axes, lazy full-text search, working cross-references, Back,
+>   a Contents outline per document, and heading anchors shared by both clients
+>   so `/library#<doc>/<heading>` resolves in the app and on the website.
+>
+> WHAT THE NEW GATES CAUGHT, both on our own work:
+>
+> - The fire staff guide was `verified` at `hazard: lethal` while citing two
+>   phrases, "published alloy and fibre data" and "manufacturer SDS". Its flame
+>   temperatures traced to a self-published dataset that lists naphtha at
+>   4591 C. Re-sourced against OSHA 1910.106, NIOSH, CAMEO, ATSDR, the NASA
+>   Materials Data Handbooks, NIST and the named DuPont guides; ten body facts
+>   corrected; status honestly reduced to `sourced`.
+> - The markdown renderer had no code-fence handling at all, so SELF-HOSTING.md
+>   drew 50 shell comments at title size and buried its real sections.
+>
+> NEXT, in value order:
+>
+> - **Content. 127 of 143 topics have no document and 69 cite nobody.** This is
+>   the number the operator actually asked about. First wave written:
+>   soil_basics, shelter_insulation, materials_wood, health_burns,
+>   water_sources, each chosen for having a strong public-domain authority. The
+>   lethal-hazard topics (canning, foraging, wiring, heating) need the same
+>   treatment the fire staff guide just got and should not be written fast.
+> - **Silverdale, Washington as the canonical world.** Operator decision,
+>   2026-09-15: not a reference dataset beside a generic world, the world
+>   itself, with real elevation, real shoreline and real species.
+>   `data/locales/silverdale_wa/` is the target, shaped by `schemas/locale.toml`.
+> - **The runtime fetch layer.** Four registry entries (GBIF, iNaturalist,
+>   OpenStreetMap, Wikipedia) are marked `use: fetch` and nothing fetches yet.
+>   Until it exists, the share-alike half of the licensing decision is a promise
+>   with no mechanism.
+> - **`just verify` is red on the monolith ratchet**, not on any test. Six files
+>   past budget, about 5000 lines accumulated across several sessions: lib.rs
+>   +1392, renderer/mod.rs +1540, chat.rs +1053, gui/mod.rs +695, api.rs +275,
+>   planet_chunks.rs +49. It wants a quiet checkout: extracting from lib.rs and
+>   renderer/mod.rs while other sessions are live in them is exactly the
+>   three-way merge hazard CLAUDE.md warns about. Everything else is green, 1753
+>   lib tests pass and both feature builds check clean.
+
+
+
 > **LIBRARY DOCUMENTATION AUDIT, 2026-09-14 (v0.1306.x). The operator asked
 > whether the docs we ship are accurate, starting with the US Constitution.
 > Both halves of that question are now answered and neither answer was good.**
