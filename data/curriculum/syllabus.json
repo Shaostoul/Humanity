@@ -1280,7 +1280,7 @@
       "subject": "materials",
       "title": "Metals and alloys",
       "summary": "Understand strength, temper, corrosion and heat behaviour.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "metalworking"
       ],
@@ -1288,7 +1288,19 @@
         "data/chemistry/alloys.csv"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "metals-and-alloys"
+      ],
+      "sources": [
+        "doe",
+        "nasa-ntrs",
+        "nist",
+        "osha",
+        "niosh-pocket-guide",
+        "dod-technical-manuals",
+        "faa"
+      ]
     },
     {
       "id": "materials_fire_staff",

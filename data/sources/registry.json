@@ -723,7 +723,7 @@
       "licence": "unknown",
       "use": "facts",
       "bundle": false,
-      "note": "Stands in for a real citation that was never made. Replace with mil-hdbk-5 for aluminium and titanium allowables, fpl-wood-handbook for wood, and a named manufacturer technical guide for aramid fibre."
+      "note": "Stands in for a real citation that was never made. Replace with nasa-ntrs for aluminium and titanium allowables (NASA CR-123772 and CR-123773 carry 6061 and 7075 directly), doe for the general mechanical-property tables, fpl-wood-handbook for wood, and a named manufacturer technical guide for aramid fibre. An earlier version of this note named mil-hdbk-5, which is not an id in this registry: its link answered 200 with a publisher homepage and it was removed."
     },
     {
       "id": "placeholder-manufacturer-sds",
@@ -788,6 +788,17 @@
       "use": "facts",
       "bundle": false,
       "note": "Treaty-reserved rights are law and are co-managed with the state, not a courtesy and not a historical note. Where a guide touches who may take fish, shellfish or game, the tribal government whose usual and accustomed area covers the place is an authority on it. Represent what the nation itself publishes; do not characterise treaty rights from secondary sources."
+    },
+    {
+      "id": "faa",
+      "name": "Federal Aviation Administration advisory circulars and handbooks",
+      "publisher": "US Department of Transportation",
+      "url": "https://www.faa.gov/regulations_policies/advisory_circulars",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "AC 43.13-1B, Acceptable Methods, Techniques and Practices for Aircraft Inspection and Repair, is the most careful free writing on metal repair, fastening and corrosion that exists, because the consequence of getting it wrong is a crash. Aviation tolerances are tighter than a homestead needs, so take the method and the reasoning rather than the acceptance limits."
     }
   ]
 }

@@ -411,6 +411,15 @@
           ]
         },
         {
+          "title": "Metals and Alloys",
+          "src": "docs/user/making/metals_and_alloys.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
+          ]
+        },
+        {
           "title": "Working With Wood",
           "src": "docs/user/making/working_with_wood.md",
           "tags": [

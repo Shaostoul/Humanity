@@ -454,7 +454,7 @@ domestic use, not data.
 
 | Cause | What it does |
 |---|---|
-| Cutting on glass, stone, ceramic or steel | Chips the apex outright. These are all harder than blade steel |
+| Cutting on glass, stone, ceramic or steel | Chips the apex outright. Glass, stone and ceramic are harder than blade steel; a steel surface usually is not, and there the apex fails against something that simply will not yield |
 | Cutting down onto a plate | Same, in miniature, every meal |
 | Cutting through bone, staples, nails or wire | One impact, one chip |
 | Letting blades touch each other in a drawer | Random nicks along the whole edge |
