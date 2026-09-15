@@ -43,8 +43,10 @@ Learned across thirty landed guides, not invented here.
 - Prefer the specific place. The canonical locale is Silverdale, Kitsap
   County, Washington, on Dyes Inlet, latitude about 47.65 N. When a fact
   is local, say so. When it is general, say that too.
-- Cross-reference other guides by relative link, for example
-  `[What Soil Is](what_soil_is.md)`. Confirm the filename exists under
+- Cross-reference other guides by relative link: ordinary markdown link
+  syntax with the guide's title as the text and a sibling filename as the
+  target. (The link checker reads examples too, so this brief describes the
+  form rather than showing one.) Confirm the filename exists under
   `docs/user/skills/` or `docs/user/making/` before you link it.
 - End with a Sources section listing every URL you personally opened,
   what each one gave you, and an explicit note on anything you could not

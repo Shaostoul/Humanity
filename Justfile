@@ -457,6 +457,7 @@ preflight:
     node scripts/check-locale-phenology.js
     node scripts/check-library-dashes.js
     node scripts/check-library-fresh.js
+    node scripts/check-library-render.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -474,6 +475,17 @@ locale-docs:
 # silently for months once; this is the check it says did not exist.
 check-library-fresh:
     node scripts/check-library-fresh.js
+# Run the REAL web Library reader over the REAL shipped documents and look at
+# what comes out. Every other Library gate reads the source; none of them had
+# ever looked at the rendered page, which is this repo s dominant defect class.
+# First run found two: an underscore inside a word opened emphasis, so
+# what_soil_is.md, silverdale_wa and a set of cited source URLs lost their
+# underscores and went italic (82 spans, 23 documents, and the NATIVE reader
+# showed every one correctly, so only opening both clients side by side would
+# have found it); and one table never rendered because it sat indented inside
+# a checklist item, leaving its separator row on the page as raw pipes.
+check-library-render:
+    node scripts/check-library-render.js --verbose
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among

@@ -191,8 +191,13 @@
 > 4. **`data/credits.ron` is only loaded inside `load_world`**, so Settings >
 >    Credits shows a "could not read" warning until the user first enters the 3D
 >    world, blaming a file that ships fine.
-> 5. **The Library markdown renderer** still has no table support and splits
->    emphasis across line breaks.
+> 5. ~~**The Library markdown renderer** still has no table support and splits
+>    emphasis across line breaks.~~ **BOTH FIXED, verified v0.1312.11.** Both
+>    readers now buffer and join wrapped source lines before applying inline
+>    markup, and both parse GFM pipe tables. Proven by running the real web
+>    reader over all 107 shipped documents: 118 tables render, 0 separator rows
+>    leak, and 532 emphasis spans that cross a line break all close.
+>    `just check-library-render`.
 >
 > ---
 >
@@ -339,10 +344,13 @@
 > - **Markdown tables do not render in the Library.** `web/pages/library-app.js`
 >   has no table support at all: the deployed page showed 0 `<table>` elements
 >   and 10 visible `|---|` separator rows. All nine tables were rewritten as
->   bulleted lists with every sourced number unchanged. **No Library document
->   should contain a markdown table until the renderer supports one.** None of
+>   bulleted lists with every sourced number unchanged. ~~**No Library document
+>   should contain a markdown table until the renderer supports one.**~~ None of
 >   the six older Real Skills guides used a table, which is why this had never
->   been hit.
+>   been hit. **SUPERSEDED: both readers gained pipe tables, and as of v0.1312.11
+>   that is proven rather than assumed. Tables are fine to write. The one
+>   remaining shape that does NOT render is a table indented inside a list item,
+>   which `check-library-render` now refuses.**
 > - **A `**bold**` span that wraps across a line break never closes**, because
 >   the renderer processes markdown line by line, so the reader sees literal
 >   asterisks ("per pound**. Protein 2.1 g"). 22 lines across three guides, all
@@ -350,12 +358,24 @@
 >   survived. Now checked mechanically: every bold and italic span opens and
 >   closes on one source line.
 >
-> STILL OPEN, web lane, cosmetic: `library-app.js` renders each source line as
+> ~~STILL OPEN, web lane, cosmetic: `library-app.js` renders each source line as
 > its own block, so a wrapped list item loses its hanging indent and the
-> continuation sits at the left margin. This affects all ten Real Skills guides
-> and every other Library document equally, and a document cannot work around it
-> without abandoning the 72-column wrap the whole docs tree uses. The fix is in
-> the renderer: join continuation lines within a list item and a paragraph.
+> continuation sits at the left margin.~~ **FIXED.** `web/shared/markdown.js`
+> buffers paragraphs, list items and block quotes and joins them before applying
+> inline markup, and `src/gui/widgets/markdown.rs` does the same. Guarded by
+> `just check-library-render`.
+>
+> **A THIRD RENDERING DEFECT, found v0.1312.11 by a check that looks at the
+> rendered page instead of the source.** An underscore inside a word opened
+> emphasis, which is not the GFM rule. So `what_soil_is.md`, `silverdale_wa`,
+> `poison_hemlock` and, worst, a set of CITED SOURCE URLS lost their underscores
+> and went italic from the second underscore to the next: a reader clicking a
+> citation in `cold_and_hypothermia.md` or `insulation_and_heat_loss.md` got a
+> mangled URL. 82 spans across 23 shipped documents. The NATIVE reader showed
+> every one of them correctly, because it parses links character by character
+> rather than by regex, so this was a web-only divergence findable only by
+> opening both clients side by side. Fixed in `web/shared/markdown.js`; the
+> guard is proven red by reverting it.
 >
 > WIRING: `scripts/build-library.js` gains the four entries (it is in the same
 > "ui" lane as `docs/` and `data/library/` per `data/coordination/lanes.json`),

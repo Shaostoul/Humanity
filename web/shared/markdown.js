@@ -25,10 +25,20 @@
     let s = escapeHtml(text);
     // Bold.
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // An underscore INSIDE a word never opens or closes emphasis. This is the
+    // GFM rule, and without it the Library mangles its own subject matter:
+    // `what_soil_is.md`, `silverdale_wa`, `poison_hemlock`, `game_join` and
+    // every other snake_case identifier lost its underscores and went italic
+    // from the second underscore to the next one. 82 spans across 23 shipped
+    // documents, and the native reader showed all of them correctly, so this
+    // was a web-only divergence a reader could only find by comparing clients.
+    // Guarded by scripts/check-library-render.js.
+    s = s.replace(/(^|[^A-Za-z0-9_])__([^_\s](?:[^_]*[^_\s])?)__(?![A-Za-z0-9_])/g,
+      '$1<strong>$2</strong>');
     // Italic.
     s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+    s = s.replace(/(^|[^A-Za-z0-9_])_([^_\s](?:[^_]*[^_\s])?)_(?![A-Za-z0-9_])/g,
+      '$1<em>$2</em>');
     // Inline code.
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     // Links.

@@ -1671,12 +1671,14 @@ Phase 1 status (2026-05-09):
       shipped in v0.199.0.
 - [ ] **Universal sim_time vs fleet-controlled time**, under
       discussion; operator leaning toward universal. Pros/cons:
-      | Universal | Fleet-controlled |
-      |-----------|------------------|
-      | Easy multiplayer (everyone agrees Mars is at the same place at sim time T) | Each fleet can fast-travel without affecting others |
-      | Deterministic; replays / records work cleanly | More expressive (warp drive engaged → time accelerates for the crew) |
-      | Fast travel still works via region-based speed multipliers | Hard sync; "what time is Mars?" depends on observer perspective |
-      | Combat / shared scenes "just work" | Cross-fleet interaction across different speeds is undefined |
+
+| Universal | Fleet-controlled |
+|-----------|------------------|
+| Easy multiplayer (everyone agrees Mars is at the same place at sim time T) | Each fleet can fast-travel without affecting others |
+| Deterministic; replays / records work cleanly | More expressive (warp drive engaged → time accelerates for the crew) |
+| Fast travel still works via region-based speed multipliers | Hard sync; "what time is Mars?" depends on observer perspective |
+| Combat / shared scenes "just work" | Cross-fleet interaction across different speeds is undefined |
+
 - [ ] **Anything missing**, see §17c for results of the doc audit.
 
 ---
@@ -1691,3 +1693,4 @@ Phase 1 status (2026-05-09):
 - `src/ecs/`, hecs ECS where the position component will live
 - `data/solar_system/bodies.json`, current single-system data, slated for
   restructure in Phase 1
+
