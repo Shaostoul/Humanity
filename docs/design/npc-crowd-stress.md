@@ -19,8 +19,9 @@ the terrain patch-cache bills before the planet shipped.
 | Piece | Where | State |
 |---|---|---|
 | Creature AI (passive/aggressive/herd/predator/guard) | `src/systems/ai/mod.rs` (`AISystem`) | Local ECS system, ticks per frame |
-| Behavior trees | `src/systems/ai/behavior.rs` | `BehaviorNode`/`BehaviorStatus`, used by creatures |
-| Flow-field pathfinding | `src/systems/ai/flow_field.rs` | Terrain-oriented |
+| Behavior trees | `src/systems/ai/behavior.rs` | **CORRECTION 2026-09-15: a 26-line dead stub.** `BehaviorNode`/`BehaviorStatus` are type definitions with NO evaluator and ZERO call sites outside their own file; `data/behaviors.ron` (named in the module doc) does not exist. NOT used by creatures. |
+| Flow-field pathfinding | `src/systems/ai/flow_field.rs` | **CORRECTION 2026-09-15: a 26-line dead stub.** `FlowField::new` allocates a zeroed direction grid and that is the entire implementation: no cost field, no integration, no solve, zero call sites, and `config/flow_field.toml` does not exist. Its "supports million-agent navigation" doc comment describes an intention, not code. **Nothing in this repo can path an agent around a wall.** |
+| Character animation | nowhere | **Does not exist.** No skeletal/skinned pipeline, no GLTF animation import (`grep animation src/assets/*.rs` is empty). NPCs and remote players draw as a two-primitive body+head marker (`src/lib.rs:8795` teal players, `src/lib.rs:8833` amber crew). A crowd today is sliding markers. |
 | Crew NPCs (chores, dialogue) | relay-driven, streamed as `net::sync::RemoteNpc`; chore AI server-side (v0.663+) | Works at ~5 crew; never load-tested |
 | NPC nameplates | `src/gui/pages/hud.rs` crew loop | v0.975 sightline occlusion applies (O(plates x wall segments) per frame) |
 | Interval chores | `ecs::components` `IntervalAction` (AFK NPC chores) | Data-driven timer actions |
