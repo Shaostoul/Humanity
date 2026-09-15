@@ -453,9 +453,17 @@ preflight:
     @echo ">> untracked source files (would fail CI on a fresh checkout; empty = good):"; git ls-files --others --exclude-standard -- '*.rs' '*.ron' '*.csv'
     node scripts/check-doc-links.js
     node scripts/curriculum-status.js
+    node scripts/check-locale-species.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
+# Validate every locale's species.json: the shape, and the rule that matters,
+# which is that anything edible or toxic must name what it is confused with and
+# say how to tell them apart. An empty lookalike list was the single most common
+# finding when the Silverdale plant records were put to an adversarial verifier,
+# and confusion is how foraging kills people, not ignorance.
+check-species:
+    node scripts/check-locale-species.js
 # Check that every citation in data/sources/registry.json still resolves.
 # Talks to the network, so it is NOT in verify or preflight, both of which must
 # work offline. Catches the failure a status check misses: a link that answers
