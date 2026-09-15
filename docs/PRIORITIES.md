@@ -1,5 +1,98 @@
 # HumanityOS: Priorities
 
+> **CONTENT WAVE SIX, AND THE RULE THAT CAME OUT OF IT, 2026-09-15
+> (v0.1312.10 to v0.1312.16). 46 of 143 topics have a document, 20 are
+> complete experiences with all four layers, against 37 and 11 at the start
+> of the day. Run `just curriculum` for the live number.**
+>
+> **NEXT: keep writing, and budget a refutation pass PER GUIDE.** 97 topics
+> still have no document. The cheapest are the 16 that already have both data
+> and sources, so one document completes all four layers. `just curriculum`
+> lists them.
+>
+> **THE RULE.** Eight guides landed this wave, written by parallel writers
+> against a standing brief. Three were then handed to a critic whose only job
+> was to refute, and all three came back with real defects: 8 in the ecosystem
+> guide, 9 in the sky guide, 9 in the climate guide. Every one of those
+> writers had self-reported thoroughly and confidently. **A writer's own
+> report is not evidence.** The dominant defect is NOT a wrong number:
+>
+> 1. **A correctly-read source restated with its scope removed.** The Forest
+>    Service said "in coastal Oregon" and the guide said "the Forest Service
+>    records", then told a Kitsap gardener that soil pH 4.3 "is your starting
+>    number". Our own `soil.json` contradicts it for half the mapped ground
+>    here: Alderwood runs 5.1 to 6.5. Same shape four more times in the
+>    climate guide alone, including a spring-only frost rule stated with no
+>    season attached, which on the autumn ladder would have deferred row cover
+>    by five weeks.
+> 2. **A claim credited to a source that itself credits somebody else.** The
+>    land-use correlation is Feist et al. 2011, and Scholz et al. 2011 says so
+>    in its own discussion. Eratosthenes was cited to a NOAA page containing no
+>    occurrence of Eratosthenes. The Longitude Act was cited to NIST pages
+>    containing neither "Longitude Act" nor "latitude".
+> 3. **A check that cannot fail.** The sky guide proved "a full moon is due
+>    south at its highest" by sampling 23 minutes after the transit and
+>    offering the resulting 8.8 degree miss as the confirmation. At the actual
+>    transit it is a seventh of a degree off, sixty times better.
+> 4. **An altered quotation.** NOAA's page says "5 states"; the guide printed
+>    "2 states" inside the quotation marks, having noticed NOAA's count was
+>    stale and corrected it in place.
+>
+> The standing brief is now on disk at `docs/contributor/library-writer-brief.md`
+> instead of being re-derived from memory every wave. Hand a writer that path.
+>
+> **THREE NEW GATES, each from a failure that had already shipped.**
+>
+> - `just check-library-render` runs the REAL web reader over every shipped
+>   document and inspects the output. All six existing Library gates read the
+>   markdown source; none had ever looked at a page. First run found an
+>   underscore inside a word opening emphasis (not the GFM rule), so
+>   `what_soil_is.md`, `silverdale_wa`, `poison_hemlock` and a set of CITED
+>   SOURCE URLS lost their underscores and went italic: 82 spans, 23 documents.
+>   **Native had none of them**, so it was findable only by opening both
+>   clients side by side, which nobody does.
+> - Four tests in `src/gui/widgets/markdown.rs` so the native reader is gated
+>   too. That asymmetry is the real lesson: gate both mirrors or neither.
+> - `just check-library-counts` refuses a document asserting a locale record
+>   count the data no longer supports. Three sea star records landed and
+>   silently falsified five sentences across three guides. On its first run it
+>   found a document nobody had mentioned; making it newline-tolerant found
+>   another that had survived a search-and-replace by wrapping across the line
+>   break between the number and the word.
+>
+> **21 TOPICS WERE WIRED TO DATA THAT WAS ALREADY ON DISK.** The curriculum
+>   cited 19 of 210 data files. `data/chemistry/toxins.csv` carries botulinum,
+>   saxitoxin, amatoxin and aflatoxin, which is exactly what the Keeping Food
+>   and Wild Food ladders are about; `data/medical.ron` carries the conditions
+>   and procedures the Health ladder needs. "has simulation data" went 20 to 35
+>   percent and "ALL FOUR" did not move, which is the proof it was not gamed.
+>   Deliberately NOT wired: `materials_adhesive`, whose only matching rows are
+>   `glue_0` and `adhesive_slime_0`.
+>
+> **GAPS REPORTED BY WRITERS, NOT YET FIXED.** Each is a place the curriculum
+> promises something the data cannot support:
+>
+> - `data/laws/laws.json` is the declared data layer for BOTH `greywater` and
+>   `forage_ethics` and has nothing for either: no licences, seasons, limits,
+>   Migratory Bird Treaty Act, Marine Mammal Protection Act, tideland
+>   ownership, or treaty rights. There is a rule about licensing your dog.
+> - `data/chemistry/alloys.csv` records ONE of the four strength properties its
+>   topic promises and has no temper column, so 6061-O and 6061-T6 are one row.
+>   Five more defects listed in the v0.1312.16 commit.
+> - `plants.csv` and `creatures.csv` have no pest or disease field, no damage
+>   mode, and no beneficial predators, so the pests guide's central lesson (a
+>   broad spray removes the control you already had) is unmodellable.
+> - `items.csv` cannot express edge state, tool condition, a workholding
+>   requirement, or a mallet.
+> - `data/constellations.json` is missing Cepheus and Hydrus. Cepheus is the
+>   awkward one: it adjoins Polaris on the Cassiopeia side.
+>
+> **STILL OPERATOR-ONLY.** Releases v0.1308.0 onward are unsigned, so the
+> desktop updater offers nothing. And the two demoted lethal guides
+> (`/library#making-water-safe-to-drink`, `/library#keeping-what-you-grew`)
+> stay at `sourced` until a human has read them, per the rule the operator
+> chose; `curriculum-status.js` enforces it.
+
 > **THE LIBRARY AS A TEACHING SYSTEM, 2026-09-15 (v0.1307 to v0.1309). The
 > operator: "let's focus on getting the library to 100% UX/UI/content wise. The
 > real library content and the databases of stuff (like plants, animals, cities,
