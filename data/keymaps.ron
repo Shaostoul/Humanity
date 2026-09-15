@@ -15,6 +15,9 @@
 //
 // The F2-F4 + F12 dev-HUD keys (v0.482) are GLOBAL (work in every context), so they are listed
 // in each block. F2 = performance (FPS + frame-time graph), F3 = network, F4 = system (RAM).
+// F10 (v0.1254.4) opens the cloud dev sidebar; its collapse tab frees the cursor without
+// closing the panel. It was handled in lib.rs but listed nowhere, so the F1 overlay, which is
+// the only place a player can discover a dev hotkey, did not know it existed.
 // F11 (v0.1050) opens the live weather panel: condition presets plus wind and intensity
 // sliders. Wind is what the ocean spectrum is built from, so it doubles as the sea-state
 // control - glassy calm through to a storm sea.
@@ -47,6 +50,7 @@
         (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
         (action: "Dev flight on / off (hover, no gravity)", keys: "F9"),
+        (action: "Cloud dev panel (sidebar; collapse tab frees the cursor)", keys: "F10"),
         (action: "Weather panel (presets, wind = sea state)", keys: "F11"),
         (action: "Debug console", keys: "F12"),
     ]),
@@ -67,6 +71,7 @@
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
+        (action: "Cloud dev panel (sidebar; collapse tab frees the cursor)", keys: "F10"),
         (action: "Weather panel (presets, wind = sea state)", keys: "F11"),
         (action: "Debug console", keys: "F12"),
     ]),
@@ -78,6 +83,7 @@
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
+        (action: "Cloud dev panel (sidebar; collapse tab frees the cursor)", keys: "F10"),
         (action: "Weather panel (presets, wind = sea state)", keys: "F11"),
         (action: "Debug console", keys: "F12"),
     ]),
@@ -90,6 +96,7 @@
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
         (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
+        (action: "Cloud dev panel (sidebar; collapse tab frees the cursor)", keys: "F10"),
         (action: "Weather panel (presets, wind = sea state)", keys: "F11"),
         (action: "Debug console", keys: "F12"),
     ]),
