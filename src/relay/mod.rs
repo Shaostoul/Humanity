@@ -645,6 +645,9 @@ pub async fn run_relay() {
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 interval.tick().await;
+                // Collect players whose reconnect grace ran out. Before the
+                // world lock, because it takes that lock itself.
+                crate::relay::handlers::msg_handlers::sweep_link_dead(&game_state).await;
                 let mut world = game_state.game_world.write().await;
                 let npc_events = world.tick(0.05); // 50ms = 0.05 seconds
                 let player_count = world.player_count();

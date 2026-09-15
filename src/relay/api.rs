@@ -136,6 +136,9 @@ pub async fn send_message(
             display_name: Some(req.from_name.clone()),
             upload_token: None,
             kyber_public: None,
+            // Bots arrive over REST, not a socket: 0 means "no owning
+            // connection", so no socket teardown will ever claim this entry.
+            conn_id: 0,
         });
     }
 
@@ -839,6 +842,8 @@ pub async fn github_webhook(
             display_name: Some("GitHub".to_string()),
             upload_token: None,
             kyber_public: None,
+            // REST-injected webhook bot: no owning socket.
+            conn_id: 0,
         });
     }
 

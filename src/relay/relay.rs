@@ -113,10 +113,43 @@ pub struct Peer {
     /// Kyber768 (ML-KEM-768) encapsulation key (base64) for E2EE DMs.
     /// Full-PQ: `public_key_hex` is the Dilithium3 identity.
     pub kyber_public: Option<String>,
+    /// Which SOCKET owns this registration (see `NEXT_CONN_ID`). A teardown
+    /// compares this against its own id and does nothing if a newer connection
+    /// has since taken the slot, so a late-dying zombie cannot evict the live
+    /// session that replaced it.
+    pub conn_id: u64,
 }
 
 /// Default maximum message history to keep in memory (overridden by server-config.json "max_history").
 const DEFAULT_MAX_HISTORY: usize = 500;
+
+/// How long a player keeps their place in the world after their socket dies,
+/// in seconds (overridden by server-config.json "reconnect_grace_secs").
+///
+/// Before this existed the answer was zero: `handle_game_disconnect` fired the
+/// instant the socket tore down, despawning the player entity, so a brief
+/// network blip cost you your position, your in-progress action, and a fresh
+/// spawn back at the origin. That is a bad deal on any connection and an
+/// unplayable one on a flaky connection.
+///
+/// 90 seconds is chosen against the CLIENT's own reconnect ladder
+/// (`ws_reconnect_delay`, which doubles 0.75 -> 1.5 -> 3 -> 6 -> 12 -> 24 ->
+/// 48 -> 60): it comfortably covers the first several attempts, so an outage
+/// has to last longer than most home-internet hiccups before anyone loses
+/// their spot. Set 0 to restore the old drop-immediately behaviour.
+const DEFAULT_RECONNECT_GRACE_SECS: u64 = 90;
+
+/// Monotonic per-socket id. Every accepted connection takes one, and its
+/// teardown only cleans up state that still belongs to IT.
+///
+/// Without this, cleanup was keyed on the public key alone, which is not a
+/// session: a zombie socket (no heartbeat exists, so a black-holed connection
+/// is only noticed when a write finally fails, often 15-30 s later) would run
+/// its teardown and remove the peer entry, despawn the player, and drop the
+/// voice membership belonging to a NEWER socket the same user had already
+/// reconnected on. Flaky connections hit this ordering routinely, because the
+/// client's reconnect is faster than the server's write-failure detection.
+static NEXT_CONN_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 /// Webhook configuration for notifying external services of new messages.
 #[derive(Debug, Clone)]
@@ -246,6 +279,16 @@ pub struct RelayState {
     pub max_connections: usize,
     /// Maximum message history kept in memory (from config or default).
     pub max_history: usize,
+    /// How long a disconnected player keeps their place in the world before
+    /// being despawned (`reconnect_grace_secs` in server-config.json). Zero
+    /// restores the pre-v0.1313 behaviour of dropping them immediately.
+    pub reconnect_grace: std::time::Duration,
+    /// Players whose socket died but whose grace period has not expired:
+    /// public key -> when the link dropped. `handle_game_join` clears an entry
+    /// when they come back (the rejoin path already reuses the live entity, so
+    /// they resume exactly where they were); `sweep_link_dead` despawns the
+    /// ones that never do.
+    pub link_dead: RwLock<HashMap<String, std::time::Instant>>,
     /// Live video streams (v0.853.0). Deliberately its OWN byte-typed fanout —
     /// video must never ride `broadcast_tx` (a JSON enum re-serialized per socket)
     /// or the chat WS (text-only, 128 KB cap, rate-limited). See `relay::live`.
@@ -338,7 +381,10 @@ impl RelayState {
         let broadcast_capacity = server_config.get("broadcast_capacity")
             .and_then(|v| v.as_u64()).map(|v| v as usize)
             .unwrap_or(DEFAULT_BROADCAST_CAPACITY);
-        info!("Limits: max_connections={max_connections}, max_history={max_history}, broadcast_capacity={broadcast_capacity}");
+        let reconnect_grace_secs = server_config.get("reconnect_grace_secs")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(DEFAULT_RECONNECT_GRACE_SECS);
+        info!("Limits: max_connections={max_connections}, max_history={max_history}, broadcast_capacity={broadcast_capacity}, reconnect_grace_secs={reconnect_grace_secs}");
 
         // Load recent history from database.
         let history = db.load_recent_messages(max_history).unwrap_or_default();
@@ -408,6 +454,8 @@ impl RelayState {
             live: crate::relay::live::LiveRegistry::new(),
             max_connections,
             max_history,
+            reconnect_grace: std::time::Duration::from_secs(reconnect_grace_secs),
+            link_dead: RwLock::new(HashMap::new()),
         }
     }
 
@@ -2453,6 +2501,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     // RAII guard ensures the counter is decremented on all exit paths.
     let _conn_guard = ConnectionGuard { state: state.clone() };
 
+    // This socket's identity for the whole of its life. Teardown below only
+    // tidies up state that still carries this id, so a zombie connection that
+    // finally notices it is dead cannot evict the session that replaced it.
+    let my_conn_id = NEXT_CONN_ID.fetch_add(1, Ordering::SeqCst);
+
     let (mut ws_tx, mut ws_rx) = socket.split();
     let mut broadcast_rx = state.broadcast_tx.subscribe();
     let mut peer_key: Option<String> = None;
@@ -2824,6 +2877,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     display_name: final_name.clone(),
                     upload_token: Some(upload_token.clone()),
                     kyber_public: kyber_public.clone(),
+                    conn_id: my_conn_id,
                 };
 
                 // Register peer and upload token mapping.
@@ -6173,6 +6227,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
         _ = &mut recv_task => send_task.abort(),
     }
 
+    // ── Superseded-connection check (the zombie guard) ──
+    // Cleanup below is keyed on the PUBLIC KEY, which identifies a person, not
+    // a session. On a flaky link the client reconnects long before the server
+    // notices the old socket is dead (there is no heartbeat, so a black-holed
+    // connection surfaces only when a write eventually fails), so by the time
+    // this teardown runs the same user may already be live on a NEWER socket.
+    // Running the cleanup then would remove that live session's peer entry,
+    // despawn its player, and drop it from voice. So: if the registration no
+    // longer carries our id, this connection has been superseded and there is
+    // nothing of ours left to tidy.
+    let superseded = state
+        .peers
+        .read()
+        .await
+        .get(&my_key)
+        .is_some_and(|p| p.conn_id != my_conn_id);
+    if superseded {
+        tracing::debug!(
+            "socket {my_conn_id} for {my_key} was superseded by a newer connection; \
+             skipping teardown"
+        );
+        return;
+    }
+
     // Clean up: remove peer, clear kicked status, remove upload token, and announce departure.
     let disconnected_role = state.db.get_role(&my_key).unwrap_or_default();
     {
@@ -6185,7 +6263,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     }
     state.kicked_keys.write().await.remove(&my_key);
 
-    // Remove player from game world on disconnect.
+    // Give the player their grace period in the world rather than despawning
+    // them outright; `sweep_link_dead` collects them if they never come back.
     handle_game_disconnect(&state, &my_key).await;
 
     // Remove from voice rooms and clear status text on disconnect.

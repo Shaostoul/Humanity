@@ -8,6 +8,22 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+/// First reconnect delay, in seconds, and the value the ladder resets to once
+/// a connection genuinely succeeds. The ladder doubles from here to a 60 s cap:
+/// 0.75 -> 1.5 -> 3 -> 6 -> 12 -> 24 -> 48 -> 60.
+///
+/// This used to be 5 seconds, which meant a one-second network blip still cost
+/// five seconds off the air. Sub-second is safe here BECAUSE of the
+/// `LinkState` fix below: the 2026-08-13 outage was bad not because the first
+/// delay was short but because the ladder RESET on every spawn, so it never
+/// climbed. Now only a proven connection resets it, so a real outage still
+/// reaches the 60 s cap in eight attempts, inside about two minutes.
+///
+/// Pair this with the relay's `reconnect_grace_secs` (default 90): the first
+/// several rungs all land well inside the window where the server is still
+/// holding your place in the world.
+pub const RECONNECT_DELAY_INITIAL_SECS: f32 = 0.75;
+
 /// The link's honest lifecycle. The old model was a single `connected: bool`
 /// initialized to TRUE "optimistically", which had two real consequences
 /// during the 2026-08-13 outage: the reconnect backoff reset itself on every

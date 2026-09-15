@@ -3237,6 +3237,15 @@ pub async fn handle_game_join(
     // duplicate player_joined broadcast (others still have the entity).
     let (player_id, is_rejoin) = match world.find_player_entity(my_key) {
         Some(id) => {
+            // They are back inside the grace period (or never really left):
+            // cancel the pending despawn and hand them their own entity back,
+            // position and in-progress state intact.
+            if state.link_dead.write().await.remove(my_key).is_some() {
+                tracing::info!(
+                    "Game: {} reconnected within the grace period; place kept",
+                    my_key
+                );
+            }
             tracing::info!("Game: rejoin for {} -- resyncing entity {}", my_key, id);
             (id, true)
         }
@@ -3650,10 +3659,52 @@ pub async fn handle_game_position_update(
 }
 
 /// Handle a game client disconnecting. Removes their player entity and broadcasts PlayerLeft.
+/// A player's socket died. Unless the grace period is disabled, keep their
+/// place in the world and let `sweep_link_dead` collect them if they never
+/// return.
+///
+/// The rejoin half of this was already built: `handle_game_join` reuses a live
+/// player entity when it finds one (the v0.779 resync path), so a returning
+/// player keeps their position and in-progress state with no extra work. The
+/// only thing missing was that this function despawned them instantly, so the
+/// entity was always gone by the time they got back. Now the entity survives
+/// the blip and the existing rejoin does the rest.
 pub async fn handle_game_disconnect(
     state: &Arc<RelayState>,
     player_key: &str,
 ) {
+    if !state.reconnect_grace.is_zero() {
+        // Only linger someone who is actually IN the world.
+        let present = state
+            .game_world
+            .read()
+            .await
+            .find_player_entity(player_key)
+            .is_some();
+        if present {
+            state
+                .link_dead
+                .write()
+                .await
+                .insert(player_key.to_string(), std::time::Instant::now());
+            tracing::info!(
+                "Game: player {} lost their link; holding their place for {}s",
+                player_key,
+                state.reconnect_grace.as_secs()
+            );
+            return;
+        }
+    }
+    despawn_player_now(state, player_key).await;
+}
+
+/// Despawn a player and persist their progression. The end of the road for a
+/// player who left deliberately, or whose grace period ran out.
+pub async fn despawn_player_now(
+    state: &Arc<RelayState>,
+    player_key: &str,
+) {
+    state.link_dead.write().await.remove(player_key);
     let mut world = state.game_world.write().await;
     // Capture the player's progress BEFORE despawning (despawn removes the
     // entity, so we can't read it afterward). Find the entity, snapshot its
@@ -3688,6 +3739,32 @@ pub async fn handle_game_disconnect(
         });
 
         tracing::info!("Game: player {} left (entity {})", player_key, entity_id);
+    }
+}
+
+/// Collect players whose grace period expired without them coming back.
+/// Driven from the relay's 20 Hz game tick, so the resolution is one tick and
+/// the cost is one read-lock over a map that is empty on a healthy server.
+pub async fn sweep_link_dead(state: &Arc<RelayState>) {
+    if state.reconnect_grace.is_zero() {
+        return;
+    }
+    let expired: Vec<String> = {
+        let map = state.link_dead.read().await;
+        if map.is_empty() {
+            return; // the overwhelmingly common case: one cheap read, no allocation
+        }
+        map.iter()
+            .filter(|(_, dropped_at)| dropped_at.elapsed() >= state.reconnect_grace)
+            .map(|(key, _)| key.clone())
+            .collect()
+    };
+    for key in expired {
+        tracing::info!(
+            "Game: grace period expired for {}; despawning",
+            key
+        );
+        despawn_player_now(state, &key).await;
     }
 }
 
@@ -4751,5 +4828,109 @@ mod dm_mailbox_tests {
         block(handle_dm_purge(&st, "bob_key"));
         assert!(st.db.mailbox_fetch("bob_key", 0, 10).unwrap().is_empty());
         assert_eq!(st.db.mailbox_fetch("carol_key", 0, 10).unwrap().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod reconnect_grace_tests {
+    use super::*;
+    use crate::relay::relay::RelayState;
+    use std::time::Duration;
+
+    fn test_state(grace: Duration) -> Arc<RelayState> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir()
+            .join(format!("hum_grace_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let mut state = RelayState::new(db);
+        state.reconnect_grace = grace;
+        Arc::new(state)
+    }
+
+    /// The whole point. Before this change `handle_game_disconnect` despawned
+    /// on the spot, so this assertion is exactly what used to fail: a player
+    /// who blinked out lost their entity, their position, and their place.
+    #[tokio::test]
+    async fn a_dropped_player_keeps_their_place_during_the_grace() {
+        let state = test_state(Duration::from_secs(90));
+        let key = "player_grace_1";
+        state.game_world.write().await.spawn_player(key, [3.0, 1.0, 4.0]);
+
+        handle_game_disconnect(&state, key).await;
+
+        assert!(
+            state.game_world.read().await.find_player_entity(key).is_some(),
+            "a dropped player must stay in the world for the grace period"
+        );
+        assert!(
+            state.link_dead.read().await.contains_key(key),
+            "and must be tracked as link-dead so the sweep can collect them"
+        );
+    }
+
+    /// Coming back inside the window returns the SAME entity, which is what
+    /// preserves position and in-progress state. The rejoin path in
+    /// handle_game_join keys off exactly this.
+    #[tokio::test]
+    async fn reconnecting_in_time_gets_the_same_entity_back() {
+        let state = test_state(Duration::from_secs(90));
+        let key = "player_grace_2";
+        let original = state.game_world.write().await.spawn_player(key, [7.0, 1.0, 9.0]);
+
+        handle_game_disconnect(&state, key).await;
+        sweep_link_dead(&state).await; // a tick fires; 90s has NOT elapsed
+
+        let found = state.game_world.read().await.find_player_entity(key);
+        assert_eq!(
+            found,
+            Some(original),
+            "a sweep inside the grace period must not collect anyone"
+        );
+    }
+
+    /// The other half: the grace is a reprieve, not an amnesty. Someone who
+    /// never comes back is despawned, or the world would fill with ghosts.
+    #[tokio::test]
+    async fn an_expired_grace_despawns_the_player() {
+        let state = test_state(Duration::from_millis(30));
+        let key = "player_grace_3";
+        state.game_world.write().await.spawn_player(key, [1.0, 1.0, 2.0]);
+
+        handle_game_disconnect(&state, key).await;
+        assert!(
+            state.game_world.read().await.find_player_entity(key).is_some(),
+            "still held immediately after the drop"
+        );
+
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        sweep_link_dead(&state).await;
+
+        assert!(
+            state.game_world.read().await.find_player_entity(key).is_none(),
+            "an expired grace must despawn the player"
+        );
+        assert!(
+            state.link_dead.read().await.is_empty(),
+            "and must not leak the link-dead entry"
+        );
+    }
+
+    /// Grace 0 is the documented escape hatch back to the old behaviour, so it
+    /// must actually behave the old way rather than lingering forever.
+    #[tokio::test]
+    async fn zero_grace_drops_immediately() {
+        let state = test_state(Duration::ZERO);
+        let key = "player_grace_4";
+        state.game_world.write().await.spawn_player(key, [0.0, 1.0, 0.0]);
+
+        handle_game_disconnect(&state, key).await;
+
+        assert!(
+            state.game_world.read().await.find_player_entity(key).is_none(),
+            "reconnect_grace_secs = 0 must despawn on the spot"
+        );
     }
 }

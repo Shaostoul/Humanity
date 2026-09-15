@@ -240,7 +240,7 @@ NCHFP's amounts, added directly to the jars before filling:
 - **Per quart jar:** 2 tablespoons bottled lemon juice, OR 1/2 teaspoon
   citric acid, OR 4 tablespoons of 5 percent vinegar.
 
-NCHFP notes vinegar "may cause undesirable flavor changes."
+NCHFP notes that vinegar may change the flavor for the worse.
 
 **It must be bottled lemon juice, not fresh.** This is not fussiness.
 Bottled lemon juice is standardized to a known acidity under FDA rules,

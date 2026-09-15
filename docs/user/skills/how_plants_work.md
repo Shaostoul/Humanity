@@ -67,9 +67,10 @@ worth a great deal when you only get one attempt a year.
 
 A plant is a chemical factory with one product and one power source.
 NC State Extension gives the reaction as carbon dioxide plus water
-plus light making sugar and oxygen and water, and summarises it as
-plants using "energy from sunlight, carbon dioxide from air, and water
-from the soil to produce simple carbohydrates."
+plus light making sugar and oxygen and water, and summarises it this
+way: the plant takes energy from sunlight, carbon dioxide out of the
+air and water out of the soil, and from those it produces simple
+carbohydrates.
 
 Notice what is not on that ingredient list. There is no fertiliser in
 it. The carbon, hydrogen and oxygen that the sugar is built from come
@@ -221,9 +222,10 @@ some species and a stress for others.
 
 ### Ninety percent
 
-NC State Extension gives the number plainly: "Approximately 90% of the
-water taken up by a plant is lost through transpiration. The other 10%
-of the water is used in chemical reactions and in plant tissues."
+NC State Extension gives the number plainly: of the water a plant
+takes up, approximately 90 percent is lost again through
+transpiration, and the other 10 percent is used in chemical reactions
+and in the plant's tissues.
 
 Say what that means. Nearly all the water you put on a garden does not
 end up in the plant. It passes through it and evaporates.

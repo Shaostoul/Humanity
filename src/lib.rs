@@ -17510,7 +17510,7 @@ mod native_app {
                         if state.gui_state.ws_reconnect_attempts > 0 {
                             log::info!("WebSocket reconnected after {} attempts", state.gui_state.ws_reconnect_attempts);
                         }
-                        state.gui_state.ws_reconnect_delay = 5.0;
+                        state.gui_state.ws_reconnect_delay = crate::net::ws_client::RECONNECT_DELAY_INITIAL_SECS;
                         state.gui_state.ws_reconnect_attempts = 0;
                         state.gui_state.ws_reconnect_timer = 0.0;
                         // The server we are CONNECTED to is by definition a
