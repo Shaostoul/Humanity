@@ -1141,7 +1141,7 @@
       "subject": "materials",
       "title": "Building a fire staff",
       "summary": "Pick materials for a thing that must survive flame, and see why each fails.",
-      "status": "verified",
+      "status": "sourced",
       "reading": [
         "fire-staff-materials"
       ],
@@ -1150,8 +1150,17 @@
         "fire_making"
       ],
       "sources": [
-        "placeholder-alloy-data",
-        "placeholder-manufacturer-sds"
+        "osha",
+        "niosh-pocket-guide",
+        "cameo-chemicals",
+        "atsdr",
+        "nasa-ntrs",
+        "nist",
+        "fpl-wood-handbook",
+        "usfs",
+        "medlineplus",
+        "dupont-technical",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
       "hazard": "lethal"

@@ -391,7 +391,6 @@
       "bundle": false,
       "note": "A state agency, so 17 U.S.C. 105 does not apply and Washington waives nothing by statute. Cite it for the fact, write the sentence ourselves. Where a topic is not specifically about Washington, cite the role state-fish-wildlife instead."
     },
-
     {
       "id": "state-extension",
       "name": "The state cooperative extension service",
@@ -436,7 +435,6 @@
       "bundle": false,
       "note": "Usually the state extension service's lab. The point of citing it is that the answer comes from testing your own ground, not from reading."
     },
-
     {
       "id": "gbif",
       "name": "Global Biodiversity Information Facility",
@@ -478,7 +476,59 @@
       "bundle": false,
       "note": "Useful as a starting point and never as the authority for a hazardous claim. Fetched, never bundled."
     },
-
+    {
+      "id": "nasa-ntrs",
+      "name": "NASA Technical Reports Server",
+      "publisher": "National Aeronautics and Space Administration",
+      "url": "https://ntrs.nasa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Includes the Materials Data Handbooks (CR-123772 for 6061, CR-123773 for 7075), which carry the aluminium strength and melting data that would otherwise have to come from a commercial handbook."
+    },
+    {
+      "id": "usfs",
+      "name": "USDA Forest Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.fs.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Forest ecology, fire behaviour and the Missoula Technology and Development Center testing reports."
+    },
+    {
+      "id": "medlineplus",
+      "name": "MedlinePlus",
+      "publisher": "US National Library of Medicine, National Institutes of Health",
+      "url": "https://medlineplus.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Plain-language first aid and symptom guidance from a federal library. The public-domain answer for anything the Red Cross would otherwise be cited for."
+    },
+    {
+      "id": "dupont-technical",
+      "name": "DuPont technical guides (Kevlar, Nomex)",
+      "publisher": "DuPont de Nemours, Inc.",
+      "url": "https://www.dupont.com/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The manufacturer of the aramid fibre a wick is made of, and the only party who publishes its decomposition and continuous-service temperatures. Cite the named guide, never \"an SDS\": an SDS with no product named is not a citation, which is what placeholder-manufacturer-sds exists to record."
+    },
+    {
+      "id": "peer-reviewed-literature",
+      "name": "Peer-reviewed literature (cited per paper in the document)",
+      "kind": "role",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "Individual papers are cited in full in the document that uses them. This entry exists so a topic can record that some of its claims rest on primary literature rather than on an agency, without pretending one journal is an institution."
+    },
     {
       "id": "placeholder-alloy-data",
       "name": "Published alloy and fibre data (unresolved)",
