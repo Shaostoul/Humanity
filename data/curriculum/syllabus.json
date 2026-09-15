@@ -210,16 +210,23 @@
       "subject": "water",
       "title": "Testing water",
       "summary": "Find out what is actually in your water rather than guessing.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "water_purification",
         "alchemy"
       ],
       "sources": [
-        "epa"
+        "epa",
+        "cdc",
+        "usgs",
+        "fda",
+        "state-water-agency"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "testing-water"
+      ]
     },
     {
       "id": "water_wells",
@@ -494,7 +501,7 @@
       "subject": "food_wild",
       "title": "Identifying wild plants",
       "summary": "Identify a plant to species with confidence, and know when you cannot.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -504,10 +511,18 @@
       ],
       "sources": [
         "usda-plants",
-        "state-fish-wildlife"
+        "usfs-feis",
+        "itis",
+        "usda",
+        "cdc",
+        "nih",
+        "poison-control"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "reading": [
+        "identifying-wild-plants"
+      ]
     },
     {
       "id": "forage_edible",
@@ -569,7 +584,7 @@
       "subject": "food_wild",
       "title": "Seasonality of wild food",
       "summary": "Know what is available in each month where you live.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -577,7 +592,20 @@
         "data/locales/<id>/phenology.json"
       ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "the-year-of-wild-food"
+      ],
+      "sources": [
+        "usfs-feis",
+        "usda-nrcs",
+        "noaa-ncei",
+        "noaa-coops",
+        "nps",
+        "state-extension",
+        "state-health-biotoxin",
+        "state-fish-wildlife"
+      ]
     },
     {
       "id": "forage_ethics",
@@ -860,7 +888,7 @@
       "subject": "shelter",
       "title": "Choosing where to build",
       "summary": "Pick a site for water, drainage, sun, wind and hazard.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "shelter_building"
       ],
@@ -868,7 +896,18 @@
         "data/locales/<id>/terrain.json"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "choosing-where-to-build"
+      ],
+      "sources": [
+        "usgs",
+        "fema",
+        "noaa",
+        "nws",
+        "usda-nrcs",
+        "building-america"
+      ]
     },
     {
       "id": "shelter_emergency",

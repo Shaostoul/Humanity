@@ -139,12 +139,47 @@
       ]
     },
     {
+      "name": "Wild Food",
+      "section": "Learn",
+      "docs": [
+        {
+          "title": "Identifying Wild Plants",
+          "src": "docs/user/skills/identifying_wild_plants.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Year of Wild Food",
+          "src": "docs/user/skills/the_year_of_wild_food.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        }
+      ]
+    },
+    {
       "name": "Water",
       "section": "Learn",
       "docs": [
         {
           "title": "Where Water Comes From",
           "src": "docs/user/skills/where_water_comes_from.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "Testing Water",
+          "src": "docs/user/skills/testing_water.md",
           "tags": [
             "guide",
             "real",
@@ -197,6 +232,16 @@
       "name": "Shelter and Power",
       "section": "Learn",
       "docs": [
+        {
+          "title": "Choosing Where to Build",
+          "src": "docs/user/skills/choosing_where_to_build.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
         {
           "title": "Your First Solar Power",
           "src": "docs/user/skills/first_solar_power.md",
