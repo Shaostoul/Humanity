@@ -142,6 +142,14 @@
           ]
         },
         {
+          "title": "How an Ecosystem Holds Together",
+          "file": "how_an_ecosystem_holds_together.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
+        },
+        {
           "title": "Reading the Tide",
           "file": "reading_the_tide.md",
           "tags": [
@@ -159,6 +167,15 @@
             "real",
             "shelter",
             "safety"
+          ]
+        },
+        {
+          "title": "The Sky as an Instrument",
+          "file": "the_sky_as_an_instrument.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
           ]
         }
       ],

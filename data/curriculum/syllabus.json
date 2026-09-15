@@ -1892,7 +1892,7 @@
       "subject": "biology",
       "title": "How an ecosystem holds together",
       "summary": "See the food web, succession and the effect of removing one piece.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -1900,7 +1900,20 @@
         "data/locales/<id>/species.json"
       ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "how-an-ecosystem-holds-together"
+      ],
+      "sources": [
+        "usfs-feis",
+        "nps",
+        "noaa",
+        "usgs",
+        "fws",
+        "peer-reviewed-literature",
+        "state-fish-wildlife",
+        "state-noxious-weeds"
+      ]
     },
     {
       "id": "bio_local_species",
@@ -2165,7 +2178,7 @@
       "subject": "navigation",
       "title": "The sky as an instrument",
       "summary": "Use sun, moon and stars for direction, time and season.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "navigation"
       ],
@@ -2174,7 +2187,17 @@
         "data/constellations.json"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "the-sky-as-an-instrument"
+      ],
+      "sources": [
+        "usno",
+        "noaa",
+        "noaa-ncei",
+        "nist",
+        "usgs"
+      ]
     },
     {
       "id": "nav_lost",
