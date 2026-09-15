@@ -724,8 +724,8 @@
       "kind": "real",
       "category": "Environment and land",
       "title": "Don't harm protected species or their habitat",
-      "summary": "The federal Endangered Species Act makes it illegal to 'take' (harm, kill, harass, or significantly degrade habitat of) species listed as threatened or endangered, including on private land. In the Puget Sound region this commonly affects waterfront and stream work near salmon and orcas. Projects may require consultation with U.S. Fish and Wildlife or NOAA Fisheries.",
-      "source": "Endangered Species Act (16 U.S.C. 1531-1544)",
+      "summary": "The federal Endangered Species Act makes it illegal to \"take\" a listed threatened or endangered species, including on private land. The statute defines take as to harass, harm, pursue, hunt, shoot, wound, kill, trap, capture or collect, or to attempt any of those. Whether HABITAT work counts is the contested part and it is narrower than people assume: the long-standing regulation held that habitat modification is harm only where it ACTUALLY KILLS OR INJURES wildlife by significantly impairing essential behaviours such as breeding, feeding or sheltering. That regulatory definition is under active rulemaking as of 2026, so check the current text of 50 CFR 17.3 rather than relying on any summary of it, including this one. In the Puget Sound region this most often affects waterfront and stream work near salmon and orca, and a project may require consultation with US Fish and Wildlife or NOAA Fisheries.",
+      "source": "Endangered Species Act (16 U.S.C. 1531-1544), take defined at 16 U.S.C. 1532(19); harm defined by regulation at 50 C.F.R. 17.3, which is under rulemaking as of 2026",
       "tags": [
         "endangered species",
         "ESA",
@@ -2263,7 +2263,7 @@
       ],
       "needs_verification": true,
       "verified": null,
-      "risk_class": "liberty_or_life"
+      "risk_class": "routine"
     },
     {
       "id": "wa-bigger-projects-get-an-environmental-review-sepa",
