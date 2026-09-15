@@ -3078,13 +3078,13 @@
       "lookalikes": [
         {
           "name": "Pacific poison oak",
-          "id": null,
+          "id": "pacific_poison_oak",
           "danger": "serious",
           "how_to_tell_them_apart": "The Forest Service puts poison oak west of the Cascade Range in Washington, so its range covers this side of the mountains, and it climbs as a woody vine with stems commonly 10 to 30 feet long. Its leaves have three (sometimes five) lobed, oak-shaped leaflets, which is the same low three-leaflet trailing silhouette as a blackberry vine, and the Forest Service lists California blackberry, an old name for this same Rubus ursinus, among the streamside plants poison oak grows beside. So the two can be tangled in one thicket. Use prickles as your test, not leaf shape and not size. Trailing blackberry stems are densely prickled and even the leaves feel prickly. If a three-leaflet trailing vine is completely smooth to the touch, do not touch it again. Poison oak fruit is a cluster of small white berries, never a black knot of tiny juice beads. The whole poison oak plant is coated in an oily resin that causes an itching rash on skin contact, including resin carried on clothing or firewood, and it must never be burned, because the resin vaporizes and the smoke is extremely hazardous to breathe."
         },
         {
           "name": "Bittersweet nightshade (climbing nightshade)",
-          "id": null,
+          "id": "bittersweet_nightshade",
           "danger": "serious",
           "how_to_tell_them_apart": "A scrambling vine that twines up through other plants and is common on disturbed sites alongside Himalayan blackberry, so it threads through the very same thickets and fruits in the same season. It contains solanine, which is poisonous to people, and unripe berries hold the most. Tell them apart by the fruit. Nightshade berries are smooth single ovals a few millimeters long, red when ripe, hanging in loose drooping bunches, and the vine carries no prickles at all. A blackberry is a black knot of many small juice beads stuck together, on a prickly cane. Worth knowing around children, who pick at eye level."
         },
@@ -3212,7 +3212,7 @@
         },
         {
           "name": "Hedge nettle",
-          "id": null,
+          "id": "hedge_nettle",
           "danger": "none",
           "how_to_tell_them_apart": "A harmless mint of the same damp ground, with much the same outline: opposite pairs of toothed, hairy, pointed leaves. Mistaking the two costs nothing worse than a sting. Hedge nettle has a square stem you can feel with your fingers, smells minty when you crush a leaf, carries showy pink to purple two-lipped flowers, and does not sting. Stinging nettle stings, has a rounder stem, and its flowers are drooping strings of tiny greenish beads with no color to them."
         }
@@ -3343,7 +3343,7 @@
       "lookalikes": [
         {
           "name": "Black twinberry (twinberry honeysuckle)",
-          "id": null,
+          "id": "black_twinberry",
           "danger": "serious",
           "how_to_tell_them_apart": "A native shrub of the same moist forests, clearings, thickets and stream sides in Kitsap County, growing up to 12 feet, with shiny black berries that ripen in July or later. The USDA plant guide opens with the warning that twinberry honeysuckle is considered toxic and should be used with caution, and states that the berries have been noted as poisonous and are better avoided. The fact sheet is honest that severity is disputed: reports on the fruit range from poisonous, to mildly toxic, to bitter and unpalatable, to edible, depending on tribe, region and publication. Either way it is not something to eat on a guess. Telling them apart is easy once you look past the color. Twinberry leaves grow in opposite pairs and its berries come in PAIRS, sitting in a cup of showy purple-red bracts. Indian plum leaves are alternate, one at a time up the twig, lance shaped, 2 to 5 inches long with smooth edges rolled slightly under, and they smell distinctly of cucumber when crushed. Its fruit hangs in loose drooping strings, up to 5 plums per flower. Its twigs are smooth and purplish brown with obvious orange dots, and if you split a twig lengthwise the pith inside is divided into small chambers. Never identify Indian plum by fruit color alone: confirm the alternate leaves, the cucumber smell, and the hanging string of fruit."
         }
@@ -3379,7 +3379,7 @@
         },
         {
           "name": "Pacific poison oak",
-          "id": null,
+          "id": "pacific_poison_oak",
           "danger": "serious",
           "how_to_tell_them_apart": "Its fruits are white drupes and the Forest Service places it west of the Cascade Range in Washington. The hazard here is handling rather than eating: the whole plant is coated in an oily resin that causes an itching rash on skin contact, and burning it is extremely hazardous because the resin goes up in the smoke. Tell them apart by the leaf. Poison oak leaves are divided into three, sometimes five, lobed oak-shaped leaflets. Snowberry leaves are simple, undivided ovals in opposite pairs. A white berry on a three-leaflet plant is a reason to keep your hands off, not to pick."
         },
@@ -3515,13 +3515,13 @@
       "lookalikes": [
         {
           "name": "Green false hellebore (Veratrum viride)",
-          "id": null,
+          "id": "green_false_hellebore",
           "danger": "lethal",
           "how_to_tell_them_apart": "Both push broad, strongly pleated, parallel-veined leaves out of the same wet ground in the same early spring weeks. The checks you can make standing over it: skunk cabbage smells strongly and unmistakably of skunk when you brush or break a leaf, and it sends up a bright yellow hood around its flower spike; false hellebore has no such smell and its pleated leaves wrap around an upright stem. The Forest Service states plainly that false hellebore can be fatal if eaten. False hellebore is documented in Washington at mountain elevations, and no public-domain source consulted confirms it at Puget Sound lowland elevation near Silverdale, so do not assume it is here and do not assume it is absent. Because neither of these plants is food, the working rule is simple: do not eat either one."
         },
         {
           "name": "Claspleaf twistedstalk, also called watermelon berry (Streptopus amplexifolius)",
-          "id": null,
+          "id": "claspleaf_twistedstalk",
           "danger": "serious",
           "how_to_tell_them_apart": "Worth naming here because it is an edible plant of the same wet shady ground, and the Forest Service itself warns that twistedstalk can be mistaken for the poisonous Veratrum and suggests it is better left unsampled. So the skunk cabbage patch, the false hellebore and a plant people do eat all share the same seep. Twistedstalk is a slender arching herb with alternate leaves clasping the stem and single berries dangling underneath it; skunk cabbage is a huge-leaved plant with no stem to speak of. If you cannot separate all three with certainty, eat none of them."
         }
@@ -3591,7 +3591,7 @@
       "lookalikes": [
         {
           "name": "Claspleaf twistedstalk, also called watermelon berry (Streptopus amplexifolius)",
-          "id": null,
+          "id": "claspleaf_twistedstalk",
           "danger": "lethal",
           "how_to_tell_them_apart": "The dangerous one, because like baneberry it is a knee-high woodland herb rather than a shrub, it grows in the same moist shady forest, and its red berries are eaten. The Forest Service describes twistedstalk as carrying only one flower on each flower stalk, hanging downward, each giving rise to a single elliptic yellow or red berry which is edible. That is the check you can make from where you stand: twistedstalk hangs ONE berry per stalk, dangling underneath the arching stem, roughly one below each leaf. Baneberry holds its berries bunched in a showy cluster on an upright stalk. Note that the Forest Service, writing about twistedstalk itself, warns it can be mistaken for the poisonous Veratrum and says it is perhaps better left unsampled. If you cannot say with certainty which of these you are holding, you are not certain enough to eat it."
         },
@@ -3644,19 +3644,19 @@
       "lookalikes": [
         {
           "name": "Hemlock waterparsnip (Sium suave)",
-          "id": null,
+          "id": "hemlock_waterparsnip",
           "danger": "lethal",
           "how_to_tell_them_apart": "The most dangerous confusion in this county's wet ground. It is a carrot-family plant with white flowers in umbrella-shaped clusters growing in exactly the same marshes and stream edges, it is native here, and it is treated as an edible root in foraging literature. USDA's own common name for it is hemlock waterparsnip, which tells you how close these two sit. The characters usually quoted for separating them, that water parsnip leaves are divided only once while water hemlock leaves are divided two or three times, and that water hemlock's leaf side veins run to the NOTCHES between the teeth rather than to the tips of the teeth, are real characters, but they are fine distinctions on a plant where being wrong one time is fatal, and no public-domain source consulted for this record states them. So here is the honest answer: a beginner cannot reliably tell these two apart in the field, and experienced foragers have died getting it wrong. Treat every white-flowered carrot-family plant growing in wet ground as water hemlock and leave it alone."
         },
         {
           "name": "Water parsley (Oenanthe sarmentosa)",
-          "id": null,
+          "id": "water_parsley",
           "danger": "lethal",
           "how_to_tell_them_apart": "A native carrot-family plant of exactly the same Puget Sound wet ground, with divided leaves and white flowers in umbrella-shaped clusters, and one that gets gathered. Same verdict as hemlock waterparsnip: this is not a distinction a beginner should attempt, and the sensible rule is to eat no carrot-family plant from wet ground at all. A useful habitat note that cuts the other way: water parsley often sprawls and roots along wet ditches and slow water, so a mat of divided leaves in a ditch is not automatically the harmless one."
         },
         {
           "name": "Common cowparsnip (Heracleum maximum)",
-          "id": null,
+          "id": "common_cowparsnip",
           "danger": "lethal",
           "how_to_tell_them_apart": "A large native carrot-family plant with big white flower umbels in damp ground and along streams, whose peeled young stalks are a traditional food. It is much coarser and much larger-leaved than water hemlock, with broad lobed leaflets shaped a little like maple leaves rather than the narrow toothed segments of water hemlock, and it usually stands well over head height. That is a real difference an attentive person can see, but the two share habitat and the same white umbel silhouette, and a young cow parsnip is far less distinctive than a mature one. Cow parsnip carries its own separate hazard: the National Park Service notes that skin contact with juice from the plant followed by exposure to sunlight can cause dermatitis."
         },
@@ -3708,13 +3708,13 @@
       "lookalikes": [
         {
           "name": "Common camas (Camassia quamash)",
-          "id": null,
+          "id": "common_camas",
           "danger": "lethal",
           "how_to_tell_them_apart": "The classic fatal confusion, and the reason for the name. USDA states that the common name refers to the toxicity of the plant and its similarity in appearance to camas, and that death camas has been mistaken for other edible bulbous plants such as wild onion, sego lily and camas, ESPECIALLY WHEN FLOWERS ARE LACKING. The two grow in the same wet spring meadows, often side by side, both are grass-leaved, and both are dug for their bulbs. IN BLOOM there is a clear check anyone can make: camas flowers are blue to bluish-violet, while death camas petals are creamy white and about a quarter inch long with a large gland at the base. OUT OF BLOOM there is no reliable field character, and the bulbs cannot be told apart safely by a beginner. So the only safe practice is to find and mark individual plants WHILE THEY ARE IN FLOWER, and later dig only the ones you marked, one plant at a time, rather than working through a patch. One more thing worth knowing: camas is not a raw food either. The Forest Service describes the bulbs as steamed or pit cooked for one to three days to break down complex carbohydrates."
         },
         {
           "name": "Wild onion, including nodding onion (Allium cernuum)",
-          "id": null,
+          "id": "nodding_onion",
           "danger": "lethal",
           "how_to_tell_them_apart": "Death camas has similar grass-like leaves and a similar bulb, and USDA lists wild onion among the edible bulbs it has been mistaken for. The check is SMELL: onions and their relatives smell strongly of onion or garlic when you crush a leaf or scratch the bulb, and death camas does not smell of onion at all. Use this test in the negative direction only. No onion smell means do not eat it, full stop. But smelling onion does not by itself prove that a particular bulb is an onion, because a bulb picks up the smell from your hands, from your knife, or from a crushed onion lying next to it in the basket. So smell every bulb separately, with clean hands, before it joins the others."
         },
@@ -3765,7 +3765,7 @@
         },
         {
           "name": "Bittersweet or climbing nightshade (Solanum dulcamara)",
-          "id": null,
+          "id": "bittersweet_nightshade",
           "danger": "serious",
           "how_to_tell_them_apart": "Not a fruit lookalike, but it belongs on this list because it is a vine that climbs over shrubs and scrambles up through bramble thickets in the Pacific Northwest, so you reach past it while picking. The Forest Service says it contains solanine, a substance known to be poisonous to humans, with unripe berries the most concentrated. The berries are easy to separate once you look: nightshade berries are single smooth berries only 2 to 8 mm across that ripen from green to RED, never an aggregate of many small black segments. Point this out to children picking in a thicket, who are the people actually at risk here."
         },
@@ -4059,7 +4059,7 @@
         },
         {
           "name": "Wild carrot, Queen Anne's lace (Daucus carota)",
-          "id": null,
+          "id": "wild_carrot",
           "danger": "lethal",
           "how_to_tell_them_apart": "Confusable mainly at a distance, and this is where the one genuinely useful visual check lives: wild carrot is smaller and its stems are HAIRY, while poison hemlock's stem is hairless and marked with small purple spots or streaks. Poison hemlock is also far taller, reaching 2 to 3 metres. Do not run the test backwards: the absence of purple spots proves nothing on a young plant, because the spots develop as the plant bolts, and a first-year rosette has no marked stem to check at all."
         },
@@ -4645,6 +4645,562 @@
         "https://www.fda.gov/media/83271/download",
         "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=109633",
         "https://www.nrs.fs.usda.gov/pubs/gtr/gtr_nrs79.pdf"
+      ]
+    },
+    {
+      "id": "common_camas",
+      "common_name": "Common camas (also called blue camas, camas lily, quamash; USDA PLANTS lists it as small camas)",
+      "scientific_name": "Camassia quamash (Pursh) Greene",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial herb from a bulb",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "TWO CONDITIONS, AND THE FIRST ONE IS THE ONE THAT KILLS PEOPLE. FIRST, IDENTIFY IT IN FLOWER AND MARK IT. Common camas shares its wet spring meadows with meadow death camas, which is deadly, which is dug for its bulb in exactly the same way, and which cannot be told from camas once the flowers are gone. USDA's death camas plant guide states that the common name of death camas refers to the toxicity of the plant and its similarity in appearance to camas, and that deathcamas has been mistaken for other edible bulbous plants such as wild onion, sego lily and camas, especially when flowers are lacking. The same guide gives the number that matters: eating one or two death camas bulbs is enough to cause severe illness in children, and four or five can cause death. So the harvest rule here is not a field character at all, it is a calendar. Walk the meadow WHILE IT IS IN BLOOM, when camas shows blue to bluish-violet flowers and death camas shows creamy white ones, mark the individual camas plants you want, and return later to dig only the plants you marked, one at a time. Never work through a patch. SECOND, IT IS NOT A RAW FOOD. The Forest Service describes the bulbs as steamed or pit cooked for one to three days, which breaks down complex carbohydrates into fructose, and states that a full one third of a bulb's cooked weight becomes fructose when prepared in this fashion. No public-domain source consulted for this record describes eating camas bulbs raw.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Meadow death camas (Zigadenus venenosus)",
+          "id": "meadow_death_camas",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The classic fatal confusion in North American foraging, and the reason death camas has that name. Both are grass-leaved lilies of the same wet spring meadows, both are dug for their bulbs, and they grow side by side. IN BLOOM there is one check anyone can make from standing height: camas flowers are blue to bluish-violet, with tepals about 0.5 to 1.4 inches long; death camas petals are creamy white, about a quarter inch long, with a large gland at the base. OUT OF BLOOM THERE IS NO RELIABLE FIELD CHARACTER AT ALL. Do not let anyone tell you otherwise, and do not believe you can tell the bulbs apart by feel, size, colour or coat. USDA states plainly that the confusion happens especially when flowers are lacking. This is why the harvest method described above exists: the flower does the identifying, and the marker you leave behind carries that identification forward to digging day. If you arrive at a meadow with no flowers and no marks, you have no way to do this safely, and the correct action is to leave and come back in May."
+        },
+        {
+          "name": "Nodding onion, and wild onions generally (Allium cernuum)",
+          "id": "nodding_onion",
+          "danger": "none",
+          "how_to_tell_them_apart": "Both are edible, so mixing these two up is a cooking question rather than a safety one. Crush a leaf: onions smell strongly of onion, camas does not. The reason this pair is listed at all is that wild onion and camas are BOTH on USDA's list of edible bulbs that death camas gets mistaken for, so the two of them share one lethal neighbour. Never let the presence of one edible bulb in a patch reassure you about the bulb next to it."
+        },
+        {
+          "name": "Great camas (Camassia leichtlinii)",
+          "id": null,
+          "danger": "none",
+          "how_to_tell_them_apart": "The other blue camas of this region, larger in most of its parts, and also eaten. Not a safety problem. It is named here so that a larger blue-flowered camas does not get treated as an unknown and therefore as a risk."
+        },
+        {
+          "name": "Any grass-leaved bulb dug when the plant is not in flower",
+          "id": null,
+          "danger": "lethal",
+          "how_to_tell_them_apart": "This catch-all is the part of this record that actually protects people, and it is deliberately absolute. A bulb dug out of bloom from a meadow carries no information about which plant it came from. There is no smell test that works for camas, no bulb character a beginner can use, and no way to undo the mistake once it is cooked into a meal. Out of bloom, do not dig."
+        }
+      ],
+      "season": "Flowers May to July depending on elevation and snow cover, and that flowering window is the only time in the year when a beginner can separate this plant from meadow death camas. The Forest Service records that the leaves then die and seeds are dispersed from late May to August, after which nothing above ground marks the spot. The bulb stays in the ground year round, which is what makes an unmarked autumn dig so dangerous.",
+      "habitat": "A grass-leaved lily with a flowering stalk 8 to 20 inches tall carrying a loose spike of blue to bluish-violet flowers, growing from a bulb up to about 1.5 inches across with fibrous roots. The Forest Service describes the habitat as seasonally moist meadows that dry out by late spring, and as sites that are moist to wet in spring but dry by late spring or summer, commonly near vernal pools, springs and intermittent streams. In western Washington the Forest Service records it in mountain grassland communities, and its range runs from British Columbia south to California and east to western Montana and Wyoming. No public-domain source consulted confirms Kitsap County specifically, so treat its presence around Silverdale as plausible on remnant prairie openings and seasonally wet meadow ground, but unconfirmed here.",
+      "uses": "Food, and historically a staple one across this region: bulbs steamed or pit cooked for one to three days, then often dried and ground into meal. The Forest Service records that small camas bulbs were eaten by western Indians, trappers and early settlers. Naming note that matters when you look this up: USDA PLANTS carries the accepted name Camassia quamash (Pursh) Greene under the common name small camas, symbol CAQU2, while the Forest Service wildflower pages call the same plant common camas. Blue camas, camas lily, quamash and western camas all refer to it too.",
+      "sources": [
+        "https://www.fs.usda.gov/wildflowers/plant-of-the-week/camassia_quamash.shtml",
+        "https://research.fs.usda.gov/feis/species-reviews/camqua",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=CAQU2",
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/plantguide/pdf/pg_zive.pdf"
+      ]
+    },
+    {
+      "id": "nodding_onion",
+      "common_name": "Nodding onion (wild onion)",
+      "scientific_name": "Allium cernuum Roth",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial herb from a bulb",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "SMELL EVERY BULB SEPARATELY, WITH CLEAN HANDS, BEFORE IT JOINS THE OTHERS IN YOUR BASKET. Nodding onion is a true wild onion and is eaten as one. The condition attached to it is not about cooking, it is about the bulb growing next to it. USDA's death camas plant guide states that deathcamas has been mistaken for other edible bulbous plants such as wild onion, sego lily and camas, especially when flowers are lacking, and that eating one or two death camas bulbs is enough to cause severe illness in children while four or five can cause death. Onions and their relatives smell strongly of onion or garlic when you crush a leaf or scratch a bulb. Death camas does not smell of onion at all. USE THAT TEST IN ONE DIRECTION ONLY. No onion smell means do not eat it, full stop, no second opinion. But smelling onion does NOT prove that the bulb in your hand is an onion, because a bulb picks up the smell from your fingers, from your knife blade, and from a crushed onion lying beside it in the basket. That is the whole reason for smelling each bulb on its own, before it touches anything else you have picked. HONEST SOURCING NOTE: the onion-odor test itself is not stated in so many words by any public-domain federal source opened for this record, and it is included because the safe half of it costs nothing to follow. What IS sourced is the half that matters most, that death camas is mistaken for wild onion precisely when the flowers are gone, and that a few of its bulbs can kill a child.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Meadow death camas (Zigadenus venenosus)",
+          "id": "meadow_death_camas",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Similar narrow grass-like leaves, a similar bulb, and USDA names wild onion among the edible bulbs death camas has been mistaken for. The smell is the check, run in the negative direction only as described above. One more thing worth carrying in your head: death camas stays dangerous after it is dried. The Forest Service records that dried meadow death camas remains toxic for at least 20 years, so a withered scrap of the wrong plant in a bag of dried onions is still a poison, not a stale vegetable."
+        },
+        {
+          "name": "Common camas (Camassia quamash)",
+          "id": "common_camas",
+          "danger": "none",
+          "how_to_tell_them_apart": "Both edible, so confusing them is not a safety problem. Camas has no onion smell and carries blue to bluish-violet flowers on an upright spike; nodding onion smells of onion and its flower cluster bends over at the top of the stalk, which is what the species name cernuum, meaning nodding, records. They are listed together because they share one lethal neighbour, not because they endanger each other."
+        },
+        {
+          "name": "Any grass-leaved bulb that does not smell of onion",
+          "id": null,
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The absolute rule, and the one worth memorising: if a bulb you dug from grass-leaved ground does not smell of onion when you scratch it with a clean thumbnail, put it down. It may be camas, it may be something harmless, and it may be death camas. You do not get to find out by tasting."
+        }
+      ],
+      "season": "Green leaves in spring, the nodding flower cluster through summer, and the bulb in the ground year round. No public-domain source opened for this record gives month-by-month timing for Puget Sound, so treat this as the general pattern rather than as a harvest calendar.",
+      "habitat": "A small native onion with narrow, grass-like leaves rising from the base and a flower cluster that nods over at the top of its stalk. USDA PLANTS carries Allium cernuum Roth as the accepted name, symbol ALCE2, a native perennial forb in the lily family, native to Canada and the lower 48. No public-domain source opened for this record itemizes its Washington counties or describes its local habitat preferences, so both are left unstated here rather than guessed at. What matters operationally is the overlap risk, not the precise patch: work on the assumption that death camas can be growing in any open grassy ground where you are digging bulbs.",
+      "uses": "Food: the bulbs and the green leaves, used as an onion. It also carries the one sense-check that separates an edible bulb from a lethal one in this landscape, which makes it worth knowing even if you never eat it.",
+      "sources": [
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=ALCE2",
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/plantguide/pdf/pg_zive.pdf"
+      ]
+    },
+    {
+      "id": "hemlock_waterparsnip",
+      "common_name": "Hemlock waterparsnip (water parsnip)",
+      "scientific_name": "Sium suave Walter",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial herb, carrot family",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "READ THIS AS A WARNING, NOT AS A RECIPE. Hemlock waterparsnip is treated as an edible root in foraging literature, and it is native here. It is also the single most dangerous identification call available in this county's wet ground, because it is a white-flowered carrot-family plant of the same marshes and stream edges as western water hemlock, which USDA calls the most violently toxic plant that grows in North America. USDA's own common name for this plant is hemlock waterparsnip, which tells you how close the two sit in people's minds. The condition, stated so it cannot be misread: do not eat this plant unless you can already identify both it and water hemlock with certainty, and if you are reading this to learn how, you cannot yet. A BEGINNER CANNOT RELIABLY SEPARATE THESE TWO IN THE FIELD, AND EXPERIENCED FORAGERS HAVE DIED GETTING IT WRONG. The working rule this dataset gives is the one that keeps people alive: eat no carrot-family plant gathered from wet ground. PROVENANCE, STATED PLAINLY: no public-domain federal source opened for this record documents Sium suave as a human food, and none documents it as toxic either. USDA PLANTS establishes only the name, the family and that it is a native perennial. The edibility claim therefore comes from foraging literature and is NOT verified here, while the hazard beside it is verified in detail. When only half a pair is sourced, the sourced half is the one to act on.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Western water hemlock (Cicuta douglasii)",
+          "id": "western_water_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The pair this record exists for. Same marshes, same stream edges, same white flowers in umbrella-shaped clusters, same season. THE SOURCED CHARACTERS: USDA states that on water hemlock the side veins of the leaves lead to notches, not to tips at the outer margin, and that its thick rootstalk contains a number of small chambers holding a highly poisonous brown or straw-colored liquid that is released when the stem is broken or cut. Water parsnip leaves are divided only once along the stalk, while water hemlock leaves are divided two or three times. NOW THE HONEST PART: those are real characters, but the vein one needs a single leaflet held up to good light and the eye of somebody who has done it before, the leaf-division one is easy to misjudge on a young or damaged plant, and the root one requires you to have already cut into a plant that poisons you by being cut. USDA says only a small amount of the toxic substance is needed to produce poisoning in humans. A distinction that has to be right every time, on a plant where being wrong once is fatal, is not a beginner's distinction. Treat every white-flowered carrot-family plant growing in wet ground as water hemlock and leave it alone."
+        },
+        {
+          "name": "Water parsley (Oenanthe sarmentosa)",
+          "id": "water_parsley",
+          "danger": "mild",
+          "how_to_tell_them_apart": "Another native carrot-family plant of the same Puget Sound wet ground, also reported as gathered, also with divided leaves and white umbels. Confusing these two with each other is the least of the problems in this group, which is why the danger is rated mild rather than lethal. The danger is that time spent separating THESE two feels like careful work while the actual hazard, water hemlock, is standing in the same ditch waiting to be swept up with them."
+        },
+        {
+          "name": "Poison hemlock (Conium maculatum)",
+          "id": "poison_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "A Washington Class B noxious weed and deadly in every part. It prefers fence lines, ditches and moist waste ground rather than standing water, has a hollow hairless stem marked with small purple spots, fern-like finely divided leaves, and a white taproot, and it reaches 2 to 3 metres. Water parsnip is a wetland plant with once-divided leaves. But note the trap: before poison hemlock bolts it is a low rosette with no stem to check for purple spots at all, and at that stage a beginner cannot separate it from other divided-leaved carrot-family plants."
+        },
+        {
+          "name": "Common cowparsnip (Heracleum maximum)",
+          "id": "common_cowparsnip",
+          "danger": "none",
+          "how_to_tell_them_apart": "Much larger and much coarser, standing 3 to 10 feet tall with broad lobed leaves 8 to 20 inches long and wide, and flat-topped umbels 8 to 12 inches across. Nobody who looks at the whole plant confuses a mature cow parsnip with a water parsnip. It is named here because it belongs to the same white-umbel wet-ground group, and because a young cow parsnip is far less distinctive than a mature one."
+        }
+      ],
+      "season": "A summer plant in the wet season sense: green through spring and summer, white umbels in summer, dying back in fall. No public-domain source opened for this record gives month-by-month timing, and the timing matters less than the rule, because western water hemlock's tuberous root is in the same ground and is dangerous year round, including the winter months when nothing above ground shows where it is.",
+      "habitat": "A native perennial in the carrot family (Apiaceae) with white flowers in umbrella-shaped clusters and leaves divided once into toothed leaflets along a stalk. Marshes, stream and ditch edges, pond margins and other standing or slow water. USDA PLANTS carries Sium suave Walter, symbol SISU2, native to Alaska, Canada and the lower 48, and gives its common name as hemlock waterparsnip. The PLANTS profile does not itemize states, and no public-domain source opened confirms Kitsap County specifically. Assume it can be present in any wet ground here, and assume water hemlock can be present in the same wet ground, because assuming the absence of the deadly one is the mistake that kills.",
+      "uses": "Reported as a root food in foraging literature; not documented as food by any public-domain federal source opened for this record. Its real use in this dataset is as the edible half of the pair that teaches the water hemlock lesson, because a forager who is taught only the poisonous plant has been taught only half of what they will actually meet in a ditch.",
+      "sources": [
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=SISU2",
+        "https://www.ars.usda.gov/pacific-west-area/logan-ut/poisonous-plant-research/docs/water-hemlock-cicuta-douglasii/",
+        "https://www.nwcb.wa.gov/weeds/poison-hemlock"
+      ]
+    },
+    {
+      "id": "water_parsley",
+      "common_name": "Water parsley (Pacific water dropwort)",
+      "scientific_name": "Oenanthe sarmentosa C. Presl ex DC.",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial herb, carrot family",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "SAME VERDICT AS HEMLOCK WATERPARSNIP, AND FOR THE SAME REASON. Water parsley is native here, it is reported as gathered, and it grows in precisely the wet ditches and slow water where western water hemlock grows. USDA calls water hemlock the most violently toxic plant that grows in North America and says only a small amount of its toxin is needed to poison a human. The condition, stated so it cannot be misread: do not eat this plant unless you can already identify both it and water hemlock with certainty, and if this entry is where you are learning the difference, you cannot yet. The sensible rule for everyone else is to eat no carrot-family plant from wet ground at all. ONE HABIT THAT CUTS THE WRONG WAY: water parsley often sprawls and roots along wet ditches and slow water, so it forms low mats of divided leaves. That mat reads as harmless ground cover rather than as a plant to be identified, which is exactly how an unidentified carrot-family plant ends up in a handful of greens. PROVENANCE, STATED PLAINLY: no public-domain federal source opened for this record documents Oenanthe sarmentosa as a food, and none documents it as toxic. USDA PLANTS establishes only the name, the family and native status. EDITORIAL CAUTION, NOT SOURCED: other species in this same genus elsewhere in the world are severely poisonous, so the genus name Oenanthe is not a safety signal and should never be read as one. That sentence is included because it points away from eating rather than toward it.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Western water hemlock (Cicuta douglasii)",
+          "id": "western_water_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Same wet ground, same carrot-family silhouette, same white flowers in umbrella-shaped clusters, same divided leaves. The characters USDA gives for water hemlock are that the side veins of the leaves lead to notches, not to tips at the outer margin, and that the thick rootstalk holds small chambers of brown or straw-colored liquid released when the stem is broken or cut. Honest answer: those are real, but the first needs close inspection in good light and the second requires cutting a plant whose cut surface is itself an exposure. This is not a distinction a beginner should attempt. A mat of divided leaves sprawling in a ditch is NOT automatically the harmless one."
+        },
+        {
+          "name": "Hemlock waterparsnip (Sium suave)",
+          "id": "hemlock_waterparsnip",
+          "danger": "mild",
+          "how_to_tell_them_apart": "The other native wet-ground carrot-family plant that gets gathered. Water parsnip leaves are divided once along the stalk; water parsley is more finely and repeatedly divided and tends to sprawl and root at the joints. Mixing these two with each other is not the accident that hurts people. The accident that hurts people is treating either of them as proof that the white-umbel plant beside it is safe."
+        },
+        {
+          "name": "Poison hemlock (Conium maculatum)",
+          "id": "poison_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Deadly in every part, a Washington Class B noxious weed that Washington's noxious weed board describes as a very tall biennial reaching up to 12 feet, with hollow, hairless stems bearing noticeable purple blotches and fern-like, toothed, finely divided leaves with a strong odor when crushed. It favours rich moist soil and disturbed edges rather than standing water. But its first-year rosette has no stem to check, and Washington's board notes that the toxins remain potent in dried plant material, so a pulled or wilted scrap is still lethal."
+        },
+        {
+          "name": "Any white-flowered carrot-family plant in wet ground",
+          "id": null,
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The catch-all, and the line in this record that actually protects people. USDA records that water hemlock has been confused with wild parsnips, other herbs and medicinal plants. This entry never designates any white-umbel plant of wet ground as safe. Certain identification means certain, and the cost of being wrong here is seizures and death, not a stomach ache."
+        }
+      ],
+      "season": "Green through spring and summer with white umbels in summer, dying back in fall. No public-domain source opened for this record gives month-by-month timing for Puget Sound. The timing that matters is the other plant's: water hemlock's tuberous root is dangerous year round, including winter, when nothing above ground shows where it is.",
+      "habitat": "A native perennial in the carrot family with divided leaves and small white flowers in umbrella-shaped clusters, often sprawling and rooting along wet ground. Wet ditches, marsh edges, stream banks, pond margins and slow water. USDA PLANTS carries Oenanthe sarmentosa C. Presl ex DC., symbol OESA, native to Alaska, Canada and the lower 48; the profile does not itemize states, and no public-domain source opened confirms Kitsap County specifically. Naming note for anyone searching the database: USDA PLANTS spells the common name water parsely, which is a misspelling of water parsley in their record, not a different plant.",
+      "uses": "Reported as gathered in foraging literature; not documented as a food by any public-domain federal source opened for this record. Its place in this dataset is as one of the edible-reputation plants that share ground with western water hemlock, so that the pair is modelled whole rather than as a poison with no counterpart.",
+      "sources": [
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=OESA",
+        "https://www.ars.usda.gov/pacific-west-area/logan-ut/poisonous-plant-research/docs/water-hemlock-cicuta-douglasii/",
+        "https://www.nwcb.wa.gov/weeds/poison-hemlock"
+      ]
+    },
+    {
+      "id": "common_cowparsnip",
+      "common_name": "Common cow parsnip (also called Indian celery, Indian rhubarb, pushki)",
+      "scientific_name": "Heracleum maximum W. Bartram",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "large biennial or short-lived perennial herb, carrot family",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "COOKED OR PEELED, HANDLED WITH COVERED SKIN, AND ONLY WHEN YOU ARE CERTAIN WHICH WHITE-UMBEL PLANT YOU ARE HOLDING. Three conditions, and all three are real. FIRST, THE FOOD USE ITSELF. USDA's plant guide records that emerging leaf and flower buds were cooked and used in stews, and that the young stems were peeled, dipped in animal fat and eaten raw like celery stalks, and it states that cow parsnip is still used for food and traditional medicine by American Indians. The peeling is not a refinement, it is the preparation: the hazard sits in the sap. SECOND, THE SKIN HAZARD, WHICH IS THIS PLANT'S OWN AND HAS NOTHING TO DO WITH LOOKALIKES. USDA's plant guide carries a boxed warning that cow parsnip may cause a moderate to severe dermatological reaction when sap from the plant contacts the skin and is then exposed to sunlight, which is called phytophotodermatitis. The National Park Service describes the result as ranging from a mild, red rash to severe skin blistering. The Forest Service lists cow parsnip among plants that may cause skin irritation if touched. So harvesting it means covered arms, and USDA's instruction if sap reaches skin is to wash the area with soap and water immediately. Doing this work on a bright day with bare forearms is how people get chemical burns from a plant they were only trying to eat. THIRD, THE COMPANY IT KEEPS. It is a big white-umbel carrot-family plant of damp ground, which is the same silhouette and the same habitat as western water hemlock and poison hemlock. A mature cow parsnip is genuinely distinctive; a young one is far less so.",
+      "toxic": "SKIN, NOT STOMACH, and the exposure is sap plus sunlight rather than eating. USDA's plant guide states that the sap contains furanocoumarins that can cause moderate to severe dermatological reactions and photosensitivity in some people, and that when affected skin is exposed to sunlight, a rash with burn-like blisters can develop. Its boxed warning repeats it: cow parsnip may cause a moderate to severe dermatological reaction when sap from the plant contacts the skin and is then exposed to sunlight (phytophotodermatitis). The National Park Service puts the range at a mild, red rash through to severe skin blistering. The Forest Service's Tongass safety page lists cow parsnip among plants that may cause skin irritation if touched. No dose is documented and none should be invented; individual sensitivity varies, which is why USDA says in some people. Treat any sap on skin as an exposure, wash it off with soap and water at once, and keep that skin out of the sun. No public-domain source opened for this record documents cow parsnip as poisonous to eat when properly prepared.",
+      "lookalikes": [
+        {
+          "name": "Western water hemlock (Cicuta douglasii)",
+          "id": "western_water_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Both are carrot-family plants of damp ground carrying white flowers in umbrella-shaped clusters, and USDA calls water hemlock the most violently toxic plant that grows in North America. THE DIFFERENCE YOU CAN SEE FROM SEVERAL PACES, ON A MATURE PLANT: cow parsnip is enormous and coarse, 3 to 10 feet tall, with clasping leaves 8 to 20 inches long and as wide as they are long, broadly lobed and shaped a little like maple leaves, on a light green, deeply ridged, hollow stem with spreading white woolly hairs, and primary umbels 8 to 12 inches across. Water hemlock is a slender plant about 0.5 to 1.0 m tall with narrow toothed leaf segments. That is a real difference, and an attentive person can use it. THE HONEST QUALIFIER: a young cow parsnip in its first-year rosette stage is a low clump of divided leaves, and at that stage this comfortable size difference does not exist. Do not use the size rule on a small plant."
+        },
+        {
+          "name": "Poison hemlock (Conium maculatum)",
+          "id": "poison_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Both get tall, both carry white umbels, both like moist ground, and poison hemlock is deadly in every part. Use the STEM, and use it on a bolted plant: Washington's noxious weed board describes poison hemlock's stems as hollow, hairless and marked with noticeable purple blotches, and its leaves as fern-like, toothed, finely divided and strong-smelling when crushed. Cow parsnip's stem is hollow but deeply ridged, light green, and moderately to very hairy with spreading white hairs, and its leaves are broad and lobed rather than fern-like. Hairy and broad-leaved means cow parsnip; hairless with purple blotches and fern-like leaves means walk away. Do not run this test on a rosette that has no stem yet, because then it tells you nothing."
+        },
+        {
+          "name": "Giant hogweed (Heracleum mantegazzianum)",
+          "id": null,
+          "danger": "serious",
+          "how_to_tell_them_apart": "Named by USDA's own cow parsnip plant guide, which says care should be taken when identifying this plant because cow parsnip looks like the invasive giant hogweed. USDA's separators: giant hogweed can grow much larger than cow parsnip, 15 feet or more with leaves 3 to 4 feet wide, has purple or red spots on the stem, and causes more severe dermatological reactions. So the check is spots plus size. A white-umbel giant with a blotched stem is not your celery, and its sap will burn you worse."
+        },
+        {
+          "name": "Hemlock waterparsnip (Sium suave)",
+          "id": "hemlock_waterparsnip",
+          "danger": "none",
+          "how_to_tell_them_apart": "Much smaller and finer, with leaves divided once into toothed leaflets rather than cow parsnip's huge lobed leaves. Confusing these two is not itself a hazard. It is listed to keep the whole white-umbel wet-ground group in one place in your head, because the group is what has to be identified, never one member of it in isolation."
+        }
+      ],
+      "season": "A first-year rosette of large basal leaves, then in the second year a flowering stalk. USDA's plant guide puts flowering from late spring to mid-summer, and the Forest Service gives May through August across most of its range. The young stems and emerging buds that are used as food come early, in spring, which is exactly when the plant is least distinctive and the poison hemlock rosette is also up.",
+      "habitat": "A very large native herb of the carrot family, 3 to 10 feet tall in its flowering year, with a light green, deeply ridged, hollow stem, alternate clasping leaves 8 to 20 inches long and equally wide with three or more lobes on the terminal leaflet and serrate to double-serrate edges, hairy stems and leaves, aromatic when crushed, and flat-topped compound umbels of small white flowers with primary umbels 8 to 12 inches wide. USDA describes its habitat as partially shaded, wet to somewhat moist areas: forest edges, openings, floodplains, wet meadows, thickets and streambanks, from sea level to 9,000 feet. The Forest Service lists Washington in its range and describes it in woodlands, forest openings, grasslands and riparian areas including wet meadows, stream terraces, alluvial benches, floodplains and stream and lake margins. Expect it along the damp creek edges, ditch banks and shaded forest openings around Silverdale.",
+      "uses": "Food: young stems peeled and eaten, emerging leaf and flower buds cooked in stews, dried seeds used to season food. Medicine: USDA records leaves, stems and roots used in teas, poultices and powders for boils, warts, swelling and bruising, and notes that many reported medicinal uses have been validated by pharmaceutical research. Material: the hollow stem was used as a drinking straw, a whistle and a child's toy, and the roots to dye fibres yellow. USDA rates it not weedy or invasive, but notes that because of its size and potential as an irritant it should not be planted near pedestrian traffic. Do not hand a child a cow parsnip whistle without understanding the sap hazard first.",
+      "sources": [
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/plantguide/pdf/pg_hema80.pdf",
+        "https://research.fs.usda.gov/feis/species-reviews/hermax",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=HEMA80",
+        "https://www.nps.gov/anch/planyourvisit/poisonous-plants.htm",
+        "https://www.fs.usda.gov/r10/tongass/safety-ethics/stay-safe",
+        "https://www.nwcb.wa.gov/weeds/poison-hemlock",
+        "https://www.ars.usda.gov/pacific-west-area/logan-ut/poisonous-plant-research/docs/water-hemlock-cicuta-douglasii/"
+      ]
+    },
+    {
+      "id": "wild_carrot",
+      "common_name": "Wild carrot (Queen Anne's lace)",
+      "scientific_name": "Daucus carota L.",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "taprooted herb, carrot family; biennial, sometimes annual or short-lived perennial",
+      "status": "introduced",
+      "protected": "Not protected; the legal status runs the other way. Washington State Class C noxious weed, listed 1988. Washington's noxious weed board records that wild carrot, except where commercially grown, was changed from a Class B to a Class C noxious weed in 2013.",
+      "edible": "conditional",
+      "edible_detail": "THIS RECORD EXISTS FOR THE IDENTIFICATION, NOT FOR THE MEAL. Wild carrot is the wild form of the garden carrot and its first-year taproot is eaten, but nothing about that fact should encourage anyone to go and dig one, because THIS IS THE PLANT POISON HEMLOCK IS MISTAKEN FOR, and poison hemlock is deadly in every part. USDA states that poisoning commonly results from mistaking poison hemlock root for wild parsnips, and both plants present you with a pale taproot in the ground where none of the stem and leaf characters are available. THE ONE GENUINELY USEFUL CHECK, and it is sourced by a Washington state agency: the noxious weed board states that wild carrot may be confused with poison hemlock, although wild carrot is smaller, hairy, and does not have purple blotches on the stems, and separately that the entire wild carrot plant is covered with coarse, stiff hairs. So hairy stem means wild carrot; hairless stem with purple blotches means poison hemlock. RUN THAT TEST IN ONE DIRECTION ONLY. Finding hairs is worth something. Not finding purple spots is worth nothing, because the spots develop as poison hemlock bolts, and a first-year poison hemlock rosette has no marked stem to check at all. At the rosette stage, which is also the stage at which you would be digging a first-year carrot root, a beginner cannot separate these two. The honest condition is therefore: do not dig a wild carrot root unless you watched that individual plant flower and confirmed it, the way the camas rule works. PROVENANCE: no public-domain federal source opened for this record documents wild carrot as a human food. USDA PLANTS establishes only the name, that it is introduced across North America and that it is a biennial.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Poison hemlock (Conium maculatum)",
+          "id": "poison_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The pair this record exists for, and Washington's noxious weed board names it on both plants' pages. THE SOURCED SEPARATORS: wild carrot is smaller, its entire plant is covered with coarse, stiff hairs, and it does not have purple blotches on the stems; poison hemlock is a very tall biennial that can reach 12 feet, with hollow, hairless stems bearing noticeable purple blotches and fern-like, toothed, finely divided leaves with a strong odor when crushed. Also useful: wild carrot's flat-topped umbel is 2 to 4 inches across and often carries one purple or pinkish flower at its centre, while poison hemlock's umbels are broader. THE FAILURE MODE TO KNOW ABOUT: none of this works on a first-year rosette of either plant, and the rosette is present through fall, winter and early spring. Washington's board also records that poison hemlock's toxins remain potent in dried plant material, so a wilted or pulled scrap mixed into a basket is still lethal."
+        },
+        {
+          "name": "Common cow parsnip (Heracleum maximum)",
+          "id": "common_cowparsnip",
+          "danger": "none",
+          "how_to_tell_them_apart": "Far bigger and much coarser, 3 to 10 feet tall with broad lobed leaves 8 to 20 inches across and umbels 8 to 12 inches wide, against wild carrot's 1 to 4 feet and its 2 to 4 inch umbels with fern-like finely toothed leaflets. Not a dangerous confusion, but cow parsnip's sap causes burn-like blistering after sun exposure, so it is a plant to recognise before you grab a handful of umbels."
+        },
+        {
+          "name": "Western water hemlock (Cicuta douglasii)",
+          "id": "western_water_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Habitat separates these two better than anything on the plant does. Washington's board puts wild carrot in meadows, pastures, roadsides and waste places; water hemlock sits in wet meadows, seepage and standing water. But habitat is a tendency, not a rule, and a roadside ditch is both. USDA calls water hemlock the most violently toxic plant that grows in North America, so the safe reading of any white umbel standing in wet ground is that it is water hemlock."
+        },
+        {
+          "name": "Any white-flowered carrot-family plant, especially at the rosette stage",
+          "id": null,
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The catch-all, and the most important line here. Wild carrot, poison hemlock, water hemlock, cow parsnip, water parsnip, parsley, chervil and garden carrot tops all present divided leaves and white umbels. The stem characters that separate them exist only after the plants bolt. Before that, there is no field character offered here that closes the gap, because there is not one that works. Do not eat any wild carrot-family plant you have not watched flower."
+        }
+      ],
+      "season": "A first-year rosette with a taproot, then in the second year an upright flowering stalk with white umbels through summer, drying to the curled seed head sometimes called a bird's nest. The rosette stage, which is the root-digging stage, overlaps exactly with the poison hemlock rosette stage, and that overlap is the whole safety problem.",
+      "habitat": "An upright, taprooted herb 1 to 4 feet tall whose entire plant is covered with coarse, stiff hairs, with fern-like leaves of small toothed leaflets and small white flowers in compound flat-topped umbels 2 to 4 inches across, often with purple or pinkish flowers in the centre. Washington's noxious weed board describes it in meadows, pastures, roadsides and waste places. USDA PLANTS carries Daucus carota L., symbol DACA6, introduced across Canada, the lower 48 and the territories. Expect it on road verges, field edges, vacant lots and rough pasture around Silverdale, which is also where poison hemlock likes to be.",
+      "uses": "Food: the first-year taproot is the wild carrot, and the plant is the ancestor of the cultivated one, though no public-domain federal source opened for this record documents the food use. Its real function in this dataset is as the identification target: it is the harmless plant a deadly one is confused with, and knowing the hairy stem separates them is worth more than any meal it provides. Washington's board notes it out-competes native grasses, can taint milk if dairy cows ingest large amounts, may be mildly toxic to livestock, and can reduce commercial carrot seed quality through hybridization, which is why the state lists it.",
+      "sources": [
+        "https://www.nwcb.wa.gov/weeds/wild-carrot",
+        "https://www.nwcb.wa.gov/weeds/poison-hemlock",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=DACA6",
+        "https://www.ars.usda.gov/pacific-west-area/logan-ut/poisonous-plant-research/docs/water-hemlock-cicuta-douglasii/",
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/plantguide/pdf/pg_hema80.pdf"
+      ]
+    },
+    {
+      "id": "pacific_poison_oak",
+      "common_name": "Pacific poison oak",
+      "scientific_name": "Toxicodendron diversilobum (Torr. & A. Gray) Greene",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "deciduous shrub or woody vine",
+      "status": "native",
+      "protected": null,
+      "edible": "no",
+      "edible_detail": "Not food, and the hazard is not eating it. The Forest Service states that the entire Pacific poison-oak plant is covered with oily resin and that human dermatitis results when skin comes in direct contact with the oil. The plant to learn here is a plant to avoid touching, not a plant to avoid tasting.",
+      "toxic": "SKIN AND LUNGS, by contact and by smoke. The Forest Service states that the entire Pacific poison-oak plant is covered with oily resin, and that human dermatitis results when skin comes in direct contact with the oil; the compound is urushiol. THE BURNING HAZARD IS THE ONE THAT PUTS PEOPLE IN HOSPITAL: the Forest Service states that urushiol volatilizes when burned, and that human exposure to Pacific poison-oak smoke is extremely hazardous. That matters directly here, because clearing brush and burning the pile is ordinary property work, and a vine tangled into a blackberry thicket goes on the fire unnoticed. The resin is also carried on clothing, tools, gloves and firewood and remains active on them, so a second exposure can arrive hours later from a jacket. No dose is documented; sensitivity varies between people and can change over a lifetime. The plant is leafless in winter and the bare stems still carry resin.",
+      "lookalikes": [
+        {
+          "name": "Trailing blackberry (Rubus ursinus)",
+          "id": "trailing_blackberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "The confusion that matters most here, because both are low trailing three-leaflet vines that sprawl through the same streamside thickets, and the Forest Service lists California blackberry, an old name for Rubus ursinus, among the plants poison oak grows beside. USE PRICKLES, NOT LEAF SHAPE AND NOT SIZE. Trailing blackberry stems are densely prickled and even its leaves feel prickly. Poison oak has no prickles anywhere: if a three-leaflet trailing vine is completely smooth to the touch, do not touch it again. Backstop check on the fruit: poison oak fruit is a cluster of small white drupes, never a black knot of tiny juice beads."
+        },
+        {
+          "name": "Salmonberry (Rubus spectabilis)",
+          "id": "salmonberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Salmonberry also carries leaves divided into three leaflets, and it grows in the same damp streamside ground, so the three-leaflet silhouette alone tells you nothing. Salmonberry is an upright woody cane, commonly with scattered fine prickles, especially low on the cane, and it carries obvious pink to magenta flowers and orange to red raspberry-like fruit. Poison oak is prickle-free everywhere, has greenish-white flowers and white drupes, and its leaflets are lobed in an oak-like way with rounded lobes rather than evenly toothed. Prickle-free plus white fruit means hands off."
+        },
+        {
+          "name": "Common snowberry (Symphoricarpos albus)",
+          "id": "common_snowberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Both carry white fruit in the same understory, which is where the confusion lives. Tell them by the LEAF, not the berry. Poison oak leaves are divided into three, sometimes five, round to ovate, lobed or toothed leaflets. Snowberry leaves are simple, undivided ovals set in opposite pairs. A white berry on a three-leaflet plant is a reason to keep your hands off, not to look closer."
+        },
+        {
+          "name": "Vine maple and other three-part or lobed shrubs of the same woods",
+          "id": null,
+          "danger": "mild",
+          "how_to_tell_them_apart": "Several harmless shrubs here carry lobed leaves that read as oak-like at a glance. The working habit that covers all of them: count leaflets. Three separate leaflets on a single stalk, with the middle one on a longer stalklet than the two beside it, is the pattern to keep your hands out of, whatever the plant turns out to be. Nothing in this county is worth touching an unidentified three-leaflet vine to find out."
+        }
+      ],
+      "season": "The Forest Service records flowering from March to June and fruit dispersal in summer and fall. It is deciduous, so it drops its leaves for the winter, which removes the only easy identification character for several months while leaving the resin on the bare stems. New spring leaves are often glossy and reddish. Do not treat a bare, leafless, prickle-free vine in winter as identified.",
+      "habitat": "A many-stemmed native deciduous shrub or woody vine. The Forest Service gives erect shrubs 2 to 6 feet tall and vines 10 to 30 feet long, sometimes as long as 100 feet, with leaves of three, sometimes five, round to ovate, diversely lobed or toothed leaflets, and white drupes as fruit. It generally grows in acid soils on well-drained slopes and in riparian zones, in mixed evergreen forests, woodlands, chaparral, coastal sage scrub and riparian zones below 5,000 feet, and it associates with Douglas-fir, bigleaf maple and willows among others. RANGE, STATED CAREFULLY: the Forest Service states that it occurs west of the Cascade Range in Washington, Oregon and California, which puts its range on this side of the mountains. No public-domain source opened for this record confirms Kitsap County occurrence specifically, and it is generally far less common in the northern Puget Sound lowlands than it is further south. Do not use that as permission to grab an unidentified three-leaflet vine, and do not assume every three-leaflet vine you see here is poison oak either.",
+      "uses": "No human use. Wildlife value is real: the Forest Service records that birds eat Pacific poison-oak fruits. If you are clearing it from a property, the two rules are cover your skin and never burn it, because the Forest Service calls exposure to the smoke extremely hazardous.",
+      "sources": [
+        "https://research.fs.usda.gov/feis/species-reviews/toxdiv",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=TODI"
+      ]
+    },
+    {
+      "id": "green_false_hellebore",
+      "common_name": "Green false hellebore (also called Indian hellebore, corn lily)",
+      "scientific_name": "Veratrum viride Aiton",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "large perennial herb",
+      "status": "native",
+      "protected": null,
+      "edible": "no",
+      "edible_detail": "Never, in any amount, at any stage. The Forest Service states plainly that false hellebore can be fatal if eaten, listing it alongside water hemlock and baneberry as the plants on its safety page that are particularly dangerous if consumed. There is no part, no season and no preparation given here that makes it safe, and none should be sought. The reason this plant needs to be in a foraging dataset at all is that its early spring shoots come up in the same wet ground as plants people do gather, and it is one of the two things the Forest Service warns that an edible woodland plant gets mistaken for.",
+      "toxic": "DEADLY IF EATEN. The Forest Service's Tongass safety page names Veratrum viride specifically and states that it can be fatal if eaten. ON THE MECHANISM, AND THE LIMITS OF WHAT IS SOURCED HERE: USDA's poisonous plant research describes the poisonous substances in false hellebore as steroidal alkaloids and states that the roots are 5 to 10 times as poisonous as leaves or stems, that it emerges as soon as snow melts in spring, and that in sheep slight or marked signs of poisoning follow eating 150 to 300 grams of green stems or leaves. THAT USDA PAGE IS ABOUT VERATRUM CALIFORNICUM, A DIFFERENT SPECIES IN THE SAME GENUS, and it is quoted here for the shape of the hazard, not as a measurement of this plant. No public-domain source opened for this record gives a human dose for Veratrum viride, and none should be invented. The livestock figure in particular must not be read as reassurance: a number given for a sheep tells you nothing usable about a person. USDA also records that in pregnant animals the plant causes severe birth defects, which is a second reason no amount is a safe experiment. Treat any suspected ingestion as a medical emergency and call poison control.",
+      "lookalikes": [
+        {
+          "name": "Western skunk cabbage (Lysichiton americanus)",
+          "id": "western_skunk_cabbage",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Both push broad, strongly pleated, parallel-veined leaves out of the same wet seepy ground in the same early spring weeks, and this is the confusion that puts false hellebore within reach of a person. THE CHECKS YOU CAN MAKE STANDING OVER IT: skunk cabbage smells strongly and unmistakably of skunk when you brush or break a leaf, and it sends up a bright yellow hood around its flower spike; false hellebore has no such smell and its pleated leaves wrap around and clasp an upright leafy stem, so the plant has an obvious stem climbing up through its leaves while skunk cabbage has essentially none. Neither plant is food, so the working rule is the simple one: do not eat either."
+        },
+        {
+          "name": "Claspleaf twistedstalk (Streptopus amplexifolius)",
+          "id": "claspleaf_twistedstalk",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "This is the confusion the Forest Service itself warns about, on its own page for twistedstalk: the species can be mistaken for the poisonous Veratrum, so perhaps twisted stalk is better left unsampled. Both carry alternate leaves that clasp an upright stem in moist shady ground. Twistedstalk is slender and arching, with a distinctive kink in each flower stalk and a single berry dangling underneath the stem below each leaf. False hellebore is a heavy, coarse plant with broad strongly pleated leaves and a branched spike of small green flowers at the top, and it carries no dangling berries at all. If you cannot separate these two with certainty, eat neither."
+        },
+        {
+          "name": "Common camas and other broad-leaved lilies of wet meadows in spring",
+          "id": "common_camas",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Not a close match leaf for leaf, since camas has narrow grass-like leaves and false hellebore has broad pleated ones, but they are both lily-family plants of wet spring ground and both come up early. The catch-all worth carrying: in a wet meadow in April, a big pleated-leaved plant with a stout upright stem is not a food crop, whatever else is growing around it. Identify the individual plant you intend to dig or cut, not the meadow."
+        }
+      ],
+      "season": "Emerges very early, as soon as the ground thaws and while most other growth is still absent, which is exactly when skunk cabbage leaves are also coming up and when spring greens are being gathered. It stands through summer and dies back in fall. The roots are the most toxic part and stay in the ground year round.",
+      "habitat": "A large native perennial herb in the lily family with broad, strongly pleated, parallel-veined leaves clasping a stout upright stem, and small green flowers in a branched spike at the top. USDA PLANTS carries Veratrum viride Aiton, symbol VEVI, a native perennial forb of Alaska, Canada and the lower 48. Wet ground: seeps, streamsides, wet meadows and moist forest openings. RANGE, STATED CAREFULLY: the Forest Service documents it in southeast Alaska on the Tongass, and it is recorded in Washington, but no public-domain source opened for this record confirms it at Puget Sound lowland elevation near Silverdale, where it is generally a mountain plant. Do not assume it is here, and do not assume it is absent. The safe reading of a big pleated-leaved plant in a local seep is that you do not know what it is.",
+      "uses": "No food use, ever. It has documented traditional medicinal use in this region, which is not repeated here with any preparation, because the margin between a medicinal and a fatal quantity of a steroidal alkaloid is exactly the kind of thing a dataset like this must not encourage anyone to explore. Its place here is as a hazard to recognise while gathering something else.",
+      "sources": [
+        "https://www.fs.usda.gov/r10/tongass/safety-ethics/stay-safe",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=VEVI",
+        "https://www.ars.usda.gov/pacific-west-area/logan-ut/poisonous-plant-research/docs/false-hellebore-veratrum-californicum/",
+        "https://www.fs.usda.gov/wildflowers/plant-of-the-week/streptopus_amplexifolius.shtml"
+      ]
+    },
+    {
+      "id": "claspleaf_twistedstalk",
+      "common_name": "Claspleaf twistedstalk (also called watermelon berry, wild cucumber)",
+      "scientific_name": "Streptopus amplexifolius (L.) DC.",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial herb",
+      "status": "native",
+      "protected": null,
+      "edible": "conditional",
+      "edible_detail": "THE FOREST SERVICE CLEARS THE BERRY AND THEN ADVISES AGAINST EATING THE PLANT, AND BOTH HALVES OF THAT ARE IMPORTANT. On the one hand it describes each flower stalk as giving rise to a single elliptic yellow or red berry, which is edible, and notes that the green shoots taste like cucumber when eaten raw. On the other hand, on the same page, it writes that populations tend to be small and the species can be mistaken for the poisonous Veratrum, so perhaps twisted stalk is better left unsampled. THE CONDITIONS THAT FOLLOW FROM THAT, in order of how badly they hurt if ignored. FIRST, this is a knee-high woodland herb with red berries, which is also an exact description of red baneberry, whose berries the Forest Service says are poisonous and which the National Park Service says will often send the heart into cardiac arrest. You must be able to tell those two apart before you pick anything, and the check is where the berries sit, not what colour they are. SECOND, the shoots you might gather in spring come up in the same wet shady seeps as green false hellebore, which the Forest Service says can be fatal if eaten. THIRD, the Forest Service's own note on small populations is a conservation point: this is not a plant to strip. Take the sourced advice at face value. A dataset that teaches foraging should pass along the Forest Service's own conclusion, which is that this one is better left unsampled, and treat any eating of it as a decision made by someone who already knows all three plants cold.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Red baneberry (Actaea rubra)",
+          "id": "red_baneberry",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The confusion that matters, because unlike most red-berry mix-ups this one is between two plants of the same size and shape in the same woods. Both are soft-stemmed woodland herbs one to three feet tall growing in moist shady forest, and both carry red berries. THE CHECK IS THE ARRANGEMENT OF THE FRUIT, AND YOU CAN MAKE IT FROM WHERE YOU STAND. Twistedstalk hangs ONE berry per stalk, dangling underneath the arching stem, roughly one below each leaf, because the Forest Service describes only one flower on each flower stalk, hanging downward, each giving rise to a single berry. Red baneberry holds its berries BUNCHED in a showy cluster on a single upright stalk held above the leaves. One berry hanging under the stem means twistedstalk; a bunch of berries standing up above the leaves means baneberry, and baneberry is the one that stops hearts. Second check if you need it: baneberry's leaves are divided two or three times into separate sharply toothed leaflets, while twistedstalk's leaves are simple, undivided, parallel-veined and clasp the stem. Colour is NOT a check: the Forest Service records baneberry fruits as red or occasionally white, and twistedstalk berries as yellow or red."
+        },
+        {
+          "name": "Green false hellebore (Veratrum viride)",
+          "id": "green_false_hellebore",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The Forest Service names this confusion itself and treats it as reason enough to leave twistedstalk alone. Both carry alternate leaves clasping an upright stem in the same wet shady ground, and the risk peaks in spring when the shoots are up and the berries that would identify twistedstalk do not exist yet. False hellebore is coarse and heavy with broad, strongly pleated, parallel-veined leaves and a branched spike of small green flowers; twistedstalk is slender and arching with a kink in each flower stalk and single berries dangling below. THE HONEST RULE: at the young-shoot stage, when both are just leafy stems coming out of a seep, a beginner should not attempt this call. Wait for the berries."
+        },
+        {
+          "name": "Western skunk cabbage (Lysichiton americanus)",
+          "id": "western_skunk_cabbage",
+          "danger": "none",
+          "how_to_tell_them_apart": "Shares the same wet shady seeps and comes up in the same weeks. Skunk cabbage is unmistakable once you touch it: huge leaves rising straight from the ground with no stem to speak of, and a strong skunk smell from a brushed or broken leaf, plus a bright yellow hood around its flower spike in early spring. Twistedstalk is a slender arching stem with leaves along it. Confusing them is not itself dangerous. It is named because these three plants, twistedstalk, false hellebore and skunk cabbage, share one seep, and only one of them is food."
+        },
+        {
+          "name": "Red huckleberry (Vaccinium parvifolium)",
+          "id": "red_huckleberry",
+          "danger": "none",
+          "how_to_tell_them_apart": "Another red berry of the same forest, and a safe one. Red huckleberry is a woody shrub with thin green twigs and berries hanging singly along the branches. Twistedstalk is a non-woody herb whose stem you could snap between your fingers. Both are edible, so this is a flavour question rather than a safety one, but it is worth knowing which red berries here are on wood and which are on soft stems, because the soft-stemmed one that is NOT twistedstalk is baneberry."
+        }
+      ],
+      "season": "Greenish-white flowers of six tepals in late spring, hanging one per kinked stalk. Berries through summer into early fall, which is the only period when the plant identifies itself clearly. The spring shoot stage, when the plant is easiest to confuse with false hellebore, is the stage with no berries to check.",
+      "habitat": "A native perennial herb with an arching, often branched stem, alternate simple leaves with parallel veins and smooth margins whose upper ones snugly embrace the stem, and a distinctive 90 degree twist in each flower stalk, which is what gives it its name. Each flower stalk carries only one downward-hanging flower and then a single elliptic yellow or red berry. The Forest Service describes it as typically found in moist, shady mountain forests and streamsides, distributed across Canada and south to California, the Rocky Mountains and much of the eastern United States. USDA PLANTS carries Streptopus amplexifolius (L.) DC., symbol STAM2. Expect it in shaded, damp second-growth woods, ravines and seep edges around Silverdale; no public-domain source opened for this record confirms Kitsap County specifically.",
+      "uses": "Food, with the Forest Service's own caution attached: the berries are edible and the green shoots taste like cucumber raw, but the same page concludes that the species is perhaps better left unsampled because populations tend to be small and it can be mistaken for the poisonous Veratrum. If you take anything from this entry, take the berry-arrangement check against red baneberry, which is useful whether or not you ever eat a twistedstalk.",
+      "sources": [
+        "https://www.fs.usda.gov/wildflowers/plant-of-the-week/streptopus_amplexifolius.shtml",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=STAM2",
+        "https://research.fs.usda.gov/feis/species-reviews/actrub",
+        "https://www.nps.gov/anch/planyourvisit/poisonous-plants.htm",
+        "https://www.fs.usda.gov/r10/tongass/safety-ethics/stay-safe"
+      ]
+    },
+    {
+      "id": "bittersweet_nightshade",
+      "common_name": "Bittersweet nightshade (also called climbing nightshade, bitter nightshade)",
+      "scientific_name": "Solanum dulcamara L.",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "perennial vine or scrambling subshrub",
+      "status": "introduced",
+      "protected": null,
+      "edible": "no",
+      "edible_detail": "No part of it, at any stage of ripeness. The Forest Service states that climbing nightshade contains solanine, known to be poisonous to humans, livestock, mice, dogs and rabbits, and that unripe berries hold the highest concentration of toxins, followed by vegetative tissue, and then ripe berries. There is no preparation given here that makes it safe. The reason it matters more than its toxicity alone suggests is WHERE it grows: it threads up through blackberry thickets and hedgerows and fruits in the same season, at the height a child picks.",
+      "toxic": "BERRIES WORST WHEN GREEN, AND THE LEAVES AND STEMS TOO. The Forest Service names solanine, a glycoalkaloid, and states that unripe berries have the highest concentration of toxins, followed by vegetative tissue, and then ripe berries. ON DOSE, WITH THE SOURCE'S OWN HEDGING KEPT INTACT: the Forest Service cites a handbook on poisonous plants indicating that climbing nightshade is only likely to cause symptoms in humans who have eaten 10 or more unripe berries, and that a fatal dose would require about 200 unripe berries. It adds that in large doses solanine will slow the heart, reduce body temperature, cause vertigo, delirium, convulsions and possibly death. DO NOT READ THE 200 FIGURE AS REASSURANCE. It is a figure for an adult-sized reference, it is drawn from a handbook rather than from clinical cases, and the Forest Service reports no actual human poisoning cases to calibrate it. A small child eating a handful off a fence line is the realistic scenario here, and 10 berries is the number that matters for them. Any ingestion by a child is a call to poison control, not a wait-and-see.",
+      "lookalikes": [
+        {
+          "name": "Trailing blackberry (Rubus ursinus)",
+          "id": "trailing_blackberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Nightshade twines up through blackberry thickets, so the two fruits hang in the same tangle at the same time of year. TELL THEM APART BY THE FRUIT, WHICH IS UNAMBIGUOUS: a blackberry is a black knot of many small juice beads stuck together on a prickly cane. A nightshade berry is a single smooth oval, 2 to 8 mm long, red when ripe, hanging in a loose drooping bunch, on a vine that carries no prickles at all. Prickles are the fastest check of the two: the nightshade vine is smooth."
+        },
+        {
+          "name": "Himalayan blackberry (Rubus armeniacus)",
+          "id": "himalayan_blackberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "The same story on the bigger thicket, and the more common one around Silverdale. The Forest Service records climbing nightshade in habitats associated with water and disturbed ground, which is where Himalayan blackberry dominates here. Same check: smooth single red ovals in drooping bunches on a prickle-free twining stem is nightshade; black aggregate fruit on a thick, angled, hook-thorned cane is blackberry. Worth teaching to anyone picking with children, who pick at eye level and take what is in reach."
+        },
+        {
+          "name": "Red huckleberry (Vaccinium parvifolium)",
+          "id": "red_huckleberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Both produce small red berries, so colour alone will not do. Red huckleberry is a woody shrub with thin, distinctly green, angled twigs and small thin leaves, and its berries hang SINGLY along the branches. Nightshade is a scrambling vine whose base is woody and whose upper branches are herbaceous, with berries in loose DROOPING BUNCHES and, earlier in the season, unmistakable purple flowers with swept-back petals and a protruding yellow cone of anthers. If you ever saw purple-and-yellow flowers on that plant, it is not a huckleberry."
+        },
+        {
+          "name": "Red elderberry (Sambucus racemosa)",
+          "id": "red_elderberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Both carry clusters of small red berries in the same damp disturbed ground. Red elderberry is a woody shrub or small tree 7 to 20 feet tall with large compound leaves in opposite pairs and many small berries in a tall, showy, dome or pyramid shaped spray. Nightshade is a vine about 10 feet long that leans and scrambles on other plants, with simple leaves often lobed at the base and only a few berries in a small drooping bunch. If the plant cannot stand up by itself, it is not an elderberry."
+        }
+      ],
+      "season": "The Forest Service gives flowers May to September and fruits July to October across North America. The long fruiting season is part of the hazard: green, half-ripe and ripe berries hang on the same plant at the same time, and the green ones are the most toxic.",
+      "habitat": "A perennial rhizomatous vine or scrambling shrub with a woody base and herbaceous upper branches, with stems typically about 10 feet long, leaves about 2 to 5 inches long, purple flowers with a yellow centre borne in drooping clusters, and berries 2 to 8 mm in diameter ripening through green and orange to red. The Forest Service states it is a nonnative species in North America, native to Europe, north Africa and east and central Asia, and records it commonly in habitats associated with water such as riparian areas, marshes, wetlands, lake shores, pond edges and canal banks. It occurs in Washington. Expect it around Silverdale on wet ditch banks, hedgerows, fence lines, the edges of blackberry thickets and damp waste ground, including in yards.",
+      "uses": null,
+      "sources": [
+        "https://research.fs.usda.gov/feis/species-reviews/soldul",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=SODU",
+        "https://research.fs.usda.gov/feis/species-reviews/samrac"
+      ]
+    },
+    {
+      "id": "black_twinberry",
+      "common_name": "Black twinberry (also called twinberry honeysuckle, bearberry honeysuckle)",
+      "scientific_name": "Lonicera involucrata (Richardson) Banks ex Spreng.",
+      "taxon_rank": "species",
+      "kind": "plant",
+      "form": "deciduous shrub",
+      "status": "native",
+      "protected": null,
+      "edible": "no",
+      "edible_detail": "Treat it as not food. USDA's plant guide opens with a boxed warning that twinberry honeysuckle is considered toxic and should be used with caution, and states in its management section that twinberry honeysuckle berries has been noted as poisonous, that the fruit is bitter and sour and is eaten by some, and that since European honeysuckle species are regarded as emetic and cathartic they are better avoided in favour of something less dubious. USDA's plant fact sheet is honest that the question is genuinely disputed: reports on the fruit vary from poisonous, to mildly toxic, to bitter and unpalatable, to edible and useful as food, depending on tribe, region or publication, and it states separately that the bitter ripe berries may be mildly toxic or poisonous to humans. WHEN A FEDERAL SOURCE SAYS ITS OWN LITERATURE DISAGREES, THE SAFE READING IS THE CAUTIOUS END OF THE RANGE, which is what this record takes. That is not a claim that anyone who has eaten one has been harmed; it is a refusal to guess on the reader's behalf. There is no shortage of good black fruit in these woods.",
+      "toxic": "FRUIT, DISPUTED SEVERITY, NO DOSE DOCUMENTED. USDA's plant guide carries the warning that twinberry honeysuckle is considered toxic and should be used with caution and records that the berries have been noted as poisonous. USDA's fact sheet states that the bitter ripe berries may be mildly toxic or poisonous to humans and that there is some suggestion the foliage or other plant parts may have a mildly toxic effect on cattle. No compound is named and no dose is given in either document, so none is stated here. One further claim, attributed because it is unusual and no mechanism is offered for it: the National Park Service writes that the plant is notorious for absorbing toxins from the ground and nearby water. Take that as recorded rather than as established. The practical upshot is unchanged: this is a shrub to recognise and walk past.",
+      "lookalikes": [
+        {
+          "name": "Indian plum (Oemleria cerasiformis)",
+          "id": "indian_plum",
+          "danger": "serious",
+          "how_to_tell_them_apart": "The pair this record exists for, because both are native shrubs of the same moist forests, clearings, thickets and streamsides here, and both end the season carrying dark, almost black fruit. TELL THEM APART BY THE LEAF ARRANGEMENT AND BY HOW THE FRUIT IS HELD, NOT BY COLOUR. Twinberry leaves grow in OPPOSITE PAIRS, two at each joint, and its berries come in PAIRS sitting in a cup of showy purple-red bracts, which is the character that names the plant. Indian plum leaves are ALTERNATE, one at a time up the twig, lance-shaped with smooth edges, and they smell distinctly of cucumber when crushed; its fruit hangs in a loose drooping string of up to five. A pair of black berries in a red-purple cup is twinberry. A dangling string of bluish-black plums on a plant that smells of cucumber is Indian plum. Timing overlaps too: USDA puts twinberry's shiny black berries ripening in July or later."
+        },
+        {
+          "name": "Evergreen huckleberry (Vaccinium ovatum)",
+          "id": "evergreen_huckleberry",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Another small black berry of the same understory, and a good food. Evergreen huckleberry has small, thick, glossy, clearly saw-toothed evergreen leaves held in flat sprays, arranged alternately, with berries in clusters strung along the twig. Twinberry is deciduous with larger, softer, untoothed leaves in opposite pairs and berries strictly in twos inside purple-red bracts. Count the berries at a fruiting point: two, in a cup, means put it down."
+        },
+        {
+          "name": "Salal (Gaultheria shallon)",
+          "id": "salal",
+          "danger": "serious",
+          "how_to_tell_them_apart": "Salal's dark blue-black fruit is one of the staple foods of these woods, so this is a confusion worth closing. Salal has thick, leathery, alternate evergreen leaves 5 to 10 cm long with fine sharp teeth all round the edge, and its hairy dark fruit is strung along an arching one-sided stalk. Twinberry's leaves are deciduous, untoothed and in opposite pairs, and its fruit sits in twos in a red-purple bract cup. Opposite leaves plus paired berries means twinberry."
+        },
+        {
+          "name": "Spurge laurel (Daphne laureola)",
+          "id": "spurge_laurel",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "The genuinely dangerous black berry of this group, and a Washington Class B noxious weed on the state quarantine list, whose fruits the state describes as little black berries with one seed and as poisonous, with all parts highly toxic to people and livestock. Spurge laurel is evergreen, with narrowly oval, completely smooth-edged leaves bunched in a rosette at the shoot tips and berries tucked into the leaf axils below that bunch. Twinberry is deciduous with leaves in opposite pairs spread along the branch. Neither is food, but they fail differently: twinberry is disputed and probably unpleasant, and spurge laurel is seriously poisonous."
+        }
+      ],
+      "season": "Flowers in spring, in pairs, yellow and cupped by a large pair of green to purplish bracts that turn showy purple-red as the fruit sets. USDA's plant guide gives the paired blackish berries ripening in August or September, and USDA's fact sheet gives July or later; seed is collected from ripe berries July through September. Deciduous, so it is leafless and hard to identify in winter.",
+      "habitat": "A native deciduous shrub. USDA's plant guide describes it as an erect clustered shrub one to three metres high with freely exfoliating bark, opposite short-stemmed leaves that are somewhat elliptical to broadly lance-shaped and pointed, often hairy beneath, with yellow flowers tinged with red cupped by a large pair of green to purplish bracts, and roundish or oval blackish berries paired on long axillary stalks. USDA's fact sheet gives the height as up to 12, sometimes 16, feet. It is typically found in moist forests, clearings, riparian habitats, swamps and thickets, from the sea coast to alpine elevations, and produces most fruit in open sunlight though it is most commonly found in shade. USDA PLANTS carries Lonicera involucrata (Richardson) Banks ex Spreng., symbol LOIN5, native to Alaska, Canada and the lower 48. Expect it along the damp forest edges, stream corridors and wetland margins around Silverdale.",
+      "uses": "Not food in this dataset. Documented non-food uses: USDA records the Quileute and Kwakwaka'wakw using the berries as a black pigment, the Haida rubbing berries on the scalp, and varied medicinal uses of leaves, berries and bark among many tribes, sometimes as a ceremonial emetic, which is a use that turns on the plant making you vomit. Conservation value is high and undisputed: USDA describes it as a valuable shrub for streambank erosion control and riparian restoration, useful as live stakes and fascines, with berries eaten by bears, small mammals, grouse, quail and thrushes, and flowers feeding hummingbirds and butterflies. Plant it; do not eat it.",
+      "sources": [
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/plantguide/pdf/pg_loin5.pdf",
+        "https://plants.sc.egov.usda.gov/DocumentLibrary/factsheet/pdf/fs_loin5.pdf",
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=LOIN5",
+        "https://www.nps.gov/anch/planyourvisit/poisonous-plants.htm"
+      ]
+    },
+    {
+      "id": "hedge_nettle",
+      "common_name": "Hedge nettle",
+      "scientific_name": "Stachys L.",
+      "taxon_rank": "genus",
+      "kind": "plant",
+      "form": "perennial herb, mint family",
+      "status": "native",
+      "protected": null,
+      "edible": "no",
+      "edible_detail": "READ THE NO CAREFULLY: it means not established as food here, NOT poisonous. No public-domain federal source opened for this record documents any Stachys species as a human food, and none documents one as toxic either. Rather than guess in either direction, this record leaves it out of the food list. Its value is a different one, and it is real: hedge nettle is the plant stinging nettle gets confused with, and knowing that the confusion is harmless is itself worth having. If you reach into a damp thicket for spring nettle greens and come away with hedge nettle, you have made a disappointing mistake, not a dangerous one. The dangerous mistake in that same patch is poison hemlock, which is why that is listed below and why you look at every single stem you cut rather than grabbing a mixed handful.",
+      "toxic": null,
+      "lookalikes": [
+        {
+          "name": "Stinging nettle (Urtica dioica)",
+          "id": "stinging_nettle",
+          "danger": "mild",
+          "how_to_tell_them_apart": "Much the same outline at arm's length: opposite pairs of toothed, hairy, pointed leaves on an upright stem in the same damp ground. FOUR CHECKS, ANY ONE OF WHICH SETTLES IT. Feel the stem: hedge nettle's is square, with edges you can roll between finger and thumb. Crush a leaf: hedge nettle smells minty, a mint-family smell, sometimes a rank one; nettle does not. Look at the flowers: hedge nettle carries showy pink to purple two-lipped flowers in whorls up the stem, while stinging nettle's flowers are drooping strings of tiny greenish beads with no colour to them. And the obvious one: stinging nettle stings bare skin and hedge nettle does not, though that check costs you the sting to perform. Getting this wrong costs nothing worse than a sting or a missed harvest."
+        },
+        {
+          "name": "Poison hemlock (Conium maculatum)",
+          "id": "poison_hemlock",
+          "danger": "lethal",
+          "how_to_tell_them_apart": "Not a close match leaf for leaf, and listed for the same reason it is listed under stinging nettle: it grows in the same rich, moist, disturbed ground where people cut spring greens, and every part of it is deadly. Washington's noxious weed board describes it as a very tall biennial reaching up to 12 feet, with hollow, hairless stems marked with noticeable purple blotches and fern-like, toothed, finely divided leaves with a strong odor when crushed, and states that the toxins remain potent in dried plant material. Hedge nettle leaves are simple and undivided, toothed, hairy, pointed and in opposite pairs on a square stem. Simple opposite leaves on a square stem is a mint; fern-like divided leaves on a spotted round stem is a killer. Never cut a mixed handful from a patch."
+        },
+        {
+          "name": "Other mints of the same damp ground, including self-heal and the wild mints",
+          "id": null,
+          "danger": "none",
+          "how_to_tell_them_apart": "Several square-stemmed mint-family herbs share this habitat and none of them is a danger. The square stem and the minty smell mark the family, and within the family the identification stops mattering for safety purposes. What the square stem does NOT do is clear the plant next to it, so use it to identify one stem at a time."
+        }
+      ],
+      "season": "Leafy growth through spring and summer with showy pink to purple flowers in summer, dying back in winter. No public-domain source opened for this record gives month-by-month timing for Puget Sound, so this is the general pattern rather than a harvest calendar. The period that matters is early spring, when stinging nettle shoots are being cut and the young growth of several damp-ground plants looks alike.",
+      "habitat": "Damp, rich ground: stream edges, ditch banks, wet thickets, forest edges and the margins of clearings, often in the same patches as stinging nettle. Recognise the genus rather than the species: a square stem you can feel, simple toothed pointed leaves in opposite pairs, soft hairs, a minty smell when crushed, and two-lipped pink to purple flowers in whorls. USDA PLANTS carries the genus Stachys L., symbol STACH, common name hedgenettle, in the mint family (Lamiaceae), with native, introduced, annual, biennial and perennial members across North America. ITIS gives the genus as Stachys L. under the common names hedge nettle and hedgenettle. THE LOCAL SPECIES: the hedge nettles of western Washington are Cooley's hedgenettle, which ITIS now carries under the accepted name Stachys chamissonis var. cooleyae, with the older name Stachys cooleyae A. Heller treated as a synonym, and Stachys mexicana Benth. This record is kept at genus rank on purpose, because the safety point, that it is a harmless mint rather than a nettle, holds for all of them and does not depend on getting the species right.",
+      "uses": "No food or material use documented by any public-domain federal source opened for this record. Its documented use in this dataset is as an identification aid: it is the harmless thing in the nettle patch, and a forager who knows it will stop treating every stinging-nettle-shaped plant as either a prize or a threat, and start looking at stems one at a time, which is the habit that protects them from the plant in that patch that actually kills.",
+      "sources": [
+        "https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=STACH",
+        "https://www.itis.gov/servlet/SingleRpt/SingleRpt?search_topic=TSN&search_value=32310",
+        "https://www.itis.gov/servlet/SingleRpt/SingleRpt?search_topic=TSN&search_value=566318",
+        "https://www.nwcb.wa.gov/weeds/poison-hemlock"
       ]
     }
   ]
