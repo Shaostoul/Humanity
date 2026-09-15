@@ -9,19 +9,30 @@
 // It also VALIDATES, because a syllabus that references a skill or a document
 // that does not exist is worse than no syllabus: it reports coverage that is
 // not there. Every `skills` entry must exist in data/skills/skills.csv, every
-// `reading` slug must exist in the shipped Library, and every `prerequisites`
-// id must be a real topic. Unknown references exit non-zero.
+// `reading` slug must exist in the shipped Library, every `prerequisites` id
+// must be a real topic, and every `sources` entry must be an id in
+// data/sources/registry.json. Unknown references exit non-zero.
+//
+// WHY SOURCES ARE CHECKED AGAINST A REGISTRY
+// Until 2026-09-15 `sources` was free text, and the fourth layer was measured
+// by whether a string was non-empty. That let "CDC" and "CDC zoonoses" count as
+// two authorities, let three spellings of university extension count as three,
+// and let the phrases "published alloy and fibre data" and "manufacturer SDS"
+// count as citations at all. They are not citations; they are notes to self.
+// A registry id either resolves or it does not.
 //
 // Usage:
 //   node scripts/curriculum-status.js           # summary
 //   node scripts/curriculum-status.js --gaps    # every absent topic, by subject
 //   node scripts/curriculum-status.js --hazard  # lethal/serious topics and their state
+//   node scripts/curriculum-status.js --sources # the registry, by licence
 
 const fs = require('fs');
 
 const SYLLABUS = 'data/curriculum/syllabus.json';
 const SKILLS = 'data/skills/skills.csv';
 const LIBRARY = 'data/library/index.json';
+const SOURCES = 'data/sources/registry.json';
 
 function read(file, what) {
   if (!fs.existsSync(file)) {
@@ -55,6 +66,13 @@ if (fs.existsSync(LIBRARY)) {
   }
 }
 
+// ── The source registry ──
+// Keyed by id so a citation can be looked up rather than believed.
+const sourceById = new Map();
+for (const s of JSON.parse(read(SOURCES, 'source registry')).sources || []) {
+  sourceById.set(s.id, s);
+}
+
 const topicIds = new Set(topics.map(t => t.id));
 const subjectIds = new Set(subjects.map(s => s.id));
 
@@ -75,6 +93,23 @@ for (const t of topics) {
   }
   for (const p of t.prerequisites || []) {
     if (!topicIds.has(p)) errors.push(t.id + ': unknown prerequisite "' + p + '"');
+  }
+  for (const c of t.sources || []) {
+    const src = sourceById.get(c);
+    if (!src) {
+      errors.push(t.id + ': unknown source "' + c + '" (not in ' + SOURCES + ')');
+      continue;
+    }
+    // The rule that gives `verified` its meaning. A topic cannot be
+    // teaching-grade on a citation that does not name anybody. This currently
+    // catches materials_fire_staff, whose two "sources" are the phrases
+    // "published alloy and fibre data" and "manufacturer SDS".
+    if (t.status === 'verified' && src.kind === 'placeholder') {
+      errors.push(
+        t.id + ': status "verified" but cites the placeholder "' + c + '". ' +
+        (src.note || 'Replace it with a real authority or drop the status.')
+      );
+    }
   }
   // A topic claiming to be written must name where it is written.
   if (t.status !== 'absent' && !(t.reading || []).length) {
@@ -123,6 +158,26 @@ console.log('    cites a source      : ' + String(layer.sources).padStart(3) + '
 console.log('    ALL FOUR            : ' + String(layer.all_four).padStart(3) + '  ' + pc(layer.all_four));
 console.log('');
 
+// ── Provenance ──
+// "Cites a source" is not one thing. A topic resting on a public-domain federal
+// authority can have that authority's own words shipped inside the release. A
+// topic resting on a copyrighted extension bulletin can only cite it, with the
+// fact restated in our words. A topic resting on a placeholder rests on nothing.
+const prov = { bundle: 0, facts_only: 0, placeholder: 0, none: 0 };
+for (const t of topics) {
+  const cites = (t.sources || []).map(c => sourceById.get(c)).filter(Boolean);
+  if (!cites.length) { prov.none++; continue; }
+  if (cites.some(s => s.kind === 'placeholder')) { prov.placeholder++; continue; }
+  if (cites.some(s => s.bundle)) { prov.bundle++; continue; }
+  prov.facts_only++;
+}
+console.log('  PROVENANCE (what the citations actually are)');
+console.log('    public-domain authority : ' + String(prov.bundle).padStart(3) + '  ' + pc(prov.bundle) + '  its own words may ship in the bundle');
+console.log('    cite-only authority     : ' + String(prov.facts_only).padStart(3) + '  ' + pc(prov.facts_only) + '  copyrighted, so we restate the fact ourselves');
+console.log('    placeholder             : ' + String(prov.placeholder).padStart(3) + '  ' + pc(prov.placeholder) + '  names nobody; a citation still owed');
+console.log('    uncited                 : ' + String(prov.none).padStart(3) + '  ' + pc(prov.none));
+console.log('');
+
 const locale = topics.filter(t => t.locale_dependent).length;
 console.log('  locale-dependent topics   : ' + locale + '  (' + pc(locale) + ' need real data about a real place)');
 const lethal = topics.filter(t => t.hazard === 'lethal');
@@ -161,6 +216,31 @@ if (process.argv.includes('--hazard')) {
   }
 }
 
+if (process.argv.includes('--sources')) {
+  console.log('');
+  console.log('  SOURCE REGISTRY (' + sourceById.size + ' entries, ' + SOURCES + ')');
+  const used = new Map();
+  for (const t of topics) for (const c of t.sources || []) used.set(c, (used.get(c) || 0) + 1);
+  const groups = [
+    ['SHIPS IN THE BUNDLE (public domain)', s => s.bundle],
+    ['CITE ONLY (copyrighted; restate the fact)', s => !s.bundle && s.use === 'facts' && s.kind !== 'placeholder'],
+    ['FETCHED AT RUNTIME (share-alike; never bundled)', s => s.use === 'fetch'],
+    ['PLACEHOLDER (not yet a citation)', s => s.kind === 'placeholder'],
+  ];
+  for (const [title, pred] of groups) {
+    const rows = [...sourceById.values()].filter(pred);
+    if (!rows.length) continue;
+    console.log('    ' + title);
+    for (const s of rows.sort((a, b) => (used.get(b.id) || 0) - (used.get(a.id) || 0))) {
+      const n = used.get(s.id) || 0;
+      const role = s.kind === 'role' ? ' [role]' : '';
+      console.log('      ' + String(n).padStart(3) + '  ' + s.id.padEnd(30) + s.name + role);
+    }
+  }
+  const unused = [...sourceById.keys()].filter(id => !used.has(id));
+  if (unused.length) console.log('    not yet cited by any topic: ' + unused.join(', '));
+}
+
 if (errors.length) {
   console.error('');
   console.error(errors.length + ' SYLLABUS ERROR(S):');
@@ -171,4 +251,4 @@ if (errors.length) {
   process.exit(1);
 }
 console.log('');
-console.log('syllabus validates: every skill, document and prerequisite reference resolves');
+console.log('syllabus validates: every skill, document, prerequisite and source reference resolves');

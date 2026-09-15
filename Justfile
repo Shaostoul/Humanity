@@ -455,6 +455,14 @@ preflight:
     just verify
     @echo "OK: preflight passed, safe to push"
 
+# How complete the teaching is, and the gate that keeps the claim honest.
+# Every skill, document, prerequisite and source the syllabus names must
+# resolve, and a topic marked teaching-grade must not rest on a citation that
+# names nobody. Flags: --gaps (every unwritten topic), --hazard (what can kill
+# if taught wrong), --sources (the citation registry, grouped by licence).
+curriculum *args:
+    node scripts/curriculum-status.js {{args}}
+
 # Build relay-only (headless server, no GPU)
 build-relay:
     cargo build --release --features relay --no-default-features

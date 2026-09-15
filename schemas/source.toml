@@ -1,0 +1,143 @@
+# Source schema
+#
+# WHY THIS EXISTS
+# The curriculum's fourth layer is "cites a source", and before 2026-09-15 that
+# layer was 40 free-text strings. Among them: "CDC" and "CDC zoonoses" as two
+# different sources, "NCHFP" and "National Center for Home Food Preservation" as
+# two different sources, three spellings of university extension, and two
+# entries that are not citations at all ("published alloy and fibre data",
+# "manufacturer SDS"). A layer measured by whether a string is non-empty
+# measures nothing.
+#
+# data/sources/registry.json is the one list. A topic cites source IDs from it,
+# and scripts/curriculum-status.js fails on an id that is not there, the same
+# way it already fails on a skill or a document that is not there.
+#
+# THE LICENCE QUESTION THIS ANSWERS
+# Operator decision, 2026-09-15: only public-domain material ships in the
+# release bundle; richer share-alike material is fetched at runtime and cached
+# locally, never redistributed. That promise is only worth something if it can
+# be checked, so every source carries `licence` and `use`, and the gate reads
+# them.
+#
+# The distinction that makes this workable is that FACTS ARE NOT COPYRIGHTABLE
+# (Feist v. Rural Telephone Service, 499 U.S. 340, 1991). Copyright protects
+# expression and creative selection, not the fact that chinook salmon spawn in a
+# given river or that kerosene has a given flash point. So a copyrighted
+# authority can still be CITED as the authority for a fact we restate in our own
+# words. What we may not do is copy its text, its tables, or its particular
+# selection and arrangement into the bundle. `use = "facts"` means exactly that.
+#
+# A NOTE ON STATE AND FEDERAL
+# 17 U.S.C. 105 puts works of the US FEDERAL government in the public domain. It
+# does not do the same for state governments, and Washington State does not
+# waive copyright in state works by statute. WDFW, the state Department of
+# Health and the county weed board are therefore `use = "facts"`, not
+# `use = "verbatim"`, however freely they publish. Getting this backwards is the
+# easy mistake, and it is the one that would put an unlicensed table in a
+# release that anyone may redistribute.
+
+[schema]
+name = "source"
+file = "data/sources/registry.json"
+description = "One citable authority, or one role that a different authority fills in each place."
+
+[fields.id]
+type = "string"
+required = true
+description = "kebab-case stable key. Cited by data/curriculum/syllabus.json and by locale data files."
+
+[fields.name]
+type = "string"
+required = true
+description = "The body's full name, written out, as a reader would want to see it in a citation."
+
+[fields.publisher]
+type = "string"
+required = false
+description = "The parent body, when the source is a programme or product of a larger one."
+
+[fields.url]
+type = "string"
+required = false
+description = "Where the material actually is. Omitted for roles, which have no single address."
+
+[fields.kind]
+type = "enum"
+values = ["authority", "role", "placeholder"]
+required = true
+description = """
+authority   - a specific named body or publication that can be cited directly.
+role        - a function that a DIFFERENT body fills in each place, such as
+              "the state fish and wildlife agency". Resolved per locale through
+              data/locales/<id>/locale.json, so citing one keeps a topic
+              location-generic instead of hardcoding Washington into a subject
+              that every place needs.
+placeholder - a citation that was written down but is not yet a citation, such
+              as "published alloy and fibre data". Recorded rather than deleted
+              so the debt is countable, and refused on any topic claiming to be
+              teaching-grade.
+"""
+
+[fields.licence]
+type = "enum"
+values = [
+  "public-domain-us-gov",
+  "public-domain",
+  "cc-by",
+  "cc-by-sa",
+  "cc-by-nc-sa",
+  "odbl",
+  "copyright-all-rights-reserved",
+  "unknown",
+]
+required = true
+description = """
+public-domain-us-gov - a work of the US federal government, 17 U.S.C. 105.
+public-domain        - public domain for another reason, such as age.
+cc-*, odbl           - share-alike. Fetched at runtime and cached, never bundled.
+copyright-*          - ordinary copyright. Cite the facts, copy nothing.
+unknown              - not yet determined. Treated as copyright by the gate.
+"""
+
+[fields.use]
+type = "enum"
+values = ["verbatim", "facts", "fetch"]
+required = true
+description = """
+verbatim - the material itself may be copied into data/ and shipped.
+facts    - the body may be cited as the authority for a fact we restate in our
+           own words. Its text, tables and arrangement may not be copied.
+fetch    - not bundled at all; fetched at runtime when a player asks for it and
+           cached on their machine, so the licence never travels with a release.
+"""
+
+[fields.bundle]
+type = "bool"
+required = true
+description = """
+Whether material from this source may ship inside the release archive. True
+only for `use = "verbatim"`. The gate derives nothing from this field, it
+CHECKS it against licence and use, so a wrong answer here is caught rather than
+believed.
+"""
+
+[fields.note]
+type = "string"
+required = false
+description = "Anything a person citing this needs to know. Licence subtleties belong here."
+
+# ── Roles and how a place fills them ──
+# A role source has no url. data/locales/<locale_id>/locale.json carries an
+# `authorities` object mapping role id to the concrete body:
+#
+#   "authorities": {
+#     "state-fish-wildlife": {
+#       "name": "Washington Department of Fish and Wildlife",
+#       "url": "https://wdfw.wa.gov/"
+#     }
+#   }
+#
+# so "check your state fish and wildlife agency" renders as the real agency
+# with a real link for whichever place the player is in, and adding a second
+# town never edits a topic.

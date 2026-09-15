@@ -1,0 +1,501 @@
+{
+  "_comment": "Every authority the curriculum, the Library and the locale data are allowed to cite. Shape and rules: schemas/source.toml. Cite by `id`; scripts/curriculum-status.js refuses an id that is not here. `licence` and `use` are what make the bundle promise checkable: only `use: verbatim` material may ship inside a release, everything else is either restated in our own words with the body cited, or fetched at runtime and cached on the player's machine.",
+  "licence_note": "17 U.S.C. 105 puts works of the US FEDERAL government in the public domain. It does not cover state agencies, county boards, universities, or congressionally chartered nonprofits such as the American Red Cross, none of which waive copyright by being freely readable. Those are `use: facts`: we cite them as the authority and write the fact in our own words, which copyright does not reach (Feist v. Rural Telephone Service, 499 U.S. 340, 1991).",
+  "sources": [
+    {
+      "id": "cdc",
+      "name": "Centers for Disease Control and Prevention",
+      "publisher": "US Department of Health and Human Services",
+      "url": "https://www.cdc.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "atsdr",
+      "name": "Agency for Toxic Substances and Disease Registry",
+      "publisher": "Centers for Disease Control and Prevention",
+      "url": "https://www.atsdr.cdc.gov/toxprofiledocs/index.html",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Toxicological profiles. The authority for what a fuel or solvent does to a person."
+    },
+    {
+      "id": "niosh-pocket-guide",
+      "name": "NIOSH Pocket Guide to Chemical Hazards",
+      "publisher": "National Institute for Occupational Safety and Health, CDC",
+      "url": "https://www.cdc.gov/niosh/npg/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Flash points, exposure limits and incompatibilities for common chemicals, in the public domain. Prefer it over any retailer or hobbyist page for fuel properties."
+    },
+    {
+      "id": "osha",
+      "name": "Occupational Safety and Health Administration",
+      "publisher": "US Department of Labor",
+      "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "29 CFR 1910.106 defines the flammable-liquid categories by flash point. Federal regulation text, so quotable, unlike the NFPA standard that parallels it."
+    },
+    {
+      "id": "nfpa",
+      "name": "National Fire Protection Association",
+      "url": "https://www.nfpa.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "NFPA 30 and friends are copyrighted standards, free to read online and not free to copy. Where a definition exists in both NFPA and OSHA, cite OSHA."
+    },
+    {
+      "id": "epa",
+      "name": "Environmental Protection Agency",
+      "url": "https://www.epa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usgs",
+      "name": "United States Geological Survey",
+      "publisher": "US Department of the Interior",
+      "url": "https://www.usgs.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Elevation, hydrography, geology and streamflow. The terrain under the canonical world comes from here."
+    },
+    {
+      "id": "noaa",
+      "name": "National Oceanic and Atmospheric Administration",
+      "publisher": "US Department of Commerce",
+      "url": "https://www.noaa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "noaa-coops",
+      "name": "NOAA Tides and Currents",
+      "publisher": "NOAA Center for Operational Oceanographic Products and Services",
+      "url": "https://tidesandcurrents.noaa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Tidal datums, harmonic constituents and predictions by station."
+    },
+    {
+      "id": "noaa-ncei",
+      "name": "NOAA National Centers for Environmental Information",
+      "publisher": "National Oceanic and Atmospheric Administration",
+      "url": "https://www.ncei.noaa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Climate normals and the GHCN station record. The authority for frost dates and precipitation."
+    },
+    {
+      "id": "cameo-chemicals",
+      "name": "CAMEO Chemicals",
+      "publisher": "NOAA Office of Response and Restoration",
+      "url": "https://cameochemicals.noaa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "nws",
+      "name": "National Weather Service",
+      "publisher": "National Oceanic and Atmospheric Administration",
+      "url": "https://www.weather.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "nih",
+      "name": "National Institutes of Health",
+      "publisher": "US Department of Health and Human Services",
+      "url": "https://www.nih.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "samhsa",
+      "name": "Substance Abuse and Mental Health Services Administration",
+      "publisher": "US Department of Health and Human Services",
+      "url": "https://www.samhsa.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usda",
+      "name": "United States Department of Agriculture",
+      "url": "https://www.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usda-plants",
+      "name": "USDA PLANTS Database",
+      "publisher": "USDA Natural Resources Conservation Service",
+      "url": "https://plants.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Names, distribution and status for every vascular plant in the US. The public-domain backbone of the species data."
+    },
+    {
+      "id": "usda-fsis",
+      "name": "USDA Food Safety and Inspection Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.fsis.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usda-nrcs",
+      "name": "USDA Natural Resources Conservation Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.nrcs.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usda-websoilsurvey",
+      "name": "Web Soil Survey",
+      "publisher": "USDA Natural Resources Conservation Service",
+      "url": "https://websoilsurvey.nrcs.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "SSURGO soil map units, by survey area. What the ground will actually grow."
+    },
+    {
+      "id": "usda-canning-guide",
+      "name": "Complete Guide to Home Canning, Agriculture Information Bulletin 539",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.nifa.usda.gov/about-nifa/how-we-work/extension/national-center-home-food-preservation",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "The tested process times. Deviating from them is how botulism happens, which is why this is one of the few sources a lethal-hazard topic may rest on alone."
+    },
+    {
+      "id": "usda-hardiness",
+      "name": "USDA Plant Hardiness Zone Map",
+      "publisher": "USDA Agricultural Research Service",
+      "url": "https://planthardiness.ars.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "facts",
+      "bundle": false,
+      "note": "The 2023 map was produced with the PRISM Climate Group at Oregon State University, whose gridded data carries its own terms. Cite the zone, do not redistribute the grid."
+    },
+    {
+      "id": "usda-aphis",
+      "name": "USDA Animal and Plant Health Inspection Service",
+      "publisher": "United States Department of Agriculture",
+      "url": "https://www.aphis.usda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "fpl-wood-handbook",
+      "name": "Wood Handbook: Wood as an Engineering Material, FPL-GTR-282",
+      "publisher": "USDA Forest Service, Forest Products Laboratory",
+      "url": "https://www.fpl.fs.usda.gov/documnts/fplgtr/fpl_gtr282.pdf",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Species-by-species strength, stiffness, shrinkage and decay resistance. The authority for anything made of wood."
+    },
+    {
+      "id": "fws",
+      "name": "United States Fish and Wildlife Service",
+      "publisher": "US Department of the Interior",
+      "url": "https://www.fws.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Federal listing status and critical habitat. What a player may not legally disturb."
+    },
+    {
+      "id": "doe",
+      "name": "United States Department of Energy",
+      "url": "https://www.energy.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "doe-energy-saver",
+      "name": "Energy Saver",
+      "publisher": "US Department of Energy, Office of Energy Efficiency and Renewable Energy",
+      "url": "https://www.energy.gov/energysaver/energy-saver",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "fema",
+      "name": "Federal Emergency Management Agency",
+      "publisher": "US Department of Homeland Security",
+      "url": "https://www.fema.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "usfa",
+      "name": "United States Fire Administration",
+      "publisher": "Federal Emergency Management Agency",
+      "url": "https://www.usfa.fema.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "nist",
+      "name": "National Institute of Standards and Technology",
+      "publisher": "US Department of Commerce",
+      "url": "https://www.nist.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "mil-hdbk-5",
+      "name": "MIL-HDBK-5J, Metallic Materials and Elements for Aerospace Vehicle Structures",
+      "publisher": "US Department of Defense",
+      "url": "https://www.dla.mil/Portals/104/Documents/LandAndMaritime/V/VA/mil-hdbk-5j.pdf",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Design allowables for aluminium, titanium and steel, including 6061-T6 and 7075-T6. Its successor MMPDS is commercial; this last public edition is not."
+    },
+    {
+      "id": "nchfp",
+      "name": "National Center for Home Food Preservation",
+      "publisher": "University of Georgia",
+      "url": "https://nchfp.uga.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "USDA-funded and its recommendations trace to USDA research, but the site itself is the university's. Where a process time appears in both, cite usda-canning-guide so the number can ship."
+    },
+    {
+      "id": "red-cross",
+      "name": "American Red Cross",
+      "url": "https://www.redcross.org/take-a-class/first-aid",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Congressionally chartered under 36 U.S.C. ch. 3001, which does not make it a federal agency. Its training materials are ordinary copyright."
+    },
+    {
+      "id": "who",
+      "name": "World Health Organization",
+      "url": "https://www.who.int/",
+      "kind": "authority",
+      "licence": "cc-by-nc-sa",
+      "use": "facts",
+      "bundle": false,
+      "note": "Most WHO publications are CC BY-NC-SA 3.0 IGO. The non-commercial clause is incompatible with a bundle anyone may redistribute, so cite, never copy."
+    },
+    {
+      "id": "poison-control",
+      "name": "Poison Control, the National Capital Poison Center",
+      "url": "https://www.poison.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A nonprofit, not a government body. The US helpline number 1-800-222-1222 is a fact and may be stated anywhere."
+    },
+    {
+      "id": "rutgers-water",
+      "name": "Rutgers Water Resources Program",
+      "publisher": "Rutgers, The State University of New Jersey",
+      "url": "https://water.rutgers.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "umaine-extension",
+      "name": "University of Maine Cooperative Extension",
+      "url": "https://extension.umaine.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "umn-extension",
+      "name": "University of Minnesota Extension",
+      "url": "https://extension.umn.edu/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "wdfw",
+      "name": "Washington Department of Fish and Wildlife",
+      "url": "https://wdfw.wa.gov/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "A state agency, so 17 U.S.C. 105 does not apply and Washington waives nothing by statute. Cite it for the fact, write the sentence ourselves. Where a topic is not specifically about Washington, cite the role state-fish-wildlife instead."
+    },
+
+    {
+      "id": "state-extension",
+      "name": "The state cooperative extension service",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Each state's land-grant university runs one, and its advice is the locally correct advice. Resolved per place through data/locales/<id>/locale.json."
+    },
+    {
+      "id": "state-fish-wildlife",
+      "name": "The state fish and wildlife agency",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Seasons, limits, protected status and what may be taken. Different agency in every state, same question everywhere."
+    },
+    {
+      "id": "state-health-biotoxin",
+      "name": "The state health department's marine biotoxin programme",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Whether shellfish may be taken today. This is the one authority a player must check live rather than read once, which is why it is a role carrying a live URL per place."
+    },
+    {
+      "id": "state-noxious-weeds",
+      "name": "The state or county noxious weed control board",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false
+    },
+    {
+      "id": "soil-testing-lab",
+      "name": "A soil testing laboratory",
+      "kind": "role",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "Usually the state extension service's lab. The point of citing it is that the answer comes from testing your own ground, not from reading."
+    },
+
+    {
+      "id": "gbif",
+      "name": "Global Biodiversity Information Facility",
+      "url": "https://www.gbif.org/",
+      "kind": "authority",
+      "licence": "cc-by-nc-sa",
+      "use": "fetch",
+      "bundle": false,
+      "note": "Occurrence records: what has actually been observed at a given place. Licences vary per dataset and include non-commercial terms, so records are fetched when a player asks and cached on their machine."
+    },
+    {
+      "id": "inaturalist",
+      "name": "iNaturalist",
+      "url": "https://www.inaturalist.org/",
+      "kind": "authority",
+      "licence": "cc-by-nc-sa",
+      "use": "fetch",
+      "bundle": false,
+      "note": "Photographs and research-grade observations. Per-observation licences vary and many are non-commercial."
+    },
+    {
+      "id": "openstreetmap",
+      "name": "OpenStreetMap",
+      "url": "https://www.openstreetmap.org/",
+      "kind": "authority",
+      "licence": "odbl",
+      "use": "fetch",
+      "bundle": false,
+      "note": "Roads, buildings and coastline detail. ODbL share-alike would attach to anything we shipped it inside, so it is fetched and cached instead."
+    },
+    {
+      "id": "wikipedia",
+      "name": "Wikipedia",
+      "publisher": "Wikimedia Foundation",
+      "url": "https://www.wikipedia.org/",
+      "kind": "authority",
+      "licence": "cc-by-sa",
+      "use": "fetch",
+      "bundle": false,
+      "note": "Useful as a starting point and never as the authority for a hazardous claim. Fetched, never bundled."
+    },
+
+    {
+      "id": "placeholder-alloy-data",
+      "name": "Published alloy and fibre data (unresolved)",
+      "kind": "placeholder",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "Stands in for a real citation that was never made. Replace with mil-hdbk-5 for aluminium and titanium allowables, fpl-wood-handbook for wood, and a named manufacturer technical guide for aramid fibre."
+    },
+    {
+      "id": "placeholder-manufacturer-sds",
+      "name": "Manufacturer safety data sheet (product unnamed)",
+      "kind": "placeholder",
+      "licence": "unknown",
+      "use": "facts",
+      "bundle": false,
+      "note": "An SDS is only a citation once the product and manufacturer are named. Until then it points at nothing. For fuel properties, niosh-pocket-guide and cameo-chemicals say the same things and are public domain."
+    }
+  ]
+}

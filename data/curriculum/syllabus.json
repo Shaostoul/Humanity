@@ -7,185 +7,2295 @@
     "verified": "sourced AND independently checked by a second pass"
   },
   "subjects": [
-    { "id": "water", "title": "Water", "order": 1, "description": "Finding, collecting, storing, and making water safe. The shortest path to dying wrong." },
-    { "id": "food_growing", "title": "Growing Food", "order": 2, "description": "Soil, seed, season, and harvest. The longest lever a household has." },
-    { "id": "food_wild", "title": "Wild Food", "order": 3, "description": "Identifying, gathering and judging what grows and moves without being planted." },
-    { "id": "food_animals", "title": "Animals for Food", "order": 4, "description": "Keeping, fishing, hunting and processing animals, and doing it decently." },
-    { "id": "food_preservation", "title": "Keeping Food", "order": 5, "description": "Drying, canning, fermenting, curing and cold storage, and the ways each kills people when done wrong." },
-    { "id": "shelter", "title": "Shelter and Building", "order": 6, "description": "Siting, structure, weatherproofing and repair of the thing you live in." },
-    { "id": "energy", "title": "Energy and Power", "order": 7, "description": "Making, storing and moving energy without electrocuting or burning anyone." },
-    { "id": "materials", "title": "Materials and Making", "order": 8, "description": "What things are made of, what that means for how they behave, and how to work them." },
-    { "id": "health", "title": "Health and First Aid", "order": 9, "description": "Keeping a body working, and knowing the line where you stop and get help." },
-    { "id": "measurement", "title": "Measurement and Maths", "order": 10, "description": "Units, estimation, geometry and ratios, taught through the jobs that need them." },
-    { "id": "physics", "title": "Physics in Practice", "order": 11, "description": "Force, heat, pressure, fluids and electricity as they show up in real work." },
-    { "id": "chemistry", "title": "Chemistry in Practice", "order": 12, "description": "Water, soil, combustion, cleaning and preservation chemistry, plus what is poisonous and why." },
-    { "id": "biology", "title": "Life and Ecology", "order": 13, "description": "Soil life, plants, animals, the human body, and how a local ecosystem holds together." },
-    { "id": "earth", "title": "Earth, Weather and Sea", "order": 14, "description": "Climate, seasons, soil, water cycle, tides and the hazards a place actually has." },
-    { "id": "navigation", "title": "Finding Your Way", "order": 15, "description": "Orientation, maps, coordinates and the sky." },
-    { "id": "tools", "title": "Tools and Repair", "order": 16, "description": "Choosing, using, sharpening, maintaining and fixing. The multiplier on every other subject." },
-    { "id": "sanitation", "title": "Waste and Sanitation", "order": 17, "description": "Where everything goes afterwards, and the pathogens that care." },
-    { "id": "community", "title": "Community and Exchange", "order": 18, "description": "Trade, agreements, shared work and conflict. The Accord is the reference; this is the practice." }
+    {
+      "id": "water",
+      "title": "Water",
+      "order": 1,
+      "description": "Finding, collecting, storing, and making water safe. The shortest path to dying wrong."
+    },
+    {
+      "id": "food_growing",
+      "title": "Growing Food",
+      "order": 2,
+      "description": "Soil, seed, season, and harvest. The longest lever a household has."
+    },
+    {
+      "id": "food_wild",
+      "title": "Wild Food",
+      "order": 3,
+      "description": "Identifying, gathering and judging what grows and moves without being planted."
+    },
+    {
+      "id": "food_animals",
+      "title": "Animals for Food",
+      "order": 4,
+      "description": "Keeping, fishing, hunting and processing animals, and doing it decently."
+    },
+    {
+      "id": "food_preservation",
+      "title": "Keeping Food",
+      "order": 5,
+      "description": "Drying, canning, fermenting, curing and cold storage, and the ways each kills people when done wrong."
+    },
+    {
+      "id": "shelter",
+      "title": "Shelter and Building",
+      "order": 6,
+      "description": "Siting, structure, weatherproofing and repair of the thing you live in."
+    },
+    {
+      "id": "energy",
+      "title": "Energy and Power",
+      "order": 7,
+      "description": "Making, storing and moving energy without electrocuting or burning anyone."
+    },
+    {
+      "id": "materials",
+      "title": "Materials and Making",
+      "order": 8,
+      "description": "What things are made of, what that means for how they behave, and how to work them."
+    },
+    {
+      "id": "health",
+      "title": "Health and First Aid",
+      "order": 9,
+      "description": "Keeping a body working, and knowing the line where you stop and get help."
+    },
+    {
+      "id": "measurement",
+      "title": "Measurement and Maths",
+      "order": 10,
+      "description": "Units, estimation, geometry and ratios, taught through the jobs that need them."
+    },
+    {
+      "id": "physics",
+      "title": "Physics in Practice",
+      "order": 11,
+      "description": "Force, heat, pressure, fluids and electricity as they show up in real work."
+    },
+    {
+      "id": "chemistry",
+      "title": "Chemistry in Practice",
+      "order": 12,
+      "description": "Water, soil, combustion, cleaning and preservation chemistry, plus what is poisonous and why."
+    },
+    {
+      "id": "biology",
+      "title": "Life and Ecology",
+      "order": 13,
+      "description": "Soil life, plants, animals, the human body, and how a local ecosystem holds together."
+    },
+    {
+      "id": "earth",
+      "title": "Earth, Weather and Sea",
+      "order": 14,
+      "description": "Climate, seasons, soil, water cycle, tides and the hazards a place actually has."
+    },
+    {
+      "id": "navigation",
+      "title": "Finding Your Way",
+      "order": 15,
+      "description": "Orientation, maps, coordinates and the sky."
+    },
+    {
+      "id": "tools",
+      "title": "Tools and Repair",
+      "order": 16,
+      "description": "Choosing, using, sharpening, maintaining and fixing. The multiplier on every other subject."
+    },
+    {
+      "id": "sanitation",
+      "title": "Waste and Sanitation",
+      "order": 17,
+      "description": "Where everything goes afterwards, and the pathogens that care."
+    },
+    {
+      "id": "community",
+      "title": "Community and Exchange",
+      "order": 18,
+      "description": "Trade, agreements, shared work and conflict. The Accord is the reference; this is the practice."
+    }
   ],
   "topics": [
-    { "id": "water_sources", "subject": "water", "title": "Where water comes from", "summary": "Identify the water sources available to you and rank them by risk.", "status": "absent", "skills": ["water_purification", "foraging"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "water_rainwater", "subject": "water", "title": "Collecting rainwater", "summary": "Build a rain catchment that yields usable water and does not drown a child.", "status": "verified", "reading": ["collecting-rainwater"], "skills": ["water_purification"], "sources": ["Rutgers Water Resources Program", "EPA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "water_storage", "subject": "water", "title": "Storing water safely", "summary": "Store water so it is still safe to drink months later.", "status": "verified", "reading": ["storing-water-safely"], "skills": ["water_purification"], "sources": ["CDC", "EPA"], "locale_dependent": false, "hazard": "serious", "prerequisites": ["water_rainwater"] },
-    { "id": "water_purify", "subject": "water", "title": "Making water safe to drink", "summary": "Choose and apply the right treatment for the contamination you actually face.", "status": "verified", "reading": ["making-water-safe-to-drink"], "skills": ["water_purification"], "sources": ["CDC", "EPA"], "locale_dependent": false, "hazard": "lethal", "prerequisites": ["water_sources"] },
-    { "id": "water_testing", "subject": "water", "title": "Testing water", "summary": "Find out what is actually in your water rather than guessing.", "status": "absent", "skills": ["water_purification", "alchemy"], "sources": ["EPA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "water_wells", "subject": "water", "title": "Wells and groundwater", "summary": "Understand where groundwater is, who owns it, and what makes a well safe.", "status": "absent", "skills": ["water_purification", "mining"], "sources": ["USGS"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "water_moving", "subject": "water", "title": "Moving water without power", "summary": "Use gravity, siphons and hand pumps to get water where it is needed.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "water_hot", "subject": "water", "title": "Heating water", "summary": "Heat water for washing and cooking with the least fuel.", "status": "absent", "skills": ["fire_making", "engineering"], "locale_dependent": false, "hazard": "caution" },
-
-    { "id": "soil_basics", "subject": "food_growing", "title": "What soil is", "summary": "Read your soil's texture, structure and drainage, and know what it can grow.", "status": "absent", "skills": ["farming"], "sources": ["USDA NRCS Web Soil Survey"], "locale_dependent": true, "hazard": "none" },
-    { "id": "soil_test", "subject": "food_growing", "title": "Testing and correcting soil", "summary": "Measure pH and nutrients, then change them deliberately.", "status": "absent", "skills": ["farming", "alchemy"], "sources": ["University extension soil labs"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "compost", "subject": "food_growing", "title": "Making compost", "summary": "Turn waste into soil, at a temperature that kills pathogens.", "status": "verified", "reading": ["your-first-compost"], "skills": ["farming"], "sources": ["University extension"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "grow_first_crop", "subject": "food_growing", "title": "Your first crop", "summary": "Take one plant from seed to harvest without losing it.", "status": "verified", "reading": ["your-first-tomato"], "skills": ["farming"], "sources": ["University extension"], "locale_dependent": true, "hazard": "none" },
-    { "id": "seeds_starting", "subject": "food_growing", "title": "Starting seeds", "summary": "Germinate reliably instead of hoping.", "status": "verified", "reading": ["starting-seeds"], "skills": ["farming"], "sources": ["University extension"], "locale_dependent": true, "hazard": "none" },
-    { "id": "seeds_saving", "subject": "food_growing", "title": "Saving your own seed", "summary": "Keep seed that grows true, and know which crops will cross.", "status": "verified", "reading": ["saving-your-own-seeds"], "skills": ["farming"], "sources": ["University of Maine Extension", "University of Minnesota Extension"], "locale_dependent": false, "hazard": "none", "prerequisites": ["grow_first_crop"] },
-    { "id": "grow_staples", "subject": "food_growing", "title": "Growing food you can live on", "summary": "Move from salad to calories: the crops that actually feed a person.", "status": "verified", "reading": ["growing-food-you-can-live-on"], "skills": ["farming"], "sources": ["University extension"], "locale_dependent": true, "hazard": "none", "prerequisites": ["grow_first_crop"] },
-    { "id": "grow_calendar", "subject": "food_growing", "title": "The growing calendar where you live", "summary": "Know your frost dates, day length and season windows, and plan backwards from them.", "status": "absent", "skills": ["farming"], "data": ["data/locales/<id>/climate.json"], "sources": ["NOAA", "USDA plant hardiness zones"], "locale_dependent": true, "hazard": "none" },
-    { "id": "grow_water", "subject": "food_growing", "title": "Watering and irrigation", "summary": "Give plants the right water at the right time without wasting it.", "status": "absent", "skills": ["farming", "engineering"], "locale_dependent": true, "hazard": "none" },
-    { "id": "grow_pests", "subject": "food_growing", "title": "Pests and disease", "summary": "Identify what is eating your crop and respond proportionately.", "status": "absent", "skills": ["farming"], "data": ["data/plants.csv", "data/creatures.csv"], "sources": ["University extension IPM"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "grow_season_extension", "subject": "food_growing", "title": "Extending the season", "summary": "Use cold frames, cloches and greenhouses to grow outside the window.", "status": "absent", "skills": ["farming", "woodworking"], "locale_dependent": true, "hazard": "none" },
-    { "id": "grow_perennials", "subject": "food_growing", "title": "Perennials, fruit and nuts", "summary": "Plant the things that feed you for decades instead of one season.", "status": "absent", "skills": ["farming"], "locale_dependent": true, "hazard": "none" },
-    { "id": "grow_mushrooms", "subject": "food_growing", "title": "Growing mushrooms", "summary": "Cultivate fungi on logs and substrate.", "status": "absent", "skills": ["farming"], "locale_dependent": false, "hazard": "caution" },
-
-    { "id": "forage_identify", "subject": "food_wild", "title": "Identifying wild plants", "summary": "Identify a plant to species with confidence, and know when you cannot.", "status": "absent", "skills": ["foraging"], "data": ["data/plants.csv", "data/locales/<id>/species.json"], "sources": ["USDA PLANTS", "WDFW"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "forage_edible", "subject": "food_wild", "title": "What is edible here", "summary": "Know the reliably edible wild plants of your own place, and their lookalikes.", "status": "absent", "skills": ["foraging"], "data": ["data/locales/<id>/species.json"], "sources": ["USDA PLANTS", "state extension"], "locale_dependent": true, "hazard": "lethal", "prerequisites": ["forage_identify"] },
-    { "id": "forage_toxic", "subject": "food_wild", "title": "What will hurt you", "summary": "Recognise the poisonous plants of your region and what they do.", "status": "absent", "skills": ["foraging", "medicine"], "data": ["data/chemistry/toxins.csv"], "sources": ["CDC", "Poison Control", "state extension"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "forage_mushrooms", "subject": "food_wild", "title": "Mushrooms, and why they are different", "summary": "Understand why fungal identification is a higher-stakes skill than plant identification.", "status": "absent", "skills": ["foraging"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "forage_seasons", "subject": "food_wild", "title": "Seasonality of wild food", "summary": "Know what is available in each month where you live.", "status": "absent", "skills": ["foraging"], "data": ["data/locales/<id>/phenology.json"], "locale_dependent": true, "hazard": "none" },
-    { "id": "forage_ethics", "subject": "food_wild", "title": "Taking without ruining it", "summary": "Harvest sustainably, and know what is protected or illegal to take.", "status": "absent", "skills": ["foraging"], "data": ["data/laws/laws.json"], "sources": ["state fish and wildlife"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "forage_shellfish", "subject": "food_wild", "title": "Shellfish and shoreline harvest", "summary": "Gather from a shoreline safely, including biotoxin and closure rules.", "status": "absent", "skills": ["foraging"], "sources": ["state health department biotoxin program"], "locale_dependent": true, "hazard": "lethal" },
-
-    { "id": "animals_keeping", "subject": "food_animals", "title": "Keeping animals", "summary": "House, feed and water animals so they stay healthy.", "status": "absent", "skills": ["farming"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "animals_chickens", "subject": "food_animals", "title": "Chickens and eggs", "summary": "Keep a small flock through a year.", "status": "absent", "skills": ["farming"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "animals_health", "subject": "food_animals", "title": "Animal health and disease", "summary": "Spot illness early and know what is transmissible to people.", "status": "absent", "skills": ["farming", "medicine"], "sources": ["USDA APHIS", "CDC zoonoses"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "fishing", "subject": "food_animals", "title": "Fishing", "summary": "Catch fish legally and handle them so they are safe to eat.", "status": "absent", "skills": ["foraging"], "data": ["data/laws/laws.json"], "sources": ["state fish and wildlife"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "hunting", "subject": "food_animals", "title": "Hunting", "summary": "Understand seasons, licensing, safety and the responsibility of taking an animal.", "status": "absent", "skills": ["ranged", "foraging"], "data": ["data/laws/laws.json"], "sources": ["state fish and wildlife"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "butchery", "subject": "food_animals", "title": "Processing an animal", "summary": "Take an animal from carcass to food without contaminating it.", "status": "absent", "skills": ["cooking"], "sources": ["USDA FSIS"], "locale_dependent": false, "hazard": "serious" },
-
-    { "id": "preserve_overview", "subject": "food_preservation", "title": "Keeping what you grew", "summary": "Choose the right preservation method for each food and season.", "status": "verified", "reading": ["keeping-what-you-grew"], "skills": ["cooking"], "sources": ["National Center for Home Food Preservation", "USDA"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "preserve_drying", "subject": "food_preservation", "title": "Drying", "summary": "Dry food to a moisture level that will not spoil.", "status": "absent", "skills": ["cooking"], "sources": ["NCHFP"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "preserve_canning_acid", "subject": "food_preservation", "title": "Water-bath canning (high acid)", "summary": "Can high-acid food safely, and know exactly which foods qualify.", "status": "absent", "skills": ["cooking"], "sources": ["NCHFP", "USDA Complete Guide to Home Canning"], "locale_dependent": false, "hazard": "lethal", "prerequisites": ["preserve_overview"] },
-    { "id": "preserve_canning_pressure", "subject": "food_preservation", "title": "Pressure canning (low acid)", "summary": "Process low-acid food at a temperature that destroys botulinum spores.", "status": "absent", "skills": ["cooking"], "sources": ["NCHFP", "USDA Complete Guide to Home Canning"], "locale_dependent": true, "hazard": "lethal", "prerequisites": ["preserve_canning_acid"] },
-    { "id": "preserve_botulism", "subject": "food_preservation", "title": "Botulism, specifically", "summary": "Understand the one hazard that makes home canning dangerous, and how each rule prevents it.", "status": "absent", "skills": ["cooking", "medicine"], "sources": ["CDC", "NCHFP"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "preserve_fermenting", "subject": "food_preservation", "title": "Fermenting", "summary": "Use salt and time to preserve food with living cultures.", "status": "absent", "skills": ["cooking", "alchemy"], "sources": ["NCHFP"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "preserve_curing", "subject": "food_preservation", "title": "Salting, curing and smoking", "summary": "Preserve meat and fish with salt, nitrate and smoke.", "status": "absent", "skills": ["cooking"], "sources": ["USDA FSIS", "NCHFP"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "preserve_cold", "subject": "food_preservation", "title": "Cold storage without a fridge", "summary": "Use root cellars, springs and shade to keep food cool.", "status": "absent", "skills": ["cooking", "shelter_building"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "preserve_spoilage", "subject": "food_preservation", "title": "Telling spoiled from safe", "summary": "Judge food safety by evidence rather than smell and hope.", "status": "absent", "skills": ["cooking"], "sources": ["USDA FSIS", "CDC"], "locale_dependent": false, "hazard": "lethal" },
-
-    { "id": "shelter_siting", "subject": "shelter", "title": "Choosing where to build", "summary": "Pick a site for water, drainage, sun, wind and hazard.", "status": "absent", "skills": ["shelter_building"], "data": ["data/locales/<id>/terrain.json"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "shelter_emergency", "subject": "shelter", "title": "Emergency shelter", "summary": "Get out of the weather tonight with what you have.", "status": "absent", "skills": ["shelter_building"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "shelter_structure", "subject": "shelter", "title": "How a building stands up", "summary": "Understand loads, spans and why structures fail.", "status": "absent", "skills": ["shelter_building", "woodworking"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "shelter_foundation", "subject": "shelter", "title": "Foundations and ground", "summary": "Put a building on ground that will hold it.", "status": "absent", "skills": ["shelter_building"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "shelter_framing", "subject": "shelter", "title": "Framing", "summary": "Build a frame that is square, plumb and strong enough.", "status": "absent", "skills": ["shelter_building", "woodworking"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "shelter_roof", "subject": "shelter", "title": "Roofing and keeping water out", "summary": "Shed water reliably, which is most of what a building does.", "status": "absent", "skills": ["shelter_building"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "shelter_insulation", "subject": "shelter", "title": "Insulation and heat loss", "summary": "Keep heat in for the least fuel, and avoid trapping moisture.", "status": "absent", "skills": ["shelter_building"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "shelter_ventilation", "subject": "shelter", "title": "Ventilation, damp and mould", "summary": "Move air enough to keep the building and the people in it healthy.", "status": "absent", "skills": ["shelter_building"], "sources": ["EPA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "shelter_heating", "subject": "shelter", "title": "Heating a space", "summary": "Heat a building without carbon monoxide or fire.", "status": "absent", "skills": ["fire_making", "shelter_building"], "sources": ["US Fire Administration", "CDC"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "shelter_repair", "subject": "shelter", "title": "Repairing a building", "summary": "Diagnose and fix the common failures before they compound.", "status": "absent", "skills": ["shelter_building", "woodworking"], "locale_dependent": false, "hazard": "caution" },
-
-    { "id": "energy_basics", "subject": "energy", "title": "Watts, volts and amps", "summary": "Read a label and know what a device will actually draw.", "status": "verified", "reading": ["first-solar-power"], "skills": ["engineering"], "sources": ["DOE Energy Saver"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "energy_solar", "subject": "energy", "title": "Your first solar power", "summary": "Size and run a portable solar setup that covers a real load.", "status": "verified", "reading": ["first-solar-power"], "skills": ["engineering"], "sources": ["DOE", "university extension"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "energy_batteries", "subject": "energy", "title": "Batteries and storage", "summary": "Choose, charge and store batteries without starting a fire.", "status": "absent", "skills": ["engineering"], "sources": ["US Fire Administration", "DOE"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "energy_wiring_safety", "subject": "energy", "title": "Where amateur electrical work stops", "summary": "Know exactly which electrical work is safe to do and which kills people.", "status": "absent", "skills": ["engineering"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "energy_generators", "subject": "energy", "title": "Generators and fuel", "summary": "Run a generator without carbon monoxide poisoning or backfeeding the grid.", "status": "absent", "skills": ["engineering"], "sources": ["CDC", "US Fire Administration"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "energy_fuel", "subject": "energy", "title": "Fuels and their hazards", "summary": "Store and burn fuels knowing each one's flash point and failure mode.", "status": "absent", "skills": ["fire_making"], "data": ["data/chemistry/"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "energy_fire", "subject": "energy", "title": "Making and controlling fire", "summary": "Start, feed and extinguish fire deliberately.", "status": "absent", "skills": ["fire_making"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "energy_wood", "subject": "energy", "title": "Firewood", "summary": "Choose, season and store wood for heat.", "status": "absent", "skills": ["fire_making", "woodworking"], "data": ["data/vegetation/trees.ron"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "energy_micro_hydro", "subject": "energy", "title": "Water and wind power", "summary": "Judge whether a site can produce useful power from moving water or air.", "status": "absent", "skills": ["engineering"], "locale_dependent": true, "hazard": "serious" },
-
-    { "id": "materials_wood", "subject": "materials", "title": "Wood", "summary": "Know species, grain, moisture and strength, and pick the right wood for a job.", "status": "absent", "skills": ["woodworking"], "data": ["data/vegetation/trees.ron", "data/materials/"], "sources": ["USDA Forest Products Laboratory Wood Handbook"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "materials_metal", "subject": "materials", "title": "Metals and alloys", "summary": "Understand strength, temper, corrosion and heat behaviour.", "status": "absent", "skills": ["metalworking"], "data": ["data/chemistry/alloys.csv"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "materials_fire_staff", "subject": "materials", "title": "Building a fire staff", "summary": "Pick materials for a thing that must survive flame, and see why each fails.", "status": "verified", "reading": ["fire-staff-materials"], "skills": ["metalworking", "fire_making"], "sources": ["published alloy and fibre data", "manufacturer SDS"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "materials_stone", "subject": "materials", "title": "Stone, clay and earth", "summary": "Work with the materials that are already under your feet.", "status": "absent", "skills": ["mining"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "materials_fiber", "subject": "materials", "title": "Fibre, cord and textiles", "summary": "Make and choose rope, thread and cloth, and know their strengths.", "status": "absent", "skills": ["tailoring"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "materials_adhesive", "subject": "materials", "title": "Glues, fasteners and joints", "summary": "Join two things so the joint is not the weak point.", "status": "absent", "skills": ["woodworking"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "materials_ceramics", "subject": "materials", "title": "Pottery and firing", "summary": "Turn clay into vessels that hold water and survive heat.", "status": "absent", "skills": ["alchemy", "fire_making"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "materials_recycling", "subject": "materials", "title": "Salvage and reuse", "summary": "See discarded things as stock, and know which are safe to reuse.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-
-    { "id": "health_first_aid", "subject": "health", "title": "First aid basics", "summary": "Act correctly in the first minutes, and know when that is all you should do.", "status": "absent", "skills": ["medicine"], "sources": ["Red Cross", "CDC"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "health_bleeding", "subject": "health", "title": "Bleeding and wounds", "summary": "Stop bleeding and clean a wound so it heals instead of infecting.", "status": "absent", "skills": ["medicine"], "sources": ["Red Cross", "CDC"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "health_burns", "subject": "health", "title": "Burns", "summary": "Treat a burn correctly and recognise the ones that need a hospital.", "status": "absent", "skills": ["medicine"], "sources": ["Red Cross"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "health_cold", "subject": "health", "title": "Hypothermia and cold injury", "summary": "Recognise and reverse cold injury before it becomes fatal.", "status": "absent", "skills": ["medicine"], "sources": ["CDC", "NOAA"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "health_heat", "subject": "health", "title": "Heat illness", "summary": "Recognise heat exhaustion and heat stroke, and act on the difference.", "status": "absent", "skills": ["medicine"], "sources": ["CDC", "NOAA"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "health_poisoning", "subject": "health", "title": "Poisoning", "summary": "Respond to ingested, inhaled and contact poisoning, and reach real help fast.", "status": "absent", "skills": ["medicine"], "data": ["data/chemistry/toxins.csv"], "sources": ["Poison Control", "CDC"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "health_infection", "subject": "health", "title": "Infection and hygiene", "summary": "Prevent infection, and recognise it when prevention failed.", "status": "absent", "skills": ["medicine"], "sources": ["CDC"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "health_nutrition", "subject": "health", "title": "Nutrition that keeps you working", "summary": "Meet real energy and nutrient needs from what you can actually produce.", "status": "absent", "skills": ["cooking", "medicine"], "sources": ["USDA", "NIH"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "health_water_illness", "subject": "health", "title": "Waterborne and foodborne illness", "summary": "Know the organisms, how they get in, and what they do.", "status": "absent", "skills": ["medicine"], "sources": ["CDC"], "locale_dependent": false, "hazard": "lethal", "prerequisites": ["water_purify"] },
-    { "id": "health_teeth", "subject": "health", "title": "Teeth", "summary": "Keep teeth, because losing them is both preventable and disabling.", "status": "absent", "skills": ["medicine"], "sources": ["CDC", "NIH"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "health_mental", "subject": "health", "title": "Mental health under strain", "summary": "Recognise and respond to psychological load, in yourself and others.", "status": "absent", "skills": ["leadership", "medicine"], "sources": ["CDC", "SAMHSA"], "locale_dependent": false, "hazard": "lethal" },
-
-    { "id": "measure_units", "subject": "measurement", "title": "Units and converting them", "summary": "Move between units without the error that ruins the batch.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "measure_estimation", "subject": "measurement", "title": "Estimating", "summary": "Get within ten percent with no instrument.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "none" },
-    { "id": "measure_geometry", "subject": "measurement", "title": "Geometry for building", "summary": "Square, level, plumb, and the 3-4-5 triangle.", "status": "absent", "skills": ["shelter_building", "woodworking"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "measure_ratios", "subject": "measurement", "title": "Ratios and mixing", "summary": "Scale a recipe, a concrete mix or a solution correctly.", "status": "absent", "skills": ["cooking", "alchemy"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "measure_records", "subject": "measurement", "title": "Keeping records", "summary": "Write down what you did so next season is not guesswork.", "status": "absent", "skills": ["farming"], "locale_dependent": false, "hazard": "none" },
-    { "id": "measure_statistics", "subject": "measurement", "title": "Reading numbers honestly", "summary": "Tell a real signal from noise, and spot a misleading claim.", "status": "absent", "skills": ["trading"], "locale_dependent": false, "hazard": "caution" },
-
-    { "id": "physics_force", "subject": "physics", "title": "Force, levers and mechanical advantage", "summary": "Move more than you can lift.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "physics_heat", "subject": "physics", "title": "Heat and how it moves", "summary": "Use conduction, convection and radiation deliberately.", "status": "absent", "skills": ["engineering", "fire_making"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "physics_pressure", "subject": "physics", "title": "Pressure and fluids", "summary": "Understand pressure in water, air and steam, and why vessels fail.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "physics_electricity", "subject": "physics", "title": "Electricity, physically", "summary": "Understand current, resistance and why electricity hurts people.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "physics_light", "subject": "physics", "title": "Light and optics", "summary": "Use lenses, mirrors and the behaviour of light.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "physics_sound", "subject": "physics", "title": "Sound", "summary": "Understand how sound travels, carries and damages hearing.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "physics_buoyancy", "subject": "physics", "title": "Floating and boats", "summary": "Understand buoyancy, stability and why boats capsize.", "status": "absent", "skills": ["engineering", "navigation"], "locale_dependent": true, "hazard": "lethal" },
-
-    { "id": "chem_water", "subject": "chemistry", "title": "Water chemistry", "summary": "Understand hardness, pH and dissolved contaminants.", "status": "absent", "skills": ["alchemy"], "sources": ["EPA", "USGS"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "chem_soil", "subject": "chemistry", "title": "Soil chemistry", "summary": "Understand pH, nutrients and cation exchange in terms of what plants get.", "status": "absent", "skills": ["farming", "alchemy"], "sources": ["USDA NRCS"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "chem_combustion", "subject": "chemistry", "title": "Combustion", "summary": "Understand what burning is, what it needs, and what it produces.", "status": "absent", "skills": ["fire_making", "alchemy"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "chem_soap", "subject": "chemistry", "title": "Soap, lye and cleaning", "summary": "Make and use cleaning agents, including the ones that burn skin.", "status": "absent", "skills": ["alchemy"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "chem_preservation", "subject": "chemistry", "title": "The chemistry of preservation", "summary": "Understand why salt, acid, sugar, smoke and cold each stop spoilage.", "status": "absent", "skills": ["cooking", "alchemy"], "sources": ["NCHFP"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "chem_toxins", "subject": "chemistry", "title": "Poisons and how they work", "summary": "Understand dose, route and mechanism rather than memorising a list.", "status": "absent", "skills": ["alchemy", "medicine"], "data": ["data/chemistry/toxins.csv"], "sources": ["CDC", "NIH"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "chem_corrosion", "subject": "chemistry", "title": "Rust, rot and decay", "summary": "Understand what destroys materials over time and how to slow it.", "status": "absent", "skills": ["metalworking", "woodworking"], "locale_dependent": true, "hazard": "caution" },
-
-    { "id": "bio_soil_life", "subject": "biology", "title": "Life in soil", "summary": "Understand the organisms that make soil fertile.", "status": "absent", "skills": ["farming"], "sources": ["USDA NRCS"], "locale_dependent": false, "hazard": "none" },
-    { "id": "bio_plants", "subject": "biology", "title": "How plants work", "summary": "Understand photosynthesis, roots, water and reproduction well enough to grow anything.", "status": "absent", "skills": ["farming", "foraging"], "data": ["data/plants.csv"], "locale_dependent": false, "hazard": "none" },
-    { "id": "bio_animals", "subject": "biology", "title": "How animals work", "summary": "Understand the basics of animal physiology and behaviour.", "status": "absent", "skills": ["farming", "foraging"], "data": ["data/creatures.csv"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "bio_human", "subject": "biology", "title": "The human body", "summary": "Understand your own systems well enough to notice when one is failing.", "status": "absent", "skills": ["medicine"], "sources": ["NIH"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "bio_microbes", "subject": "biology", "title": "Microbes, good and bad", "summary": "Understand bacteria, fungi and viruses as both tool and threat.", "status": "absent", "skills": ["medicine", "alchemy"], "sources": ["CDC", "NIH"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "bio_ecosystem", "subject": "biology", "title": "How an ecosystem holds together", "summary": "See the food web, succession and the effect of removing one piece.", "status": "absent", "skills": ["foraging"], "data": ["data/locales/<id>/species.json"], "locale_dependent": true, "hazard": "none" },
-    { "id": "bio_local_species", "subject": "biology", "title": "The species where you live", "summary": "Know the plants, animals, fungi and fish of your own place by name.", "status": "absent", "skills": ["foraging"], "data": ["data/locales/<id>/species.json"], "sources": ["USDA PLANTS", "WDFW", "USGS"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "bio_invasive", "subject": "biology", "title": "Invasive species", "summary": "Recognise what does not belong and understand the damage it does.", "status": "absent", "skills": ["foraging", "farming"], "sources": ["USDA", "state noxious weed board"], "locale_dependent": true, "hazard": "caution" },
-
-    { "id": "earth_climate", "subject": "earth", "title": "The climate where you live", "summary": "Know your normal temperature, rainfall and season pattern, and the variance.", "status": "absent", "skills": ["farming"], "data": ["data/locales/<id>/climate.json"], "sources": ["NOAA"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "earth_weather_reading", "subject": "earth", "title": "Reading weather", "summary": "Predict the next several hours from sky, wind and pressure.", "status": "absent", "skills": ["navigation"], "sources": ["NOAA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "earth_water_cycle", "subject": "earth", "title": "Where water goes", "summary": "Follow water through your watershed, and know what is upstream of you.", "status": "absent", "skills": ["water_purification"], "sources": ["USGS"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "earth_soil_types", "subject": "earth", "title": "Your soil, specifically", "summary": "Look up and interpret the actual soil survey for your ground.", "status": "absent", "skills": ["farming"], "data": ["data/locales/<id>/soil.json"], "sources": ["USDA NRCS Web Soil Survey"], "locale_dependent": true, "hazard": "none" },
-    { "id": "earth_tides", "subject": "earth", "title": "Tides", "summary": "Read a tide table and understand what drives it.", "status": "absent", "skills": ["navigation", "foraging"], "data": ["data/locales/<id>/tides.json"], "sources": ["NOAA CO-OPS"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "earth_hazards", "subject": "earth", "title": "The hazards your place actually has", "summary": "Know which disasters are realistic where you live and prepare for those.", "status": "absent", "skills": ["shelter_building"], "data": ["data/locales/<id>/hazards.json"], "sources": ["FEMA", "USGS", "NOAA"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "earth_seasons", "subject": "earth", "title": "Why seasons happen", "summary": "Understand axial tilt, day length and how they drive everything living.", "status": "absent", "skills": ["navigation", "farming"], "locale_dependent": false, "hazard": "none" },
-    { "id": "earth_geology", "subject": "earth", "title": "The ground under you", "summary": "Understand the rock and landform history of your place.", "status": "absent", "skills": ["mining"], "sources": ["USGS"], "locale_dependent": true, "hazard": "caution" },
-
-    { "id": "nav_orientation", "subject": "navigation", "title": "Knowing which way is north", "summary": "Orient yourself with sun, stars, terrain and a compass.", "status": "absent", "skills": ["navigation"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "nav_maps", "subject": "navigation", "title": "Reading a map", "summary": "Read contours, scale and symbols, and relate them to what you see.", "status": "absent", "skills": ["navigation"], "sources": ["USGS"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "nav_coordinates", "subject": "navigation", "title": "Coordinates", "summary": "Give and follow a position that another person can actually find.", "status": "absent", "skills": ["navigation"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "nav_dead_reckoning", "subject": "navigation", "title": "Navigating without instruments", "summary": "Track position by pace, time and bearing.", "status": "absent", "skills": ["navigation"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "nav_celestial", "subject": "navigation", "title": "The sky as an instrument", "summary": "Use sun, moon and stars for direction, time and season.", "status": "absent", "skills": ["navigation"], "data": ["data/stars.csv", "data/constellations.json"], "locale_dependent": true, "hazard": "caution" },
-    { "id": "nav_lost", "subject": "navigation", "title": "What to do when lost", "summary": "Act so that you are found, instead of making it worse.", "status": "absent", "skills": ["navigation"], "locale_dependent": true, "hazard": "lethal" },
-
-    { "id": "tools_hand", "subject": "tools", "title": "Hand tools", "summary": "Use the core hand tools correctly and safely.", "status": "absent", "skills": ["woodworking"], "data": ["data/items.csv"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "tools_sharpening", "subject": "tools", "title": "Sharpening", "summary": "Put and keep a real edge on a blade, because dull tools injure people.", "status": "absent", "skills": ["metalworking"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "tools_power", "subject": "tools", "title": "Power tools and their hazards", "summary": "Use powered tools with the specific respect each one demands.", "status": "absent", "skills": ["woodworking", "engineering"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "tools_fasteners", "subject": "tools", "title": "Fasteners", "summary": "Choose the right screw, nail, bolt or rivet for a load.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "tools_diagnosis", "subject": "tools", "title": "Working out why something broke", "summary": "Diagnose systematically instead of replacing parts at random.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "tools_maintenance", "subject": "tools", "title": "Maintenance", "summary": "Keep tools and machines working rather than replacing them.", "status": "absent", "skills": ["engineering"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "tools_making_tools", "subject": "tools", "title": "Making a tool", "summary": "Make or improvise a tool you do not have.", "status": "absent", "skills": ["metalworking", "woodworking"], "locale_dependent": false, "hazard": "serious" },
-
-    { "id": "sanitation_human_waste", "subject": "sanitation", "title": "Human waste", "summary": "Deal with human waste so it does not reach your water or your food.", "status": "absent", "skills": ["shelter_building"], "sources": ["CDC", "EPA", "WHO"], "locale_dependent": true, "hazard": "lethal" },
-    { "id": "sanitation_greywater", "subject": "sanitation", "title": "Greywater", "summary": "Reuse washing water safely and legally.", "status": "absent", "skills": ["engineering"], "data": ["data/laws/laws.json"], "sources": ["EPA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "sanitation_pathogens", "subject": "sanitation", "title": "The pathogens that matter", "summary": "Know the specific organisms sanitation exists to stop.", "status": "absent", "skills": ["medicine"], "sources": ["CDC", "WHO"], "locale_dependent": false, "hazard": "lethal" },
-    { "id": "sanitation_handwashing", "subject": "sanitation", "title": "Handwashing and personal hygiene", "summary": "Do the single highest-return health behaviour correctly.", "status": "absent", "skills": ["medicine"], "sources": ["CDC"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "sanitation_refuse", "subject": "sanitation", "title": "Rubbish and what cannot be composted", "summary": "Handle waste streams that must not go into soil or water.", "status": "absent", "skills": ["farming"], "sources": ["EPA"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "sanitation_pests", "subject": "sanitation", "title": "Rats, flies and vectors", "summary": "Deny disease vectors the food, water and shelter they need.", "status": "absent", "skills": ["shelter_building"], "sources": ["CDC"], "locale_dependent": true, "hazard": "serious" },
-
-    { "id": "community_trade", "subject": "community", "title": "Trading fairly", "summary": "Exchange goods and work so both sides would do it again.", "status": "absent", "skills": ["trading"], "locale_dependent": false, "hazard": "none" },
-    { "id": "community_agreements", "subject": "community", "title": "Making an agreement that holds", "summary": "State terms clearly enough that disagreement is resolvable.", "status": "absent", "skills": ["trading", "leadership"], "reading": ["rights-and-responsibilities"], "locale_dependent": false, "hazard": "caution" },
-    { "id": "community_shared_work", "subject": "community", "title": "Organising shared work", "summary": "Coordinate a group on a job nobody can do alone.", "status": "absent", "skills": ["leadership"], "locale_dependent": false, "hazard": "none" },
-    { "id": "community_conflict", "subject": "community", "title": "Handling conflict", "summary": "De-escalate and resolve disputes before they become permanent.", "status": "absent", "skills": ["leadership"], "reading": ["conflict-resolution"], "locale_dependent": false, "hazard": "serious" },
-    { "id": "community_law", "subject": "community", "title": "The law where you live", "summary": "Know which rules actually bind you, from federal down to your town.", "status": "absent", "skills": ["leadership"], "data": ["data/laws/laws.json"], "reading": ["us-constitution"], "locale_dependent": true, "hazard": "serious" },
-    { "id": "community_teaching", "subject": "community", "title": "Teaching what you know", "summary": "Pass a skill on so it survives you.", "status": "absent", "skills": ["leadership"], "reading": ["curriculum"], "locale_dependent": false, "hazard": "none" },
-    { "id": "community_emergency", "subject": "community", "title": "Helping in an emergency", "summary": "Be useful in a disaster rather than another casualty.", "status": "absent", "skills": ["leadership", "medicine"], "sources": ["FEMA", "Red Cross"], "locale_dependent": true, "hazard": "lethal" }
+    {
+      "id": "water_sources",
+      "subject": "water",
+      "title": "Where water comes from",
+      "summary": "Identify the water sources available to you and rank them by risk.",
+      "status": "absent",
+      "skills": [
+        "water_purification",
+        "foraging"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "water_rainwater",
+      "subject": "water",
+      "title": "Collecting rainwater",
+      "summary": "Build a rain catchment that yields usable water and does not drown a child.",
+      "status": "verified",
+      "reading": [
+        "collecting-rainwater"
+      ],
+      "skills": [
+        "water_purification"
+      ],
+      "sources": [
+        "rutgers-water",
+        "epa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "water_storage",
+      "subject": "water",
+      "title": "Storing water safely",
+      "summary": "Store water so it is still safe to drink months later.",
+      "status": "verified",
+      "reading": [
+        "storing-water-safely"
+      ],
+      "skills": [
+        "water_purification"
+      ],
+      "sources": [
+        "cdc",
+        "epa"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious",
+      "prerequisites": [
+        "water_rainwater"
+      ]
+    },
+    {
+      "id": "water_purify",
+      "subject": "water",
+      "title": "Making water safe to drink",
+      "summary": "Choose and apply the right treatment for the contamination you actually face.",
+      "status": "verified",
+      "reading": [
+        "making-water-safe-to-drink"
+      ],
+      "skills": [
+        "water_purification"
+      ],
+      "sources": [
+        "cdc",
+        "epa"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal",
+      "prerequisites": [
+        "water_sources"
+      ]
+    },
+    {
+      "id": "water_testing",
+      "subject": "water",
+      "title": "Testing water",
+      "summary": "Find out what is actually in your water rather than guessing.",
+      "status": "absent",
+      "skills": [
+        "water_purification",
+        "alchemy"
+      ],
+      "sources": [
+        "epa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "water_wells",
+      "subject": "water",
+      "title": "Wells and groundwater",
+      "summary": "Understand where groundwater is, who owns it, and what makes a well safe.",
+      "status": "absent",
+      "skills": [
+        "water_purification",
+        "mining"
+      ],
+      "sources": [
+        "usgs"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "water_moving",
+      "subject": "water",
+      "title": "Moving water without power",
+      "summary": "Use gravity, siphons and hand pumps to get water where it is needed.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "water_hot",
+      "subject": "water",
+      "title": "Heating water",
+      "summary": "Heat water for washing and cooking with the least fuel.",
+      "status": "absent",
+      "skills": [
+        "fire_making",
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "soil_basics",
+      "subject": "food_growing",
+      "title": "What soil is",
+      "summary": "Read your soil's texture, structure and drainage, and know what it can grow.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "usda-websoilsurvey"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "soil_test",
+      "subject": "food_growing",
+      "title": "Testing and correcting soil",
+      "summary": "Measure pH and nutrients, then change them deliberately.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "alchemy"
+      ],
+      "sources": [
+        "soil-testing-lab"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "compost",
+      "subject": "food_growing",
+      "title": "Making compost",
+      "summary": "Turn waste into soil, at a temperature that kills pathogens.",
+      "status": "verified",
+      "reading": [
+        "your-first-compost"
+      ],
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "state-extension"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "grow_first_crop",
+      "subject": "food_growing",
+      "title": "Your first crop",
+      "summary": "Take one plant from seed to harvest without losing it.",
+      "status": "verified",
+      "reading": [
+        "your-first-tomato"
+      ],
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "seeds_starting",
+      "subject": "food_growing",
+      "title": "Starting seeds",
+      "summary": "Germinate reliably instead of hoping.",
+      "status": "verified",
+      "reading": [
+        "starting-seeds"
+      ],
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "seeds_saving",
+      "subject": "food_growing",
+      "title": "Saving your own seed",
+      "summary": "Keep seed that grows true, and know which crops will cross.",
+      "status": "verified",
+      "reading": [
+        "saving-your-own-seeds"
+      ],
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "umaine-extension",
+        "umn-extension"
+      ],
+      "locale_dependent": false,
+      "hazard": "none",
+      "prerequisites": [
+        "grow_first_crop"
+      ]
+    },
+    {
+      "id": "grow_staples",
+      "subject": "food_growing",
+      "title": "Growing food you can live on",
+      "summary": "Move from salad to calories: the crops that actually feed a person.",
+      "status": "verified",
+      "reading": [
+        "growing-food-you-can-live-on"
+      ],
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "none",
+      "prerequisites": [
+        "grow_first_crop"
+      ]
+    },
+    {
+      "id": "grow_calendar",
+      "subject": "food_growing",
+      "title": "The growing calendar where you live",
+      "summary": "Know your frost dates, day length and season windows, and plan backwards from them.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "data": [
+        "data/locales/<id>/climate.json"
+      ],
+      "sources": [
+        "noaa",
+        "usda-hardiness"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "grow_water",
+      "subject": "food_growing",
+      "title": "Watering and irrigation",
+      "summary": "Give plants the right water at the right time without wasting it.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "engineering"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "grow_pests",
+      "subject": "food_growing",
+      "title": "Pests and disease",
+      "summary": "Identify what is eating your crop and respond proportionately.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "data": [
+        "data/plants.csv",
+        "data/creatures.csv"
+      ],
+      "sources": [
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "grow_season_extension",
+      "subject": "food_growing",
+      "title": "Extending the season",
+      "summary": "Use cold frames, cloches and greenhouses to grow outside the window.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "woodworking"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "grow_perennials",
+      "subject": "food_growing",
+      "title": "Perennials, fruit and nuts",
+      "summary": "Plant the things that feed you for decades instead of one season.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "grow_mushrooms",
+      "subject": "food_growing",
+      "title": "Growing mushrooms",
+      "summary": "Cultivate fungi on logs and substrate.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "forage_identify",
+      "subject": "food_wild",
+      "title": "Identifying wild plants",
+      "summary": "Identify a plant to species with confidence, and know when you cannot.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/plants.csv",
+        "data/locales/<id>/species.json"
+      ],
+      "sources": [
+        "usda-plants",
+        "state-fish-wildlife"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "forage_edible",
+      "subject": "food_wild",
+      "title": "What is edible here",
+      "summary": "Know the reliably edible wild plants of your own place, and their lookalikes.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/locales/<id>/species.json"
+      ],
+      "sources": [
+        "usda-plants",
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal",
+      "prerequisites": [
+        "forage_identify"
+      ]
+    },
+    {
+      "id": "forage_toxic",
+      "subject": "food_wild",
+      "title": "What will hurt you",
+      "summary": "Recognise the poisonous plants of your region and what they do.",
+      "status": "absent",
+      "skills": [
+        "foraging",
+        "medicine"
+      ],
+      "data": [
+        "data/chemistry/toxins.csv"
+      ],
+      "sources": [
+        "cdc",
+        "poison-control",
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "forage_mushrooms",
+      "subject": "food_wild",
+      "title": "Mushrooms, and why they are different",
+      "summary": "Understand why fungal identification is a higher-stakes skill than plant identification.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "forage_seasons",
+      "subject": "food_wild",
+      "title": "Seasonality of wild food",
+      "summary": "Know what is available in each month where you live.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/locales/<id>/phenology.json"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "forage_ethics",
+      "subject": "food_wild",
+      "title": "Taking without ruining it",
+      "summary": "Harvest sustainably, and know what is protected or illegal to take.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/laws/laws.json"
+      ],
+      "sources": [
+        "state-fish-wildlife"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "forage_shellfish",
+      "subject": "food_wild",
+      "title": "Shellfish and shoreline harvest",
+      "summary": "Gather from a shoreline safely, including biotoxin and closure rules.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "sources": [
+        "state-health-biotoxin"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "animals_keeping",
+      "subject": "food_animals",
+      "title": "Keeping animals",
+      "summary": "House, feed and water animals so they stay healthy.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "animals_chickens",
+      "subject": "food_animals",
+      "title": "Chickens and eggs",
+      "summary": "Keep a small flock through a year.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "animals_health",
+      "subject": "food_animals",
+      "title": "Animal health and disease",
+      "summary": "Spot illness early and know what is transmissible to people.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "medicine"
+      ],
+      "sources": [
+        "usda-aphis",
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "fishing",
+      "subject": "food_animals",
+      "title": "Fishing",
+      "summary": "Catch fish legally and handle them so they are safe to eat.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/laws/laws.json"
+      ],
+      "sources": [
+        "state-fish-wildlife"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "hunting",
+      "subject": "food_animals",
+      "title": "Hunting",
+      "summary": "Understand seasons, licensing, safety and the responsibility of taking an animal.",
+      "status": "absent",
+      "skills": [
+        "ranged",
+        "foraging"
+      ],
+      "data": [
+        "data/laws/laws.json"
+      ],
+      "sources": [
+        "state-fish-wildlife"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "butchery",
+      "subject": "food_animals",
+      "title": "Processing an animal",
+      "summary": "Take an animal from carcass to food without contaminating it.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "usda-fsis"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "preserve_overview",
+      "subject": "food_preservation",
+      "title": "Keeping what you grew",
+      "summary": "Choose the right preservation method for each food and season.",
+      "status": "verified",
+      "reading": [
+        "keeping-what-you-grew"
+      ],
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "nchfp",
+        "usda"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "preserve_drying",
+      "subject": "food_preservation",
+      "title": "Drying",
+      "summary": "Dry food to a moisture level that will not spoil.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "nchfp"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "preserve_canning_acid",
+      "subject": "food_preservation",
+      "title": "Water-bath canning (high acid)",
+      "summary": "Can high-acid food safely, and know exactly which foods qualify.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "nchfp",
+        "usda-canning-guide"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal",
+      "prerequisites": [
+        "preserve_overview"
+      ]
+    },
+    {
+      "id": "preserve_canning_pressure",
+      "subject": "food_preservation",
+      "title": "Pressure canning (low acid)",
+      "summary": "Process low-acid food at a temperature that destroys botulinum spores.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "nchfp",
+        "usda-canning-guide"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal",
+      "prerequisites": [
+        "preserve_canning_acid"
+      ]
+    },
+    {
+      "id": "preserve_botulism",
+      "subject": "food_preservation",
+      "title": "Botulism, specifically",
+      "summary": "Understand the one hazard that makes home canning dangerous, and how each rule prevents it.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "nchfp"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "preserve_fermenting",
+      "subject": "food_preservation",
+      "title": "Fermenting",
+      "summary": "Use salt and time to preserve food with living cultures.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "alchemy"
+      ],
+      "sources": [
+        "nchfp"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "preserve_curing",
+      "subject": "food_preservation",
+      "title": "Salting, curing and smoking",
+      "summary": "Preserve meat and fish with salt, nitrate and smoke.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "usda-fsis",
+        "nchfp"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "preserve_cold",
+      "subject": "food_preservation",
+      "title": "Cold storage without a fridge",
+      "summary": "Use root cellars, springs and shade to keep food cool.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "shelter_building"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "preserve_spoilage",
+      "subject": "food_preservation",
+      "title": "Telling spoiled from safe",
+      "summary": "Judge food safety by evidence rather than smell and hope.",
+      "status": "absent",
+      "skills": [
+        "cooking"
+      ],
+      "sources": [
+        "usda-fsis",
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "shelter_siting",
+      "subject": "shelter",
+      "title": "Choosing where to build",
+      "summary": "Pick a site for water, drainage, sun, wind and hazard.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "data": [
+        "data/locales/<id>/terrain.json"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_emergency",
+      "subject": "shelter",
+      "title": "Emergency shelter",
+      "summary": "Get out of the weather tonight with what you have.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "shelter_structure",
+      "subject": "shelter",
+      "title": "How a building stands up",
+      "summary": "Understand loads, spans and why structures fail.",
+      "status": "absent",
+      "skills": [
+        "shelter_building",
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_foundation",
+      "subject": "shelter",
+      "title": "Foundations and ground",
+      "summary": "Put a building on ground that will hold it.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_framing",
+      "subject": "shelter",
+      "title": "Framing",
+      "summary": "Build a frame that is square, plumb and strong enough.",
+      "status": "absent",
+      "skills": [
+        "shelter_building",
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_roof",
+      "subject": "shelter",
+      "title": "Roofing and keeping water out",
+      "summary": "Shed water reliably, which is most of what a building does.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_insulation",
+      "subject": "shelter",
+      "title": "Insulation and heat loss",
+      "summary": "Keep heat in for the least fuel, and avoid trapping moisture.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "shelter_ventilation",
+      "subject": "shelter",
+      "title": "Ventilation, damp and mould",
+      "summary": "Move air enough to keep the building and the people in it healthy.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "sources": [
+        "epa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "shelter_heating",
+      "subject": "shelter",
+      "title": "Heating a space",
+      "summary": "Heat a building without carbon monoxide or fire.",
+      "status": "absent",
+      "skills": [
+        "fire_making",
+        "shelter_building"
+      ],
+      "sources": [
+        "usfa",
+        "cdc"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "shelter_repair",
+      "subject": "shelter",
+      "title": "Repairing a building",
+      "summary": "Diagnose and fix the common failures before they compound.",
+      "status": "absent",
+      "skills": [
+        "shelter_building",
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "energy_basics",
+      "subject": "energy",
+      "title": "Watts, volts and amps",
+      "summary": "Read a label and know what a device will actually draw.",
+      "status": "verified",
+      "reading": [
+        "first-solar-power"
+      ],
+      "skills": [
+        "engineering"
+      ],
+      "sources": [
+        "doe-energy-saver"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "energy_solar",
+      "subject": "energy",
+      "title": "Your first solar power",
+      "summary": "Size and run a portable solar setup that covers a real load.",
+      "status": "verified",
+      "reading": [
+        "first-solar-power"
+      ],
+      "skills": [
+        "engineering"
+      ],
+      "sources": [
+        "doe",
+        "state-extension"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "energy_batteries",
+      "subject": "energy",
+      "title": "Batteries and storage",
+      "summary": "Choose, charge and store batteries without starting a fire.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "sources": [
+        "usfa",
+        "doe"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "energy_wiring_safety",
+      "subject": "energy",
+      "title": "Where amateur electrical work stops",
+      "summary": "Know exactly which electrical work is safe to do and which kills people.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "energy_generators",
+      "subject": "energy",
+      "title": "Generators and fuel",
+      "summary": "Run a generator without carbon monoxide poisoning or backfeeding the grid.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "sources": [
+        "cdc",
+        "usfa"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "energy_fuel",
+      "subject": "energy",
+      "title": "Fuels and their hazards",
+      "summary": "Store and burn fuels knowing each one's flash point and failure mode.",
+      "status": "absent",
+      "skills": [
+        "fire_making"
+      ],
+      "data": [
+        "data/chemistry/"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "energy_fire",
+      "subject": "energy",
+      "title": "Making and controlling fire",
+      "summary": "Start, feed and extinguish fire deliberately.",
+      "status": "absent",
+      "skills": [
+        "fire_making"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "energy_wood",
+      "subject": "energy",
+      "title": "Firewood",
+      "summary": "Choose, season and store wood for heat.",
+      "status": "absent",
+      "skills": [
+        "fire_making",
+        "woodworking"
+      ],
+      "data": [
+        "data/vegetation/trees.ron"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "energy_micro_hydro",
+      "subject": "energy",
+      "title": "Water and wind power",
+      "summary": "Judge whether a site can produce useful power from moving water or air.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "materials_wood",
+      "subject": "materials",
+      "title": "Wood",
+      "summary": "Know species, grain, moisture and strength, and pick the right wood for a job.",
+      "status": "absent",
+      "skills": [
+        "woodworking"
+      ],
+      "data": [
+        "data/vegetation/trees.ron",
+        "data/materials/"
+      ],
+      "sources": [
+        "fpl-wood-handbook"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "materials_metal",
+      "subject": "materials",
+      "title": "Metals and alloys",
+      "summary": "Understand strength, temper, corrosion and heat behaviour.",
+      "status": "absent",
+      "skills": [
+        "metalworking"
+      ],
+      "data": [
+        "data/chemistry/alloys.csv"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "materials_fire_staff",
+      "subject": "materials",
+      "title": "Building a fire staff",
+      "summary": "Pick materials for a thing that must survive flame, and see why each fails.",
+      "status": "verified",
+      "reading": [
+        "fire-staff-materials"
+      ],
+      "skills": [
+        "metalworking",
+        "fire_making"
+      ],
+      "sources": [
+        "placeholder-alloy-data",
+        "placeholder-manufacturer-sds"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "materials_stone",
+      "subject": "materials",
+      "title": "Stone, clay and earth",
+      "summary": "Work with the materials that are already under your feet.",
+      "status": "absent",
+      "skills": [
+        "mining"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "materials_fiber",
+      "subject": "materials",
+      "title": "Fibre, cord and textiles",
+      "summary": "Make and choose rope, thread and cloth, and know their strengths.",
+      "status": "absent",
+      "skills": [
+        "tailoring"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "materials_adhesive",
+      "subject": "materials",
+      "title": "Glues, fasteners and joints",
+      "summary": "Join two things so the joint is not the weak point.",
+      "status": "absent",
+      "skills": [
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "materials_ceramics",
+      "subject": "materials",
+      "title": "Pottery and firing",
+      "summary": "Turn clay into vessels that hold water and survive heat.",
+      "status": "absent",
+      "skills": [
+        "alchemy",
+        "fire_making"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "materials_recycling",
+      "subject": "materials",
+      "title": "Salvage and reuse",
+      "summary": "See discarded things as stock, and know which are safe to reuse.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "health_first_aid",
+      "subject": "health",
+      "title": "First aid basics",
+      "summary": "Act correctly in the first minutes, and know when that is all you should do.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "red-cross",
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_bleeding",
+      "subject": "health",
+      "title": "Bleeding and wounds",
+      "summary": "Stop bleeding and clean a wound so it heals instead of infecting.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "red-cross",
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_burns",
+      "subject": "health",
+      "title": "Burns",
+      "summary": "Treat a burn correctly and recognise the ones that need a hospital.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "red-cross"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "health_cold",
+      "subject": "health",
+      "title": "Hypothermia and cold injury",
+      "summary": "Recognise and reverse cold injury before it becomes fatal.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "noaa"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_heat",
+      "subject": "health",
+      "title": "Heat illness",
+      "summary": "Recognise heat exhaustion and heat stroke, and act on the difference.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "noaa"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_poisoning",
+      "subject": "health",
+      "title": "Poisoning",
+      "summary": "Respond to ingested, inhaled and contact poisoning, and reach real help fast.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "data": [
+        "data/chemistry/toxins.csv"
+      ],
+      "sources": [
+        "poison-control",
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_infection",
+      "subject": "health",
+      "title": "Infection and hygiene",
+      "summary": "Prevent infection, and recognise it when prevention failed.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "health_nutrition",
+      "subject": "health",
+      "title": "Nutrition that keeps you working",
+      "summary": "Meet real energy and nutrient needs from what you can actually produce.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "medicine"
+      ],
+      "sources": [
+        "usda",
+        "nih"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "health_water_illness",
+      "subject": "health",
+      "title": "Waterborne and foodborne illness",
+      "summary": "Know the organisms, how they get in, and what they do.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal",
+      "prerequisites": [
+        "water_purify"
+      ]
+    },
+    {
+      "id": "health_teeth",
+      "subject": "health",
+      "title": "Teeth",
+      "summary": "Keep teeth, because losing them is both preventable and disabling.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "nih"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "health_mental",
+      "subject": "health",
+      "title": "Mental health under strain",
+      "summary": "Recognise and respond to psychological load, in yourself and others.",
+      "status": "absent",
+      "skills": [
+        "leadership",
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "samhsa"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "measure_units",
+      "subject": "measurement",
+      "title": "Units and converting them",
+      "summary": "Move between units without the error that ruins the batch.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "measure_estimation",
+      "subject": "measurement",
+      "title": "Estimating",
+      "summary": "Get within ten percent with no instrument.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "measure_geometry",
+      "subject": "measurement",
+      "title": "Geometry for building",
+      "summary": "Square, level, plumb, and the 3-4-5 triangle.",
+      "status": "absent",
+      "skills": [
+        "shelter_building",
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "measure_ratios",
+      "subject": "measurement",
+      "title": "Ratios and mixing",
+      "summary": "Scale a recipe, a concrete mix or a solution correctly.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "alchemy"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "measure_records",
+      "subject": "measurement",
+      "title": "Keeping records",
+      "summary": "Write down what you did so next season is not guesswork.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "measure_statistics",
+      "subject": "measurement",
+      "title": "Reading numbers honestly",
+      "summary": "Tell a real signal from noise, and spot a misleading claim.",
+      "status": "absent",
+      "skills": [
+        "trading"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "physics_force",
+      "subject": "physics",
+      "title": "Force, levers and mechanical advantage",
+      "summary": "Move more than you can lift.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "physics_heat",
+      "subject": "physics",
+      "title": "Heat and how it moves",
+      "summary": "Use conduction, convection and radiation deliberately.",
+      "status": "absent",
+      "skills": [
+        "engineering",
+        "fire_making"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "physics_pressure",
+      "subject": "physics",
+      "title": "Pressure and fluids",
+      "summary": "Understand pressure in water, air and steam, and why vessels fail.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "physics_electricity",
+      "subject": "physics",
+      "title": "Electricity, physically",
+      "summary": "Understand current, resistance and why electricity hurts people.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "physics_light",
+      "subject": "physics",
+      "title": "Light and optics",
+      "summary": "Use lenses, mirrors and the behaviour of light.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "physics_sound",
+      "subject": "physics",
+      "title": "Sound",
+      "summary": "Understand how sound travels, carries and damages hearing.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "physics_buoyancy",
+      "subject": "physics",
+      "title": "Floating and boats",
+      "summary": "Understand buoyancy, stability and why boats capsize.",
+      "status": "absent",
+      "skills": [
+        "engineering",
+        "navigation"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "chem_water",
+      "subject": "chemistry",
+      "title": "Water chemistry",
+      "summary": "Understand hardness, pH and dissolved contaminants.",
+      "status": "absent",
+      "skills": [
+        "alchemy"
+      ],
+      "sources": [
+        "epa",
+        "usgs"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "chem_soil",
+      "subject": "chemistry",
+      "title": "Soil chemistry",
+      "summary": "Understand pH, nutrients and cation exchange in terms of what plants get.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "alchemy"
+      ],
+      "sources": [
+        "usda-nrcs"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "chem_combustion",
+      "subject": "chemistry",
+      "title": "Combustion",
+      "summary": "Understand what burning is, what it needs, and what it produces.",
+      "status": "absent",
+      "skills": [
+        "fire_making",
+        "alchemy"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "chem_soap",
+      "subject": "chemistry",
+      "title": "Soap, lye and cleaning",
+      "summary": "Make and use cleaning agents, including the ones that burn skin.",
+      "status": "absent",
+      "skills": [
+        "alchemy"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "chem_preservation",
+      "subject": "chemistry",
+      "title": "The chemistry of preservation",
+      "summary": "Understand why salt, acid, sugar, smoke and cold each stop spoilage.",
+      "status": "absent",
+      "skills": [
+        "cooking",
+        "alchemy"
+      ],
+      "sources": [
+        "nchfp"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "chem_toxins",
+      "subject": "chemistry",
+      "title": "Poisons and how they work",
+      "summary": "Understand dose, route and mechanism rather than memorising a list.",
+      "status": "absent",
+      "skills": [
+        "alchemy",
+        "medicine"
+      ],
+      "data": [
+        "data/chemistry/toxins.csv"
+      ],
+      "sources": [
+        "cdc",
+        "nih"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "chem_corrosion",
+      "subject": "chemistry",
+      "title": "Rust, rot and decay",
+      "summary": "Understand what destroys materials over time and how to slow it.",
+      "status": "absent",
+      "skills": [
+        "metalworking",
+        "woodworking"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "bio_soil_life",
+      "subject": "biology",
+      "title": "Life in soil",
+      "summary": "Understand the organisms that make soil fertile.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "usda-nrcs"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "bio_plants",
+      "subject": "biology",
+      "title": "How plants work",
+      "summary": "Understand photosynthesis, roots, water and reproduction well enough to grow anything.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "foraging"
+      ],
+      "data": [
+        "data/plants.csv"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "bio_animals",
+      "subject": "biology",
+      "title": "How animals work",
+      "summary": "Understand the basics of animal physiology and behaviour.",
+      "status": "absent",
+      "skills": [
+        "farming",
+        "foraging"
+      ],
+      "data": [
+        "data/creatures.csv"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "bio_human",
+      "subject": "biology",
+      "title": "The human body",
+      "summary": "Understand your own systems well enough to notice when one is failing.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "nih"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "bio_microbes",
+      "subject": "biology",
+      "title": "Microbes, good and bad",
+      "summary": "Understand bacteria, fungi and viruses as both tool and threat.",
+      "status": "absent",
+      "skills": [
+        "medicine",
+        "alchemy"
+      ],
+      "sources": [
+        "cdc",
+        "nih"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "bio_ecosystem",
+      "subject": "biology",
+      "title": "How an ecosystem holds together",
+      "summary": "See the food web, succession and the effect of removing one piece.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/locales/<id>/species.json"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "bio_local_species",
+      "subject": "biology",
+      "title": "The species where you live",
+      "summary": "Know the plants, animals, fungi and fish of your own place by name.",
+      "status": "absent",
+      "skills": [
+        "foraging"
+      ],
+      "data": [
+        "data/locales/<id>/species.json"
+      ],
+      "sources": [
+        "usda-plants",
+        "state-fish-wildlife",
+        "usgs"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "bio_invasive",
+      "subject": "biology",
+      "title": "Invasive species",
+      "summary": "Recognise what does not belong and understand the damage it does.",
+      "status": "absent",
+      "skills": [
+        "foraging",
+        "farming"
+      ],
+      "sources": [
+        "usda",
+        "state-noxious-weeds"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "earth_climate",
+      "subject": "earth",
+      "title": "The climate where you live",
+      "summary": "Know your normal temperature, rainfall and season pattern, and the variance.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "data": [
+        "data/locales/<id>/climate.json"
+      ],
+      "sources": [
+        "noaa"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "earth_weather_reading",
+      "subject": "earth",
+      "title": "Reading weather",
+      "summary": "Predict the next several hours from sky, wind and pressure.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "sources": [
+        "noaa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "earth_water_cycle",
+      "subject": "earth",
+      "title": "Where water goes",
+      "summary": "Follow water through your watershed, and know what is upstream of you.",
+      "status": "absent",
+      "skills": [
+        "water_purification"
+      ],
+      "sources": [
+        "usgs"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "earth_soil_types",
+      "subject": "earth",
+      "title": "Your soil, specifically",
+      "summary": "Look up and interpret the actual soil survey for your ground.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "data": [
+        "data/locales/<id>/soil.json"
+      ],
+      "sources": [
+        "usda-websoilsurvey"
+      ],
+      "locale_dependent": true,
+      "hazard": "none"
+    },
+    {
+      "id": "earth_tides",
+      "subject": "earth",
+      "title": "Tides",
+      "summary": "Read a tide table and understand what drives it.",
+      "status": "absent",
+      "skills": [
+        "navigation",
+        "foraging"
+      ],
+      "data": [
+        "data/locales/<id>/tides.json"
+      ],
+      "sources": [
+        "noaa-coops"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "earth_hazards",
+      "subject": "earth",
+      "title": "The hazards your place actually has",
+      "summary": "Know which disasters are realistic where you live and prepare for those.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "data": [
+        "data/locales/<id>/hazards.json"
+      ],
+      "sources": [
+        "fema",
+        "usgs",
+        "noaa"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "earth_seasons",
+      "subject": "earth",
+      "title": "Why seasons happen",
+      "summary": "Understand axial tilt, day length and how they drive everything living.",
+      "status": "absent",
+      "skills": [
+        "navigation",
+        "farming"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "earth_geology",
+      "subject": "earth",
+      "title": "The ground under you",
+      "summary": "Understand the rock and landform history of your place.",
+      "status": "absent",
+      "skills": [
+        "mining"
+      ],
+      "sources": [
+        "usgs"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "nav_orientation",
+      "subject": "navigation",
+      "title": "Knowing which way is north",
+      "summary": "Orient yourself with sun, stars, terrain and a compass.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "nav_maps",
+      "subject": "navigation",
+      "title": "Reading a map",
+      "summary": "Read contours, scale and symbols, and relate them to what you see.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "sources": [
+        "usgs"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "nav_coordinates",
+      "subject": "navigation",
+      "title": "Coordinates",
+      "summary": "Give and follow a position that another person can actually find.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "nav_dead_reckoning",
+      "subject": "navigation",
+      "title": "Navigating without instruments",
+      "summary": "Track position by pace, time and bearing.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "nav_celestial",
+      "subject": "navigation",
+      "title": "The sky as an instrument",
+      "summary": "Use sun, moon and stars for direction, time and season.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "data": [
+        "data/stars.csv",
+        "data/constellations.json"
+      ],
+      "locale_dependent": true,
+      "hazard": "caution"
+    },
+    {
+      "id": "nav_lost",
+      "subject": "navigation",
+      "title": "What to do when lost",
+      "summary": "Act so that you are found, instead of making it worse.",
+      "status": "absent",
+      "skills": [
+        "navigation"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "tools_hand",
+      "subject": "tools",
+      "title": "Hand tools",
+      "summary": "Use the core hand tools correctly and safely.",
+      "status": "absent",
+      "skills": [
+        "woodworking"
+      ],
+      "data": [
+        "data/items.csv"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "tools_sharpening",
+      "subject": "tools",
+      "title": "Sharpening",
+      "summary": "Put and keep a real edge on a blade, because dull tools injure people.",
+      "status": "absent",
+      "skills": [
+        "metalworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "tools_power",
+      "subject": "tools",
+      "title": "Power tools and their hazards",
+      "summary": "Use powered tools with the specific respect each one demands.",
+      "status": "absent",
+      "skills": [
+        "woodworking",
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "tools_fasteners",
+      "subject": "tools",
+      "title": "Fasteners",
+      "summary": "Choose the right screw, nail, bolt or rivet for a load.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "tools_diagnosis",
+      "subject": "tools",
+      "title": "Working out why something broke",
+      "summary": "Diagnose systematically instead of replacing parts at random.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "tools_maintenance",
+      "subject": "tools",
+      "title": "Maintenance",
+      "summary": "Keep tools and machines working rather than replacing them.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "tools_making_tools",
+      "subject": "tools",
+      "title": "Making a tool",
+      "summary": "Make or improvise a tool you do not have.",
+      "status": "absent",
+      "skills": [
+        "metalworking",
+        "woodworking"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "sanitation_human_waste",
+      "subject": "sanitation",
+      "title": "Human waste",
+      "summary": "Deal with human waste so it does not reach your water or your food.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "sources": [
+        "cdc",
+        "epa",
+        "who"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    },
+    {
+      "id": "sanitation_greywater",
+      "subject": "sanitation",
+      "title": "Greywater",
+      "summary": "Reuse washing water safely and legally.",
+      "status": "absent",
+      "skills": [
+        "engineering"
+      ],
+      "data": [
+        "data/laws/laws.json"
+      ],
+      "sources": [
+        "epa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "sanitation_pathogens",
+      "subject": "sanitation",
+      "title": "The pathogens that matter",
+      "summary": "Know the specific organisms sanitation exists to stop.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc",
+        "who"
+      ],
+      "locale_dependent": false,
+      "hazard": "lethal"
+    },
+    {
+      "id": "sanitation_handwashing",
+      "subject": "sanitation",
+      "title": "Handwashing and personal hygiene",
+      "summary": "Do the single highest-return health behaviour correctly.",
+      "status": "absent",
+      "skills": [
+        "medicine"
+      ],
+      "sources": [
+        "cdc"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "sanitation_refuse",
+      "subject": "sanitation",
+      "title": "Rubbish and what cannot be composted",
+      "summary": "Handle waste streams that must not go into soil or water.",
+      "status": "absent",
+      "skills": [
+        "farming"
+      ],
+      "sources": [
+        "epa"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "sanitation_pests",
+      "subject": "sanitation",
+      "title": "Rats, flies and vectors",
+      "summary": "Deny disease vectors the food, water and shelter they need.",
+      "status": "absent",
+      "skills": [
+        "shelter_building"
+      ],
+      "sources": [
+        "cdc"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "community_trade",
+      "subject": "community",
+      "title": "Trading fairly",
+      "summary": "Exchange goods and work so both sides would do it again.",
+      "status": "absent",
+      "skills": [
+        "trading"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "community_agreements",
+      "subject": "community",
+      "title": "Making an agreement that holds",
+      "summary": "State terms clearly enough that disagreement is resolvable.",
+      "status": "absent",
+      "skills": [
+        "trading",
+        "leadership"
+      ],
+      "reading": [
+        "rights-and-responsibilities"
+      ],
+      "locale_dependent": false,
+      "hazard": "caution"
+    },
+    {
+      "id": "community_shared_work",
+      "subject": "community",
+      "title": "Organising shared work",
+      "summary": "Coordinate a group on a job nobody can do alone.",
+      "status": "absent",
+      "skills": [
+        "leadership"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "community_conflict",
+      "subject": "community",
+      "title": "Handling conflict",
+      "summary": "De-escalate and resolve disputes before they become permanent.",
+      "status": "absent",
+      "skills": [
+        "leadership"
+      ],
+      "reading": [
+        "conflict-resolution"
+      ],
+      "locale_dependent": false,
+      "hazard": "serious"
+    },
+    {
+      "id": "community_law",
+      "subject": "community",
+      "title": "The law where you live",
+      "summary": "Know which rules actually bind you, from federal down to your town.",
+      "status": "absent",
+      "skills": [
+        "leadership"
+      ],
+      "data": [
+        "data/laws/laws.json"
+      ],
+      "reading": [
+        "us-constitution"
+      ],
+      "locale_dependent": true,
+      "hazard": "serious"
+    },
+    {
+      "id": "community_teaching",
+      "subject": "community",
+      "title": "Teaching what you know",
+      "summary": "Pass a skill on so it survives you.",
+      "status": "absent",
+      "skills": [
+        "leadership"
+      ],
+      "reading": [
+        "curriculum"
+      ],
+      "locale_dependent": false,
+      "hazard": "none"
+    },
+    {
+      "id": "community_emergency",
+      "subject": "community",
+      "title": "Helping in an emergency",
+      "summary": "Be useful in a disaster rather than another casualty.",
+      "status": "absent",
+      "skills": [
+        "leadership",
+        "medicine"
+      ],
+      "sources": [
+        "fema",
+        "red-cross"
+      ],
+      "locale_dependent": true,
+      "hazard": "lethal"
+    }
   ]
 }
