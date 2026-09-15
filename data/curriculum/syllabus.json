@@ -913,18 +913,27 @@
       "subject": "food_preservation",
       "title": "Telling spoiled from safe",
       "summary": "Judge food safety by evidence rather than smell and hope.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "cooking"
       ],
       "sources": [
         "usda-fsis",
-        "cdc"
+        "cdc",
+        "fda",
+        "nih",
+        "who",
+        "peer-reviewed-literature",
+        "penn-state-extension",
+        "iowa-state-extension"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
         "data/chemistry/toxins.csv"
+      ],
+      "reading": [
+        "telling-spoiled-from-safe"
       ]
     },
     {

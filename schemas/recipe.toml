@@ -21,15 +21,15 @@
 #     Hand-craftable recipes leave this empty. Stations include: workbench,
 #     smelter, forge, loom, chemistry_bench, electronics_bench, kitchen,
 #     assembly_line, enchanting_table, alchemy_stand.
-#   Skill progression (native/src/systems/skills/) -- skill_required and
+#   Skill progression (src/systems/skills/) -- skill_required and
 #     skill_level gate recipe availability. xp_reward grants XP to that skill
 #     on successful craft. Higher skill reduces failure_chance.
 #   Power system -- powered stations consume power_required_watts from the
 #     base's power grid during crafting.
-#   Construction system (native/src/systems/construction/) -- construction
+#   Construction system (src/systems/construction/) -- construction
 #     category recipes produce placeable structures and building blocks.
 #
-# The crafting system (native/src/systems/crafting/) validates all inputs,
+# The crafting system (src/systems/crafting/) validates all inputs,
 # checks station proximity, skill level, power availability, and temperature,
 # then queues the craft for craft_time_sec. On completion it spawns outputs,
 # rolls byproducts, and rolls failure_chance.

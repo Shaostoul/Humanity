@@ -2,8 +2,8 @@
 # Defines the format for audio assets in data/sounds.csv
 #
 # Every sound in the game is registered in sounds.csv. The AudioManager
-# (native/src/audio/mod.rs) loads sound entries at startup and the
-# spatial audio system (native/src/audio/spatial.rs) positions 3D sounds
+# (src/audio/mod.rs) loads sound entries at startup and the
+# spatial audio system (src/audio/spatial.rs) positions 3D sounds
 # in the world. The kira crate handles playback, mixing, and real-time
 # volume control across separate audio buses.
 #
@@ -15,7 +15,7 @@
 #                data/weather.csv (ambient_sound_id),
 #                data/creatures.csv (sound entries),
 #                data/items.csv (use/equip sounds),
-#                native/src/audio/ (AudioManager, SpatialAudio)
+#                src/audio/ (AudioManager, SpatialAudio)
 # References: assets/audio/ (file_path points here)
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ required = true
 default = false
 description = """
 Whether this sound is positioned in 3D space. When true, the
-SpatialAudio system (native/src/audio/spatial.rs) pans the sound based
+SpatialAudio system (src/audio/spatial.rs) pans the sound based
 on the listener's position and orientation. When false, the sound plays
 at uniform volume on both channels (used for music, UI, ambient beds).
 The kira spatial emitter is created only for spatial sounds."""
@@ -278,7 +278,7 @@ examples = [
 
 [relationships]
 kira_audio_system = """
-The AudioManager (native/src/audio/mod.rs) wraps the kira crate. On
+The AudioManager (src/audio/mod.rs) wraps the kira crate. On
 startup it reads data/sounds.csv and pre-caches frequently used sounds
 (UI, footsteps) as StaticSoundData. Less common sounds (music, ambient)
 are loaded on demand and cached after first play. The sound_cache HashMap
@@ -287,7 +287,7 @@ maps file paths to loaded sound data. Bus volumes are stored as f64 fields
 system."""
 
 spatial_positioning = """
-The SpatialAudio module (native/src/audio/spatial.rs) manages 3D positioned
+The SpatialAudio module (src/audio/spatial.rs) manages 3D positioned
 sounds. Each spatial sound is associated with an ECS entity that has a
 Transform component. Every frame, SpatialAudio updates the kira emitter
 positions based on entity transforms and the listener (camera) position.

@@ -12,7 +12,7 @@
 #
 # File format: CSV (comma-separated, # lines are comments)
 # Hot-reloadable: Yes (changes apply without restart)
-# Referenced by: native/src/systems/weather.rs (weather state machine)
+# Referenced by: src/systems/weather.rs (weather state machine)
 # References: data/status_effects.csv (effect_on_player),
 #             data/biomes.csv (biome_weights), assets/audio/ (ambient_sound_id)
 

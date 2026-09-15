@@ -328,7 +328,7 @@ examples = [
 
 [relationships]
 ai_behavior = """
-The AI behavior system (native/src/systems/ai/) reads the NPC's schedule,
+The AI behavior system (src/systems/ai/) reads the NPC's schedule,
 personality_traits, and combat_style to drive autonomous behavior. Each
 game tick, the AI:
 

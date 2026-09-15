@@ -3,12 +3,12 @@
 #
 # Quests are the primary progression driver. Each RON file contains a list of
 # QuestDef structs that the engine deserializes at startup (and on hot-reload).
-# The quest system (native/src/systems/quests/mod.rs) evaluates active objectives
+# The quest system (src/systems/quests/mod.rs) evaluates active objectives
 # every tick, advances steps when met, and queues item rewards on completion.
 #
 # File format: RON (Rusty Object Notation) -- Vec<QuestDef>
 # Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
-# Engine structs: QuestDef, QuestStep, QuestObjective (native/src/systems/quests/)
+# Engine structs: QuestDef, QuestStep, QuestObjective (src/systems/quests/)
 # Referenced by: QuestRegistry (keyed by quest id), QuestTracker (player state)
 # References: data/items.csv (reward item_ids), data/blueprints/*.ron (blueprint_ids),
 #             data/skills/skills.csv (prerequisite skills), NPC ids, faction ids
@@ -188,7 +188,7 @@ description = """
 The objective field in each QuestStep uses one of these enum variants.
 Each variant maps to a game system that reports progress to the quest tracker.
 
-Currently implemented in native/src/systems/quests/objectives.rs:
+Currently implemented in src/systems/quests/objectives.rs:
   - Build(blueprint_id: 'id')       -- Place a structure from blueprints/*.ron
   - Gather(item_id: 'id', quantity: N) -- Have N of item in inventory
   - Craft(recipe_id: 'id', quantity: N) -- Craft N items via recipes.csv

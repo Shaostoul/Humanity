@@ -20,16 +20,16 @@
 #             assets/vfx/ (visual_effect field)
 #
 # Connection to game systems:
-#   Crafting/enchanting (native/src/systems/crafting/) -- the enchanting workbench
+#   Crafting/enchanting (src/systems/crafting/) -- the enchanting workbench
 #     reads this table to validate which enchantments can be applied to which items.
 #     Consumes reagents, checks skill level, deducts mana_cost from the enchanter.
-#   Combat system (native/src/systems/combat/) -- reads bonus_damage, bonus_armor,
+#   Combat system (src/systems/combat/) -- reads bonus_damage, bonus_armor,
 #     and special_effect fields on equipped items during damage resolution.
-#   Inventory system (native/src/systems/inventory/) -- displays enchantment info
+#   Inventory system (src/systems/inventory/) -- displays enchantment info
 #     in tooltips, enforces max_stacks and conflicts_with rules.
-#   Skill progression (native/src/systems/skills/) -- gates enchantments behind
+#   Skill progression (src/systems/skills/) -- gates enchantments behind
 #     skill_required + skill_level. Applying enchantments grants enchanting XP.
-#   Renderer (native/src/renderer/) -- reads visual_effect to apply glow colors
+#   Renderer (src/renderer/) -- reads visual_effect to apply glow colors
 #     and particle effects to enchanted item meshes.
 #
 # Actual enchantment definitions live in data/enchantments.csv. Mods add

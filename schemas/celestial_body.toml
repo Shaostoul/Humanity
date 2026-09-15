@@ -43,7 +43,7 @@
 #     interactive 3D map. Bodies orbit their parent using Keplerian elements.
 #     The map supports time warp to visualize orbital mechanics.
 #
-#   Biome/Weather — native/src/systems/weather.rs and native/src/systems/ecology.rs
+#   Biome/Weather — src/systems/weather.rs and src/systems/ecology.rs
 #     - biomes list references biome definitions (temperature, precipitation, flora/fauna)
 #     - atmosphere composition and pressure determine weather patterns
 #     - axial_tilt + orbital_period drive seasonal variation

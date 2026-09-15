@@ -9,7 +9,7 @@
 #
 # File format: RON (planned: data/factions/*.ron, one file per faction)
 # Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
-# Engine struct: Faction component (native/src/ecs/components.rs) -- currently minimal
+# Engine struct: Faction component (src/ecs/components.rs) -- currently minimal
 # Referenced by: QuestDef (prerequisite_faction_standing, reputation_reward),
 #                NPC behavior AI, trade system, territory control
 # References: data/quests/*.ron (exclusive quests), data/recipes.csv (exclusive recipes),

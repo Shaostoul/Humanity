@@ -799,6 +799,28 @@
       "use": "verbatim",
       "bundle": true,
       "note": "AC 43.13-1B, Acceptable Methods, Techniques and Practices for Aircraft Inspection and Repair, is the most careful free writing on metal repair, fastening and corrosion that exists, because the consequence of getting it wrong is a crash. Aviation tolerances are tighter than a homestead needs, so take the method and the reasoning rather than the acceptance limits."
+    },
+    {
+      "id": "penn-state-extension",
+      "name": "Penn State Extension",
+      "publisher": "The Pennsylvania State University",
+      "url": "https://extension.psu.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Strong on food preservation and storage. A state university, so NOT public domain: restate the fact, never the wording. Check the scope of what you take, because an extension article written about canning jars is not a general rule about food."
+    },
+    {
+      "id": "iowa-state-extension",
+      "name": "Iowa State University Extension and Outreach",
+      "publisher": "Iowa State University",
+      "url": "https://www.extension.iastate.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Strong on grain storage, food safety and the growth conditions of spoilage organisms. A state university, so restate rather than quote."
     }
   ]
 }

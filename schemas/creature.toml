@@ -12,15 +12,15 @@
 #   - Interactable (from domesticable/tameable/rideable)
 #
 # Connection to game systems:
-#   AI system (native/src/systems/ai/) -- reads ai_behavior + hostility to drive
+#   AI system (src/systems/ai/) -- reads ai_behavior + hostility to drive
 #     state machines: idle, wandering, fleeing, attacking, following, etc.
 #     Off-screen creatures still simulate via autonomy ticks.
-#   Combat system (native/src/systems/combat/) -- uses stats (strength, agility, etc.),
+#   Combat system (src/systems/combat/) -- uses stats (strength, agility, etc.),
 #     health_base, abilities, and hostility to resolve damage, aggro, and targeting.
-#   Ecology system (native/src/systems/ecology.rs) -- uses habitat_biomes, diet, and
+#   Ecology system (src/systems/ecology.rs) -- uses habitat_biomes, diet, and
 #     spawn_weight to maintain population balance per biome. Predator-prey chains
 #     are derived from diet + habitat overlap. Population caps scale with biome size.
-#   ECS (native/src/ecs/) -- each creature becomes a hecs entity. Stats map to
+#   ECS (src/ecs/) -- each creature becomes a hecs entity. Stats map to
 #     component fields. Type/species are string tags for query filtering.
 #   Farming system -- domesticable creatures can be penned, fed, and harvested
 #     (milk, wool, eggs) via the Harvestable component.
@@ -211,7 +211,7 @@ example = "howl|pack_frenzy"
 [fields.ai_behavior]
 type = "string"
 required = true
-description = "Base AI behavior template. The AI system (native/src/systems/ai/) loads the corresponding state machine."
+description = "Base AI behavior template. The AI system (src/systems/ai/) loads the corresponding state machine."
 valid_values = ["wander", "patrol", "guard", "hunt", "flee", "follow", "swarm", "ambush"]
 notes = "hunt = actively seeks prey based on diet. swarm = coordinates with nearby same-species. ambush = waits hidden until target is in range."
 example = "hunt"

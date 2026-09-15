@@ -15,13 +15,14 @@
 #     TransactionLog stores the last N transactions for audit/display.
 #
 #   Systems:
-#     native/src/systems/economy.rs     -- Passive income ticks, earning payouts
-#     native/src/systems/trading.rs     -- P2P and marketplace transactions
-#     native/src/systems/inventory.rs   -- Item value lookups via trade_goods.ron
+#     src/systems/economy/       -- Passive income ticks, earning payouts
+#     src/relay/storage/trading.rs -- P2P and marketplace transactions (there is
+#     #                                  no client-side trading system; it is relay-side)
+#     src/systems/inventory/     -- Item value lookups via trade_goods.ron
 #
 #   Server:
-#     server/src/storage/trading.rs     -- Marketplace listings, order matching
-#     server/src/storage/reputation.rs  -- Reputation ledger (separate from credits)
+#     src/relay/storage/trading.rs     -- Marketplace listings, order matching
+#     src/relay/storage/reputation.rs  -- Reputation ledger (separate from credits)
 #
 # SCALING TO BILLIONS:
 #   Credits are created per-player (not redistributed), so the total money supply

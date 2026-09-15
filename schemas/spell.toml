@@ -7,14 +7,14 @@
 # the flavor; the engine processes them identically.
 #
 # Connection to game systems:
-#   Combat system (native/src/systems/combat/) -- resolves spell casts during combat.
+#   Combat system (src/systems/combat/) -- resolves spell casts during combat.
 #     Reads damage_base, damage_type, range_m, aoe fields to calculate hits.
 #     Checks can_be_reflected, can_be_interrupted, can_crit for combat interactions.
 #     Applies buff_id/debuff_id as status effects with duration_s.
-#   Skill progression (native/src/systems/skills/) -- gates spells behind skill levels.
+#   Skill progression (src/systems/skills/) -- gates spells behind skill levels.
 #     skill_required + skill_level_required must be met before a creature can use the spell.
 #     Casting a spell grants XP to the associated skill (scaled by mana_cost).
-#   Crafting/enchanting (native/src/systems/crafting/) -- enchanting recipes can bind
+#   Crafting/enchanting (src/systems/crafting/) -- enchanting recipes can bind
 #     spell effects to items. The spell's buff_id becomes the enchantment effect.
 #     Reagents field supports spells that consume physical items on cast.
 #   Creature data -- creatures reference spell IDs in their abilities field.

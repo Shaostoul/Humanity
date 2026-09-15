@@ -24,13 +24,13 @@
 #     - linear damping tuned per vehicle type for drag feel
 #     - forces applied each tick based on throttle, turn_rate, thruster output
 #
-#   Vehicle System — native/src/systems/vehicles/mod.rs
+#   Vehicle System — src/systems/vehicles/mod.rs
 #     - Reads input commands from DataStore each tick
 #     - Applies forces/torques to the PhysicsBody
 #     - Manages enter/exit transitions (player entity gets Controllable swapped)
 #     - Mech-specific: torso twist, heat management, jump jets
 #     - Ship-specific: thruster groups, gravity drive, FTL
-#     - Propulsion physics in native/src/systems/vehicles/propulsion.rs
+#     - Propulsion physics in src/systems/vehicles/propulsion.rs
 #
 #   Audio — sound_id references an entry in data/audio/ for engine loops,
 #     horn, collision SFX. Spatial 3D audio via kira crate.
@@ -266,7 +266,7 @@ train = "land"              # follows rail tracks
 # ============================================================================
 # Spaceships with interior layouts use RON files (see data/ships/*.ron).
 # The RON file references rooms, corridors, utilities, and the ship layout
-# parser (native/src/ship/) generates walkable interior meshes.
+# parser (src/ship/) generates walkable interior meshes.
 #
 # The CSV row defines the vehicle stats. The RON file defines the interior.
 # Both are linked by the same id.

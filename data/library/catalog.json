@@ -125,6 +125,14 @@
           ]
         },
         {
+          "title": "Telling Spoiled From Safe",
+          "src": "docs/user/skills/telling_spoiled_from_safe.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
+        },
+        {
           "title": "Your First Compost",
           "src": "docs/user/skills/your_first_compost.md",
           "tags": [

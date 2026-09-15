@@ -9,7 +9,7 @@
 # File format: CSV (comma-separated, # lines are comments)
 # Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
 # Engine structs: SkillDef, SkillProgress, PlayerSkills, SkillRegistry
-#                 (native/src/systems/skills/mod.rs)
+#                 (src/systems/skills/mod.rs)
 # Referenced by: QuestDef (prerequisite_skill), faction join_requirements,
 #                crafting system, combat system, UI skill panel
 # References: data/recipes.csv (unlock_id for recipe unlocks),

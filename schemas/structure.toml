@@ -9,7 +9,7 @@
 # Complex structures with custom logic use RON in data/blueprints/.
 #
 # ENGINE INTEGRATION:
-#   Construction System — native/src/systems/construction/mod.rs
+#   Construction System — src/systems/construction/mod.rs
 #     - BlueprintRegistry holds all structure definitions
 #     - Player enters build mode, selects a structure from the registry
 #     - Ghost preview rendered at placement position (snapped to grid)
@@ -18,7 +18,7 @@
 #     - Materials consumed from player inventory as build progresses
 #     - On completion: Construction component replaced with Structure component
 #
-#   Snap Grid System — native/src/systems/construction/structural.rs
+#   Snap Grid System — src/systems/construction/structural.rs
 #     - Structures snap to a world-aligned grid (default 0.5m spacing)
 #     - snap_type determines alignment behavior:
 #       grid    = aligns to world grid intersections
@@ -37,11 +37,12 @@
 #     - Name (display name)
 #     - Optional: PowerConsumer, WaterConsumer (if is_functional = true)
 #
-#   CSG — native/src/systems/construction/csg.rs
+#   CSG is not a separate module; the construction solver lives in
+#         src/systems/construction/ (solver.rs, placement.rs, structural.rs)
 #     - Constructive Solid Geometry for boolean operations on structure meshes
 #     - Allows cutting holes (doors in walls, windows, pipe routing)
 #
-#   Routing — native/src/systems/construction/routing.rs
+#   Routing — src/systems/construction/routing.rs
 #     - Power and fluid routing between functional structures
 #     - Electrical grid: generators feed consumers via wire/conduit structures
 #     - Plumbing grid: pumps feed consumers via pipe structures

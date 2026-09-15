@@ -2,7 +2,7 @@
 # Defines the structure for biome definitions used by terrain generation,
 # weather, ecology, and rendering.
 #
-# The engine's 16 built-in biome types (defined in native/src/terrain/heightmap.rs)
+# The engine's 16 built-in biome types (defined in src/terrain/heightmap.rs)
 # are: Ocean, DeepOcean, Beach, Grassland, Forest, Rainforest, Desert, Tundra,
 # Taiga, Mountain, SnowyMountain, Swamp, Savanna, Steppe, Volcanic, IceCap.
 #
@@ -12,14 +12,14 @@
 # by adding files to data/biomes/.
 #
 # Connection to game systems:
-#   Terrain generation (native/src/terrain/heightmap.rs) -- the TerrainGenerator
+#   Terrain generation (src/terrain/heightmap.rs) -- the TerrainGenerator
 #     classifies each surface point into a Biome enum based on latitude, elevation,
 #     and moisture. The data file's terrain_noise_scale, terrain_amplitude, and
 #     terrain_roughness tune the procedural noise for that biome.
-#   Weather system (native/src/systems/weather.rs) -- reads temperature_range_c,
+#   Weather system (src/systems/weather.rs) -- reads temperature_range_c,
 #     humidity_range, precipitation_type, and precipitation_chance to drive
 #     weather events. Seasonal variation modulates these ranges over the year.
-#   Ecology system (native/src/systems/ecology.rs) -- uses flora_species and
+#   Ecology system (src/systems/ecology.rs) -- uses flora_species and
 #     fauna_species to seed populations. flora_density and fauna_density cap
 #     the total biomass per chunk. Creatures reference biomes in habitat_biomes.
 #   Rendering -- color_palette drives ground tint, accent features, and fog color.

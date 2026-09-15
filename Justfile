@@ -459,6 +459,7 @@ preflight:
     node scripts/check-library-fresh.js
     node scripts/check-library-render.js
     node scripts/check-library-counts.js
+    node scripts/check-schema-paths.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -496,6 +497,15 @@ check-library-render:
 # counts are good teaching and should stay, so this keeps them true instead.
 check-library-counts:
     node scripts/check-library-counts.js
+# Refuse a schema that names a source path which does not exist. schemas/ is
+# what somebody reads to learn what a data row IS, and sixteen of the thirty
+# files still pointed at native/src or server/src, neither of which has existed
+# since the unified-binary merge. CLAUDE.md carries a standing warning that an
+# agent reading a stale path writes its edits to a dead location. Pass --docs
+# to also REPORT on docs/ (never fails there: a resolved bug report naming where
+# the code used to live is correct history, not rot).
+check-schema-paths:
+    node scripts/check-schema-paths.js --docs
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among
