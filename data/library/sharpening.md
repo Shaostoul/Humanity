@@ -88,19 +88,22 @@ structural features inside the steel itself.
 
 That last fact is the key to how edges die. Research published in
 *Science* in 2020 followed razor blades cutting human hair inside an
-electron microscope. Blades did not simply wear smooth. They **chipped**:
-microscopic cracks started where the steel's internal structure varied
-from point to point along the edge, and a chunk of the apex broke away.
-The chipping happened before any appreciable wear. So the ordinary
-picture of a blade slowly rounding over is wrong, or at least
-incomplete. An edge is a row of tiny teeth fracturing off one at a
-time.
+electron microscope. The blades did not simply wear smooth. They
+**chipped**: microscopic cracks started where the steel's internal
+structure varied from point to point along the edge, and a chunk of the
+apex broke away. The chipping happened before any appreciable wear had
+occurred. The authors are careful that the conditions have to line up,
+so it is not every stroke, but it is what took the blade out.
 
-Two consequences follow, and both are practical:
+That study is about razors and hair, so do not stretch it into a law
+about every blade. What it does establish is that **an edge can go
+from sharp to useless by fracturing rather than by rounding over**, and
+two practical consequences follow:
 
-- **A dull blade is usually a damaged blade, not a worn one.** You are
-  not restoring a rounded curve; you are cutting back past a chipped
-  line until you reach sound metal.
+- **A dull edge is often a damaged edge, not a worn one.** You may not
+  be restoring a gently rounded curve at all. You may be cutting back
+  past a chipped line until you reach sound metal, which takes more
+  removal than people expect.
 - **Thinner is sharper and also more fragile.** The Forest Service
   crosscut saw manual says this about saw teeth in exactly these
   terms: the more pointed a tooth is filed, the deeper it sinks and
@@ -322,9 +325,10 @@ under the spine is a legitimate beginner's crutch.
 The only tools here where flatness is as important as the bevel. The
 back of a chisel is one of the two surfaces that form the apex, so if
 the back is not flat and polished near the edge, the edge cannot be
-sharp no matter what you do to the bevel. Flatten the back once,
-properly, on a coarse abrasive, then never grind it again. After
-that, only the bevel is sharpened.
+sharp no matter what you do to the bevel. The usual practice, which is
+trade practice rather than a specification, is to flatten the back
+once, properly, on a coarse abrasive, and then to sharpen only the
+bevel from then on.
 
 ### Axe
 
@@ -444,7 +448,9 @@ edge that is tired, and does nothing for one that is chipped or
 genuinely blunt. Ten seconds on a rod before each use, and a real
 sharpening when the rod stops helping.
 
-**What ruins edges**, roughly in order of how often it happens:
+**What ruins edges.** The mechanism in each row is just relative
+hardness or repeated impact. The ordering is judgement about ordinary
+domestic use, not data.
 
 | Cause | What it does |
 |---|---|
@@ -568,16 +574,20 @@ itself further, in seconds, with nobody deciding to do it.
 permanently softer, and it will not hold an edge again until the
 softened metal is ground away.
 
-The colour tells you. As the steel heats, an oxide film grows on it
-and turns straw, then brown, then purple, then **blue**. Blue is the
-signal both manuals name. The Army machine tool manual, on grinding a
-drill: overheating turns the drill edges blue, which indicates the
-drill's temper has been lost, and **the blue area must be ground
-completely away** to get back to sound steel. The Forest Service ax
-manual: you can always tell when the temper is drawn because the
-colour of the steel at the edge turns blue, and at minimum you have
-drawn the temper for at least three sixteenths of an inch back from
-the edge.
+**The colour tells you.** Heat grows an oxide film on bright steel,
+and the film changes colour as it thickens. The colour these two
+manuals name, and the only one you need, is **blue**.
+
+The Army machine tool manual, on grinding a drill: overheating turns
+the drill edges blue, which indicates the drill's temper has been
+lost, and **the blue area must be ground completely away** to get back
+to sound steel. The Forest Service ax manual: you can always tell when
+the temper is drawn because the colour of the steel at the edge turns
+blue, and at minimum you have drawn the temper for at least three
+sixteenths of an inch back from the edge.
+
+So blue is not a stain to polish off. It is a map of the metal you now
+have to remove.
 
 The Forest Service's advice on grinders is worth quoting in
 substance because it is stronger than most people expect. Never use an
@@ -611,9 +621,12 @@ some machines have a vacuum dust collector, and when operating a
 grinder without one, wear an approved respirator; use coolant whenever
 possible, because it also controls dust.
 
-Where the material contains crystalline silica, and many natural
-sharpening stones, sandstone wheels and masonry materials do, the dust
-is a recognised long-term hazard rather than a nuisance. NIOSH sets a
+Where the material contains crystalline silica, the dust is a
+recognised long-term hazard rather than a nuisance. That is the case
+for concrete, stone and masonry, which is what the federal guidance
+below was written about, and it is worth assuming for a sandstone
+grinding wheel or a quarried natural stone until you know otherwise.
+NIOSH sets a
 recommended exposure limit for respirable crystalline silica of 0.05
 milligrams per cubic metre as a time-weighted average and designates
 it a **potential occupational carcinogen**, with lung cancer the
@@ -739,7 +752,8 @@ them.
   inches).
   https://www.fs.usda.gov/t-d/pubs/pdfpubs/pdf05232810/pdf05232810dpi72.pdf
 - USDA Forest Service, Missoula Technology and Development Center.
-  Miller, W., *Crosscut Saw Manual*, 7771-2508-MTDC, 1977 (the order
+  Miller, W., *Crosscut Saw Manual*, 7771-2508-MTDC, June 1977,
+  revised December 2003 (the order
   of operations from cleaning through setting; the burr forming on the
   back of the tooth and obscuring its true shape; removing it with a
   whetstone, a light file stroke or a piece of hardwood, and the final
@@ -749,22 +763,28 @@ them.
   should be less bevel for hardwood than softwood; set of about 0.010
   inch for a felling saw and 0.015 inch for a heavy bucking saw).
   https://www.fs.usda.gov/t-d/pubs/pdfpubs/pdf77712508/pdf77712508dpi72.pdf
-- Departments of the Army, the Navy and the Air Force. *Use and Care
-  of Hand Tools and Measuring Tools*, TM 9-243 (also TO 32-1-101 and
-  NAVFAC P-433). Chapter 29, Grinders and Sharpening Stones (coarse
-  and fine faces and what each is for; natural stones being finer
-  grained than artificial; oiling a stone before and during use and
-  preventing glazing; stroking with the sharp edge trailing in a
-  circular motion with light even pressure; removing the wire edge by
-  stroking both sides on soft wood, canvas or leather; the bench
-  grinder warning to wear eye protection, watch the fingers and hold
-  work firmly; never using a cracked wheel and the tap test). Chapter
-  32 (dull shears sharpened on an oilstone or with a file, and most
-  shears becoming useless after two or three grindings). Chapter 34,
-  Knives (always cut away from the body except with a draw knife;
-  sheathing after use). Chapter 45, Chopping Tools (a cold blade is
-  brittle and will break). Chapter 47, Brush-Cutting Tools (do not use
-  a dull or defective tool; repair nicks and dulled edges
+- Departments of the Army, Navy, Air Force and Marine Corps. *Use and
+  Care of Hand Tools and Measuring Tools*, TM 9-243, issued jointly as
+  Navy M6290-AJ-MAN-010, Air Force TO 32-1-101 and Marine Corps TM
+  10209-10/1. Chapter 29, Grinders and Sharpening Stones (coarse and
+  fine faces and what each is for; natural stones being finer grained
+  than artificial; oiling a stone before and during use and preventing
+  glazing; stroking with the sharp edge trailing in a circular motion
+  with light even pressure; removing the wire edge by stroking both
+  sides on soft wood, canvas or leather; the bench grinder warning to
+  wear eye protection, watch the fingers and hold work firmly; never
+  using a cracked wheel and the tap test). Chapter 34, Knives (always
+  cut away from the body except with a draw knife; sheathing after
+  use). Chapter 45, Chopping Tools (storing tools so heads and cutting
+  edges are protected; wiping with oil for prolonged storage; a cold
+  blade being brittle and breaking easily). Chapter 46, Saws (never
+  cutting nails or other metal with a woodcutting saw; wedging rather
+  than forcing a binding saw; touching up the teeth with a file
+  occasionally). Chapter 37, Shears and Nippers (dull shears sharpened
+  on an oilstone or with a file, the caution against grinding when
+  sharpening is all that is needed, and most shears becoming useless
+  after two or three grindings). Chapter 47, Brush-Cutting Tools (do
+  not use a dull or defective tool; repair nicks and dulled edges
   immediately). Read at the Internet Archive.
   https://archive.org/details/use-and-care-of-hand-tools-and-measuring-tools-1983
 - Department of the Army. *Fundamentals of Machine Tools*, TC 9-524,
@@ -773,7 +793,10 @@ them.
   bench grinder tool rest set one sixteenth to one eighth of an inch
   from the wheel; silicon carbide against aluminium oxide and their
   characters; abrasive grain number as a sieve mesh count; wheel
-  glazing and dressing; the 118 degree twist drill point; overheating
+  glazing and dressing; the 118 degree twist drill point, the 8 to 12
+  degree lip clearance, the 59 degree drill point gauge, and the
+  oversized hole and rapid wear that follow from unequal lips;
+  overheating
   turning drill edges blue as the sign that temper has been lost, the
   blue area having to be ground completely away, and an overheated
   drill cracking when quenched; honing a ground cutter with a fine
@@ -795,8 +818,9 @@ them.
 - Occupational Safety and Health Administration, US Department of
   Labor. 29 CFR 1910.242, Hand and portable powered tools and
   equipment, general (employer responsibility for the safe condition
-  of tools including those furnished by employees; the 30 psi limit on
-  compressed air for cleaning).
+  of tools including those furnished by employees; the requirement
+  that compressed air used for cleaning be reduced to less than 30
+  psi and used only with chip guarding and protective equipment).
   https://www.govinfo.gov/content/pkg/CFR-2024-title29-vol5/xml/CFR-2024-title29-vol5-sec1910-242.xml
 - Occupational Safety and Health Administration, US Department of
   Labor. 29 CFR 1910.243, Guarding of portable powered tools (safety
@@ -875,8 +899,8 @@ them.
 
 ### What could not be sourced, and is labelled in the text
 
-Four things in this guide are trade practice rather than measured or
-specified values, and each says so where it appears:
+Several things in this guide are trade practice rather than measured
+or specified values, and each says so where it appears:
 
 - **Bevel angles for kitchen knives, chisels and plane irons.** The
   figures everyone quotes, roughly 15 to 20 degrees per side for a
@@ -892,6 +916,14 @@ specified values, and each says so where it appears:
 - **Which cutting board material is kindest to an edge.** The general
   rule that a surface harder than the blade will chip the blade is
   just hardness, but the ranking of boards is not sourced here.
+- **The full temper-colour sequence.** Straw, brown and purple before
+  blue are commonly quoted and are not in any source opened for this
+  guide. Blue is, from two of them, and blue is the one that matters.
+- **Angle guides, hardpoint saws and serrated knives.** The
+  suggestion of an angle guide or a folded card under the spine, the
+  statement that a hardpoint handsaw is a consumable, and the method
+  for serrations are all ordinary shop knowledge, labelled as such in
+  the text.
 
 One further limitation is worth stating plainly rather than hiding in
 a footnote: **no study was found that directly compares injury rates
