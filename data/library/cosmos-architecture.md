@@ -956,7 +956,7 @@ Bodies render in three regimes depending on **screen-space radius**
 
 | Regime | Screen radius | Render |
 |--------|---------------|--------|
-| Far | < 2 px | A single bright dot, magnitude-scaled. ~119k stars from `data/cosmos/stars.csv` (Hipparcos catalog, planned Phase 4b) render exclusively in this regime. |
+| Far | < 2 px | A single bright dot, magnitude-scaled. ~119k stars from `data/stars.csv` (Hipparcos catalog, planned Phase 4b) render exclusively in this regime. |
 | Sprite | 2 – 64 px | Pre-rendered RGBA texture of the body (round disk with shading, low-cost). Loaded from `assets/bodies/<id>.png`, falls back to procedural disk colored by `SolBody::color`. Lit by the Sun's screen-position via a single directional-light shader uniform. |
 | Mesh | ≥ 64 px | Full 3D textured sphere mesh, wgpu pipeline, PBR shader, planet texture + normal + roughness maps, sun-as-directional-light. |
 

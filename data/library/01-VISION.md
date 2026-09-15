@@ -16,8 +16,10 @@ We are intentionally building **both**:
 
 The game is not a throwaway mini-layer. The platform is not just a launcher for a
 game. They share the same simulation code in `src/systems/` (farming, crafting,
-skills, etc.), the "Real/Sim toggle" switches which dataset the UI shows, not which
-codebase runs.
+skills, etc.). The two realities are separated by NAVIGATION, not by a mode switch:
+the app chrome is always real, and the game is entered through Play. The "Real/Sim
+toggle" that earlier drafts of this document described was deleted from the product
+in v0.197.0; see docs/design/two-realities.md for the model that replaced it.
 
 ## Design doctrine
 

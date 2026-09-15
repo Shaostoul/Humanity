@@ -1,8 +1,17 @@
 # Gameplay loop map
 
+> **STALE SNAPSHOT, not live truth (flagged 2026-09-14).** This was an accurate
+> survey when written, but the arc it describes as pending has partly shipped:
+> CombatSystem registered in v0.760, AISystem in v0.761, AtmosphereSystem back
+> in v0.617, and several closure-ladder rungs are done. Do NOT read the
+> CURRENT-STATE columns below as today's state. For what is actually still
+> unwired, read `DEFERRED_SYSTEMS` in `tests/engine_wiring_lint.rs`, which the
+> build enforces and which therefore cannot go stale the way this document did.
+> The DESIGNED-STATE half and the ladder ORDER remain useful.
+>
 > Written 2026-07-07 from a verified whole-codebase survey (7-agent map, every
 > claim checked against lib.rs register calls + tests/engine_wiring_lint.rs).
-> This is the CURRENT-STATE vs DESIGNED-STATE picture of every gameplay loop,
+> This was the CURRENT-STATE vs DESIGNED-STATE picture of every gameplay loop,
 > with an ordered closure ladder at the end. Companion docs:
 > [progression-skills-gear.md](progression-skills-gear.md) (skills, abilities,
 > gear), [engagement-modes.md](engagement-modes.md) (one sim depth, five

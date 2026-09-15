@@ -41,7 +41,7 @@ See also: `docs/website/README.md`.
 
 ### Important gap
 
-Most domain systems are already documented in `docs/design/`, but many are not yet split into dedicated Rust modules under `src/`.
+Most domain systems are documented in `docs/design/` AND implemented as modules under `src/systems/`. The live list of systems that exist but are not yet registered in the runtime is `DEFERRED_SYSTEMS` in `tests/engine_wiring_lint.rs`, which the build enforces; read that rather than this paragraph, because it cannot go stale without failing a test.
 
 ## 3) Design-to-implementation map
 
@@ -94,10 +94,13 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/pages/`
 - Implementation now:
   - Mostly design/spec stage
-  - No dedicated Rust modules yet for most domains (all live in the single `src/` crate)
+  - Domain systems live in `src/systems/` inside the single `src/` crate
 - Status:
   - **Documented: strong**
-  - **Implemented: early/planned**
+  - **Implemented: mostly registered.** As of 2026-09-14 only EcologySystem,
+    HydrologySystem, DisasterSystem and PlacementSystem remain deferred, each
+    with a written reason in `DEFERRED_SYSTEMS`. Combat and AI were registered
+    in v0.760 and v0.761, Atmosphere in v0.617.
 
 ## E) Game/immersive integration
 
@@ -110,7 +113,11 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `src/` contains the Rust game engine and systems (single crate)
 - Status:
   - **Documented: medium-strong**
-  - **Implemented: early/planned**
+  - **Implemented: engine substantial, content early.** The renderer, terrain,
+    physics, audio, ECS and the farming/crafting/combat/AI systems are built and
+    registered; what is early is game CONTENT and progression, not the engine
+    under it. `DEFERRED_SYSTEMS` in `tests/engine_wiring_lint.rs` is the
+    enforced list of what is still unwired.
 
 ## F) Desktop app distribution
 

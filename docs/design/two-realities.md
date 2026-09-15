@@ -88,6 +88,6 @@ form the relay operator can read; never let one user's backup consume another's 
   systems live inside the sim (always game). Similar UI components, different places. You move
   between the two realities by entering or leaving the world, never by flipping a mode switch.
 
-The split is clean: Home is who you really are, Play is who you are in the game, and the
-toggle inside each shared tool flips the dataset. Both are first-class; the Real side is the
-one we owe the most work.
+The split is clean: Home is who you really are, Play is who you are in the game, and you
+move between them by navigating, not by flipping a switch. Both are first-class; the Real
+side is the one we owe the most work.

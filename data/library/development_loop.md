@@ -23,7 +23,7 @@ Before proposing ANY feature: search FEATURES.md first. If it exists, enhance it
 
 ## Step 3: Develop
 - Use subagents for parallel work on non-overlapping files
-- All Rust code must pass: `cargo check` (native) AND `cargo check --target wasm32-unknown-unknown --features wasm --no-default-features` AND `cd server && cargo check`
+- All Rust code must pass `just verify`, which runs `cargo check --features native`, `cargo check --features relay --no-default-features`, the lib tests and the lints. (There is no `server/` directory; it was merged into `src/relay/` in the v0.90 restructure.) After renderer, shader or startup work also run `just verify-runtime`, which boots the exe and enters the world, because `just verify` is entirely static.
 - Follow existing code patterns (read before writing)
 - No backward compatibility hacks until v1.0.0
 - No em dashes in user-facing text
@@ -40,7 +40,9 @@ After EVERY development cycle, update:
 - `docs/FEATURES.md` -- add new features with file paths
 - `docs/STATUS.md` -- update counts and status
 - `docs/BUGS.md` -- add new bugs found, mark fixed bugs
-- `CHANGELOG.md` -- add version entry
+- GitHub release notes for the tag -- the per-release record (CHANGELOG.md was retired after v0.43.0 and says so at the top)
+- `docs/history/<date>.md` -- the session narrative
+- `data/coordination/orchestrator_state.json` -- the decision and why
 - `CLAUDE.md` -- update if architecture changed
 - Memory files -- update if patterns changed
 
