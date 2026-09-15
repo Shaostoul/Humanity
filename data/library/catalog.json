@@ -886,5 +886,6 @@
     "About HumanityOS",
     "Build and Contribute",
     "Reference Library"
-  ]
+  ],
+  "_ordering_note": "Real Skills is an ORDERED LADDER, not an alphabetical shelf: grow something, multiply it, save its seed, feed yourself from it, keep what you grew, feed the soil back, then understand the soil, then water from source to storage, then power, then the building around it, then what to do when somebody gets hurt. A new guide goes at its RUNG, not on the end. An earlier note here proposed splitting Learn into the syllabus's 18 subjects once curriculum landed. That was reconsidered on 2026-09-15 and rejected: splitting a deliberate progression into seven categories of one or two documents destroys the order a beginner walks, and the subject view already exists in the Library's Curriculum face, which renders data/curriculum/syllabus.json directly. Two views of the same content, each doing what it is good at."
 }
