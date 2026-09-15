@@ -59,12 +59,18 @@ large structures carry no self-weight, docking does not fight a rotating frame.
 So the drum is where you live and farm at 1g, and the spine is industry,
 docking, fabrication and storage where weightlessness is the point.
 
-The alternative, if gravity in the spine is wanted, is that it must either be
-under thrust (gravity along the thrust axis, only while burning) or have its own
-rotating section. Both are legitimate; they are just different ships. **Open
-question for the operator** -- the answer decides whether zero-g movement
-(pushing off surfaces, handholds, tethers) is required for the first playable
-habitat or can wait.
+**RESOLVED 2026-09-15: the spine has thrust gravity.** The operator: "the most
+common state of the fleet is going to be in the perpetually forward motion going
+between stars so it makes sense the spine has gravity." A perpetually-burning
+fleet has a uniform aft-pointing gravity field through the whole hull, so the
+spine is habitable with conventional decks perpendicular to the thrust axis, and
+zero-g is the EXCEPTION (drive off, repair, coast) rather than the spine baseline.
+
+This has a large and non-obvious consequence for the drum, because thrust gravity
+and spin gravity are perpendicular and therefore TILT the drum floor. The full
+model, the tilt table, g-load effects and the zero-g locomotion toolkit now live
+in [gravity-and-movement.md](gravity-and-movement.md). Read that before building
+either habitat: it is what decides how much thrust the fleet can cruise under.
 
 ## The unifying idea: one generator, a curvature parameter
 
