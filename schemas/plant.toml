@@ -1,0 +1,277 @@
+# HumanityOS Plant Schema
+#
+# Defines the structure of `data/plants.csv`, which is one row per plant species
+# and is the data layer behind most of the Library's growing guides.
+#
+# This schema was missing until 2026-09-15 while 24 other content types had one,
+# which is why `plants.csv` accumulated a header comment that had drifted from
+# the file (it listed six `type` values where the data uses ten, and stopped one
+# column short of the end).
+#
+# WHAT READS THIS FILE
+#   src/systems/farming/           -- `PlantDef` (mod.rs) deserializes each row.
+#                                     Growth, water, nutrients, pH, temperature,
+#                                     humidity, yield and stages all drive the
+#                                     farming simulation from here.
+#   src/assets/                    -- AssetManager loads and hot-reloads it.
+#   src/embedded_data.rs           -- embedded at compile time so a bare exe works.
+#   data/food/crop_nutrition.ron   -- one entry per FOOD row here, keyed on `id`,
+#                                     bridging yield to calories.
+#   data/curriculum/syllabus.json  -- the `bio_plants` and `grow_pests` topics
+#                                     declare this file as their data layer.
+#
+# EIGHT COLUMNS ARE NOT READ BY THE ENGINE AT ALL. `PlantDef` carries 18 of the
+# 26. `description` and `type` are documentation for a human or an AI reading the
+# file; `seed_value`, `harvest_value`, `seed_source`, `companion_plants` and
+# `adverse_plants` are read by nothing in `src/` today. They are content waiting
+# for a system, not dead weight, but do not assume editing one changes anything
+# in the game. Each is marked `engine = false` below.
+#
+# FILE FORMAT. Unquoted CSV, one plant per row, `#` comment lines at the top.
+# A field may therefore NOT contain a comma; the file uses semicolons inside
+# prose and colons to separate list items. An edit script that puts a comma in a
+# description shifts every later column, which has happened.
+
+# ── Field Definitions ────────────────────────────────────────────
+
+[fields.id]
+type = "string"
+required = true
+engine = true
+description = "Unique identifier, snake_case. The lookup key everywhere, including crop_nutrition.ron and any curriculum reference."
+constraints = "Unique across the file. Lowercase alphanumeric and underscores."
+example = "tomato"
+
+[fields.name]
+type = "string"
+required = true
+engine = true
+description = "Display name shown to the player."
+example = "Tomato"
+
+[fields.description]
+type = "string"
+required = true
+engine = false
+description = "One line for a human reading the file. No comma, because this is unquoted CSV."
+example = "Fresh red tomatoes - heavy feeder requiring consistent moisture"
+
+[fields.type]
+type = "string"
+required = true
+engine = false
+description = """
+Broad category. The file uses ten: vegetable, fruit, herb, grain, legume, alien,
+tree, medicinal, decorative, fiber. NOTE that three rows typed `vegetable` are
+fungi (oyster_mushroom, shiitake, button_mushroom) and several columns mean
+something different for them, because a mushroom has no roots drawing a soil
+solution and no leaves transpiring."""
+example = "fruit"
+
+[fields.growth_days]
+type = "float"
+required = true
+engine = true
+description = """
+Real-world days from the propagule the row is actually started from to harvest.
+Not always from seed: garlic counts from the clove, sweet potato from the slip.
+The file's own header carries the per-row exceptions."""
+example = "70"
+
+[fields.water_liters_per_day]
+type = "float"
+required = true
+engine = true
+description = "Litres per plant per day. Read as `water_per_day` in PlantDef."
+example = "1.5"
+
+[fields.nutrient_n]
+type = "float"
+required = true
+engine = true
+description = "Relative nitrogen demand. Shown per crop in the Garden table and intended to feed shared-reservoir mix maths."
+example = "0.15"
+
+[fields.nutrient_p]
+type = "float"
+required = true
+engine = true
+description = "Relative phosphorus demand."
+example = "0.05"
+
+[fields.nutrient_k]
+type = "float"
+required = true
+engine = true
+description = "Relative potassium demand."
+example = "0.20"
+
+[fields.ph_min]
+type = "float"
+required = true
+engine = true
+description = "Low end of the preferred soil or reservoir pH window."
+example = "6.0"
+
+[fields.ph_max]
+type = "float"
+required = true
+engine = true
+description = "High end of the preferred pH window."
+example = "6.8"
+
+[fields.temp_min_c]
+type = "float"
+required = true
+engine = true
+description = "Low end of the tolerated temperature window, Celsius."
+example = "18"
+
+[fields.temp_max_c]
+type = "float"
+required = true
+engine = true
+description = "High end of the tolerated temperature window, Celsius."
+example = "30"
+
+[fields.humidity_min]
+type = "float"
+required = true
+engine = true
+description = "Low end of the preferred relative humidity window, 0 to 1."
+example = "0.50"
+
+[fields.humidity_max]
+type = "float"
+required = true
+engine = true
+description = "High end of the preferred relative humidity window, 0 to 1."
+example = "0.80"
+
+[fields.yield_min]
+type = "float"
+required = true
+engine = true
+description = """
+Minimum produce units from a fully grown plant. FLOAT, not integer, because real
+crops can yield less than one unit per plant: saffron is 0.3, a few stigma
+threads. The harvest roll converts the continuous value to whole inventory items
+by probabilistic rounding so the expected value is preserved. This was u32 once,
+which made serde reject every fractional row and silently drop it from the
+registry; saffron was un-plantable for months before the 2026-07-01 fix."""
+example = "2"
+
+[fields.yield_max]
+type = "float"
+required = true
+engine = true
+description = "Maximum produce units from a fully grown plant. Same float rule."
+example = "8"
+
+[fields.growth_stages]
+type = "list<string>"
+required = false
+engine = true
+separator = ":"
+description = """
+Ordered stage names. Empty falls back to DEFAULT_GROWTH_STAGES. Fungi use a
+different ladder (spore:mycelium:pinning:fruiting) and that is correct.
+There is NO failure branch in any row: no damaged, infected, wilting or dead
+state exists, so a diagnostic skill has nothing to attach to. Reported by the
+writer of the pests and disease guide as a gap, not a defect."""
+example = "seed:sprout:vegetative:flower:fruit:ripe"
+
+[fields.seasons]
+type = "list<string>"
+required = true
+engine = true
+separator = ":"
+description = "Preferred growing seasons."
+example = "spring:summer"
+
+[fields.seed_value]
+type = "float"
+required = true
+engine = false
+description = "Base trade value of seeds, credits. Read by nothing in src/ today."
+example = "5"
+
+[fields.harvest_value]
+type = "float"
+required = true
+engine = false
+description = "Base trade value of the harvested crop, credits. Read by nothing in src/ today."
+example = "15"
+
+[fields.skill_required]
+type = "integer"
+required = true
+engine = true
+description = "Minimum farming skill level to plant this."
+example = "1"
+
+[fields.seed_source]
+type = "list<string>"
+required = true
+engine = false
+separator = ":"
+description = "Where seeds can be obtained. Read by nothing in src/ today."
+example = "store:trade"
+
+[fields.companion_plants]
+type = "list<plant id>"
+required = false
+engine = false
+separator = ":"
+description = """
+Plants that grow well nearby. Read by nothing in src/ today, so an edit here
+changes documentation rather than behaviour.
+
+TWO THINGS TO KNOW BEFORE EDITING. 167 of these relations are ASYMMETRIC (A
+lists B, B does not list A). Nothing is listed as both companion and adverse and
+no id dangles, so that is probably deliberate, but it deserves a decision rather
+than continued drift.
+
+And a companion claim is a factual claim about the world, so it needs a source
+like any other. The `marigold` row asserted a general pest-repelling effect and
+listed tomato, pepper and bean, and its own best source (NC State Extension)
+says dense season-long planting reduces some root-knot nematodes and says in
+terms that a few marigolds mixed in among susceptible plants will not be
+sufficient. The row encoded the one arrangement the evidence refutes. It was
+corrected 2026-09-15."""
+example = "basil:carrot:parsley"
+
+[fields.adverse_plants]
+type = "list<plant id>"
+required = false
+engine = false
+separator = ":"
+description = "Plants that should not be grown nearby. Read by nothing in src/ today. Same sourcing standard as companion_plants."
+example = "fennel"
+
+[fields.harvest_item]
+type = "string"
+required = false
+engine = true
+description = """
+The `data/items.csv` id this crop harvests into. Explicit per row so herbs,
+legumes, mushrooms and fiber crops harvest to real items instead of logging a
+warning. Empty falls back to the legacy vegetable_/fruit_/grain_ prefix search,
+so pre-column data still works."""
+example = "vegetable_tomato_0"
+
+# ── Known gaps, so nobody rediscovers them ───────────────────────
+#
+# These are things the file CANNOT express that the Library's guides say matter.
+# Each is a real content decision, not an oversight to be silently patched.
+#
+#   No light or shade-tolerance column. The compensation point, which is the
+#     budget governing whether a plant can live where you put it, has no field.
+#   No photoperiod or vernalization field, so bolting cannot emerge from the
+#     data and can only be scripted.
+#   No pollination mode, which is the thing saving_your_own_seeds.md turns on:
+#     whether saved seed comes true depends on it.
+#   No rooting depth, and no drainage or soil-oxygen field.
+#   No pest or disease susceptibility, and no resistance. Choosing a resistant
+#     variety is the single most effective control on the whole response ladder
+#     in pests_and_disease.md, and it is inexpressible here.
