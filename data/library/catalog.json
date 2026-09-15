@@ -225,6 +225,14 @@
             "guide",
             "real"
           ]
+        },
+        {
+          "title": "Fishing",
+          "src": "docs/user/skills/fishing.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
         }
       ]
     },

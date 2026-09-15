@@ -720,7 +720,7 @@
       "subject": "food_animals",
       "title": "Fishing",
       "summary": "Catch fish legally and handle them so they are safe to eat.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -728,10 +728,21 @@
         "data/laws/laws.json"
       ],
       "sources": [
-        "state-fish-wildlife"
+        "noaa",
+        "fda",
+        "epa",
+        "cdc",
+        "wdfw",
+        "state-fish-wildlife",
+        "tribal-government",
+        "state-health-biotoxin",
+        "wa-doh"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "fishing"
+      ]
     },
     {
       "id": "hunting",

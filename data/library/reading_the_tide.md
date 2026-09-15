@@ -384,13 +384,12 @@ the first one answer the second.
 Marine biotoxins accumulate in shellfish from algae. Washington State
 Department of Health is direct about all three parts of this:
 
-- "Toxic shellfish look, taste, and smell the same as safe shellfish.
-  The only way to know that shellfish are safe from toxins is to test
-  them."
-- "Cooking or freezing doesn't kill or remove toxins. The toxins are
-  part of the shellfish meat."
-- "Check the Shellfish Safety Map for biotoxin closures and advisories
-  on the day you plan to harvest shellfish."
+- Toxic shellfish are indistinguishable from safe ones by look, taste
+  or smell, and testing is the only way to know.
+- Neither cooking nor freezing kills or removes the toxins, because
+  they are part of the shellfish meat rather than something on it.
+- Check the state Shellfish Safety Map for biotoxin closures and
+  advisories on the day you intend to harvest, not once a season.
 
 Cooking does not help. Freezing does not help. Paralytic shellfish
 poison is not a germ you can kill, it is a chemical inside the meat, and

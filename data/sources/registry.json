@@ -821,6 +821,17 @@
       "use": "facts",
       "bundle": false,
       "note": "Strong on grain storage, food safety and the growth conditions of spoilage organisms. A state university, so restate rather than quote."
+    },
+    {
+      "id": "wa-doh",
+      "name": "Washington State Department of Health",
+      "publisher": "State of Washington",
+      "url": "https://doh.wa.gov/",
+      "kind": "authority",
+      "licence": "copyright-state",
+      "use": "facts",
+      "bundle": false,
+      "note": "A STATE agency, so 17 USC 105 does not cover it and nothing from it may be quoted verbatim into the bundle: restate the fact. Carries the fish consumption advisories, the shellfish biotoxin programme and the greywater rules. Check publication dates: the Puget Sound fish advisory most often cited is from 2015 and sits on a legacy URL."
     }
   ]
 }
