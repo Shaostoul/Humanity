@@ -98,7 +98,43 @@ own words (`use: facts`, because facts are not copyrightable per Feist
 v. Rural Telephone 1991, but the expression is).
 
 **State agencies are not public domain.** 17 USC 105 covers federal
-works only. Restate anything from a state agency.
+works only. Restate anything from a state agency. Universities, professional
+associations and the National Academies are not public domain either.
+
+**This is the rule most often broken, and never carelessly.** On
+2026-09-15 three separate guides were found quoting `use: facts` sources
+verbatim, and a fourth had 24 such quotations. One of them quoted a state
+agency in its body while its own Sources heading read "cited as the
+authority, facts restated". Nobody was being lazy: a source says
+something crisply, quoting it is the obvious move, and the licence
+question is invisible at the moment of writing unless you go and look.
+So go and look, every time, before you type a quotation mark.
+`just check-library-quotes` refuses a verbatim quotation attributed to a
+restate-only source, and it will catch you, but catching you is later and
+more expensive than checking.
+
+Two related traps, both real:
+
+- **A registry entry can itself be wrong.** MedlinePlus was flagged
+  public-domain / verbatim / bundle-true until it was checked against
+  MedlinePlus's own content-use page, which says the A.D.A.M. Medical
+  Encyclopedia (every `/ency/` URL, and that is where all the first-aid
+  content lives) is copyrighted. Two guides had already taken the
+  registry at its word. If a licence flag looks surprising for the kind
+  of organisation it describes, check the source's own terms page and
+  report what you find.
+- **A source can be split.** The same publisher may have public-domain
+  and copyrighted material side by side. Cite the URL, not the brand.
+
+**Do not state as current anything you could not open today.** Two live
+examples: the Dietary Guidelines for Americans moved to a 2025-2030
+edition in January 2026, so writing the previous one from memory would
+have been easy and wrong; and the regulatory definition of "harm" under
+the Endangered Species Act is under active rulemaking, so a confident
+restatement of the long-standing version would have been a legal claim
+nobody had verified. In both cases the honest move was to say which
+edition was used and why, or to rest on the stable statute and tell the
+reader to check the current text.
 
 Roles such as `state-fish-wildlife` and `state-noxious-weeds` resolve
 per locale through the `authorities` map in `locale.json`. Cite the role
