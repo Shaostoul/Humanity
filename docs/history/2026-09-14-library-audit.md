@@ -19,6 +19,38 @@ the raw "77 confirmed" overstates the result. This document splits them:
 Nothing here is a style opinion; the sweep was told to report only verifiable
 defects and to cite a URL or a repo file:line for each.
 
+## STATUS: all 55 unanimous findings closed (v0.1306.2 through v0.1306.8)
+
+Worked in order of what could actually hurt someone, then what misleads, then
+what wastes a contributor's afternoon:
+
+| Release | What it closed |
+|---|---|
+| v0.1306.2 | The two criticals: the shared `API_SECRET`, and social recovery promised with no implementation |
+| v0.1306.3 | Things that break a server or burn someone: 4 more SELF-HOSTING defects, 6 fire staff (two wrong flash points, both erring toward looking safe) |
+| v0.1306.4 | Claims the code contradicts: three Accord promises, the CC BY-SA licensing framing, the discarded chat signature, English-only, the offline claims |
+| v0.1306.5 | Peppers on the wrong pollination list, the missing drowning hazard, a solar figure that did not reconcile, two distribution layers documented as live that are not |
+| v0.1306.6 | Contributor docs describing a deleted Real/Sim toggle, a removed `server/` directory, and shipped systems called "early/planned" |
+| v0.1306.7 | Four modding-guide dead ends: a rebuild that is not needed, a working feature documented as broken, a file nothing renders, a hot-reload that does not happen |
+| v0.1306.8 | Every cross-document link in the Library (fixed in the build, not by hand), ui-system's drifted transcriptions, three removed APIs in ai-onboarding, the ROADMAP staleness |
+
+**Three findings were recorded rather than fixed**, because they are product
+decisions rather than documentation defects, and they now live in
+`docs/accord/conformance_gaps.md`: governance votes are trust-weighted rather
+than one-per-person, votes are publicly attributable rather than confidential,
+and friendship certificates cannot be revoked. The Accord keeps its principles;
+the gaps are written down so no reader is misled meanwhile.
+
+**One is a server fix, not a doc fix**: `git.united-humanity.us` is absent from
+its TLS certificate's SAN list, so hundreds of per-file URLs per release point
+at a host no validating client will connect to. The certbot command that closes
+it is recorded in `torrent-infrastructure.md`. Deliberately not run from a
+session, being production TLS on the live site.
+
+**The 22 contested findings below remain unadjudicated** and were not acted on.
+
+---
+
 ## Fixed in v0.1306.2
 
 Both criticals, confirmed by hand before the fix:
