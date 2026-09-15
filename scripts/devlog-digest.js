@@ -43,7 +43,13 @@ if (!tags.length) {
 // works offline, no gh CLI needed.
 const items = tags.map(t => {
   const subject = sh(`git log -1 --format=%s ${t.tag}`);
-  const title = (subject || t.tag).replace(/^v[\d.]+\s*/, '').trim() || t.tag;
+  // Commit subjects are written as "v0.1309.0 - what changed and why", so strip
+  // the version AND the separator. Stripping only the version left a stray
+  // leading dash on every line of the draft the operator is meant to paste.
+  const title = (subject || t.tag)
+    .replace(/^v[\d.]+\s*/, '')
+    .replace(/^[-:–—]\s*/, '')
+    .trim() || t.tag;
   return { tag: t.tag, date: t.date.toISOString().slice(0, 10), title };
 });
 
