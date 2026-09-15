@@ -750,7 +750,7 @@ are ours.
   own source URLs, plus the file's own statement of what it deliberately
   leaves out.
 - `data/locales/silverdale_wa/species.json`, which says what the events
-  refer to: 125 plants, fungi, mammals, birds, fish and shellfish with
+  refer to: 133 plants, fungi, mammals, birds, fish and shellfish with
   their legal status here, edibility, toxicity and lookalikes.
 - [Where You Are: Silverdale, Washington](/library#silverdale-wa),
   the generated month-by-month reading copy of that calendar. This guide

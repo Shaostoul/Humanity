@@ -157,8 +157,10 @@ you where the mixture landed.
 
 Now read that low-acid list once more, slowly. **All fresh vegetables.**
 Green beans. Corn. Carrots. Potatoes. Peas. Beets. Asparagus. Greens.
-Squash. Every vegetable in your garden is a low-acid food, and so is every
-piece of meat, poultry and fish. The set of things that can go in a
+Squash. Every vegetable in your garden is a low-acid food except tomatoes,
+which USDA writes into the sentence as the exception and which this guide
+gives a section of its own, and so is every piece of meat, poultry and
+fish. The set of things that can go in a
 boiling-water canner is much smaller than most people assume, and it is
 almost entirely fruit, pickles and jam.
 
@@ -334,8 +336,15 @@ any home-canned food that might contain the toxin, and is explicit that the
 boil is not a guarantee against every defect in a badly made jar. Both
 points cut the same way as the paragraph below.
 
-What it is not is permission. It is damage limitation for food that already
-exists and should not have been made, not a licence to make more of it. It depends on
+What it is not is permission, and it is worth being exact about where even
+damage limitation stops. NCHFP says in the sentence immediately after the
+recommendation that this is not intended to serve as a recommendation for
+consuming foods known to be significantly underprocessed, and CDC's position
+since 2013 is to discard home-canned food that might carry the toxin. So for
+a batch you already know was canned the wrong way, low-acid food put through
+a boiling-water canner say, the instruction is not to boil it thoroughly. It
+is to throw it out. The ten-minute boil is a habit for correctly canned
+low-acid food, not a way to rescue a bad one. It also depends on
 you boiling every portion thoroughly, every time, for the full time, with
 the altitude correction, and on nobody ever tasting the jar while cooking.
 A safety margin that a distracted person can skip in one second is not a
@@ -482,9 +491,20 @@ not, because the reasoning is more useful than the list.
 
 Go back to USDA's three conditions: a moist low-acid food, a temperature
 between 40 and 120 degrees F, and less than 2 percent oxygen. All three
-must hold at once. **Remove any single one and the organism cannot grow,
-so no toxin can be produced, so the hazard does not exist.** Every safe
-preservation method below is a different way of removing one of them.
+must hold at once. **Remove any single one RELIABLY and the organism cannot
+grow, so no toxin can be produced, so the hazard does not exist.** Every
+safe preservation method below is a different way of removing one of them.
+
+That word "reliably" is carrying weight, and the temperature condition is
+where it matters. USDA's 40 degrees F is the floor for the shelf-stable
+canning case it is describing. It is not a universal floor for the organism:
+FDA puts the minimum growth temperature for type E and the non-proteolytic
+B and F types at 38 degrees F. That is why CDC's refrigeration instructions
+always pair the cold with a second barrier rather than resting on the cold
+alone, and you will see both of them below: air for the foil-wrapped potato,
+a four-day clock for the garlic oil. Freezing removes the temperature
+condition outright. Refrigeration only slows it, which is a different claim
+and buys a different amount of time.
 
 **Freezing removes the temperature.** A freezer is far below the bottom of
 the growth range, so the spores simply sit there inert. Note what freezing
@@ -599,17 +619,27 @@ thing you follow rather than adjust.
 Note the phrase **minimum, uniform**. Uniform is doing work there. An
 average pH of 4.4 across a jar that has an un-acidified pocket in the
 middle is not a safe jar, which is also why tested procedures care so much
-about how food is packed, and why pureeing is restricted. Be precise about
+about how food is packed. One scope note before going further: that
+uniform-acid caution is written for pickled products, like the first
+bullet of the same block, so read it as a principle this document is
+borrowing rather than as a general USDA statement. Now, pureeing. Be
+precise about
 that restriction, because it is not a blanket ban. USDA permits pureed
 *fruit*, which is acid. What it forbids is the low-acid case: "Do not
 attempt to can pureed vegetables, red meats, or poultry meats, because
 proper processing times for pureed foods have not been determined for home
 use." Its alternative is to can those foods by the standard procedure and
-puree them at serving time instead. The reasoning is the same as
-everywhere else in this document: in a dense low-acid puree nobody can
-guarantee what happened in the centre of the jar, so no tested process
-exists, and no tested process means do not do it rather than do it
-carefully.
+puree them at serving time instead.
+
+Note what USDA's reason actually is, because it is simpler than the one
+you might reach for. It is not acid uniformity: the foods in that
+sentence are low-acid and contain no added acid at all. USDA gives one
+reason and it is in the quote, that proper processing times for pureed
+foods have not been determined for home use. A dense puree heats
+differently from the pack the process was tested on, nobody has measured
+it for home equipment, and no tested process means do not do it rather
+than do it carefully. That last step is the general rule of this whole
+document.
 
 **Now the general tool.** If you meet a preservation method this document
 did not list, you do not need somebody to rule on it. Ask which of the
@@ -712,10 +742,20 @@ rather than 21, that is the laboratory-confirmed count rather than the
 reported count, and the two are easy to mix up because the same page
 carries both. Quote whichever you like, but say which one you are quoting.
 
-I checked the arithmetic in all three years and the counts reconcile: the
-four type counts sum to the reported total in each year (181 + 66 + 22 + 4
-= 273; 159 + 55 + 9 + 3 = 226; 152 + 41 + 21 + 1 = 215), and the confirmed
-and probable counts sum to the same totals (243 + 30; 202 + 24; 201 + 14).
+The four type counts sum to the reported total in each year (181 + 66 + 22
++ 4 = 273; 159 + 55 + 9 + 3 = 226; 152 + 41 + 21 + 1 = 215). Note that this
+sum re-adds numbers printed in the same sentence, so it cannot fail and
+proves very little; the check worth doing is against the per-category
+tables, and there 2021 and 2019 reconcile and **2020 does not**.
+
+CDC's 2020 page gives the confirmed and probable split three incompatible
+ways. Its narrative says 202 laboratory-confirmed and 24 probable. Its
+Table 1 rows give 159 + 32 + 9 + 3 = 203 confirmed and 23 probable. Its
+Table 1 header reads 227 confirmed and 23 probable, which matches neither.
+The 226 total is stable across all three. The body sections agree with the
+rows. I have not resolved which is right, and I am flagging it rather than
+picking one, because a surveillance summary is exactly the kind of document
+people quote without opening.
 
 The percentages behave differently between years, and it is worth saying so
 rather than waving at rounding. For 2021 and 2020 the four rounded
@@ -774,7 +814,7 @@ ingredients sound like one.
 
 **The 2019 macaroni and cheese, and the clam chowder in 2021**, were never
 canned at all. Both were low-acid foods held at the wrong temperature,
-one from a restaurant and one stored badly at home. They are a reminder
+one from a restaurant and one simply stored wrong; CDC does not say where. They are a reminder
 that the three conditions do not care whether a jar was involved. Canning
 is the activity that most reliably assembles all three on purpose, which is
 why this document is about canning, but "I do not can" is not the same as
@@ -792,7 +832,11 @@ and you should not take from this document that home preserving is
 reckless. It is not.
 
 And the rarity is not reassurance about your method, because the cases that
-do occur are overwhelmingly home-preserved low-acid food. Rare events
+do occur land mostly on home-preserved food. Across those three years, 25
+of the 46 confirmed foodborne cases had a home-preserved vehicle, against
+9 commercial, 2 that were never canned at all, and 10 whose source was
+never identified. Mostly, not overwhelmingly, and the commercial column is
+not empty. Rare events
 concentrated in one specific practice tell you that the practice is the
 risk factor. The correct reading is not "this almost never happens so I can
 relax," it is "this almost never happens, and when it does, it happens to
@@ -835,8 +879,10 @@ both sides of the body equally. So: symmetrical, both sides together,
 starting
 with the face and eyes, descending. A person with double vision and
 drooping eyelids and slurred speech who is not drunk, not feverish and
-still mentally clear is the picture to hold in mind. That combination is
-unusual enough to be worth acting on.
+still mentally clear is the picture to hold in mind. Do not wait for the
+whole set, though: CDC says plainly that people with botulism might not
+have all of these signs at the same time. Any one of them, in a person who
+is not drunk, not feverish and still mentally clear, is enough to act on.
 
 In an infant, the presentation is different and quieter, which is why it
 gets missed. CDC lists "Constipation, Poor feeding, Drooping eyelids,
@@ -875,8 +921,10 @@ see your doctor or go to the emergency room. Do not wait."
 
 Do not phone a friend who cans. Do not wait until morning to see whether it
 settles. Do not let the fact that the person can still walk about reassure
-you: descending paralysis means the limbs and the breathing muscles are
-what goes last, so someone still on their feet can already be well into it.
+you: the paralysis descends from the eyes and face to the throat, then the
+chest, then the limbs. The chest comes BEFORE the limbs, so someone still
+on their feet can already have the muscles of breathing involved. Do not
+read steady breathing or the ability to walk as evidence that this is early.
 Note that speech and swallowing are not a late sign but an early one, which
 is why slurring in a person who has not been drinking belongs on the list
 of things that get a phone call rather than a night's sleep. If you suspect
@@ -956,8 +1004,11 @@ Three rules to carry out of here, which between them prevent almost every
 way this goes wrong:
 
 1. **Know whether the food is above or below pH 4.6**, and if it is above,
-   it needs a pressure canner. All fresh vegetables and all meats are
-   above.
+   it needs a pressure canner. All fresh vegetables EXCEPT MOST TOMATOES
+   are above, and so are all meats, poultry and seafood. Tomatoes are the
+   special case this guide spends a section on: most sit below the line,
+   some do not, which is why the tested recipes make you acidify rather
+   than guess.
 2. **Use a tested process, unaltered**, including the altitude row, the
    jar size, the headspace, and the acid where acid is called for. Do not
    scale, halve, double or substitute.
@@ -999,10 +1050,17 @@ it as restate-only as well, so although it publishes USDA's tested
 procedures, its wording is paraphrased here rather than quoted. The
 underlying USDA guide is public domain and is quoted directly throughout.
 
-Where a federal page prints a degree symbol, it is rendered here as
-"degrees F" to keep the document plain ASCII. No other wording inside a
-quotation has been altered, except that hyphenation introduced by PDF line
-breaks has been closed up and extraction artefacts noted below.
+Quotations here are verbatim with four classes of exception, all
+mechanical and all disclosed rather than silent. A degree symbol is
+rendered "degrees F" to keep the document plain ASCII. A dash inside a
+quotation becomes a comma, because this project bans em and en dashes
+everywhere and a build gate enforces it. Hyphenation introduced by PDF
+line breaks is closed up. And where a source renders a list as bullets,
+it is comma-joined to sit inside a sentence, and where a parenthetical
+reference like a table number is dropped mid-quote it is dropped without
+an ellipsis. None of these changes a meaning, but the earlier version of
+this note claimed no wording had been altered at all, which was not true
+of six quotations.
 
 **USDA, Complete Guide to Home Canning, Guide 1: Principles of Home
 Canning (2015 revision)**
@@ -1055,6 +1113,16 @@ https://nchfp.uga.edu/how/can/general-information/identifying-and-handling-spoil
 Opened and read. It carries the spoilage and disposal material but **not**
 the pre-serving 10-minute boil, which is why that claim is cited to For
 Safety's Sake above.
+
+**FDA, Fish and Fishery Products Hazards and Controls Guidance, June 2022
+Edition, Chapter 13**
+https://www.fda.gov/media/80637/download
+Supplied the minimum growth temperatures: 38 degrees F for type E and the
+non-proteolytic B and F types, 50 degrees F for type A and proteolytic B
+and F. This is the source for the paragraph warning that USDA's 40 degrees
+F is the floor for the canning case rather than a universal one, which is
+why refrigeration is always paired with a second control. Federal work,
+public domain.
 
 **CDC, Botulism Prevention**
 https://www.cdc.gov/botulism/prevention/index.html
