@@ -623,7 +623,7 @@
       "subject": "food_wild",
       "title": "Taking without ruining it",
       "summary": "Harvest sustainably, and know what is protected or illegal to take.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "foraging"
       ],
@@ -631,10 +631,19 @@
         "data/laws/laws.json"
       ],
       "sources": [
-        "state-fish-wildlife"
+        "state-fish-wildlife",
+        "state-lands",
+        "tribal-government",
+        "nps",
+        "usfs",
+        "fws",
+        "noaa"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "taking-without-ruining-it"
+      ]
     },
     {
       "id": "forage_shellfish",
@@ -1902,7 +1911,7 @@
       "subject": "biology",
       "title": "How plants work",
       "summary": "Understand photosynthesis, roots, water and reproduction well enough to grow anything.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming",
         "foraging"
@@ -1911,7 +1920,17 @@
         "data/plants.csv"
       ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "how-plants-work"
+      ],
+      "sources": [
+        "usfs",
+        "usgs",
+        "nc-state-extension",
+        "umn-extension",
+        "state-extension"
+      ]
     },
     {
       "id": "bio_animals",
@@ -2426,7 +2445,7 @@
       "subject": "sanitation",
       "title": "Greywater",
       "summary": "Reuse washing water safely and legally.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "engineering"
       ],
@@ -2434,10 +2453,15 @@
         "data/laws/laws.json"
       ],
       "sources": [
-        "epa"
+        "epa",
+        "state-health-wastewater",
+        "local-health-jurisdiction"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "greywater"
+      ]
     },
     {
       "id": "sanitation_pathogens",

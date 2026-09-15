@@ -24,7 +24,7 @@ authorities answer them, and how to read an entry about a plant or a fish
 without misreading the silences in it.
 
 The worked examples come from `data/locales/silverdale_wa/species.json`,
-which ships with this project: 122 plants, fungi, mammals, birds, fish
+which ships with this project: 125 plants, fungi, mammals, birds, fish
 and shellfish of one real place on Puget Sound, each carrying its legal
 status *here*, its edibility, its toxicity, and what it gets confused
 with. That file is a reference. This document is the teacher. The place
@@ -129,7 +129,7 @@ it frequently ends in "I cannot rule that one out", which is the correct
 and useful answer.
 
 The shipped species file was built around this. Every single one of its
-122 records carries a lookalike list, and the file says why: an empty
+125 records carries a lookalike list, and the file says why: an empty
 lookalike list on something you might eat is the defect that hurts
 people, and it was the most common problem found when the records were
 checked. When each plant and fungus record was put to an adversarial
@@ -383,8 +383,8 @@ carries a naming note, read it, because that is usually where an authority
 disagreement or a retired name is flagged.
 
 **`kind`, `form`, `status`.** `status` is native, introduced, invasive or
-cultivated, and it is a statement about *here*. The Silverdale file is 99
-native, 9 introduced and 14 invasive out of 122. "Invasive" is not a
+cultivated, and it is a statement about *here*. The Silverdale file is 102
+native, 9 introduced and 14 invasive out of 125. "Invasive" is not a
 description of the organism's character; it is a designation some agency
 has made about it in this place.
 
@@ -402,7 +402,7 @@ means no protection was found, which is not the same as "verified
 unprotected".
 
 **`edible` and `edible_detail`.** `edible` is one of three words. In
-Silverdale the split is 11 yes, 62 conditional, 49 no. Note how small the
+Silverdale the split is 11 yes, 62 conditional, 52 no. Note how small the
 unconditional yes column is, and note that the largest column by far is
 conditional. **"Conditional" means the condition is stated, and every
 condition binds.** Manila clam is conditional on three separate
@@ -416,7 +416,7 @@ safe.
 
 **`toxic`. And here is the field people misread.** A `null` or an absent
 toxicity note **is not a safety clearance**. It means no toxicity was
-documented in the sources consulted. Fifty-four of the 122 Silverdale
+documented in the sources consulted. Fifty-seven of the 125 Silverdale
 records have no toxicity content, and the reasons vary enormously. Three
 worked examples of the same blank meaning three different things:
 

@@ -63,6 +63,26 @@
       "name": "Puget Sound Clean Air Agency",
       "url": "https://pscleanair.gov/",
       "note": "Declares burn bans for King, Kitsap, Pierce and Snohomish counties. Check on the day you intend to burn, not once a season."
+    },
+    "state-health-wastewater": {
+      "name": "Washington State Department of Health, Greywater Reuse",
+      "url": "https://doh.wa.gov/community-and-environment/wastewater-management/greywater-reuse",
+      "note": "Chapter 246-274 WAC. Washington counts kitchen sink and dishwasher water as greywater, which California does not, and grades those flows as dark greywater requiring treatment. Mixing one dark source into a light stream makes the whole stream dark."
+    },
+    "local-health-jurisdiction": {
+      "name": "Kitsap Public Health District",
+      "url": "https://kitsappublichealth.org/",
+      "note": "Permits septic systems and wells, and is the body to ask whether the state greywater rule is implemented here. Telephone 360-728-2235."
+    },
+    "state-lands": {
+      "name": "Washington State Department of Natural Resources",
+      "url": "https://www.dnr.wa.gov/",
+      "note": "Separate again from Washington State Parks and from the national forest and national park, all four of which set different harvest limits on the Olympic Peninsula."
+    },
+    "tribal-government": {
+      "name": "The Suquamish Tribe",
+      "url": "https://suquamish.nsn.us/",
+      "note": "Kitsap County lies within treaty-reserved usual and accustomed areas. Fisheries and shellfish here are co-managed, and that is law rather than courtesy."
     }
   },
   "weather_service": {

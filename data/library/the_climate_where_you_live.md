@@ -171,8 +171,12 @@ next year beyond the weak claim that next year will probably be drawn
 from something like the same distribution. NOAA publishes normals as a
 baseline for comparison, so that a given month can be called wetter or
 drier than usual, and as an input to engineering and agricultural
-decisions. It does not publish them as a prediction, and the word
-"normal" is doing a lot of unhelpful work in ordinary English. In a
+decisions. Be careful how far you push that, because NCEI itself writes
+that normals act "as a predictor of conditions in the near future". What
+that means is a baseline expectation, not a forecast of any particular
+year, and this guide is drawing the distinction rather than quoting NOAA
+drawing it. Meanwhile the word "normal" is doing a lot of unhelpful work
+in ordinary English. In a
 climate record it means "the thirty-year average," nothing more. It does
 not mean typical, expected, or deserved.
 
@@ -431,10 +435,10 @@ delivered through the Precipitation Frequency Data Server. I queried the
 server for the Silverdale coordinates, 47.6448 N, 122.6949 W. It
 returned: "Error 3.0: Selected location is not within a project area."
 
-**Washington is not in NOAA Atlas 14.** NOAA's own page for Atlas 2
-states that Atlas 2 currently covers "2 states in the western U.S.
-(Oregon, Washington)" and remains the current official product for
-those two. Every other western state it once covered has moved to Atlas
+**Washington is not in NOAA Atlas 14.** NOAA's own page for Atlas 2 still
+reads "5 states in the western U.S. (Oregon, Washington)", which is a
+stale count it has not updated: it names two and only those two remain
+unsuperseded. Atlas 2 is the current official product for them. Every other western state it once covered has moved to Atlas
 14: Arizona, Nevada, New Mexico and Utah in 2003, California in 2011,
 Colorado in 2013, and Idaho, Montana and Wyoming as recently as 31
 August 2024.
@@ -461,6 +465,15 @@ preliminary contiguous-US estimates in September 2026, published
 estimates in 2027, and coverage outside the contiguous US in 2028. When
 Volume 1 publishes it supersedes Atlas 14, and Washington will finally
 leave 1973 behind.
+
+One correction to that framing, because 1973 is the memorable date rather
+than the whole answer. NOAA's page of current Washington documents lists
+three, by duration. For 6-hour and 24-hour depths it is Atlas 2 Volume 9,
+1973. For 1-hour through 24-hour relations it is Arkell and Richards,
+Short Duration Rainfall Relations for the Western United States, 1986.
+For two days and longer it is Technical Paper 49, 1964. Gutters,
+downpipes and culverts are sub-daily problems, so the document that
+actually governs the advice in this section is the 1986 one.
 
 I have not quoted a specific Atlas 2 depth for Silverdale, because I did
 not open the Atlas 2 grid or lookup for this point and will not
@@ -503,18 +516,40 @@ December 1.
 **This is the single most confusing thing in the whole record, and
 getting it backwards is the error that kills crops.**
 
-NOAA names the field by the probability that frost is **still to come**.
-April 24 is FP10: a 10 percent probability of a freeze on or after that
-date.
+On the SPRING ladder, NOAA names the field by the probability that frost
+is **still to come**. April 24 is FP10: a 10 percent probability of a
+freeze on or after that date.
 
 Our file, and the guide [The Growing Calendar](/library#the-growing-calendar),
 name the same date by the probability that frost is **already finished**.
 April 24 is the "90 percent" date there: in 90 percent of years the last
 frost has happened by then.
 
-Both are correct. They are complements, and they describe the same day.
-If you open NOAA's CSV and see FP10 next to April 24 while our file
-calls it `late_90pct`, neither is wrong and you have not found a bug.
+Both are correct. On the spring ladder they are complements, and they
+describe the same day. If you open NOAA's CSV and see FP10 next to April
+24 while our file calls it `late_90pct`, neither is wrong and you have
+not found a bug.
+
+**Now the part that will catch you, because it caught this guide.** The
+autumn ladder does not behave the same way. There, NOAA's FP10 and our
+`early_10pct` are the SAME label on the SAME date, October 26, and they
+are not complements at all. NOAA's own variable documentation gives its
+worked example on the autumn field, and the example is explicit that
+PRBFST-T32FP10 is the earliest date carrying a 10 percent probability of
+32 degrees or less, which is frost that has ALREADY ARRIVED, not frost
+still to come.
+
+If you carry the spring rule across to the autumn column you will read
+October 26 as "only one year in ten still has a frost coming, so this is
+the safe date" and treat December 1 as the cautious one. It is the other
+way round. October 26 is the date by which one year in ten has already
+frosted, and that is when row cover has to exist, not five weeks later.
+
+The unifying rule, and the only one worth memorising, is that NOAA's
+FPmm is always the probability that a freeze falls on the GROWING-SEASON
+side of the date. In spring that means still to come; in autumn it means
+already arrived. The percentage label flips meaning; the growing season
+does not.
 
 The way to never get confused is to stop using percentages as labels and
 say the sentence out loud instead. Not "the 90th percentile date" but
@@ -598,6 +633,22 @@ USC00450872:
 Read down that column and you can see the summer being eaten away. A
 cool-season crop working from a 40 F base gets 4658 degree days a year
 here. A warm-season crop needing a 60 F base gets 568.
+
+**Those are not the numbers the formula above computes, and the
+difference is large enough to change a decision.** NOAA publishes these
+as `ANN-GRDD-BASE40` through `BASE60`, and they are accumulated WITHOUT
+the 50 and 86 truncation. The truncated version, the one that matches the
+formula quoted above and the one seed catalogues and corn tables use, is
+a separate field: `ANN-GRDD-TB5086`, which for this station is **3374.6**
+against the untruncated 2058.0.
+
+That matters at the moment you actually use it. If you take a crop that
+wants 2,500 degree days on the 50-to-86 formula and compare it against
+2058, you conclude this site cannot ripen it. Compare it against 3374.6,
+the figure computed the same way the crop requirement was, and it can.
+Match the accumulation to the formula the requirement was written in,
+every time, and if a catalogue does not say which it used, that is worth
+an email before it is worth a season.
 
 **That collapse is the real constraint on growing heat-loving crops in
 this climate**, and it is invisible in the frost dates. The frost-free
@@ -710,14 +761,17 @@ readme defines them:
 - **E, Estimated**: 2 or more years, with normals estimated
   statistically from nearby stations
 
-**Every frost-date and growing-degree-day value for Bremerton carries
-the R flag.** Ten years, not twenty-four. The monthly temperature and
+**Every frost-date value for Bremerton carries the R flag, and so do the
+ANNUAL growing-degree-day totals**, which are the ones tabled above. Ten
+years, not twenty-four. The seasonal degree-day fields are better: spring,
+summer and autumn all carry S, and only the winter ones are R. The monthly temperature and
 precipitation normals mostly carry S, with two exceptions: November
 precipitation and December average temperature are R.
 
 Each value also carries a count of the years actually used. For the
 monthly temperature normals at this station that count runs from 23 to
-27, never 30. For precipitation, 23 to 26.
+29, never 30, with February reaching 29 on the daily maxima that the
+headline table above uses. For precipitation, 23 to 26.
 
 This is worth sitting with. **The frost dates that every gardener in
 Kitsap County quotes come from a station that cleared a 10-year bar, not
@@ -879,7 +933,8 @@ For Silverdale, at the end of all that:
 **What is normal?** A mild wet winter and a dry warm summer. Annual mean
 52.3 F. Monthly means from 4.6 C (40.3 F) in December to 19.0 C (66.2 F)
 in August. Annual precipitation 56.93 inches, about 80 percent of it
-between October and March. About 102 days a year with measurable rain.
+between October and March. About 167 days a year with measurable rain,
+of which about 102 reach a tenth of an inch.
 The normals cover 1991-2020 and will be recomputed for 2001-2030.
 
 **How much does it vary?** Temperature varies little: a standard
@@ -892,7 +947,8 @@ season ranges from 197 to 257 days.
 (December 1990). But the number to build to is the design value: minus 6
 C for heating, the temperature it is colder than for about 35 hours a
 year. For rainfall, the official design figures come from a 1973
-publication, and NOAA Atlas 15 will replace them from 2026.
+publication, and NOAA Atlas 15 replaces them from 2027, with preliminary
+estimates in 2026.
 
 **Where do I look it up?** NOAA NCEI for normals, by station ID, raw CSV
 if you want the percentiles and flags. The NWS Seattle/Tacoma office for

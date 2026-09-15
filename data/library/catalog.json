@@ -143,6 +143,14 @@
           ]
         },
         {
+          "title": "How Plants Work",
+          "src": "docs/user/skills/how_plants_work.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
+        },
+        {
           "title": "Your Soil, Specifically",
           "src": "docs/user/skills/your_soil_specifically.md",
           "tags": [
@@ -192,6 +200,14 @@
             "guide",
             "real",
             "food"
+          ]
+        },
+        {
+          "title": "Taking Without Ruining It",
+          "src": "docs/user/skills/taking_without_ruining_it.md",
+          "tags": [
+            "guide",
+            "real"
           ]
         }
       ]
@@ -257,6 +273,15 @@
             "real",
             "water",
             "safety"
+          ]
+        },
+        {
+          "title": "Greywater",
+          "src": "docs/user/skills/greywater.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
           ]
         }
       ]

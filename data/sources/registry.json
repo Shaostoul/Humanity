@@ -744,6 +744,50 @@
       "use": "verbatim",
       "bundle": true,
       "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance."
+    },
+    {
+      "id": "state-health-wastewater",
+      "name": "State health department, wastewater and water reuse programme",
+      "publisher": "varies by locale, see locale.json authorities",
+      "url": "",
+      "kind": "role",
+      "licence": "varies",
+      "use": "facts",
+      "bundle": false,
+      "note": "There is no federal greywater regulation. EPA runs research and a summary service and says plainly that states hold this, so a guide that cites only EPA for greywater has cited nobody with authority over the reader. The existing state-health-biotoxin role is scoped to marine biotoxins and cannot stand in for this."
+    },
+    {
+      "id": "local-health-jurisdiction",
+      "name": "Local health jurisdiction",
+      "publisher": "varies by locale, see locale.json authorities",
+      "url": "",
+      "kind": "role",
+      "licence": "varies",
+      "use": "facts",
+      "bundle": false,
+      "note": "The county or district health department is the body that actually permits a septic system, a well or a greywater system, and it is the one a reader has to telephone. It is also the level at which a state rule may simply not be implemented locally, which is not the same as the activity being prohibited."
+    },
+    {
+      "id": "state-lands",
+      "name": "State natural resources or public lands agency",
+      "publisher": "varies by locale, see locale.json authorities",
+      "url": "",
+      "kind": "role",
+      "licence": "varies",
+      "use": "facts",
+      "bundle": false,
+      "note": "Harvest rules differ per land category and the differences are not small: a national PARK and a national FOREST are different regimes, and state land is a third. Cite the category the reader is standing on."
+    },
+    {
+      "id": "tribal-government",
+      "name": "Tribal government",
+      "publisher": "varies by locale, see locale.json authorities",
+      "url": "",
+      "kind": "role",
+      "licence": "varies",
+      "use": "facts",
+      "bundle": false,
+      "note": "Treaty-reserved rights are law and are co-managed with the state, not a courtesy and not a historical note. Where a guide touches who may take fish, shellfish or game, the tribal government whose usual and accustomed area covers the place is an authority on it. Represent what the nation itself publishes; do not characterise treaty rights from secondary sources."
     }
   ]
 }
