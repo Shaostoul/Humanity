@@ -546,10 +546,38 @@
       }).join(', ') + '</div>';
   }
 
+  /** Where to go next. A document used to end at its last full stop and offer
+      nothing. The categories in Learn are ORDERED ladders, so the next rung is a
+      real answer and not a guess: finish Your First Tomato and the thing to read
+      is Starting Seeds, not whatever happens to share a tag. Mirrors the native
+      footer in src/gui/pages/library.rs. */
+  function nextPrevHtml(ci, di) {
+    var cat = (manifest.categories || [])[ci];
+    var docs = (cat && cat.docs) || [];
+    if (docs.length < 2) return '';
+    var html = '<div class="lib-nextprev">';
+    if (di > 0) {
+      html += '<button class="lib-step" data-step="' + (di - 1) + '">&lsaquo; ' +
+        esc(docs[di - 1].title) + '</button>';
+    }
+    if (di + 1 < docs.length) {
+      html += '<button class="lib-step lib-step-next" data-step="' + (di + 1) + '">Next: ' +
+        esc(docs[di + 1].title) + ' &rsaquo;</button>';
+    } else {
+      html += '<span class="lib-step-end">That is the last one on this shelf.</span>';
+    }
+    return html + '</div>';
+  }
   function paintDoc(el, doc, text, anchor) {
     el.innerHTML = docTagsHtml(doc) + teachesHtml(doc) + tocHtml(text) +
-      '<div class="md-viewer">' + md(text) + '</div>';
+      '<div class="md-viewer">' + md(text) + '</div>' +
+      (current && typeof current === 'object' ? nextPrevHtml(current.ci, current.di) : '');
     bindDocTags(el);
+    el.querySelectorAll('[data-step]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        openDoc(current.ci, parseInt(b.getAttribute('data-step'), 10), true);
+      });
+    });
     el.querySelectorAll('.lib-toc [data-anchor]').forEach(function(a) {
       a.addEventListener('click', function(ev) {
         ev.preventDefault();

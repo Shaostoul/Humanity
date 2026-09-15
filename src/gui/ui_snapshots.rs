@@ -1482,6 +1482,25 @@ page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
 
+/// A SHORT Library document that has siblings, so the ladder footer at the foot of the
+/// page is actually photographed. The plain page snapshot opens whichever
+/// document happens to be first, which today is alone on its shelf, so the
+/// footer never appears there and a regression in it would be invisible.
+/// The document is chosen to have a neighbour on EACH side, so one picture
+/// guards both buttons. Short matters too: on a long document the footer sits far below the captured
+/// viewport, and a snapshot that cannot show the thing it guards is not a guard.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_library_ladder() {
+    render_page_png("library_ladder", 1280, 900, |ctx, theme, state| {
+        assert!(
+            crate::gui::pages::library::show_doc(state, "04-contributing"),
+            "the Library no longer ships 04-contributing; pick another SHORT document with a neighbour on each side"
+        );
+        crate::gui::pages::library::draw(ctx, theme, state);
+    });
+}
+
 /// The Library's third face: the syllabus, which is its map of ITSELF. Worth its
 /// own picture because the page snapshot opens on a document and this view is
 /// otherwise only reachable by clicking, so a regression here would be invisible.

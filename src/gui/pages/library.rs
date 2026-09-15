@@ -70,6 +70,28 @@ struct LibState {
     tag_filter: Option<String>,
 }
 
+/// Open the document with this slug, if the Library has one.
+///
+/// The same resolution a `/library#<slug>` cross-reference performs, exposed so
+/// the snapshot harness can open a document that has siblings. Without it the
+/// page snapshot always opens whatever happens to be first, and a footer that
+/// only appears on a document with siblings would never be photographed, which
+/// is a guard that cannot fail.
+pub fn show_doc(state: &GuiState, slug: &str) -> bool {
+    for (si, sec) in state.library.iter().enumerate() {
+        for (ci, c) in sec.categories.iter().enumerate() {
+            if let Some(di) = c.entries.iter().position(|e| e.slug == slug) {
+                lib_state(|s| {
+                    s.sel = Sel::Doc(si, ci, di);
+                    s.initialized = true;
+                });
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Open the Curriculum view.
 ///
 /// Exists because two callers need to reach it without a click: the
@@ -600,6 +622,63 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         );
                                         if let Some(target) = link {
                                             nav_request = Some(target);
+                                        }
+                                    }
+
+                                    // ── Where to go next ──
+                                    // A document used to end at its last full
+                                    // stop and offer nothing. The categories in
+                                    // Learn are ORDERED ladders, so the next rung
+                                    // is a real answer and not a guess: finish
+                                    // Your First Tomato and the thing to read is
+                                    // Starting Seeds, not whatever shares a tag.
+                                    if let Sel::Doc(si, ci, di) = s.sel.clone() {
+                                        let entries = state
+                                            .library
+                                            .get(si)
+                                            .and_then(|sec| sec.categories.get(ci))
+                                            .map(|c| &c.entries);
+                                        if let Some(entries) = entries {
+                                            if entries.len() > 1 {
+                                                ui.add_space(theme.spacing_md);
+                                                ui.separator();
+                                                let mut go: Option<Sel> = None;
+                                                ui.horizontal_wrapped(|ui| {
+                                                    if di > 0 {
+                                                        let t = &entries[di - 1].title;
+                                                        if crate::gui::widgets::Button::secondary(
+                                                            &format!("\u{2039} {t}"),
+                                                        )
+                                                        .show(ui, theme)
+                                                        {
+                                                            go = Some(Sel::Doc(si, ci, di - 1));
+                                                        }
+                                                    }
+                                                    if di + 1 < entries.len() {
+                                                        let t = &entries[di + 1].title;
+                                                        if crate::gui::widgets::Button::secondary(
+                                                            &format!("Next: {t} \u{203a}"),
+                                                        )
+                                                        .show(ui, theme)
+                                                        {
+                                                            go = Some(Sel::Doc(si, ci, di + 1));
+                                                        }
+                                                    } else {
+                                                        ui.label(
+                                                            RichText::new(
+                                                                "That is the last one on this shelf.",
+                                                            )
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_muted()),
+                                                        );
+                                                    }
+                                                });
+                                                if let Some(next) = go {
+                                                    let prev = s.sel.clone();
+                                                    s.back.push(prev);
+                                                    s.sel = next;
+                                                }
+                                            }
                                         }
                                     }
                                 } else {

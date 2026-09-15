@@ -213,10 +213,10 @@ Point White 16 ft, Liberty Bay 7 ft, Agate Passage 11 ft, Bangor 3 ft.
 The scenario is described by WGS as 'modeled after a simulated large
 magnitude Seattle fault earthquake, similar to that of the 923 CE
 event'. A roughly 5 ft wave at the head of Dyes Inlet about 5 minutes
-after shaking stops, on top of whatever the tide is doing (mean tidal
-range here is about 11.7 ft, so tide stage dominates the outcome). Low
-ground at the Silverdale waterfront, Old Town, and the Clear Creek mouth
-is the exposed area.
+after shaking stops, on top of whatever the tide is doing (the GREAT
+DIURNAL range here, highest high to lowest low, is about 11.7 ft, so
+tide stage dominates the outcome). Low ground at the Silverdale
+waterfront, Old Town, and the Clear Creek mouth is the exposed area.
 
 **Likelihood:** Tied to a large Seattle Fault rupture (see above). The
 Washington Geological Survey's modelled inundation extent for this
@@ -346,8 +346,10 @@ roads and properties around Puget Sound (the Seattle gauge recorded
 Orchard; on 27 Dec 2022 flooding damaged business space in Port Orchard
 and Hood Canal water rose above Seabeck Highway. Saltwater flooding of
 the low Silverdale waterfront and Old Town at extreme high tides, and
-floodway flooding along Clear, Barker and Chico Creeks. Mean tidal range
-at the reference station is about 11.7 ft, so tide stage governs.
+floodway flooding along Clear, Barker and Chico Creeks. The great
+diurnal range at the reference station, highest high to lowest low, is
+about 11.7 ft (the mean range of tide, high to low, is 8.0 ft), so tide
+stage governs.
 
 **Likelihood:** Mapped and regulated. FEMA's National Flood Hazard Layer
 shows a 1-percent-annual-chance (100-year) special flood hazard area

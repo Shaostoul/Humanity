@@ -34,7 +34,7 @@
       "severity": "Modelled at the Silverdale point (47.64518, -122.68845): maximum amplitude 5 ft. Nearby modelled points: Bremerton/Sinclair Inlet 9 ft, Point White 16 ft, Liberty Bay 7 ft, Agate Passage 11 ft, Bangor 3 ft. The scenario is described by WGS as 'modeled after a simulated large magnitude Seattle fault earthquake, similar to that of the 923 CE event'.",
       "warning_time": "5 minutes to the inundating wave at Silverdale (WGS modelled arrival time). Elsewhere on this shoreline it is worse: 'less than 3 min' at Bremerton/Sinclair Inlet, Point White and the Bainbridge ferry terminal. There is no time for an official warning. The earthquake itself is the warning - WA DNR states that for people in Washington, the single biggest warning of a potential tsunami is a large earthquake. This is a self-evacuation-on-shaking hazard, so preparation beats reaction.",
       "return_period": "Governed by Seattle Fault recurrence: thousands of years between large earthquakes; last event 923-924 CE.",
-      "local_effect": "A roughly 5 ft wave at the head of Dyes Inlet about 5 minutes after shaking stops, on top of whatever the tide is doing (mean tidal range here is about 11.7 ft, so tide stage dominates the outcome). Low ground at the Silverdale waterfront, Old Town, and the Clear Creek mouth is the exposed area.",
+      "local_effect": "A roughly 5 ft wave at the head of Dyes Inlet about 5 minutes after shaking stops, on top of whatever the tide is doing (the GREAT DIURNAL range here, highest high to lowest low, is about 11.7 ft, so tide stage dominates the outcome). Low ground at the Silverdale waterfront, Old Town, and the Clear Creek mouth is the exposed area.",
       "source_url": "https://gis.dnr.wa.gov/site3/rest/services/Geology/Tsunami_Hazard/MapServer/25"
     },
     {
@@ -79,7 +79,7 @@
       "severity": "Localised rather than catastrophic - there is no large river here. NOAA logs 18 Flood and 3 Coastal Flood events for these zones since 1996. The coastal cases are tide-driven: on 17 Dec 2012 record high tides flooded roads and properties around Puget Sound (the Seattle gauge recorded 14.48 ft) with flooding of a street and apartment parking lots in Port Orchard; on 27 Dec 2022 flooding damaged business space in Port Orchard and Hood Canal water rose above Seabeck Highway.",
       "warning_time": "Hours to days. Coastal flooding here is the predictable combination of a high astronomical tide, low barometric pressure and onshore wind, so NWS coastal flood advisories are issued in advance; small-stream flooding follows forecast heavy-rain events.",
       "return_period": "1 percent annual chance (100-year) for the mapped AE zones; 0.2 percent annual chance (500-year) for the shaded X zone. Kitsap County FIRM panels covering Silverdale are effective 2010-11-04 and 2017-02-03, DFIRM 53035C, scale 1:6000.",
-      "local_effect": "Saltwater flooding of the low Silverdale waterfront and Old Town at extreme high tides, and floodway flooding along Clear, Barker and Chico Creeks. Mean tidal range at the reference station is about 11.7 ft, so tide stage governs.",
+      "local_effect": "Saltwater flooding of the low Silverdale waterfront and Old Town at extreme high tides, and floodway flooding along Clear, Barker and Chico Creeks. The great diurnal range at the reference station, highest high to lowest low, is about 11.7 ft (the mean range of tide, high to low, is 8.0 ft), so tide stage governs.",
       "source_url": "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28"
     },
     {
