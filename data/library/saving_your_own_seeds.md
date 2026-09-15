@@ -185,9 +185,9 @@ your hands away from your eyes.
 Wet seed rots or molds in the jar. This is the most common way a
 carefully saved harvest is lost after all the real work is finished.
 
-Colorado State University Extension is clearest on the target: "the drier
-the seeds, the longer they will store," and seed should be dried "to less
-than 8 percent moisture." Their method for finishing a batch is to dry
+Colorado State University Extension is clearest on the target: the drier
+the seed, the longer it keeps, and the figure they give to dry to is under
+8 percent moisture. Their method for finishing a batch is to dry
 seed at 100 degrees F for six hours. Do not use a microwave, and if you
 use an oven, keep it at its lowest setting with the door propped open so
 it never exceeds 100 F.

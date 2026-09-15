@@ -843,6 +843,61 @@
       "use": "facts",
       "bundle": false,
       "note": "The source of the Dietary Reference Intakes, so every RDA, AI, UL and EAR in this Library ultimately comes from here even when it is read off an NIH fact sheet, and NIH says so on those sheets. NOT a federal work: the National Academies are a private non-profit chartered by Congress, and their reports are copyrighted, so restate. Many reports are readable free at nap.nationalacademies.org. Cite the report and its year, because the DRI panels revise."
+    },
+    {
+      "id": "uga-extension",
+      "name": "University of Georgia Extension",
+      "publisher": "University of Georgia",
+      "url": "https://extension.uga.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Strong on pruning, propagation and southern horticulture. Scope-check anything seasonal: Georgia is not the Pacific Northwest. A state university, so NOT public domain: restate the fact, never the wording."
+    },
+    {
+      "id": "utah-state-extension",
+      "name": "Utah State University Extension",
+      "publisher": "Utah State University",
+      "url": "https://extension.usu.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Good on seedling culture and arid-climate growing. The arid part is the scope word to watch when reading it here. A state university, so NOT public domain: restate the fact, never the wording."
+    },
+    {
+      "id": "illinois-extension",
+      "name": "University of Illinois Extension",
+      "publisher": "University of Illinois",
+      "url": "https://extension.illinois.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Strong on field crops and vegetable culture. A state university, so NOT public domain: restate the fact, never the wording."
+    },
+    {
+      "id": "colorado-state-extension",
+      "name": "Colorado State University Extension",
+      "publisher": "Colorado State University",
+      "url": "https://extension.colostate.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "Strong on food preservation, and the source of blanching material already cited in this Library. Altitude is the scope word: Colorado guidance often assumes it. A state university, so NOT public domain: restate the fact, never the wording."
+    },
+    {
+      "id": "missouri-extension",
+      "name": "University of Missouri Extension",
+      "publisher": "University of Missouri",
+      "url": "https://extension.missouri.edu/",
+      "kind": "authority",
+      "licence": "copyright-university",
+      "use": "facts",
+      "bundle": false,
+      "note": "General horticulture and food preservation. A state university, so NOT public domain: restate the fact, never the wording."
     }
   ]
 }

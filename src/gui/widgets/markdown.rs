@@ -172,6 +172,36 @@ pub fn render_markdown_defining(
     render_markdown_impl(ui, theme, md, true, &mut c, &mut None, None);
 }
 
+/// Remove every `<!-- ... -->` span, including ones spanning several lines.
+///
+/// Comments carry machine-readable markers that are for a gate and not for a
+/// reader: `quote-ok` marks a quotation that is legitimate despite its source
+/// being restate-only. Nothing stripped them, so the marker rendered as
+/// literal text in the shipped Library.
+pub fn strip_html_comments(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(start) = rest.find("<!--") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find("-->") {
+            // Skip the comment. Trailing newline goes too, so a comment on its
+            // own line does not leave a blank line splitting the paragraph.
+            Some(end) => {
+                rest = &rest[start + end + 3..];
+                if let Some(r) = rest.strip_prefix("\r\n") {
+                    rest = r;
+                } else if let Some(r) = rest.strip_prefix('\n') {
+                    rest = r;
+                }
+            }
+            // Unterminated: drop the remainder rather than printing markup.
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// A GFM table separator row (`|---|:--:|`): pipes, dashes, colons and space
 /// only, with at least one dash AND one pipe. The pipe requirement is what
 /// keeps a bare `---` horizontal rule from being read as a separator.
@@ -200,6 +230,14 @@ fn render_markdown_impl(
     link: &mut Option<&mut Option<String>>,
     scroll_to: Option<&str>,
 ) {
+    // An HTML comment is not content and must never reach the reader. Library
+    // documents carry machine-readable markers in comments (the `quote-ok`
+    // licensing marker, for one), and with nothing stripping them a reader
+    // opening the guide saw the literal marker line sitting in the Sources
+    // section. The web reader strips the same way, in web/shared/markdown.js.
+    let stripped = strip_html_comments(md);
+    let md: &str = &stripped;
+
     // Collected so tables can look ahead one line for their separator row.
     let lines: Vec<&str> = md.lines().collect();
 
@@ -771,5 +809,32 @@ mod tests {
         // Native's own behaviour, stated so a future reader does not assume it
         // shares web's failure mode: a marker with no partner is simply gone.
         assert_eq!(strip_md(wrapped[0]), "Use it carefully. Rule of thumb, not a sourced");
+    }
+
+    /// An HTML comment never reaches the reader.
+    ///
+    /// Library documents carry machine-readable markers in comments, and until
+    /// 2026-09-15 nothing stripped them, so a reader opening the canning guide
+    /// saw a literal `<!-- quote-ok: ... -->` line sitting in its Sources
+    /// section. The web reader strips the same way in web/shared/markdown.js;
+    /// this is the native half, because gating one mirror is gating neither.
+    #[test]
+    fn an_html_comment_never_reaches_the_reader() {
+        assert_eq!(
+            strip_html_comments("before\n<!-- quote-ok: a reason -->\nafter\n"),
+            "before\nafter\n",
+            "a comment on its own line goes, and takes its newline with it"
+        );
+        assert_eq!(strip_html_comments("a <!-- mid --> b"), "a  b");
+        // Spanning several lines, which is how a long marker gets wrapped.
+        assert_eq!(strip_html_comments("x\n<!-- one\ntwo -->\ny\n"), "x\ny\n");
+        // Unterminated: drop the rest rather than print raw markup at a reader.
+        assert_eq!(strip_html_comments("keep <!-- never closed"), "keep ");
+        // Ordinary prose is untouched, including text that merely looks close.
+        assert_eq!(strip_html_comments("a < b and c > d"), "a < b and c > d");
+        // And the real marker, with the quotation it guards left intact.
+        let doc = "notice:\n<!-- quote-ok: reproducing the copyright notice -->\n\"(c) 1997\"\n";
+        assert!(!strip_html_comments(doc).contains("quote-ok"));
+        assert!(strip_html_comments(doc).contains("(c) 1997"));
     }
 }

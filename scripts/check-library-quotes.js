@@ -73,9 +73,9 @@ const ALIASES = {
     'washington doh', 'state department of health'],
   nchfp: ['nchfp', 'national center for home food preservation'],
   'penn-state-extension': ['penn state extension', 'penn state'],
-  'iowa-state-extension': ['iowa state extension', 'iowa state university extension'],
-  'nc-state-extension': ['nc state extension', 'north carolina state extension'],
-  'umn-extension': ['university of minnesota extension', 'umn extension'],
+  'iowa-state-extension': ['iowa state extension', 'iowa state university extension', 'iowa state'],
+  'nc-state-extension': ['nc state extension', 'north carolina state extension', 'nc state'],
+  'umn-extension': ['university of minnesota extension', 'umn extension', 'university of minnesota'],
   'umaine-extension': ['university of maine extension', 'umaine extension'],
   wdfw: ['wdfw', 'washington department of fish and wildlife'],
   ashrae: ['ashrae'],
@@ -105,8 +105,17 @@ for (const f of fs.readdirSync(DIR).filter(f => f.endsWith('.md'))) {
   const text = fs.readFileSync(path.join(DIR, f), 'utf8');
   docs++;
 
+  // Normalise line endings before anything else. The paragraph split below
+  // looks for a blank line as LF-only, so it does not match a CRLF blank line,
+  // and on a Windows checkout with autocrlf the whole document collapses into
+  // one paragraph and the pairing desynchronises exactly as it did before the
+  // paragraph fix. Found by running this over a git checkout-index scratch
+  // tree, which applies the conversion: it reported 7 phantom problems on
+  // content that is clean with LF.
+  const normalised = text.replace(/\r\n/g, '\n');
+
   // Blank out fenced code so an example does not read as a quotation.
-  let scan = text.replace(/```[\s\S]*?```/g, m => ' '.repeat(m.length));
+  let scan = normalised.replace(/```[\s\S]*?```/g, m => ' '.repeat(m.length));
 
   // Quote pairing is POSITIONAL, so a single unbalanced quotation mark
   // anywhere desynchronises every pairing after it and the rest of the file

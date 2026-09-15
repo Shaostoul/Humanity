@@ -460,6 +460,7 @@ preflight:
     node scripts/check-library-render.js
     node scripts/check-library-counts.js
     node scripts/check-schema-paths.js
+    node scripts/check-library-quotes.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -506,6 +507,15 @@ check-library-counts:
 # the code used to live is correct history, not rot).
 check-schema-paths:
     node scripts/check-schema-paths.js --docs
+# Refuse a verbatim quotation from a source the registry marks use: facts. The
+# operator rule is that only public domain ships in the bundle, and the registry
+# says per source which half it is in. Three guides broke this in one day and a
+# fourth had 24 such quotations, none of them carelessly: the licence question is
+# invisible at the moment of writing unless you go and look. Put
+# <!-- quote-ok: reason --> on the line before a quotation that is genuinely
+# legitimate, such as reproducing a copyright notice in order to attribute it.
+check-library-quotes:
+    node scripts/check-library-quotes.js --verbose
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among

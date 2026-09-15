@@ -19,6 +19,7 @@ homes (and multifamily buildings of four or fewer units) only two
 barrels holding 110 gallons combined, with sealable lids, used outdoors
 on the same property (see the Colorado State University Extension page
 in Sources). Other countries have their own rules. Before
+<!-- quote-ok: search terms the reader is told to type, not a quotation from a source -->
 you buy anything, search your state or local government website for
 "rain barrel" or "rainwater harvesting," or ask your local university
 extension office. This takes ten minutes and can save you a fine.

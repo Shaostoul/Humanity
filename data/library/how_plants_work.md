@@ -82,8 +82,8 @@ as starch. Every potato, every carrot, every grain of wheat and every
 drop of maple sap is that sugar, parked.
 
 Leaves are where most of it happens. Any green tissue can photosynthesise,
-but NC State notes that "leaves are generally the site of most food
-production", because their internal tissue, the mesophyll, is packed
+but NC State notes that the leaves are generally where most of the food
+gets made, because their internal tissue, the mesophyll, is packed
 with the chloroplasts that hold the green pigment, chlorophyll, that
 actually catches the light.
 
@@ -101,14 +101,15 @@ Two things about respiration matter more than anything else in this
 guide.
 
 **It happens in every cell, and it does not stop at night.**
-NC State: "Respiration occurs in all life forms and in all cells."
+NC State makes the scope explicit: respiration happens in every life form
+and in every cell.
 Photosynthesis needs light. Respiration does not. A plant in the dark
 is still burning sugar, all night, every night, the way you burn
 calories while asleep.
 
-**It does not stop at harvest either.** NC State: "Respiration
-continues in flowers, fruits, and vegetables even after they are
-harvested", which is exactly why refrigeration extends the shelf life
+**It does not stop at harvest either.** NC State records that flowers,
+fruits and vegetables go on respiring after they are picked, which is
+exactly why refrigeration extends the shelf life
 of produce. The lettuce in your fridge is still alive and still
 spending. You are not preserving it, you are slowing its metabolism
 down. That is the mechanism under everything in
@@ -258,8 +259,9 @@ raincoat, and they exist because the factory needs an air intake.
 
 So the plant has one lever, and it is a bad lever. Open the stomata
 and photosynthesise and lose water. Close them and keep the water and
-stop photosynthesising. NC State: "The stomata generally close during
-drought or high temperature stress, thus reducing further water loss."
+stop photosynthesising. NC State describes which way the plant jumps:
+under drought or high-temperature stress the stomata generally close,
+which cuts the water loss further.
 
 Everything in this part follows from that single trade-off.
 

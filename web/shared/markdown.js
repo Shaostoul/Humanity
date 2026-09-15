@@ -142,6 +142,14 @@
   }
 
   function render(md) {
+    // An HTML comment is not content and must never reach the reader. Library
+    // documents carry machine-readable markers in comments (the `quote-ok`
+    // licensing marker, for one), and with nothing stripping them a reader
+    // opening the guide saw the literal marker line sitting in the Sources
+    // section. Stripped here rather than in the build, so it holds for every
+    // document from every source.
+    md = String(md).replace(/<!--[\s\S]*?-->/g, '');
+
     // Per-render duplicate-anchor counter, so the Nth repeat of a heading
     // name gets the same id here that headings() gives it in the outline.
     const seenSlugs = {};
