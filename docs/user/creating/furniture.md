@@ -48,13 +48,21 @@ One path to leave alone for now: `data/entities/decorations.ron` exists, but it 
 
 The game reads `items.csv` once, when it starts up. (For the curious: the loading code lives in `src/engine/registries.rs`, in a function called `load_data_registries`, which hands the file to the item registry in `src/systems/inventory`. It prefers the file on disk; a backup copy baked into the program via `src/embedded_data.rs` is only used if the disk file is missing.)
 
-The game also watches the `data` folder while it runs. The file `schemas/item.toml` marks `items.csv` as hot-reloadable, which means the watcher (`src/assets/watcher.rs`) notices when you save the file and refreshes the game's copy without a restart.
+The game watches the `data` folder while it runs, but items are NOT among the
+files it rebuilds live. The watcher drops its cached copy of the file, and the
+handful of things that genuinely regenerate on save are planet definitions,
+plant visuals, hull profiles and `game.csv`. The item registry itself is built
+once at startup and again on every world entry.
+
+(`schemas/item.toml` says "Hot-reloadable: Yes". Nothing reads that flag; treat
+it as a wish rather than a description.)
 
 So, in practice:
 
 1. Save your change to `items.csv`.
-2. If the game is running, your item usually appears within moments.
-3. If it does not, close the game and start it again. A fresh start always picks up the file.
+2. Leave the world and re-enter it. That rebuilds the registry and is usually
+   faster than restarting.
+3. Or close the game and start it again. A fresh start always picks up the file.
 
 Changes to `data/ships/room_equipment.ron` affect what spawns when a room is set up, so to see furniture appear in rooms, restart and load into the ship.
 

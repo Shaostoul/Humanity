@@ -25,7 +25,7 @@ We will add a new sound by copying an existing entry and changing it. Copying so
    ```toml
    [sfx.footstep_grass]
    path = "audio/sfx/footstep_grass.ogg"
-   volume = 0.4
+   volume = 0.25
    loop = false
    spatial = true
    falloff_min = 1.0
@@ -43,7 +43,7 @@ We will add a new sound by copying an existing entry and changing it. Copying so
 
 ## Seeing it in the game
 
-The game reads the sound catalog **once, when it starts**. In technical terms: `src/lib.rs` (line 1563) calls `SoundCatalog::load("data")` at engine startup, which parses `data/sounds.toml` into a lookup table of dotted IDs (the code for this lives in `src/audio/sounds.rs`).
+The game reads the sound catalog **once, when it starts**. In technical terms: `src/lib.rs` calls `SoundCatalog::load("data")` (search for the symbol; line numbers drift) at engine startup, which parses `data/sounds.toml` into a lookup table of dotted IDs (the code for this lives in `src/audio/sounds.rs`).
 
 So after you add or change an entry, **fully close and restart the game** to hear the change. The comment at the top of `data/sounds.toml` says "Hot-reloadable via FileWatcher", meaning changes would apply while the game runs. That is aspirational: nothing in the code reloads the catalog yet, so a restart is required.
 

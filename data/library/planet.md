@@ -103,16 +103,20 @@ Two situations, two different rules:
 - **You edited an existing planet** (like Mars or the Moon). Just
   restart the game. The `.ron` files are plain data, read at startup.
 - **You added a brand new body.** It also needs an entry in the catalog,
-  `data/star_systems/sol.json`, and that catalog is baked into the game
-  program when the program is built (the code in `src/embedded_data.rs`
-  embeds it at compile time, and `src/cosmos.rs` reads that embedded
-  copy). So a new catalog entry only appears after rebuilding the game
-  with `cargo build`. Editing the json file alone is not enough. (You
-  may see an older path, `solar_system/bodies.json`, mentioned in places;
-  that name is kept only as an alias for the same catalog.)
+  `data/star_systems/sol.json`, next to the program. No rebuild is
+  needed: since v0.1121 the game reads that file from disk first and only
+  falls back to its built-in copy when the file is missing or unreadable.
+  Edit it, restart the game, and the body is there.
 
-If you are not set up to rebuild the game, no problem: editing the
-existing worlds is the fun part anyway, and everything above works
+  One caveat, and it is the only one: the file carries a
+  `catalog_version` number, and the built-in copy wins if the one on disk
+  is OLDER. So when you hand-edit, leave the version number as you found
+  it (or raise it). Lowering or deleting it makes your edits vanish with
+  no error. (You may see an older path, `solar_system/bodies.json`,
+  mentioned in places; that name is kept only as an alias for the same
+  catalog.)
+
+Everything above works
 without rebuilding.
 
 ## If something goes wrong

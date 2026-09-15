@@ -83,9 +83,11 @@ try, because you cannot break the existing quests.
    and an `objective` (what the game actually checks). An objective is one of
    these kinds: `Gather` (pick up items), `Craft` (make something from a
    recipe), `Harvest` (harvest a grown plant), or `Build` (place a structure).
-   Two kinds exist but do not work yet: `Travel` and `Talk`. Avoid `Travel`
-   for now, it never completes (there is a note about this at the top of
-   `exploration.ron`).
+   `Travel` also works, as of v0.979: the quest system fires when the player
+   walks into a destination's radius. Valid destination ids live in
+   `data/entities/destinations.ron`. The one gotcha is ordering: accept the
+   quest BEFORE walking there, and note that leaving and re-entering the
+   radius fires it again. Only `Talk` still has no emitter, so avoid that one.
 8. Change the reward. `("flashlight_0", 1)` means "give 1 flashlight." The
    first part is an item id, the second is how many. Item ids must match real
    items listed in `data/items.csv`, and recipe ids (for `Craft` steps) must

@@ -6,6 +6,14 @@ A beginner's guide to adding a spaceship to HumanityOS. No experience needed. If
 
 A spaceship is the place your character lives and works in the game. It has decks (floors), rooms, and doors, just like a building. The game reads the whole ship from a small text file, so you can change the ship by editing that file.
 
+**What editing this file actually changes, and what it does not.** It drives the
+server's model of the world: the rooms and doors that `game_perceive` and
+`game_welcome` report, which is what AI agents and the shared-world protocol
+read. It does NOT change anything you can walk around in: the geometry side of
+this file has no renderer behind it today. If what you want is to change the 3D
+interior you can see, that is the in-game construction editor and
+`data/blueprints/ship_structure.ron`, not this file.
+
 ## What you need
 
 1. **A text editor.** This is a program for writing plain text. Windows comes with one called Notepad. Free editors like Notepad++ or VS Code also work. Do not use Microsoft Word (it adds hidden formatting that breaks the file).
@@ -66,7 +74,10 @@ Here is what happens under the hood, in plain words:
 - If the file is missing or has a typo the game cannot understand, the game does **not** crash. It writes a warning to its log and starts the world with no ship layout.
 - The ship's rooms and name are deliberately **never saved** into the world's save data. Every time the world boots, the ship is rebuilt fresh from the file. That means your edits always take effect on the next start, and you can never "corrupt a save" by editing the ship file.
 
-So the routine is simple: save your edit, close the game, start it again, and look around.
+So the routine is simple: save your edit, close the game, start it again, and
+check the result in the perception output rather than by looking around. Since
+the rooms drive the server's world model, the honest way to confirm a change is
+to read what the world reports, not what the screen draws.
 
 ## If something goes wrong
 

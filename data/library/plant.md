@@ -41,7 +41,7 @@ each line is a row, each comma starts a new column.
    even if it wraps on your screen here):
 
    ```
-   tomato,Tomato,Fresh red tomatoes - heavy feeder requiring consistent moisture,fruit,70,1.5,0.15,0.05,0.20,6.0,6.8,18,30,0.50,0.80,2,8,seed:sprout:vegetative:flower:fruit:ripe,spring:summer,5,15,1,store:trade,basil:carrot:parsley,fennel:brassica,vegetable_tomato_0
+   tomato,Tomato,Fresh red tomatoes - heavy feeder requiring consistent moisture,fruit,70,1.5,0.15,0.05,0.20,6.0,6.8,18,30,0.50,0.80,2,8,seed:sprout:vegetative:flower:fruit:ripe,spring:summer,5,15,1,store:trade,basil:carrot:parsley,fennel,vegetable_tomato_0
    ```
 
 4. **Copy that line and paste it at the very bottom of the file**, on a new
