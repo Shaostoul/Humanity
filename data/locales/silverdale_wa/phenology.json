@@ -1,0 +1,1378 @@
+{
+  "_comment": "The year at Silverdale, Washington as a calendar of events: frost, bloom, leaf out, fruit, salmon runs, tides, migration and the hazards that have a season. Shape: schemas/locale.toml, which describes this file as \"the year as a calendar of events\". Companion to climate.json (which says what the weather normally does) and species.json (which says what lives here); this file says WHEN. The months array is derived from the events array, so an event appears in a month if and only if it says it does. Every species value is an id from species.json and was checked against it.",
+  "_how_to_read_confidence": "measured = computed here from raw observations or predictions, or taken from a NOAA normal computed from observations. published_range = a named source states this range, though usually for a region larger than Silverdale. local_consensus = the existing species record and regional sources agree, but no single publication gives the date. estimated = a regional generalisation applied here with no local source, and the event says so. Nothing in this file dresses an estimate as a measurement. Where the honest answer is that the timing varies too much to pin down, the event says that instead of giving a date.",
+  "_what_is_deliberately_absent": "Three things a reader might expect and will not find. First, no month-by-month biotoxin season: closures have no season and the calendar must not imply the tide answers that question. Second, no mushroom dates: fruiting here is triggered by rain, not by the calendar, so a date would be a fabrication. Third, no fixed shellfish beach seasons: those are set beach by beach and annually, and reprinting last year's would be worse than silence.",
+  "licence": "Public domain, and safe to ship in the release bundle. Nearly every timing value here comes from a US federal source (17 U.S.C. 105): NOAA NCEI climate normals, NOAA CO-OPS tide predictions, NOAA Fisheries species pages, the USDA Forest Service Fire Effects Information System and Woody Plant Seed Manual, and the National Park Service. Washington state bodies (WDFW, the Department of Health) and university extension (WSU) publish copyrighted pages; those are cited as authorities and every sentence drawn from them was rewritten here rather than quoted at length, so no copyrighted expression travels with the bundle. DELIBERATELY EXCLUDED: the USA National Phenology Network, which the brief suggested as a source. Its data is openly available but under a Creative Commons Attribution 4.0 International licence, not public domain, so using it would attach a licence condition to every copy of the release. It was checked at usanpn.org/about/terms and then not used. Nothing here was taken from Wikipedia, iNaturalist, GBIF or OpenStreetMap, whose share-alike terms would travel with every copy.",
+  "months": [
+    {
+      "month": "January",
+      "daylight_hours": 8.9,
+      "notes": "The coldest and one of the wettest months: 236 mm of rain, a mean high of 8.1 C and only 8.9 hours of daylight. Nothing grows. The deep minus tides of the month all fall near midnight. This is maple sap season on a hard clear snap, and hazel catkins are already out on bare branches while eagles are settling onto nests.",
+      "events": [
+        "wet_season",
+        "winter_minus_tides_at_night",
+        "king_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "steelhead_run",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "hazel_catkins",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "poison_oak_leafless",
+        "conifer_seed_fall",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "eagle_nesting",
+        "maple_sap_run"
+      ]
+    },
+    {
+      "month": "February",
+      "daylight_hours": 10.3,
+      "notes": "The turn, and it happens earlier here than newcomers expect. Rain drops sharply to 148 mm and daylight gains an hour and a half over January. Indian plum leafs out and flowers before anything else, skunk cabbage lights up the wet ground, herons start gathering at their colonies, and herring are spawning in the inlet.",
+      "events": [
+        "wet_season",
+        "winter_minus_tides_at_night",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "steelhead_run",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "indian_plum_leaf_out",
+        "indian_plum_bloom",
+        "skunk_cabbage_bloom",
+        "hazel_catkins",
+        "alder_catkins",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "poison_oak_leafless",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "heron_colony",
+        "eagle_nesting",
+        "maple_sap_run"
+      ]
+    },
+    {
+      "month": "March",
+      "daylight_hours": 11.9,
+      "notes": "Genuinely spring, with 11.9 hours of daylight by mid month. The average last frost is 29 March, which means half of all years frost later than that. Red alder flowers and sheds the season's dominant pollen, nettle shoots reach cutting size, and salmonberry begins to bloom.",
+      "events": [
+        "last_spring_frost",
+        "wet_season",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "steelhead_run",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "indian_plum_leaf_out",
+        "indian_plum_bloom",
+        "skunk_cabbage_bloom",
+        "hazel_catkins",
+        "salmonberry_bloom",
+        "red_flowering_currant_bloom",
+        "alder_catkins",
+        "nettle_shoots",
+        "death_camas_bloom",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "poison_oak_leafless",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "heron_colony",
+        "eagle_nesting",
+        "pileated_breeding"
+      ]
+    },
+    {
+      "month": "April",
+      "daylight_hours": 13.7,
+      "notes": "The month the canopy closes: alder buds burst on 3 April and the trees are fully leafed by early May. Rain falls away to 98 mm. Ospreys return. Past 24 April only one year in ten still delivers a frost, so this is when tender crops can go out. The first daylight minus tides of the year appear late in the month.",
+      "events": [
+        "last_spring_frost",
+        "growing_season",
+        "daylight_minus_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "steelhead_run",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "indian_plum_bloom",
+        "skunk_cabbage_bloom",
+        "salmonberry_bloom",
+        "red_flowering_currant_bloom",
+        "alder_catkins",
+        "alder_leaf_out",
+        "bigleaf_maple_bloom",
+        "nettle_shoots",
+        "bracken_fiddleheads",
+        "knotweed_shoots",
+        "cattail_shoots",
+        "death_camas_bloom",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "osprey_arrival",
+        "heron_colony",
+        "eagle_nesting",
+        "pileated_breeding",
+        "band_tailed_pigeon_season",
+        "orca_presence"
+      ]
+    },
+    {
+      "month": "May",
+      "daylight_hours": 15.2,
+      "notes": "Dry and long: 60 mm of rain and 15.2 hours of daylight. Camas blooms, which is the only few weeks of the year when it can be told from death camas, so anyone intending to harvest bulbs marks them now. Deep midday minus tides arrive properly.",
+      "events": [
+        "last_spring_frost",
+        "growing_season",
+        "daylight_minus_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "salmonberry_bloom",
+        "red_flowering_currant_bloom",
+        "alder_leaf_out",
+        "bigleaf_maple_bloom",
+        "nettle_shoots",
+        "bracken_fiddleheads",
+        "knotweed_shoots",
+        "cattail_shoots",
+        "camas_bloom_id_window",
+        "death_camas_bloom",
+        "water_hemlock_year_round",
+        "indian_plum_fruit",
+        "osprey_arrival",
+        "heron_colony",
+        "eagle_nesting",
+        "pileated_breeding",
+        "band_tailed_pigeon_season",
+        "orca_presence",
+        "invasive_control_window"
+      ]
+    },
+    {
+      "month": "June",
+      "daylight_hours": 16,
+      "notes": "The longest days, 16 hours, and only 41 mm of rain. The lowest tides of the entire year fall around midday near the solstice, which is the best shellfish digging of the year. Salmonberry ripens first, then thimbleberry and trailing blackberry begin.",
+      "events": [
+        "growing_season",
+        "summer_drought",
+        "daylight_minus_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "herring_spawn",
+        "surf_smelt_spawn",
+        "salmonberry_bloom",
+        "cattail_shoots",
+        "camas_bloom_id_window",
+        "death_camas_bloom",
+        "water_hemlock_year_round",
+        "salmonberry_fruit",
+        "indian_plum_fruit",
+        "trailing_blackberry_fruit",
+        "red_elderberry_fruit",
+        "heron_colony",
+        "eagle_nesting",
+        "pileated_breeding",
+        "band_tailed_pigeon_season",
+        "seal_pupping",
+        "orca_presence",
+        "invasive_control_window"
+      ]
+    },
+    {
+      "month": "July",
+      "daylight_hours": 15.6,
+      "notes": "The driest month of the year at 21 mm, against a mean high of 24.7 C. Irrigation is not optional. Berries run hard: trailing blackberry, red huckleberry, red elderberry, Oregon grape. Chinook are in the marine areas. Fire risk begins to matter in a landscape nobody thinks of as flammable.",
+      "events": [
+        "growing_season",
+        "summer_drought",
+        "daylight_minus_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "chinook_run",
+        "salmon_viewing_season",
+        "surf_smelt_spawn",
+        "camas_bloom_id_window",
+        "water_hemlock_year_round",
+        "salmonberry_fruit",
+        "indian_plum_fruit",
+        "thimbleberry_fruit",
+        "trailing_blackberry_fruit",
+        "red_huckleberry_fruit",
+        "red_elderberry_fruit",
+        "oregon_grape_fruit",
+        "bitter_cherry_fruit",
+        "eagle_nesting",
+        "pileated_breeding",
+        "band_tailed_pigeon_season",
+        "seal_pupping",
+        "orca_presence",
+        "invasive_control_window"
+      ]
+    },
+    {
+      "month": "August",
+      "daylight_hours": 14.3,
+      "notes": "Warmest month at 25.2 C mean high and still nearly dry at 28 mm. Himalayan blackberry ripens in quantity, huckleberries and salal come on, hazelnuts fill. The last daylight minus tides of the year fall in the first half of the month. In odd years the pink salmon arrive. Bears start feeding hard.",
+      "events": [
+        "growing_season",
+        "summer_drought",
+        "daylight_minus_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "chinook_run",
+        "pink_run",
+        "salmon_viewing_season",
+        "surf_smelt_spawn",
+        "water_hemlock_year_round",
+        "thimbleberry_fruit",
+        "trailing_blackberry_fruit",
+        "himalayan_blackberry_fruit",
+        "red_huckleberry_fruit",
+        "evergreen_huckleberry_fruit",
+        "salal_fruit",
+        "red_elderberry_fruit",
+        "blue_elderberry_fruit",
+        "oregon_grape_fruit",
+        "bitter_cherry_fruit",
+        "hazelnut_harvest",
+        "osprey_departure",
+        "band_tailed_pigeon_season",
+        "bear_hyperphagia",
+        "seal_pupping",
+        "orca_presence"
+      ]
+    },
+    {
+      "month": "September",
+      "daylight_hours": 12.6,
+      "notes": "The hinge of the year. Rain returns to 46 mm and daylight drops below 13 hours. Coho stage off the creek mouths waiting for rain, acorns and hazelnuts fall, evergreen huckleberry and blue elderberry ripen, and the first real soaking rain starts the mushroom season whenever it happens to come.",
+      "events": [
+        "growing_season",
+        "summer_drought",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "coho_run",
+        "chinook_run",
+        "pink_run",
+        "salmon_viewing_season",
+        "surf_smelt_spawn",
+        "water_hemlock_year_round",
+        "autumn_mushroom_hazard",
+        "himalayan_blackberry_fruit",
+        "red_huckleberry_fruit",
+        "evergreen_huckleberry_fruit",
+        "salal_fruit",
+        "red_elderberry_fruit",
+        "blue_elderberry_fruit",
+        "oregon_grape_fruit",
+        "bitter_cherry_fruit",
+        "hazelnut_harvest",
+        "acorn_fall",
+        "autumn_mushroom_flush",
+        "osprey_departure",
+        "band_tailed_pigeon_season",
+        "bear_hyperphagia",
+        "seal_pupping",
+        "orca_presence"
+      ]
+    },
+    {
+      "month": "October",
+      "daylight_hours": 10.9,
+      "notes": "The wet season arrives properly at 131 mm. Mushrooms peak between the first rains and the first hard frost. Alder drops the majority of its leaves this month. Wintering waterfowl fill the inlet, chum begin entering the creeks, and from 26 October a frost is possible in one year out of ten.",
+      "events": [
+        "first_autumn_frost",
+        "growing_season",
+        "wet_season",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "chum_run",
+        "coho_run",
+        "pink_run",
+        "salmon_viewing_season",
+        "surf_smelt_spawn",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "autumn_mushroom_hazard",
+        "evergreen_huckleberry_fruit",
+        "salal_fruit",
+        "blue_elderberry_fruit",
+        "madrone_fruit",
+        "hazelnut_harvest",
+        "acorn_fall",
+        "conifer_seed_fall",
+        "autumn_mushroom_flush",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "bear_hyperphagia",
+        "orca_presence"
+      ]
+    },
+    {
+      "month": "November",
+      "daylight_hours": 9.3,
+      "notes": "The month of the chum run, and the biggest wildlife event of the local year. 225 mm of rain, 9.3 hours of daylight, average first frost on the 14th. The deer rut peaks in late November and vehicle collisions peak with it. Kitsap Salmon Tours run in the first week.",
+      "events": [
+        "first_autumn_frost",
+        "wet_season",
+        "winter_minus_tides_at_night",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "chum_run",
+        "coho_run",
+        "salmon_viewing_season",
+        "surf_smelt_spawn",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "poison_oak_leafless",
+        "autumn_mushroom_hazard",
+        "madrone_fruit",
+        "conifer_seed_fall",
+        "autumn_mushroom_flush",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "deer_rut",
+        "bear_hyperphagia"
+      ]
+    },
+    {
+      "month": "December",
+      "daylight_hours": 8.4,
+      "notes": "The wettest and darkest month: 252 mm and 8.4 hours of daylight. December alone brings nearly as much rain as April through September combined. King tides plus storm surge produce the highest water of the year, while the lowest tides fall near midnight. Maple sap can run on a cold snap, and madrone berries are among the only fruit left.",
+      "events": [
+        "first_autumn_frost",
+        "wet_season",
+        "winter_minus_tides_at_night",
+        "king_tides",
+        "biotoxin_closures",
+        "shellfish_beach_seasons",
+        "chum_run",
+        "coho_run",
+        "steelhead_run",
+        "surf_smelt_spawn",
+        "poison_hemlock_rosette",
+        "water_hemlock_year_round",
+        "poison_oak_leafless",
+        "autumn_mushroom_hazard",
+        "madrone_fruit",
+        "conifer_seed_fall",
+        "winter_waterfowl",
+        "varied_thrush_downslope",
+        "deer_rut",
+        "maple_sap_run"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "last_spring_frost",
+      "name": "Last spring frost",
+      "kind": "frost",
+      "species": null,
+      "window": "March 5 at the 10th percentile, March 29 on average, April 24 at the 90th percentile. All at the 32 F threshold.",
+      "peak": "March 29, but read the next field before you use that date",
+      "why_it_matters": "The average is the 50th percentile, which means that in half of all years the last frost falls AFTER March 29. Planting tender crops to the average kills them in one year out of two. April 24 is the date past which only one year in ten still delivers a freeze, and that is the honest plant-out date for tomatoes, beans, squash and basil. At the 36 F threshold, which is what actually damages seedlings on a clear calm night, the 10 percent risk date is May 13.",
+      "confidence": "measured",
+      "sources": [
+        "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "first_autumn_frost",
+      "name": "First autumn frost",
+      "kind": "frost",
+      "species": null,
+      "window": "October 26 at the 10th percentile, November 14 on average, December 1 at the 90th percentile.",
+      "peak": "November 14",
+      "why_it_matters": "Have row cover ready by October 26, not by the average. One year in ten has already frozen by that date. This is also the end of the outdoor tomato and basil season and the point at which bracken and other soft growth dies back brown.",
+      "confidence": "measured",
+      "sources": [
+        "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "growing_season",
+      "name": "Frost free growing season",
+      "kind": "frost",
+      "species": null,
+      "window": "A median of 227 frost free days, running roughly from the end of March to the middle of November.",
+      "peak": null,
+      "why_it_matters": "Long enough for two successions of most cool season crops and one of warm season crops. The limit here is not frost but summer water and autumn light: the season is generous at both ends and stingy in the middle.",
+      "confidence": "measured",
+      "sources": [
+        "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "wet_season",
+      "name": "The wet half of the year",
+      "kind": "hazard",
+      "species": null,
+      "window": "October through March.",
+      "peak": "December, at 252 mm",
+      "why_it_matters": "These six months deliver 1,154 mm of the annual 1,446 mm, which is 79.8 percent of the year's water. December alone brings 252 mm, nearly as much as April through September put together (294 mm across six months). This is the half of the year to design drainage for, to expect saturated ground and landslide risk in, and to fill every cistern in. It is also the half in which soil work compacts rather than tills.",
+      "confidence": "measured",
+      "sources": [
+        "https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "summer_drought",
+      "name": "The summer dry spell",
+      "kind": "hazard",
+      "species": null,
+      "window": "Late June through mid September, sharpest in July and August.",
+      "peak": "July, at 21 mm",
+      "why_it_matters": "July gets 21 mm and August 28 mm against a July mean high of 24.7 C. A garden here needs irrigation in summer despite the region's wet reputation, and that surprises people who move here. It is also when the fuels dry out: this is the fire window in a landscape everyone assumes is too wet to burn. Plan the summer water supply in the wet season, because there is no rain to catch when you need it.",
+      "confidence": "measured",
+      "sources": [
+        "https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "daylight_minus_tides",
+      "name": "The daylight minus tides",
+      "kind": "tide",
+      "species": null,
+      "window": "Mid April through mid August. In 2026 every daylight low tide at or below -2.0 ft MLLW fell between April 18 and August 12; across 2026 to 2029 the earliest is April 11 and the latest August 12.",
+      "peak": "Mid June, around the solstice. The lowest daylight tide of 2026 is -4.1 ft at 12:26 on June 15.",
+      "why_it_matters": "This is the single most useful tide fact for anyone digging clams here, and it is not obvious. Dyes Inlet gets roughly the same number of deep minus tides every month of the year, but in the winter half they all happen in the middle of the night and in the summer half they all happen around midday. Between about mid April and mid August you can dig a deep low in daylight; outside it you cannot, whatever the tide table total says. There are only about 22 to 26 such daylight tides in a whole year, in clusters of four to six days around the new and full moon, so they are worth marking on a calendar in advance. A geoduck needs -2.0 ft or lower, which is why this window is effectively the geoduck season.",
+      "confidence": "measured",
+      "sources": [
+        "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9445901&time_zone=lst_ldt&units=english&interval=hilo&format=json",
+        "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9447130&time_zone=lst_ldt&units=english&interval=hilo&format=json"
+      ]
+    },
+    {
+      "id": "winter_minus_tides_at_night",
+      "name": "Winter minus tides run at night",
+      "kind": "tide",
+      "species": null,
+      "window": "November through February, the deep lows falling between roughly 22:00 and 02:00.",
+      "peak": "Late December. The lowest tide of 2026 is -3.7 ft at 23:51 on December 24.",
+      "why_it_matters": "The tide table will show you tides as low as any in June, and they are real, but they are in the dark and in the cold. Digging them means a headlamp, a falling tide you cannot see the edge of, and a long walk back over ground that is filling behind you. Treat a winter minus tide as an expert trip, not a family one, and note that the biotoxin question is unchanged by the season.",
+      "confidence": "measured",
+      "sources": [
+        "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9445901&time_zone=lst_ldt&units=english&interval=hilo&format=json"
+      ]
+    },
+    {
+      "id": "king_tides",
+      "name": "King tides and the winter flood risk",
+      "kind": "tide",
+      "species": null,
+      "window": "Late December and January, when the highest astronomical tides coincide with the storm season.",
+      "peak": "Late December",
+      "why_it_matters": "The highest water ever observed at Bremerton, 4.74 m above MLLW on 27 December 2022, exceeded the highest astronomical tide by 0.45 m. That extra half metre was storm surge stacked on an already extreme tide. A shoreline structure has to survive the tide plus the surge plus the wind waves, not the tide alone, and the season for all three arriving together is the turn of the year.",
+      "confidence": "measured",
+      "sources": [
+        "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9445901&time_zone=lst_ldt&units=english&interval=hilo&format=json"
+      ]
+    },
+    {
+      "id": "biotoxin_closures",
+      "name": "Marine biotoxin closures, which have no season",
+      "kind": "hazard",
+      "species": null,
+      "window": "Any month. There is no safe season and no pattern you can plan around.",
+      "peak": null,
+      "why_it_matters": "This is the one thing on this calendar that a calendar cannot answer. Paralytic, diarrhetic and amnesic shellfish poisoning come from algal blooms that the Washington Department of Health tests for continuously, and a closure can appear in any month. The water looks clear during a toxic bloom. Cooking and freezing do not destroy the toxin, because it is in the meat. Check the Department of Health Shellfish Safety Map or the hotline on 1-800-562-5632 on the day you harvest, every time, and never infer safety from a good tide or from last week's status. A separate authority answers a separate question.",
+      "confidence": "published_range",
+      "sources": [
+        "https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/biotoxins"
+      ]
+    },
+    {
+      "id": "shellfish_beach_seasons",
+      "name": "Shellfish beach seasons",
+      "kind": "harvest_window",
+      "species": "manila_clam",
+      "window": "Beach by beach, set annually by WDFW. There is no statewide month you can rely on.",
+      "peak": null,
+      "why_it_matters": "Two independent gates must both be open before you may legally and safely harvest: the WDFW season for that specific beach, and the Department of Health biotoxin status for that specific beach. Neither implies the other, and a good tide implies neither. WDFW also publishes an annual best clam and oyster harvest tides chart, which is the tide half of the same planning problem.",
+      "confidence": "published_range",
+      "sources": [
+        "https://wdfw.wa.gov/places-to-go/shellfish-beaches",
+        "https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/biotoxins"
+      ]
+    },
+    {
+      "id": "chum_run",
+      "name": "The chum run",
+      "kind": "run",
+      "species": "chum_salmon",
+      "window": "Late October into December in the local creeks.",
+      "peak": "November",
+      "why_it_matters": "This is the biggest wildlife event of the year in central Kitsap and the easiest to see. Chum spawn in the lowest, most accessible reaches of the creeks, within a short walk of salt water, so Chico Creek and the other Dyes Inlet streams put spawning salmon within a few metres of a trail. NOAA records chum spawning from late summer to March with the peak in early winter when flows are high, and the local peak is November. The carcasses afterward are the year's biggest nutrient pulse into the creeks and draw eagles, gulls and bears.",
+      "confidence": "local_consensus",
+      "sources": [
+        "https://www.fisheries.noaa.gov/species/chum-salmon",
+        "https://wdfw.wa.gov/species-habitats/species/oncorhynchus-keta",
+        "https://wdfw.wa.gov/places-to-go/salmon-viewing",
+        "https://extension.wsu.edu/kitsap/water-stewardship/kitsap-salmon-tours/"
+      ]
+    },
+    {
+      "id": "coho_run",
+      "name": "The coho run",
+      "kind": "run",
+      "species": "coho_salmon",
+      "window": "September into December, later than the chum and pushing further upstream.",
+      "peak": "Late October into November, but triggered by rain rather than by date",
+      "why_it_matters": "Coho hold at the creek mouths and wait for the first heavy autumn rain to raise the water before running. That makes them the one salmon event you should watch the forecast for rather than the calendar: a dry October delays them, and a big early storm brings them in days. They spawn further up than chum, so they are the fish that reaches the smaller tributaries. Because juveniles then spend about a year and a half in fresh water, a creek only holds coho if it holds water all summer, which makes them the honest indicator of whether a stream is actually healthy.",
+      "confidence": "local_consensus",
+      "sources": [
+        "https://www.fisheries.noaa.gov/species/coho-salmon",
+        "https://wdfw.wa.gov/species-habitats/species/oncorhynchus-kisutch",
+        "https://wdfw.wa.gov/places-to-go/salmon-viewing"
+      ]
+    },
+    {
+      "id": "chinook_run",
+      "name": "The chinook run",
+      "kind": "run",
+      "species": "chinook_salmon",
+      "window": "Summer into early autumn. NOAA gives chinook returning to spawn generally in summer or early fall.",
+      "peak": "August and September",
+      "why_it_matters": "Puget Sound chinook are listed as threatened under the Endangered Species Act, and spring, summer and fall run stocks all exist in the Sound. For a person here this is mostly a marine fishery rather than a creek spectacle, and the rules are reset annually and amended mid season by emergency rule, so last year's dates are worthless. The runs also do not all behave alike, which is why the ESA listing covers a whole set of populations rather than one season.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fisheries.noaa.gov/species/chinook-salmon",
+        "https://www.fisheries.noaa.gov/west-coast/endangered-species-conservation/puget-sound-chinook-salmon"
+      ]
+    },
+    {
+      "id": "pink_run",
+      "name": "The pink run, odd years only",
+      "kind": "run",
+      "species": "pink_salmon",
+      "window": "August through October, and only in odd numbered years in Puget Sound.",
+      "peak": "Late August into September",
+      "why_it_matters": "Pink salmon live a strict two year cycle, so a Puget Sound run exists in odd years and is effectively absent in even ones. The last run was 2025 and the next is 2027. A simulation set in an even year should show none. One honest caveat: NOAA notes that pink salmon do spawn in even years in some Puget Sound rivers, so the odd year rule is a statement about the harvestable run here, not a biological absolute.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fisheries.noaa.gov/species/pink-salmon"
+      ]
+    },
+    {
+      "id": "steelhead_run",
+      "name": "The winter steelhead run",
+      "kind": "run",
+      "species": "steelhead",
+      "window": "Late autumn into spring. The local fish are winter run.",
+      "peak": null,
+      "why_it_matters": "Unlike the salmon, steelhead do not all die after spawning, and they run through the months when nothing else does. Summer run fish are mostly east of the Cascades, so a steelhead in a Kitsap creek is a winter fish. Seasons here are tightly restricted and frequently closed outright; read the current rules rather than assuming an open season exists.",
+      "confidence": "published_range",
+      "sources": [
+        "https://wdfw.wa.gov/places-to-go/salmon-viewing"
+      ]
+    },
+    {
+      "id": "salmon_viewing_season",
+      "name": "Salmon viewing season",
+      "kind": "run",
+      "species": null,
+      "window": "WDFW gives peak viewing months as between July and November statewide. Around Dyes Inlet the reliable month is November.",
+      "peak": "Early November",
+      "why_it_matters": "WDFW names seven Kitsap County viewing sites, including Chico Salmon Park, Clear Creek Trail, Poulsbo Fish Park and Salmon Haven at Dickerson Creek. WSU Extension runs the annual Kitsap Salmon Tours in early November, which is the local answer to when to go. WDFW's own advice if the creek looks empty is to try again in a few days or weeks, after rainfall, or at another location, which is a reminder that these runs are rain driven and not date driven. Approach slowly and stay out of the water: quick movement reads as a predator.",
+      "confidence": "local_consensus",
+      "sources": [
+        "https://wdfw.wa.gov/places-to-go/salmon-viewing",
+        "https://extension.wsu.edu/kitsap/water-stewardship/kitsap-salmon-tours/"
+      ]
+    },
+    {
+      "id": "herring_spawn",
+      "name": "Pacific herring spawn",
+      "kind": "breeding",
+      "species": "pacific_herring",
+      "window": "WDFW gives herring spawning in Puget Sound from January and into June.",
+      "peak": "January through April for most Puget Sound stocks",
+      "why_it_matters": "Herring spawn on nearshore vegetation and the event is visible from the beach: the water turns milky white or teal where a large spawn has happened. It is the hinge of the local food web in late winter. Wintering sea ducks switch from mussels and clams onto herring eggs during spring migration, which is what puts them in condition to fly north and lay, and the spawn draws gulls, eagles and predatory fish at the same time. If you want to know why the inlet suddenly gets busy in February, this is why.",
+      "confidence": "published_range",
+      "sources": [
+        "https://wdfw.wa.gov/fishing/management/marine-beach-spawning",
+        "https://wdfw.wa.gov/species-habitats/species/melanitta-perspicillata"
+      ]
+    },
+    {
+      "id": "surf_smelt_spawn",
+      "name": "Surf smelt spawn, which has no single season",
+      "kind": "breeding",
+      "species": "surf_smelt",
+      "window": "Year round. Different beaches and stocks spawn at different times, and WDFW surveys for spawn year round.",
+      "peak": null,
+      "why_it_matters": "Surf smelt lay eggs about a millimetre across in the upper intertidal on mixed sand and gravel beaches, and a given beach may be a spawning beach in a season you would not expect. The practical consequence is not a harvest date but a construction constraint: WDFW protects documented forage fish spawning beaches from shoreline development, so upper intertidal work on a mixed sand and gravel beach is a permitting question in any month.",
+      "confidence": "published_range",
+      "sources": [
+        "https://wdfw.wa.gov/fishing/management/marine-beach-spawning"
+      ]
+    },
+    {
+      "id": "indian_plum_leaf_out",
+      "name": "Indian plum leafs out, the first green of the year",
+      "kind": "leaf_out",
+      "species": "indian_plum",
+      "window": "February into March, ahead of everything else in the understory.",
+      "peak": "Late February",
+      "why_it_matters": "This is the classic first leaf indicator in the Puget Sound lowlands and the most useful single plant on this calendar. The USDA Forest Service records its flushing of light green leaves and white flowers much earlier than other plant associates, and explains why: it gains light for fruit set by flowering before the deciduous plants around it leaf out. When a bare grey thicket suddenly shows pale green, spring has started here, and that is a better signal than any date because it integrates the actual winter you just had.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/nsl/Wpsm/Oemleria.pdf"
+      ]
+    },
+    {
+      "id": "indian_plum_bloom",
+      "name": "Indian plum bloom",
+      "kind": "bloom",
+      "species": "indian_plum",
+      "window": "The Forest Service gives flowering from January to May across the range, varying with latitude and elevation, concurrent with leaf development. Here that lands in February through April.",
+      "peak": "March",
+      "why_it_matters": "White flowers on drooping racemes, on a shrub that is otherwise easy to walk past. The plant is dioecious, so only some shrubs will set fruit, and male plants start flowering earlier and are more numerous. If you are marking shrubs to come back to for fruit in May, mark the ones flowering later.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/nsl/Wpsm/Oemleria.pdf"
+      ]
+    },
+    {
+      "id": "skunk_cabbage_bloom",
+      "name": "Skunk cabbage lights up the wet ground",
+      "kind": "bloom",
+      "species": "western_skunk_cabbage",
+      "window": "Emerges early in the spring, generally before most other growth.",
+      "peak": "March",
+      "why_it_matters": "The bright yellow spathe is the first strong colour of the year and it maps the wet ground for you better than any soil survey: where skunk cabbage grows, the water table is at or near the surface. Use it to site paths, drainage and anything you do not want standing in water. Note that this is also when green false hellebore and the year's first spring greens are coming up in the same wet ground, and those are not the same plant.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/wildflowers/plant-of-the-week/Lysichiton-americanus.shtml"
+      ]
+    },
+    {
+      "id": "hazel_catkins",
+      "name": "Hazel catkins shed pollen",
+      "kind": "bloom",
+      "species": "california_hazelnut",
+      "window": "January to March in the west coast states, with early March given for Oregon. Catkins expand 5 to 15 days before the leaves.",
+      "peak": "February",
+      "why_it_matters": "Long yellow catkins on bare branches in the middle of winter, which is startling the first time you notice it and is the earliest flowering of any local shrub. It marks the shrub for you months before the leaves make it findable, so this is when to note where the hazels are if you want the nuts in September.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/corcor/all.html"
+      ]
+    },
+    {
+      "id": "salmonberry_bloom",
+      "name": "Salmonberry bloom",
+      "kind": "bloom",
+      "species": "salmonberry",
+      "window": "The Forest Service gives March to June for western Oregon and southwestern Washington.",
+      "peak": "April",
+      "why_it_matters": "Magenta flowers among the first of any shrub in these woods. The Forest Service notes the timing aligns with rufous hummingbird migration and that the birds may be important pollinators, so this bloom is also when the hummingbirds arrive. Leaf flush runs March to April, with first leaves recorded by 21 March in western Washington.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/rubspe/all.html"
+      ]
+    },
+    {
+      "id": "red_flowering_currant_bloom",
+      "name": "Red flowering currant bloom",
+      "kind": "bloom",
+      "species": "red_flowering_currant",
+      "window": "March through June, opening as the leaves emerge.",
+      "peak": "April",
+      "why_it_matters": "The showiest native bloom of early spring and a hummingbird plant. Worth knowing because it is the shrub most worth deliberately planting near a house here: it flowers when almost nothing else does and feeds the birds that arrive with it.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "alder_catkins",
+      "name": "Red alder flowers",
+      "kind": "bloom",
+      "species": "red_alder",
+      "window": "Late February to early May across the region. In Snohomish County, a Puget Sound lowland county, flowering begins 29 March and flowers have all fallen by 12 April.",
+      "peak": "Late March into early April",
+      "why_it_matters": "Alder pollen is the dominant early spring allergen here and it arrives before most people think of hay fever season. The Snohomish County dates are close enough to Silverdale in latitude and elevation to use directly, which makes this one of the few precisely dated events on this calendar.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/tree/alnrub/all.html"
+      ]
+    },
+    {
+      "id": "alder_leaf_out",
+      "name": "Red alder leafs out",
+      "kind": "leaf_out",
+      "species": "red_alder",
+      "window": "Leaf bud burst 3 April, completely leafed out 2 May, recorded in Snohomish County, Washington.",
+      "peak": "Mid April",
+      "why_it_matters": "Alder is the tree that closes the canopy over the creek bottoms, so this is the date the understory goes dark and the water starts being shaded. On the other end of the year, alder is one of the first deciduous trees to drop: the majority of leaves fall during October and virtually all are gone by the first week of November.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/tree/alnrub/all.html"
+      ]
+    },
+    {
+      "id": "bigleaf_maple_bloom",
+      "name": "Bigleaf maple bloom and leaf out",
+      "kind": "bloom",
+      "species": "bigleaf_maple",
+      "window": "Late April to early May in the Pacific Northwest, with flowers appearing before or with the leaves.",
+      "peak": "Late April",
+      "why_it_matters": "Hanging green flower racemes on a big tree, and one of the few large nectar sources of the spring. The tree resumes growth very early in the year, which is the same physiology that makes the winter sap run possible.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/tree/acemac/all.html"
+      ]
+    },
+    {
+      "id": "nettle_shoots",
+      "name": "Stinging nettle shoots, a narrow window",
+      "kind": "harvest_window",
+      "species": "stinging_nettle",
+      "window": "Roughly March into May, while the shoots are young and before flowering.",
+      "peak": "April",
+      "why_it_matters": "Nettle is the best wild green here and the window is genuinely short. Cut the top few inches while the plant is under about knee height. Once it flowers and sheds pollen in summer it is no longer food: older plants develop gritty mineral deposits that irritate the urinary tract. Cooking or drying destroys the sting completely. Note the honest limit on the dates: the Forest Service gives flowering from late May to October but does not publish a shoot emergence date, so the start of this window is a regional generalisation rather than a measured date.",
+      "confidence": "local_consensus",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/forb/urtdio/all.html"
+      ]
+    },
+    {
+      "id": "bracken_fiddleheads",
+      "name": "Bracken croziers uncoil",
+      "kind": "harvest_window",
+      "species": "western_bracken_fern",
+      "window": "Fronds usually begin to emerge between March and early May.",
+      "peak": "April",
+      "why_it_matters": "Read this one as a warning rather than a harvest. The Forest Service records that western brackenfern has been found to be mutagenic and carcinogenic in rats and mice, and that all parts of the plant including the spores are carcinogenic, to the point that face masks are recommended for people working in dense bracken. It is widely eaten as a fiddlehead and it should not be. Its real calendar value is as an indicator: croziers in the open are often killed by late spring frost, so a frosted bracken patch tells you that ground is a frost pocket.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/fern/pteaqu/all.html"
+      ]
+    },
+    {
+      "id": "knotweed_shoots",
+      "name": "Knotweed shoots",
+      "kind": "harvest_window",
+      "species": "japanese_knotweed",
+      "window": "Spring only, as the new reddish shoots push up.",
+      "peak": "April",
+      "why_it_matters": "One of the few cases where eating an invasive is genuinely useful, though it does nothing to control it. The important thing is disposal rather than harvest: knotweed regrows from tiny fragments of root or stem, so cuttings must never go in compost, in a green bin, or anywhere near water. Moving the plant is how it spreads.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "cattail_shoots",
+      "name": "Cattail shoots and pollen",
+      "kind": "harvest_window",
+      "species": "broadleaf_cattail",
+      "window": "Shoots in spring, flower stalks and pollen in early summer, rhizomes dug in autumn and winter.",
+      "peak": "May",
+      "why_it_matters": "The most productive wild starch in this landscape and available in some form nearly all year, which is rare. The caution is the water, not the plant: cattails grow where runoff collects, so what is upstream matters more than what is in your hand.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "camas_bloom_id_window",
+      "name": "Camas bloom, the only safe identification window",
+      "kind": "bloom",
+      "species": "common_camas",
+      "window": "May to July depending on elevation and snow cover.",
+      "peak": "Late May into June",
+      "why_it_matters": "This is the single most important safety window on this calendar. Common camas and meadow death camas grow in the same ground and their bulbs are indistinguishable, and death camas is lethal. The blue flower of common camas against the creamy white of death camas is the only difference a beginner can reliably see, and it exists for a few weeks a year. Leaves then die back and seeds disperse from late May to August, after which nothing above ground marks the spot. Digging an unmarked bulb in autumn is how people are poisoned. If you intend to harvest camas, you mark the plants in bloom and you dig only what you marked.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "death_camas_bloom",
+      "name": "Death camas leafs out early and blooms late spring",
+      "kind": "hazard",
+      "species": "meadow_death_camas",
+      "window": "Green leaves appear early in spring ahead of most other growth; creamy white flowers in late spring; the plant dies back by summer.",
+      "peak": "Late May",
+      "why_it_matters": "The early leaves are the hazard, because they come up when people and livestock are looking for the first green growth of the year and there is nothing else to compare them to. The bulb stays in the ground and is dangerous in every month, including the months when there is no leaf to find it by.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "poison_hemlock_rosette",
+      "name": "Poison hemlock rosette, the dangerous anonymous stage",
+      "kind": "hazard",
+      "species": "poison_hemlock",
+      "window": "The first year rosette stands through autumn, winter and early spring. It bolts and flowers in late spring and early summer, then sets seed and dies.",
+      "peak": "February and March, when the rosette is largest and greenest",
+      "why_it_matters": "The rosette is when poison hemlock looks most like parsley, and it is green at the exact time of year when a garden or field edge has little else green in it. This overlaps precisely with the wild carrot rosette, which is the root digging stage of an edible plant, and with the cow parsnip rosette. The dead standing stems remain poisonous. Never dig a white taprooted umbellifer in the rosette stage on the strength of leaf shape.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "water_hemlock_year_round",
+      "name": "Water hemlock root, dangerous in every month",
+      "kind": "hazard",
+      "species": "western_water_hemlock",
+      "window": "Shoots in spring, white umbels in summer, top dies back in autumn. The tuberous root is in the ground all twelve months.",
+      "peak": null,
+      "why_it_matters": "The most poisonous plant in North America grows in the same wet ground as water parsley, hemlock waterparsnip and cattail, all of which are gathered. In winter nothing above ground shows where it is, and the root is the most poisonous part. This is why the calendar cannot make wet ground digging safe at any time of year, and why the honest advice for winter root digging in a wet meadow is not to.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "poison_oak_leafless",
+      "name": "Poison oak drops its leaves and keeps its oil",
+      "kind": "hazard",
+      "species": "pacific_poison_oak",
+      "window": "Leafless from late autumn through early spring. The Forest Service gives flowering March to June and fruit dispersal in summer and autumn.",
+      "peak": null,
+      "why_it_matters": "Losing the leaves removes the only identification character most people know, while the urushiol stays on the bare stems. A leafless, thornless vine in winter is not identified, and firewood gathering season is exactly when people handle unidentified bare stems. New spring leaves are often glossy and reddish.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "autumn_mushroom_hazard",
+      "name": "Deadly mushrooms fruit with the same rain as the good ones",
+      "kind": "hazard",
+      "species": "funeral_bell",
+      "window": "With the autumn flush. The exact season for Kitsap County is not established from any public source.",
+      "peak": null,
+      "why_it_matters": "Funeral bell fruits alongside honey mushroom and on the same wood, and it contains the same toxin as the death cap. The death cap season for western Washington is not established from any public source either, so this calendar cannot tell you a month to be careful in. Be careful in all of them. No seasonal rule substitutes for identification, and the autumn flush that brings chanterelles brings these at the same time and in the same woods.",
+      "confidence": "estimated",
+      "sources": []
+    },
+    {
+      "id": "salmonberry_fruit",
+      "name": "Salmonberry ripens, the first fruit of the year",
+      "kind": "fruit",
+      "species": "salmonberry",
+      "window": "June into July around Puget Sound. The Forest Service gives fruit ripening June to July in the southern range and seed dispersal June through August.",
+      "peak": "Late June",
+      "why_it_matters": "The first wild fruit of the year and the one that tells you the foraging season has opened. Ripens 30 to 36 days after pollination, and the fruiting period spreads over several weeks within a population, so a patch yields for longer than a single plant does. Colour is not ripeness: they run yellow through orange to deep red and all of those can be ripe, so go by how easily the fruit lifts off.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/rubspe/all.html"
+      ]
+    },
+    {
+      "id": "indian_plum_fruit",
+      "name": "Indian plum fruit",
+      "kind": "fruit",
+      "species": "indian_plum",
+      "window": "In the Pacific Northwest, dispersal may begin in May and be nearly finished in July.",
+      "peak": "June",
+      "why_it_matters": "Ripens far earlier than most people expect and is gone before the main berry season starts. Fruit runs peach coloured, then reddish, then deep blue black under a whitish bloom when ripe. Only female plants fruit, and fewer than 60 percent of pistils set, so a good shrub is worth remembering. Birds strip them fast.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/nsl/Wpsm/Oemleria.pdf"
+      ]
+    },
+    {
+      "id": "thimbleberry_fruit",
+      "name": "Thimbleberry ripens",
+      "kind": "fruit",
+      "species": "thimbleberry",
+      "window": "Mid to late summer. A ten year phenological study recorded earliest ripe fruit on 30 June and latest on 3 September.",
+      "peak": "Late July",
+      "why_it_matters": "Soft, seedy and it falls apart in your hand, so it does not travel and does not keep. Eat it standing there. It goes over quickly once ripe, which is why the window feels shorter than the dates suggest.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/rubpar/all.html"
+      ]
+    },
+    {
+      "id": "trailing_blackberry_fruit",
+      "name": "Trailing blackberry ripens",
+      "kind": "fruit",
+      "species": "trailing_blackberry",
+      "window": "June through August, earlier on warm open sites. The Forest Service gives fruit ripening June to August.",
+      "peak": "July",
+      "why_it_matters": "The native blackberry, and the better one. Small, seedy and far more strongly flavoured than the Himalayan, ripening a full month or more earlier. It trails along the ground on thin wiry stems rather than forming the head high thickets, so it is easy to walk over without seeing. Worth deliberately looking down for in July.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/ruburs/all.html"
+      ]
+    },
+    {
+      "id": "himalayan_blackberry_fruit",
+      "name": "Himalayan blackberry ripens",
+      "kind": "fruit",
+      "species": "himalayan_blackberry",
+      "window": "The Forest Service gives flowering June to August and fruit ripening August to September in Washington.",
+      "peak": "Late August",
+      "why_it_matters": "The invasive one, and by volume the biggest wild food source in this landscape by a wide margin. It ripens about a month after the native trailing blackberry and bears far more heavily. Picking it is the one foraging activity with no conservation downside at all. The thickets themselves are the problem: they shade out everything and are miserable to clear, so harvest is not control.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/rubspp/all.html"
+      ]
+    },
+    {
+      "id": "red_huckleberry_fruit",
+      "name": "Red huckleberry ripens",
+      "kind": "fruit",
+      "species": "red_huckleberry",
+      "window": "July through September. The Forest Service seasonal table gives flowering April to June for the Northwest and fruit ripening August to September in Washington, July to August in Oregon.",
+      "peak": "August",
+      "why_it_matters": "Translucent red berries on bright green twigged shrubs, very often growing straight out of a rotting stump or nurse log, which is the easiest way to find them. Sharp rather than sweet. Note the source disagreement honestly: the Washington row of the Forest Service table says August to September while the local record says July through September with a July and August peak, so late July is the early edge rather than a reliable start.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/vacpar/all.html"
+      ]
+    },
+    {
+      "id": "evergreen_huckleberry_fruit",
+      "name": "Evergreen huckleberry ripens, latest of the berries",
+      "kind": "fruit",
+      "species": "evergreen_huckleberry",
+      "window": "Fruit ripens from July to September across the range and often hangs into October. Flowering is recorded as May to June in Mason County, Washington, the county next door.",
+      "peak": "September",
+      "why_it_matters": "The last berry of the year and the best keeper, small and dark and sweeter after a frost. Because it ripens well after everything else and holds on the evergreen shrub into October, it extends the foraging season by a month past the point most people stop looking.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/vacova/all.html"
+      ]
+    },
+    {
+      "id": "salal_fruit",
+      "name": "Salal ripens",
+      "kind": "fruit",
+      "species": "salal",
+      "window": "The Forest Service gives fruit ripening August through October, with fruit persisting on the stem until December. Flowering is May to July in western Oregon and southwestern Washington.",
+      "peak": "September",
+      "why_it_matters": "The most abundant understory berry here and the most underrated: mealy raw, excellent cooked or dried, and it hangs on the plant long after ripening so the harvest window is unusually forgiving. A Washington record notes fruiting starting in the third week of June, so the very earliest fruit predates the main window by some weeks.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/gausha/all.html"
+      ]
+    },
+    {
+      "id": "red_elderberry_fruit",
+      "name": "Red elderberry ripens",
+      "kind": "fruit",
+      "species": "red_elderberry",
+      "window": "The Forest Service gives flowering April to July and fruit June to September in Washington, with seed dispersal June to July, and notes ripening may extend to December in a mild winter.",
+      "peak": "July",
+      "why_it_matters": "Bright red clusters, very conspicuous, and conditional food at best: the seeds, bark, leaves and roots are toxic and the raw fruit causes vomiting. Treat it as something to know rather than something to pick. It is a useful marker of the calendar because it is the most visible fruit of midsummer.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/samrac/all.html"
+      ]
+    },
+    {
+      "id": "blue_elderberry_fruit",
+      "name": "Blue elderberry ripens",
+      "kind": "fruit",
+      "species": "blue_elderberry",
+      "window": "Flowering May to July, fruit ripe from about late August. The Forest Service records fruits ripe 21 August and seed fall starting 18 September in Oregon.",
+      "peak": "September",
+      "why_it_matters": "The elderberry actually worth picking, dusty blue under a waxy bloom, and cooked it is the best preserve in this landscape. The rule is the same as for the red: cook it, and take only the fruit, never the green parts or the stems.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/samnigc/all.html"
+      ]
+    },
+    {
+      "id": "oregon_grape_fruit",
+      "name": "Oregon grape ripens",
+      "kind": "fruit",
+      "species": "dull_oregon_grape",
+      "window": "Fruit ripens July to August on dull Oregon grape; tall Oregon grape ripens to a dusty blue black by early autumn.",
+      "peak": "August",
+      "why_it_matters": "Intensely sour and full of seed, which is why almost nobody eats it raw and why it makes very good jelly. Both species are evergreen, so they are findable in every month, and marking a good stand in winter costs nothing.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "bitter_cherry_fruit",
+      "name": "Bitter cherry ripens",
+      "kind": "fruit",
+      "species": "bitter_cherry",
+      "window": "Flowers April to May, fruit ripens July through September.",
+      "peak": "August",
+      "why_it_matters": "Named accurately. The value here is not food but timing and wildlife: it is one of the earliest tree blossoms in April and a heavy bird crop in late summer. The stones, like all Prunus, contain cyanogenic compounds.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "madrone_fruit",
+      "name": "Madrone berries ripen",
+      "kind": "fruit",
+      "species": "pacific_madrone",
+      "window": "Berries ripen from early autumn until December or January; seed collectors gather fruit from October to December.",
+      "peak": "November",
+      "why_it_matters": "One of very few fruits still ripening as the year closes, which makes it disproportionately important to birds in early winter. Range wide dates rather than a Silverdale record, so treat the months as indicative.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "hazelnut_harvest",
+      "name": "Hazelnuts ripen",
+      "kind": "seed",
+      "species": "california_hazelnut",
+      "window": "Fruit ripening September to October in California and September to November on the west coast; August to September in British Columbia. Nuts abscise when fully ripe in autumn.",
+      "peak": "September",
+      "why_it_matters": "The most calorific wild food in this landscape and the hardest to get, because squirrels and jays strip them within days of ripeness. The practical answer is to watch the husks from August and pick slightly early, then cure them, rather than waiting for a clean drop that will never come. California hazelnut seeds may hang on the shrub longer than beaked hazelnut and are sometimes winter persistent.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/shrub/corcor/all.html"
+      ]
+    },
+    {
+      "id": "acorn_fall",
+      "name": "Oregon white oak acorns fall",
+      "kind": "seed",
+      "species": "oregon_white_oak",
+      "window": "Acorns ripen and fall in autumn, roughly September into October.",
+      "peak": "October",
+      "why_it_matters": "The only oak here, and uncommon enough that a stand is worth knowing. Acorns need leaching to be food. Their bigger role is ecological: an oak woodland is the richest wildlife habitat in the Puget lowlands and the rarest, which is also the habitat Indian plum is most associated with.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "conifer_seed_fall",
+      "name": "Bigleaf maple seed disperses",
+      "kind": "seed",
+      "species": "bigleaf_maple",
+      "window": "Seeds ripe August to October, dispersing October to January, with some remaining on the tree until March.",
+      "peak": "November",
+      "why_it_matters": "The paired winged samaras spin down through the whole wet season rather than dropping at once. Practically this is a gutter and drain problem as much as a botanical event, and it is the reason the tree seeds itself into every disturbed corner.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/plants/tree/acemac/all.html"
+      ]
+    },
+    {
+      "id": "autumn_mushroom_flush",
+      "name": "The autumn mushroom flush, which rain triggers rather than the calendar",
+      "kind": "fruit",
+      "species": "pacific_golden_chanterelle",
+      "window": "There is no date. The National Park Service records for Olympic National Park, directly across Hood Canal, that while mushrooms can be found nearly year round, the peak season occurs after the start of fall rains up until the first major frosts. In practice that is the stretch between the September rains returning and the first hard freeze, which the frost normals put around the end of October at the earliest.",
+      "peak": "October, in most years",
+      "why_it_matters": "This is the clearest case on the calendar of an event that a date would misrepresent. Fruiting here is triggered by the first sustained autumn rain after the summer drought, so in a year when the rain arrives in early September the season starts a month earlier than in a year when it holds off until October. Watch the forecast and the calendar together: count roughly from the first real soaking rain, not from a fixed day. The season ends at the first hard frost, which the climate normals put anywhere from 26 October to 1 December.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.nps.gov/olym/learn/nature/fungi.htm",
+        "https://www.nps.gov/mora/learn/nature/mushrooms.htm",
+        "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv"
+      ]
+    },
+    {
+      "id": "winter_waterfowl",
+      "name": "Winter waterfowl arrive on the inlet",
+      "kind": "migration",
+      "species": "surf_scoter",
+      "window": "WDFW records birds departing coastal moulting areas from late August through November and moving to wintering areas, primarily in Puget Sound. Most numerous here roughly October through April.",
+      "peak": "December through February",
+      "why_it_matters": "The inlet changes character completely for half the year. Surf scoters are the most abundant of the diving ducks and feed on the mussels and clams of the same beaches people dig. They switch onto herring eggs during spring migration, so the waterfowl season and the herring spawn are the same story told twice. An empty looking Dyes Inlet in July is normal; an empty one in January means something is wrong.",
+      "confidence": "published_range",
+      "sources": [
+        "https://wdfw.wa.gov/species-habitats/species/melanitta-perspicillata"
+      ]
+    },
+    {
+      "id": "varied_thrush_downslope",
+      "name": "Varied thrush comes down into town",
+      "kind": "migration",
+      "species": "varied_thrush",
+      "window": "In the Silverdale lowlands mainly October through April.",
+      "peak": "During cold snaps and snow",
+      "why_it_matters": "It breeds upslope in denser wetter forest and moves down into town for the winter, so its arrival is an altitude signal rather than a latitude one. It becomes most obvious feeding on the ground under shrubs during cold snaps, which makes it a good indicator that the weather has turned hard enough to push birds off the hills.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "osprey_arrival",
+      "name": "Osprey return",
+      "kind": "migration",
+      "species": "osprey",
+      "window": "Arrive in Puget Sound in spring; nests occupied roughly April through August.",
+      "peak": "April",
+      "why_it_matters": "A summer breeder here, not a resident, so an osprey over Dyes Inlet in January is a misidentification. Their return is one of the cleaner spring markers because the birds are large, loud and nest on visible structures.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "osprey_departure",
+      "name": "Osprey leave for South America",
+      "kind": "migration",
+      "species": "osprey",
+      "window": "Late summer and early autumn, after the nests empty in August.",
+      "peak": "September",
+      "why_it_matters": "The clearest single sign that the summer is over on the water. They go to Central and South America, so the inlet loses its most conspicuous fish hunter for seven months while the eagles stay.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "heron_colony",
+      "name": "Great blue herons gather at nesting colonies",
+      "kind": "breeding",
+      "species": "great_blue_heron",
+      "window": "Birds gather at colonies from roughly February onward, and colonies are in use through spring and early summer.",
+      "peak": "March through May",
+      "why_it_matters": "Herons are here all year but they concentrate at colonies in late winter, and that is the vulnerable moment. Disturbing an active colony can cause the whole colony to abandon, not just one nest, so this is the season to keep well back from a stand of big stick nests. Plan any noisy work near one outside February to June.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "eagle_nesting",
+      "name": "Bald eagles at the nest",
+      "kind": "breeding",
+      "species": "bald_eagle",
+      "window": "Birds at the nest from roughly January or February, with young fledging in mid summer.",
+      "peak": "March and April",
+      "why_it_matters": "Eagles nest remarkably early here, starting in the depth of winter, which is only possible because the autumn salmon runs fed them first. Numbers rise through autumn and winter as birds concentrate on the runs and the carcasses afterward, and then those same birds are on eggs by February. The chum run and the eagle nesting season are the same food chain three months apart.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "pileated_breeding",
+      "name": "Pileated woodpecker breeding season",
+      "kind": "breeding",
+      "species": "pileated_woodpecker",
+      "window": "WDFW gives the breeding season as late March through early July.",
+      "peak": "April and May",
+      "why_it_matters": "A year round resident whose drumming becomes constant in spring. It excavates the large cavities that a long list of other species later nest in, so a big dead tree left standing is worth more than the firewood in it.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "band_tailed_pigeon_season",
+      "name": "Band-tailed pigeons present",
+      "kind": "migration",
+      "species": "band_tailed_pigeon",
+      "window": "Present spring through early autumn, largely gone south by late autumn.",
+      "peak": "Summer",
+      "why_it_matters": "A native forest pigeon that most people mistake for a feral rock dove. It is a migrant here and a heavy user of elderberry and cascara fruit, so its season tracks the berry season closely.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "deer_rut",
+      "name": "Black-tailed deer rut",
+      "kind": "breeding",
+      "species": "columbian_black_tailed_deer",
+      "window": "November and December locally. The Forest Service gives the rut for the species as beginning as early as September and ending as late as March depending on location, with one studied population conceiving 75 percent of fawns between 21 November and 1 December.",
+      "peak": "Late November",
+      "why_it_matters": "Bucks move far more than usual and lose their caution, and vehicle collisions peak with it. Drive the wooded roads at dawn and dusk in November expecting a deer in the road. Fawns follow from late May to mid July in the northern part of the range, which is when a doe will be aggressive near cover and when a fawn lying alone is not abandoned.",
+      "confidence": "published_range",
+      "sources": [
+        "https://www.fs.usda.gov/database/feis/animals/mammal/odhe/all.html"
+      ]
+    },
+    {
+      "id": "bear_hyperphagia",
+      "name": "Black bears feed hard before denning",
+      "kind": "hazard",
+      "species": "black_bear",
+      "window": "Active roughly March through November in western Washington, with the heaviest feeding in late summer and autumn.",
+      "peak": "September and October",
+      "why_it_matters": "Most bear conflict happens in the weeks before denning, when a bear needs enormous daily calories and stops being fussy about where they come from. That is exactly the season of ripe fruit, full compost heaps, and rubbish waiting for collection. They den through the coldest months rather than truly hibernating, so a mild winter can keep them up.",
+      "confidence": "local_consensus",
+      "sources": []
+    },
+    {
+      "id": "seal_pupping",
+      "name": "Harbor seal pupping",
+      "kind": "breeding",
+      "species": "harbor_seal",
+      "window": "NOAA records that females usually give birth during the spring and summer and that the pupping season varies by location, with Washington inland waters running roughly two months later than coastal populations.",
+      "peak": "Mid to late summer in inland waters",
+      "why_it_matters": "A pup resting alone on a beach has usually not been abandoned; its mother is feeding offshore and will return. Do not touch it, do not put it in the water, keep dogs and people well back, and call the NOAA Marine Mammal Stranding Network. This is the season when a well meaning rescue does the most harm.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "orca_presence",
+      "name": "Southern Resident killer whales in inland waters",
+      "kind": "migration",
+      "species": "killer_whale",
+      "window": "NOAA gives their range as including the inland waterways of Washington State during spring, summer and autumn.",
+      "peak": "Summer",
+      "why_it_matters": "They follow the salmon, so their presence is a direct readout of how the runs are doing. Dyes Inlet has hosted them: the practical point is that this is a seasonal possibility rather than a reliable sighting, and that approach distances are legally regulated.",
+      "confidence": "published_range",
+      "sources": []
+    },
+    {
+      "id": "maple_sap_run",
+      "name": "Bigleaf maple sap runs",
+      "kind": "harvest_window",
+      "species": "bigleaf_maple",
+      "window": "WSU Extension records that in the Pacific Northwest maples are tapped in the winter months, December to February, when freeze and thaw events cause sap flow, and that collection is generally limited to a three to four week window.",
+      "peak": "January",
+      "why_it_matters": "The only harvest in the dead of winter, and the one that most surprises people who think sugaring is a New England thing. It needs nights below freezing and days above it, which here means a cold clear snap rather than a typical grey wet January week, so the usable window inside the season is short and you have to be ready to take it. Sap flow stops at bud break. Bigleaf maple sap runs much thinner than sugar maple, so expect to boil a great deal for very little.",
+      "confidence": "published_range",
+      "sources": [
+        "https://extension.wsu.edu/wrlp/forestfarming/crops/maplesyrup/"
+      ]
+    },
+    {
+      "id": "invasive_control_window",
+      "name": "The window for cutting invasive shrubs",
+      "kind": "harvest_window",
+      "species": "scotch_broom",
+      "window": "Scotch broom flowers roughly April into June and sets pods through summer. Cut before the pods ripen.",
+      "peak": "June",
+      "why_it_matters": "Timing is what makes the difference between control and spread. Cutting broom in flower and before seed set prevents a year of seeding; cutting it once the pods have ripened scatters them. The same logic applies to tansy ragwort, whose second year plants flower June into September and carry their highest alkaloid load at flowering. Late summer is the wrong time for both.",
+      "confidence": "local_consensus",
+      "sources": []
+    }
+  ],
+  "sources": [
+    {
+      "what": "NOAA NCEI 1991-2020 Annual/Seasonal Climate Normals, Bremerton station USC00450872: frost percentile dates and growing season length",
+      "url": "https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/access/USC00450872.csv"
+    },
+    {
+      "what": "NOAA NCEI 1991-2020 Monthly Climate Normals, same station: the monthly precipitation and temperature figures the month notes quote",
+      "url": "https://www.ncei.noaa.gov/data/normals-monthly/1991-2020/access/USC00450872.csv"
+    },
+    {
+      "what": "NOAA CO-OPS tide predictions, station 9445901 Tracyton, Dyes Inlet, full year on MLLW. Source of the measured minus-tide analysis; 2027, 2028 and 2029 were pulled with the same call to confirm the daylight window recurs",
+      "url": "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9445901&time_zone=lst_ldt&units=english&interval=hilo&format=json"
+    },
+    {
+      "what": "NOAA CO-OPS tide predictions, station 9447130 Seattle: used to validate that the prediction series really is on MLLW, by checking the mean of daily higher high waters against the published MHHW datum",
+      "url": "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&begin_date=20260101&end_date=20261231&datum=MLLW&station=9447130&time_zone=lst_ldt&units=english&interval=hilo&format=json"
+    },
+    {
+      "what": "Washington State Department of Health, marine biotoxins: that closures have no season, that cooking and freezing do not destroy the toxin, and the Shellfish Safety Map and hotline",
+      "url": "https://doh.wa.gov/community-and-environment/shellfish/recreational-shellfish/illnesses/biotoxins"
+    },
+    {
+      "what": "WDFW public shellfish beaches: that seasons are beach specific and that both the WDFW season and the DOH status must be open",
+      "url": "https://wdfw.wa.gov/places-to-go/shellfish-beaches"
+    },
+    {
+      "what": "WDFW salmon viewing: peak viewing months July to November, and the Kitsap County viewing sites including Chico Salmon Park",
+      "url": "https://wdfw.wa.gov/places-to-go/salmon-viewing"
+    },
+    {
+      "what": "WDFW forage fish and marine beach spawning: Pacific herring spawning in Puget Sound from January into June",
+      "url": "https://wdfw.wa.gov/fishing/management/marine-beach-spawning"
+    },
+    {
+      "what": "WDFW chum salmon species page: chum spawning in the fall in the lower reaches of local streams",
+      "url": "https://wdfw.wa.gov/species-habitats/species/oncorhynchus-keta"
+    },
+    {
+      "what": "WDFW coho salmon species page: life history and freshwater rearing",
+      "url": "https://wdfw.wa.gov/species-habitats/species/oncorhynchus-kisutch"
+    },
+    {
+      "what": "WDFW surf scoter species page: birds departing moulting areas late August through November for Puget Sound wintering areas, and switching to herring eggs on spring migration",
+      "url": "https://wdfw.wa.gov/species-habitats/species/melanitta-perspicillata"
+    },
+    {
+      "what": "WSU Extension Kitsap County, Kitsap Salmon Tours: the local salmon viewing event in early November, and the creeks it covers including Chico and Dickerson",
+      "url": "https://extension.wsu.edu/kitsap/water-stewardship/kitsap-salmon-tours/"
+    },
+    {
+      "what": "WSU Extension forest farming, bigleaf maple syrup: tapping in the winter months December to February on freeze and thaw events, with a three to four week collection window",
+      "url": "https://extension.wsu.edu/wrlp/forestfarming/crops/maplesyrup/"
+    },
+    {
+      "what": "NOAA Fisheries chum salmon: spawning from late summer to March with the peak in early winter, and nesting within 60 miles of the ocean",
+      "url": "https://www.fisheries.noaa.gov/species/chum-salmon"
+    },
+    {
+      "what": "NOAA Fisheries coho salmon: return to spawn in fall or early winter, about a year in fresh water as juveniles",
+      "url": "https://www.fisheries.noaa.gov/species/coho-salmon"
+    },
+    {
+      "what": "NOAA Fisheries pink salmon: return from August to October, the strict two year cycle, and the note that some Puget Sound rivers do carry even-year spawning",
+      "url": "https://www.fisheries.noaa.gov/species/pink-salmon"
+    },
+    {
+      "what": "NOAA Fisheries Chinook salmon: return to spawn generally in summer or early fall",
+      "url": "https://www.fisheries.noaa.gov/species/chinook-salmon"
+    },
+    {
+      "what": "NOAA Fisheries Puget Sound Chinook salmon: ESA threatened listing and the spring, summer and fall run types",
+      "url": "https://www.fisheries.noaa.gov/west-coast/endangered-species-conservation/puget-sound-chinook-salmon"
+    },
+    {
+      "what": "National Park Service, Olympic National Park fungi: mushrooms findable nearly year round, peak season after the start of fall rains until the first major frosts. The nearest federal statement of the rain trigger, directly across Hood Canal",
+      "url": "https://www.nps.gov/olym/learn/nature/fungi.htm"
+    },
+    {
+      "what": "National Park Service, Mount Rainier mushrooms: opened and checked; it carries identification and safety guidance but no fruiting season, which is why the Olympic page carries this claim",
+      "url": "https://www.nps.gov/mora/learn/nature/mushrooms.htm"
+    },
+    {
+      "what": "USDA Forest Service Celebrating Wildflowers, western skunk cabbage: the spathe emerges early in the spring",
+      "url": "https://www.fs.usda.gov/wildflowers/plant-of-the-week/Lysichiton-americanus.shtml"
+    },
+    {
+      "what": "USDA Forest Service Woody Plant Seed Manual, Oemleria cerasiformis: flowering January to May concurrent with leaf development, leaves and flowers flushing much earlier than other plant associates, and fruit dispersal beginning in May and nearly finished by July",
+      "url": "https://www.fs.usda.gov/nsl/Wpsm/Oemleria.pdf"
+    },
+    {
+      "what": "USDA Forest Service FEIS, salmonberry: flowering March to June in western Oregon and southwestern Washington, first leaves by 21 March in western Washington, fruit June to July",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/rubspe/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, thimbleberry: a ten year study recording earliest ripe fruit 30 June and latest 3 September",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/rubpar/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, red huckleberry: Northwest flowering April to June, Washington fruit ripening August to September",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/vacpar/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, evergreen huckleberry: flowering May to June recorded in Mason County, Washington; fruit July to September",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/vacova/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, salal: flowering May to July in western Oregon and southwestern Washington, fruit August through October persisting to December",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/gausha/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, red elderberry: Washington flowering April to July, fruit June to September, ripening extending to December in a mild winter",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/samrac/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, blue elderberry: fruits ripe 21 August west of the Continental Divide, seed fall starting 18 September in Oregon",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/samnigc/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, bigleaf maple: flowering and leaf emergence late April to early May in the Pacific Northwest, seed ripe August to October, dispersing October to January",
+      "url": "https://www.fs.usda.gov/database/feis/plants/tree/acemac/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, red alder: Snohomish County, Washington observations of flowering beginning 29 March, flowers fallen 12 April, leaf bud burst 3 April, fully leafed out 2 May, fruit ripe 27 August, and the October leaf fall",
+      "url": "https://www.fs.usda.gov/database/feis/plants/tree/alnrub/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, western bracken fern: fronds emerging March to early May, spring frost killing exposed croziers, and the statement that all parts including spores are carcinogenic",
+      "url": "https://www.fs.usda.gov/database/feis/plants/fern/pteaqu/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, trailing blackberry: flowering April to June, fruit ripening June to August",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/ruburs/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, Rubus species review covering Himalayan blackberry: Washington flowering June to August, fruit ripening August to September",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/rubspp/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, stinging nettle: flowering late May to October; consulted for shoot emergence, which it does not give, which is why the nettle window is marked local_consensus",
+      "url": "https://www.fs.usda.gov/database/feis/plants/forb/urtdio/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, beaked and California hazelnut: flowering January to March in the west coast states, catkins expanding 5 to 15 days before leaves, fruit ripening September to November on the west coast",
+      "url": "https://www.fs.usda.gov/database/feis/plants/shrub/corcor/all.html"
+    },
+    {
+      "what": "USDA Forest Service FEIS, Odocoileus hemionus: rut beginning as early as September and ending as late as March by location, 75 percent of one population conceiving 21 November to 1 December, parturition late May to mid July in the northern range",
+      "url": "https://www.fs.usda.gov/database/feis/animals/mammal/odhe/all.html"
+    },
+    {
+      "what": "USA National Phenology Network terms of use: checked and then DELIBERATELY NOT USED, because the data is CC BY 4.0 rather than public domain and the attribution condition would travel with the release bundle",
+      "url": "http://www.usanpn.org/about/terms"
+    }
+  ]
+}

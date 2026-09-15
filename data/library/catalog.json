@@ -201,6 +201,16 @@
       "name": "Making and Repair",
       "docs": [
         {
+          "title": "Sharpening",
+          "src": "docs/user/making/sharpening.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
           "title": "Working With Wood",
           "src": "docs/user/making/working_with_wood.md",
           "tags": [

@@ -317,6 +317,16 @@
       "name": "Making and Repair",
       "docs": [
         {
+          "title": "Sharpening",
+          "file": "sharpening.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "safety"
+          ]
+        },
+        {
           "title": "Working With Wood",
           "file": "working_with_wood.md",
           "tags": [

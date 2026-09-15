@@ -60,6 +60,7 @@ function buildOne(id) {
   const tides = readJson(dir, 'tides.json');
   const hazards = readJson(dir, 'hazards.json');
   const terrain = readJson(dir, 'terrain.json');
+  const phenology = readJson(dir, 'phenology.json');
 
   const L = [];
   const p = t => L.push(wrap(t), '');
@@ -112,6 +113,40 @@ function buildOne(id) {
       p('**Extremes on record.** ' + x.record_high_c + ' C at the highest, ' +
         x.record_low_c + ' C at the lowest. A building here should be designed ' +
         'for about ' + x.design_winter_c + ' C in winter.');
+    }
+  }
+
+  // ── What happens when ──
+  // The climate table says what the WEATHER does. This says what the PLACE
+  // does, which is the half a person actually plans around: when the salmon
+  // come up the creek, when the berries are ready, when the frost arrives.
+  if (phenology && Array.isArray(phenology.months) && phenology.months.length) {
+    h(2, 'What happens when');
+    p('The climate table above is the weather. This is the year as events: what ' +
+      'comes into leaf, what fruits, what runs up the creek, what arrives and ' +
+      'what leaves. Each entry says how confident it is, because a date from a ' +
+      'published record and a regional generalisation are not the same claim.');
+    if (phenology._how_to_read_confidence) p(phenology._how_to_read_confidence);
+
+    const byId = new Map((phenology.events || []).map(e => [e.id, e]));
+    for (const m of phenology.months) {
+      L.push('### ' + m.month, '');
+      if (m.notes) p(m.notes);
+      const events = (m.events || []).map(id => byId.get(id)).filter(Boolean);
+      for (const e of events) {
+        const conf = e.confidence && e.confidence !== 'measured' && e.confidence !== 'published_range'
+          ? ' (' + String(e.confidence).replace(/_/g, ' ') + ')'
+          : '';
+        L.push('- **' + e.name + '**' + conf + '. ' +
+          // The window often already ends in a full stop; do not add a second.
+          (e.window ? String(e.window).replace(/[.\s]+$/, '') + '. ' : '') +
+          (e.why_it_matters || ''));
+      }
+      if (events.length) L.push('');
+    }
+    if (phenology._what_is_deliberately_absent) {
+      h(3, 'What this calendar deliberately leaves out');
+      p(phenology._what_is_deliberately_absent);
     }
   }
 
@@ -180,11 +215,15 @@ function buildOne(id) {
       'reaction is the useful skill.');
     for (const z of hazards.hazards) {
       L.push('### ' + z.hazard, '');
-      p((z.severity || '') + (z.local_effect ? ' ' + z.local_effect : ''));
+      const sev = String(z.severity || '').replace(/[.s]+$/, '');
+      p(sev + (sev ? '. ' : '') + (z.local_effect || ''));
+      // Trim a trailing stop off each part before joining, or a value that
+      // already ends in one produces ".." in the rendered page.
+      const tidy = v => String(v).replace(/[.\s]+$/, '');
       const bits = [];
-      if (z.likelihood) bits.push('**Likelihood:** ' + z.likelihood);
-      if (z.return_period) bits.push('**Return period:** ' + z.return_period);
-      if (z.warning_time) bits.push('**Warning time:** ' + z.warning_time);
+      if (z.likelihood) bits.push('**Likelihood:** ' + tidy(z.likelihood));
+      if (z.return_period) bits.push('**Return period:** ' + tidy(z.return_period));
+      if (z.warning_time) bits.push('**Warning time:** ' + tidy(z.warning_time));
       if (bits.length) p(bits.join('. ') + '.');
     }
   }

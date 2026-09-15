@@ -2102,12 +2102,23 @@
       "subject": "tools",
       "title": "Sharpening",
       "summary": "Put and keep a real edge on a blade, because dull tools injure people.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "metalworking"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "sharpening"
+      ],
+      "sources": [
+        "usfs",
+        "osha",
+        "niosh-pocket-guide",
+        "cdc",
+        "medlineplus",
+        "peer-reviewed-literature"
+      ]
     },
     {
       "id": "tools_power",
