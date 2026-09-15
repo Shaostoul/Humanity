@@ -42,10 +42,11 @@
 >
 > NEXT, in value order:
 >
-> - **Content. 127 of 143 topics have no document and 69 cite nobody.** This is
->   the number the operator actually asked about. First wave written:
+> - **Content. 122 of 143 topics have no document and 67 cite nobody.** This is
+>   the number the operator actually asked about. First wave SHIPPED (v0.1310):
 >   soil_basics, shelter_insulation, materials_wood, health_burns,
->   water_sources, each chosen for having a strong public-domain authority. The
+>   water_sources, each chosen for having a strong public-domain authority, and
+>   materials_wood is the FIRST topic with all four layers present. The
 >   lethal-hazard topics (canning, foraging, wiring, heating) need the same
 >   treatment the fire staff guide just got and should not be written fast.
 > - **Silverdale, Washington as the canonical world.** Operator decision,
