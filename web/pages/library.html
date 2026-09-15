@@ -35,6 +35,24 @@
 
     /* ── Right pane: the reader ── */
     .lib-content { flex:1; min-width:0; max-height:calc(100vh - 220px); overflow-y:auto; }
+    /* Contents: one collapsed line until the reader wants it, then an indented
+       outline of the document's own headings. */
+    .lib-toc { margin:0 0 var(--space-md); border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-secondary); }
+    .lib-toc summary { cursor:pointer; padding:8px 12px; font-size:var(--text-sm); color:var(--text-muted); user-select:none; }
+    .lib-toc summary:hover { color:var(--text); }
+    .lib-toc a { display:block; padding:3px 12px; font-size:var(--text-sm); color:var(--text-secondary); text-decoration:none; }
+    .lib-toc a:hover { color:var(--accent); background:var(--bg); }
+    .lib-toc a:last-child { padding-bottom:10px; }
+    .lib-toc-h1 { font-weight:600; color:var(--text); }
+    .lib-toc-h2 { padding-left:24px !important; }
+    .lib-toc-h3 { padding-left:40px !important; }
+    .lib-toc-h4, .lib-toc-h5, .lib-toc-h6 { padding-left:56px !important; }
+    /* A jumped-to heading flashes, so a reader who lands mid-document can see
+       WHERE they landed instead of guessing which line the scroll stopped on. */
+    .lib-jumped { animation:lib-flash 1.2s ease-out; }
+    @keyframes lib-flash { from { background:var(--accent); color:var(--bg); } to { background:transparent; } }
+    @media (prefers-reduced-motion: reduce) { .lib-jumped { animation:none; outline:2px solid var(--accent); } }
+
     .md-viewer { line-height:1.7; color:var(--text-secondary); }
     .md-viewer h1 { font-size:1.5rem; color:var(--text); margin:var(--space-xl) 0 var(--space-lg); border-bottom:1px solid var(--bg-secondary); padding-bottom:var(--space-md); }
     .md-viewer h2 { font-size:1.2rem; color:var(--text); margin:var(--space-xl) 0 var(--space-md); }

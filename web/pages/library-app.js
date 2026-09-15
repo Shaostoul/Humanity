@@ -52,9 +52,19 @@
     }
     return null;
   }
+  /* A fragment is either `<doc>` or `<doc>/<heading>`. The second form is what
+     lets one document link into the middle of another instead of dropping the
+     reader at the top of a long file to hunt. Native parses the same grammar in
+     src/gui/pages/library.rs. */
+  function splitFragment(frag) {
+    var at = String(frag || '').indexOf('/');
+    if (at < 0) return { slug: frag, anchor: null };
+    return { slug: frag.slice(0, at), anchor: frag.slice(at + 1) };
+  }
   function openHashDoc() {
-    var hit = findBySlug(location.hash.replace(/^#/, ''));
-    if (hit) openDoc(hit.ci, hit.di, true);
+    var parts = splitFragment(location.hash.replace(/^#/, ''));
+    var hit = findBySlug(parts.slug);
+    if (hit) openDoc(hit.ci, hit.di, true, parts.anchor);
     return !!hit;
   }
 
@@ -218,7 +228,13 @@
     box.innerHTML = '<div class="lib-search-note">' + hits.length +
       (hits.length === 25 ? '+' : '') + ' result' + (hits.length === 1 ? '' : 's') + '</div>' +
       hits.map(function(h) {
-        return '<button class="lib-result" data-slug="' + esc(h.doc.slug) + '">' +
+        // The index already knew which section the match was in and could only
+        // open the document at the top, which on the Constitution is not an
+        // answer. Carry the heading's anchor through the click.
+        var anchor = (h.where && window.hosMarkdown && window.hosMarkdown.headingSlug)
+          ? window.hosMarkdown.headingSlug(h.where) : '';
+        return '<button class="lib-result" data-slug="' + esc(h.doc.slug) + '"' +
+            (anchor ? ' data-anchor="' + esc(anchor) + '"' : '') + '>' +
           '<div class="lib-result-title">' + esc(h.doc.title) +
             (h.where && h.where !== h.doc.title
               ? ' <span class="lib-result-where">&rsaquo; ' + esc(h.where) + '</span>' : '') +
@@ -230,7 +246,7 @@
     box.querySelectorAll('[data-slug]').forEach(function(b) {
       b.addEventListener('click', function() {
         var hit = findBySlug(b.getAttribute('data-slug'));
-        if (hit) openDoc(hit.ci, hit.di, true);
+        if (hit) openDoc(hit.ci, hit.di, true, b.getAttribute('data-anchor') || null);
       });
     });
   }
@@ -421,7 +437,53 @@
    *   index: scrolling them into "Credits and Thanks" would be worse than the
    *   bug this fixes.
    */
-  function openDoc(ci, di, reveal) {
+  /* ── Contents ──
+     A document the length of the Constitution or SELF-HOSTING had exactly one
+     way in: scroll. The outline is a <details> so it costs a reader who does not
+     want it one line, and the browser remembers nothing, which is deliberate:
+     it reopens closed on each document rather than carrying a decision made
+     about a different file. Below three headings there is no outline to draw. */
+  function tocHtml(text) {
+    var hs = (window.hosMarkdown && window.hosMarkdown.headings)
+      ? window.hosMarkdown.headings(text) : [];
+    if (hs.length < 3) return '';
+    return '<details class="lib-toc"><summary>Contents (' + hs.length + ' sections)</summary>' +
+      hs.map(function(h) {
+        return '<a class="lib-toc-h' + h.level + '" href="#" data-anchor="' + esc(h.slug) + '">' +
+          esc(h.text) + '</a>';
+      }).join('') + '</details>';
+  }
+
+  /** Put a rendered document on screen, wire its outline, and jump to `anchor`
+      if one was asked for. Shared by the cached and the fetched path so the two
+      cannot drift. */
+  function paintDoc(el, doc, text, anchor) {
+    el.innerHTML = docTagsHtml(doc) + tocHtml(text) +
+      '<div class="md-viewer">' + md(text) + '</div>';
+    bindDocTags(el);
+    el.querySelectorAll('.lib-toc [data-anchor]').forEach(function(a) {
+      a.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        scrollToAnchor(el, a.getAttribute('data-anchor'));
+      });
+    });
+    el.scrollTop = 0;
+    if (anchor) scrollToAnchor(el, anchor);
+  }
+
+  /* Scroll inside the reader pane, not the window. The pane is the scrolling
+     element, so scrollIntoView on the window would move the page and leave the
+     heading where it was. */
+  function scrollToAnchor(el, anchor) {
+    if (!anchor) return;
+    var target = el.querySelector('[id="' + String(anchor).replace(/"/g, '') + '"]');
+    if (!target) return;
+    el.scrollTop = target.offsetTop - el.offsetTop - 8;
+    target.classList.add('lib-jumped');
+    setTimeout(function() { target.classList.remove('lib-jumped'); }, 1200);
+  }
+
+  function openDoc(ci, di, reveal, anchor) {
     var cat = (manifest.categories || [])[ci];
     var doc = cat && (cat.docs || [])[di];
     if (!doc) return;
@@ -433,7 +495,7 @@
     // Back threw you out of it entirely: following a cross-reference was a
     // one-way trip. The very first document is a replace, so arriving at
     // /library does not need two Backs to leave.
-    var hash = '#' + slugOf(doc.file);
+    var hash = '#' + slugOf(doc.file) + (anchor ? '/' + anchor : '');
     if (history.pushState && !wasFirst && location.hash !== hash) {
       history.pushState(null, '', hash);
     } else if (history.replaceState) {
@@ -443,9 +505,7 @@
 
     var el = contentEl();
     if (docCache[doc.file]) {
-      el.innerHTML = docTagsHtml(doc) + '<div class="md-viewer">' + md(docCache[doc.file]) + '</div>';
-      bindDocTags(el);
-      el.scrollTop = 0;
+      paintDoc(el, doc, docCache[doc.file], anchor);
       if (reveal) revealReader();
       return;
     }
@@ -459,9 +519,7 @@
         docCache[doc.file] = text;
         // Guard against a slow fetch landing after the reader moved on.
         if (current && current.ci === ci && current.di === di) {
-          el.innerHTML = docTagsHtml(doc) + '<div class="md-viewer">' + md(text) + '</div>';
-          bindDocTags(el);
-          el.scrollTop = 0;
+          paintDoc(el, doc, text, anchor);
           if (reveal) revealReader();
         }
       })

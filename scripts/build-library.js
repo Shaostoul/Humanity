@@ -169,9 +169,25 @@ const searchDocs = [];
 for (const cat of manifest.categories) {
   for (const d of cat.docs) {
     const text = fs.readFileSync(path.join(LIB, d.file), 'utf8');
+    // Headings, as the reader will see them. Inline markup is stripped exactly
+    // the way both renderers strip it (web/shared/markdown.js stripInline,
+    // src/gui/widgets/markdown.rs strip_md), because the client derives a
+    // heading's anchor from this text: if the stored text and the rendered text
+    // disagree by one character, a search hit jumps nowhere. Lines inside a code
+    // fence are skipped, since `# comment` in a shell example is not a section.
     const headings = [];
-    for (const m of text.matchAll(/^#{1,4}\s+(.+)$/gm)) {
-      headings.push(m[1].replace(/[*`]/g, '').trim());
+    let inFence = false;
+    for (const line of text.split(/\r?\n/)) {
+      const t = line.trim();
+      if (t.startsWith('```') || t.startsWith('~~~')) { inFence = !inFence; continue; }
+      if (inFence) continue;
+      const m = t.match(/^#{1,4}\s+(.+)$/);
+      if (!m) continue;
+      headings.push(
+        m[1].replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+            .replace(/\*\*/g, '').replace(/__/g, '')
+            .replace(/[*`]/g, '').trim()
+      );
     }
     searchDocs.push({
       slug: slugOf(d.file),

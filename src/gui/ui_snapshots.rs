@@ -902,9 +902,16 @@ A paragraph carrying a cross-reference to the
 [the roadmap](/library#roadmap), which before v0.1306.9 printed their own
 brackets and URLs on screen because the native reader had no link handling.
 
+```bash
+# This comment is NOT a heading. The renderer had no fence handling at all,
+# so SELF-HOSTING.md drew 50 shell comments at title size and buried its
+# real sections among them.
+sudo certbot --nginx -d united-humanity.us
+```
+
 Closing paragraph after the table.";
 
-    render_page_png("markdown_features", 760, 560, |_ctx, theme, _state| {
+    render_page_png("markdown_features", 760, 660, |_ctx, theme, _state| {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
             .show(_ctx, |ui| {

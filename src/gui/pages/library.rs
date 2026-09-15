@@ -47,6 +47,13 @@ struct LibState {
     /// document that sends you somewhere else is a one-way trip, which is the
     /// thing that makes people avoid following links at all.
     back: Vec<Sel>,
+    /// A heading slug to scroll to on the next frame, then cleared. Set by the
+    /// Contents outline and by opening a search hit. One frame only: holding it
+    /// would fight the reader every time they scrolled away.
+    scroll_to: Option<String>,
+    /// Whether the Contents outline is expanded. Remembered across documents,
+    /// because a reader who wants an outline wants it for the next one too.
+    toc_open: bool,
     /// Active document tag filter (a tag id from `data/library/tags.json`).
     /// None shows everything. Narrows the rail without changing what is open,
     /// so filtering never yanks the document you are reading out from under you.
@@ -67,6 +74,8 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             define_popup: None,
             back: Vec::new(),
             search: String::new(),
+            scroll_to: None,
+            toc_open: false,
             tag_filter: None,
         });
     }
@@ -177,7 +186,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         // navigations.
                         let q = lib_state(|s| s.search.trim().to_lowercase());
                         if !q.is_empty() {
-                            let mut hits: Vec<(usize, usize, usize, &str, i32)> = Vec::new();
+                            // (section, category, entry, title, score, heading)
+                            // The heading is which SECTION of the document the
+                            // match sits in, so opening a hit lands the reader on
+                            // the passage instead of at the top of a long file.
+                            let mut hits: Vec<(usize, usize, usize, &str, i32, Option<markdown::Heading>)> =
+                                Vec::new();
                             for (si, sec) in state.library.iter().enumerate() {
                                 for (ci, c) in sec.categories.iter().enumerate() {
                                     for (ei, e) in c.entries.iter().enumerate() {
@@ -189,7 +203,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         let score = if t.contains(&q) { 10 } else { 0 }
                                             + if b.contains(&q) { 1 } else { 0 };
                                         if score > 0 {
-                                            hits.push((si, ci, ei, e.title.as_str(), score));
+                                            let head = heading_for_match(&e.body, &q);
+                                            hits.push((si, ci, ei, e.title.as_str(), score, head));
                                         }
                                     }
                                 }
@@ -205,27 +220,34 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_muted()),
                             );
                             ui.add_space(theme.spacing_xs);
-                            let mut picked: Option<Sel> = None;
-                            for (si, ci, ei, title, _) in hits.into_iter().take(40) {
+                            let mut picked: Option<(Sel, Option<String>)> = None;
+                            for (si, ci, ei, title, _, head) in hits.into_iter().take(40) {
+                                let label = match &head {
+                                    Some(h) if h.text != title => {
+                                        format!("{title}  \u{203a} {}", h.text)
+                                    }
+                                    _ => title.to_string(),
+                                };
                                 if ui
                                     .selectable_label(
                                         false,
-                                        RichText::new(title)
+                                        RichText::new(label)
                                             .size(theme.font_size_small)
                                             .color(theme.text_primary()),
                                     )
                                     .clicked()
                                 {
-                                    picked = Some(Sel::Doc(si, ci, ei));
+                                    picked = Some((Sel::Doc(si, ci, ei), head.map(|h| h.slug)));
                                 }
                             }
-                            if let Some(next) = picked {
+                            if let Some((next, anchor)) = picked {
                                 lib_state(|s| {
                                     let prev = s.sel.clone();
                                     if prev != next {
                                         s.back.push(prev);
                                         s.sel = next;
                                     }
+                                    s.scroll_to = anchor;
                                 });
                             }
                             return;
@@ -393,6 +415,69 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             });
                             ui.add_space(theme.spacing_xs);
+
+                            // ── Contents ──
+                            // A document the length of the Constitution or
+                            // SELF-HOSTING had exactly one way in: scroll. The
+                            // outline is collapsed by default so it costs a
+                            // reader who does not want it a single line, and the
+                            // open/closed choice carries to the next document.
+                            if let Some(body) = body {
+                                let heads = markdown::headings(body);
+                                // One or two headings is not an outline, it is
+                                // the title. Below three this is noise.
+                                if heads.len() >= 3 {
+                                    let mut jump: Option<String> = None;
+                                    let label = format!("Contents ({} sections)", heads.len());
+                                    let resp = egui::CollapsingHeader::new(
+                                        RichText::new(label)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    )
+                                    .id_salt("library_toc")
+                                    .open(Some(s.toc_open))
+                                    .show(ui, |ui| {
+                                        for h in heads.iter() {
+                                            // Indent by level so the shape of the
+                                            // document is visible, not just its
+                                            // section names.
+                                            ui.horizontal(|ui| {
+                                                ui.add_space(theme.spacing_sm * (h.level.saturating_sub(1)) as f32);
+                                                let color = if h.level == 1 {
+                                                    theme.text_primary()
+                                                } else {
+                                                    theme.text_secondary()
+                                                };
+                                                if ui
+                                                    .add(
+                                                        Label::new(
+                                                            RichText::new(&h.text)
+                                                                .size(theme.font_size_small)
+                                                                .color(color),
+                                                        )
+                                                        .sense(Sense::click()),
+                                                    )
+                                                    .on_hover_cursor(CursorIcon::PointingHand)
+                                                    .clicked()
+                                                {
+                                                    jump = Some(h.slug.clone());
+                                                }
+                                            });
+                                        }
+                                    });
+                                    if resp.header_response.clicked() {
+                                        s.toc_open = !s.toc_open;
+                                    }
+                                    if jump.is_some() {
+                                        s.scroll_to = jump;
+                                    }
+                                    ui.add_space(theme.spacing_xs);
+                                }
+                            }
+
+                            // One frame only. Holding the target would re-scroll
+                            // every frame and the reader could never scroll away.
+                            let scroll_to = s.scroll_to.take();
                             ScrollArea::vertical().id_salt("library_doc").auto_shrink([false, false]).show(ui, |ui| {
                                 if let Some(body) = body {
                                     if s.define_mode {
@@ -403,7 +488,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         }
                                     } else {
                                         let mut link: Option<String> = None;
-                                        markdown::render_markdown_linked(ui, theme, body, &mut link);
+                                        markdown::render_markdown_linked_scrolled(
+                                            ui,
+                                            theme,
+                                            body,
+                                            &mut link,
+                                            scroll_to.as_deref(),
+                                        );
                                         if let Some(target) = link {
                                             nav_request = Some(target);
                                         }
@@ -537,7 +628,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // external http link is left alone: opening a browser from here is a
             // separate decision and is not what these links are for.
             if let Some(target) = nav_request {
-                if let Some(slug) = target.strip_prefix("/library#") {
+                if let Some(frag) = target.strip_prefix("/library#") {
+                    // `/library#<doc>` opens a document; `/library#<doc>/<heading>`
+                    // opens it at a section. The second form is what lets one
+                    // document link into the middle of another, rather than
+                    // dropping the reader at the top and leaving them to hunt.
+                    let (slug, anchor) = match frag.split_once('/') {
+                        Some((d, h)) => (d, Some(h.to_string())),
+                        None => (frag, None),
+                    };
                     let found = state.library.iter().enumerate().find_map(|(si, sec)| {
                         sec.categories.iter().enumerate().find_map(|(ci, c)| {
                             c.entries.iter().position(|e| e.slug == slug
@@ -552,6 +651,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 s.back.push(prev);
                                 s.sel = next;
                             }
+                            if anchor.is_some() {
+                                s.scroll_to = anchor;
+                            }
                         });
                     }
                 }
@@ -560,6 +662,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 }
 
 /// A clickable tag-filter chip. Returns true when clicked this frame.
+/// Which section of `body` the first match for `q` (already lowercased) falls
+/// in: the last heading before the matching line.
+///
+/// The heading list comes from `markdown::headings`, the same call the Contents
+/// outline and the renderer's anchors use, so all three agree about which
+/// headings exist and what each one's slug is. Deriving it here a second time
+/// would be a slug that drifts the moment a document repeats a heading name.
+///
+/// Matching walks LINES rather than a byte offset into `body.to_lowercase()`,
+/// because lowercasing can change a string's byte length and the offset would
+/// then point a few bytes off.
+fn heading_for_match(body: &str, q: &str) -> Option<markdown::Heading> {
+    let heads = markdown::headings(body);
+    if heads.is_empty() {
+        return None;
+    }
+    for (n, line) in body.lines().enumerate() {
+        let t = line.trim();
+        if t.to_lowercase().contains(q) {
+            return heads.iter().rev().find(|h| h.line < n).cloned();
+        }
+    }
+    None
+}
+
 fn tag_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) -> bool {
     let (fill, text) = if active {
         (theme.accent(), theme.bg_primary())

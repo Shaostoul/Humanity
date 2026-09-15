@@ -452,6 +452,7 @@ snapshot name:
 preflight:
     @echo ">> untracked source files (would fail CI on a fresh checkout; empty = good):"; git ls-files --others --exclude-standard -- '*.rs' '*.ron' '*.csv'
     node scripts/check-doc-links.js
+    node scripts/curriculum-status.js
     just verify
     @echo "OK: preflight passed, safe to push"
 

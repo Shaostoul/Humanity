@@ -36,6 +36,65 @@
     return s;
   }
 
+  /** Reduce inline markdown to the plain text a reader sees. Used for heading
+      anchors and outlines, where markup in the source must not reach the slug.
+      Mirrors strip_md in src/gui/widgets/markdown.rs. */
+  function stripInline(text) {
+    return String(text)
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/\*\*/g, '')
+      .replace(/__/g, '')
+      .replace(/`/g, '')
+      .replace(/\*/g, '')
+      .trim();
+  }
+
+  /** GitHub's heading-anchor grammar: lowercase, every run of non-alphanumerics
+      becomes one hyphen, ends trimmed. MUST match heading_slug in
+      src/gui/widgets/markdown.rs, because a link written in one client is
+      followed in the other. */
+  function headingSlug(text) {
+    let out = '', dash = false;
+    const s = String(text);
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (/[\p{L}\p{N}]/u.test(c)) { out += c.toLowerCase(); dash = false; }
+      else if (!dash && out.length) { out += '-'; dash = true; }
+    }
+    return out.replace(/-+$/, '');
+  }
+
+  /** GitHub's duplicate-anchor rule: the second heading that slugs to
+      `section-1` becomes `section-1-1`, the third `section-1-2`. The US
+      Constitution has nine repeated "Section N" headings, one set per Article;
+      without this the outline sends a reader looking for Article III's Section 1
+      to Article I's. Mirrors dedupe_slug in src/gui/widgets/markdown.rs. */
+  function dedupeSlug(seen, base) {
+    const n = seen[base] || 0;
+    seen[base] = n + 1;
+    return n === 0 ? base : base + '-' + n;
+  }
+
+  /** Every heading in `md` as {level, text, slug, line}, in document order. Code
+      fences are skipped, because a `# comment` inside a shell example is not a
+      section. */
+  function headings(md) {
+    const out = [];
+    const seen = {};
+    let inCode = false;
+    String(md).split('\n').forEach(function (line, n) {
+      const t = line.trim();
+      if (t.startsWith('```') || t.startsWith('~~~')) { inCode = !inCode; return; }
+      if (inCode) return;
+      const m = t.match(/^(#{1,6})\s+(.*)/);
+      if (!m) return;
+      const text = stripInline(m[2]);
+      const base = headingSlug(text);
+      if (base) out.push({ level: m[1].length, text: text, slug: dedupeSlug(seen, base), line: n });
+    });
+    return out;
+  }
+
   /** A GFM table separator row: only pipes, dashes, colons and space, and it
       must contain at least one of each of a dash and a pipe. A bare row of
       dashes is a horizontal rule, not a separator, so the pipe test matters. */
@@ -73,6 +132,9 @@
   }
 
   function render(md) {
+    // Per-render duplicate-anchor counter, so the Nth repeat of a heading
+    // name gets the same id here that headings() gives it in the outline.
+    const seenSlugs = {};
     let html = '';
     const lines = md.split('\n');
     let inCode = false;
@@ -121,7 +183,8 @@
       const line = lines[i];
 
       // Code blocks.
-      if (line.startsWith('```')) {
+      const fenced = line.trim();
+      if (fenced.startsWith('```') || fenced.startsWith('~~~')) {
         flushPara();
         if (inCode) {
           html += '<pre><code>' + escapeHtml(codeBlock) + '</code></pre>';
@@ -152,11 +215,16 @@
       if (inList && !ulMatch && !olMatch) closeList();
 
       // Headers.
-      const hMatch = line.match(/^(#{1,6})\s+(.*)/);
+      const hMatch = line.trim().match(/^(#{1,6})\s+(.*)/);
       if (hMatch) {
         flushPara();
         const level = hMatch[1].length;
-        html += '<h' + level + '>' + inlineMarkdown(hMatch[2]) + '</h' + level + '>';
+        // The anchor is what makes a section addressable: the Library's
+        // Contents outline, a search hit that knows which section it matched,
+        // and a /library#doc/heading deep link all resolve to this id.
+        const slug = dedupeSlug(seenSlugs, headingSlug(stripInline(hMatch[2])));
+        const idAttr = slug ? ' id="' + escapeHtml(slug) + '"' : '';
+        html += '<h' + level + idAttr + '>' + inlineMarkdown(hMatch[2]) + '</h' + level + '>';
         continue;
       }
 
@@ -263,5 +331,5 @@
   }
 
 
-  window.hosMarkdown = { render, escapeHtml, inlineMarkdown };
+  window.hosMarkdown = { render, escapeHtml, inlineMarkdown, headings, headingSlug, stripInline };
 })();
