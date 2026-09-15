@@ -401,7 +401,7 @@
       "subject": "food_growing",
       "title": "The growing calendar where you live",
       "summary": "Know your frost dates, day length and season windows, and plan backwards from them.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming"
       ],
@@ -409,11 +409,16 @@
         "data/locales/<id>/climate.json"
       ],
       "sources": [
-        "noaa",
-        "usda-hardiness"
+        "noaa-ncei",
+        "usda-hardiness",
+        "usno",
+        "state-extension"
       ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "the-growing-calendar"
+      ]
     },
     {
       "id": "grow_water",
@@ -1923,7 +1928,7 @@
       "subject": "earth",
       "title": "Tides",
       "summary": "Read a tide table and understand what drives it.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "navigation",
         "foraging"
@@ -1932,17 +1937,24 @@
         "data/locales/<id>/tides.json"
       ],
       "sources": [
-        "noaa-coops"
+        "noaa-coops",
+        "noaa",
+        "nws",
+        "cdc",
+        "state-health-biotoxin"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "reading": [
+        "reading-the-tide"
+      ]
     },
     {
       "id": "earth_hazards",
       "subject": "earth",
       "title": "The hazards your place actually has",
       "summary": "Know which disasters are realistic where you live and prepare for those.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "shelter_building"
       ],
@@ -1950,12 +1962,18 @@
         "data/locales/<id>/hazards.json"
       ],
       "sources": [
-        "fema",
         "usgs",
-        "noaa"
+        "fema",
+        "noaa",
+        "nws",
+        "cdc",
+        "usfa"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "reading": [
+        "the-hazards-where-you-live"
+      ]
     },
     {
       "id": "earth_seasons",
@@ -2209,15 +2227,23 @@
       "subject": "sanitation",
       "title": "Handwashing and personal hygiene",
       "summary": "Do the single highest-return health behaviour correctly.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
-        "cdc"
+        "cdc",
+        "who",
+        "fda",
+        "epa",
+        "niosh-pocket-guide",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "handwashing-and-hygiene"
+      ]
     },
     {
       "id": "sanitation_refuse",

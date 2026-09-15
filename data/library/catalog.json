@@ -87,6 +87,15 @@
           ]
         },
         {
+          "title": "The Growing Calendar",
+          "src": "docs/user/skills/the_growing_calendar.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
           "title": "Where Water Comes From",
           "src": "docs/user/skills/where_water_comes_from.md",
           "tags": [
@@ -143,6 +152,36 @@
             "real",
             "shelter",
             "power"
+          ]
+        },
+        {
+          "title": "Reading the Tide",
+          "src": "docs/user/skills/reading_the_tide.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
+          "title": "The Hazards Where You Live",
+          "src": "docs/user/skills/the_hazards_where_you_live.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "safety"
+          ]
+        },
+        {
+          "title": "Handwashing and Hygiene",
+          "src": "docs/user/skills/handwashing_and_hygiene.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
           ]
         },
         {

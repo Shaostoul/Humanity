@@ -676,6 +676,16 @@
       "note": "Water rights, well permits and the exemptions. In the western United States, whether you may legally take water is a real constraint and the answer is different in every state."
     },
     {
+      "id": "fda",
+      "name": "US Food and Drug Administration",
+      "url": "https://www.fda.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Regulates what may be sold as soap, as a drug and as a food, so it is the authority for what a label is allowed to claim as well as for what is in the bottle."
+    },
+    {
       "id": "placeholder-alloy-data",
       "name": "Published alloy and fibre data (unresolved)",
       "kind": "placeholder",
