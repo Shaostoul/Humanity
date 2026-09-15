@@ -2,6 +2,23 @@
   "_comment": "Library taxonomy: the SOURCE OF TRUTH for what the in-app Library contains. scripts/build-library.js reads this, copies each `src` into data/library/, and generates the runtime manifest index.json from it. Add a doc by adding a row HERE, never by editing code (see docs/design/infinite-of-x.md). `tags` cross-cut the categories: the category is the one shelf a doc sits on, tags are every other way someone might look for it. Every tag id must exist in tags.json.",
   "categories": [
     {
+      "name": "Where You Are",
+      "section": "Learn",
+      "docs": [
+        {
+          "title": "Silverdale, Washington",
+          "src": "docs/user/locale/silverdale_wa.md",
+          "tags": [
+            "reference",
+            "real",
+            "water",
+            "food",
+            "shelter"
+          ]
+        }
+      ]
+    },
+    {
       "name": "Real Skills",
       "docs": [
         {

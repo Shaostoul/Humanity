@@ -118,6 +118,23 @@
   ],
   "categories": [
     {
+      "name": "Where You Are",
+      "docs": [
+        {
+          "title": "Silverdale, Washington",
+          "file": "silverdale_wa.md",
+          "tags": [
+            "reference",
+            "real",
+            "water",
+            "food",
+            "shelter"
+          ]
+        }
+      ],
+      "section": "Learn"
+    },
+    {
       "name": "Real Skills",
       "docs": [
         {

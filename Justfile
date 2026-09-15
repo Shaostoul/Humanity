@@ -457,6 +457,13 @@ preflight:
     just verify
     @echo "OK: preflight passed, safe to push"
 
+# Regenerate the readable locale guide for every place in data/locales/ from its
+# own data files, then rebuild the Library to ship it. The data drives the
+# simulation AND the document, so the two cannot disagree. Re-run after editing
+# anything under data/locales/; never edit the generated markdown.
+locale-docs:
+    node scripts/build-locale-doc.js
+    node scripts/build-library.js
 # Validate every locale's species.json: the shape, and the rule that matters,
 # which is that anything edible or toxic must name what it is confused with and
 # say how to tell them apart. An empty lookalike list was the single most common
