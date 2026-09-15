@@ -1965,7 +1965,7 @@
       "subject": "earth",
       "title": "The climate where you live",
       "summary": "Know your normal temperature, rainfall and season pattern, and the variance.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming"
       ],
@@ -1973,10 +1973,17 @@
         "data/locales/<id>/climate.json"
       ],
       "sources": [
-        "noaa"
+        "noaa",
+        "noaa-ncei",
+        "nps",
+        "usgs",
+        "usda-hardiness"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "the-climate-where-you-live"
+      ]
     },
     {
       "id": "earth_weather_reading",

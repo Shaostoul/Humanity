@@ -61,8 +61,8 @@ describes phytoplankton as responsible for nearly all primary production
 in the Northwest continental shelf ecosystem, and states the consequence
 plainly: how many organisms can live and grow in a given area depends on
 the amount of primary production the phytoplankton generate.
-Phytoplankton blooms are a major component of the food web and the
-primary food source for zooplankton and for filter feeders such as
+Phytoplankton blooms are a major component of the food web and
+a primary food source for zooplankton and for filter feeders such as
 shellfish. These organisms range in size from under one micrometre to
 over one hundred.
 
@@ -177,10 +177,11 @@ derive roughly 22 to 24 percent of their foliar nitrogen from spawning
 salmon. Broken out by species, their mixing model gave about 24 percent
 in Sitka spruce, 22 percent in devil's club and 22 percent in fern.
 
-The consequence they measured is the striking part. Among trees within
-25 metres of the stream, mean annual basal area growth was more than
+The consequence they measured is the striking part, and it is about one
+species, not all four. Among the Sitka spruce they cored within 25
+metres of the stream, mean annual basal area growth was more than
 tripled at the spawning sites. Put in a form you can picture: those
-trees would need about 86 years to reach 50 centimetres diameter at
+spruce would need about 86 years to reach 50 centimetres diameter at
 breast height, against 307 years at the reference sites. Same species,
 same island, same rainfall. Salmon.
 
@@ -198,15 +199,23 @@ percent. Their explanation is that alder gets most of its nitrogen by
 fixing it out of the air, so it is less likely to take up the salmon's.
 Hold on to that, because alder is about to reappear.
 
-Now the local number. Washington is not southeast Alaska, and the honest
-figure for a Puget Sound lowland creek is smaller. The Encyclopedia of
-Puget Sound, published by the Puget Sound Institute at the University of
-Washington Tacoma, reports work by Bilby and colleagues in 1996 finding
-that salmon-derived nitrogen made up 10 to 20 percent of the nitrogen in
-some species of fish and invertebrates in a western Washington salmon
-stream, and notes that higher proportions have been documented in
-Alaskan systems. Different measurement, different place, smaller number,
-same mechanism.
+Now the nearest local number, and it is worth being careful about what
+it is, because it is not the Washington version of the figure above.
+There is no Puget Sound equivalent of the Helfield foliar measurement.
+What exists measures a different compartment entirely. The Encyclopedia
+of Puget Sound, published by the Puget Sound Institute at the University
+of Washington Tacoma, reports work by Bilby and colleagues in 1996
+finding that salmon-derived nitrogen made up 10 to 20 percent of the
+nitrogen in some species of fish and invertebrates in a western
+Washington salmon stream, and notes that higher proportions have been
+documented in Alaskan systems.
+
+Do not read 10 to 20 percent as a smaller version of 22 to 24 percent.
+One is nitrogen in the leaves of riparian trees and shrubs in southeast
+Alaska; the other is nitrogen in the bodies of fish and invertebrates in
+a western Washington stream. Different organisms, different tissue,
+different place. Neither number is the other one shrunk. Same mechanism,
+measured at two different points in the same loop.
 
 ### How the fish gets out of the water
 
@@ -218,8 +227,12 @@ dominant vector, recorded the scale of that transport. In a single year,
 eight bears moved about 3,100 salmon, roughly 10,700 kilograms, into the
 riparian zone, leaving around 330 grams of carcass remnants per square
 metre. Carcasses were concentrated within 50 metres of the spawning
-reaches, but the nitrogen showed up in trees as far as 90 metres into
-the forest.
+reaches, but the effect reached further than the carcasses did: the
+growth response of trees to salmon abundance extended at least 90 metres
+into the forest, and the authors think likely further. Note which
+measurement that is. The nitrogen signature itself behaved the other
+way, strongest beside the spawning gravel and falling off with distance
+into the forest. It is the growth that showed up at 90 metres.
 
 Flooding does the same job by a different route. Ben-David, Hanley and
 Schell sampled five plant species along 18 transects running from stream
@@ -393,22 +406,39 @@ Himalayan blackberry (`himalayan_blackberry`) and Scotch broom
 **Year five to twenty-five.** The alder grows fast and closes a canopy,
 and while it does, it is quietly manufacturing the soil the next forest
 will use. Red alder fixes nitrogen from the air. The Forest Service puts
-the accretion rate at 40 to 300 pounds of nitrogen per acre, 45 to 355
-kilograms per hectare, per year, varying with stand location, vigour,
-age and density. Soils under alder develop higher available and total
+the accretion rate at 40 to 300 pounds of nitrogen per acre per year,
+varying with stand location, vigour, age and density. It prints the
+metric equivalent as 45 to 355 kilograms per hectare, and if you redo
+that conversion yourself you will not get the same answer: one pound per
+acre is 1.12 kilograms per hectare, so 300 pounds per acre is 336, not
+355. The pounds-per-acre figures are the ones to carry. Anywhere a
+document hands you a unit conversion, doing it yourself costs ten
+seconds, and [Units and Converting Them](units_and_converting_them.md)
+is about exactly this habit.
+
+Soils under alder develop higher available and total
 nitrogen. The leaves are nitrogen-rich, decompose rapidly, and form a
 deep humus that improves soil structure. Conifer seedlings establish in
 the shade beneath.
 
 There is a complication worth knowing, because it is the kind of thing
 that gets left out of the cheerful version. That same nitrogen
-accumulation acidifies the ground. The Forest Service records soil pH
-under pure alder stands averaging 4.3 to 4.4, against 5.3 under adjacent
-conifer stands. Alder is not simply improving the soil; it is changing
-it, and it makes it more acid while making it richer. If you garden on
-old alder ground, that is your starting number, and
-[What Soil Is](what_soil_is.md) explains what a pH that low does to
-nutrient availability.
+accumulation acidifies the ground. The Forest Service cites a study from
+coastal Oregon in which pure alder stands averaged soil pH 4.3 to 4.4,
+against 5.3 under adjacent conifer stands. Alder is not simply improving
+the soil; it is changing it, and it makes it more acid while making it
+richer.
+
+That Oregon pair is a direction, not your number, and this is worth
+labouring because it is the commonest way a real finding turns into bad
+advice. Expect alder ground to run more acid than the conifer ground
+beside it. Do not expect 4.3. The soil data for this area disagrees:
+`soil.json` puts the Alderwood series, which covers about half the
+mapped ground here, at pH 5.1 to 6.5, and the most acid series in the
+whole file, Everett, starts at 4.5. A reader who limed to an Oregon
+figure would be correcting a problem their own ground does not have.
+Measure your own, and [What Soil Is](what_soil_is.md) explains what a
+low pH actually does to nutrient availability.
 
 **Year twenty-five to forty.** The conifers catch up. The Forest Service
 gives it plainly: after about 25 years conifers equal red alder in
@@ -436,8 +466,10 @@ Two things to take from that sequence.
 The first is that **the pioneer species is not a weed.** Alder looks like
 scrub and it is doing the single most important piece of work in the
 whole sequence. The soil series mapped across this area is even named
-for it, and formed under a mix of Douglas-fir, western hemlock, western
-redcedar and red alder together.
+for it. The NRCS series description lists the potential natural vegetation
+for that ground as Douglas-fir, western hemlock, western redcedar and red
+alder together, which is a statement about what the site will support, not
+about what the soil formed under.
 
 The second is that **the sequence is a clock you can read backwards.** A
 stand of pure alder means disturbance within about twenty-five years. Fir
@@ -453,9 +485,12 @@ pattern shows up fast. They are at boundaries.
 **Forest to open ground.** The Forest Service records that red alder
 dominated early seral communities in recently clearcut Douglas-fir
 forest are favourable habitat for black-tailed deer, and that red
-alder and thimbleberry stands are preferred by black-tailed deer in
-summer and early autumn. The deer is not a deep-forest animal. It is an
-edge animal, which is why you see it on the margin of a cleared lot.
+alder and thimbleberry stands in Oregon are preferred by black-tailed deer
+in summer and early autumn, when daytime temperatures are highest, and are
+generally avoided in winter. That second half is the useful one: the same
+patch is not the same resource in February. The deer is not a deep-forest
+animal. It is an edge animal, which is why you see it on the margin of a
+cleared lot.
 
 **Land to fresh water.** The belted kingfisher (`belted_kingfisher`)
 needs two things at once and will not settle for one: fishable water
@@ -490,9 +525,11 @@ explanation and it is a reasonable one, but treat it as a generalisation.
 The specific cases above are sourced; the general rule is a frame for
 looking, not a fact to quote.
 
-And the honest other half: edges are also how things get in. The Forest
-Service habitat descriptions for the four worst local invaders all read
-the same way. Roadsides, field margins, fence lines, forest edges,
+And the honest other half: edges are also how things get in. The habitat
+descriptions for the four worst local invaders all read the same way.
+Three of them are Forest Service reviews cited below; the Himalayan
+blackberry description comes from its own record, which is sourced to the
+state weed board and USDA PLANTS rather than to the Forest Service. Roadsides, field margins, fence lines, forest edges,
 riparian corridors, railroad grades, logged ground. Every edge you create
 is both an opportunity and a door.
 
@@ -566,9 +603,13 @@ well as an ecological one.
 
 **Scotch broom (`scotch_broom`) rewrites the soil chemistry and then
 locks the site.** Like alder, it is a nitrogen fixer, and the Forest
-Service gives the number: it derived 81 percent of the nitrogen in its
-above-ground tissues from the atmosphere, equivalent to 111 kilograms of
-nitrogen per hectare per year. That sounds like alder's trick, and the
+Service reports one measurement, and it is worth knowing where from: in
+Monterey pine plantations in New Zealand, broom derived 81 percent of the
+nitrogen in its above-ground tissues from the atmosphere, equivalent to 111
+kilograms of nitrogen per hectare per year. No equivalent figure is
+published for Pacific Northwest broom, so do not set that number beside
+alder as though the two had been measured on the same ground. That sounds
+like alder's trick, and the
 outcome is different, because broom does not hand the site on. Stands
 reach a biomass of 44,000 to 50,000 kilograms per hectare in three to
 four years. As stands age, the ratio of woody to green material rises and
@@ -585,15 +626,17 @@ ground it forms a dense cover six to eight inches deep that the Forest
 Service review describes as an ivy desert, forming near monocultures in
 the understorey, suppressing the ground flora and inhibiting regeneration
 of native species. Then it climbs. Stems typically reach 90 feet, and
-occasionally 300-foot conifers. On a tree it covers and kills the
-supporting branches by blocking sunlight, the host tree may eventually
-die from steady weakening, and a tree carrying ivy is more susceptible to
-windfall during storms. So one plant removes the seedling layer and
+occasionally 300-foot conifers. The Forest Service is careful about what
+happens next, and so is this sentence: it records as anecdotal that
+climbing ivy covers and kills the supporting branches by blocking
+sunlight and that the host tree may eventually die from steady weakening,
+and says a tree carrying ivy may be susceptible to windfall in storms.
+Reported, not measured. So one plant removes the seedling layer and
 destabilises the canopy layer at the same time. It spreads by birds
 eating the berries and by stem and root fragments rooting where they
 touch soil, which is why yard-waste dumping moves it. In Washington it is
-a Class C noxious weed and on the state quarantine list, so it may not be
-transported, bought, sold or distributed.
+a Class C noxious weed, and four taxa are on the state quarantine list and
+may not be transported, bought, sold or distributed.
 
 **Reed canarygrass (`reed_canarygrass`) converts a wetland into a
 lawn.** It occupies saturated ground: ditches, dikes, shallow marsh, wet
@@ -646,10 +689,12 @@ urban stream, Longfellow Creek, premature spawner mortality ran from 60
 to 100 percent of every autumn run across 2002 to 2009. In a non-urban
 reference stream the comparable rate was under 1 percent.
 
-The pattern across watersheds was the tell: mortality correlated closely
-and positively with the proportion of local roads, impervious surfaces
-and commercial property in the basin. The authors could not name the
-toxicant in 2011 and said so.
+The pattern across watersheds was the tell, and it comes from a companion
+paper rather than from Scholz: Feist and colleagues, analysing land use
+across the same watersheds, found coho spawner mortality correlated closely
+and positively with the proportion of local roads, impervious surfaces and
+commercial property in the basin. Neither team could name the toxicant in
+2011 and both said so.
 
 It was named later. USGS describes 6PPD, a chemical used to keep tyres
 from degrading and cracking, which reacts with ozone in the air to form
@@ -806,7 +851,8 @@ redistributed with this guide; the rest cannot.
   here. https://research.fs.usda.gov/feis/species-reviews/tsuhet
 - USDA Forest Service, Fire Effects Information System. Species review:
   *Cytisus scoparius* (Scotch broom). Nitrogen fixation at 81 percent of
-  above-ground tissue nitrogen and 111 kg N/ha/year, stand biomass of
+  above-ground tissue nitrogen and 111 kg N/ha/year, which FEIS scopes to
+  Monterey pine plantations in New Zealand and not to this region, stand biomass of
   44,000 to 50,000 kg/ha in three to four years, seed bank persistence of
   5 to 30 years, seed production per shrub, self-perpetuating stands
   excluding other vegetation, and conifer plantation damage.
@@ -875,8 +921,11 @@ redistributed with this guide; the rest cannot.
   influences of salmon on growth and nitrogen signatures of Sitka spruce
   tree rings. *BMC Ecology* 13: 38. Black bears as the dominant vector,
   eight bears moving 3,100 salmon and 10,700 kg in one year, about 330 g
-  of carcass remnants per square metre, carcasses within 50 m and tree
-  nitrogen uptake to 90 m.
+  of carcass remnants per square metre, carcasses within 50 m, and the
+  tree GROWTH response extending at least 90 m into the forest. The paper
+  is explicit that its nitrogen signature runs the other way, highest
+  beside the spawning area and declining with distance, so 90 m is a
+  growth result and not a nitrogen result.
   https://pmc.ncbi.nlm.nih.gov/articles/PMC3850941/
 - Paine, R.T. 1966. Food Web Complexity and Species Diversity. *The
   American Naturalist* 100(910): 65 to 75. The Mukkaw Bay experiment and
@@ -920,9 +969,17 @@ redistributed with this guide; the rest cannot.
   Lowland Urban Streams. *PLoS ONE* 6(12): e28013. The symptoms, over 90
   percent egg retention, Longfellow Creek premature spawner mortality of
   60 to 100 percent of each autumn run from 2002 to 2009, under 1 percent
-  in the non-urban reference stream, and the correlation with local
-  roads, impervious surfaces and commercial property.
+  in the non-urban reference stream. This paper does NOT report the
+  land-use correlation; it cites Feist et al. for it, and so does this
+  guide.
   https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0028013
+- Feist, B.E., Buhle, E.R., Arnold, P., Davis, J.W. and Scholz, N.L. 2011.
+  Landscape ecotoxicology of salmon spawner mortality in urban streams.
+  *PLoS ONE* 6(8): e23424. The source of the land-use correlation quoted
+  above. Cited here at second hand, through the Scholz 2011 discussion,
+  which states the finding and attributes it to this paper; the Feist
+  paper itself was not opened for this guide, so no link is given for it:
+  that is the point of saying where the claim came from.
 - Loss, S.R. (Smithsonian Migratory Bird Center), Will, T. (US Fish and
   Wildlife Service, Division of Migratory Birds) and Marra, P.P. 2013.
   The impact of free-ranging domestic cats on wildlife of the United
