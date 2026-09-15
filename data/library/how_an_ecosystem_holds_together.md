@@ -357,8 +357,14 @@ and we would like it protected."
 
 ### The unplanned experiment, in your own water
 
-In 2013 and 2014 a wasting disease swept sea stars from Mexico to
-Alaska, and it hit *Pisaster ochraceus* hard in Washington. Eisenlord
+Beginning in 2013 a wasting disease swept sea stars from Mexico to
+Alaska, and it hit *Pisaster ochraceus* hard in Washington. It is worth
+getting the dates right, because the event is usually remembered as
+2013 to 2014 and its tail here ran later than that: the San Juan Islands
+peak came in August 2014, Starfish Point peaked in January 2015, and the
+paper states that although wasting was first reported on the Washington
+outer coast in 2013, peak prevalence there did not arrive until winter
+2015. Eisenlord
 and colleagues surveyed 6,568 ochre stars at 16 sites in the San Juan
 Islands, South Puget Sound and the Washington outer coast between
 December 2013 and July 2015. Peak disease prevalence at individual sites
@@ -373,10 +379,22 @@ rocky intertidal habitat, and that a possible consequence of the decline
 is a large influx of mussels overgrowing other primary space holders,
 which is exactly what the removal experiments produced.
 
-One honest gap: the shipped Silverdale file has 14 shellfish records and
-no sea star record at all. If you want to watch this in your own
-intertidal, you will be working without a local entry, which is a gap in
-the dataset rather than an absence of sea stars.
+When this section was first written the shipped Silverdale file had 14
+shellfish records and no sea star at all, so a reader who wanted to watch
+this in their own intertidal had nothing to look it up in. That gap has
+since been filled: `ochre_sea_star`, `sunflower_sea_star` and
+`mottled_star` are now in the file, the third one specifically so that
+the lookalike warning is honest, since the mottled star is what an ochre
+star is usually confused with here.
+
+Two things in those records are worth carrying into this section. The
+sunflower sea star is ESA PROPOSED threatened, which is not the same as
+listed, and no final rule exists. And taking one is not open to you
+anyway: Washington closes all marine areas to the taking of unclassified
+marine invertebrates, and a sea star is unclassified, being neither food
+fish, shellfish, game fish, protected wildlife nor an endangered species
+under the state definitions. Look, do not collect, and do not prise one
+off its rock.
 
 ## What a clearing does over eighty years
 

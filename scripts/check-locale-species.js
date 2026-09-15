@@ -32,7 +32,7 @@ const QUIET = process.argv.includes('--quiet');
 const KEYS = ['id', 'common_name', 'scientific_name', 'taxon_rank', 'kind', 'form', 'status',
   'protected', 'edible', 'edible_detail', 'toxic', 'lookalikes', 'season', 'habitat',
   'uses', 'sources'];
-const KIND = ['plant', 'fungus', 'mammal', 'bird', 'fish', 'shellfish', 'insect', 'reptile', 'amphibian'];
+const KIND = ['plant', 'fungus', 'mammal', 'bird', 'fish', 'shellfish', 'invertebrate', 'insect', 'reptile', 'amphibian'];
 const STATUS = ['native', 'introduced', 'invasive', 'cultivated'];
 const EDIBLE = ['no', 'yes', 'conditional'];
 const DANGER = ['none', 'mild', 'serious', 'lethal'];
