@@ -188,7 +188,7 @@
       "subject": "water",
       "title": "Making water safe to drink",
       "summary": "Choose and apply the right treatment for the contamination you actually face.",
-      "status": "verified",
+      "status": "sourced",
       "reading": [
         "making-water-safe-to-drink"
       ],
@@ -710,7 +710,7 @@
       "subject": "food_preservation",
       "title": "Keeping what you grew",
       "summary": "Choose the right preservation method for each food and season.",
-      "status": "verified",
+      "status": "sourced",
       "reading": [
         "keeping-what-you-grew"
       ],

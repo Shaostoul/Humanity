@@ -94,6 +94,21 @@ extension services. Richer share-alike sources are fetched at runtime and
 cached, never redistributed in the release bundle.
 """
 
+[fields.operator_reviewed]
+type = "string"
+required = false
+description = """
+The date (YYYY-MM-DD) a HUMAN read this document, not a verification agent.
+
+Operator decision, 2026-09-16, asked directly: a topic with hazard = lethal may
+not be marked  without one. Adversarial verification is what we do for
+everything and it works, it refuted 48 of 60 researched species records. It is
+still not a person taking responsibility for a document that can kill the reader
+who trusts it.
+
+A bare  is refused by scripts/curriculum-status.js on purpose. "Somebody
+looked at some point" is the shape of a claim nobody can check later.
+"""
 [fields.locale_dependent]
 type = "bool"
 required = true

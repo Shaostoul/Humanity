@@ -147,6 +147,26 @@ for (const t of topics) {
   if (t.hazard === 'lethal' && t.status === 'stub') {
     errors.push(t.id + ': hazard "lethal" must not sit at status "stub"');
   }
+  // OPERATOR DECISION, 2026-09-16, asked directly: a lethal-hazard topic may not
+  // be marked teaching-grade until a HUMAN has read it. Adversarial verification
+  // is what we do for everything, and it is good: it refuted 48 of 60 species
+  // records. It is still not a person taking responsibility for a document that
+  // can kill the reader who trusts it.
+  //
+  // `operator_reviewed` is the date the operator read it. A bare `true` is
+  // refused on purpose, because "somebody looked at some point" is the shape of
+  // a claim nobody can check later.
+  if (t.hazard === 'lethal' && t.status === 'verified') {
+    const d = t.operator_reviewed;
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(String(d))) {
+      errors.push(
+        t.id + ': hazard "lethal" at status "verified" needs `operator_reviewed` ' +
+        'set to the date a human read it (YYYY-MM-DD)' +
+        (d ? ', not ' + JSON.stringify(d) : '') +
+        '. Until then it stays at "sourced".'
+      );
+    }
+  }
 }
 
 // ── Report ──
