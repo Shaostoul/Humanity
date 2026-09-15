@@ -49,10 +49,19 @@
 >   materials_wood is the FIRST topic with all four layers present. The
 >   lethal-hazard topics (canning, foraging, wiring, heating) need the same
 >   treatment the fire staff guide just got and should not be written fast.
-> - **Silverdale, Washington as the canonical world.** Operator decision,
->   2026-09-15: not a reference dataset beside a generic world, the world
->   itself, with real elevation, real shoreline and real species.
->   `data/locales/silverdale_wa/` is the target, shaped by `schemas/locale.toml`.
+> - **Silverdale is LANDED** (v0.1310 to v0.1311.1): eight locale files from a
+>   66-agent research run, 122 species, and a readable gazetteer generated from
+>   the same data the simulation runs on, first in Learn. Every value from a
+>   federal source, nothing from a share-alike one. STILL MISSING: phenology.json
+>   (the year as a calendar of bloom, fruit, run and migration), which is the
+>   last unmet data promise in the syllabus, and it wants its own research pass
+>   rather than derivation from the species prose, which would be lossy in
+>   exactly the way that looks complete. Fifteen lookalike species are still
+>   named-but-absent, all non-lethal (knotweeds, brooms, gorse, tansy,
+>   groundsel); the deadly pairs are closed.
+> - **Terrain.** The locale points at USGS 3DEP and NOAA hydrography rather than
+>   embedding them. Making Silverdale the world you walk around in, with real
+>   elevation and real shoreline, is still ahead.
 > - **The runtime fetch layer.** Four registry entries (GBIF, iNaturalist,
 >   OpenStreetMap, Wikipedia) are marked `use: fetch` and nothing fetches yet.
 >   Until it exists, the share-alike half of the licensing decision is a promise
