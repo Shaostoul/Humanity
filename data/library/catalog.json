@@ -115,6 +115,14 @@
           ]
         },
         {
+          "title": "Nutrition That Keeps You Working",
+          "src": "docs/user/skills/nutrition_that_keeps_you_working.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
+        },
+        {
           "title": "Keeping What You Grew",
           "src": "docs/user/skills/keeping_what_you_grew.md",
           "tags": [

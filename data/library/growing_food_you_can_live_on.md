@@ -241,8 +241,9 @@ decision. Grow the long-keeping types.
 Set the guides side by side. Your First Tomato is a container, six hours
 of sun, one plant, and a season that ends with something delicious that
 holds roughly 82 calories a pound. This guide is rows, a real plot,
-months of storage, and food that holds four to nineteen times as much
-energy per pound.
+months of storage, and food that holds two and a half to nineteen times
+as much energy per pound: winter squash is 2.5 times the tomato, potato
+4.3 times, dry beans nearly 19.
 
 Both are real gardening. The difference is that the first one teaches you
 to garden and the second one starts to feed you, and it would be dishonest

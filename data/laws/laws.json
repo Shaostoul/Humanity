@@ -759,6 +759,66 @@
       "risk_class": "routine"
     },
     {
+      "id": "usa-migratory-birds-their-feathers-and-their-nests-are-protec",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Migratory birds, their feathers, and their nests are protected",
+      "summary": "Federal law makes it unlawful to pursue, hunt, take, capture, kill, possess, sell, or transport any migratory bird, and it says exactly the same about any part, nest, or egg of one, and about any product made from them. That is the part that surprises people: keeping a feather you found on the ground, taking home an abandoned nest, or collecting eggshells can be a violation even though you never touched a living bird. The Act applies only to bird species native to the United States, and the official list of covered species is published by the U.S. Fish and Wildlife Service. Hunting migratory game birds is lawful only under the seasons and permits issued under this Act. If you want a feather or a nest for a craft, a classroom, or a collection, ask the Fish and Wildlife Service first rather than picking it up.",
+      "source": "Migratory Bird Treaty Act (16 U.S.C. 703); list of covered species at 50 C.F.R. 10.13",
+      "tags": [
+        "migratory birds",
+        "feathers",
+        "nests",
+        "MBTA",
+        "federal",
+        "wildlife"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "usa-what-you-may-gather-differs-on-every-kind-of-federal-land",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "What you may gather differs on every kind of federal land",
+      "summary": "Federal land is not one regime. In a national park the default is no: possessing, destroying, removing, digging, or disturbing plants, wildlife, fish, or their parts is prohibited, and so is using wood gathered inside the park unless the superintendent has designated an area where dead ground wood may be collected for campfires. A superintendent may designate particular fruits, berries, nuts, or unoccupied seashells that visitors may gather by hand for personal use, and may cap the quantity, limit where you gather, and forbid taking them out of the park. Gathering anything not designated is prohibited, and selling what you gather is prohibited outright. In a national forest the structure is a permit system instead: cutting or otherwise damaging any timber, tree, or other forest product is prohibited except as authorized by a special use authorization, a timber sale contract, or federal law or regulation, so ask the ranger district which authorization covers what you want to collect. Each unit publishes its own current rules, and those are what govern.",
+      "source": "36 C.F.R. 2.1 (National Park Service, preservation of natural resources); 36 C.F.R. 261.6 (U.S. Forest Service, timber and other forest products)",
+      "tags": [
+        "national park",
+        "national forest",
+        "foraging",
+        "gathering",
+        "permits",
+        "federal"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "usa-you-may-not-harass-a-marine-mammal-and-harassment-does-not",
+      "jurisdiction": "usa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "You may not harass a marine mammal, and harassment does not mean touching",
+      "summary": "Federal law bans taking any marine mammal in waters or on lands under United States jurisdiction, and it defines 'take' as to harass, hunt, capture, or kill, or to attempt any of those. Harassment is defined as any act of pursuit, torment, or annoyance that has the potential to injure a marine mammal, or the potential to disturb it by disrupting behavior such as migration, breathing, nursing, breeding, feeding, or sheltering. So you can break this law without ever making contact: following or crowding an animal closely enough to change what it is doing, or pushing a resting seal back into the water, is the kind of act that definition describes. It is also unlawful to possess a marine mammal, or any product from one, that was taken in violation. Seals, sea lions, whales, porpoises, and sea otters are all covered. NOAA Fisheries and the U.S. Fish and Wildlife Service handle the permits and the narrow exceptions.",
+      "source": "Marine Mammal Protection Act (16 U.S.C. 1372); definitions of 'take' and 'harassment' at 16 U.S.C. 1362(13) and 1362(18)",
+      "tags": [
+        "marine mammals",
+        "seals",
+        "whales",
+        "harassment",
+        "MMPA",
+        "federal"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
       "id": "usa-protection-from-unreasonable-searches",
       "jurisdiction": "usa",
       "kind": "real",
@@ -2168,6 +2228,25 @@
       "risk_class": "routine"
     },
     {
+      "id": "wa-a-fishing-license-does-not-cover-shellfish",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "A fishing license does not cover shellfish",
+      "summary": "Washington requires a recreational license to hunt, fish, or take wildlife or seaweed. For fishing, the personal use licenses are separate products: a freshwater license, a saltwater license, a shellfish and seaweed license, or a combination license that covers fish, shellfish, and seaweed together, plus one to three day temporary versions. Buying 'a fishing license' therefore does not by itself make it legal to dig clams or pick seaweed. Personal use fishing licenses are required from age 16, and the Department of Fish and Wildlife says residents and non-residents alike need a license to fish or shellfish. Some things are endorsements bought on top of a license rather than licenses of their own, for example the Puget Sound Dungeness crab endorsement, which is added to a combination or shellfish and seaweed license. Buy from WDFW and read its current list of license types, endorsements, exemptions, and fees, because those change and this entry does not.",
+      "source": "RCW 77.32.010 (recreational license required) and RCW 77.32.470 (personal use license types); WDFW fishing and shellfishing licenses",
+      "tags": [
+        "fishing license",
+        "shellfish license",
+        "seaweed",
+        "endorsement",
+        "WDFW"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
       "id": "wa-a-household-well-usually-doesn-t-need-a-water-right-permit-b",
       "jurisdiction": "wa",
       "kind": "real",
@@ -2244,6 +2323,85 @@
       "risk_class": "routine"
     },
     {
+      "id": "wa-fishing-and-shellfishing-here-are-co-managed-with-treaty-tri",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Fishing and shellfishing here are co-managed with treaty tribes",
+      "summary": "In the treaties signed in the 1850s, tribal nations in western Washington reserved their continuing right to fish, gather shellfish, and hunt. The Department of Fish and Wildlife describes those treaties as an exchange in which the nations allowed settlement and provided the land for it while keeping those rights, and describes what exists today as a government-to-government relationship between two governments. Federal courts have enforced it. The 1974 decision in United States v. Washington, before Judge George Boldt, re-affirmed the treaty right to harvest fish and established the tribes as co-managers of Washington fisheries. In the same case, Judge Edward Rafeedie held in December 1994 that the treaties' 'in common' language reserved to the tribes half the shellfish from all tidelands within the case area, public and private alike, with limited exceptions; the Supreme Court declined to hear the appeal in 1999, and implementation continues under court supervision. The Northwest Indian Fisheries Commission, the tribes' own body, explains that each tribe has a usual and accustomed harvest area, that all tidelands in Puget Sound lie within the usual and accustomed area of one or more tribe, and that fifteen western Washington tribes are covered by the shellfish ruling, among them the Suquamish Tribe and the Port Gamble S'Klallam Tribe. So the seasons and shares a non-tribal fisher fishes under here are negotiated each year between the state and the tribes, and the owner of a private tideland can lawfully receive notice of a tribal harvest on their beach, with a population survey, a stated quantity, and named contacts. These are treaty rights with the force of federal law, not a courtesy. This entry is only a pointer: read what the tribes and the co-managers themselves publish.",
+      "source": "WDFW, salmon and steelhead co-management (United States v. Washington, 1974); Northwest Indian Fisheries Commission, Shellfish Treaty Rights FAQ and the Rafeedie decision (December 1994)",
+      "tags": [
+        "treaty rights",
+        "tribes",
+        "co-management",
+        "shellfish",
+        "Boldt",
+        "Rafeedie"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-how-you-dig-matters-shells-back-no-culling-own-container",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "How you dig matters: shells back, no culling, your own container",
+      "summary": "Washington's shellfish rules govern conduct, not only quantity. Oysters taken for personal use must be shucked before you carry them out of the intertidal zone, and the shells must be put back on the tideland at about the tide level they came from, because that shell is the surface the next generation of oysters sets on. Geoducks and horse clams may not be returned to the beach: whatever you dig counts against your limit regardless of size or condition, so you cannot work through a bed culling for a better one. In the field each harvester must keep their own daily limit in a separate container and must actually be taking part in the gathering, though digging tools may be shared. Clams, oysters, mussels, and scallops are taken by hand or with hand tools only, and it is unlawful to strike oysters or rock scallops with a hammer or mallet while removing them. WDFW also asks diggers to refill every hole, because open holes and spoil piles kill the clams left behind, and to push undersized clams back into the refilled hole.",
+      "source": "WAC 220-330-010 (shellfish limits and unlawful acts) and WAC 220-330-120 (gear and gear-related unlawful acts); WDFW shellfish beaches harvest guidance",
+      "tags": [
+        "shellfish",
+        "oysters",
+        "clams",
+        "geoduck",
+        "harvest ethics",
+        "habitat"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-hunting-is-licensed-separately-and-needs-a-safety-course",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Hunting is licensed separately, and needs a safety course",
+      "summary": "A hunting license is a different license from a fishing license, and it is required in order to hunt. Washington issues a small game hunting license, which covers classified wild animals and wild birds other than big game, and a big game hunting license, which covers the species in the particular big game package you buy and includes transport tags; special hunts for goat, sheep, moose, and some other species need a separate permit. Anyone under 18 must show certification of completing a course in safe firearm handling, safety, conservation, and hunting behavior when buying any hunting license, and so must anyone born after January 1, 1972 who is buying a hunting license for the first time. What you may shoot, where, when, and with what is set separately by rule, so holding a license never tells you that a given animal is legal.",
+      "source": "RCW 77.32.450 (big game license), RCW 77.32.460 (small game license), RCW 77.32.155 (hunter education)",
+      "tags": [
+        "hunting",
+        "license",
+        "hunter education",
+        "big game",
+        "small game"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-if-it-is-not-on-the-shellfish-list-you-may-not-take-it",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "If it is not on the shellfish list, you may not take it",
+      "summary": "Washington classifies marine species by rule. The shellfish list names what may be treated as shellfish: mussels, scallops, clams and cockles, oysters, squid, octopus, goose barnacles, shrimp, crab, crawfish, sea cucumbers, and sea urchins. Anything living in state marine waters in a wild state that has not been classified as food fish, shellfish, game fish, protected wildlife, or an endangered species counts as an unclassified marine invertebrate or an unclassified marine fish, and all marine areas are closed to the taking of those. That is the rule behind a question people ask constantly on Puget Sound beaches: you may not collect a sea star, an anemone, a sand dollar, a chiton, a limpet, a marine snail, or a nudibranch, because none of them are on the classified list and the closure therefore covers them. Taking Pacific lamprey or river lamprey is separately unlawful. Violations are charged as unlawful recreational fishing. The safe default on a beach is to look, photograph, and put everything back exactly where it was.",
+      "source": "WAC 220-311-040 (unclassified marine invertebrates and fish); WAC 220-320-010 (shellfish classification)",
+      "tags": [
+        "sea stars",
+        "tidepools",
+        "invertebrates",
+        "collecting",
+        "marine",
+        "closed"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
       "id": "wa-littering-is-illegal-with-penalties-scaled-to-the-amount",
       "jurisdiction": "wa",
       "kind": "real",
@@ -2257,6 +2415,105 @@
         "fines",
         "roadside",
         "waste"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-most-tideland-is-privately-owned-even-where-it-looks-public",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Most tideland is privately owned, even where it looks public",
+      "summary": "Washington is one of the few states that sold its tidelands into private hands. The legislature stopped it on August 9, 1971, after which state-owned tidelands and shorelands could no longer be sold to anyone but public entities and could not be given away, but by then a great deal of shoreline had already been conveyed. The practical consequence is that the beach in front of you is often somebody's property below the line of ordinary high tide, and the shellfish in it are not yours to take without the owner's permission. WDFW publishes which beaches are public, with their boundaries, and notes that most state recreational harvest rules do not extend to personal use harvest on private tidelands. Statute defines tidelands, shorelands, harbor areas, and the beds of navigable waters, and the Department of Natural Resources manages state-owned aquatic lands. Two things follow. Find out who owns a tideland before you harvest on it. And private ownership did not extinguish treaty harvest rights over it: the sale of the tidelands did not change what the tribes had reserved. If the tideland is your own, the state's personal use shellfish chapter does not apply to oysters, clams other than razor clams, and mussels taken for personal use by private tideland owners and lessees and their immediate family from their own tidelands, and statute carves the same group out of most of the commission's season, area, gear, and quantity rules. That is an exemption from harvest rules, not from everything: confirm licensing with WDFW, and remember that a biotoxin bloom does not stop at a property line, so the Department of Health status for the area is exactly as relevant on your own beach as on a public one.",
+      "source": "RCW 79.125.200 (state tidelands sold only to public entities after August 9, 1971) and RCW 79.105.060 (definitions); WDFW shellfish beaches; Northwest Indian Fisheries Commission, Shellfish Treaty Rights FAQ; RCW 77.12.047(2) and WAC 220-330-150 (private tideland personal use)",
+      "tags": [
+        "tidelands",
+        "beach access",
+        "private property",
+        "DNR",
+        "shellfish"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-picking-greenery-in-quantity-becomes-a-permit-question",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Picking greenery in quantity becomes a permit question",
+      "summary": "Washington runs a permit system for what it calls specialized forest products, and the thresholds are lower than people expect. The statute defines the category as specialty wood, more than five Christmas trees, more than five native ornamental trees and shrubs, more than twenty pounds of cut or picked evergreen foliage, more than five pounds of Cascara bark, or more than five United States gallons of wild edible mushrooms. Cut or picked evergreen foliage is itself defined broadly: boughs, huckleberry foliage, salal, fern, Oregon grape, rhododendron, mosses, and bear grass, but not cones, berries, or seeds. Once you are over a threshold, a specialized forest products permit is required before harvesting, possessing, or transporting, and the permit or a true copy has to be available at the harvest site. Selling any quantity of raw or unprocessed huckleberries also requires a permit, unless you can show they came from national forest land under a valid Forest Service permit. Noncommercial harvest by a landowner from their own property is exempt, and nursery-grown products fall outside the chapter entirely. Twenty pounds of boughs for your own wreaths is a different activity from filling a truck, and this is where the law draws that line.",
+      "source": "RCW 76.48.021 (definitions), RCW 76.48.031 (permit required), RCW 76.48.211 (exemptions)",
+      "tags": [
+        "foraging",
+        "mushrooms",
+        "boughs",
+        "salal",
+        "permit",
+        "forest products"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-protected-wildlife-may-not-be-taken-harassed-or-possessed",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Protected wildlife may not be taken, harassed, or possessed",
+      "summary": "Washington classifies some wildlife as protected, in three groups: threatened, sensitive, and other. The list is a published rule rather than a judgement call, and the third group is a broad catch-all: every bird that is not classified as a game bird or a predatory bird and is not already endangered, threatened, or sensitive is protected; all bats are protected except when found in or immediately next to a dwelling or other occupied building; and whales, porpoises, seals, and sea lions are protected where not otherwise listed. The prohibition is about verbs, not just about killing. It is a misdemeanor to hunt for, fish for, maliciously take, harass, or possess protected fish or wildlife, or to possess or maliciously destroy their eggs or nests, unless a commission rule or a department permit allows it; for species designated threatened or sensitive the standard is intentional rather than malicious. Some species also carry a criminal wildlife penalty assessment on top of the sentence. In practice that means a nest you pull down, a bird you cage, or an animal you chase for a photograph can each be the offense.",
+      "source": "WAC 220-200-100 (wildlife classified as protected); RCW 77.15.130 (unlawful taking of protected fish or wildlife)",
+      "tags": [
+        "protected wildlife",
+        "birds",
+        "bats",
+        "nests",
+        "harassment",
+        "misdemeanor"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-reusing-washing-water-is-legal-under-the-greywater-rules",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Reusing washing water is legal, but only under the greywater rules",
+      "summary": "Greywater reuse is regulated in Washington, not free-form. A Department of Health chapter covers greywater irrigation systems with design flows under 3,500 gallons per day, and the local health jurisdiction is the body that administers and permits it; in Kitsap County that is the Kitsap Public Health District. Greywater means domestic flows from bathtubs, showers, bathroom sinks, washing machines, dishwashers, and kitchen or utility sinks, and never includes toilet or urinal flow; light greywater is that same list without the kitchen and dishwasher water. Conditions apply to every tier. Greywater may be used only for subsurface irrigation, delivered below ground into the root zone. It may irrigate food plants only if it never touches the edible part. It may not surface at all, by ponding or runoff, where people or animals could contact it. It may not contain cleaning chemicals, water softener waste, car part or greasy rag washings, paint brush rinse, home photo chemicals, diaper or infectious wash water, or biomedical waste. It must be used within the property boundary of the building it came from, or on nearby property where that is legally allowed. It may be used only during the growing season, only in suitable stable soil, not in an environmentally sensitive area, and at no more than the irrigation field's evapotranspiration rate. The system needs an accessible diversion valve that sends the water back to the sewer or septic system when soils are saturated or frozen, when the system backs up, or when you simply stop using it. The smallest tier, a light greywater gravity system of sixty gallons per day or less serving one single-family home already on an approved sewer or on-site sewage system, is built to a record the health officer may require you to file. Tier 2 and Tier 3 systems require a permit to install from the local health officer before construction begins. Local boards of health may adopt stricter rules than the state's, so ask yours before you plumb anything.",
+      "source": "Chapter 246-274 WAC (greywater reuse for subsurface irrigation), adopted under RCW 90.46.015; WAC 246-274-011 (general requirements), WAC 246-274-100 (Tier 1), WAC 246-274-425 (permit to install)",
+      "tags": [
+        "greywater",
+        "water reuse",
+        "irrigation",
+        "health district",
+        "permit",
+        "sanitation"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-seasons-sizes-and-limits-are-set-per-species-place-and-date",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Seasons, sizes, and limits are set per species, per place, and per date",
+      "summary": "There is no single Washington fishing rule to memorize. The Fish and Wildlife Commission is empowered by statute to set, by rule, when taking wildlife, fish, or shellfish is lawful, which areas and waters it is lawful in, what gear may be used, and the size, sex, species, and quantity that may be taken. The result is genuinely granular: the state rule for clams and mussels opens and closes individual named beaches by date range, and shellfish size and daily limits have been changed in the middle of a pamphlet year. The current answers live in the annual Washington Sport Fishing Rules pamphlet, which runs July 1 to June 30, together with the emergency rule changes WDFW issues during the year, which override it. This entry deliberately does not print a season, a size, or a daily limit, because a number written down here would go stale and a stale limit is worse than none. Look up your exact water, your exact species, and your exact date before you go.",
+      "source": "RCW 77.12.047 (scope of commission rule-making); WAC 220-330-110 (per-beach clam and mussel openings); WDFW annual sport fishing rules pamphlet and emergency rule changes",
+      "tags": [
+        "seasons",
+        "bag limits",
+        "size limits",
+        "emergency rules",
+        "WDFW",
+        "pamphlet"
       ],
       "needs_verification": true,
       "verified": null,
@@ -2280,6 +2537,89 @@
       "needs_verification": true,
       "verified": null,
       "risk_class": "routine"
+    },
+    {
+      "id": "wa-some-species-need-a-catch-record-card-and-you-must-return-it",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Some species need a catch record card, and you must return it",
+      "summary": "For certain species you must carry a catch record card while fishing and record what you keep. WDFW lists salmon, steelhead, sturgeon, halibut, and Puget Sound Dungeness crab, and says everyone must carry a card for those species, including people under 16 who do not need a license. A license to take Dungeness crab in Puget Sound waters east of the Bonilla-Tatoosh line is only valid if you hold a catch record card endorsed for Dungeness crab. Paper cards have to be returned to WDFW by the posted deadline even if you caught nothing; the statute refers to catch card penalty fees, so a missing card is not free. Electronic catch record cards are available through WDFW's apps. The card is how the state counts the catch, which is how next year's season gets set.",
+      "source": "RCW 77.32.430 (catch record card); WDFW fishing and shellfishing licenses and catch record card pages",
+      "tags": [
+        "catch record card",
+        "salmon",
+        "dungeness crab",
+        "halibut",
+        "reporting",
+        "WDFW"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-state-parks-and-dnr-land-answer-gathering-differently",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "State parks and DNR land answer the gathering question differently",
+      "summary": "Washington's public land is several regimes, not one. On land managed by the Department of Natural Resources you may not remove soil, rocks, plants, natural features, or valuable materials without written authorization from the department, unless some law already authorizes it, and a violation is a misdemeanor; the DNR region office tells you what authorization a given activity needs. In a state park the starting point is different: state park areas are open for the harvest of fish, which the parks rule defines to include shellfish and aquatic invertebrates, subject to all Fish and Wildlife seasons, limits, and methods, but only for species classified as food fish, shellfish, or game fish. The parks commission or director can close any park area to the harvest of some or all species, permanently or temporarily, and such areas are posted as closed. Separately, any activity that subjects park resources to damage is an infraction. County and city parks then add their own rules on top of that. Before gathering anything, work out whose land you are standing on, because that determines which rule book applies.",
+      "source": "WAC 332-52-115 (DNR, removal of plants, soils, rocks); WAC 352-32-150 (state parks, fishing) and WAC 352-32-090 (damaging or injurious activities)",
+      "tags": [
+        "public land",
+        "state parks",
+        "DNR",
+        "gathering",
+        "access",
+        "permits"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-stay-1000-yards-from-southern-resident-orca",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Stay 1,000 yards from southern resident orca",
+      "summary": "Since January 1, 2025, Washington law makes it unlawful to cause a vessel or other object to approach within 1,000 yards of a southern resident orca in any manner, to position a vessel in the whale's path or behind it within that distance, to let wind or current carry you into its path within that distance, to exceed seven knots over ground within it, or to feed one. Within 400 yards you must disengage the transmission. 'Vessel' here includes aircraft on the surface of the water and essentially any watercraft, but not inner tubes, air mattresses, sailboards, small rafts, or swimmers' flotation toys. Narrow exemptions cover government vessels on duty, treaty and commercial fishing vessels actively tending gear, permitted research and oil spill response, safety of navigation, and authorized stranding response. A violation is a natural resource infraction. WDFW must post signs at public boat launches and marinas, but the rule applies whether or not a sign is there, and the absence of a sign is not a defense. This sits on top of the federal Marine Mammal Protection Act, which covers every marine mammal, not only these whales.",
+      "source": "RCW 77.15.740 (protection of southern resident orca)",
+      "tags": [
+        "orca",
+        "whales",
+        "boating",
+        "vessel distance",
+        "Puget Sound"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "wa-three-separate-things-must-be-true-before-you-dig-shellfish",
+      "jurisdiction": "wa",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "Three separate things must be true before you dig shellfish",
+      "summary": "Shellfish harvesting in Washington answers to three authorities at once, and all three have to say yes on the day you go. First, the license: you need a shellfish and seaweed license or a combination license. Second, the Department of Fish and Wildlife season for that specific beach must be open, with its size limits, daily limits, and species rules. Third, the Department of Health status for that beach must be open, which covers marine biotoxins and pollution. WDFW states the combination plainly: both the DOH health status and the WDFW season for a public beach must be open. Health open but season closed is illegal. Health closed but season open is not safe. The health check is the one that puts people in hospital. Marine biotoxins cannot be seen, smelled, or tasted, the water usually looks perfectly normal because most toxic blooms do not color it, cooking and freezing do not destroy the toxin because it is part of the shellfish meat, and there is no antidote: treatment for paralytic shellfish poisoning is ventilators and oxygen until your body clears it. Closures change, so check on the day you plan to harvest, not the week before. Use the Department of Health Shellfish Safety Map, the county beach status lists, or the recorded biotoxin closure hotline at 1-800-562-5632, and look for posted Danger signs at the beach, remembering that not every beach is signed. The Department of Health also advises that recreationally harvested scallops are not safe to eat at all because of biotoxin levels, and that butter and varnish clams can stay toxic after a bloom has passed.",
+      "source": "WDFW shellfish beaches (DOH status and WDFW season must both be open); Washington State Department of Health, Marine Biotoxins; WAC 220-330-110",
+      "tags": [
+        "shellfish",
+        "biotoxin",
+        "red tide",
+        "paralytic shellfish poisoning",
+        "DOH",
+        "WDFW",
+        "beach"
+      ],
+      "verified": {
+        "on": "2026-09-15",
+        "by": "AI-assisted, checked against the WDFW shellfish beaches page (the DOH status and WDFW season table), the Washington State Department of Health marine biotoxins page, and WAC 220-330-110",
+        "human_reviewed": false
+      },
+      "risk_class": "liberty_or_life"
     },
     {
       "id": "wa-cannabis-legal-to-possess-not-in-public",
@@ -2802,6 +3142,25 @@
         "erosion",
         "land disturbance",
         "permit"
+      ],
+      "needs_verification": true,
+      "verified": null,
+      "risk_class": "routine"
+    },
+    {
+      "id": "kitsap-county-parks-set-their-own-rules-park-by-park",
+      "jurisdiction": "kitsap",
+      "kind": "real",
+      "category": "Environment and land",
+      "title": "County parks set their own rules, park by park",
+      "summary": "Kitsap County Parks publishes rules for each individual park rather than one blanket rule, backed by the county parks chapter of the Kitsap County Code. Some prohibitions run across county parks, including fireworks, camping, overnight parking, fires, golf, paintball, radio controlled aircraft, and bounce houses. Pet rules vary by park, and horses and pets are kept away from athletic fields, playgrounds, picnic sites, and swimming beaches. Shellfish harvesting is specifically prohibited at Guillemot Cove Natural Preserve. A county park is therefore a further regime stacked on the federal, state park, and DNR rules, and none of them displaces the others: the Fish and Wildlife season and the Department of Health beach status still govern any shellfish inside a county park. Read the page for the specific park before you take anything.",
+      "source": "Kitsap County Parks, FAQs and Rules (kitsap.gov/parks), which links to the county parks chapter of the Kitsap County Code",
+      "tags": [
+        "county parks",
+        "kitsap",
+        "shellfish",
+        "park rules",
+        "access"
       ],
       "needs_verification": true,
       "verified": null,

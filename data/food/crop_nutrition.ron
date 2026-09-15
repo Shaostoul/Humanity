@@ -8,6 +8,38 @@
 // src/systems/self_sufficiency.rs (feature-neutral ron+serde). Data-driven (infinite-of-X):
 // add a crop row here, no code change.
 //
+// TRAPS FOUND 2026-09-15 BY A WRITER DOING ARITHMETIC OFF THIS FILE. Read these
+// before you multiply anything out.
+//
+//   1. `grams_per_yield_unit` DOES NOT MEAN THE SAME THING FOR EVERY CROP.
+//      For a vegetable it is a discrete object: one tuber, one head. For a
+//      GRAIN it is a sown patch, not a plant. plants.csv gives wheat 8 to 20
+//      yield units at 50 g each, so one wheat plant would be 400 to 1,000 g
+//      of grain, which a real wheat plant does not produce by a factor of a
+//      few hundred. Per-plant arithmetic is only meaningful for the discrete
+//      crops. Nothing in either file said this until now.
+//
+//   2. THE GENERIC `bean` ROW IS NOT TRACEABLE TO ONE USDA ROW and is not
+//      flagged as an estimate. Its calories and carbohydrate match USDA kidney
+//      beans exactly, its protein matches USDA black beans exactly, and its fat
+//      matches neither. `kidney_bean` and `lentil` also drift from their USDA
+//      rows. The specific rows are the ones to trust.
+//
+//   3. WHAT THIS FILE CANNOT EXPRESS, which matters for what the simulation can
+//      ever tell a player: not one micronutrient, so the game can say whether
+//      you grew enough calories and never whether you grew enough vitamin C,
+//      which in real life is the one that kills people. Also no amino acid
+//      profile (so the grain-and-legume complement cannot be modelled), no
+//      cooked/raw state or retention factors (boiled greens retain 95 to 100
+//      percent of folate if the water is used and about 30 percent if it is
+//      drained, and that is unrepresentable), no refuse fraction, no fibre and
+//      no moisture content.
+//
+//   4. type=tree CROPS ARE EXCLUDED and some of them are food. oak, maple and
+//      palm are skipped as trees, while their own plants.csv descriptions name
+//      acorns, sap and fruit, and acorns are taught as food in five Library
+//      guides.
+//
 // FIELDS (all per 100 g EDIBLE PORTION, raw unless a note says otherwise):
 //   plant_id             - MUST match a row id in data/plants.csv (a typo = a dead entry;
 //                          enforced by a unit test that cross-checks every id against the CSV).

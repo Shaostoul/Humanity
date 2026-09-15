@@ -832,6 +832,17 @@
       "use": "facts",
       "bundle": false,
       "note": "A STATE agency, so 17 USC 105 does not cover it and nothing from it may be quoted verbatim into the bundle: restate the fact. Carries the fish consumption advisories, the shellfish biotoxin programme and the greywater rules. Check publication dates: the Puget Sound fish advisory most often cited is from 2015 and sits on a legacy URL."
+    },
+    {
+      "id": "nasem",
+      "name": "National Academies of Sciences, Engineering, and Medicine",
+      "publisher": "The National Academies Press",
+      "url": "https://nap.nationalacademies.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The source of the Dietary Reference Intakes, so every RDA, AI, UL and EAR in this Library ultimately comes from here even when it is read off an NIH fact sheet, and NIH says so on those sheets. NOT a federal work: the National Academies are a private non-profit chartered by Congress, and their reports are copyrighted, so restate. Many reports are readable free at nap.nationalacademies.org. Cite the report and its year, because the DRI panels revise."
     }
   ]
 }

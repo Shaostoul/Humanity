@@ -1577,20 +1577,28 @@
       "subject": "health",
       "title": "Nutrition that keeps you working",
       "summary": "Meet real energy and nutrient needs from what you can actually produce.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "cooking",
         "medicine"
       ],
       "sources": [
         "usda",
-        "nih"
+        "nih",
+        "fda",
+        "dod-technical-manuals",
+        "medlineplus",
+        "peer-reviewed-literature",
+        "nasem"
       ],
       "locale_dependent": false,
       "hazard": "serious",
       "data": [
         "data/medical.ron",
         "data/food/crop_nutrition.ron"
+      ],
+      "reading": [
+        "nutrition-that-keeps-you-working"
       ]
     },
     {
