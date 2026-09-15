@@ -23,6 +23,58 @@ axis-6 mode.
 
 ---
 
+## Decision pending: split the powers axis in two (2026-09-15)
+
+> **Operator question:** "Creative mode and dev mode are pretty much the same
+> thing, can you define a clear difference and why it'd be better to keep both
+> instead of just simplifying creative into a single dev mode?"
+
+The honest answer is that the current three-rung ladder **conflates two different
+axes**, which is exactly why the two modes feel redundant. Separate them and the
+difference becomes obvious:
+
+| Axis | Question | Who decides | Scope |
+|---|---|---|---|
+| **Mode** | Do resources deplete for ME? | the player, freely | personal, affects nobody else |
+| **Rank** | What may I touch that OTHERS share? | the server operator | authority, must be granted |
+
+`FreeResources` is purely the first. `DevTools` and `ShipStructureEditing` are
+purely the second. Today all three are bundled into one self-selected client-side
+setting, which produces a real honesty hole the code already admits to
+(`src/gui/pages/settings.rs:3374`): *"in a shared world the relay is the
+authority on shared state, so Dev tools keep working for now; per-player
+server-enforced permissions are the follow-up when real players arrive."* On a
+shared server today, anyone can simply pick Dev and edit the whole ship.
+
+**Recommendation: keep two things, but redraw the line.**
+
+- **Mode stays a player setting, and shrinks to what it always really was:**
+  Survival (resources deplete) vs Creative (they do not). Both scoped to what
+  you own. Nothing here needs server permission because nothing here affects
+  anyone else.
+- **Dev stops being a mode and becomes a RANK capability.** Whole-ship structural
+  editing, entity spawning, teleport and FTL are authority, not preference.
+
+This is not new machinery. The relay already has a **data-driven roles table**
+(`src/relay/storage/roles.rs`, schema at `storage/mod.rs:1229`) with per-role
+capability columns (`can_stream`, `can_upload`, `can_voice`, `can_image_share`,
+`can_file_share`) and five seeded built-ins (unverified, verified, donor, mod,
+admin). It has **no build-related capability yet**, so this is adding columns of
+exactly the shape that already exists: `can_edit_ship`, `can_spawn`,
+`can_teleport`.
+
+It also directly delivers the operator's own requirement from the same message:
+*"With the construction editor normal play will have edit area confined to their
+default zone. Outside the ship requires dev or some other 'rank' that allows
+editing outside homes."* That sentence IS this split. The client-side
+`Capability` truth table stays as the local gate; the server-side role becomes
+the authority that grants it.
+
+Nothing is lost for solo or self-hosted play: the operator is the owner role and
+holds every capability automatically.
+
+**Not yet implemented.** `PlayMode` below is still the shipped reality.
+
 ## 1. Powers: Normal / Creative / Dev (SHIPPED)
 
 `src/config.rs:87` (`PlayMode`), shipped v0.799. The single ladder every cheat

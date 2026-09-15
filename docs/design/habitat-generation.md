@@ -1,9 +1,9 @@
-# Habitat generation: blocks and drums
+# Habitat generation: spines and drums
 
 > **Operator direction, 2026-09-15.** Two generation modes are wanted, so NPC
 > inhabitants have somewhere to live aboard the mothership:
 >
-> 1. **Block** -- "skyscraper like blocks that contain everything necessary to
+> 1. **Spine** -- "skyscraper like blocks that contain everything necessary to
 >    survive, like industry, residential, research, in a rough cube shape (or
 >    configurable)". A static, non-rotating section, more like a skyscraper or
 >    an aircraft carrier.
@@ -15,9 +15,60 @@
 > Companion to [crowd-simulation.md](crowd-simulation.md), which says WHO lives
 > here; this says WHERE.
 
+## Decisions (operator, 2026-09-15)
+
+- **First drum: 250 m radius, 2 km long.** "The smallest comfortable makes
+  perfect sense." 1.89 rpm for a full 1g, under the ~2 rpm Coriolis comfort
+  limit, ~780 one-acre allotments.
+- **Keep developing the existing construction editor.** "The easier we make it
+  for me, you, and other developers the better." No second editor.
+- **Normal play edits only your own zone; editing beyond it needs a rank.** See
+  the powers/rank split in [game-modes.md](game-modes.md).
+- **Gravity is real, not faked.** "The whole point of doing the drum/ring shape
+  is to have the spin and gravity. If the spin were to stop then I'd like
+  gravity to go away." Confirmed achievable at no cost; see Gravity below.
+
+## Terminology
+
+Two habitat kinds, and the words used throughout this doc:
+
+- **DRUM** -- rotating, spin gravity, curved interior surface you walk on the
+  inside of, gardens visible overhead. The operator's word; keep it.
+- **SPINE** -- the static, non-rotating section. The "skyscraper / aircraft
+  carrier" shape: a structural volume packed with stacked decks and bays
+  carrying mixed functions (industry, research, docking, storage) rather than
+  one function per zone.
+
+"Block" was used in an earlier draft for the second kind and is **retired**: it
+collided with the solid placeholder boxes `generate_zone_filler` already emits,
+which is the opposite of the intended meaning (those have no interiors at all).
+
+### The physics consequence of a static section
+
+Worth stating plainly because it follows from the operator's own realism
+requirement and changes what a SPINE is for. **A non-rotating section of a
+coasting ship is in freefall: it has no gravity at all.** If the drum spins for
+gravity and the spine does not spin, the spine is a zero-g volume.
+
+That is realistic and matches the references: Babylon 5 has zero-g sections, and
+The Expanse's Nauvoo spins its drum while the rest of the hull does not.
+
+It is also a genuinely good split rather than a compromise. Zero-g is an
+ADVANTAGE for exactly the functions a spine holds: moving mass takes no lifting,
+large structures carry no self-weight, docking does not fight a rotating frame.
+So the drum is where you live and farm at 1g, and the spine is industry,
+docking, fabrication and storage where weightlessness is the point.
+
+The alternative, if gravity in the spine is wanted, is that it must either be
+under thrust (gravity along the thrust axis, only while burning) or have its own
+rotating section. Both are legitimate; they are just different ships. **Open
+question for the operator** -- the answer decides whether zero-g movement
+(pushing off surfaces, handholds, tethers) is required for the first playable
+habitat or can wait.
+
 ## The unifying idea: one generator, a curvature parameter
 
-A block is a drum of infinite radius. If both modes are one system parameterised
+A spine is a drum of infinite radius. If both kinds are one system parameterised
 by curvature, you get the two the operator asked for plus everything between: a
 gently-curved large-radius ring section, a tight high-spin drum, a flat deck.
 That is the Infinite-of-X answer, and it avoids the "two partial gardening games"
@@ -28,7 +79,7 @@ infinity), and an **arc extent**. Flat deck = no axis. Full drum = 360 degrees.
 Sectioned drum = the operator's spinning arms, which are arcs of a drum that was
 never completed.
 
-## Mode 1: block. Close, and not a new subsystem
+## Spine: close, and not a new subsystem
 
 **What already works.** `HomeStructure::tile_home_clones`
 (`src/ship/home_structure.rs:988`) already takes a zone volume and fills it with
@@ -46,22 +97,21 @@ volume-to-content generator and it is shipped.
   boxes via `footprint_box` -- no walls, nothing enterable. Industry, research
   and the rest are currently scenery.
 
-So mode 1 is: give the tiler a Y loop, and let non-residential types emit
+So the spine is: give the tiler a Y loop, and let non-residential types emit
 `HomeStructure` bodies instead of solid boxes. `resolve_positions`
 (`src/ship/fibonacci.rs:483`) is the room packer to feed it; it needs a bounding
 volume added, since today it packs outward from a room list with no container.
 
 **Scale reality check.** The "mothership" today is about 400 x 200 m of labelled
 wireframe around one real 55 x 89 m walled house. Zone height is capped at 12 m
-in the data and 100 m in the editor (`construction.rs:2357-2359`). A skyscraper
-block wants that cap raised and the Y loop above.
+in the data and 100 m in the editor (`construction.rs:2357-2359`). A spine wants that cap raised and the Y loop above.
 
 **Doc drift to be aware of:** `mothership-superstructure.md` presents
 `Deck > Zone > Room` as the shipped model. There is no `Deck` type in the zone
 system at all; `DeckDef` exists only in the legacy `layout.rs` path used by
 `starter_fleet.ron`. Neither tier above `Zone` is built.
 
-## Mode 2: drum. Substantial, but roughly 60 percent already exists
+## Drum: substantial, but roughly 60 percent already exists
 
 This is the surprise, and it is a good one.
 
@@ -156,6 +206,49 @@ code change. But there is no interior-volume renderer: a drum needs the far side
 lit and visible overhead, a linear light running down the axis, and haze along a
 chord. The shell model cannot express any of that. New work, and separable.
 
+## Gravity: real, and free, for a reason
+
+The operator asked whether the cheapness implied a simplification. It does not,
+and the reason is worth writing down because it makes the realistic option the
+easy one.
+
+**Gravity in this engine is a scalar parameter, not a simulation.** `radial_step`
+(`src/surface_move.rs:198`) takes `g_accel: f64` and hands it to `vertical_step`,
+which does closed-form ballistics with terminal velocity. Rapier is never stepped
+(`ship/wall_collision.rs:4`), so there is no rigid-body solver in the player's
+path to be expensive in the first place.
+
+So for a drum, the physically correct expression IS the implementation:
+
+```
+g_accel = omega^2 * r
+```
+
+One multiply. Everything the operator asked for follows for free:
+
+- **Spin down and gravity genuinely goes away.** As omega drops, `g_accel` drops
+  continuously to zero. Not a special case, not a toggle: the same expression.
+- **The gravity gradient is real and automatic.** g scales with r, so gravity
+  weakens as you climb toward the axis and is exactly zero at the centre. That is
+  correct physics and it emerges with no extra code. It is also free gameplay:
+  low-g near the axis, full weight at the rim.
+- **Coriolis is also nearly free.** It is `-2 * omega x v`, one cross product per
+  moving body. **Correcting earlier advice in this doc's build order:** the
+  question is whether Coriolis is FUN, not whether it is affordable. It costs
+  almost nothing.
+
+**What zero-g actually costs is movement, not physics.** With `g_accel = 0` the
+ballistics already behave correctly (you keep your radial velocity and drift).
+What does not exist is any way to CONTROL yourself without a floor to push
+against: the tangential movement model assumes walking. Handholds, push-off,
+tethers or thrusters are real gameplay work. That work, not the gravity maths, is
+what a zero-g SPINE would require.
+
+**The genuinely expensive thing** is simulating every loose OBJECT in the drum
+under spin, which would mean waking rapier and giving it a rotating frame. That
+is where a simplification may eventually be wanted. The player's own gravity is
+not where the cost is.
+
 ## Scale: what a drum actually holds
 
 Spin gravity is `g = omega^2 * r`. Comfort research generally puts the Coriolis
@@ -216,7 +309,7 @@ somewhere to live, and the crowd is what makes the habitat feel occupied.
 
 ## Build order
 
-1. **Block mode**, because it is an enhancement of a shipped generator and needs
+1. **Spine**, because it is an enhancement of a shipped generator and needs
    no new movement model: Y-loop the tiler, give non-residential zone types real
    interiors, raise the height cap.
 2. **A flat drum-shaped SHELL** with no spin and no curved walking: prove the
@@ -228,15 +321,15 @@ somewhere to live, and the crowd is what makes the habitat feel occupied.
 4. **Drum-local Y-axis spin**, reusing the frame-lock anchor, with the
    planet-scaled constants re-derived for a 2 km world.
 5. **Curved-floor collision**, the genuine rewrite of `wall_collision`.
-6. **Coriolis**, optional and last; it is a flavour feature and arguably a
-   gameplay hazard rather than a requirement.
+6. **Coriolis**, last but cheap. See Gravity above: it is one cross product,
+   so the question is whether it is fun, not whether it is affordable.
 
 ## Open questions
 
 - **Drum axis orientation.** The references all show a horizontal axis you look
   down the length of. The drum-local-frame trick above should buy that look at
   Y-axis cost; it needs proving before it is relied on.
-- **Do block and drum share one editor?** `mothership-superstructure.md` has had
+- **Do spine and drum share one editor?** `mothership-superstructure.md` has had
   "one editor or two" open since 2026-07-01. Curvature-as-a-parameter argues for
   one.
 - **Does the player build inside their acre with the existing construction
