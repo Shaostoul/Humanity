@@ -733,6 +733,17 @@
       "use": "facts",
       "bundle": false,
       "note": "An SDS is only a citation once the product and manufacturer are named. Until then it points at nothing. For fuel properties, niosh-pocket-guide and cameo-chemicals say the same things and are public domain."
+    },
+    {
+      "id": "dod-technical-manuals",
+      "name": "US military technical and training manuals",
+      "publisher": "US Department of Defense",
+      "url": "https://armypubs.army.mil/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Works of the US government, so public domain under 17 USC 105 and quotable in the bundle. The hand-tool and shop manuals (TM 9-243 Use and Care of Hand Tools and Measuring Tools, TC 9-524 Fundamentals of Machine Tools) are the most thoroughly illustrated free instruction on these subjects that exists, written to teach a skill to somebody with no background, which is our reader exactly. Treat the equipment-specific volumes with more care: a manual written for one machine in one decade is not general guidance."
     }
   ]
 }

@@ -160,6 +160,14 @@
             "real",
             "food"
           ]
+        },
+        {
+          "title": "Pests and Disease",
+          "src": "docs/user/skills/pests_and_disease.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
         }
       ]
     },
@@ -366,6 +374,15 @@
             "real",
             "making",
             "safety"
+          ]
+        },
+        {
+          "title": "Hand Tools",
+          "src": "docs/user/making/hand_tools.md",
+          "tags": [
+            "guide",
+            "real",
+            "technical"
           ]
         },
         {

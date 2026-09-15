@@ -445,7 +445,7 @@
       "subject": "food_growing",
       "title": "Pests and disease",
       "summary": "Identify what is eating your crop and respond proportionately.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming"
       ],
@@ -454,10 +454,17 @@
         "data/creatures.csv"
       ],
       "sources": [
-        "state-extension"
+        "epa",
+        "state-extension",
+        "usda-aphis",
+        "nc-state-extension",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "pests-and-disease"
+      ]
     },
     {
       "id": "grow_season_extension",
@@ -2290,7 +2297,7 @@
       "subject": "tools",
       "title": "Hand tools",
       "summary": "Use the core hand tools correctly and safely.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "woodworking"
       ],
@@ -2298,7 +2305,18 @@
         "data/items.csv"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "hand-tools"
+      ],
+      "sources": [
+        "usfs",
+        "osha",
+        "cdc",
+        "niosh-pocket-guide",
+        "peer-reviewed-literature",
+        "dod-technical-manuals"
+      ]
     },
     {
       "id": "tools_sharpening",
@@ -2320,7 +2338,8 @@
         "niosh-pocket-guide",
         "cdc",
         "medlineplus",
-        "peer-reviewed-literature"
+        "peer-reviewed-literature",
+        "dod-technical-manuals"
       ]
     },
     {
