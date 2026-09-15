@@ -53,6 +53,26 @@
     @keyframes lib-flash { from { background:var(--accent); color:var(--bg); } to { background:transparent; } }
     @media (prefers-reduced-motion: reduce) { .lib-jumped { animation:none; outline:2px solid var(--accent); } }
 
+    /* Curriculum: the Library's map of itself. Unwritten topics are dimmed
+       rather than hidden, because the gap is the information. */
+    .cur-title { font-size:var(--text-xl); font-weight:700; color:var(--text); margin-bottom:var(--space-xs); }
+    .cur-lede { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-md); max-width:70ch; }
+    .cur-subject { border-top:1px solid var(--border); padding:var(--space-sm) 0; }
+    .cur-subject > summary { cursor:pointer; font-weight:600; color:var(--text); user-select:none; padding:4px 0; }
+    .cur-count { color:var(--text-muted); font-weight:400; font-size:var(--text-sm); margin-left:var(--space-sm); }
+    .cur-topic { display:flex; gap:10px; align-items:flex-start; padding:6px 0 6px 12px; }
+    .cur-topic-gap { opacity:0.62; }
+    .cur-topic-head { font-weight:600; color:var(--text); font-size:var(--text-sm); }
+    .cur-summary { color:var(--text-secondary); font-size:var(--text-sm); }
+    .cur-ok { color:var(--success); }
+    .cur-part { color:var(--accent); }
+    .cur-gap { display:inline-block; width:1ch; }
+    .cur-lethal { color:var(--danger); font-size:var(--text-sm); font-weight:400; margin-left:8px; }
+    .cur-serious { color:var(--warning); font-size:var(--text-sm); font-weight:400; margin-left:8px; }
+    .cur-locale { color:var(--text-muted); font-size:var(--text-sm); font-weight:400; margin-left:8px; }
+    .cur-read { display:inline-block; color:var(--accent); font-size:var(--text-sm); text-decoration:underline; margin-top:2px; margin-right:12px; cursor:pointer; }
+    .cur-teaches { margin-bottom:var(--space-md); font-size:var(--text-sm); color:var(--text-secondary); }
+    .cur-teaches-label { color:var(--text-muted); margin-right:8px; }
     .md-viewer { line-height:1.7; color:var(--text-secondary); }
     .md-viewer h1 { font-size:1.5rem; color:var(--text); margin:var(--space-xl) 0 var(--space-lg); border-bottom:1px solid var(--bg-secondary); padding-bottom:var(--space-md); }
     .md-viewer h2 { font-size:1.2rem; color:var(--text); margin:var(--space-xl) 0 var(--space-md); }

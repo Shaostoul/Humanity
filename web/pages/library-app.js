@@ -10,6 +10,7 @@
   var DOC_BASE = '/data/library/';
   var GLOSSARY_URL = '/data/glossary.json';
   var SEARCH_URL = '/data/library/search-index.json';
+  var SYLLABUS_URL = '/data/curriculum/syllabus.json';
 
   var manifest = null;
   var glossary = null;
@@ -20,6 +21,8 @@
   var searchIndex = null;   // lazy: fetched on the first keystroke, never on load
   var searchLoading = false;
   var searchQuery = '';
+  var syllabus = null;      // fetched in the background at load; 10 KB gzipped
+  var curFilter = '';       // '' | written | absent | lethal | locale
 
   function esc(s) {
     if (!s) return '';
@@ -62,6 +65,12 @@
     return { slug: frag.slice(0, at), anchor: frag.slice(at + 1) };
   }
   function openHashDoc() {
+    // Two reserved fragments that are VIEWS rather than documents, matching
+    // the native resolver, so a link can point at the map or at the words
+    // without either having to become a fake .md file.
+    var frag = location.hash.replace(/^#/, '');
+    if (frag === 'curriculum') { openCurriculum(); return true; }
+    if (frag === 'dictionary') { openDictionary(); return true; }
     var parts = splitFragment(location.hash.replace(/^#/, ''));
     var hit = findBySlug(parts.slug);
     if (hit) openDoc(hit.ci, hit.di, true, parts.anchor);
@@ -405,6 +414,8 @@
     html += '<div class="lib-special">' +
       '<button class="lib-doc' + (current === 'dictionary' ? ' active' : '') +
       '" data-dict="1" style="padding-left:0;font-weight:600;">Dictionary</button>' +
+      '<button class="lib-doc' + (current === 'curriculum' ? ' active' : '') +
+      '" data-curriculum="1" style="padding-left:0;font-weight:600;">What there is to learn</button>' +
     '</div>';
 
     rail.innerHTML = html;
@@ -431,6 +442,8 @@
     });
     var dictBtn = rail.querySelector('[data-dict]');
     if (dictBtn) dictBtn.addEventListener('click', openDictionary);
+    var curBtn = rail.querySelector('[data-curriculum]');
+    if (curBtn) curBtn.addEventListener('click', openCurriculum);
   }
 
   /**
@@ -512,8 +525,29 @@
   /** Put a rendered document on screen, wire its outline, and jump to `anchor`
       if one was asked for. Shared by the cached and the fetched path so the two
       cannot drift. */
+  /** What this document is FOR, from the syllabus: which real-life topic it
+      teaches. A guide on a shelf does not say which question it answers; the
+      curriculum does, and this is where the two meet. Silent until the
+      syllabus has been fetched, which happens when the Curriculum view is
+      opened, so a reader who never looks at the map pays nothing. */
+  function teachesHtml(doc) {
+    if (!syllabus || !doc) return '';
+    var slug = slugOf(doc.file);
+    var hits = (syllabus.topics || []).filter(function(t) {
+      return (t.reading || []).indexOf(slug) >= 0;
+    });
+    if (!hits.length) return '';
+    return '<div class="cur-teaches"><span class="cur-teaches-label">Teaches</span>' +
+      hits.map(function(t) {
+        var subj = (syllabus.subjects || []).filter(function(s) { return s.id === t.subject; })[0];
+        return esc(t.title) + ' (' + esc(subj ? subj.title : t.subject) + ')' +
+          (t.hazard === 'lethal'
+            ? '<span class="cur-lethal">&#9888; can kill you if taught wrong</span>' : '');
+      }).join(', ') + '</div>';
+  }
+
   function paintDoc(el, doc, text, anchor) {
-    el.innerHTML = docTagsHtml(doc) + tocHtml(text) +
+    el.innerHTML = docTagsHtml(doc) + teachesHtml(doc) + tocHtml(text) +
       '<div class="md-viewer">' + md(text) + '</div>';
     bindDocTags(el);
     el.querySelectorAll('.lib-toc [data-anchor]').forEach(function(a) {
@@ -585,6 +619,136 @@
       });
   }
 
+  /* ── Curriculum: the Library's map of ITSELF ──
+     data/curriculum/syllabus.json names every subject a person needs and how
+     far each topic has got, which is what makes "how complete is this"
+     answerable. Showing the gaps is the point: a library that only displays
+     what it HAS cannot tell you what it is missing. Mirrors the native view in
+     src/gui/pages/library.rs. Lazy, like the search index: nobody who only
+     reads a document pays for it. */
+
+  /** Fetch the syllabus once, in the background, and repaint whatever is open
+      when it lands.
+
+      NOT lazy, unlike the search index. 60 KB raw and 10 KB over the wire, and
+      it is what puts the "Teaches" line on every document. Making it lazy would
+      mean the connection between a guide and the real-life topic it answers only
+      appeared for readers who had already found the Curriculum view, which is
+      backwards: the whole point is that a reader who has NOT found it sees why
+      the document exists. The search index is a hundred times bigger and stays
+      lazy for exactly that difference in cost. */
+  function loadSyllabus() {
+    if (syllabus || loadSyllabus.started) return;
+    loadSyllabus.started = true;
+    fetch(SYLLABUS_URL, { cache: 'no-cache' })
+      .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j) { syllabus = j; repaintForSyllabus(); })
+      .catch(function(err) {
+        console.error('library: syllabus failed to load', err);
+        syllabus = { subjects: [], topics: [] };
+        repaintForSyllabus();
+      });
+  }
+
+  function repaintForSyllabus() {
+    if (current === 'curriculum') { renderCurriculum(); return; }
+    // A document is open and may now have a Teaches line it did not have a
+    // moment ago. Repaint it rather than leaving the page half-informed.
+    if (current && typeof current === 'object') {
+      var cat = (manifest.categories || [])[current.ci];
+      var doc = cat && (cat.docs || [])[current.di];
+      if (doc && docCache[doc.file]) paintDoc(contentEl(), doc, docCache[doc.file], null);
+    }
+  }
+
+  function openCurriculum() {
+    current = 'curriculum';
+    if (history.replaceState) history.replaceState(null, '', '#curriculum');
+    renderRail();
+    renderCurriculum();
+    revealReader();
+    loadSyllabus();
+  }
+
+  function topicKept(t) {
+    if (curFilter === 'written') return t.status !== 'absent';
+    if (curFilter === 'absent') return t.status === 'absent';
+    if (curFilter === 'lethal') return t.hazard === 'lethal';
+    if (curFilter === 'locale') return !!t.locale_dependent;
+    return true;
+  }
+
+  function renderCurriculum() {
+    var el = contentEl();
+    if (!el) return;
+    if (!syllabus) {
+      el.innerHTML = '<div class="lib-empty">Loading what there is to learn...</div>';
+      return;
+    }
+    var topics = syllabus.topics || [];
+    var subjects = (syllabus.subjects || []).slice().sort(function(a, b) {
+      return (a.order || 0) - (b.order || 0);
+    });
+    var written = topics.filter(function(t) { return t.status !== 'absent'; }).length;
+    var graded = topics.filter(function(t) { return t.status === 'verified'; }).length;
+
+    var chips = [
+      ['Everything', ''], ['Written', 'written'], ['Not yet written', 'absent'],
+      ['Can kill you if taught wrong', 'lethal'], ['Depends where you are', 'locale'],
+    ].map(function(c) {
+      return '<button class="lib-tag' + (curFilter === c[1] ? ' active' : '') +
+        '" data-curfilter="' + esc(c[1]) + '">' + esc(c[0]) + '</button>';
+    }).join('');
+
+    var html = '<h2 class="cur-title">What there is to learn</h2>' +
+      '<p class="cur-lede">' + topics.length + ' topics across ' + subjects.length +
+      ' subjects. ' + written + ' have something written, ' + graded +
+      ' have been checked by a second pass. The rest are named so the gap is' +
+      ' countable rather than invisible.</p>' +
+      '<div class="lib-tag-group">' + chips + '</div>';
+
+    subjects.forEach(function(subj) {
+      var ts = topics.filter(function(t) { return t.subject === subj.id && topicKept(t); });
+      if (!ts.length) return;
+      var done = ts.filter(function(t) { return t.status !== 'absent'; }).length;
+      html += '<details class="cur-subject"' + (done > 0 ? ' open' : '') + '>' +
+        '<summary>' + esc(subj.title) + ' <span class="cur-count">' + done + '/' + ts.length +
+        '</span></summary>';
+      ts.forEach(function(t) {
+        var mark = t.status === 'verified' ? '<span class="cur-ok">&#10003;</span>'
+          : t.status === 'absent' ? '<span class="cur-gap"></span>'
+          : '<span class="cur-part">&middot;</span>';
+        var badges = '';
+        if (t.hazard === 'lethal') badges += '<span class="cur-lethal">&#9888; can kill you if taught wrong</span>';
+        else if (t.hazard === 'serious') badges += '<span class="cur-serious">&#9888; serious</span>';
+        if (t.locale_dependent) badges += '<span class="cur-locale">depends where you are</span>';
+        var reading = (t.reading || []).map(function(slug) {
+          return '<a class="cur-read" href="#' + esc(slug) + '">Read: ' + esc(slug) + '</a>';
+        }).join('');
+        html += '<div class="cur-topic' + (t.status === 'absent' ? ' cur-topic-gap' : '') + '">' +
+          mark + '<div><div class="cur-topic-head">' + esc(t.title) + badges + '</div>' +
+          '<div class="cur-summary">' + esc(t.summary || '') + '</div>' + reading + '</div></div>';
+      });
+      html += '</details>';
+    });
+
+    el.innerHTML = html;
+    el.scrollTop = 0;
+    el.querySelectorAll('[data-curfilter]').forEach(function(b) {
+      b.addEventListener('click', function() {
+        var v = b.getAttribute('data-curfilter');
+        curFilter = (curFilter === v) ? '' : v;
+        renderCurriculum();
+      });
+    });
+    el.querySelectorAll('.cur-read').forEach(function(a) {
+      a.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        var hit = findBySlug(a.getAttribute('href').replace(/^#/, ''));
+        if (hit) openDoc(hit.ci, hit.di, true);
+      });
+    });
+  }
   /* ── Dictionary: every glossary term, searchable ── */
   function openDictionary() {
     current = 'dictionary';
@@ -660,6 +824,7 @@
       .then(function(j) {
         manifest = j;
         renderTagBar();
+        loadSyllabus();
         wireSearch();
         renderRail();
         // A #slug in the URL wins; otherwise open the first document,

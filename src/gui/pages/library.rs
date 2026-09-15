@@ -1,9 +1,13 @@
 //! Library: the in-app home for everything you READ. A top-level tab.
 //!
-//! Two faces:
+//! Three faces:
 //! - DOCUMENTS: the Humanity Accord + companions (data/library/), a collapsible
 //!   nested tree on the left, rendered in the right pane via widgets::markdown.
 //! - DICTIONARY: every glossary term, searchable and category-filtered.
+//! - CURRICULUM: the syllabus (data/curriculum/syllabus.json), which is the
+//!   Library's map of ITSELF: every subject a person needs, and honestly how far
+//!   each one has got. Showing the gaps is the point, because a library that
+//!   only displays what it has cannot tell you what it is missing.
 //!
 //! The external tools/websites directory that used to live here as a third face
 //! moved to the Tools page in v0.1063, so the two pages split by what you DO
@@ -24,6 +28,9 @@ enum Sel {
     /// (v0.989, operator: "assume people aren't going to know all the
     /// words so we should have a way of quickly learning words").
     Dictionary,
+    /// The syllabus: every subject a person needs, and how far each one has
+    /// got. The Library's own map of itself.
+    Curriculum,
 }
 
 struct LibState {
@@ -54,10 +61,25 @@ struct LibState {
     /// Whether the Contents outline is expanded. Remembered across documents,
     /// because a reader who wants an outline wants it for the next one too.
     toc_open: bool,
+    /// Which slice of the curriculum the Curriculum view shows: empty for
+    /// everything, else one of written / absent / lethal / locale.
+    cur_filter: String,
     /// Active document tag filter (a tag id from `data/library/tags.json`).
     /// None shows everything. Narrows the rail without changing what is open,
     /// so filtering never yanks the document you are reading out from under you.
     tag_filter: Option<String>,
+}
+
+/// Open the Curriculum view.
+///
+/// Exists because two callers need to reach it without a click: the
+/// `/library#curriculum` deep link, so any document or page can point a reader
+/// at the map, and the snapshot harness, which has no cursor.
+pub fn show_curriculum() {
+    lib_state(|s| {
+        s.sel = Sel::Curriculum;
+        s.initialized = true;
+    });
 }
 
 fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
@@ -75,6 +97,7 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             back: Vec::new(),
             search: String::new(),
             scroll_to: None,
+            cur_filter: String::new(),
             toc_open: false,
             tag_filter: None,
         });
@@ -355,6 +378,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             {
                                 s.sel = Sel::Dictionary;
                             }
+                            // The syllabus, in the app. It is what makes "how
+                            // complete is this Library" answerable, and until
+                            // now the only way to read it was a command line,
+                            // which the GUI-first rule in CLAUDE.md says is not
+                            // good enough for anything a user might want to see.
+                            if !state.curriculum.is_empty() {
+                                let cur_active = s.sel == Sel::Curriculum;
+                                let ccolor =
+                                    if cur_active { theme.bg_primary() } else { theme.text_primary() };
+                                if ui
+                                    .selectable_label(
+                                        cur_active,
+                                        RichText::new("What there is to learn").strong().color(ccolor),
+                                    )
+                                    .clicked()
+                                {
+                                    s.sel = Sel::Curriculum;
+                                }
+                            }
                         });
                     });
                 });
@@ -399,6 +441,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         s.tag_filter =
                                             if s.tag_filter.as_deref() == Some(id.as_str()) { None } else { Some(id) };
                                     }
+                                    ui.add_space(theme.spacing_xs);
+                                }
+                            }
+                            // What this document is FOR. A guide sitting on a
+                            // shelf does not tell you which real-life question
+                            // it answers or what you should already know; the
+                            // syllabus does, and this is where the two meet.
+                            if let Some(e) = entry {
+                                let taught = state.curriculum.topics_for_slug(&e.slug);
+                                if !taught.is_empty() {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(
+                                            RichText::new("Teaches")
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                        for t in taught.iter() {
+                                            let subject = state
+                                                .curriculum
+                                                .subjects
+                                                .iter()
+                                                .find(|x| x.id == t.subject)
+                                                .map(|x| x.title.as_str())
+                                                .unwrap_or(t.subject.as_str());
+                                            ui.label(
+                                                RichText::new(format!("{} ({subject})", t.title))
+                                                    .size(theme.font_size_small)
+                                                    .color(theme.text_secondary()),
+                                            );
+                                            if t.hazard == "lethal" {
+                                                ui.label(
+                                                    RichText::new("\u{26a0} can kill you if taught wrong")
+                                                        .size(theme.font_size_small)
+                                                        .color(theme.danger()),
+                                                );
+                                            }
+                                        }
+                                    });
                                     ui.add_space(theme.spacing_xs);
                                 }
                             }
@@ -569,6 +649,172 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             }
                         }
+                        Sel::Curriculum => {
+                            // The syllabus as a reader sees it: what there is to
+                            // learn, and honestly how far each subject has got.
+                            // Showing the gaps is the point. A Library that only
+                            // displays what it HAS cannot tell you what it is
+                            // missing, and "how complete is this" was the
+                            // question that started this whole arc.
+                            let cur = &state.curriculum;
+                            let total = cur.topics.len();
+                            let written = cur.topics.iter().filter(|t| t.status != "absent").count();
+                            let graded = cur.topics.iter().filter(|t| t.status == "verified").count();
+                            ui.label(
+                                RichText::new("What there is to learn")
+                                    .size(theme.font_size_heading)
+                                    .strong()
+                                    .color(theme.text_primary()),
+                            );
+                            ui.label(
+                                RichText::new(format!(
+                                    "{total} topics across {} subjects. {written} have something written, \
+                                     {graded} have been checked by a second pass. The rest are named so the \
+                                     gap is countable rather than invisible.",
+                                    cur.subjects.len()
+                                ))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                            );
+                            ui.add_space(theme.spacing_xs);
+
+                            let mut jump: Option<String> = None;
+                            ui.horizontal_wrapped(|ui| {
+                                for (label, key) in [
+                                    ("Everything", ""),
+                                    ("Written", "written"),
+                                    ("Not yet written", "absent"),
+                                    ("Can kill you if taught wrong", "lethal"),
+                                    ("Depends where you are", "locale"),
+                                ] {
+                                    let on = s.cur_filter == key;
+                                    if tag_chip(ui, theme, label, on) {
+                                        s.cur_filter = if on { String::new() } else { key.to_string() };
+                                    }
+                                }
+                            });
+                            ui.separator();
+
+                            let keep = |t: &crate::gui::CurriculumTopic| match s.cur_filter.as_str() {
+                                "written" => t.status != "absent",
+                                "absent" => t.status == "absent",
+                                "lethal" => t.hazard == "lethal",
+                                "locale" => t.locale_dependent,
+                                _ => true,
+                            };
+
+                            ScrollArea::vertical()
+                                .id_salt("library_curriculum")
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    for subj in cur.subjects.iter() {
+                                        let topics: Vec<_> = cur
+                                            .topics
+                                            .iter()
+                                            .filter(|t| t.subject == subj.id && keep(t))
+                                            .collect();
+                                        if topics.is_empty() {
+                                            continue;
+                                        }
+                                        let done = topics.iter().filter(|t| t.status != "absent").count();
+                                        egui::CollapsingHeader::new(
+                                            RichText::new(format!(
+                                                "{}   {}/{}",
+                                                subj.title,
+                                                done,
+                                                topics.len()
+                                            ))
+                                            .size(theme.font_size_body)
+                                            .strong()
+                                            .color(theme.text_primary()),
+                                        )
+                                        .id_salt(("libsubj", subj.id.as_str()))
+                                        .default_open(done > 0)
+                                        .show(ui, |ui| {
+                                            for t in topics {
+                                                ui.horizontal_top(|ui| {
+                                                    ui.add_space(theme.spacing_sm);
+                                                    // Status first, because it is
+                                                    // what the reader is asking.
+                                                    let (mark, mc) = match t.status.as_str() {
+                                                        "verified" => ("\u{2713}", theme.success()),
+                                                        "sourced" => ("\u{00b7}", theme.accent()),
+                                                        "stub" => ("\u{00b7}", theme.warning()),
+                                                        _ => (" ", theme.text_muted()),
+                                                    };
+                                                    ui.label(RichText::new(mark).size(theme.font_size_body).color(mc));
+                                                    ui.vertical(|ui| {
+                                                        ui.set_max_width(ui.available_width());
+                                                        let tcolor = if t.status == "absent" {
+                                                            theme.text_muted()
+                                                        } else {
+                                                            theme.text_primary()
+                                                        };
+                                                        ui.horizontal_wrapped(|ui| {
+                                                            ui.label(
+                                                                RichText::new(&t.title)
+                                                                    .size(theme.font_size_small)
+                                                                    .strong()
+                                                                    .color(tcolor),
+                                                            );
+                                                            if t.hazard == "lethal" {
+                                                                ui.label(
+                                                                    RichText::new("\u{26a0} can kill you if taught wrong")
+                                                                        .size(theme.font_size_small)
+                                                                        .color(theme.danger()),
+                                                                );
+                                                            } else if t.hazard == "serious" {
+                                                                ui.label(
+                                                                    RichText::new("\u{26a0} serious")
+                                                                        .size(theme.font_size_small)
+                                                                        .color(theme.warning()),
+                                                                );
+                                                            }
+                                                            if t.locale_dependent {
+                                                                ui.label(
+                                                                    RichText::new("depends where you are")
+                                                                        .size(theme.font_size_small)
+                                                                        .color(theme.text_muted()),
+                                                                );
+                                                            }
+                                                        });
+                                                        if !t.summary.is_empty() {
+                                                            ui.label(
+                                                                RichText::new(&t.summary)
+                                                                    .size(theme.font_size_small)
+                                                                    .color(theme.text_secondary()),
+                                                            );
+                                                        }
+                                                        // The link that makes this
+                                                        // a map rather than a list.
+                                                        for slug in t.reading.iter() {
+                                                            if ui
+                                                                .add(
+                                                                    Label::new(
+                                                                        RichText::new(format!("Read: {slug}"))
+                                                                            .size(theme.font_size_small)
+                                                                            .underline()
+                                                                            .color(theme.accent()),
+                                                                    )
+                                                                    .sense(Sense::click()),
+                                                                )
+                                                                .on_hover_cursor(CursorIcon::PointingHand)
+                                                                .clicked()
+                                                            {
+                                                                jump = Some(format!("/library#{slug}"));
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                                ui.add_space(theme.spacing_xs);
+                                            }
+                                        });
+                                    }
+                                });
+                            if jump.is_some() {
+                                nav_request = jump;
+                            }
+                        }
                         Sel::Dictionary => {
                             let gl = crate::gui::glossary::glossary();
                             ui.horizontal(|ui| {
@@ -660,6 +906,29 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         Some((d, h)) => (d, Some(h.to_string())),
                         None => (frag, None),
                     };
+                    // Two reserved fragments that are views rather than
+                    // documents, so a document can send a reader to the map or
+                    // to the words without either becoming a fake .md file.
+                    if slug == "curriculum" {
+                        lib_state(|s| {
+                            let prev = s.sel.clone();
+                            if prev != Sel::Curriculum {
+                                s.back.push(prev);
+                                s.sel = Sel::Curriculum;
+                            }
+                        });
+                        return;
+                    }
+                    if slug == "dictionary" {
+                        lib_state(|s| {
+                            let prev = s.sel.clone();
+                            if prev != Sel::Dictionary {
+                                s.back.push(prev);
+                                s.sel = Sel::Dictionary;
+                            }
+                        });
+                        return;
+                    }
                     let found = state.library.iter().enumerate().find_map(|(si, sec)| {
                         sec.categories.iter().enumerate().find_map(|(ci, c)| {
                             c.entries.iter().position(|e| e.slug == slug

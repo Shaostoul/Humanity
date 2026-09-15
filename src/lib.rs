@@ -1460,6 +1460,7 @@ mod native_app {
             let lib = crate::gui::load_library(&data_dir);
             gui_state.library = lib.sections;
             gui_state.library_tags = lib.tag_groups;
+            gui_state.curriculum = crate::gui::load_curriculum(&data_dir);
             gui_state.equipment_slots = crate::gui::load_equipment_slots(&data_dir);
             let (sevs, cats) = crate::gui::load_bug_taxonomy(&data_dir);
             gui_state.bug_severities = sevs;

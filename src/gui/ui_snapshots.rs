@@ -91,6 +91,7 @@ fn demo_state() -> GuiState {
     let lib = crate::gui::load_library(data);
     s.library = lib.sections;
     s.library_tags = lib.tag_groups;
+    s.curriculum = crate::gui::load_curriculum(data);
     s.garden_areas = crate::gui::load_garden_areas(data);
     s.grow_media = crate::gui::load_grow_media(data);
     s.onboarding_quest_chains = crate::gui::pages::onboarding::load_quest_chains(data);
@@ -1480,6 +1481,18 @@ fn snapshot_market_publish() {
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
+
+/// The Library's third face: the syllabus, which is its map of ITSELF. Worth its
+/// own picture because the page snapshot opens on a document and this view is
+/// otherwise only reachable by clicking, so a regression here would be invisible.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_curriculum() {
+    render_page_png("curriculum", 1280, 900, |ctx, theme, state| {
+        crate::gui::pages::library::show_curriculum();
+        crate::gui::pages::library::draw(ctx, theme, state);
+    });
+}
 // snapshot_governance is a hand-written test above (needs injected proposal
 // state to show the real feed; the bare macro version rendered an empty page).
 page_snapshot!(snapshot_identity, "identity", identity, 1280, 900);

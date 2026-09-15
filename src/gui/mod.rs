@@ -4541,6 +4541,10 @@ pub struct GuiState {
     /// Library tag vocabulary (`data/library/tags.json`, carried through
     /// index.json). Drives the filter chips on the Library page.
     pub library_tags: Vec<LibraryTagGroup>,
+    /// The syllabus (`data/curriculum/syllabus.json`): every subject a person
+    /// needs, with the state of each topic's four layers. The Library renders
+    /// it as a third view beside Documents and Dictionary.
+    pub curriculum: CurriculumData,
     /// Studio scene presets (`data/studio/scenes.json`).
     pub studio_scene_presets: Vec<StudioScenePreset>,
     /// Studio source presets (`data/studio/sources.json`).
@@ -5768,6 +5772,7 @@ impl Default for GuiState {
             market_categories: Vec::new(),
             library: Vec::new(),
             library_tags: Vec::new(),
+            curriculum: CurriculumData { subjects: Vec::new(), topics: Vec::new() },
             studio_scene_presets: Vec::new(),
             studio_source_presets: Vec::new(),
             studio_streaming_config: StudioStreamingConfig::default(),
@@ -6792,6 +6797,128 @@ pub struct LibrarySection {
 pub struct LibraryData {
     pub sections: Vec<LibrarySection>,
     pub tag_groups: Vec<LibraryTagGroup>,
+}
+
+/// One teachable topic from `data/curriculum/syllabus.json`.
+///
+/// The syllabus is the Library's DENOMINATOR: it names every subject a person
+/// needs, so "how complete is this" has an answer. Until v0.1311 the only way to
+/// read it was `just curriculum`, a command line, which the handbook's
+/// GUI-first rule says is not good enough for anything a user might want to see.
+pub struct CurriculumTopic {
+    pub id: String,
+    pub subject: String,
+    pub title: String,
+    pub summary: String,
+    /// absent / stub / sourced / verified. Only `verified` is teaching-grade.
+    pub status: String,
+    /// Library slugs that teach this, in the `/library#slug` grammar.
+    pub reading: Vec<String>,
+    pub skills: Vec<String>,
+    /// Simulation data files behind it, which is what separates a book from a
+    /// simulation.
+    pub data: Vec<String>,
+    pub sources: Vec<String>,
+    /// none / caution / serious / lethal.
+    pub hazard: String,
+    /// True when the correct answer changes with where you are standing, which
+    /// is 46% of the syllabus and the reason locales exist.
+    pub locale_dependent: bool,
+}
+
+/// A subject: a group of topics, in teaching order.
+pub struct CurriculumSubject {
+    pub id: String,
+    pub title: String,
+    pub order: i64,
+}
+
+/// The syllabus as the Library renders it.
+pub struct CurriculumData {
+    pub subjects: Vec<CurriculumSubject>,
+    pub topics: Vec<CurriculumTopic>,
+}
+
+impl CurriculumData {
+    pub fn is_empty(&self) -> bool {
+        self.topics.is_empty()
+    }
+    /// Topics that name `slug` as their reading, so a document can show what it
+    /// teaches rather than leaving the connection implicit.
+    pub fn topics_for_slug(&self, slug: &str) -> Vec<&CurriculumTopic> {
+        self.topics.iter().filter(|t| t.reading.iter().any(|r| r == slug)).collect()
+    }
+}
+
+/// Load `data/curriculum/syllabus.json`. Empty on error, so a missing or
+/// malformed syllabus hides the Curriculum view rather than breaking the page.
+#[cfg(feature = "native")]
+pub fn load_curriculum(data_dir: &std::path::Path) -> CurriculumData {
+    #[derive(serde::Deserialize)]
+    struct SubjectDef {
+        id: String,
+        title: String,
+        #[serde(default)]
+        order: i64,
+    }
+    #[derive(serde::Deserialize)]
+    struct TopicDef {
+        id: String,
+        subject: String,
+        title: String,
+        #[serde(default)]
+        summary: String,
+        #[serde(default)]
+        status: String,
+        #[serde(default)]
+        reading: Vec<String>,
+        #[serde(default)]
+        skills: Vec<String>,
+        #[serde(default)]
+        data: Vec<String>,
+        #[serde(default)]
+        sources: Vec<String>,
+        #[serde(default)]
+        hazard: String,
+        #[serde(default)]
+        locale_dependent: bool,
+    }
+    #[derive(serde::Deserialize)]
+    struct Syllabus {
+        #[serde(default)]
+        subjects: Vec<SubjectDef>,
+        #[serde(default)]
+        topics: Vec<TopicDef>,
+    }
+    let Some(s) = read_data_json::<Syllabus>(data_dir, "curriculum/syllabus.json") else {
+        return CurriculumData { subjects: Vec::new(), topics: Vec::new() };
+    };
+    let mut subjects: Vec<CurriculumSubject> = s
+        .subjects
+        .into_iter()
+        .map(|x| CurriculumSubject { id: x.id, title: x.title, order: x.order })
+        .collect();
+    subjects.sort_by_key(|x| x.order);
+    CurriculumData {
+        subjects,
+        topics: s
+            .topics
+            .into_iter()
+            .map(|t| CurriculumTopic {
+                id: t.id,
+                subject: t.subject,
+                title: t.title,
+                summary: t.summary,
+                status: if t.status.is_empty() { "absent".to_string() } else { t.status },
+                reading: t.reading,
+                skills: t.skills,
+                data: t.data,
+                sources: t.sources,
+                hazard: if t.hazard.is_empty() { "none".to_string() } else { t.hazard },
+                locale_dependent: t.locale_dependent,
+            })
+            .collect(),
+    }
 }
 
 /// Load the in-app Library from `data/library/index.json` plus the markdown
