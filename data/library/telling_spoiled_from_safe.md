@@ -124,6 +124,14 @@ because so many other rules hang off them:
   water. It is also why moulds beat bacteria in those foods, because
   moulds tolerate low water activity better.
 
+  **One exception, and it is about who is eating rather than about
+  storage.** Honey keeps indefinitely and is safe for anyone old enough to
+  be eating it, but FDA's Bad Bug Book records honey as the one dietary
+  reservoir linked to infant botulism by both laboratory and epidemiologic
+  studies, and says honey should not be fed to infants under 12 months.
+  Twelve months, not the under-fives in the higher-risk list further down,
+  and shelf stability has nothing to do with it.
+
 ### 2. Enzymatic change
 
 Food is made of tissue that was recently alive, and it is full of enzymes
@@ -198,12 +206,13 @@ they plainly are not. Be specific about where they work.
   population has had time and conditions to build.
 - **Gas.** A bulging can, a jar with a domed lid, a vacuum pack that has
   inflated, a bottle of juice that fizzes when it should not. Something
-  living has been producing gas inside a sealed container. Penn State's
-  list of spoilage signs in preserved food is worth knowing by heart:
-  unsealed, bulging or loose lids, rising air bubbles, leaking, foam,
-  foul odour, unnatural colours, sliminess, dried food on the outside at
-  the top of the jar, and cotton-like mould growth in white, blue, black
-  or green.
+  living has been producing gas inside a sealed container. Penn State
+  gives a list of spoilage signs in preserved food, which it credits to
+  Blakeslee, and it is worth knowing by heart: unsealed, bulging or loose
+  lids, rising air bubbles, leaking, foam, foul odour, unnatural colours,
+  sliminess, dried food on top of jars, and cotton-like mould growth in
+  white, blue, black or green at the top or under the lid. That last
+  place is the one nobody looks.
 - **Rancidity.** Your nose is genuinely sensitive to oxidised fat.
 - **Obvious visual wrongness:** grey-green meat, pink or slimy patches on
   cooked chicken, a sauce that has separated and darkened.
@@ -310,8 +319,14 @@ careful about this: "some molds cause allergic reactions and respiratory
 problems. And a few molds, in the right conditions, produce
 'mycotoxins,' poisonous substances that can make people sick." A few. In
 the right conditions. Mould on food is usually a quality problem, and
-FDA's consumer page says as much: "Mold is not a major health threat, but
-it can make food unappetizing."
+FDA's consumer page says as much, though it is worth reading FDA's whole
+bullet rather than the convenient half of it: "Mold is not a major health
+threat, but it can make food unappetizing. The safest practice is to
+discard food that is moldy."
+
+Note what that means. FDA's consumer advice is stricter than the
+food-by-food table further down this guide, which comes from FSIS. Where
+they differ, the conservative answer is FDA's and it costs you a vegetable.
 
 The trouble is that "usually" is doing real work in that sentence, you
 cannot tell which mould you have by looking, and the toxins are not
@@ -339,10 +354,23 @@ depth.**
   the cheese). After trimming off the mold, re-cover the cheese in fresh
   wrap." The reason given: "Mold generally cannot penetrate deep into the
   product."
-- **Firm fruits and vegetables**, and FSIS gives cabbage, bell peppers
-  and carrots as its examples. Same instruction: cut off at least 1 inch
-  around and below the spot, keeping the knife out of the mould. The
-  reason: "It's difficult for mold to penetrate dense foods."
+- **Cheeses where mould IS part of the making**, which the sentence above
+  excludes and which therefore need their own answer. FSIS splits them by
+  texture. Discard a SOFT one, Brie or Camembert, if it carries moulds
+  that are not part of the manufacturing process. On a HARD one,
+  Gorgonzola or Stilton, cut off surface mould at least 1 inch around and
+  below the spot and handle it like any other hard cheese.
+- **Firm fruits and vegetables with low moisture content**, and FSIS gives
+  cabbage, bell peppers and carrots as its examples. Both of those
+  qualifiers are FSIS's own and both matter. Same instruction: cut off at
+  least 1 inch around and below the spot, keeping the knife out of the
+  mould. FSIS gives the reason in one sentence and it is worth having
+  whole: "Small mold spots can be cut off FIRM fruits and vegetables with
+  low moisture content. It's difficult for mold to penetrate dense foods."
+
+  And FSIS sets an override above this entire table which beats every row
+  in it: **if food is covered with mould, discard it.** The table is for a
+  small spot, not for a surface.
 - **Hard salami and dry-cured country hams**, where surface mould is
   normal for the product: scrub the mould off the surface.
 
@@ -415,13 +443,15 @@ below.
 
 *It survives cooking.* WHO states that most mycotoxins are chemically
 stable and survive food processing. For aflatoxin specifically, the
-peer-reviewed review literature (Kutasi and colleagues, *International
-Journal of Molecular Sciences*, 2021) reports that aflatoxins remain
+peer-reviewed review literature reports that aflatoxins remain
 stable above 100 degrees C and that significant decontamination was
 reported only at heating or roasting temperatures of 150 degrees C (302
 degrees F) or higher. Boiling is 100 degrees C. **Cooking a mouldy peanut
 does not fix a mouldy peanut.** I did not find a federal page giving an
-aflatoxin-specific temperature threshold, so treat the 150 degrees C
+aflatoxin-specific temperature threshold. That 150 degrees C figure is
+also one citation further away than it looks: the review reporting it
+credits it to a different review (Pankaj, Shi and Keener, 2018) rather
+than to its own measurement. So treat the 150 degrees C
 figure as the research literature's number and not as a US agency
 position.
 
@@ -458,9 +488,10 @@ guaranteed clean.
 the most potent natural carcinogen known, contaminating corn, peanuts and
 tree nuts in storage, with liver damage, jaundice and hepatocellular
 carcinoma as effects and no specific antidote. That matches the sources
-above. Its two numeric fields should not be read as human figures. The
-record carries a lethal dose of 0.5 mg per kg and an onset of 1,440
-minutes, but FDA's Bad Bug Book says plainly that "The toxic level of AF
+above. Its dose figure should not be read as a human one. The
+record carries a lethal dose of 0.5 mg per kg and deliberately leaves its
+onset blank, which is the honest shape: FDA's Bad Bug Book says plainly
+that "The toxic level of AF
 in humans is largely unknown," gives its dose figures as animal LD50
 values ranging from 0.3 mg/kg in rabbits to 18 mg/kg in rats, and lists
 onset for aflatoxin as "Not applicable," because the characteristic harm
@@ -479,10 +510,17 @@ measured on single strength apple juice. WHO adds that patulin turns up
 in other mouldy fruits and grains as well, with apples and apple juice
 the major dietary source.
 
-The lesson for a home cider press or a bucket of windfalls is exact:
-**the rot goes into the juice and the pasteuriser does not take it out
-again.** Cut generously around damage on apples destined for juice, and do
-not press fruit that is actually rotting.
+The lesson for a home cider press or a bucket of windfalls is the sourced
+part: **the rot goes into the juice and the pasteuriser does not take it
+out again.** FDA says patulin may be present if rotten, mouldy or damaged
+apples are used, so the instruction that follows from the sources is do
+not press them.
+
+Cutting generously around damage and pressing the rest is a rule of thumb
+rather than a sourced fact, and it is worth knowing which way the evidence
+leans against it: WHO says mycotoxins can penetrate deep into food and do
+not just grow on the surface. Trimming is a judgement call about a damaged
+apple. It is not a treatment for a rotten one.
 
 ### Botulinum toxin, in one paragraph
 
@@ -593,8 +631,12 @@ what it does not touch.
 **Cooking.** Kills vegetative bacteria. CDC's safe internal temperatures
 are 145 degrees F for beef, veal, lamb, pork and fish, with a 3 minute
 rest for the meats, 160 degrees F for ground meats, and 165 degrees F for
-poultry; a thermometer is the only way to know you got there, since
-colour and texture do not tell you. What cooking does **not** do:
+poultry; a thermometer is the only way to know you got there, because CDC
+says you cannot tell by colour and texture, with one exception it names
+itself: seafood. CDC's own row for finned fish is 145 degrees F or cook
+until the flesh is opaque and separates easily with a fork. Note also that
+CDC's 145 row is for WHOLE CUTS of beef, veal, lamb and pork, which is why
+ground meat has its own higher number. What cooking does **not** do:
 - It does not destroy staphylococcal enterotoxin. FDA: "Destruction of
   viable cells by heat does not destroy the biological activity of
   preformed staphylococcal enterotoxins. These toxins are highly heat
@@ -714,9 +756,11 @@ these is true.**
 - It is home-canned low-acid food that was not processed by a tested
   procedure, or the jar is bulging, leaking, spurting, mouldy or smells
   wrong.
-- It is a perishable food that has been above 40 degrees F for more than
-  four hours, or out at room temperature for more than two hours, or more
-  than one hour above 90 degrees F.
+- It is a perishable food that has been out at room temperature for more
+  than two hours, or more than one hour when the air is above 90 degrees F,
+  or was in a refrigerator that lost power and stayed above 40 degrees F for
+  four hours or more. Those are different situations and the four-hour
+  figure belongs only to the last one.
 - It is mouldy and on the discard list, particularly nuts, peanut butter,
   bread, soft cheese, jam, soft fruit or cooked leftovers.
 - It is fish you have reason to think was warm at any point in its
@@ -788,7 +832,13 @@ amount of each nutrient declared on the product label and will otherwise
 be of acceptable quality."
 
 Be precise about what that does and does not say, because it is easy to
-over-read. It is the only federally required date on food. It is a
+over-read. Infant formula is the one case FDA names, and FDA's wording is
+narrower than "the only required date on food": it says manufacturers are
+not required to place QUALITY-BASED date labels on PACKAGED FOOD except for
+infant formula, and elsewhere that some baby foods must also carry a use-by
+date. The flat version of the claim is very likely right, but the pages this
+guide could open do not establish it, so take it as the one required date we
+can show rather than the only one that exists. It is a
 guarantee that runs **until** the date: up to it, the formula holds the
 nutrient levels on the label. Past it, the guarantee is gone, and for an
 infant who is getting all of their nutrition from that tin, a shortfall in
@@ -967,7 +1017,11 @@ material is restated in our own words with the body cited.
 
 - https://www.cdc.gov/food-safety/about/index.html
   The annual US estimates: 48 million illnesses, 128,000
-  hospitalisations, 3,000 deaths; the higher-risk groups.
+  hospitalisations, 3,000 deaths. This page does NOT carry the
+  higher-risk groups, which are on the page below.
+- https://www.cdc.gov/food-safety/risk-factors/index.html
+  The higher-risk groups: people 65 and older, children under 5, people
+  with weakened immune systems, and pregnant women.
 - https://www.cdc.gov/food-safety/prevention/index.html
   The Danger Zone defined as 40 to 140 degrees F; the two-hour and
   one-hour rules; safe internal cooking temperatures of 145, 160 and 165
