@@ -458,6 +458,7 @@ preflight:
     node scripts/check-library-dashes.js
     node scripts/check-library-fresh.js
     node scripts/check-library-render.js
+    node scripts/check-library-counts.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -486,6 +487,15 @@ check-library-fresh:
 # a checklist item, leaving its separator row on the page as raw pipes.
 check-library-render:
     node scripts/check-library-render.js --verbose
+# Refuse a shipped document that states a count of locale records the data no
+# longer supports. A guide that teaches from a dataset quotes its shape, and
+# every one of those sentences was true the day it was written; then three sea
+# star records landed and five of them were false across three documents, with
+# nothing breaking. It was caught by a writer who happened to re-derive the
+# numbers for a different guide, which is luck rather than a process. The
+# counts are good teaching and should stay, so this keeps them true instead.
+check-library-counts:
+    node scripts/check-library-counts.js
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among

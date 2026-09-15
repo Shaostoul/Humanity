@@ -26,7 +26,7 @@ out one piece moves others, and why your particular place works the way
 it does.
 
 The worked examples come from `data/locales/silverdale_wa/species.json`,
-which ships with this project: 122 plants, fungi, mammals, birds, fish
+which ships with this project: 125 plants, fungi, mammals, birds, fish
 and shellfish of one real place on Puget Sound. Where a claim rests on a
 record in that file, the record id is given so you can go and read it.
 Everything else is sourced at the bottom.
@@ -593,8 +593,8 @@ and the cavities it abandons become nest sites for owls, ducks and
 squirrels. That is the practical argument for leaving a safe dead tree
 standing. A snag is not a tidiness problem. It is housing stock.
 
-The dataset's own accounting of the whole community: 99 native, 9
-introduced and 14 invasive, out of 122 records.
+The dataset's own accounting of the whole community: 102 native, 9
+introduced and 14 invasive, out of 125 records.
 
 ## Invasive species, as a structural question rather than a moral one
 
