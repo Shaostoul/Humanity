@@ -454,6 +454,7 @@ preflight:
     node scripts/check-doc-links.js
     node scripts/curriculum-status.js
     node scripts/check-locale-species.js
+    node scripts/check-locale-phenology.js
     node scripts/check-library-dashes.js
     node scripts/check-library-fresh.js
     just verify
@@ -485,6 +486,14 @@ check-dashes:
 # say how to tell them apart. An empty lookalike list was the single most common
 # finding when the Silverdale plant records were put to an adversarial verifier,
 # and confusion is how foraging kills people, not ignorance.
+# Validate every locale phenology calendar, and keep its confidence labels
+# honest: a measured or published_range event must carry a real source, because
+# those grades assert somebody measured or published it. local_consensus need
+# not, that grade says nobody published a date, but it must still point at the
+# record its timing comes from. Also reports the ratio the per-event labels
+# hide: how many biological events are actually measured.
+check-phenology:
+    node scripts/check-locale-phenology.js
 check-species:
     node scripts/check-locale-species.js
 # Check that every citation in data/sources/registry.json still resolves.

@@ -690,7 +690,9 @@
       "peak": "April",
       "why_it_matters": "The showiest native bloom of early spring and a hummingbird plant. Worth knowing because it is the shrub most worth deliberately planting near a house here: it flowers when almost nothing else does and feeds the birds that arrive with it.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: red_flowering_currant)"
+      ]
     },
     {
       "id": "alder_catkins",
@@ -766,7 +768,9 @@
       "peak": "April",
       "why_it_matters": "One of the few cases where eating an invasive is genuinely useful, though it does nothing to control it. The important thing is disposal rather than harvest: knotweed regrows from tiny fragments of root or stem, so cuttings must never go in compost, in a green bin, or anywhere near water. Moving the plant is how it spreads.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: japanese_knotweed)"
+      ]
     },
     {
       "id": "cattail_shoots",
@@ -777,7 +781,9 @@
       "peak": "May",
       "why_it_matters": "The most productive wild starch in this landscape and available in some form nearly all year, which is rare. The caution is the water, not the plant: cattails grow where runoff collects, so what is upstream matters more than what is in your hand.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: broadleaf_cattail)"
+      ]
     },
     {
       "id": "camas_bloom_id_window",
@@ -787,8 +793,10 @@
       "window": "May to July depending on elevation and snow cover.",
       "peak": "Late May into June",
       "why_it_matters": "This is the single most important safety window on this calendar. Common camas and meadow death camas grow in the same ground and their bulbs are indistinguishable, and death camas is lethal. The blue flower of common camas against the creamy white of death camas is the only difference a beginner can reliably see, and it exists for a few weeks a year. Leaves then die back and seeds disperse from late May to August, after which nothing above ground marks the spot. Digging an unmarked bulb in autumn is how people are poisoned. If you intend to harvest camas, you mark the plants in bloom and you dig only what you marked.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: common_camas)"
+      ]
     },
     {
       "id": "death_camas_bloom",
@@ -798,8 +806,10 @@
       "window": "Green leaves appear early in spring ahead of most other growth; creamy white flowers in late spring; the plant dies back by summer.",
       "peak": "Late May",
       "why_it_matters": "The early leaves are the hazard, because they come up when people and livestock are looking for the first green growth of the year and there is nothing else to compare them to. The bulb stays in the ground and is dangerous in every month, including the months when there is no leaf to find it by.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: meadow_death_camas)"
+      ]
     },
     {
       "id": "poison_hemlock_rosette",
@@ -809,8 +819,10 @@
       "window": "The first year rosette stands through autumn, winter and early spring. It bolts and flowers in late spring and early summer, then sets seed and dies.",
       "peak": "February and March, when the rosette is largest and greenest",
       "why_it_matters": "The rosette is when poison hemlock looks most like parsley, and it is green at the exact time of year when a garden or field edge has little else green in it. This overlaps precisely with the wild carrot rosette, which is the root digging stage of an edible plant, and with the cow parsnip rosette. The dead standing stems remain poisonous. Never dig a white taprooted umbellifer in the rosette stage on the strength of leaf shape.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: poison_hemlock)"
+      ]
     },
     {
       "id": "water_hemlock_year_round",
@@ -820,8 +832,10 @@
       "window": "Shoots in spring, white umbels in summer, top dies back in autumn. The tuberous root is in the ground all twelve months.",
       "peak": null,
       "why_it_matters": "The most poisonous plant in North America grows in the same wet ground as water parsley, hemlock waterparsnip and cattail, all of which are gathered. In winter nothing above ground shows where it is, and the root is the most poisonous part. This is why the calendar cannot make wet ground digging safe at any time of year, and why the honest advice for winter root digging in a wet meadow is not to.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: western_water_hemlock)"
+      ]
     },
     {
       "id": "poison_oak_leafless",
@@ -831,8 +845,10 @@
       "window": "Leafless from late autumn through early spring. The Forest Service gives flowering March to June and fruit dispersal in summer and autumn.",
       "peak": null,
       "why_it_matters": "Losing the leaves removes the only identification character most people know, while the urushiol stays on the bare stems. A leafless, thornless vine in winter is not identified, and firewood gathering season is exactly when people handle unidentified bare stems. New spring leaves are often glossy and reddish.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: pacific_poison_oak)"
+      ]
     },
     {
       "id": "autumn_mushroom_hazard",
@@ -843,7 +859,9 @@
       "peak": null,
       "why_it_matters": "Funeral bell fruits alongside honey mushroom and on the same wood, and it contains the same toxin as the death cap. The death cap season for western Washington is not established from any public source either, so this calendar cannot tell you a month to be careful in. Be careful in all of them. No seasonal rule substitutes for identification, and the autumn flush that brings chanterelles brings these at the same time and in the same woods.",
       "confidence": "estimated",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: funeral_bell)"
+      ]
     },
     {
       "id": "salmonberry_fruit",
@@ -984,7 +1002,9 @@
       "peak": "August",
       "why_it_matters": "Intensely sour and full of seed, which is why almost nobody eats it raw and why it makes very good jelly. Both species are evergreen, so they are findable in every month, and marking a good stand in winter costs nothing.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: dull_oregon_grape)"
+      ]
     },
     {
       "id": "bitter_cherry_fruit",
@@ -995,7 +1015,9 @@
       "peak": "August",
       "why_it_matters": "Named accurately. The value here is not food but timing and wildlife: it is one of the earliest tree blossoms in April and a heavy bird crop in late summer. The stones, like all Prunus, contain cyanogenic compounds.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: bitter_cherry)"
+      ]
     },
     {
       "id": "madrone_fruit",
@@ -1005,8 +1027,10 @@
       "window": "Berries ripen from early autumn until December or January; seed collectors gather fruit from October to December.",
       "peak": "November",
       "why_it_matters": "One of very few fruits still ripening as the year closes, which makes it disproportionately important to birds in early winter. Range wide dates rather than a Silverdale record, so treat the months as indicative.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: pacific_madrone)"
+      ]
     },
     {
       "id": "hazelnut_harvest",
@@ -1030,7 +1054,9 @@
       "peak": "October",
       "why_it_matters": "The only oak here, and uncommon enough that a stand is worth knowing. Acorns need leaching to be food. Their bigger role is ecological: an oak woodland is the richest wildlife habitat in the Puget lowlands and the rarest, which is also the habitat Indian plum is most associated with.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: oregon_white_oak)"
+      ]
     },
     {
       "id": "conifer_seed_fall",
@@ -1082,7 +1108,9 @@
       "peak": "During cold snaps and snow",
       "why_it_matters": "It breeds upslope in denser wetter forest and moves down into town for the winter, so its arrival is an altitude signal rather than a latitude one. It becomes most obvious feeding on the ground under shrubs during cold snaps, which makes it a good indicator that the weather has turned hard enough to push birds off the hills.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: varied_thrush)"
+      ]
     },
     {
       "id": "osprey_arrival",
@@ -1093,7 +1121,9 @@
       "peak": "April",
       "why_it_matters": "A summer breeder here, not a resident, so an osprey over Dyes Inlet in January is a misidentification. Their return is one of the cleaner spring markers because the birds are large, loud and nest on visible structures.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: osprey)"
+      ]
     },
     {
       "id": "osprey_departure",
@@ -1104,7 +1134,9 @@
       "peak": "September",
       "why_it_matters": "The clearest single sign that the summer is over on the water. They go to Central and South America, so the inlet loses its most conspicuous fish hunter for seven months while the eagles stay.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: osprey)"
+      ]
     },
     {
       "id": "heron_colony",
@@ -1115,7 +1147,9 @@
       "peak": "March through May",
       "why_it_matters": "Herons are here all year but they concentrate at colonies in late winter, and that is the vulnerable moment. Disturbing an active colony can cause the whole colony to abandon, not just one nest, so this is the season to keep well back from a stand of big stick nests. Plan any noisy work near one outside February to June.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: great_blue_heron)"
+      ]
     },
     {
       "id": "eagle_nesting",
@@ -1126,7 +1160,9 @@
       "peak": "March and April",
       "why_it_matters": "Eagles nest remarkably early here, starting in the depth of winter, which is only possible because the autumn salmon runs fed them first. Numbers rise through autumn and winter as birds concentrate on the runs and the carcasses afterward, and then those same birds are on eggs by February. The chum run and the eagle nesting season are the same food chain three months apart.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: bald_eagle)"
+      ]
     },
     {
       "id": "pileated_breeding",
@@ -1136,8 +1172,10 @@
       "window": "WDFW gives the breeding season as late March through early July.",
       "peak": "April and May",
       "why_it_matters": "A year round resident whose drumming becomes constant in spring. It excavates the large cavities that a long list of other species later nest in, so a big dead tree left standing is worth more than the firewood in it.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: pileated_woodpecker)"
+      ]
     },
     {
       "id": "band_tailed_pigeon_season",
@@ -1148,7 +1186,9 @@
       "peak": "Summer",
       "why_it_matters": "A native forest pigeon that most people mistake for a feral rock dove. It is a migrant here and a heavy user of elderberry and cascara fruit, so its season tracks the berry season closely.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: band_tailed_pigeon)"
+      ]
     },
     {
       "id": "deer_rut",
@@ -1172,7 +1212,9 @@
       "peak": "September and October",
       "why_it_matters": "Most bear conflict happens in the weeks before denning, when a bear needs enormous daily calories and stops being fussy about where they come from. That is exactly the season of ripe fruit, full compost heaps, and rubbish waiting for collection. They den through the coldest months rather than truly hibernating, so a mild winter can keep them up.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: black_bear)"
+      ]
     },
     {
       "id": "seal_pupping",
@@ -1182,8 +1224,10 @@
       "window": "NOAA records that females usually give birth during the spring and summer and that the pupping season varies by location, with Washington inland waters running roughly two months later than coastal populations.",
       "peak": "Mid to late summer in inland waters",
       "why_it_matters": "A pup resting alone on a beach has usually not been abandoned; its mother is feeding offshore and will return. Do not touch it, do not put it in the water, keep dogs and people well back, and call the NOAA Marine Mammal Stranding Network. This is the season when a well meaning rescue does the most harm.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: harbor_seal)"
+      ]
     },
     {
       "id": "orca_presence",
@@ -1193,8 +1237,10 @@
       "window": "NOAA gives their range as including the inland waterways of Washington State during spring, summer and autumn.",
       "peak": "Summer",
       "why_it_matters": "They follow the salmon, so their presence is a direct readout of how the runs are doing. Dyes Inlet has hosted them: the practical point is that this is a seasonal possibility rather than a reliable sighting, and that approach distances are legally regulated.",
-      "confidence": "published_range",
-      "sources": []
+      "confidence": "local_consensus",
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: killer_whale)"
+      ]
     },
     {
       "id": "maple_sap_run",
@@ -1218,7 +1264,9 @@
       "peak": "June",
       "why_it_matters": "Timing is what makes the difference between control and spread. Cutting broom in flower and before seed set prevents a year of seeding; cutting it once the pods have ripened scatters them. The same logic applies to tansy ragwort, whose second year plants flower June into September and carry their highest alkaloid load at flowering. Late summer is the wrong time for both.",
       "confidence": "local_consensus",
-      "sources": []
+      "sources": [
+        "data/locales/silverdale_wa/species.json (record: scotch_broom)"
+      ]
     }
   ],
   "sources": [
@@ -1374,5 +1422,6 @@
       "what": "USA National Phenology Network terms of use: checked and then DELIBERATELY NOT USED, because the data is CC BY 4.0 rather than public domain and the attribution condition would travel with the release bundle",
       "url": "http://www.usanpn.org/about/terms"
     }
-  ]
+  ],
+  "_confidence_audit": "Audited 2026-09-16 after a writer noticed the aggregate the per-event labels hide: NOT ONE of the 46 biological events on this calendar is `measured`. All eight measured events are weather, water or tide, computed from NOAA records. That is not a flaw in the data, it is what phenology in one small place honestly is, but a reader deserves to know it in one sentence rather than by adding up 68 labels. The same audit found nine events claiming `published_range` with an empty sources array, which is a contradiction; they were demoted to `local_consensus` and pointed at the species records their timings derive from. Finding a real publication for any of them is a one-line promotion, and the five lethal-plant timing events are the ones worth the search first."
 }
