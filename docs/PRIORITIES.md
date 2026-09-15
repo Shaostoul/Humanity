@@ -1,5 +1,76 @@
 # HumanityOS: Priorities
 
+> **NEW ARC FENCED, NOT YET STARTED: POPULATE THE SHIP, AND SEAT A DOZEN,
+> 2026-09-15.** Operator direction, two calls. (1) The LLM-driven AI player is
+> BACKBURNERED in favour of simple AI humans: 500 in one mothership sector that
+> live their lives and visibly do things, billions eventually, on the reasoning
+> that an LLM agent added to a working crowd framework is one more inhabitant
+> rather than a special case. (2) Co-op must seat **at least a dozen** players,
+> because a dozen people already want in; private-with-friends or MMO, but twelve
+> is the floor. Architecture in `docs/design/crowd-simulation.md`, mode axes in
+> `docs/design/game-modes.md`, measurement protocol in
+> `docs/design/npc-crowd-stress.md`.
+>
+> **The architecture, in one line:** do not simulate 500 agents, because that is
+> a dead end at 501. Three tiers instead: an aggregate population per zone that
+> costs the same at 500 or 500 million, a roster whose members are DERIVED
+> (`where_is(agent, t)` is a pure function, nothing ticks), and an embodied set
+> promoted only for what is visible. Per-frame cost then scales with what you can
+> see, not with who lives there. The keystone refactor is turning chores from
+> countdown timers (`remaining -= dt` in a JSON value, which cannot be derived)
+> into timetable entries, which simultaneously kills the network bill: the relay
+> ships the seed and the timetable once, clients derive the crowd, only
+> deviations sync.
+>
+> **MEASURED, not assumed.** No interior cost capture existed (all 577 on disk
+> were cloud/altitude ladders), so one was taken: `home-clock-noon`, real GPU
+> timestamps, operator settings mirrored, in `.probe-rig/sweeps/20260915-202858/`.
+> The interior deck is **18.84 ms GPU with the six crew that ship today**
+> (`gpu.scene` 12.619, `gpu.transparent` 5.072, `cpu.system.ai` 0.017). It is
+> already over a 60 fps budget before one extra inhabitant exists, and **17.7 ms
+> of that is unattributed and has nothing to do with NPCs**. So the first rung is
+> not crowd work at all: capture the same vantage at a quarter of the pixel count
+> and find out whether `gpu.scene` is fill-bound or vertex-bound. 30 fps is not a
+> lowered bar, it is this project's own: 48 vantages carry a perf floor, the range
+> is 5 to 30, and none is 60.
+>
+> **SHIPPED TODAY out of this investigation** (the co-op half, because it was a
+> live bug rather than a design): the per-socket broadcast forwarder was
+> `while let Ok(msg) = broadcast_rx.recv().await`, which treats a lagged receiver
+> exactly like a closed channel, so the loop ended, the `tokio::select!` aborted
+> the read task, and the whole WebSocket was torn down. A client that fell behind
+> was evicted from the game world AND chat. At two players the 256-slot buffer is
+> ~8 seconds of slack so it never fired; at a dozen streaming position at 15 Hz it
+> is ~1.4 seconds, which an ordinary TLS stall exceeds, and it cascades into
+> reconnect storms against `IDENTIFY_RATE_MAX`. Now `recv_skipping_lag`, matching
+> what `live.rs:394` already did for video viewers. Extracted rather than fixed
+> inline so it is testable, with three tests where the first asserts the setup
+> genuinely lags (the second would pass against the bug otherwise).
+>
+> **THREE DOC CLAIMS CORRECTED, each of which would have mis-budgeted this arc.**
+> The crowd-stress inventory counted `behavior.rs` and `flow_field.rs` as working
+> systems; both are 26-line dead stubs with zero call sites and non-existent data
+> files, under a comment claiming flow fields "support million-agent navigation".
+> **Nothing in this repo can path an agent around a wall.** It listed
+> `IntervalAction`, which exists nowhere; the real type is `AutonomousTask`, whose
+> system is never registered and whose tick only increments a counter. And it had
+> no row for animation: there is **no skeletal pipeline and no GLTF animation
+> import at all**, so NPCs and remote players draw as a two-primitive body-and-head
+> marker. A crowd on today's renderer is sliding markers. Separately,
+> `mothership-superstructure.md:129`'s "instancing path is confirmed dead code" is
+> half stale: `render_instanced` does have zero callers, but v0.1091 shipped a live
+> instanced grass draw that is the template for crowd rendering.
+>
+> **NEXT on this arc** (each rung separately measurable): 0) reconcile relay and
+> client worlds, since the relay simulates a multi-deck ship while the client
+> renders the flat homestead and remote Y is clamped to a constant to stop crew
+> floating in the sky; 0.5) attribute the 17.7 ms; 1) the `npcs:N` knob plus
+> `[npc-diag]` counters, copying `lights:N`; 2) instanced crowd rendering, which
+> also delivers per-NPC variety for free since `Appearance` already models it;
+> 3) the timetable refactor; 4) promotion/demotion with interest management;
+> 5) navigation; 6) animation. **Not started.** The content wave below is still
+> the active work unless the operator says otherwise.
+>
 > **CONTENT WAVE SIX, AND THE RULE THAT CAME OUT OF IT, 2026-09-15
 > (v0.1312.10 to v0.1312.16). 46 of 143 topics have a document, 20 are
 > complete experiences with all four layers, against 37 and 11 at the start
