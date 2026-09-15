@@ -111,6 +111,11 @@ to it. So:
    before the barrel goes on. Fix it now; you cannot fix it full.
 4. Never let children climb on or hang from the barrel, and do not
    stack anything on top.
+5. **Treat it as open water.** Fifty gallons standing at toddler height
+   is a drowning hazard to a small child or a pet, independent of every
+   other risk on this page. The lid and the screens stay secured at all
+   times, not just in mosquito season. Draw water from the spigot; never
+   open the barrel to dip a can into it.
 
 ## Setting it up
 
@@ -133,7 +138,10 @@ to it. So:
 4. Fit the spigot near the bottom and the overflow fitting near the
    top, following the kit instructions.
 5. Cover the inlet and every other opening with window screen pulled
-   tight and secured. No gaps, ever. This is your mosquito defense.
+   tight and secured. No gaps, ever. This is doing two jobs: it is your
+   mosquito defense, and it is the barrier that keeps a child or an
+   animal out of the water. Extension guidance gives the second reason
+   first.
    Some jurisdictions add their own container rules on top (Colorado,
    for example, requires barrels to have a sealable lid).
 6. Attach a hose to the overflow fitting, at least 8 to 10 feet long,

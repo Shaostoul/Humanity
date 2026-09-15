@@ -53,7 +53,7 @@ need both numbers, and the troubleshooting section shows why.
 
 Every device has a nameplate: a sticker with its electrical ratings,
 usually on the bottom or on the power brick. The Department of Energy's
-rule for it (republished by Virginia Cooperative Extension):
+rule for it (the amps-times-volts method and the appliance wattage table are republished by Virginia Cooperative Extension; the kettle example and the nameplate-is-the-maximum rule come from DOE Energy Saver directly):
 
 1. If the label lists watts (W), that is the most the device draws.
 2. If it only lists amps (A) and volts (V), multiply them: amps x volts =
@@ -106,8 +106,9 @@ panel causes a significant loss.
 
 So the honest recharge math for a 100-watt panel in a 4-peak-sun-hour
 location is: 100 W x 4 h x 0.86 = about 344 watt-hours per day. That does
-not fully refill the 515 Wh day above; a 200-watt panel (about 688 Wh per
-day) does. Size the panel to the day, not to the brochure.
+not fully refill the 520 Wh untrimmed day computed above; a 200-watt
+panel (about 688 Wh per day) does. It very nearly covers the 376 Wh
+trimmed day, which is the better argument for trimming. Size the panel to the day, not to the brochure.
 
 ## Step 4: One honest paragraph about battery chemistry
 
@@ -219,6 +220,7 @@ exactly the skills a professional whole-house install is built on.
 ## Sources
 
 - https://www.pubs.ext.vt.edu/2901/2901-9014/2901-9014.html
+- https://www.energy.gov/energysaver/estimating-appliance-and-home-electronic-energy-use
 - https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references
 - https://extension.umd.edu/resource/working-solar-design-and-system-sizing-fs-2023-0655
 - https://www.energy.gov/cmei/femp/purchasing-energy-efficient-light-bulbs

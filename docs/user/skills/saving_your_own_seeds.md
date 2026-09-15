@@ -51,13 +51,21 @@ which means a bee or a gust chose the other parent, and you find out next
 August.
 
 **Start here (self-pollinating, easy):** beans, peas, tomatoes, lettuce.
-Peppers and eggplant are also on the University of Maine's
-self-pollinated list, and Minnesota names tomatoes, peppers, beans and
-peas as good choices, with "seeds that require little or no special
-treatment before storage."
+Those four are on the University of Maine's self-pollinated list, and
+Minnesota names tomatoes, beans and peas as good choices, with "seeds
+that require little or no special treatment before storage."
 
-**Insect-pollinated (harder):** squash, pumpkins, melons, cucumbers,
-broccoli, cabbage, cauliflower, carrots, radish.
+**Peppers: the sources disagree, so treat them as insect-pollinated.**
+Minnesota lists peppers among its beginner crops, but Maine's table puts
+pepper and eggplant in the insect-pollinated column, not the
+self-pollinated one. Follow Maine here, because the failure mode is
+specific and unpleasant: bees cross a sweet pepper with a hot one, and
+you discover the capsaicin next August in what you believed was a bell
+pepper. Grow only one pepper variety in any season you intend to save
+seed from.
+
+**Insect-pollinated (harder):** peppers, eggplant, squash, pumpkins,
+melons, cucumbers, broccoli, cabbage, cauliflower, carrots, radish.
 
 **Wind-pollinated (hardest):** corn, beets, Swiss chard.
 

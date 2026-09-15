@@ -338,13 +338,17 @@ The path that gets the most decoupling per unit of effort:
    auto-updater (BUG-034 fix in v0.124.0) will gain this as a fallback
    URL in a follow-up, for now it's a working mirror that anyone can
    `wget` from independently of GitHub.
-4. **BitTorrent seeder + magnet URIs** ✅ shipped v0.129.0, see
-   [`torrent-infrastructure.md`](torrent-infrastructure.md). Live on the
-   VPS via transmission-daemon, magnet URIs in
-   `/releases/manifest.json`. WebSeed makes the critical path
-   tracker-independent.
+4. **BitTorrent seeder + magnet URIs** ⚠ built v0.129.0, NOT SERVING as of
+   2026-09-14, see [`torrent-infrastructure.md`](torrent-infrastructure.md).
+   The transmission-daemon wiring shipped, but the live
+   `/releases/manifest.json` carries zero magnet fields across its ten
+   releases and `.torrent` siblings 404. HTTPS is the only working fetch
+   path today.
 
-4.5. **Layered packages + file-level manifest** ✅ shipped v0.130.0, 
+4.5. **Layered packages + file-level manifest** ⚠ shipped v0.130.0 but the
+   per-file URLs point at `git.united-humanity.us`, which is absent from its
+   TLS certificate's SAN list, so delta sync fails for any client that
+   validates TLS. Server fix, noted in torrent-infrastructure.md. 
    see [`torrent-infrastructure.md#layered-architecture`](torrent-infrastructure.md).
    Each release now ships a separate `HumanityOS-data-<version>.tar.gz`
    (data + assets, no binary) and a `data-manifest-<version>.json` with
