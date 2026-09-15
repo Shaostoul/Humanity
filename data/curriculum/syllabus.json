@@ -577,7 +577,11 @@
         "foraging"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/chemistry/toxins.csv",
+        "data/locales/<id>/species.json"
+      ]
     },
     {
       "id": "forage_seasons",
@@ -638,7 +642,12 @@
         "state-health-biotoxin"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/chemistry/toxins.csv",
+        "data/locales/<id>/species.json",
+        "data/locales/<id>/tides.json"
+      ]
     },
     {
       "id": "animals_keeping",
@@ -650,7 +659,10 @@
         "farming"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "data": [
+        "data/creatures.csv"
+      ]
     },
     {
       "id": "animals_chickens",
@@ -662,7 +674,10 @@
         "farming"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "data": [
+        "data/creatures.csv"
+      ]
     },
     {
       "id": "animals_health",
@@ -679,7 +694,10 @@
         "cdc"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/creatures.csv"
+      ]
     },
     {
       "id": "fishing",
@@ -731,7 +749,11 @@
         "usda-fsis"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/creatures.csv",
+        "data/items.csv"
+      ]
     },
     {
       "id": "preserve_overview",
@@ -820,7 +842,10 @@
         "nchfp"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/chemistry/toxins.csv"
+      ]
     },
     {
       "id": "preserve_fermenting",
@@ -881,7 +906,10 @@
         "cdc"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/chemistry/toxins.csv"
+      ]
     },
     {
       "id": "shelter_siting",
@@ -1285,7 +1313,10 @@
         "mining"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "data": [
+        "data/items.csv"
+      ]
     },
     {
       "id": "materials_fiber",
@@ -1297,7 +1328,10 @@
         "tailoring"
       ],
       "locale_dependent": false,
-      "hazard": "caution"
+      "hazard": "caution",
+      "data": [
+        "data/items.csv"
+      ]
     },
     {
       "id": "materials_adhesive",
@@ -1350,7 +1384,10 @@
         "cdc"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/medical.ron"
+      ]
     },
     {
       "id": "health_bleeding",
@@ -1366,7 +1403,10 @@
         "cdc"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/medical.ron"
+      ]
     },
     {
       "id": "health_burns",
@@ -1430,7 +1470,11 @@
         "noaa"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/medical.ron",
+        "data/locales/<id>/climate.json"
+      ]
     },
     {
       "id": "health_poisoning",
@@ -1464,7 +1508,10 @@
         "cdc"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/medical.ron"
+      ]
     },
     {
       "id": "health_nutrition",
@@ -1481,7 +1528,11 @@
         "nih"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/medical.ron",
+        "data/food/crop_nutrition.ron"
+      ]
     },
     {
       "id": "health_water_illness",
@@ -1515,7 +1566,10 @@
         "nih"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/medical.ron"
+      ]
     },
     {
       "id": "health_mental",
@@ -1716,7 +1770,10 @@
         "usgs"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/chemistry/compounds.csv"
+      ]
     },
     {
       "id": "chem_soil",
@@ -1745,7 +1802,10 @@
         "alchemy"
       ],
       "locale_dependent": false,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "data": [
+        "data/chemistry/gases.csv"
+      ]
     },
     {
       "id": "chem_soap",
@@ -1757,7 +1817,10 @@
         "alchemy"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "data": [
+        "data/chemistry/compounds.csv"
+      ]
     },
     {
       "id": "chem_preservation",
@@ -1806,7 +1869,11 @@
         "woodworking"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "data": [
+        "data/chemistry/compounds.csv",
+        "data/chemistry/alloys.csv"
+      ]
     },
     {
       "id": "bio_soil_life",
@@ -2432,7 +2499,10 @@
         "trading"
       ],
       "locale_dependent": false,
-      "hazard": "none"
+      "hazard": "none",
+      "data": [
+        "data/trade_goods.ron"
+      ]
     },
     {
       "id": "community_agreements",
