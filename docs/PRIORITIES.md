@@ -42,8 +42,8 @@
 >
 > WHERE IT STANDS AT THE END OF 2026-09-15:
 >
-> - **29 of 143 topics have a document (20 percent), 14 are sourced, 11 are
->   verified, and 5 are complete experiences with all four layers.** Every
+> - **33 of 143 topics have a document (23 percent), 18 are sourced, 11 are
+>   verified, and 8 are complete experiences with all four layers.** Every
 >   `data` reference in the syllabus resolves for the first time. Read it with
 >   `just curriculum`.
 > - **Silverdale is complete as data**: eight locale files plus 122 species,
@@ -57,7 +57,7 @@
 >
 > NEXT, in value order:
 >
-> - **Content. 114 of 143 topics still have no document.** That is the honest
+> - **Content. 110 of 143 topics still have no document.** That is the honest
 >   headline and the whole remaining job on this axis. Prefer topics whose
 >   LOCALE DATA already exists, because those complete all four layers in one
 >   pass: that is how earth_tides, earth_hazards, earth_soil_types and
