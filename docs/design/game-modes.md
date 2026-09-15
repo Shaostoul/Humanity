@@ -160,7 +160,18 @@ teacher can add local crops via a data schema. This reuses guilds, quests and th
 curriculum rather than needing new simulation, and it is the clearest adoption and
 funding story the project has.
 
-### C. AI-citizen play mode (biggest stated-principle gap)
+### C. AI-citizen play mode (BACKBURNERED by the operator, 2026-09-15)
+
+> **Operator decision:** an LLM-driven AI player is deferred in favour of a
+> populated ship. "If we can efficiently simulate 500 simple AI humans in one
+> mothership sector that live their lives and actually do stuff throughout the
+> ship visually that'd be amazing... Once we have the base framework running
+> right, when we add the LLM AI player then it'll work right." The reasoning is
+> sound and worth preserving: an LLM agent added to a working crowd framework is
+> one more inhabitant, whereas an LLM agent added to nothing is a special case
+> that has to invent the whole embodiment layer itself. The architecture is in
+> [crowd-simulation.md](crowd-simulation.md); this entry stays here as the rung
+> that comes AFTER it.
 
 CLAUDE.md declares AI agents first-class citizens of HumanityOS.
 `docs/design/ai_interface.md` bounds AI to explanation, navigation, analysis and
@@ -189,13 +200,44 @@ players, anyone using this as a life tool). Hardcore matters because stakes are
 the teaching mechanism. Right now the peaceful mode exists only as an unnamed
 slider at 0.
 
-### F. Shared-household co-op (one homestead, several characters)
+### F. Co-op, sized for a DOZEN (operator requirement, 2026-09-15)
 
-The family / solo home variant ships and the operator's own context is
-family-central. There is no mode where two or three people share ONE homestead
-with separate characters, separate inventories and a shared power / water / food
-budget. It is much smaller than full MMO co-presence, and it is the honest test of
-the Generation-Ship co-op thesis at a scale of three instead of ten billion.
+> **Operator decision:** "For the shared household co-op I immediately have at
+> least a dozen people that would want to play on whatever world I do. MMO or
+> something more private with only a handful of players. So whatever co-op game
+> mode we make has to support at least a dozen."
+
+So the design target is **12+ players in one world**, not the 2-3 the
+shared-household framing implied. What that changes:
+
+- **The hosting story already exists.** Host-a-node runs a full relay from inside
+  the app (`src/gui/pages/host_node.rs`), one binary, `run_relay()` on a thread.
+  A private world for a dozen friends is a friend hosting, and the isolation unit
+  is the relay PROCESS, not a world id. The schema has a `world_id` primary key
+  (`storage/mod.rs:674`) but exactly one world is ever constructed, and there is
+  no in-relay private-world gate on `game_join` beyond the ban list: anyone who
+  can identify on the relay can enter the world.
+- **Raw fan-out is not the problem.** 12 players at 15 Hz is 2,160 socket-sends
+  per second at ~228 bytes, about 493 KB/s of relay egress. That is nothing.
+- **What actually breaks first was a real bug, now fixed.** The per-socket
+  forwarder was `while let Ok(msg) = broadcast_rx.recv().await`, which treats a
+  lagged receiver exactly like a closed channel: the loop ended, the
+  `tokio::select!` aborted the read task, and the socket was torn down, evicting
+  the user from the game world AND chat. At 2 players the 256-slot buffer is ~8
+  seconds of slack so it never fired; at a dozen it is ~1.4 seconds, which an
+  ordinary TLS stall exceeds. Fixed 2026-09-15 (`recv_skipping_lag`, with three
+  tests, the first of which proves the lag condition is real).
+- **Still open before a dozen people log in:** game broadcasts go to every
+  connected socket including chat-only users, because `RelayMessage::System` has
+  no delivery filter; every player spawns at the identical point `[0,1,0]` and
+  will stack inside each other; `NEW_ID_MAX_PER_IP` is 5 new keys per IP per hour,
+  which will refuse the sixth friend onboarding from one household or VPN; and
+  nothing but position is actually networked, so the homestead, machines and
+  inventory are private client-local state that cannot be shared or conflict.
+- **Players and crowd NPCs are the same pipeline.** A player is an inhabitant
+  whose brain is a human. Every piece of interest management, instanced drawing
+  and interpolation built for 500 NPCs is what a dozen players need too. See
+  [crowd-simulation.md](crowd-simulation.md): this is one arc, not two.
 
 ### G. Practice-then-do-it-for-real
 
