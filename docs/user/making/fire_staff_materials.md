@@ -188,7 +188,7 @@ survives its tenth burn and whether you get burned setting it down.
 |---|---|---|
 | **Aluminium sleeve** | To melting | Mandatory on carbon fibre and fibreglass shafts. Convention is a sleeve about **twice the length of the wick** it shields |
 | **Silicone self-fusing tape** | 260 C | The standard covering for exposed metal between wick and grip. Bonds to itself, no adhesive, no residue. The sacrificial layer you replace instead of the staff |
-| **Fibreglass fire sleeve** | 260 to 300 C continuous, brief flame to 1200 C | Silicone-coated braided glass, sold by the foot as industrial hose protection. The closest thing to genuinely fireproof sleeving. A poor hand grip, excellent hidden layer |
+| **Fibreglass fire sleeve** | 260 C continuous, brief flame to 1200 C | Silicone-coated braided glass, sold by the foot as industrial hose protection. The closest thing to genuinely fireproof sleeving. A poor hand grip, excellent hidden layer |
 | **Aramid sleeve** | About 450 C | Woven tube slipped over the shaft, sold as burn protection |
 | **Metal flashing** | To melting | The traditional fix for a wooden staff: wrap the last few inches so the wood cannot catch |
 | **Air gap or standoff** | Free | The cheapest thermal break there is. Mount the wick on a short stainless collar rather than directly on the shaft and the aluminium never enters the hottest zone. Under-used in DIY builds |
@@ -253,15 +253,19 @@ column, as explained above.
 
 | Fuel | Flash point | Burn | Notes |
 |---|---|---|---|
-| **Camp fuel** (white gas, naphtha) | -4 C (25 F) | 3 to 4 min | Lights instantly, brightest and cleanest, visible in daylight, least residue, least radiant heat. Vapour is heavier than air and creeps along the ground to find ignition. Never for blowing |
+| **Camp fuel** (white gas, naphtha) | below -18 C (below 0 F) | 3 to 4 min | Lights instantly, brightest and cleanest, visible in daylight, least residue, least radiant heat. Vapour is heavier than air and creeps along the ground to find ignition. Never for blowing |
 | **Lamp oil** (paraffin) | 66 C (150 F) | 5+ min | Slow to light, long steady burn, moderate soot, does not evaporate readily. Much safer depot behaviour |
 | **Kerosene** | Above 38 C (100 F) | 5 to 7 min | Longest burn and the most smell, smoke and residue. Heavy sooting means the most radiant heat, so it feels hottest and loads the prop most |
-| **Denatured alcohol** | Between the above | Short | Weak bluish flame, the genuinely cool option. Contains methanol and is poisonous if ingested |
+| **Denatured alcohol** | about 13 C (55 F) | Short | Weak bluish flame that is nearly invisible in daylight, which is its real hazard: you cannot see whether it is still lit. Low radiant output, not a low flame temperature. Contains methanol and is poisonous if ingested |
 | **Petrol, diesel** | n/a | n/a | Never. No benefit, substantial added danger |
 
 Fuels flashing below about 51 C (124 F) are the dangerous class, and
-camp fuel sits well inside it. Whatever you burn, **spin off the excess
-before lighting**; a dripping staff is the main cause of burns.
+**two of these are inside it**: camp fuel at below -18 C and denatured
+alcohol at about 13 C. Both give off ignitable vapour at ordinary room
+temperature, so an open container near any ignition source is the
+hazard, not just the lit wick. Lamp oil and kerosene sit outside the
+class. Whatever you burn, **spin off the excess before lighting**; a
+dripping staff is the main cause of burns.
 
 ## The safety kit is part of the build
 
@@ -283,10 +287,20 @@ without these is not finished.
 - **A fuel depot away from the performance area.** A sealed metal
   container and a spin-off station, both away from any ignition source,
   and one person responsible for it.
+- **A fire extinguisher, CO2 or ABC dry powder, at the fuel depot.** Not
+  water: water sprays burning naphtha or kerosene around instead of
+  putting it out. A blanket handles a wick or a person; it does not
+  handle a spilled and ignited depot, which is the hazard the depot
+  itself creates.
+- **Burn first aid.** Burn gel or burn dressings, and cool running water
+  available. Know where the nearest hospital is before you light up.
 - **A wick cover** for between burns. Extinguishes reliably, keeps soot
   off everything, and extends wick life.
-- **Grass, not pavement.** Not a purchase, and the highest-return habit
-  here.
+- **Green or damp ground, not pavement and not dry grass.** Damp grass,
+  dirt or gravel. Never dry grass, leaf litter, scrub, heath or forest
+  floor: a dripping staff plus dry ground is how a wildfire starts, and
+  dripping is the failure mode this guide warns about twice. Check local
+  fire restrictions and that you have permission to be there at all.
 
 ## Sizing
 
@@ -330,16 +344,28 @@ This is genuinely sequential. Out of order means re-buying parts.
 Material totals for one double-ended staff, excluding tools. Prices are
 United States, 2026, and move constantly; check before ordering.
 
+**A correction to an earlier version of this table.** It priced the wick
+column at "$76 (100 ft roll)". That is the cheapest of the supplier's
+twenty-odd variants, 1/16 inch thick and half an inch wide, which is the
+opposite of what this guide recommends two sections earlier: 1/4 inch
+thick at 3 to 5 inches wide. Thicker and wider tape costs several times
+more, so the old total understated the proper build substantially. Price
+the exact thickness and width you intend to buy, by the foot, before
+committing. Be aware too that thickness and width are not independent in
+the catalogue: the thickest tape is not stocked in the widest sizes, so
+"1/4 inch at 4 inches wide" may not be purchasable from one supplier at
+all, and you may have to trade one recommendation against the other.
+
 | Component | Learner (hardwood) | First build (6061) | Proper staff (7075) |
 |---|---|---|---|
 | Shaft | $5 | $55 | $90 to $200 |
-| Wick | $14 to $32 | $14 to $32 | $76 (100 ft roll) |
+| Wick | $14 to $32 | $14 to $32 | see note below |
 | Heat shielding | $8 | $12 to $20 | $25 to $45 |
 | Grip | $6 | $12 to $20 | $20 to $35 |
 | Hardware | $4 | $8 | $15 |
 | Safety kit | $25 | $50 | $70 |
 | Fuel | $15 | $15 | $25 |
-| **Total** | **$77 to $94** | **$166 to $200** | **$321 to $466** |
+| **Total** | **$77 to $94** | **$166 to $200** | **$225 to $390 plus wick** |
 
 **The build-versus-buy number.** A finished production contact fire
 staff in 3/4 inch 7075 with knotted wicks sells for around $185.

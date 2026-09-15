@@ -34,19 +34,28 @@ few commands, you can run a server.
 
 Every release ships prebuilt binaries -- no compiler, no build step.
 
+**Take the relay binary, not the desktop one.** Each release publishes both, and
+they are different builds. `HumanityOS-relay-linux-x64` is compiled
+`--no-default-features` with only the relay feature, which is what drops the GPU
+and windowing stack. The platform binaries named `HumanityOS-linux-x64`,
+`-windows-x64.exe` and `-macos-*` are the desktop app: they link winit, wgpu,
+egui and cpal, so on a minimal VPS without libasound and libudev they fail in the
+dynamic linker before printing anything useful. Passing `--headless` to the
+desktop build does not change what it linked against.
+
 ```bash
-# Linux (x64): download, make it runnable, run it
-wget https://github.com/Shaostoul/Humanity/releases/latest/download/HumanityOS-linux-x64
-chmod +x HumanityOS-linux-x64
-./HumanityOS-linux-x64 --headless
+# Linux (x64) server: the relay build, with its checksum
+wget https://github.com/Shaostoul/Humanity/releases/latest/download/HumanityOS-relay-linux-x64
+wget https://github.com/Shaostoul/Humanity/releases/latest/download/HumanityOS-relay-linux-x64.sha256
+sha256sum -c HumanityOS-relay-linux-x64.sha256
+chmod +x HumanityOS-relay-linux-x64
+./HumanityOS-relay-linux-x64 --headless
 ```
 
-On **Windows**, download `HumanityOS-windows-x64.exe` from the
-[releases page](https://github.com/Shaostoul/Humanity/releases/latest),
-then in a terminal run `HumanityOS-windows-x64.exe --headless`.
-On **macOS**, download `HumanityOS-macos-arm64` (Apple Silicon) or
-`HumanityOS-macos-x64` (Intel), `chmod +x` it, and run it with
-`--headless` the same way.
+There is no relay artifact for Windows or macOS today, only Linux x64. To host on
+either of those, build from source with Option B, which produces the same
+headless binary on any platform. The Windows and macOS downloads on the releases
+page are the desktop app for playing, not for serving.
 
 ### Option B: build from source (for developers)
 
@@ -352,10 +361,16 @@ EnvironmentFile=/opt/Humanity/.env
 Restart=always
 RestartSec=5
 
-# Security hardening
+# Security hardening.
+#
+# ProtectSystem=strict mounts the whole filesystem read-only, so every directory
+# the relay writes to has to be listed in ReadWritePaths. `backups/` is resolved
+# relative to WorkingDirectory (src/relay/storage/backups.rs), so it is
+# /opt/Humanity/backups, and leaving it out makes the in-app "Back up now"
+# button fail on every click while the backup list just looks empty.
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/Humanity/data
+ReadWritePaths=/opt/Humanity/data /opt/Humanity/backups
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -377,6 +392,12 @@ RUST_LOG=info
 EOF
 sudo chmod 600 /opt/Humanity/.env
 
+# ALREADY RAN THIS WITH THE OLD QUOTED HEREDOC? Your .env holds the literal
+# text "$(openssl rand -hex 32)" rather than a secret, and so does every other
+# node provisioned from that version of this guide. Rotate now:
+#   sudo sed -i "s|^API_SECRET=.*|API_SECRET=$(openssl rand -hex 32)|" /opt/Humanity/.env
+#   sudo systemctl restart humanity-relay
+
 # Confirm you got a real secret and not the literal text. This must print 64
 # hex characters; if it prints "$(openssl rand -hex 32)", the heredoc was
 # quoted and the secret is not secret.
@@ -394,6 +415,48 @@ sudo systemctl start humanity-relay
 # Install nginx and certbot
 sudo apt install nginx certbot python3-certbot-nginx
 ```
+
+**The shortest correct path is to install the config this repo already ships**,
+which is what `scripts/provision-vps.sh` does and what the live node runs:
+
+```bash
+sudo cp scripts/nginx/humanity.conf /etc/nginx/sites-available/humanity
+sudo sed -i 's/united-humanity\.us/your-domain.com/g' /etc/nginx/sites-available/humanity
+sudo ln -sf /etc/nginx/sites-available/humanity /etc/nginx/sites-enabled/humanity
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+The annotated version below explains what that config does. Two things in it are
+easy to get wrong by hand, and both have bitten this project:
+
+**Rate-limit zones are declared at `http` scope, not inside `server`.**
+`limit_req_zone` is only legal in `http{}` (only `limit_req`, the consumer, is
+legal in `server` and `location`). Put the declarations in the vhost and
+`nginx -t` fails with `"limit_req_zone" directive is not allowed here`, so a
+`systemctl restart nginx` takes the site down and it does not come back:
+
+```nginx
+# /etc/nginx/conf.d/humanity-limits.conf  <-- a separate file, http scope
+limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
+limit_req_zone $binary_remote_addr zone=upload:10m rate=2r/m;
+```
+
+**nginx serves the website from disk; the relay is not a web server.** The relay
+only falls back to a `client/` directory that no build step populates, so a vhost
+that proxies `/` to it returns 404 for the homepage and every page. `root` and
+`try_files` are what serve `web/`.
+
+That means something has to put the site in `/var/www/humanity` first. One
+script owns that layout, and both CI's deploy step and `provision-vps.sh` call
+it rather than re-implementing it (a second copy of the layout logic is what
+served a 404 homepage once already):
+
+```bash
+sudo bash scripts/sync-web-root.sh /opt/Humanity /var/www/humanity
+```
+
+Re-run it after every update. An empty `/var/www/humanity` with a correct vhost
+still gives you a 404.
 
 ```nginx
 # /etc/nginx/sites-available/humanity
@@ -417,9 +480,10 @@ server {
     add_header Referrer-Policy strict-origin-when-cross-origin;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=general:10m rate=10r/s;
-    limit_req_zone $binary_remote_addr zone=upload:10m rate=2r/m;
+    # The website itself, served from disk. The zones used below are declared
+    # in /etc/nginx/conf.d/humanity-limits.conf, NOT here.
+    root /var/www/humanity;
+    index index.html;
 
     # WebSocket proxy
     location /ws {
@@ -453,10 +517,12 @@ server {
         add_header X-Content-Type-Options nosniff;
     }
 
-    # Static files (chat client)
+    # The website, from disk. Clean URLs: /library serves library.html.
+    # Proxying this to the relay instead is the mistake that makes every page
+    # 404, because the relay's only static fallback is a client/ directory
+    # that no build step populates.
     location / {
-        proxy_pass http://127.0.0.1:3210/;
-        proxy_set_header Host $host;
+        try_files $uri $uri.html $uri/ /index.html;
     }
 }
 ```
@@ -465,7 +531,7 @@ server {
 # Enable site and get TLS certificate
 sudo ln -s /etc/nginx/sites-available/humanity /etc/nginx/sites-enabled/
 sudo certbot --nginx -d your-domain.com
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl restart nginx
 ```
 
 ### 5. Open firewall ports
