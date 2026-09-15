@@ -848,19 +848,25 @@
       "subject": "food_preservation",
       "title": "Botulism, specifically",
       "summary": "Understand the one hazard that makes home canning dangerous, and how each rule prevents it.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "cooking",
         "medicine"
       ],
       "sources": [
+        "usda-canning-guide",
         "cdc",
-        "nchfp"
+        "fda",
+        "nchfp",
+        "medlineplus"
       ],
       "locale_dependent": false,
       "hazard": "lethal",
       "data": [
         "data/chemistry/toxins.csv"
+      ],
+      "reading": [
+        "why-canning-has-rules"
       ]
     },
     {

@@ -339,11 +339,25 @@ unnatural odors; spurting liquid on opening.
 A jar can also be dangerous with no sign at all. That is the whole reason
 the procedures are strict.
 
-**Disposal, from NCHFP.** Wearing disposable rubber or heavy plastic
-gloves, place the suspect containers on their sides in an 8-quart or
-larger stock pot or boiling-water canner. Add water to cover them by at
-least 1 inch. Heat to boiling and boil 30 minutes. Then cool, and discard
-the containers, lids and food in the trash or at a landfill.
+**Disposal, from NCHFP, and the first question is whether the jar is
+still sealed.** The two answers are different and it matters.
+
+*If the container is still sealed*, do not open it and do not heat it.
+Put it in a heavy garbage bag, close the bag, wrap it in duct tape and
+label it so nobody opens it, then put the bag in the regular trash or
+take it to a landfill.
+
+*If the container is unsealed, open or leaking*, it gets detoxified
+first. Wearing disposable rubber or heavy plastic gloves, place the
+containers and their lids on their sides in an 8-quart or larger stock
+pot or boiling-water canner. Add water carefully, avoiding splashing,
+until it is 1 inch above them. Put a lid on the pot, heat to boiling and
+boil 30 minutes. Then cool, and discard the containers, lids and food in
+the trash or at a landfill.
+
+Getting that branch the wrong way round is how somebody ends up boiling
+a sealed jar in an open pot, which is why it is the first question and
+not a footnote.
 
 **Cleanup.** NCHFP: use 1 part unscented liquid household chlorine bleach
 at 5 to 6 percent sodium hypochlorite to 5 parts clean water. Spray or
