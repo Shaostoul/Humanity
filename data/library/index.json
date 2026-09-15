@@ -52,6 +52,14 @@
         {
           "id": "project",
           "label": "Project"
+        },
+        {
+          "id": "health",
+          "label": "Health and first aid"
+        },
+        {
+          "id": "shelter",
+          "label": "Shelter and building"
         }
       ]
     },
@@ -169,6 +177,25 @@
           ]
         },
         {
+          "title": "What Soil Is",
+          "file": "what_soil_is.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
+          "title": "Where Water Comes From",
+          "file": "where_water_comes_from.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Collecting Rainwater",
           "file": "collecting_rainwater.md",
           "tags": [
@@ -206,6 +233,26 @@
             "power",
             "safety"
           ]
+        },
+        {
+          "title": "Insulation and Heat Loss",
+          "file": "insulation_and_heat_loss.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "power"
+          ]
+        },
+        {
+          "title": "Treating Burns",
+          "file": "treating_burns.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -213,6 +260,16 @@
     {
       "name": "Making and Repair",
       "docs": [
+        {
+          "title": "Working With Wood",
+          "file": "working_with_wood.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials"
+          ]
+        },
         {
           "title": "Building a Fire Staff",
           "file": "fire_staff_materials.md",

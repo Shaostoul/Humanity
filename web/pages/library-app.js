@@ -231,7 +231,11 @@
         // The index already knew which section the match was in and could only
         // open the document at the top, which on the Constitution is not an
         // answer. Carry the heading's anchor through the click.
-        var anchor = (h.where && window.hosMarkdown && window.hosMarkdown.headingSlug)
+        // A match under the document's own title is a match at the top, so
+        // carry no anchor rather than a redundant one that would put
+        // #storing-water-safely/storing-water-safely in the address bar.
+        var anchor = (h.where && h.where !== h.doc.title
+                      && window.hosMarkdown && window.hosMarkdown.headingSlug)
           ? window.hosMarkdown.headingSlug(h.where) : '';
         return '<button class="lib-result" data-slug="' + esc(h.doc.slug) + '"' +
             (anchor ? ' data-anchor="' + esc(anchor) + '"' : '') + '>' +
@@ -251,17 +255,68 @@
     });
   }
 
+  /* ── Keyboard ──
+     A library you can only use with a mouse is a library you use slowly. The
+     shortcuts are the ones every search surface has, so nobody has to learn
+     them: "/" to search, Escape to get out, arrows through the results, Enter
+     to open. Native carries the same two in src/gui/pages/library.rs. */
+
+  var resultCursor = -1;   // which result is highlighted, -1 for none
+
+  function moveResultCursor(delta) {
+    var box = document.getElementById('lib-results');
+    if (!box || box.hidden) return false;
+    var items = box.querySelectorAll('[data-slug]');
+    if (!items.length) return false;
+    resultCursor += delta;
+    if (resultCursor < 0) resultCursor = items.length - 1;
+    if (resultCursor >= items.length) resultCursor = 0;
+    items.forEach(function(el, i) { el.classList.toggle('lib-result-on', i === resultCursor); });
+    items[resultCursor].scrollIntoView({ block: 'nearest' });
+    return true;
+  }
+
+  function openHighlightedResult() {
+    var box = document.getElementById('lib-results');
+    if (!box || box.hidden) return false;
+    var items = box.querySelectorAll('[data-slug]');
+    // Enter with nothing highlighted opens the top hit, which is what a reader
+    // who typed a query and hit Enter almost always meant.
+    var pick = items[resultCursor >= 0 ? resultCursor : 0];
+    if (!pick) return false;
+    pick.click();
+    return true;
+  }
+
   function wireSearch() {
     var input = document.getElementById('lib-search');
     if (!input) return;
     input.addEventListener('input', function() {
       searchQuery = input.value.trim();
+      resultCursor = -1;
       if (!searchQuery) { renderResults(); return; }
       loadSearchIndex(renderResults);
       if (searchIndex) renderResults();
     });
     input.addEventListener('keydown', function(ev) {
-      if (ev.key === 'Escape') { input.value = ''; searchQuery = ''; renderResults(); }
+      if (ev.key === 'Escape') {
+        input.value = ''; searchQuery = ''; resultCursor = -1; renderResults(); input.blur();
+      } else if (ev.key === 'ArrowDown') {
+        if (moveResultCursor(1)) ev.preventDefault();
+      } else if (ev.key === 'ArrowUp') {
+        if (moveResultCursor(-1)) ev.preventDefault();
+      } else if (ev.key === 'Enter') {
+        if (openHighlightedResult()) ev.preventDefault();
+      }
+    });
+
+    document.addEventListener('keydown', function(ev) {
+      // Never steal a key from somebody typing, and never from a shortcut that
+      // already means something to the browser.
+      var t = ev.target;
+      var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      if (ev.key === '/') { ev.preventDefault(); input.focus(); input.select(); }
     });
   }
 

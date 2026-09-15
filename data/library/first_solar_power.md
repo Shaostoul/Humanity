@@ -24,11 +24,14 @@ EPA, the US Fire Administration, or a university extension service.
 - A watt-hour (Wh) is how much electricity flowed over time, like how much
   water ended up in the pot.
 
-A lamp makes it concrete. The Department of Energy's method: wattage
-multiplied by hours of use gives watt-hours, and 1,000 watt-hours make one
-kilowatt-hour (kWh), the unit on your electric bill. Their example is an
-electric kettle rated at 1,500 watts: run it one hour and it has used 1,500
-watt-hours, which is 1.5 kWh.
+A lamp makes it concrete. Wattage multiplied by hours of use gives
+watt-hours, and 1,000 watt-hours make one kilowatt-hour (kWh), the unit on
+your electric bill. Take an electric kettle rated at 1,500 watts, which is
+an ordinary rating for one: run it an hour and it has used 1,500
+watt-hours, which is 1.5 kWh. For scale, the Energy Information
+Administration puts the average US residential customer at 10,791 kWh a
+year, about 899 kWh a month, which is roughly 30 kWh a day. A portable
+power station holds one or two.
 
 A power station's size is listed in watt-hours (how much the tank holds).
 Its output rating is in watts (how far the faucet can open at once). You
@@ -52,8 +55,13 @@ need both numbers, and the troubleshooting section shows why.
 ## Step 1: Read a device label
 
 Every device has a nameplate: a sticker with its electrical ratings,
-usually on the bottom or on the power brick. The Department of Energy's
-rule for it (the amps-times-volts method and the appliance wattage table are republished by Virginia Cooperative Extension; the kettle example and the nameplate-is-the-maximum rule come from DOE Energy Saver directly):
+usually on the bottom or on the power brick. It is there by law. OSHA's
+electrical standard, 29 CFR 1910.303(e)(1), says equipment may not be used
+unless it is marked with the manufacturer and with "markings giving
+voltage, current, wattage, or other ratings as necessary." So the numbers
+you need are on the thing itself. The amps-times-volts method and the
+appliance wattage table below are republished by Virginia Cooperative
+Extension:
 
 1. If the label lists watts (W), that is the most the device draws.
 2. If it only lists amps (A) and volts (V), multiply them: amps x volts =
@@ -178,8 +186,8 @@ understand beats a $2,000 one bought blind.
   the rating only in cloudless noon sun. Near zero in full sun? Check
   every cable connector first.
 - It will not run my heater, kettle, or toaster. Also physics. Heating
-  appliances draw 1,000 to 1,500 watts continuously (the Department of
-  Energy's example kettle is 1,500 W), and a small station's output may
+  appliances draw 1,000 to 1,500 watts continuously (a typical electric
+  kettle is rated 1,500 W), and a small station's output may
   top out at 300 to 600 watts, so it shuts off to protect itself. Motors
   (fridges, pumps) are sneakier: they briefly surge far above their
   running watts at startup, so a station can fail to start a fridge it
@@ -220,7 +228,8 @@ exactly the skills a professional whole-house install is built on.
 ## Sources
 
 - https://www.pubs.ext.vt.edu/2901/2901-9014/2901-9014.html
-- https://www.energy.gov/energysaver/estimating-appliance-and-home-electronic-energy-use
+- https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.303
+- https://www.eia.gov/tools/faqs/faq.php?id=97&t=3
 - https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references
 - https://extension.umd.edu/resource/working-solar-design-and-system-sizing-fs-2023-0655
 - https://www.energy.gov/cmei/femp/purchasing-energy-efficient-light-bulbs

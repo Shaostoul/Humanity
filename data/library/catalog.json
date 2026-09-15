@@ -61,6 +61,25 @@
           ]
         },
         {
+          "title": "What Soil Is",
+          "src": "docs/user/skills/what_soil_is.md",
+          "tags": [
+            "guide",
+            "real",
+            "food"
+          ]
+        },
+        {
+          "title": "Where Water Comes From",
+          "src": "docs/user/skills/where_water_comes_from.md",
+          "tags": [
+            "guide",
+            "real",
+            "water",
+            "safety"
+          ]
+        },
+        {
           "title": "Collecting Rainwater",
           "src": "docs/user/skills/collecting_rainwater.md",
           "tags": [
@@ -98,6 +117,26 @@
             "power",
             "safety"
           ]
+        },
+        {
+          "title": "Insulation and Heat Loss",
+          "src": "docs/user/skills/insulation_and_heat_loss.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "power"
+          ]
+        },
+        {
+          "title": "Treating Burns",
+          "src": "docs/user/skills/treating_burns.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
         }
       ],
       "section": "Learn"
@@ -105,6 +144,16 @@
     {
       "name": "Making and Repair",
       "docs": [
+        {
+          "title": "Working With Wood",
+          "src": "docs/user/making/working_with_wood.md",
+          "tags": [
+            "guide",
+            "real",
+            "making",
+            "materials"
+          ]
+        },
         {
           "title": "Building a Fire Staff",
           "src": "docs/user/making/fire_staff_materials.md",

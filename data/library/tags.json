@@ -6,8 +6,14 @@
       "label": "Reality",
       "note": "Which side of the Real/Sim toggle this belongs to (docs/design/two-realities.md). A doc can be both.",
       "tags": [
-        { "id": "real", "label": "Real life" },
-        { "id": "sim", "label": "In the sim" }
+        {
+          "id": "real",
+          "label": "Real life"
+        },
+        {
+          "id": "sim",
+          "label": "In the sim"
+        }
       ]
     },
     {
@@ -15,14 +21,46 @@
       "label": "Domain",
       "note": "What the document is actually about.",
       "tags": [
-        { "id": "food", "label": "Food" },
-        { "id": "water", "label": "Water" },
-        { "id": "power", "label": "Power" },
-        { "id": "making", "label": "Making and repair" },
-        { "id": "materials", "label": "Materials" },
-        { "id": "governance", "label": "Governance" },
-        { "id": "mission", "label": "Mission" },
-        { "id": "project", "label": "Project" }
+        {
+          "id": "food",
+          "label": "Food"
+        },
+        {
+          "id": "water",
+          "label": "Water"
+        },
+        {
+          "id": "power",
+          "label": "Power"
+        },
+        {
+          "id": "making",
+          "label": "Making and repair"
+        },
+        {
+          "id": "materials",
+          "label": "Materials"
+        },
+        {
+          "id": "governance",
+          "label": "Governance"
+        },
+        {
+          "id": "mission",
+          "label": "Mission"
+        },
+        {
+          "id": "project",
+          "label": "Project"
+        },
+        {
+          "id": "health",
+          "label": "Health and first aid"
+        },
+        {
+          "id": "shelter",
+          "label": "Shelter and building"
+        }
       ]
     },
     {
@@ -30,20 +68,44 @@
       "label": "Kind of document",
       "note": "How to read it. A guide is worked through once; a reference is looked up repeatedly.",
       "tags": [
-        { "id": "guide", "label": "Step-by-step guide" },
-        { "id": "reference", "label": "Reference" },
-        { "id": "safety", "label": "Safety critical" }
+        {
+          "id": "guide",
+          "label": "Step-by-step guide"
+        },
+        {
+          "id": "reference",
+          "label": "Reference"
+        },
+        {
+          "id": "safety",
+          "label": "Safety critical"
+        }
       ]
     },
     {
       "id": "audience",
       "label": "Who it is for",
       "tags": [
-        { "id": "beginner", "label": "Start here" },
-        { "id": "admin", "label": "Server operators" },
-        { "id": "contributor", "label": "Contributors" },
-        { "id": "technical", "label": "Technical" },
-        { "id": "ai", "label": "AI participants" }
+        {
+          "id": "beginner",
+          "label": "Start here"
+        },
+        {
+          "id": "admin",
+          "label": "Server operators"
+        },
+        {
+          "id": "contributor",
+          "label": "Contributors"
+        },
+        {
+          "id": "technical",
+          "label": "Technical"
+        },
+        {
+          "id": "ai",
+          "label": "AI participants"
+        }
       ]
     }
   ]

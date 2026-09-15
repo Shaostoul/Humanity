@@ -171,12 +171,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // The Library had none: the only search box on this page
                     // searched the Dictionary's glossary terms. Browsing a
                     // 17-category rail works at 83 documents and not at 500.
+                    // Keyboard: "/" focuses the box from anywhere on the page,
+                    // Escape empties it and gives focus back. The same two keys
+                    // web uses (web/pages/library-app.js), because a reader who
+                    // learns them in one client should not have to learn them
+                    // again in the other. Read BEFORE the widget so the "/" that
+                    // triggered the focus is not also typed into it.
+                    // Only when nothing else already has the keyboard, so "/"
+                    // typed into the Dictionary box stays a "/" there.
+                    let typing_elsewhere = ui.memory(|m| m.focused()).is_some();
+                    let focus_search = !typing_elsewhere
+                        && ui.input(|i| {
+                            i.events.iter().any(|e| match e {
+                                egui::Event::Text(t) => t.as_str() == "/",
+                                _ => false,
+                            })
+                        });
+                    let clear_search = ui.input(|i| i.key_pressed(egui::Key::Escape));
                     lib_state(|s| {
-                        ui.add(
+                        if clear_search && !s.search.is_empty() {
+                            s.search.clear();
+                        }
+                        let r = ui.add(
                             TextEdit::singleline(&mut s.search)
-                                .hint_text("Search all documents")
+                                .hint_text("Search all documents  (press /)")
                                 .desired_width(rail_w - 8.0),
                         );
+                        if focus_search && !r.has_focus() {
+                            r.request_focus();
+                        }
                     });
                     ui.add_space(theme.spacing_xs);
 

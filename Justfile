@@ -456,6 +456,13 @@ preflight:
     just verify
     @echo "OK: preflight passed, safe to push"
 
+# Check that every citation in data/sources/registry.json still resolves.
+# Talks to the network, so it is NOT in verify or preflight, both of which must
+# work offline. Catches the failure a status check misses: a link that answers
+# 200 with the publisher's homepage instead of the document, which is how the
+# retired DOE Energy Saver pages sat in the registry looking healthy.
+check-sources *args:
+    node scripts/check-source-urls.js {{args}}
 # How complete the teaching is, and the gate that keeps the claim honest.
 # Every skill, document, prerequisite and source the syllabus names must
 # resolve, and a topic marked teaching-grade must not rest on a citation that

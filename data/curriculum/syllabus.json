@@ -122,13 +122,25 @@
       "subject": "water",
       "title": "Where water comes from",
       "summary": "Identify the water sources available to you and rank them by risk.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "water_purification",
         "foraging"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "where-water-comes-from"
+      ],
+      "sources": [
+        "cdc",
+        "epa",
+        "usgs",
+        "noaa",
+        "fema",
+        "state-water-agency",
+        "state-health-biotoxin"
+      ]
     },
     {
       "id": "water_rainwater",
@@ -255,15 +267,21 @@
       "subject": "food_growing",
       "title": "What soil is",
       "summary": "Read your soil's texture, structure and drainage, and know what it can grow.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming"
       ],
       "sources": [
-        "usda-websoilsurvey"
+        "usda-nrcs",
+        "usda-websoilsurvey",
+        "epa",
+        "nc-state-extension"
       ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "what-soil-is"
+      ]
     },
     {
       "id": "soil_test",
@@ -914,12 +932,25 @@
       "subject": "shelter",
       "title": "Insulation and heat loss",
       "summary": "Keep heat in for the least fuel, and avoid trapping moisture.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "shelter_building"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "insulation-and-heat-loss"
+      ],
+      "sources": [
+        "energy-star",
+        "building-america",
+        "epa",
+        "fpl-wood-handbook",
+        "ftc",
+        "cpsc",
+        "hud",
+        "eia"
+      ]
     },
     {
       "id": "shelter_ventilation",
@@ -1107,7 +1138,7 @@
       "subject": "materials",
       "title": "Wood",
       "summary": "Know species, grain, moisture and strength, and pick the right wood for a job.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "woodworking"
       ],
@@ -1116,10 +1147,17 @@
         "data/materials/"
       ],
       "sources": [
-        "fpl-wood-handbook"
+        "fpl-wood-handbook",
+        "usfs",
+        "niosh-pocket-guide",
+        "osha",
+        "cpsc"
       ],
       "locale_dependent": true,
-      "hazard": "caution"
+      "hazard": "caution",
+      "reading": [
+        "working-with-wood"
+      ]
     },
     {
       "id": "materials_metal",
@@ -1263,15 +1301,25 @@
       "subject": "health",
       "title": "Burns",
       "summary": "Treat a burn correctly and recognise the ones that need a hospital.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
-        "red-cross"
+        "medlineplus",
+        "cdc",
+        "dod-jts",
+        "hhs-remm",
+        "usfa",
+        "cadth",
+        "american-burn-association",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": false,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "treating-burns"
+      ]
     },
     {
       "id": "health_cold",

@@ -100,6 +100,8 @@
     .lib-result-where { color:var(--accent); font-size:var(--text-sm); }
     .lib-result-snip { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; margin-top:2px; }
     .lib-result-snip mark { background:var(--accent); color:var(--bg); padding:0 2px; border-radius:2px; }
+    /* Keyboard-highlighted search result: arrow keys move this, Enter opens it. */
+    .lib-result-on { background:var(--bg-secondary); border-left-color:var(--text); }
     .lib-search-note { color:var(--text-muted); font-size:var(--text-sm); font-style:italic; margin-bottom:var(--space-sm); }
 
     @media (max-width:820px) {
@@ -129,7 +131,7 @@
 
   <div class="lib-main">
     <nav class="lib-rail" id="lib-rail-wrap" aria-label="Documents">
-      <input type="search" id="lib-search" class="lib-search" placeholder="Search all documents..." autocomplete="off">
+      <input type="search" id="lib-search" class="lib-search" placeholder="Search all documents  (press /)" autocomplete="off">
       <div id="lib-results" class="lib-results" hidden></div>
       <div id="lib-rail">
       <div class="lib-empty">Loading...</div>

@@ -16,12 +16,12 @@
       "id": "atsdr",
       "name": "Agency for Toxic Substances and Disease Registry",
       "publisher": "Centers for Disease Control and Prevention",
-      "url": "https://www.atsdr.cdc.gov/toxprofiledocs/index.html",
+      "url": "https://wwwn.cdc.gov/TSP/ToxProfiles/ToxProfiles.aspx",
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "Toxicological profiles. The authority for what a fuel or solvent does to a person."
+      "note": "Toxicological profiles. The authority for what a fuel or solvent does to a person. The atsdr.cdc.gov/toxprofiledocs path was retired; the profiles live on wwwn.cdc.gov now."
     },
     {
       "id": "niosh-pocket-guide",
@@ -202,12 +202,12 @@
       "id": "usda-canning-guide",
       "name": "Complete Guide to Home Canning, Agriculture Information Bulletin 539",
       "publisher": "United States Department of Agriculture",
-      "url": "https://www.nifa.usda.gov/about-nifa/how-we-work/extension/national-center-home-food-preservation",
+      "url": "https://nchfp.uga.edu/resources/category/usda-guide",
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true,
-      "note": "The tested process times. Deviating from them is how botulism happens, which is why this is one of the few sources a lethal-hazard topic may rest on alone."
+      "note": "The tested process times. Deviating from them is how botulism happens, which is why this is one of the few sources a lethal-hazard topic may rest on alone. Hosted by the National Center for Home Food Preservation since USDA NIFA stopped serving it; the work itself is USDA and public domain."
     },
     {
       "id": "usda-hardiness",
@@ -234,7 +234,7 @@
       "id": "fpl-wood-handbook",
       "name": "Wood Handbook: Wood as an Engineering Material, FPL-GTR-282",
       "publisher": "USDA Forest Service, Forest Products Laboratory",
-      "url": "https://www.fpl.fs.usda.gov/documnts/fplgtr/fpl_gtr282.pdf",
+      "url": "https://www.fpl.fs.usda.gov/documnts/fplgtr/fplgtr282/fpl_gtr282.pdf",
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
@@ -263,13 +263,14 @@
     },
     {
       "id": "doe-energy-saver",
-      "name": "Energy Saver",
+      "name": "Energy Savings Hub",
       "publisher": "US Department of Energy, Office of Energy Efficiency and Renewable Energy",
-      "url": "https://www.energy.gov/energysaver/energy-saver",
+      "url": "https://www.energy.gov/save",
       "kind": "authority",
       "licence": "public-domain-us-gov",
       "use": "verbatim",
-      "bundle": true
+      "bundle": true,
+      "note": "Replaced DOE Energy Saver, which was retired: energy.gov/energysaver now redirects to the department homepage and its deep links 404. Anything citing an energysaver URL is citing a dead page and needs rechecking."
     },
     {
       "id": "fema",
@@ -300,17 +301,6 @@
       "licence": "public-domain-us-gov",
       "use": "verbatim",
       "bundle": true
-    },
-    {
-      "id": "mil-hdbk-5",
-      "name": "MIL-HDBK-5J, Metallic Materials and Elements for Aerospace Vehicle Structures",
-      "publisher": "US Department of Defense",
-      "url": "https://www.dla.mil/Portals/104/Documents/LandAndMaritime/V/VA/mil-hdbk-5j.pdf",
-      "kind": "authority",
-      "licence": "public-domain-us-gov",
-      "use": "verbatim",
-      "bundle": true,
-      "note": "Design allowables for aluminium, titanium and steel, including 6061-T6 and 7075-T6. Its successor MMPDS is commercial; this last public edition is not."
     },
     {
       "id": "nchfp",
@@ -528,6 +518,162 @@
       "use": "facts",
       "bundle": false,
       "note": "Individual papers are cited in full in the document that uses them. This entry exists so a topic can record that some of its claims rest on primary literature rather than on an agency, without pretending one journal is an institution."
+    },
+    {
+      "id": "energy-star",
+      "name": "ENERGY STAR",
+      "publisher": "US Environmental Protection Agency",
+      "url": "https://www.energystar.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Recommended insulation R-values by climate zone, air sealing, and window performance. An EPA programme, so public domain, which matters now that DOE Energy Saver is gone."
+    },
+    {
+      "id": "building-america",
+      "name": "Building America Solution Center",
+      "publisher": "US Department of Energy, Pacific Northwest National Laboratory",
+      "url": "https://basc.pnnl.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Building-science guidance and the county-by-county climate region tables. The technical half of what Energy Saver used to cover."
+    },
+    {
+      "id": "eia",
+      "name": "US Energy Information Administration",
+      "publisher": "US Department of Energy",
+      "url": "https://www.eia.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "ftc",
+      "name": "Federal Trade Commission",
+      "url": "https://www.ftc.gov/legal-library/browse/rules",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "16 CFR 460, the R-value Rule, is why an insulation label may not advertise R-value per inch."
+    },
+    {
+      "id": "cpsc",
+      "name": "Consumer Product Safety Commission",
+      "url": "https://www.cpsc.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Injury data by product, and the safety standards themselves. Cite a proposed rule for its data, never as if it were in force."
+    },
+    {
+      "id": "hud",
+      "name": "US Department of Housing and Urban Development",
+      "url": "https://www.hud.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "24 CFR 3280, the manufactured home construction standards, carries thermal numbers that are quotable because they are regulation."
+    },
+    {
+      "id": "dod-jts",
+      "name": "Joint Trauma System Clinical Practice Guidelines",
+      "publisher": "US Department of Defense",
+      "url": "https://jts.health.mil/index.cfm/PI_CPGs/cpgs",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Trauma and burn care written for austere settings with limited evacuation, which is closer to the reader we are writing for than a hospital protocol is."
+    },
+    {
+      "id": "hhs-remm",
+      "name": "Radiation Emergency Medical Management",
+      "publisher": "US Department of Health and Human Services",
+      "url": "https://www.remm.hhs.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true
+    },
+    {
+      "id": "itis",
+      "name": "Integrated Taxonomic Information System",
+      "publisher": "A partnership of US, Canadian and Mexican agencies, hosted by USGS",
+      "url": "https://www.itis.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "The accepted binomial and its authority. What makes a species claim checkable rather than a common name that means three different plants in three counties."
+    },
+    {
+      "id": "usfs-feis",
+      "name": "Fire Effects Information System",
+      "publisher": "USDA Forest Service, Rocky Mountain Research Station",
+      "url": "https://research.fs.usda.gov/feis",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Species reviews with habitat, fire ecology, wildlife use and human use, each with its own literature citations. The deepest public-domain species source there is."
+    },
+    {
+      "id": "usno",
+      "name": "United States Naval Observatory Astronomical Applications",
+      "publisher": "US Department of the Navy",
+      "url": "https://aa.usno.navy.mil/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Sunrise, sunset and twilight for a given point and date. The authority behind a locale daylight table."
+    },
+    {
+      "id": "cadth",
+      "name": "Canada's Drug Agency (formerly CADTH)",
+      "url": "https://www.cda-amc.ca/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Rapid evidence reviews. Not a US federal body, so cite the finding and write the sentence ourselves."
+    },
+    {
+      "id": "american-burn-association",
+      "name": "American Burn Association",
+      "url": "https://ameriburn.org/",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The burn-centre referral criteria. A professional society, so ordinary copyright."
+    },
+    {
+      "id": "nc-state-extension",
+      "name": "NC State Extension",
+      "publisher": "North Carolina State University",
+      "url": "https://content.ces.ncsu.edu/extension-gardener-handbook",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The Extension Gardener Handbook is unusually complete on soils and plant nutrition. Copyrighted by the university: cite it, restate the fact."
+    },
+    {
+      "id": "state-water-agency",
+      "name": "The state water resources agency",
+      "kind": "role",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "Water rights, well permits and the exemptions. In the western United States, whether you may legally take water is a real constraint and the answer is different in every state."
     },
     {
       "id": "placeholder-alloy-data",
