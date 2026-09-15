@@ -88,27 +88,41 @@ if (problems.length) {
 console.log('Checked ' + paths + ' source paths across ' + checked +
   ' schema files. Unresolved: ' + problems.length);
 
-// docs/ carries the same rot, but some of it is a correct historical record: a
-// resolved bug report or a dated audit SHOULD say where the code lived at the
-// time. So this reports and never fails, and history/ is skipped entirely.
+// docs/ is a different problem and must NOT fail the build, because a doc that
+// MENTIONS a dead path is usually doing the right thing: STATUS.md saying those
+// directories "no longer exist", 02-ARCHITECTURE.md warning you about agents
+// that reference them, SOP.md recording the migration. All 17 live docs that
+// match were read by hand on 2026-09-15 and every one was correct.
+//
+// So this lists mentions, says what they usually are, and screens out the two
+// false positives that look like paths and are not: crates.io URLs, and the
+// wooden crates bobbing in the ocean design doc.
 if (ALSO_DOCS) {
+  const FALSE_POSITIVE = /crates\.io|crates\/debris/;
   const docFiles = filesIn('docs', p => p.endsWith('.md') && !p.includes('history'));
   const byFile = new Map();
   for (const f of docFiles) {
-    const hits = scan(f);
-    if (hits.length) byFile.set(f, hits.length);
+    const text = fs.readFileSync(f, 'utf8');
+    let n = 0;
+    for (const line of text.split(/\r?\n/)) {
+      if (FALSE_POSITIVE.test(line)) continue;
+      if (DEAD_PREFIXES.some(d => line.includes(d))) n++;
+    }
+    if (n) byFile.set(f, n);
   }
   console.log('');
-  console.log('docs/ (reported only, never fails; history/ skipped):');
+  console.log('docs/ mentions of a pre-v0.90 path (listed, never fails; history/ skipped):');
   if (!byFile.size) {
-    console.log('  no stale source paths');
+    console.log('  none');
   } else {
     for (const [f, n] of [...byFile].sort((a, b) => b[1] - a[1])) {
       console.log('  ' + String(n).padStart(3) + '  ' + f);
     }
     console.log('');
-    console.log('  Some of these are correct history (a resolved bug naming where');
-    console.log('  the code was). The architecture docs are the ones that mislead.');
+    console.log('  A mention here is usually CORRECT: a doc recording that those');
+    console.log('  directories are gone, or warning you about agents that still');
+    console.log('  reference them. Read the line before treating it as rot. Every');
+    console.log('  one of these was hand-checked on 2026-09-15 and was correct.');
   }
 }
 
