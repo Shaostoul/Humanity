@@ -1,0 +1,121 @@
+# Curriculum topic schema
+#
+# WHY THIS EXISTS
+# Before this, "how complete is the Library?" had no answer, because nothing
+# stated what it was supposed to cover. A 2026-09-14 audit found 11 of 83
+# shipped documents taught anything real-world and the other 72 documented the
+# project itself, but there was no way to call that 13% of anything: there was
+# no denominator. docs/accord/curriculum.md is pedagogy (HOW people learn, in
+# five layers from exposure to stewardship), not a subject map.
+#
+# This schema is the denominator. data/curriculum/syllabus.json lists every
+# topic HumanityOS intends to teach, whether or not anything teaches it yet.
+#
+# THE FOUR LAYERS
+# The operator's framing (2026-09-15): "the real library content and the
+# databases of stuff essentially function as our framework for the gameplay. We
+# want to teach real-life through a simulation. Each layer makes for a complete
+# experience." So a topic is only genuinely DONE when all four layers exist:
+#
+#   1. reading  - a Library document that teaches it
+#   2. skill    - an in-game skill it levels (data/skills/skills.csv)
+#   3. data     - the simulation data the topic needs to be playable
+#   4. source   - a citable authority for every claim
+#
+# A topic with a document and no data is a book, not a simulation. A topic with
+# data and no document is a mechanic nobody understands. Tracking all four is
+# what stops the Library and the game drifting into two separate products.
+#
+# SCOPE (operator decision, 2026-09-15): PRACTICAL-FIRST. This maps the STEM a
+# person actually uses to stay alive and self-sufficient, structured so academic
+# depth can hang off it later without reorganising. "Physics in practice" is a
+# subject here; a school physics tree would later attach beneath it.
+
+[schema]
+name = "curriculum_topic"
+file = "data/curriculum/syllabus.json"
+description = "One teachable topic, and the state of each of its four layers."
+
+[fields.id]
+type = "string"
+required = true
+description = "Stable snake_case id. Never renumber: docs, skills and data reference it."
+
+[fields.title]
+type = "string"
+required = true
+description = "Plain-language name, the way a learner would say it. Not jargon."
+
+[fields.subject]
+type = "string"
+required = true
+description = "Top-level subject id this belongs to (see the `subjects` block)."
+
+[fields.summary]
+type = "string"
+required = true
+description = "One sentence: what a person can DO after learning this."
+
+[fields.status]
+type = "enum"
+required = true
+values = ["absent", "stub", "sourced", "verified"]
+description = """
+absent   - nothing exists yet; the topic is named so the gap is countable.
+stub     - something written, not yet sourced to an authority.
+sourced  - written, every claim cites a citable source.
+verified - sourced AND independently checked by a second pass.
+Only `verified` should be treated as teaching-grade.
+"""
+
+[fields.reading]
+type = "array<string>"
+required = false
+description = "Library doc slugs that teach this (the /library#slug grammar)."
+
+[fields.skills]
+type = "array<string>"
+required = false
+description = "In-game skill ids from data/skills/skills.csv that this topic levels."
+
+[fields.data]
+type = "array<string>"
+required = false
+description = "Data files the simulation needs for this topic to be playable."
+
+[fields.sources]
+type = "array<string>"
+required = false
+description = """
+Authorities for the topic's claims. Public-domain sources only for anything
+that ships in data/ (operator decision, 2026-09-15): US government and
+equivalent, such as USDA, USGS, NOAA, NASA, EPA, CDC, WDFW and university
+extension services. Richer share-alike sources are fetched at runtime and
+cached, never redistributed in the release bundle.
+"""
+
+[fields.locale_dependent]
+type = "bool"
+required = true
+description = """
+True when the correct answer changes with place: which plants are edible here,
+when the last frost is, what the tide does, which species are protected. These
+topics need locale data (data/locales/<id>/) rather than one global answer, and
+they are the topics that make a simulation of a REAL place teach real life.
+"""
+
+[fields.hazard]
+type = "enum"
+required = false
+values = ["none", "caution", "serious", "lethal"]
+description = """
+How badly a learner can be hurt by getting this wrong. Drives whether a document
+needs a safety boundary, a second verification pass, and a named limit on what
+it covers. `lethal` topics (botulism, mushroom identification, electrical work,
+hypothermia, chainsaws) must never ship at `stub`.
+"""
+
+[fields.prerequisites]
+type = "array<string>"
+required = false
+description = "Topic ids a learner should hold first. Builds the ladder."
