@@ -31,6 +31,9 @@ Every human retains the right to:
 Privacy claims must be truthful.
 Misrepresentation of privacy protections is a violation of trust.
 
+> Governance votes are NOT confidential in the current build: they are public
+> signed objects, served unauthenticated. See conformance_gaps.md.
+
 ---
 
 ### 3. Truthful Representation
@@ -56,6 +59,9 @@ Participation without integrity is coercion by other means.
 - one person, one voice
 - no amplification, suppression, or substitution
 - no privilege based on wealth, power, or access
+
+> Governance votes in the current build are weighted by a trust score, so they
+> are not yet one person, one voice. See conformance_gaps.md.
 
 ---
 

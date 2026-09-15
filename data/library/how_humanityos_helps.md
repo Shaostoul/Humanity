@@ -22,9 +22,10 @@ planner, maps that zoom from the whole galaxy to your own street, a
 marketplace for trading directly with others, a library of the
 project's knowledge, and an identity that lives on your device as a
 key, not on a company's server. There are no ads and nothing is
-harvested. The app and your data live on your device and work without
-a connection; the parts that talk to other people sync when you are
-back online.
+harvested. The app, the library and your saved work live on your device
+and work with no connection at all. Shared task lists are the exception:
+they live on the server and need one, and making them work offline is
+still on the list.
 
 The other half is a game world we are building that teaches real
 self-sufficiency: growing food, collecting and cleaning water,
@@ -36,8 +37,10 @@ playable yet.
 
 The code and the documents are released into the public domain, and so is
 the game data we made ourselves. A few outside datasets we ship, such as the
-OpenStreetMap town maps and some star and planet imagery, keep their own
-free licences, which ask for credit rather than money;
+OpenStreetMap town maps and the star catalogues, keep their own free
+licences. Those two are share-alike (ODbL 1.0 and CC BY-SA 4.0), so they
+ask for credit and that adapted copies travel under the same terms, not
+for money;
 https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md lists every one.
 No company owns HumanityOS. No one ever will.
 

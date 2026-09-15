@@ -186,10 +186,14 @@ A tool that only works when everything is going well is not much help.
 HumanityOS is built to keep working when things go wrong, wherever you
 are and whatever you have.
 
-**When there is no internet.** The app, your data, your saved work, and
-your skills all live on your device. You can learn, plan, and build
-completely offline, and sync only when, and if, a connection comes
-back. A mountain village, a boat, or a blackout does not stop you.
+**When there is no internet.** The app itself, the whole Library, and
+your game save live on your device and work with no connection at all.
+A mountain village, a boat, or a blackout does not stop you reading or
+playing. Shared task lists are today's exception: they live on the
+server and need a connection, and a task created offline in the desktop
+app is not kept. Making tasks work offline and sync later is on the
+list, and until it lands this is the one place the offline promise does
+not hold.
 
 **When the server goes down.** No one owns the network. Anyone can run
 their own in minutes, and your identity moves with you to any of them,
@@ -207,10 +211,12 @@ neighbors sign stand in for credit scores and ID, so a refugee, a young
 person, or anyone starting over can build a real, verifiable history
 from zero.
 
-**Whatever your language or ability.** It speaks several languages,
-with high-contrast, colorblind, and reduced-motion modes, keyboard-only
-navigation, and a plain-language glossary for every term. It runs on
-cheap, old, low-power hardware, not just new machines.
+**Whatever your ability.** High-contrast, colorblind, and reduced-motion
+modes, keyboard-only navigation, and a plain-language glossary for every
+term. It runs on cheap, old, low-power hardware, not just new machines.
+Language is the honest gap: the app is English today. Five partial
+language files exist and no screen reads them yet, so translation is an
+unbuilt item rather than a shipped feature.
 
 **When disaster strikes.** Off-site backups survive a fire, a flood, or
 a seizure, so a community can rebuild from nothing. Radio links that

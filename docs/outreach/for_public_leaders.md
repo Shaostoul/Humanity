@@ -46,8 +46,8 @@ everyone who depends on them fails at once. Communities of capable
 households do not fail at once. A storm or a supply disruption breaks one
 link, and the neighbors hold.
 
-HumanityOS is built for that reality. The desktop app keeps the library,
-your notes and your records on the user's own device, so they stay readable
+HumanityOS is built for that reality. The desktop app keeps the library
+and the user's game save on their own device, so they stay readable
 in a blackout or a remote valley, and more important than the software, the
 skills it teaches keep working when nothing else does. Shared task lists are
 today's exception: they live on the server and need a connection. Making
@@ -74,10 +74,12 @@ or community may fork it, translate it, rename it, rebrand it and adapt it
 to local crops and local law, owing us nothing and asking nobody.
 
 A few third-party datasets we ship keep their original open terms and travel
-with the bundle. The OpenStreetMap region files are ODbL, which asks for
-credit on any map drawn from them and for the same terms if you pass them
-on, and some star and planet imagery is CC-BY. Every one is listed with what
-it asks in
+with the bundle. Two of them carry share-alike terms, which ask more than
+credit: the OpenStreetMap region files are ODbL 1.0 and the HYG and ATHYG
+star catalogues are CC BY-SA 4.0. Both ask for credit AND that anything
+adapted from them is passed on under the same terms. The star catalogues
+matter here because they are the default one shipped in every release
+archive, not an optional extra. Every one is listed with what it asks in
 https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md. Nothing in that
 list costs money, and nothing can be revoked.
 
@@ -95,8 +97,11 @@ only unreadable data.
 
 Public life on the platform is the opposite: open by design. Governance
 proposals and votes are recorded as signed objects that cannot be quietly
-altered, and every chat message carries its sender's signature. Marketplace
-listings and shared tasks are public too, but they are ordinary server
+altered. Chat messages are post-quantum signed by the sender and the
+signature is verified on arrival, so a message cannot be forged in flight,
+but the signature is not yet stored beside the message, so stored chat
+history cannot be independently re-verified afterwards. Chat, marketplace
+listings and shared tasks are all public, and all three are ordinary server
 records today, which means the person running the server could edit them
 without leaving a trace. Signing those is on the list; until it lands, the
 argument for trusting the server does not extend to them. Our position is

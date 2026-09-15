@@ -26,6 +26,9 @@ Does not define implementation details. Those belong in design documentation.
 - A user must be able to restrict who can contact them.
 - A user must be able to close contact pathways without escalating to moderators.
 
+> In the current build a friendship certificate cannot be revoked and
+> unfollowing does not close the DM pathway. See conformance_gaps.md.
+
 ### Clear boundaries of authority
 - Authority must be explicit and attributable.
 - Every space must declare who can moderate and what powers they hold.

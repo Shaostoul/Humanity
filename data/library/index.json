@@ -416,6 +416,15 @@
             "safety",
             "reference"
           ]
+        },
+        {
+          "title": "Where the Software Falls Short",
+          "file": "conformance_gaps.md",
+          "tags": [
+            "governance",
+            "reference",
+            "safety"
+          ]
         }
       ],
       "accord": true
@@ -507,6 +516,15 @@
         {
           "title": "Irreversible Actions",
           "file": "irreversible_actions.md",
+          "tags": [
+            "governance",
+            "safety",
+            "reference"
+          ]
+        },
+        {
+          "title": "Use of Force Constraints",
+          "file": "use_of_force_constraints.md",
           "tags": [
             "governance",
             "safety",
