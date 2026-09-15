@@ -73,6 +73,13 @@ for (const s of JSON.parse(read(SOURCES, 'source registry')).sources || []) {
   sourceById.set(s.id, s);
 }
 
+// ── Locales on disk ──
+// A topic that says its data lives at data/locales/<id>/climate.json is making
+// a claim about every locale, not about one of them.
+const LOCALES = 'data/locales';
+const localeIds = fs.existsSync(LOCALES) ? fs.readdirSync(LOCALES) : [];
+const dataGaps = [];
+
 const topicIds = new Set(topics.map(t => t.id));
 const subjectIds = new Set(subjects.map(s => s.id));
 
@@ -93,6 +100,26 @@ for (const t of topics) {
   }
   for (const p of t.prerequisites || []) {
     if (!topicIds.has(p)) errors.push(t.id + ': unknown prerequisite "' + p + '"');
+  }
+  // Simulation data the topic promises. `<id>` stands for a locale directory,
+  // so a reference is only satisfied when EVERY locale on disk has the file:
+  // a second town that is missing half its data would otherwise hide behind the
+  // first one having it.
+  for (const d of t.data || []) {
+    const paths = d.includes('<id>') ? localeIds.map(l => d.replace('<id>', l)) : [d];
+    const missing = paths.filter(p => !fs.existsSync(p));
+    if (!missing.length) continue;
+    dataGaps.push({ topic: t.id, ref: d, missing });
+    // A topic that is still `absent` may name data that does not exist yet:
+    // that is the gap being recorded, which is the point of the syllabus. A
+    // topic claiming to be WRITTEN may not, because it would be teaching
+    // against data the simulation cannot show.
+    if (t.status !== 'absent') {
+      errors.push(
+        t.id + ': status "' + t.status + '" but its data ' + JSON.stringify(d) +
+        ' does not exist (' + missing.join(', ') + ')'
+      );
+    }
   }
   for (const c of t.sources || []) {
     const src = sourceById.get(c);
@@ -177,6 +204,19 @@ console.log('    cite-only authority     : ' + String(prov.facts_only).padStart(
 console.log('    placeholder             : ' + String(prov.placeholder).padStart(3) + '  ' + pc(prov.placeholder) + '  names nobody; a citation still owed');
 console.log('    uncited                 : ' + String(prov.none).padStart(3) + '  ' + pc(prov.none));
 console.log('');
+
+// Data the curriculum promises and the repo does not have yet. Not an error
+// while the topic is still absent: that IS the gap, recorded rather than
+// forgotten. It becomes an error the moment the topic claims to be written.
+if (dataGaps.length) {
+  const refs = [...new Set(dataGaps.map(g => g.ref))];
+  console.log('  DATA THE CURRICULUM PROMISES AND WE DO NOT HAVE');
+  for (const r of refs) {
+    const who = dataGaps.filter(g => g.ref === r).map(g => g.topic);
+    console.log('    ' + r + '  (' + who.length + ' topic' + (who.length === 1 ? '' : 's') + ': ' + who.join(', ') + ')');
+  }
+  console.log('');
+}
 
 const locale = topics.filter(t => t.locale_dependent).length;
 console.log('  locale-dependent topics   : ' + locale + '  (' + pc(locale) + ' need real data about a real place)');
