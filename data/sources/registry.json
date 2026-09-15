@@ -686,6 +686,28 @@
       "note": "Regulates what may be sold as soap, as a drug and as a food, so it is the authority for what a label is allowed to claim as well as for what is in the bottle."
     },
     {
+      "id": "nps",
+      "name": "National Park Service",
+      "publisher": "US Department of the Interior",
+      "url": "https://www.nps.gov/",
+      "kind": "authority",
+      "licence": "public-domain-us-gov",
+      "use": "verbatim",
+      "bundle": true,
+      "note": "Visitor safety guidance written for people who are actually outside in the conditions described, which makes it unusually practical on cold, heat, water and wildlife. Park-specific pages are often better than the general ones."
+    },
+    {
+      "id": "ashrae",
+      "name": "ASHRAE Standard 62.2, Ventilation and Acceptable Indoor Air Quality in Residential Buildings",
+      "publisher": "American Society of Heating, Refrigerating and Air-Conditioning Engineers",
+      "url": "https://www.ashrae.org/technical-resources/bookstore/standards-62-1-62-2",
+      "kind": "authority",
+      "licence": "copyright-all-rights-reserved",
+      "use": "facts",
+      "bundle": false,
+      "note": "The standard that governs how much a dwelling must be ventilated, and the one most building codes adopt by reference. Copyrighted and sold, like NFPA 30: state the requirement in our own words and never reproduce its tables. Where a federal regulation says the same thing, cite the regulation instead (HUD 24 CFR 3280 carries ventilation requirements that are quotable)."
+    },
+    {
       "id": "placeholder-alloy-data",
       "name": "Published alloy and fibre data (unresolved)",
       "kind": "placeholder",

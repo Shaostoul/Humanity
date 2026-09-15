@@ -962,15 +962,27 @@
       "subject": "shelter",
       "title": "Ventilation, damp and mould",
       "summary": "Move air enough to keep the building and the people in it healthy.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "shelter_building"
       ],
       "sources": [
-        "epa"
+        "epa",
+        "building-america",
+        "hud",
+        "energy-star",
+        "cdc",
+        "cpsc",
+        "ashrae",
+        "noaa",
+        "nws",
+        "fpl-wood-handbook"
       ],
       "locale_dependent": true,
-      "hazard": "serious"
+      "hazard": "serious",
+      "reading": [
+        "ventilation-damp-and-mould"
+      ]
     },
     {
       "id": "shelter_heating",
@@ -1331,16 +1343,23 @@
       "subject": "health",
       "title": "Hypothermia and cold injury",
       "summary": "Recognise and reverse cold injury before it becomes fatal.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
+        "medlineplus",
         "cdc",
-        "noaa"
+        "nws",
+        "nps",
+        "dod-jts",
+        "peer-reviewed-literature"
       ],
       "locale_dependent": true,
-      "hazard": "lethal"
+      "hazard": "lethal",
+      "reading": [
+        "cold-and-hypothermia"
+      ]
     },
     {
       "id": "health_heat",
@@ -1910,7 +1929,7 @@
       "subject": "earth",
       "title": "Your soil, specifically",
       "summary": "Look up and interpret the actual soil survey for your ground.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "farming"
       ],
@@ -1918,10 +1937,16 @@
         "data/locales/<id>/soil.json"
       ],
       "sources": [
-        "usda-websoilsurvey"
+        "usda-nrcs",
+        "usda-websoilsurvey",
+        "epa",
+        "state-extension"
       ],
       "locale_dependent": true,
-      "hazard": "none"
+      "hazard": "none",
+      "reading": [
+        "your-soil-specifically"
+      ]
     },
     {
       "id": "earth_tides",

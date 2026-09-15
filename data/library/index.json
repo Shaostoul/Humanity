@@ -203,6 +203,16 @@
           ]
         },
         {
+          "title": "Your Soil, Specifically",
+          "file": "your_soil_specifically.md",
+          "tags": [
+            "guide",
+            "real",
+            "food",
+            "shelter"
+          ]
+        },
+        {
           "title": "The Growing Calendar",
           "file": "the_growing_calendar.md",
           "tags": [
@@ -271,6 +281,16 @@
           ]
         },
         {
+          "title": "Ventilation, Damp and Mould",
+          "file": "ventilation_damp_and_mould.md",
+          "tags": [
+            "guide",
+            "real",
+            "shelter",
+            "health"
+          ]
+        },
+        {
           "title": "Reading the Tide",
           "file": "reading_the_tide.md",
           "tags": [
@@ -303,6 +323,16 @@
         {
           "title": "Treating Burns",
           "file": "treating_burns.md",
+          "tags": [
+            "guide",
+            "real",
+            "health",
+            "safety"
+          ]
+        },
+        {
+          "title": "Cold and Hypothermia",
+          "file": "cold_and_hypothermia.md",
           "tags": [
             "guide",
             "real",
