@@ -28,6 +28,43 @@ pub use crate::relay::handlers::start_federation_connections;
 /// Default broadcast channel capacity (overridden by server-config.json "broadcast_capacity").
 const DEFAULT_BROADCAST_CAPACITY: usize = 256;
 
+/// Take the next broadcast message for one socket, SKIPPING ahead if that socket
+/// fell behind the ring buffer. Returns `None` only when the channel is closed
+/// (the relay is shutting down), which is the one case that should end a
+/// forwarding loop.
+///
+/// This exists as a named function, rather than inline in `handle_socket`, so the
+/// invariant is testable. The inline version was `while let Ok(msg) =
+/// broadcast_rx.recv().await`, which treats `RecvError::Lagged` exactly like a
+/// closed channel: the loop ended, `send_task` completed, the `tokio::select!`
+/// in `handle_socket` aborted `recv_task`, and the whole WebSocket was torn down
+/// -- so a client that fell behind was evicted from the game world AND chat
+/// instead of simply missing a few frames.
+///
+/// Why it stayed hidden: with 2 players the 256-slot default is about 8 seconds
+/// of slack, so nothing ever lagged that far. A dozen players streaming position
+/// at 15 Hz cuts the same buffer to roughly 1.4 seconds, which an ordinary TLS
+/// stall or a laptop lid-close will exceed. `live.rs` already had the right
+/// answer for video viewers ("skip to the present, not disconnect them"); this
+/// brings the main socket loop in line with it.
+async fn recv_skipping_lag(
+    rx: &mut broadcast::Receiver<RelayMessage>,
+) -> Option<RelayMessage> {
+    loop {
+        match rx.recv().await {
+            Ok(msg) => return Some(msg),
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                tracing::warn!(
+                    "socket fell {skipped} broadcast messages behind; skipping to the \
+                     present rather than disconnecting"
+                );
+                continue;
+            }
+            Err(broadcast::error::RecvError::Closed) => return None,
+        }
+    }
+}
+
 /// Default maximum concurrent WebSocket connections (overridden by server-config.json "max_connections").
 const DEFAULT_MAX_CONNECTIONS: usize = 500;
 
@@ -3055,7 +3092,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
     let my_key_for_broadcast = my_key.clone();
     let state_for_broadcast = state.clone();
     let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = broadcast_rx.recv().await {
+        loop {
+            let Some(msg) = recv_skipping_lag(&mut broadcast_rx).await else {
+                break; // channel closed: the relay is shutting down
+            };
             // Check if this user has been kicked — if so, close the connection.
             if state_for_broadcast.kicked_keys.read().await.contains(&my_key_for_broadcast) {
                 let kick_notice = RelayMessage::System {
@@ -6258,3 +6298,69 @@ mod channel_update_wire_tests {
     }
 }
 
+
+#[cfg(test)]
+mod broadcast_lag_tests {
+    use super::*;
+
+    fn sys(n: usize) -> RelayMessage {
+        RelayMessage::System { message: format!("m{n}") }
+    }
+
+    /// The setup must genuinely overflow the ring buffer, or the test below would
+    /// pass against the very bug it exists to catch. This asserts the channel
+    /// that must move: a raw `recv()` on this receiver really does report
+    /// `Lagged`, which is the exact error the old `while let Ok(..)` swallowed as
+    /// a disconnect.
+    #[tokio::test]
+    async fn the_setup_really_does_lag() {
+        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
+        for i in 0..5 {
+            tx.send(sys(i)).unwrap();
+        }
+        match rx.recv().await {
+            Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                assert_eq!(skipped, 3, "5 sends into 2 slots should drop exactly 3");
+            }
+            other => panic!("expected Lagged, got {:?}", other.is_ok()),
+        }
+    }
+
+    /// The fix: a socket that fell behind keeps its connection and resumes at the
+    /// present. Against the previous inline `while let Ok(msg) = rx.recv().await`
+    /// this is the failing case -- that form yields no message and ends the loop,
+    /// which tore down the whole WebSocket and evicted the player from the game
+    /// world and chat alike.
+    #[tokio::test]
+    async fn a_lagged_socket_skips_ahead_instead_of_disconnecting() {
+        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
+        for i in 0..5 {
+            tx.send(sys(i)).unwrap();
+        }
+        let got = recv_skipping_lag(&mut rx).await;
+        let Some(RelayMessage::System { message }) = got else {
+            panic!("a lagged socket must keep receiving, not be dropped");
+        };
+        // Oldest two survive in a 2-slot ring, so the resume point is m3.
+        assert_eq!(message, "m3", "should resume at the present, not replay stale frames");
+
+        // And it keeps working afterwards: lag is not a terminal state.
+        tx.send(sys(99)).unwrap();
+        let Some(RelayMessage::System { message }) = recv_skipping_lag(&mut rx).await else {
+            panic!("the receiver must stay usable after skipping");
+        };
+        assert_eq!(message, "m4");
+    }
+
+    /// A CLOSED channel is the one case that SHOULD end the forwarding loop:
+    /// the relay is shutting down and there is nothing left to send.
+    #[tokio::test]
+    async fn a_closed_channel_still_ends_the_loop() {
+        let (tx, mut rx) = broadcast::channel::<RelayMessage>(2);
+        drop(tx);
+        assert!(
+            recv_skipping_lag(&mut rx).await.is_none(),
+            "a closed channel must end the loop, or shutdown would spin forever"
+        );
+    }
+}
