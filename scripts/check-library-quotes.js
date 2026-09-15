@@ -108,19 +108,38 @@ for (const f of fs.readdirSync(DIR).filter(f => f.endsWith('.md'))) {
   // Blank out fenced code so an example does not read as a quotation.
   let scan = text.replace(/```[\s\S]*?```/g, m => ' '.repeat(m.length));
 
-  // A quotation does not span a blank line. Without this the regex happily
-  // pairs the closing mark of one quote with the opening mark of the next,
-  // several paragraphs later, and reports the prose in between as quoted.
+  // Quote pairing is POSITIONAL, so a single unbalanced quotation mark
+  // anywhere desynchronises every pairing after it and the rest of the file
+  // goes silently unchecked. That is not hypothetical: it hid an A.D.A.M.
+  // copyright notice from this very gate, in a document the gate had just
+  // reported clean.
+  //
+  // Scanning paragraph by paragraph contains the damage. A stray mark now
+  // spoils its own paragraph and nothing else, and a quotation does not span
+  // a blank line anyway.
+  const paragraphs = [];
+  {
+    let offset = 0;
+    for (const p of scan.split(/\n[ \t]*\n/)) {
+      paragraphs.push({ text: p, offset });
+      offset += p.length + 2;
+    }
+  }
+
+  for (const para of paragraphs) {
   const re = /"([^"]{20,})"/g;
   let m;
-  while ((m = re.exec(scan)) !== null) {
-    if (/\n[ \t]*\n/.test(m[1])) continue;
+  while ((m = re.exec(para.text)) !== null) {
     quotes++;
-    const lineStart = scan.lastIndexOf('\n', m.index) + 1;
+    // Positions are paragraph-relative; map back to the document for the
+    // quote-ok marker and the lookback, both of which may sit before the
+    // paragraph began.
+    const abs = para.offset + m.index;
+    const lineStart = scan.lastIndexOf('\n', abs) + 1;
     const prevLineStart = scan.lastIndexOf('\n', lineStart - 2) + 1;
     if (scan.slice(prevLineStart, lineStart).includes('quote-ok:')) continue;
 
-    const before = scan.slice(Math.max(0, m.index - LOOKBACK), m.index).toLowerCase();
+    const before = scan.slice(Math.max(0, abs - LOOKBACK), abs).toLowerCase();
     const hit = needles.find(n => before.includes(n.frag));
     if (!hit) continue;
     attributed++;
@@ -131,6 +150,7 @@ for (const f of fs.readdirSync(DIR).filter(f => f.endsWith('.md'))) {
       licence: hit.licence,
       quote: m[1].replace(/\s+/g, ' ').slice(0, 90),
     });
+  }
   }
 }
 

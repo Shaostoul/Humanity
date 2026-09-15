@@ -916,9 +916,7 @@ opened for this guide quantifies, so no ranking is claimed here.)
 
 USGS gives the origin in one sentence: "As groundwater flows through
 sediments, metals such as iron and manganese are dissolved and may later
-be found in high concentrations in the water." Penn State adds that
-natural iron and manganese are more common in deeper wells where the
-water has been in contact with rock longer.
+be found in high concentrations in the water."
 
 EPA's secondary standards set iron at 0.3 mg/L against noticeable
 effects of "rusty color; sediment; metallic taste; reddish or orange
@@ -927,6 +925,10 @@ black staining; bitter metallic taste." Both are on the secondary list,
 which EPA does not enforce and which it says does not present a health
 risk at those levels. The full table is in
 [Testing Water](/library#testing-water).
+
+As for where to expect them, Penn State adds that natural iron and
+manganese are more common in deeper wells, where the water has been in
+contact with rock longer.
 
 ### Why the water is clear at the tap and stains the bath
 

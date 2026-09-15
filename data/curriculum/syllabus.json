@@ -1624,18 +1624,24 @@
       "subject": "health",
       "title": "Teeth",
       "summary": "Keep teeth, because losing them is both preventable and disabling.",
-      "status": "absent",
+      "status": "sourced",
       "skills": [
         "medicine"
       ],
       "sources": [
+        "nih",
         "cdc",
-        "nih"
+        "fda",
+        "epa",
+        "medlineplus"
       ],
       "locale_dependent": false,
       "hazard": "serious",
       "data": [
         "data/medical.ron"
+      ],
+      "reading": [
+        "teeth"
       ]
     },
     {

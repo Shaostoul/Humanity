@@ -198,10 +198,11 @@ That single mechanism explains almost every rewarming error.
 
 **A hot bath is wrong.** It dilates every peripheral vessel at once,
 which is the fastest possible way to flush cold blood into an unstable
-heart. MedlinePlus is direct about it, saying not to apply direct heat and
-naming hot water, a heating pad and a heat lamp as the things to avoid. The Park Service guidance says
-direct heat "can do extreme damage to the skin" and to use slow methods
-instead.
+heart. The Park Service guidance says direct heat "can do extreme
+damage to the skin" and tells you to use slow methods instead.
+MedlinePlus is direct about it too, saying not to apply direct heat,
+and naming hot water, a heating pad and a heat lamp as the things to
+avoid.
 
 **Rubbing the limbs is wrong**, for the same reason plus a second one.
 It drives cold blood back to the core, and on frostbitten tissue it
@@ -336,11 +337,12 @@ at the scene on the basis of how bad it looks.
 consistent across three of them. The military guideline: "Rapid active
 re-warming is done in 104-108 F (40-42 C) water for 15- 30 minutes as
 long as care can occur in an environment where there is no risk of
-refreezing." MedlinePlus gives the same window, recommending water between
-104 and 108 degrees F, which is 40 to 42.2 C, with the part soaked for 15
-to 30 minutes. The CMAJ review:
-"Rapid rewarming of a frostbitten extremity in a bath of water between
-40 C and 42 C for 15 to 30 minutes may minimize tissue loss."
+refreezing." MedlinePlus gives the same window, recommending water
+between 104 and 108 degrees F, which is 40 to 42.2 C, with the part
+soaked for 15 to 30 minutes. And the CMAJ review lands on the same
+numbers: rewarming a frostbitten extremity rapidly, in a bath of water
+between 40 C and 42 C, for 15 to 30 minutes, may hold the loss of
+tissue to a minimum.
 
 That range is narrow on purpose. The military guideline explains both
 edges: "The temperature is important, as there is reduced effect with
@@ -353,13 +355,14 @@ be very painful," and that the temptation to warm slowly because it is
 better tolerated is a mistake, since "tissue survival is improved with
 rapid re-warming."
 
-**Do not thaw what may refreeze.** MedlinePlus lists among the things
-not to do: thaw a frostbitten area if it cannot be kept thawed. The
-military guideline is stronger: "It is imperative to prevent refreezing
-of the impacted extremity as it results in more tissue damage," and
-"refreezing after partial thawing will result in more severe injury." A
-frozen foot walked out to a road is a bad outcome. A thawed foot that
-refreezes on the way is a worse one.
+**Do not thaw what may refreeze.** The military guideline is
+categorical: "It is imperative to prevent refreezing of the impacted
+extremity as it results in more tissue damage," and "refreezing after
+partial thawing will result in more severe injury." MedlinePlus puts
+the same instruction among the things not to do: do not thaw a
+frostbitten area if it cannot be kept thawed. A frozen foot walked out
+to a road is a bad outcome. A thawed foot that refreezes on the way is
+a worse one.
 
 **The rest of the do-not list**, from CDC and MedlinePlus:
 
@@ -579,17 +582,6 @@ redistributed with this guide; the rest cannot.
 
 ### United States government (public domain)
 
-- National Library of Medicine, MedlinePlus. Hypothermia (definition and
-  the 95 F threshold, symptoms including shivering stopping at extremely
-  low temperatures, causes including inadequate food, drink and rest,
-  first aid order, do not assume someone motionless in the cold is dead,
-  no direct heat, no alcohol, risk groups).
-  https://medlineplus.gov/ency/article/000038.htm
-- National Library of Medicine, MedlinePlus. Frostbite (appearance and
-  progression, checking for hypothermia first, the 104 to 108 F
-  rewarming range and the 15 to 30 minute duration, do not thaw what
-  cannot be kept thawed, no dry heat, no rubbing, do not disturb
-  blisters). https://medlineplus.gov/ency/article/000057.htm
 - Centers for Disease Control and Prevention. Preventing Hypothermia,
   Winter Weather (warning signs in adults and infants, the below 95 F
   rule, the treatment order, warming the centre of the body, electric
@@ -761,3 +753,29 @@ it above is written in our own words.
   emphasis placed on it here for a wet marine climate is this guide's
   own judgement, drawn from the sourced fact that immersion foot needs
   only wet feet and about 12 hours.
+
+### Copyrighted, cited but NOT redistributable
+
+These pages are the A.D.A.M. Medical Encyclopedia, which MedlinePlus hosts
+and which carries its own copyright notice:
+<!-- quote-ok: reproducing the copyright notice itself in order to attribute it -->
+"(c) 1997- 2026 A.D.A.M., a
+business unit of Ebix, Inc. Any duplication or distribution of the
+information contained herein is strictly prohibited." Every medlineplus.gov
+/ency/ address is A.D.A.M. content. MedlinePlus's other material, the health
+topic summaries and medical test pages, IS public domain; the encyclopedia is
+not. Everything taken from these pages is restated in our own words here,
+because facts are not copyrightable and expression is, and none of it may
+ship in the bundle.
+
+- National Library of Medicine, MedlinePlus. Hypothermia (definition and
+  the 95 F threshold, symptoms including shivering stopping at extremely
+  low temperatures, causes including inadequate food, drink and rest,
+  first aid order, do not assume someone motionless in the cold is dead,
+  no direct heat, no alcohol, risk groups).
+  https://medlineplus.gov/ency/article/000038.htm
+- National Library of Medicine, MedlinePlus. Frostbite (appearance and
+  progression, checking for hypothermia first, the 104 to 108 F
+  rewarming range and the 15 to 30 minute duration, do not thaw what
+  cannot be kept thawed, no dry heat, no rubbing, do not disturb
+  blisters). https://medlineplus.gov/ency/article/000057.htm

@@ -32,10 +32,10 @@ Everything else is not, and requires far more heat to make safe.
 NCHFP draws the line at **pH 4.6**. Acid foods have a pH of 4.6 or lower;
 low-acid foods are above it.
 
-- **Acid foods**, in NCHFP's list: "Fruits, pickles, sauerkraut, jams,
-  jellies, marmalades, and fruit butters."
-- **Low-acid foods**, in NCHFP's list: "Red meats, seafood, poultry,
-  milk, and all fresh vegetables except for most tomatoes."
+- **Acid foods**, in NCHFP's list: fruits, pickles, sauerkraut, jams,
+  jellies, marmalades and fruit butters.
+- **Low-acid foods**, in NCHFP's list: red meats, seafood, poultry,
+  milk, and all fresh vegetables apart from most tomatoes.
 
 Read that second list again. **All fresh vegetables.** Green beans, corn,
 carrots, potatoes, peas, squash, beets, greens. Every one of them is
@@ -44,17 +44,17 @@ low-acid.
 Now the heat. A boiling water canner reaches the temperature of boiling
 water, 212 F at sea level, and no higher; that is a physical ceiling, not
 a matter of boiling longer. A pressure canner reaches 240 to 250 F,
-operating at 10 to 15 pounds of pressure. NCHFP: "Botulinum spores are
-very hard to destroy at boiling-water temperatures; the higher the canner
-temperature, the more easily they are destroyed."
+operating at 10 to 15 pounds of pressure. NCHFP: botulinum spores are
+very hard to destroy at boiling-water temperatures, and they are
+destroyed more easily the hotter the canner gets.
 
 Which produces the rule:
 
 > **Low-acid foods CANNOT be safely canned in a boiling water bath.**
-> **They require a pressure canner.** NCHFP: "Pressure canning is the only
-> recommended method for canning meat, poultry, seafood, and vegetables,"
-> and "using boiling water canners for these foods poses a real risk of
-> botulism poisoning."
+> **They require a pressure canner.** NCHFP names pressure canning as
+> the only recommended method for canning meat, poultry, seafood and
+> vegetables, and says that using boiling water canners for those foods
+> poses a real risk of botulism poisoning.
 
 Green beans, corn, carrots and meat in a water-bath canner are not a
 shortcut and not an old family tradition worth continuing. They are the
@@ -88,18 +88,19 @@ that, which is why food stored there declines faster.
 
 **Blanching, and why it is not optional.** Vegetables carry enzymes that
 kept them growing, and those enzymes keep working in the freezer. CSU:
-after maturity, they "cause loss of quality, flavor, color, texture, and
-nutrients." Blanching, a brief scald, "slows or stops the enzyme action."
-Skip it and your green beans turn khaki and tasteless by January.
+after maturity, those enzymes cause a loss of quality, flavor, color,
+texture and nutrients. Blanching, a brief scald, slows or stops the
+enzyme action. Skip it and your green beans turn khaki and tasteless by
+January.
 
 CSU's method:
 
 1. **Boiling water blanch:** at least 1 gallon of rapidly boiling water in
-   a covered kettle. "Start counting time as soon as the vegetables are in
-   the boiling water."
+   a covered kettle. Start counting the time as soon as the vegetables
+   are in the boiling water.
 2. **Or steam blanch:** 1 to 2 inches of boiling water, vegetables held at
-   least 3 inches above the bottom of the kettle. "Start counting steaming
-   time as soon as the lid is on."
+   least 3 inches above the bottom of the kettle. Start counting the
+   steaming time as soon as the lid is on.
 3. **Cool immediately.** Plunge the basket straight into a large quantity
    of cold water at 60 F or below, using about 1 pound of ice for each
    pound of vegetables. Cooling matters as much as the scald; vegetables
@@ -142,13 +143,13 @@ Drying removes the water that spoilage organisms need. It stores at room
 temperature, takes almost no space, and needs no power once the food is
 dry.
 
-**Temperature.** Penn State Extension: start at 145 F "when there is
-surface moisture on the fruit or vegetable," then "reduce the temperature
-to 135 to 140 F to finish drying." Starting hot while the surface is wet
-is safe because evaporation keeps the food itself cool; keeping it hot
-after that cooks the outside shut and traps moisture inside, a failure
-called case hardening, and food that is still damp in the middle will
-mold in the jar.
+**Temperature.** Penn State Extension: start at 145 F while there is
+still surface moisture on the fruit or vegetable, then bring the
+temperature down to 135 to 140 F to finish drying. Starting hot while
+the surface is wet is safe because evaporation keeps the food itself
+cool; keeping it hot after that cooks the outside shut and traps
+moisture inside, a failure called case hardening, and food that is
+still damp in the middle will mold in the jar.
 
 **Equipment.** A food dehydrator is the straightforward answer. An oven
 works only if yours will genuinely hold a low temperature: Penn State
@@ -157,14 +158,15 @@ inches. Many ovens will not go that low.
 
 **Sun drying is region-dependent.** It is a good example of why you
 should look up local guidance rather than trust any single article.
-Penn State says outright that "the high humidity in Pennsylvania makes
-this method impractical here." In a hot dry climate it is a traditional
+Penn State says outright that the high humidity in Pennsylvania makes
+the method impractical there. In a hot dry climate it is a traditional
 and effective method. The variable is your humidity, not your intent.
 
 **Knowing when it is done.** Penn State: fruit is done when it is
-"pliable and no beads of moisture form when pressed between your
-fingers." Vegetables are done when "tough, brittle, or crunchy." Test a
-piece after it has cooled, because warm food always feels softer.
+pliable and no beads of moisture form on it when you press it between
+your fingers. Vegetables are done when they are tough, brittle or
+crunchy. Test a piece after it has cooled, because warm food always
+feels softer.
 
 **Conditioning.** Pieces never dry evenly. Penn State: pack the cooled
 dried fruit loosely into an airtight glass or plastic container for
@@ -328,13 +330,13 @@ NCHFP's boiling-water canner procedure:
 
 ## When a jar goes wrong
 
-**Do not taste it.** NCHFP: "Do not taste food from a jar with an
-unsealed lid or food that shows signs of spoilage."
+**Do not taste it.** NCHFP: never taste what comes out of a jar whose
+lid was not sealed, nor any food showing signs of spoilage.
 
-Signs, in NCHFP's words: swelled lids and broken seals; "streaks of dried
-food originating at the top of the jar"; "rising air bubbles and unnatural
-color"; "cotton-like mold growth (white, blue, black, or green)";
-unnatural odors; spurting liquid on opening.
+Signs, from NCHFP's list: swelled lids and broken seals; streaks of
+dried food that start at the top of the jar; air bubbles rising in the
+jar, and unnatural color; cotton-like mold growth, which may be white,
+blue, black or green; unnatural odors; spurting liquid on opening.
 
 A jar can also be dangerous with no sign at all. That is the whole reason
 the procedures are strict.
@@ -366,10 +368,10 @@ thoroughly. Wash your hands afterward. Handle bleach in a ventilated
 space, keep it away from children and pets, and never mix it with other
 cleaners.
 
-**One more safety margin.** NCHFP: "Boiling food 10 minutes at elevations
-below 1,000 feet elevation should destroy this poison when it is
-present," and "for elevations at and above 1,000 feet, add 1 additional
-minute per 1,000 feet additional elevation." This is a sensible habit
+**One more safety margin.** NCHFP: at elevations below 1,000 feet,
+boiling food for 10 minutes should destroy this poison when it is
+present, and at and above 1,000 feet you add 1 more minute for each
+additional 1,000 feet of elevation. This is a sensible habit
 before serving home-canned low-acid food that was properly pressure
 canned. It is **not** a way to rescue food that was canned incorrectly,
 and it is not a reason to relax any rule above. Anything showing signs of

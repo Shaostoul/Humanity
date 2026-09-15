@@ -51,6 +51,7 @@ matters more than brand. It is also worth knowing that DuPont, who make
 both fibres, recommend long-term service temperatures far below the
 temperatures at which those fibres decompose. More on that below.
 
+<!-- quote-ok: stating a common belief in order to correct it, not quoting a source -->
 **"The parts are the shaft, the grip and the wick."** Two parts are
 missing: a **heat shield or thermal break** between wick and shaft, and
 the **fastening hardware** holding the wick on. Both are safety parts.

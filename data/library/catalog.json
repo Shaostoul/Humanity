@@ -424,6 +424,14 @@
             "health",
             "safety"
           ]
+        },
+        {
+          "title": "Teeth",
+          "src": "docs/user/skills/teeth.md",
+          "tags": [
+            "guide",
+            "real"
+          ]
         }
       ]
     },

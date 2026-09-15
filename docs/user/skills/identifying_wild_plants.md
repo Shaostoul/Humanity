@@ -757,22 +757,6 @@ with this guide; the rest cannot.
   of 10 to 20 percent, and the outcomes of the 14-case cluster including
   three liver transplants and one child left with permanent neurologic
   impairment. https://www.cdc.gov/mmwr/volumes/66/wr/mm6621a1.htm
-- National Library of Medicine, MedlinePlus. Poisoning first aid. The
-  Poison Help hotline on 1-800-222-1222; and the do-not instructions:
-  do not induce vomiting unless told to by the Poison Control Center or a
-  health care provider, do not try to neutralise the poison, do not use
-  any cure-all antidote, do not give an unconscious person anything by
-  mouth, and do not wait for symptoms to develop if you suspect someone
-  has been poisoned. Also that where somebody has been made ill by a
-  plant part, saving the vomit may help experts identify what medicine
-  can be used. https://medlineplus.gov/ency/article/007579.htm
-- National Library of Medicine, MedlinePlus. Pokeweed poisoning, read for
-  the information the poison centre asks for on a plant call: the
-  person's age, weight and condition, the time it was swallowed, the
-  amount, and the name and part of the plant that was eaten, if known.
-  Also the same instruction not to make a person throw up unless told to
-  by poison control or a health care provider.
-  https://medlineplus.gov/ency/article/002874.htm
 - National Park Service, Mount Rainier National Park. Mushrooms. That
   identifying wild mushrooms can be extremely difficult and consuming
   them can be deadly, that its species descriptions are intentionally
@@ -868,3 +852,34 @@ or toxicity data; it is named here only to say what it is not.
 - [The Hazards Your Place Actually Has](the_hazards_where_you_live.md)
 - [Where You Are: Silverdale, Washington](../locale/silverdale_wa.md)
 - [The Growing Calendar](the_growing_calendar.md)
+
+### Copyrighted, cited but NOT redistributable
+
+These pages are the A.D.A.M. Medical Encyclopedia, which MedlinePlus hosts
+and which carries its own copyright notice:
+<!-- quote-ok: reproducing the copyright notice itself in order to attribute it -->
+"(c) 1997- 2026 A.D.A.M., a
+business unit of Ebix, Inc. Any duplication or distribution of the
+information contained herein is strictly prohibited." Every medlineplus.gov
+/ency/ address is A.D.A.M. content. MedlinePlus's other material, the health
+topic summaries and medical test pages, IS public domain; the encyclopedia is
+not. Everything taken from these pages is restated in our own words here,
+because facts are not copyrightable and expression is, and none of it may
+ship in the bundle.
+
+- National Library of Medicine, MedlinePlus. Poisoning first aid. The
+  Poison Help hotline on 1-800-222-1222; and the do-not instructions:
+  do not induce vomiting unless told to by the Poison Control Center or a
+  health care provider, do not try to neutralise the poison, do not use
+  any cure-all antidote, do not give an unconscious person anything by
+  mouth, and do not wait for symptoms to develop if you suspect someone
+  has been poisoned. Also that where somebody has been made ill by a
+  plant part, saving the vomit may help experts identify what medicine
+  can be used. https://medlineplus.gov/ency/article/007579.htm
+- National Library of Medicine, MedlinePlus. Pokeweed poisoning, read for
+  the information the poison centre asks for on a plant call: the
+  person's age, weight and condition, the time it was swallowed, the
+  amount, and the name and part of the plant that was eaten, if known.
+  Also the same instruction not to make a person throw up unless told to
+  by poison control or a health care provider.
+  https://medlineplus.gov/ency/article/002874.htm

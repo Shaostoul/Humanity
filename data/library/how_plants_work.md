@@ -238,11 +238,12 @@ And it is not optional, which is the real point.
 
 ### One door, two directions
 
-Transpiration is, as NC State puts it, "the process by which a plant
-loses water, primarily through its stomata, pulling more water up the
-xylem." Stomata are the pores on the leaf. Each one, NC State says, is
-bordered by two guard cells, and "the bending of the two guard cells
-regulates the passage of water, oxygen, and carbon dioxide."
+Transpiration is, as NC State puts it, the process by which a plant
+loses water, primarily through its stomata, and in doing so pulls more
+water up the xylem. Stomata are the pores on the leaf. Each one, NC
+State says, is bordered by two guard cells, and the bending of those
+two guard cells regulates the passage of water, oxygen and carbon
+dioxide.
 
 Read that list of three gases again. The pore that lets water vapour
 out is the same pore that lets carbon dioxide in.
@@ -342,11 +343,11 @@ a delivery-rate problem.
 a plant with a full set of transpiring leaves and no roots at all.
 Demand is normal, supply is zero, and the cutting has only its own
 stored water. So you attack the demand side twice. NC State's
-propagation guidance does both: "On large-leafed plants, the remaining
-leaves may be cut in half perpendicular to the midvein to reduce
-moisture loss", and "Maintain high humidity by covering the cuttings
-with a bottomless milk jug or by placing the container into a clear
-plastic bag."
+propagation guidance does both: on large-leafed plants the remaining
+leaves may be cut in half, the cut running perpendicular to the
+midvein, to reduce moisture loss; and humidity is kept high by covering
+the cuttings with a bottomless milk jug, or by placing the container
+inside a clear plastic bag.
 
 Halving the leaf halves the evaporating area. The bag raises humidity,
 which USGS tells us directly lowers the transpiration rate. You keep
@@ -374,17 +375,17 @@ Dig up a seedling gently and you will see a root system. What you will
 not see is the part that does the work.
 
 NC State describes the root tip as a sequence: the zone of cell
-division including the root cap, "which protects the interior cells as
-the root pushes through the soil", then elongation, then a zone of
-maturation where "root hairs begin to emerge... developing as
-outgrowths of the epidermal cells." And then the sentence that matters:
-"The majority of the water and nutrients absorbed by the plant enter
-through the root hairs."
+division, which includes the root cap, whose job is to shield the
+cells inside while the root forces its way down through the soil; then
+elongation; then a zone of maturation where the root hairs begin to
+emerge, developing as outgrowths of the epidermal cells. And then the
+sentence that matters: the majority of the water and nutrients a plant
+absorbs enter through the root hairs.
 
 Root hairs are single-cell projections, effectively invisible, and
-they are not permanent. NC State: "Most plants produce root hairs that
-live only a few days or a few weeks. New root hairs form as roots
-continue to grow through the soil."
+they are not permanent. NC State: on most plants a root hair lives
+only a few days, or a few weeks at the outside, and fresh ones keep
+forming as the roots go on growing through the soil.
 
 So the absorbing surface of a plant is a thin moving band just behind
 each growing root tip. It is not the thick roots you can see. Those
@@ -392,10 +393,10 @@ are plumbing and anchorage.
 
 ### What that predicts about where you put things
 
-NC State draws the practical conclusion itself: "Watering and
-fertilizing close to the trunk of a plant are of little use to the
-plant... It is much more effective to apply water and fertilizer at
-the dripline of the plant where root hairs are most prolific."
+NC State draws the practical conclusion itself: putting water and
+fertilizer close to the trunk of a plant does it little good, and it
+is much more effective to apply both at the dripline of the plant,
+where the root hairs are most prolific.
 
 The dripline is the circle on the ground under the outer edge of the
 canopy. Water poured at the trunk of an established tree lands on
@@ -405,9 +406,9 @@ fix.
 
 ### And what it predicts about transplanting
 
-Penn State Extension states the problem in one line: "Most plants
-experience a certain amount of shock from transplanting, when roots
-are disturbed and unable to absorb enough water."
+Penn State Extension puts the problem in one line: most plants take
+some amount of shock from transplanting, when their roots are
+disturbed and cannot absorb enough water.
 
 Combine that with the budget. Lift a plant out of the ground and you
 keep the leaves, which is the entire demand, and you lose an unknown
@@ -423,25 +424,25 @@ insufficient.
 
 Every piece of transplanting advice now becomes obvious:
 
-- **Transplant in the evening or under cloud.** Penn State: "While
-  cloudy conditions are best for transplanting, it is also acceptable
-  to plant in late afternoon or early evening, when temperatures are
-  cooler and the sun is less intense." You are handing the plant a
+- **Transplant in the evening or under cloud.** Penn State rates
+  cloudy conditions as the best for transplanting, and late afternoon
+  or early evening as acceptable too, because temperatures are cooler
+  then and the sun is less intense. You are handing the plant a
   whole night of low demand to rebuild with.
 - **Water before you lift, not just after.** Penn State recommends
   watering within an hour before transplanting, to keep root balls
   moist and intact during handling. A dry root ball crumbles, and
   crumbling is the damage.
 - **Support the root ball, do not pull the stem.** Penn State says to
-  support the top of the root ball with your fingers, and to "gently
-  tease" crowded seedlings apart rather than forcing them.
+  support the top of the root ball with your fingers, and to tease
+  crowded seedlings apart gently rather than forcing them.
 - **Container-grown plants barely notice.** Nothing was disturbed.
 
 The one deliberate exception is a pot-bound plant. Utah State
-Extension: "If roots have formed a thick circular mat around the root
-ball, it is often beneficial to disrupt the roots by making several
-shallow, vertical cuts in the root ball with a knife or gently
-breaking up the roots with your hands." You accept a short-term supply
+Extension: if the roots have formed a thick circular mat around the
+root ball, it is often beneficial to disrupt them, by making several
+shallow, vertical cuts in the root ball with a knife or by gently
+breaking the roots up with your hands. You accept a short-term supply
 hit to stop roots from circling permanently.
 
 ### The partnership most plants are in
@@ -485,33 +486,33 @@ and there is no point repeating them here.
 What it means for the plant is this. Roots respire. They burn sugar
 and they need oxygen to do it, all day and all night, exactly like the
 leaves. University of Minnesota Extension states the consequence
-directly: "Water covering the soil reduces the supply of oxygen to
-tree roots. Roots must have oxygen to survive and grow."
+directly: water covering the soil cuts the oxygen supply that reaches
+tree roots, and roots cannot survive or grow without oxygen.
 
 Waterlogging does not drown a plant in the sense of filling it with
 water. It suffocates it, by filling the air space its roots were
 breathing from. And the soil then turns actively hostile: UMN notes
-that "the high concentrations of ethanol and hydrogen sulfide that are
-produced in waterlogged soil can damage tree roots", and that the main
-end products of organic matter decomposition in flooded soil are
-carbon dioxide, methane and humic materials. That is anaerobic
-chemistry, and the smell of it is the smell of a pot that has been
-overwatered for a month.
+that waterlogged soil produces ethanol and hydrogen sulfide, and that
+the high concentrations of them reached there can damage tree roots,
+and that the main end products of organic matter decomposition in
+flooded soil are carbon dioxide, methane and humic materials. That is
+anaerobic chemistry, and the smell of it is the smell of a pot that
+has been overwatered for a month.
 
 The timescales are worth knowing because they are shorter than people
 expect:
 
 - **Young corn.** UMN reports that for corn younger than the six-leaf
-  stage, "Only 3 to 4 days of being submerged in floodwater can be
-  fatal to these young plants."
+  stage, only 3 to 4 days submerged in floodwater can be fatal to
+  those young plants.
 - **Soybean.** UMN reports photosynthesis reduced by a third with 48
   hours of flooding. Not dead, just running a third of an income.
-- **Trees, dormant.** "Most tree species can withstand one to four
-  months of flooding during the dormant season."
-- **Trees, growing.** "One to two weeks of flooding can cause major,
-  long-term damage to sensitive trees and shrubs, even death with some
-  species", while tolerant species "can survive as long as three to
-  five months in flooded situations."
+- **Trees, dormant.** In the dormant season most tree species will
+  tolerate being flooded for one to four months.
+- **Trees, growing.** As little as one to two weeks under water can do
+  major, long-term damage to sensitive trees and shrubs, and kill some
+  species outright, whereas the tolerant species can stay alive in
+  flood for as much as three to five months.
 
 Those last two figures are not about the same set of species, so do
 not read them as a clean ratio. The shape is still unmistakable: a
@@ -533,17 +534,18 @@ well-meaning person waters it again.
 that floods in July.** Same water, two different plants.
 
 **Why garden soil fails in a pot.** NC State is blunt: field soils
-"often retain too much water, have too little pore space (for oxygen),
-are too heavy, and potentially harbor harmful diseases, insects, and
-weeds." [Your First Tomato](/library#your-first-tomato) covers the practical
+often hold too much water, leave too little pore space for oxygen, are
+too heavy, and can potentially carry harmful diseases, insects and
+weeds. [Your First Tomato](/library#your-first-tomato) covers the practical
 side of this.
 
 **Why gravel in the bottom of a pot makes drainage worse, not
-better.** NC State: "Never put a layer of gravel or rocks in the
-bottom beneath potting mix... water will collect in potting mix just
-above the gravel." The water does not fall into the gravel; it hangs
-in the fine material above it. You have not added drainage, you have
-raised the waterlogged zone into the root ball.
+better.** NC State says flatly not to lay gravel or rocks underneath
+the potting mix in the bottom of a container, because the water will
+gather in the potting mix just above that gravel. The water does not
+fall into the gravel; it hangs in the fine material above it. You have
+not added drainage, you have raised the waterlogged zone into the root
+ball.
 
 **Why compacted ground produces symptoms that look like everything
 else.** Same cause, less dramatic. [What Soil Is](/library#what-soil-is)
@@ -555,13 +557,14 @@ covers bulk density and what compaction does to structure.
 
 ### Seventeen elements, and where they come from
 
-NC State Extension says plants need "17 essential nutrients, each in
-varying amounts." Three of them, carbon, hydrogen and oxygen, come
-from air and water. The other fourteen come from the soil.
+NC State Extension counts 17 essential nutrients that a plant needs,
+each in varying amounts. Three of them, carbon, hydrogen and oxygen,
+come from air and water. The other fourteen come from the soil.
 
 The fourteen are split into macronutrients and micronutrients, and NC
-State is careful about why: micronutrients are so called because "they
-are needed in much smaller amounts than the macronutrients."
+State is careful about why: micronutrients carry that name because the
+amounts of them a plant needs are far smaller than for the
+macronutrients.
 
 Say what that does not mean. It does not mean micronutrients are
 optional or less important. A plant short of boron is as stopped as a
@@ -571,9 +574,9 @@ delivery note, nothing else.
 ### Presence is not availability
 
 This is the sentence to take away from the whole of soil fertility, and
-NC State states it in one line: "For a plant to absorb an element, it
-must be in a chemical form used by the plant and dissolved in the soil
-water."
+NC State states it in one line: for a plant to absorb an element, that
+element must be in a chemical form the plant can use, and it must be
+dissolved in the soil water.
 
 Two conditions, both of which can fail while the element is sitting
 right there in the soil. It must be in a usable chemical form, and it
@@ -584,10 +587,10 @@ availability rather than on supply. [What Soil Is](/library#what-soil-is)
 carries the pH scale, the class names, and NC State's warning that
 below about 5.5 manganese, zinc, copper, iron and aluminium can reach
 levels that damage plants. The other end of the scale does the
-opposite: University of Georgia Extension states that "High pH in the
-soil (over 7.0) is the most common cause of iron deficiency", and that
-manganese deficiency "typically occurs in soils that have a high pH
-(alkaline soils)."
+opposite: University of Georgia Extension states that a high pH in the
+soil, meaning over 7.0, is the most common cause of iron deficiency,
+and that manganese deficiency typically turns up in soils whose pH is
+high, which is to say alkaline ones.
 
 So a soil test that says you have plenty of iron and a plant that is
 clearly short of iron are not in conflict. They are describing the two
@@ -595,7 +598,7 @@ different conditions in that sentence.
 
 Missouri Extension's diagnostic guide makes the same point about the
 physical side, listing water stress, anaerobic soil conditions, and
-"issues with compaction, crusting, drainage, or waterlogging" among
+issues with compaction, crusting, drainage or waterlogging among
 the things to ask about before concluding that a nutrient is absent.
 
 ### Mobility: where the symptom appears tells you more than what colour it is
@@ -606,18 +609,19 @@ have never been told it.
 Some nutrients can be moved around inside the plant after they have
 been installed. Some cannot.
 
-NC State: nitrogen is "mobile in plant, moving to new growth", so
-"symptoms appear first on older growth". Phosphorus behaves the same
-way. Calcium has "limited mobility in plant", so its symptoms show on
-younger growth.
+NC State: nitrogen is mobile in the plant and moves to new growth, so
+its symptoms appear first on older growth. Phosphorus behaves the same
+way. Calcium has limited mobility in the plant, so its symptoms show
+on younger growth.
 
 University of Georgia Extension gives the same split with more
-detail. Of nitrogen: it "is mobile in the plant and when deficient,
-will quickly be moved to new growth, depleting the amount in mature
-foliage." Deficiency symptoms of nitrogen, phosphorus and potassium
-"typically occur first on the older, lower leaves." Magnesium shows
-"interveinal yellowing in the older, lower foliage first." Iron and
-sulfur show on the newer leaves near the top.
+detail. Of nitrogen: it is mobile in the plant, and when the plant is
+deficient it is moved quickly to new growth, which draws down what is
+left in the mature foliage. Deficiency symptoms of nitrogen,
+phosphorus and potassium typically occur first on the older, lower
+leaves. Magnesium shows interveinal yellowing in the older, lower
+foliage first. Iron
+and sulfur show on the newer leaves near the top.
 
 So the rule:
 
@@ -675,11 +679,11 @@ The black leathery patch on the bottom of a tomato is the worked
 example, because it is a calcium symptom, and calcium is the nutrient
 NC State singles out as having limited mobility in the plant.
 
-University of Georgia Extension says "Either a lack of calcium in the
-soil or poor irrigation practices can lead to deficiency", describes
-blossom end rot as an indicator of calcium deficiency appearing as "a
-black, leathery lesion", and advises monitoring irrigation "to keep
-soil evenly moist."
+University of Georgia Extension says the deficiency can come from a
+shortage of calcium in the soil or from poor irrigation practices,
+either one; describes blossom end rot as an indicator of calcium
+deficiency that shows up as a black, leathery lesion; and advises
+keeping an eye on irrigation so that the soil stays evenly moist.
 
 Note that both causes are on the table, and note which one the advice
 addresses. The commonly given mechanism, that calcium travels in the
@@ -695,15 +699,15 @@ that may already have plenty.
 Three separate mechanisms stack up, and every one of them is physical
 rather than chemical.
 
-Iowa State University Extension: "With cold soil, root growth is
-slowed, the capacity to absorb nutrients is reduced, and the diffusion
-of nutrients through soil towards the root surface is slowed."
+Iowa State University Extension: cold soil slows the growth of roots,
+cuts their capacity to take nutrients up, and slows the diffusion of
+nutrients through the soil toward the root surface.
 
-Penn State Extension: "Cold, wet soils cause reduced root growth rate,
-nutrient mobility, and nutrient mineralization." And: "Even though a
-soil may have high fertility, a seedling's root system may not be able
-to obtain the necessary nutrients due to lack of size and density
-within the soil."
+Penn State Extension: soils that are cold and wet cut the rate of root
+growth, the mobility of nutrients, and nutrient mineralization. And: a
+soil may be high in fertility and a seedling's root system still be
+unable to obtain the nutrients it needs, for lack of size and density
+within the soil.
 
 So:
 
@@ -719,11 +723,12 @@ So:
    down in the cold.
 
 Phosphorus takes this worst, because it barely moves in soil to begin
-with. Penn State: "Phosphorus compounds are bound and do not readily
-move within the soil." Iowa State adds that phosphorus is "less mobile
-in soil than K, and much less than mineral N forms", and that "P is
-very critical for plants during very early growth, and an early P
-deficiency seldom can be fully corrected after crop emergence."
+with. Penn State: phosphorus compounds are held bound, and they do not
+move readily within the soil. Iowa State adds that phosphorus is less
+mobile in soil than potassium is, and much less mobile than the
+mineral forms of nitrogen, and that phosphorus is very critical to
+plants during very early growth, so that an early phosphorus
+deficiency can seldom be fully corrected after the crop has emerged.
 
 ### What this predicts
 
@@ -738,8 +743,8 @@ causes and they call for opposite responses. If the cause is
 temperature, the mechanism says the symptom should ease as the soil
 warms and the root system grows, and that follows from the sources
 rather than being stated by them. If the shortage is real, Iowa State's
-warning applies: early phosphorus deficiency "seldom can be fully
-corrected after crop emergence". Which is an argument for knowing your
+warning applies: an early phosphorus deficiency can seldom be fully
+corrected after crop emergence. Which is an argument for knowing your
 soil's phosphorus level before the season rather than diagnosing from
 a leaf colour during it.
 
@@ -762,9 +767,9 @@ Every shoot has a terminal bud at its end and lateral buds along its
 sides; NC State names them exactly that way. What you cannot see is
 that they are in a chemical argument, and the tip is winning.
 
-University of Georgia Extension: "Auxin moves downward in the shoot
-(toward the Earth's center) from the shoot apex and inhibits the
-growth and development of lateral buds."
+University of Georgia Extension: auxin moves downward in the shoot,
+toward the Earth's center, starting from the shoot apex, and it
+inhibits the growth and development of lateral buds.
 
 That is apical dominance. The tip is not simply growing faster than
 the buds below it, it is actively holding them back, and that is why a
@@ -780,12 +785,12 @@ below it are released, and they grow.
 
 University of Georgia distinguishes the two cuts:
 
-- A **heading cut** "removes the terminal portion of shoots or limbs"
+- A **heading cut** removes the terminal portion of a shoot or limb
   and is highly stimulating, producing dense regrowth near the cut.
-  "Vigorous shoot growth will usually occur within 6 to 8 in. of the
-  pruning cut."
-- A **thinning cut** "removes an entire shoot or limb to its point of
-  origin", which maintains apical dominance on the tips that remain
+  Expect the vigorous new shoots within 6 to 8 inches of where the cut
+  was made.
+- A **thinning cut** removes an entire shoot or limb back to its point
+  of origin, which maintains apical dominance on the tips that remain
   and gives less vigorous, more natural growth.
 
 So the two cuts do opposite things, and the difference is not about
@@ -805,10 +810,9 @@ the evidence.
 ### Pruning does not make plants smaller
 
 This one is counter-intuitive and it is worth stating flatly.
-University of Georgia describes pruning as reducing "the size of the
-above-ground portion of the plant in relation to the root system",
-which stimulates compensatory regrowth. It is invigorating, not
-dwarfing.
+University of Georgia describes pruning as shrinking the plant's
+above-ground part relative to the root system underneath it, which
+stimulates compensatory regrowth. It is invigorating, not dwarfing.
 
 Cut a vigorous shrub back hard and it will come back harder, because
 you have not touched the root system that supplies it, and you have
@@ -835,17 +839,19 @@ what you want on anything you intend to pick fruit from.
 
 ### Stretching toward the light, and what it costs
 
-NC State: "Too little light causes a long internode and a spindly
-stem, an occurrence known as stretching or etiolation."
+NC State: give a plant too little light and its internodes run long
+and its stem goes spindly, and that occurrence has a name, stretching,
+or etiolation.
 
-University of Minnesota describes the same plant from outside: stems
-become "long and thin and appear to be reaching toward the source of
-light", leaves go "pale green to yellow to white" for lack of
-chlorophyll, and plants may drop leaves, especially older ones.
+University of Minnesota describes the same plant from outside: the
+stems turn long and thin and look as though they are straining toward
+where the light comes from, the leaves go pale green, then yellow,
+then white for lack of chlorophyll, and plants may drop leaves,
+especially older ones.
 
-And Utah State Extension states the structural consequence: "Poor
-light intensity is often the cause of tall, skinny plants that have
-difficulty staying upright."
+And Utah State Extension states the structural consequence: weak light
+is often what leaves a plant tall and skinny and struggling to hold
+itself upright.
 
 Go back to Part 1 and this is a budget decision. The plant has a
 limited sugar income and it is spending it on length instead of
@@ -875,11 +881,10 @@ that group is describing a plant on a windowsill.
 [Starting Seeds](/library#starting-seeds) works from the seed-starting page
 of that table and gives the practical routine.
 
-**Air movement.** Utah State: "Very light, intermittent, direct
-airflow on your seedlings can be beneficial", applied "one to several
-times a day for a short duration (5 to 10 minutes or more)", and a
-small fan at plant level "can help lower humidity and increase stem
-strength."
+**Air movement.** Utah State: very light, intermittent, direct airflow
+on your seedlings can be beneficial, applied one to several times a
+day for a short duration, meaning 5 to 10 minutes or more, and a small
+fan at plant level can help lower humidity and increase stem strength.
 
 Read that last phrase again, because it is doing real work. A fan is
 not there to dry the surface or discourage mould, though it does both.
@@ -889,10 +894,10 @@ given the signal to do so. Then you put it outdoors.
 
 Which is the other half of hardening off. Penn State describes
 gradually acclimating seedlings over 10 to 14 days before
-transplanting to prevent "damage from sudden changes in light
-intensity and temperature." Utah State says the process should
-"minimally begin about two weeks before transplanting", starting with
-a few hours, starting in shade, increasing daily.
+transplanting, to prevent damage from sudden changes in light
+intensity and in temperature. Utah State says the process should begin
+at minimum about two weeks before transplanting, starting with a few
+hours, starting in shade, increasing daily.
 
 The important thing about those numbers is that they are measured in
 days rather than minutes. The plant is not being psychologically
@@ -912,7 +917,7 @@ NC State names the structures:
 - The **stamen** is the male organ. It has an **anther**, containing
   the pollen-producing chambers, on a stalk called the **filament**.
 - The **pistil** is the female structure in the centre, made of a
-  **stigma** at the top which is "the site of pollination", a
+  **stigma** at the top, which is the site of pollination, a
   **style**, and an **ovary** at the base.
 
 A flower with sepals, petals, stamens and pistils is a **complete**
@@ -971,11 +976,11 @@ on a bee has handed the choice of the other parent to the bee.
 
 NC State:
 
-- **Annuals** "complete their entire life cycle, from seed germination
-  to seed production, and die in one growing season."
-- **Biennials** "complete their life cycles in two growing seasons."
-- **Perennials** "live for more than two growth seasons, up to several
-  years, decades, or even centuries."
+- **Annuals** complete their entire life cycle, from seed germination
+  to seed production, and die, in one growing season.
+- **Biennials** complete their life cycles in two growing seasons.
+- **Perennials** live for more than two growth seasons, up to several
+  years, decades, or even centuries.
 
 The strategy is the plant's answer to a scheduling problem. An annual
 bets everything on one season and must flower. A biennial spends year
@@ -1000,26 +1005,26 @@ length and cold.
 
 ### Day length, which the plant measures as night length
 
-NC State defines photoperiod as "the amount of time that a plant is
-exposed to sunlight", and then gives the two classes in a way that
+NC State defines photoperiod as the amount of time that a plant is
+exposed to sunlight, and then gives the two classes in a way that
 repays close reading:
 
-- "Short-day plants produce flowers only when the period of darkness
-  exceeds a critical minimum."
-- "Long-day plants form flowers only when the period of darkness is
-  less than the critical night length."
+- Short-day plants produce flowers only when the period of darkness
+  exceeds a critical minimum.
+- Long-day plants form flowers only when the period of darkness is
+  less than the critical night length.
 
 Both definitions are stated in terms of DARKNESS. The plant is
 measuring the night, not the day. The names are historical and
 slightly misleading.
 
 The onion is the cleanest example a gardener meets. University of
-Illinois Extension: "Onions start bulb formation when the day length is
-of the proper duration and different varieties of onions require
-different day lengths to initiate bulbing." Most varieties are
+Illinois Extension: onions start bulb formation when the day length is
+of the proper duration, and different varieties of onion require
+different day lengths to initiate bulbing. Most varieties are
 long-day, for northern latitudes, or short-day, for southern. And the
-consequence, in Illinois's words: "onion varieties that are grown in
-the South are not adaptable to the North and vice versa."
+consequence, as Illinois puts it: onion varieties that are grown in
+the South are not adaptable to the North, and the reverse likewise.
 
 That is a very strong statement for an extension service to make.
 Not "performs less well". Not adaptable.
@@ -1053,15 +1058,15 @@ interpretation rather than something quoted from a source, is that it
 works as a calendar. A biennial that has been through a winter can
 tell spring from autumn, which a thermometer alone cannot.
 
-University of Minnesota Extension, on cool-season vegetables:
-"Bolting refers to premature flowering. It occurs at any point after a
-plant has shifted into its reproductive stage." And then the crucial
-sentence: "Since bolting is partially triggered by the accumulation of
-cold, these strategies can reduce exposure to cold temperatures for
-young plants."
+University of Minnesota Extension, on cool-season vegetables: bolting
+means premature flowering, and it happens at any point after a plant
+has shifted into its reproductive stage. And then the crucial
+sentence, which is that because the accumulation of cold is part of
+what triggers bolting, the strategies it gives can reduce how much
+cold young plants are exposed to.
 
-And on what happens after: "After this shift, high heat and longer
-days will speed up flowering."
+And on what happens after: once that shift has been made, high heat
+and longer days will speed flowering up.
 
 **Read those two in order, because between them they overturn the most
 common garden diagnosis there is.** The June heat wave did not make
@@ -1069,24 +1074,24 @@ your spinach bolt. The cold snap in April made the decision. The heat
 wave carried out a decision that had already been taken.
 
 University of Minnesota gives the related failure in broccoli and
-cauliflower, called buttoning: "Leafy biomass is what allows a plant
-to photosynthesize and create energy for itself, and so it's important
-for plants to put on plenty of leaves before transitioning to head
-formation. But when spring weather is quite cool, plants can experience
-vernalization early, and the result is buttoning up." A tiny head on a
+cauliflower, called buttoning: leafy biomass is what lets a plant
+photosynthesise and create energy for itself, so it is important that
+plants put plenty of leaves on before they make the transition to
+forming a head. But when spring weather is quite cool, plants can be
+vernalized early, and buttoning up is the result. A tiny head on a
 small plant, because the switch was thrown before the factory was
 built.
 
 University of Illinois notes the same effect in onions from sets:
-large sets "may 'bolt' and form flower stalks", and "extremely cold
-weather during early season growth also may condition onions from sets
-to flower." Plants that throw a flower stalk "do not produce good
-bulbs for dry storage."
+large sets may bolt and form flower stalks, and extremely cold weather
+during early season growth may also condition onions from sets to
+flower. Plants that throw a flower stalk do not produce good bulbs for
+dry storage.
 
-And the quality consequence, from Minnesota: "Once a plant flowers,
-the heads are no longer marketable, and the taste of the foliage often
-becomes bitter. This is especially true for spinach and lettuce, which
-both become extremely bitter after flowering."
+And the quality consequence, from Minnesota: once a plant flowers the
+heads are no longer marketable, and the taste of the foliage often
+turns bitter. That is especially true of spinach and lettuce, both of
+which become extremely bitter after flowering.
 
 ### What this predicts
 
@@ -1163,11 +1168,11 @@ must be metabolically inactivated, or their effect must be overcome by
 germination-promoting substances."
 
 Penn State Extension gives the same two in garden language: physical
-dormancy is a "hard or thick seed coat" broken "by soaking or
-scarifying (scratching the surface) the seed", and chemical dormancy
-is governed by "plant hormones, notably, abscisic acid, which inhibits
-germination, and gibberellin, which ends seed dormancy", with cold
-stratification helping to break it.
+dormancy is a seed coat that is hard or thick, and it is broken by
+soaking the seed or by scarifying it, meaning scratching its surface;
+chemical dormancy is governed by plant hormones, notably abscisic
+acid, which holds germination back, and gibberellin, which brings seed
+dormancy to an end, with cold stratification helping to break it.
 
 ### Picking the lock: scarification
 
@@ -1231,12 +1236,12 @@ have raced ahead.
 
 ### What germination actually requires
 
-Penn State gives four conditions for garden seed: "Temperature,
-moisture, air, and light conditions must be correct for seeds to
-germinate." Taking them in turn with the Forest Service's detail:
+Penn State gives four conditions for garden seed: the temperature, the
+moisture, the air and the light must all be correct, or the seed will
+not germinate. Taking them in turn with the Forest Service's detail:
 
-**Water.** Penn State describes the first step, imbibition: "The seed
-rapidly takes up water and the seed coat swells and softens." The
+**Water.** Penn State describes the first step, imbibition: the seed
+takes water up rapidly, and the seed coat swells and softens. The
 Forest Service describes three phases, a rapid initial uptake, a lag,
 and then a second rapid uptake just before germination. The first
 phase "is a physical process of moisture moving from a substance with
@@ -1244,13 +1249,14 @@ high water potential (soil) to one with a low water potential (dry
 seed)", and it happens in dead seeds as well as live ones. A seed
 swelling proves nothing about whether it is alive.
 
-**Oxygen.** Penn State: "Seeds respire just like any other living
-organism. They need oxygen and produce carbon dioxide." The Forest
-Service says insufficient oxygen is not usually a barrier "except when
-seeds are buried too deeply in the soil or are submerged in water",
-and adds a detail that explains a lot of failed seed trays: "Moisture
-will actually form a film around seeds and inhibit the entry of
-oxygen."
+**Oxygen.** The Forest Service says insufficient oxygen is not usually
+a barrier "except when seeds are buried too deeply in the soil or are
+submerged in water", and adds a detail that explains a lot of failed
+seed trays: "Moisture will actually form a film around seeds and
+inhibit the entry of oxygen." The demand behind that is ordinary
+respiration, which Penn State puts plainly: seeds respire just as any
+other living organism does, needing oxygen and giving off carbon
+dioxide.
 
 **Temperature.** Seeds of temperate woody plants germinate from a
 minimum of 2 or 3 degrees C to a maximum of about 45 degrees C, and
@@ -1266,9 +1272,9 @@ For vegetable crops, use the sourced soil-temperature table in
 [The Growing Calendar](/library#the-growing-calendar) rather than any of
 those woody-plant numbers.
 
-**Light.** Penn State: "Not all seeds have the same light
-requirements. Most seeds germinate best under dark conditions", while
-some require light. The Forest Service explains the machinery: a
+**Light.** Penn State: seeds do not all have the same light
+requirements, and most of them germinate best under dark conditions,
+while some require light. The Forest Service explains the machinery: a
 pigment called phytochrome exists in two forms, one absorbing red
 light at 660 nm and one absorbing far-red at 730 nm, and "red light
 converts Pr to Pfr in imbibed seeds, which is associated with
@@ -1283,10 +1289,10 @@ inch down.
 ### What this predicts
 
 **Why sowing depth matters twice over.** A seed has a finite food
-reserve. Penn State: after the shoot emerges "the seedling grows
-slowly while the storage tissue of the seed diminishes", until true
-leaves appear, and those leaves, "unlike cotyledons, photosynthesize
-light into energy." So too deep means the reserve runs out before the
+reserve. Penn State: once the shoot is up, the seedling grows slowly,
+living off the seed's stored tissue as that dwindles, until true
+leaves appear, and those leaves, unlike the cotyledons, photosynthesise
+light into energy. So too deep means the reserve runs out before the
 first leaf reaches the light. And too deep also means less oxygen. Two
 independent reasons for one rule.
 [Starting Seeds](/library#starting-seeds) has the practical depth rule.
@@ -1672,12 +1678,12 @@ with the source named.
   to white leaves; legginess; leaf drop starting with older leaves;
   16 to 18 hours a day for seedlings; 4 to 6 inches between light and
   seedlings). https://extension.umn.edu/planting-and-growing-guides/lighting-indoor-plants
-- University of Minnesota Extension. Starting Seeds Indoors ("Keep
-  lights no more than 4 inches above the tops of your seedlings: as
-  close as 2 inches is ideal" and "Plants need 12 to 16 hours of light
-  daily"). Opened specifically to check the table in Part 5, because
-  these figures differ from the same extension service's indoor
-  lighting page above. Both are quoted rather than averaged.
+- University of Minnesota Extension. Starting Seeds Indoors (keeping
+  the lights within 4 inches of the seedling tops, and calling 2 inches
+  ideal; plants needing 12 to 16 hours of light daily).
+  Opened specifically to check the table in Part 5, because these
+  figures differ from the same extension service's indoor lighting page
+  above. Both are reported separately rather than averaged.
   https://extension.umn.edu/planting-and-growing-guides/starting-seeds-indoors
 - University of Minnesota Extension. Non-Pest Issues of Cool-Season
   Crops (bolting defined as premature flowering after the shift to

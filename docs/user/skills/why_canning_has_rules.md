@@ -913,11 +913,11 @@ Book notes that with antitoxin, other treatment "and the help of a
 breathing machine, the paralysis usually goes away within weeks or, in
 severe cases, months."
 
-So the instruction is the emergency one. MedlinePlus tells you to go to the
-emergency room or call 911, or your local emergency number, if you suspect
-botulism.
-CDC: "If you or your child has signs and symptoms of botulism, immediately
-see your doctor or go to the emergency room. Do not wait."
+So the instruction is the emergency one. CDC: "If you or your child has
+signs and symptoms of botulism, immediately see your doctor or go to the
+emergency room. Do not wait." MedlinePlus says the same, telling you to
+go to the emergency room, or to call 911 or your local emergency number,
+if you suspect botulism.
 
 Do not phone a friend who cans. Do not wait until morning to see whether it
 settles. Do not let the fact that the person can still walk about reassure
@@ -1032,17 +1032,25 @@ rather than quoted, because those are not public domain.
 
 **Two sources need care and are flagged here rather than buried.** Facts
 are not copyrightable (Feist v. Rural Telephone, 1991); the expression is.
-So both of these are restated in our own words and neither is quoted
-anywhere in this document.
+So both of these are restated in our own words, and no sentence of
+either source's content is quoted anywhere in this document. The one
+thing reproduced word for word is the copyright notice below, and it
+is reproduced in order to attribute it.
 
 The **MedlinePlus Medical Encyclopedia** article used below is hosted by
-the National Library of Medicine but is not a federal work: it carries the
-notice "(c) 1997- 2026 A.D.A.M., a business unit of Ebix, Inc. Any
-duplication or distribution of the information contained herein is strictly
-prohibited." MedlinePlus pages written by NLM itself are a different case
-from the A.D.A.M.-licensed encyclopedia articles under `/ency/article/`,
-and the distinction is easy to miss because both sit on the same domain.
-This project's source registry already records MedlinePlus as mixed
+the National Library of Medicine but is not a federal work. MedlinePlus
+carries this notice on it, set out word for word here because
+attributing it is the entire reason for mentioning it:
+
+<!-- quote-ok: reproducing the copyright notice itself in order to attribute it -->
+"(c) 1997- 2026 A.D.A.M., a business unit of Ebix, Inc. Any duplication
+or distribution of the information contained herein is strictly
+prohibited."
+
+MedlinePlus pages written by NLM itself are a different case from the
+A.D.A.M.-licensed encyclopedia articles under `/ency/article/`, and the
+distinction is easy to miss because both sit on the same domain. This
+project's source registry already records MedlinePlus as mixed
 licensing, restate-only, which is the correct handling.
 
 **NCHFP** is hosted by the University of Georgia and the registry records

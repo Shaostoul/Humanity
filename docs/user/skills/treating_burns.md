@@ -240,6 +240,7 @@ published consensus study that updated them.
 A burn that happened in an enclosed space is an airway emergency until
 proven otherwise, even if the skin looks fine.
 
+<!-- quote-ok: from medlineplus.gov/inhalationinjuries.html, a health topic page, which MedlinePlus lists as public domain; only the /ency/ encyclopedia is copyrighted -->
 The blunt number, from MedlinePlus: "Over half of deaths from fires are
 due to inhalation injuries." Not the flames. The air.
 
@@ -536,23 +537,9 @@ with this guide; the rest cannot.
 
 ### United States government (public domain)
 
-- National Library of Medicine, MedlinePlus. Burns (burn degrees and
-  appearance, cooling duration, the complete do-not list, when to call
-  911, dressings, infection signs, prevention).
-  https://medlineplus.gov/ency/article/000030.htm
-- National Library of Medicine, MedlinePlus. Chemical burn or reaction
-  (brushing off dry chemicals, flushing duration, the dry lime and
-  elemental metal exception, not neutralising, Poison Control).
-  https://medlineplus.gov/ency/article/000059.htm
-- National Library of Medicine, MedlinePlus. Electrical injury (the
-  20 foot rule, cutting power, CPR, hidden internal damage, what not to
-  apply). https://medlineplus.gov/ency/article/000053.htm
 - National Library of Medicine, MedlinePlus. Inhalation injuries (over
   half of fire deaths are due to inhalation injury; symptoms).
   https://medlineplus.gov/inhalationinjuries.html
-- National Library of Medicine, MedlinePlus. Sunburn (onset and
-  progression, peeling, pain timing, avoiding oil-based and anaesthetic
-  products). https://medlineplus.gov/ency/article/003227.htm
 - US Department of Defense, Joint Trauma System. Burn Care Clinical
   Practice Guideline, CPG ID 12, version 1.3, 10 June 2025 (burn depth
   definitions and blanching, superficial burns excluded from size
@@ -654,3 +641,32 @@ them above is written in our own words.
   full thickness burns causing little or no pain). Distributed under
   CC BY-NC-ND 4.0, so cited rather than copied.
   https://www.ncbi.nlm.nih.gov/books/NBK430741/
+
+### Copyrighted, cited but NOT redistributable
+
+These pages are the A.D.A.M. Medical Encyclopedia, which MedlinePlus hosts
+and which carries its own copyright notice:
+<!-- quote-ok: reproducing the copyright notice itself in order to attribute it -->
+"(c) 1997- 2026 A.D.A.M., a
+business unit of Ebix, Inc. Any duplication or distribution of the
+information contained herein is strictly prohibited." Every medlineplus.gov
+/ency/ address is A.D.A.M. content. MedlinePlus's other material, the health
+topic summaries and medical test pages, IS public domain; the encyclopedia is
+not. Everything taken from these pages is restated in our own words here,
+because facts are not copyrightable and expression is, and none of it may
+ship in the bundle.
+
+- National Library of Medicine, MedlinePlus. Burns (burn degrees and
+  appearance, cooling duration, the complete do-not list, when to call
+  911, dressings, infection signs, prevention).
+  https://medlineplus.gov/ency/article/000030.htm
+- National Library of Medicine, MedlinePlus. Chemical burn or reaction
+  (brushing off dry chemicals, flushing duration, the dry lime and
+  elemental metal exception, not neutralising, Poison Control).
+  https://medlineplus.gov/ency/article/000059.htm
+- National Library of Medicine, MedlinePlus. Electrical injury (the
+  20 foot rule, cutting power, CPR, hidden internal damage, what not to
+  apply). https://medlineplus.gov/ency/article/000053.htm
+- National Library of Medicine, MedlinePlus. Sunburn (onset and
+  progression, peeling, pain timing, avoiding oil-based and anaesthetic
+  products). https://medlineplus.gov/ency/article/003227.htm
