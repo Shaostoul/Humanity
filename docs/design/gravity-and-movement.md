@@ -318,6 +318,118 @@ objects as loose and physical, treat the rest as secured until a threshold is
 crossed, and then convert them. Same trick as the crowd's promotion boundary in
 [crowd-simulation.md](crowd-simulation.md), applied to objects instead of people.
 
+## Interstellar travel: no FTL, decided 2026-09-15
+
+The operator asked whether a blink drive or a warp bubble is better, on the
+grounds that "I don't want gameplay between stars to take literal years". The
+arithmetic says the premise does not hold, and both candidates would break the
+gravity model above.
+
+**The constraint is already satisfied by in-system travel.** A brachistochrone
+(accelerate to the midpoint, flip, decelerate) at the drive's own 0.05-0.1 g
+cruise, converted into REAL hours of play at this game's clock (a game day is
+1200 real seconds, so the world runs 72x):
+
+| Destination | at 0.1 g | at 0.05 g |
+|---|---:|---:|
+| The Moon | 0.2 real hours | 0.2 |
+| Mars, close approach | 2.2 | 3.1 |
+| Jupiter, close approach | **6.2** | 8.7 |
+| Neptune | 16.2 | 23.0 |
+
+A Jupiter voyage costs about six real hours, under full spine gravity the whole
+way, needing no new physics at all. That is the answer to "travel must not take
+years": the problem was never travel time, it was that interstellar was the only
+destination anyone was considering.
+
+**And even the interstellar crossing is not the problem it sounds like.** At
+0.1 g, Alpha Centauri is 12.8 ship-years, which is **1,556 real hours**. The
+longest-lived plant already shipped in `data/plants.csv` is a redwood at 7,300
+growth-days, which is **2,433 real hours**. The project has already decided that
+a longer wait than the crossing is an acceptable thing to put in a data file.
+
+### Why not blink, and why not warp
+
+Both fail on the same point, and it is fatal rather than aesthetic.
+
+**A warp bubble rider is on a geodesic: zero proper acceleration by
+construction.** A blink drive means you coast, because a ship that can jump has
+no reason to sustain a burn. Either way `g_thrust` goes to zero, and with it the
+spine's gravity and the entire reason the spine is habitable. That un-decides the
+resolution recorded in
+[habitat-generation.md](habitat-generation.md) on the same day.
+
+I had also argued that blink was cheap because it is only a frame change, that it
+preserved the gravity model since you burn before and after, and that a long
+charge time would make the live power simulation into gameplay. All three are
+wrong:
+
+- Cheap to code, ruinously expensive to justify. Mutating a position is 1 percent
+  of the work; the rest is authoring a second star system worth arriving at. Only
+  Sol exists on disk, and the deep-space addressing model (`ContainerRef::Deep`)
+  has zero call sites.
+- "You burn before and after" is backwards. Coasting IS the failure.
+- The power sim models a home grid in watts: live consumers draw 100 to 1,800 W.
+  Getting a mothership to 0.05c is about 3.1e19 Wh, roughly 10^16 times that
+  scale. A charge bar fed by those numbers is a progress bar wearing the power
+  sim's name, which is exactly the placeholder the realistic-first rule forbids,
+  and it would teach something false about energy in a project whose mission is
+  teaching real systems.
+
+**Decision: torch-ship brachistochrone, no FTL.** Travel stays a closed-form
+function of the clock, which is the shape `src/station/orbit.rs` already has, so
+there is nothing to sync. In-system voyages become the near-term destination
+content. The interstellar crossing stays the setting rather than a trip anyone
+waits out.
+
+**Gates stay in the back pocket.** They cannot shortcut the founding voyage
+(nobody built a gate at the far end), but as player-built infrastructure AFTER
+arrival they are the best of the alternatives: the reward for a decades-long
+crossing is that the next one is cheap for everyone who follows. Cooperative
+infrastructure that outlives its builders is this project's thesis as a mechanic.
+
+**One prerequisite, currently broken.** `GameTime::elapsed_seconds` is a
+play-time accumulator, so a voyage would only advance while somebody is logged
+in, and no ship would ever arrive. The Cosmos page already anchors to real wall
+time instead. Anchor the voyage the same way, or arrival is unreachable by
+construction.
+
+## The hyperboloid, and the gravity gradient it buys
+
+The operator: "the spine of the ship has to be at the center of the hyperboloid
+and the rotating outer mass has to be on the outside of the hyperboloid shape."
+
+This is a better idea than it first appears, for two reasons that are worth
+writing down.
+
+**It is buildable from straight members.** A hyperboloid of one sheet is a RULED
+surface: every point lies on a straight line lying entirely within it. That is
+why cooling towers are hyperboloids, and it means the rotating shell can be
+framed from straight beams under tension rather than curved ones.
+
+**It gives a gravity gradient from a single spin rate, for free.** The radius
+varies along the axis, so `g = omega^2 * r` varies with it. A drum with a 150 m
+waist flaring to 250 m at the ends, spun for a full 1 g at the widest point
+(1.89 rpm, the same rate as the plain 250 m drum):
+
+| Radius | Felt gravity |
+|---:|---:|
+| 150 m (waist) | 0.60 g |
+| 175 m | 0.70 g |
+| 200 m | 0.80 g |
+| 225 m | 0.90 g |
+| 250 m (ends) | 1.00 g |
+
+One structure, one spin rate, and a continuous range of gravities to zone
+against: full weight at the flared ends for residential and farming, reduced
+weight at the waist for industry, medical, docking and anything where lifting
+mass is the job. That is real engineering reasoning producing real gameplay
+variety, which is the best kind of design in this project.
+
+It also puts the spine exactly where the operator says it should be: on the axis,
+where spin gravity is zero, so the spine's only gravity is the drive's thrust.
+The two habitats stop being separate ideas and become one object.
+
 ## Open questions
 
 - **Does the drum despin before a hard burn, automatically or by player choice?**
