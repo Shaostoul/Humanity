@@ -36,15 +36,22 @@ encoder as the next rung rather than a prerequisite.
 
 ## The encoder problem, stated plainly
 
-| Option | License | Real-time? | Build dependency | Verdict |
-|---|---|---|---|---|
-| openh264 | BSD-2 | yes | **C++ compiler** | Violates the no-C rule (same class as aws-lc-sys) |
-| libvpx (VP8/VP9) | BSD | yes | **C build** | Violates |
-| x264 | **GPL** | yes | C build | License problem for a CC0/permissive project. Double no. |
-| ffmpeg | - | yes | the whole C world | No |
-| **rav1e** (AV1) | BSD-2 | **no** (without asm) | asm feature needs **NASM** | Only serious pure-Rust encoder, but not real-time without the exact dependency we refused. Research spike, not a plan. |
-| **Media Foundation H.264 MFT** via the **`windows` crate** | MIT/Apache | **YES** (hardware; NVENC on the RTX 4070) | **none** - `windows` is pure generated Rust bindings, and is ALREADY in the graph via cpal | **The only constraint-compatible real-time path.** Windows-only. A lot of COM. |
-| **MJPEG** via `image` 0.25 (already a dep) | - | yes (cheap) | none | Bandwidth-hostile (10-20x H.264) but **zero new dependencies**. The de-risking step. |
+| Option | License | Patent status | Real-time? | Build dependency | Verdict |
+|---|---|---|---|---|---|
+| openh264 | BSD-2 | **encumbered** (H.264 pool, Via LA; Cisco's royalty cover applies only to Cisco's own binary) | yes | **C++ compiler** | Violates the no-C rule (same class as aws-lc-sys) |
+| libvpx (VP8/VP9) | BSD | royalty-free (Google patent grant) | yes | **C build** | Violates |
+| x264 | **GPL** | **encumbered** (H.264) | yes | C build | License problem for a CC0/permissive project. Double no. |
+| ffmpeg | - | mixed: depends on the codec it is asked for | yes | the whole C world | No |
+| **rav1e** (AV1) | BSD-2 | royalty-free (AOM patent licence) | **no** (without asm) | asm feature needs **NASM** | Only serious pure-Rust encoder, but not real-time without the exact dependency we refused. Research spike, not a plan. |
+| **Media Foundation H.264 MFT** via the **`windows` crate** | MIT/Apache | **encumbered** (H.264); the Windows licence covers use on Windows, nothing else | **YES** (hardware; NVENC on the RTX 4070) | **none** - `windows` is pure generated Rust bindings, and is ALREADY in the graph via cpal | **The only constraint-compatible real-time path.** Windows-only. A lot of COM. |
+| **MJPEG** via `image` 0.25 (already a dep) | - | royalty-free (JPEG patents expired) | yes (cheap) | none | Bandwidth-hostile (10-20x H.264) but **zero new dependencies**. The de-risking step. |
+
+Patent status added 2026-09-16 alongside the PLAYBACK side of the story:
+`docs/design/media-player.md` covers decoding (AV1 via rav1d, Opus via
+unsafe-libopus, both royalty-free, both pure-Rust builds) for the in-world
+screens. The rule there is the mirror of this table: H.264, H.265 and AAC are
+excluded from playback even where a permissive decoder exists, because the
+patent pools charge per unit shipped and a free download cannot carry that.
 
 **Conclusion:** MJPEG now, Media Foundation H.264 next. Both ride the SAME transport, so the
 upgrade is a payload swap, not a rewrite.

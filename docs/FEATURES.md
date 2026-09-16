@@ -183,6 +183,22 @@ catch the bug via a revert-and-retest.
 - Web: `web/chat/chat-voice-streaming.js`
 - Server: `src/relay/storage/streams.rs`, `src/relay/handlers/msg_handlers.rs` (`handle_stream_start/stop/viewer_join/viewer_leave/chat`)
 
+### Video Player Core (native, in-world screens rung 5, 2026-09-16)
+A purpose-built player core, no VLC and no ffmpeg at runtime: opens a
+WebM/Matroska file, decodes AV1 video to RGBA frames and Opus audio to PCM
+on background threads, keeps a monotonic audio-led playback clock, and offers
+play / pause / seek-to-start / poll-the-due-frame. Refuses any other codec by
+name (H.264, H.265, AAC, VP8/VP9 and Vorbis are not decoded; other formats
+will be transcoded on ingest). No display integration yet: the in-world
+screen surface that draws the frames is a separate rung. Measured on the dev
+machine in release mode, RGBA conversion included: 1080p AV1 decodes at
+28 fps on one thread and 69 fps with rav1d's threads (the fixture, 320x180,
+at 1154 and 1802 fps). Design, licence audit and numbers:
+`docs/design/media-player.md`.
+- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream`)
+- Data: `tests/fixtures/media/*.webm` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
+- Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark)
+
 ### Reactions
 Emoji reactions on messages.
 - Web: `web/chat/chat-ui.js` (reaction picker)

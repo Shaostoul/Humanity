@@ -243,7 +243,7 @@ No architectural changes required -- only a head-tracking input feed and device 
 | `kira` | Mixing engine, voice management, bus routing, tweening | MIT |
 | `steam-audio-sys` | Steam Audio C bindings (bindgen) | Apache 2.0 |
 | `cpal` | Cross-platform audio output (WASAPI/CoreAudio/ALSA/PulseAudio) | Apache 2.0 |
-| `symphonia` | Audio file decoding (Vorbis, FLAC, WAV) | MPL 2.0 / Apache 2.0 |
+| `symphonia` | Audio file decoding (Vorbis, FLAC, WAV) | MPL-2.0 (corrected 2026-09-16: this row used to say "MPL 2.0 / Apache 2.0"; the `license` field of symphonia 0.5.5, symphonia-core and symphonia-codec-vorbis is `MPL-2.0` only, checked in the crate manifests, and the crate tarballs ship no licence text file) |
 
 ---
 

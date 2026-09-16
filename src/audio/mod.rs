@@ -178,6 +178,26 @@ impl AudioManager {
         Ok(())
     }
 
+    /// Play a streaming sound whose samples come from a caller-provided
+    /// decoder (the media player's Opus track, `src/media/audio.rs`). kira
+    /// pulls chunks from the decoder on its own decode thread; the returned
+    /// handle reports the playback position and takes pause / resume / seek,
+    /// which is what lets the video clock follow the sound card. Volume is
+    /// master * `vol` at the moment of the call, the same snapshot rule the
+    /// one-shot paths above use.
+    pub fn play_stream<E: Send + 'static>(
+        &mut self,
+        data: kira::sound::streaming::StreamingSoundData<E>,
+        vol: f64,
+    ) -> Result<kira::sound::streaming::StreamingSoundHandle<E>, String> {
+        let data = data.volume(kira::Volume::Amplitude(
+            self.master_volume * vol.clamp(0.0, 2.0),
+        ));
+        self.manager
+            .play(data)
+            .map_err(|e| format!("Stream play error: {e}"))
+    }
+
     /// Load and cache sound data from a file path.
     fn load_sound(
         &mut self,
