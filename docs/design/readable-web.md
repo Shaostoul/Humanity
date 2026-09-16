@@ -242,16 +242,68 @@ All offline (`cargo test --features native --lib web_reader`, `web_view`,
   fresh install, and a deliberate on survives save + load through both GUI
   legs.
 
+## On a wall
+
+The same view renders on an in-world screen (rung 6, integration; the
+screen architecture is `docs/design/in-world-screens.md`). A machine
+instance whose `screen_source` is `web:<url>` gets a `WebProvider`
+(`src/engine/screens/web.rs`) that owns one `WebViewState` of its own and
+draws it into the screen's texture every framed tick. The shipped example is
+`wall_screen_3` in `data/machines/home.ron`, on the console room's east
+wall, showing `https://united-humanity.us`. The player looks at the wall,
+the look ray becomes the view's pointer, and a click on a link navigates the
+wall; Back, Forward, Reload, the address row and "Open in browser" are the
+same toolbar minus "Sites" (a wall has no card list to return to).
+
+**The off switch holds on the wall.** `readable_web` is read every frame.
+While it is off, the wall shows a notice ("In-app web reading is off", the
+url the screen would show, and the exact control: Settings > Privacy, "Read
+websites inside HumanityOS") and the provider never calls the view, so no
+navigation is queued and no fetch can be dispatched; the screen's status
+reports `off`. Turning it on starts ONE navigation on the next frame (never
+one per frame: the view's own fetch is asynchronous and is polled, not
+re-issued). Turning it off again stops drawing the view at all. Everything
+in "The opt-in, and what leaves the machine" above applies unchanged: the
+same one GET for the page, the same lazy image requests as they scroll into
+view, on the same bounded fetch path.
+
+**What the rig proves.** `just verify-screens` (`scripts/verify-screens.js`)
+boots the real release binary in a portable rig with `readable_web: true`
+written into the rig's own config before boot, enters the world, parks the
+camera in front of the web wall, and through `debug/screen_request.json`
+waits for the page to report `ready` on our own host, snapshots it, clicks
+its first link by index (the engine maps the link's rect to a point and
+sends a normal press and release through the screen's event API, never a
+side path into the view), waits for `ready` again on a NEW url, snapshots
+again, and requires the two images to differ. The same run clicks the
+inventory wall's Home header (found by its drawn text) and checks the tasks
+wall drew a page and the log holds no panic. The status the rig reads back
+is the provider's own (`url`, `title`, `status`), so a run where the
+setting did not take fails with `off`, never passes by luck. Only our own
+site is fetched.
+
+Run it on the dev machine (never in CI: it needs the GPU) after touching
+the web view, the screen surface, the provider, or the IPC:
+
+```
+cargo build --features native --release
+just verify-screens              # boots, clicks, judges; evidence in .probe-rig/screens/runs/
+just verify-screens --dry-verdict .probe-rig/screens/runs/<stamp>/manifest.json
+node scripts/verify-screens.js --self-test   # the verdict logic on the fixture manifests (no GPU)
+```
+
+Headless twins of the wall checks live in `src/engine/screens/web.rs`:
+the off switch never fetches, one navigation per screen, a click at a
+link's rect through the core navigates the wall view, a failed fetch
+reports its reason.
+
 ## The ladder above
 
-This is rung 6 (core). The rung being built in parallel renders this same
-view on an in-world screen: the `Page` is already a plain block list, so the
-monitor surface draws it the way it draws any egui content on a world quad,
-and the sites database's `embed.status` decides which sites may be placed on
-screens (`forbidden` never; `needs_review` with the review badge). Rungs after
-that, from the old kiosk design and still wanted: input from a look-ray or VR
-controller, distance-based suspend, an affiliate dashboard once any programme
-is joined.
+Rung 6 core and its wall integration are shipped. The sites database's
+`embed.status` decides which sites may be placed on screens (`forbidden`
+never; `needs_review` with the review badge). Still wanted, from the old
+kiosk design: input from a VR controller ray, distance-based suspend of a
+wall's fetches, an affiliate dashboard once any programme is joined.
 
 ## Files
 
@@ -263,6 +315,8 @@ is joined.
 | `src/web_reader/fetch.rs` | Scheme gate, capped fetch, manual redirects, background thread |
 | `src/gui/widgets/web_view.rs` | The egui view: toolbar, history, status, page drawing |
 | `src/gui/pages/browser.rs` | The Browser page: cards + the view |
+| `src/engine/screens/web.rs` | The view on an in-world screen (`WebProvider`) |
+| `scripts/verify-screens.js` | The runtime rig that clicks the wall screens (`just verify-screens`) |
 | `src/gui/pages/settings.rs` | The Privacy-section opt-in toggle |
 | `src/config.rs` | `AppConfig.readable_web` and its save/load legs |
 | `data/web/sites.json`, `schemas/web_sites.toml` | The websites database |

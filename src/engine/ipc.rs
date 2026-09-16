@@ -1452,6 +1452,11 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
         return;
     };
     let mut done = screen_done_base(s, &ipc.action, focused);
+    if matches!(ipc.action.as_str(), "hover" | "click" | "scroll" | "text" | "link") {
+        // Where the event landed, so the evidence says which point was
+        // clicked (a `link` resolves its uv from the rect only at queue time).
+        done["uv"] = serde_json::json!([ipc.uv.0, ipc.uv.1]);
+    }
     if ipc.action == "find" {
         // Answered from the frame just drawn (see `ScreenCore::find_text`).
         // `found: false` is a successful answer ("nothing by that name is

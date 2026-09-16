@@ -253,6 +253,7 @@ Every time a UI button or context menu action is added, verify ALL of the follow
    - Mouse-look (`DeviceEvent::MouseMotion` -> `process_mouse_motion`) is blocked while the surface is active, or the camera spins instead of the cursor reaching the panel.
    - The panel `draw(...)` call is INSIDE the `egui_ctx.run(...)` closure (not before/after it).
    - **It is genuinely un-verifiable from here** (native egui can't be auto-clicked by the harness, and the browser preview tools don't apply). So state the interactability assumption explicitly in the ship note and ask the operator to confirm a click lands. "Shows on screen" is NOT "is interactable."
+   - **Exception: in-world SCREENS (pages on wall displays) ARE verifiable.** `just verify-screens` boots the release exe, enters the world and clicks the wall screens through `debug/screen_request.json` (the same event API the look ray uses): it must prove a click on the inventory wall toggles the Home header, a click on the web wall's first link navigates, the tasks wall drew a page, and the log has no panic (exit 0/1/2 like `just verify-runtime`). Run it after touching `src/gui/screen_surface.rs`, `src/engine/screens*`, the web view or the screen IPC. `node scripts/verify-screens.js --self-test` proves the verdict logic without a GPU and runs in `just preflight`.
 
 Common failure patterns to avoid:
 - Sending a custom WS message type that the server doesn't handle (always check server-side first)

@@ -17,7 +17,9 @@ Code map:
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
 | Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
 | Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/` (one provider per kind) |
-| Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions) |
+| The web provider (rung 6) | `src/engine/screens/web.rs` (`WebProvider`) |
+| Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions; `poll_camera_request`'s `station` + `screen` pose) |
+| The screens rig | `scripts/verify-screens.js` (`just verify-screens`), `scripts/lib/png.js`, fixtures under `tests/fixtures/screens/` |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
 
 The decision that required this increment is Brief 4 in
@@ -212,7 +214,52 @@ match and `frame_surfaces` rebinds the scene material to the new texture the
 same frame, so a 1920 x 1080 stream on a 1280 x 720 wall shows every pixel.
 Providers also report `status()` fields into the dev IPC's done file (a
 stream's connection state, a clip's position, a web view's url), which is
-what lets the rig wait for and assert on them.
+what lets the rig wait for and assert on them. Two more hooks serve the rig:
+`load_state()` (static / loading / ready / error, what `wait_ready` polls)
+and `link_rects()` (the links drawn last frame, what `link` clicks).
+
+## Web sources (rung 6, integration)
+
+`web:<url>` puts the readable web (`docs/design/readable-web.md`) on a
+wall. The provider (`src/engine/screens/web.rs`, `WebProvider`) owns one
+`WebViewState` per screen, the same widget the Browser page hosts, so a wall
+has its own history, its own in-flight fetch and its own status line; two
+walls showing two sites never share a page, and neither touches the Browser
+page's view. What the player sees is the view's toolbar (Back, Forward,
+Reload, the address row with Go, Open in browser; the "Sites" button is
+hidden because a wall has no card list to return to), the status line, and
+the page in a scroll area with clickable links. Looking at a link and
+clicking navigates the wall, exactly as in the Browser page.
+
+The rules that make it safe to hang a web page on a wall:
+
+- **One navigation per screen.** The provider navigates to its url on the
+  first frame it draws while in-app web reading is on, and never again on
+  its own (`navigated` is the guard). The view's fetch runs on a background
+  thread and is polled once per frame; that is the whole per-frame cost.
+  Reload, Back, Forward and link clicks are the player's, through the view.
+- **Off means off.** `AppConfig.readable_web` (Settings > Privacy, "Read
+  websites inside HumanityOS") is off by default. While it is off the
+  screen draws a notice ("In-app web reading is off", the url it would
+  show, and the exact switch) and NEVER calls the view: no navigate, no
+  `show`, so no fetch can be dispatched. The promise the Browser page makes,
+  that a person who never turns the switch on never has the app fetch a
+  page, holds on the wall. Turning the switch on later starts the one
+  navigation on the next frame; turning it off again stops the view being
+  drawn at all. `off_switch_draws_a_notice_and_never_fetches` in `web.rs`
+  proves the off case through the view's own fetch state.
+- **The sites database still applies.** The affiliate disclosure line for
+  the current page's site is drawn above the page on the wall too. Which
+  sites may be placed on screens is the database's `embed.status` call, as
+  the readable-web doc says; the shipped `wall_screen_3` shows our own site.
+
+Status for the dev IPC: `{url, title, status}`, where the title is the page's
+first heading (else its `<title>`, else the url) and the status is one of
+`unframed`, `off`, `idle`, `fetching`, `ready` or `error: <reason>`.
+
+Shipped placement: `wall_screen_3` in `home.ron`, on the console room's
+east wall (x = 51, z centre 45.5, facing west into the room), source
+`web:https://united-humanity.us`.
 
 ## Dev IPC (permanent tooling)
 
@@ -224,23 +271,80 @@ Drop `debug/screen_request.json` while the game runs:
 {"screen": "wall_screen_1", "action": "text", "uv": [0.5, 0.5], "text": "hello"}
 {"screen": "wall_screen_1", "action": "hover", "uv": [0.1, 0.1]}
 {"screen": "wall_screen_1", "action": "snapshot"}
+{"screen": "wall_screen_1", "find": {"text": "Home"}}
+{"screen": "wall_screen_3", "action": "wait_ready"}
+{"screen": "wall_screen_3", "link": {"index": 0}}
 ```
 
 The event goes through the same `ScreenCore` methods the look ray uses
 (never a side path), and `debug/screen_done.json` comes back as
 `{"ok", "screen", "source", "kind", "action", "wants_keyboard", "hover_widget",
-"cursor_icon", "focused", "png"}` plus the provider's `status()` fields; `png` is present for `snapshot`, which
-reads the surface texture back to `debug/screen_<id>_N.png`. A click is a
-press on one frame and a release on the next, and the done file is written
-after the surface has drawn the frame the event landed in. `hover_widget`
-is whether egui reported a layer under the pointer after that frame (egui
-does not expose per-widget hover publicly); `cursor_icon` distinguishes a
-text field (Text) or a link (PointingHand) from plain content. The request
-file is consumed even on error, and an error writes `{"ok": false, "error"}`.
+"cursor_icon", "focused", "uv", "png"}` plus the provider's `status()` fields
+merged at the top level (a web screen adds `url`, `title`, `status`); `png` is
+present for `snapshot`, which reads the surface texture back to
+`debug/screen_<id>_N.png`; `uv` is present for the pointer verbs and says
+where the event landed. A click is a press on one frame and a release on
+the next, and the done file is written after the surface has drawn the
+frame the event landed in. `hover_widget` is whether egui reported a layer
+under the pointer after that frame (egui does not expose per-widget hover
+publicly); `cursor_icon` distinguishes a text field (Text) or a link
+(PointingHand) from plain content. The request file is consumed even on
+error, and an error writes `{"ok": false, "error"}`.
 
-This is how the runtime verifier proves a screen works with nobody at the
-keyboard: request a snapshot, read the PNG, request a click on a header,
-request another snapshot, compare.
+The three verbs a rig needs so it never guesses a pixel:
+
+- **`find`** answers where a drawn text is: `{"found", "text", "matches",
+  "uv", "rect_px"}`. egui exposes no label lookup (widget rects carry ids,
+  not text), so the core scans the frame's own shapes for text galleys:
+  an exact match wins, then a text that starts with the query, then one
+  that contains it, first in drawing order within a tier; text clipped
+  out of a scroll area is skipped. `found: false` is an answer, not an
+  error. On the inventory, `"Home"` lands on the container header "Home
+  (Silverdale, WA ...)", not the person row "You  (Home)".
+- **`link`** clicks the Nth link the provider drew last frame: the rect is
+  clipped to the surface, its centre becomes the uv, and the press and
+  release go through `ScreenSurface::button` like any click. No such link
+  is `{"ok": false}` with the count the content drew.
+- **`wait_ready`** completes only once the provider reports ready or
+  failed (`load_state()`), bounded by `WAIT_READY_LIMIT` (15 s; a timeout
+  is `{"ok": false}` with the status fields, never a pass). While it waits
+  the request stays in flight, which keeps the surface framed so a web
+  view keeps polling its fetch. Static content (a page, the off notice)
+  completes at once. `waited_ms` says how long it took.
+
+`debug/camera_request.json` with `{"station": "home", "screen":
+"wall_screen_3"}` parks the camera 2 m (`distance_m`) straight out from
+that screen's centre, at its height, looking back at it: the pose is
+computed from the screen's quad, so any screen in any room can be framed
+without a typed coordinate. Unknown ids fail with the placed ids listed.
+
+### The screens rig
+
+`just verify-screens` (`scripts/verify-screens.js`) is the gate that proves
+the wall screens are interactive with nobody at the keyboard. It refuses
+while ANY HumanityOS.exe is running (one GPU), refuses a stale exe, boots
+the release binary in its own portable rig (`.probe-rig/screens`, with
+`readable_web: true` written into the rig's config.json before boot), enters
+the world through autopilot, parks facing `wall_screen_3`, and then:
+
+1. inventory (`wall_screen_1`): snapshot, `find` "Home", `click` at the
+   answer, snapshot; the two PNGs must differ and `hover_widget` must be
+   true;
+2. web (`wall_screen_3`): `wait_ready` (status must be `ready` on our own
+   host), snapshot, `link 0`, `wait_ready` again (a NEW url, `ready`
+   again), snapshot; the two PNGs must differ;
+3. tasks (`wall_screen_2`): one snapshot that is not a single colour;
+4. zero PANIC lines in the rig's run.log.
+
+Evidence lands in `.probe-rig/screens/runs/<stamp>/` (the PNG pairs, a
+viewport capture of the console room, the manifest with every done file
+verbatim, the run log). Exit 0 passed, 1 refused, 2 failed. The verdict is a
+pure function of the manifest: `--dry-verdict <manifest.json>` re-judges
+one without booting, and `--self-test` judges the two fixture manifests
+under `tests/fixtures/screens/` (a green one that must pass and a red one
+that must fail on exactly its six known checks, including two byte-identical
+snapshots for the differ check), which is how the verdict logic itself is
+proven able to fail. Both print "DRY VERDICT (nothing was booted)".
 
 ## Performance budget
 
@@ -279,6 +383,7 @@ Each is a separate increment on the same surface:
   texture each frame via `Renderer::update_material_albedo_pixels` (already
   in place: one `write_texture` per frame at matching size, no reallocation).
 - **Video:** decoded frames through the same updater.
-- **The readable web:** Brief 4's HTML/CSS renderer drawing into a surface
-  the way an egui page does today. The monitor surface does not change; the
-  thing drawn into it does.
+- **The readable web:** shipped (rung 6, the "Web sources" section above).
+  The monitor surface did not change; the thing drawn into it did, exactly
+  as planned. Still wanted on top of it: a VR-controller ray, and
+  distance-based suspend of a wall's fetches.
