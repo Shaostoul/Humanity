@@ -285,6 +285,67 @@ fn drop_joins_the_decode_thread() {
     );
 }
 
+/// The kira hookup end to end, on a machine with an audio device: attach the
+/// Opus track, play muted, and check that the AUDIO-LED clock advances in
+/// real time, frames still never run ahead of it, pause holds it, and a
+/// rewind restarts both. Ignored because CI has no audio device; run it by
+/// hand after touching attach_audio / sync_clock_to_audio / play_stream.
+#[test]
+#[ignore = "needs an audio output device; run: cargo test --features native --lib media::tests::audio_led -- --ignored --nocapture"]
+fn audio_led_clock_follows_kira_when_a_device_exists() {
+    let mut audio = match crate::audio::AudioManager::try_new() {
+        Ok(a) => a,
+        Err(e) => {
+            println!("skipped: no audio device ({e})");
+            return;
+        }
+    };
+    // Muted: this is about timing, not the speakers. kira's transport still
+    // advances position() at zero amplitude.
+    audio.set_master_volume(0.0);
+
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).expect("open");
+    player.attach_audio(&mut audio).expect("attach the Opus track to kira");
+    assert!(player.has_audio());
+
+    // Attached while paused: the clock must not move.
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(player.position_s() < 0.01, "paused with audio attached, position {}", player.position_s());
+
+    player.play();
+    let start = Instant::now();
+    let mut delivered = 0;
+    let mut last_pts = -1.0;
+    while start.elapsed() < Duration::from_millis(1500) {
+        if let Some(f) = player.poll() {
+            let clock = player.position_s();
+            assert!(f.pts_s <= clock + 1e-9, "frame at {} s ahead of the audio-led clock {clock}", f.pts_s);
+            assert!(f.pts_s > last_pts, "out of order: {} after {last_pts}", f.pts_s);
+            last_pts = f.pts_s;
+            delivered += 1;
+        }
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    let pos = player.position_s();
+    assert!((pos - 1.5).abs() < 0.25, "the audio-led clock should sit near 1.5 s after 1.5 s of play, got {pos}");
+    assert!(delivered >= 30, "frames should keep flowing under the audio clock, got {delivered}");
+
+    player.pause();
+    let held = player.position_s();
+    std::thread::sleep(Duration::from_millis(200));
+    assert!((player.position_s() - held).abs() < 1e-9, "a paused clock holds still");
+
+    player.seek_to_start();
+    assert!(player.position_s() < 0.05, "rewound, got {}", player.position_s());
+    player.play();
+    let f = wait_for_frame(&mut player, Duration::from_secs(2)).expect("frames after a rewind with audio attached");
+    assert!(f.pts_s < 0.3, "first frame after rewind at {}", f.pts_s);
+    std::thread::sleep(Duration::from_millis(300));
+    let after = player.position_s();
+    assert!(after > 0.2 && after < 0.8, "the clock runs again after the rewind, got {after}");
+    println!("audio-led: {delivered} frames in 1.5 s, clock {pos:.3} s, after rewind {after:.3} s");
+}
+
 /// Measured, not guessed: frames per second of the full pipeline (demux,
 /// AV1 decode, RGBA conversion) on this machine. Set
 /// HUMANITY_MEDIA_BENCH_FILE to a larger AV1 WebM (a 1080p one, say) to

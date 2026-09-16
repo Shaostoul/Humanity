@@ -274,6 +274,7 @@ Each asserts on the decoded RESULT; none is satisfied by the setup it wrote.
 | `live_playback_delivers_frames_in_order_and_never_ahead_of_the_clock` | with the real thread and wall clock: paused at 0 only frame 0 is ever due; playing, every polled frame has pts <= the clock read after the poll and pts strictly increases; the last frame arrives; the clock stops at the declared end |
 | `seek_to_start_rewinds_and_replays` | after passing 0.4 s, `seek_to_start()` puts the clock near 0 and the next delivered frame is from the start |
 | `drop_joins_the_decode_thread` | a liveness flag shared with the thread's stack guard is true while the player lives and false the instant `drop()` returns |
+| `audio_led_clock_follows_kira_when_a_device_exists` (ignored: needs an audio device, run by hand) | the kira hookup end to end: attached while paused the clock holds at 0; playing muted, the AUDIO-LED clock reads 1.494 s after 1.5 s of wall time with 44 frames delivered and none ahead of it; pause holds; a rewind restarts both clock and frames. Observed on the dev machine 2026-09-16 |
 | `bench_decode_fps` (ignored) | the measurement below |
 
 Negative proofs (a gate that cannot fail is not a gate): see the section
