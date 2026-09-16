@@ -16,7 +16,7 @@ Code map:
 | World quads, look-ray hits, input routing, per-frame drawing | `src/engine/screens.rs` |
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
 | Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
-| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/` (one provider per kind) |
+| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`, `ScreenWorld`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/` (one provider per kind: `video.rs`) |
 | Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions) |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
 
@@ -212,7 +212,121 @@ match and `frame_surfaces` rebinds the scene material to the new texture the
 same frame, so a 1920 x 1080 stream on a 1280 x 720 wall shows every pixel.
 Providers also report `status()` fields into the dev IPC's done file (a
 stream's connection state, a clip's position, a web view's url), which is
-what lets the rig wait for and assert on them.
+what lets the rig wait for and assert on them (`complete_screen_request`
+merges them under the base fields, which win a name clash).
+
+A provider that places SOUND in the world gets the world context once per
+frame through `ScreenProvider::world_update(&mut ScreenWorld)`: its screen's
+centre, the listener's position and right-hand direction, and the audio
+manager when the machine has an audio device. `frame_surfaces` calls it for
+EVERY surface with a provider, framed or not, before the framing loop: a clip
+keeps sounding from its screen while the player faces away, so its volume
+and pan must follow the listener every frame, independent of the framing
+budget. A provider with nothing to place leaves the default no-op.
+
+### Video sources (rung 5, integration)
+
+`video:<path>` plays a WebM clip through the purpose-built player
+([media-player.md](media-player.md)) on the screen, on loop, with its sound
+placed at the screen; a click on the screen toggles pause. The operator's
+words: "movies on displays". Provider: `src/engine/screens/video.rs`
+(`VideoProvider`). Shipped: `wall_screen_3` in home.ron's console room plays
+`data/media/demo_colour_bar.webm` (the synthetic 2 s colour-bar clip;
+provenance in `data/media/README.md`).
+
+- **Path rule.** The path after `video:` is resolved against the game DATA
+  dir first (`data/media/x.webm`, the distributed and moddable tree), then
+  the data dir's parent (the dev repo root, so a checkout can name
+  `tests/fixtures/media/x.webm`), the same order GLB models use
+  (`resolve_model_path`, [model-pipeline.md](../game/model-pipeline.md)).
+  A file in neither place, or one the player refuses (any codec but AV1 +
+  Opus), draws an error page naming the path and the problem; it is tried
+  once, never per frame, and never takes the world down.
+- **Opened on the first frame,** not when the world loads: a screen the
+  player never looks at never spawns a decode thread. The decode thread is
+  the player's own (`media-decode`); nothing decodes on the render thread.
+  Each framed tick the provider calls the player's `poll()`, which is the
+  ONLY gate on frames (the newest frame whose pts is at or before the clock,
+  never one ahead of it), and writes what it gets with `write_pixels`.
+- **Every pixel, never stretched.** `write_pixels` resizes the surface to the
+  clip's own frame size, so the wall shows the clip at its native
+  resolution and the GPU sampler scales it on the quad. When the clip's
+  aspect differs from the display's (the def's `px`, which the def author
+  matched to the physical display), the frame is centred at 1:1 in a canvas
+  of the display's aspect over opaque black bars (`letterbox_layout`,
+  `compose_letterbox`), so a 4:3 clip on a 16:9 wall gets side bars, never
+  a stretch. Equal aspects write the frame's bytes straight through, no copy.
+- **Looping.** When the player's clock reaches the clip's declared end the
+  provider calls `seek_to_start` and `play` again; the loop count is in
+  `status()`. The sound loops on kira's side: the stream is attached with a
+  loop region over its whole length (`VideoPlayer::attach_audio_looping`),
+  because a kira stream that runs off its end is removed from the mixer and
+  can no longer be resumed or seeked. The audio wraps a few milliseconds
+  before the picture (the stream ends at the Opus sample count, the clock
+  at the container duration); the seek inside `seek_to_start` re-aligns
+  them, a phase glitch of under 20 ms on the fixture's tone.
+- **Click to pause.** `on_button` toggles on the PRESS (a click is one
+  toggle, not two). The surface routes a button event only to the provider
+  it holds, so a click on a page screen or any other kind never reaches a
+  clip. While paused the surface shows a one-line "Paused at X s of Y s.
+  Click to play." page through `run_and_render` (the frame is bytes in a
+  texture, not egui, so there is no overlay to draw on it) and the last
+  frame is kept in memory; play re-writes it at once, before the next frame
+  is due. A click before the clip has opened is honoured when it opens.
+- **Sound placed at the screen.** The clip's Opus track plays through kira
+  as a streaming sound (`AudioManager::play_stream`), which is a plain stereo
+  stream, not an emitter in a 3D scene (the engine has no kira spatial scene
+  or listener yet; `audio/spatial.rs` is a stub). So the placement is done
+  the way `play_spatial` does it for one-shots, updated live: linear volume
+  falloff to silence at 50 m (`AUDIO_MAX_DISTANCE_M`, the same law), and a
+  stereo pan from the screen's BEARING relative to the listener's right
+  vector (centre straight ahead or behind, swung 0.7 of the way to one ear
+  for a screen beside you), sent through `VideoPlayer::set_audio_mix` with a
+  60 ms tween and only when the value moved. The one-shot path pans by a
+  world-axis offset, which is fine for a third of a second of footstep and
+  wrong for a film the player turns away from, hence the bearing. Volume =
+  master x sfx x falloff, read live, so the Settings sliders govern a film
+  on the wall like any other world sound. When the engine gains a real
+  spatial scene, the stream should route to an emitter at the screen and
+  this math goes away.
+- **Removal.** Dropping the provider (the machine removed, the source
+  changed) drops the player, which stops and joins the decode thread and
+  stops the kira sound (`VideoPlayer::drop`), so no decoder runs for a wall
+  that is gone and no soundtrack plays from nowhere.
+- **Not framed, still playing.** A video screen behind the camera or beyond
+  40 m is not framed, so its picture freezes while its sound carries on (the
+  kira thread runs regardless). When it is framed again the player's queue
+  holds four stale frames; `poll` drops the stale ones and the decoder
+  catches up in a burst (instant for the fixture, a second or so for 1080p).
+  While a menu page covers the world nothing is framed and no placement
+  runs; the sound holds its last volume and pan.
+- **`status()`**: `path`, `resolved`, `playing`, `paused`, `position_s`,
+  `duration_s`, `loops`, `audio`, `error`, merged into
+  `debug/screen_done.json`.
+
+Not done in this rung, on purpose: **synchronised playback between players**
+(two people in the same room seeing the same frame needs the relay clock
+and a shared play/pause/seek state; a later rung), a **seek bar** or any
+transport control beyond click-to-pause, **subtitles**, a **file picker** (the
+source is the data file's string), inline **volume** per screen, and true 3D
+spatial audio (above).
+
+Tests (`src/engine/screens/video.rs`, GPU-free): `provider_for` resolves the
+scheme; the path rule on a scratch tree (data dir wins, root serves the
+rest, neither is `None`); a press toggles pause and a release does not, on
+the pure state and on the real player's clock; the error page for a missing
+file names the path (read back from the egui shapes, not from the setup) and
+for the VP8 fixture names the codec; frames over the shipped clip arrive at
+320 x 180, in pts order, and the clip loops within 2.6 s; the letterbox
+layout keeps the frame 1:1 at the display's aspect (identity, side bars,
+top and bottom bars, degenerate sizes); the composed canvas has the frame's
+bytes at the offset over opaque black; the placement law (centre ahead,
+mirror-symmetric swing, linear fade, silent at 50 m). Proven able to fail:
+the compose and loop tests each caught a real bug while this was built
+(ghost pixels under the bars when two layouts share a canvas size; the
+pre-wrap frame stamped with the next loop number), and the pause and
+error-page tests were broken on purpose and observed failing at their named
+assertions; details in the FEATURES entry.
 
 ## Dev IPC (permanent tooling)
 
@@ -278,7 +392,8 @@ Each is a separate increment on the same surface:
 - **Live feed:** a camera or stream frame written into a material's retained
   texture each frame via `Renderer::update_material_albedo_pixels` (already
   in place: one `write_texture` per frame at matching size, no reallocation).
-- **Video:** decoded frames through the same updater.
+- **Video:** SHIPPED (rung 5, "Video sources" above): decoded frames through
+  `write_pixels`, looping, click to pause, sound placed at the screen.
 - **The readable web:** Brief 4's HTML/CSS renderer drawing into a surface
   the way an egui page does today. The monitor surface does not change; the
   thing drawn into it does.

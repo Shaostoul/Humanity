@@ -189,15 +189,53 @@ WebM/Matroska file, decodes AV1 video to RGBA frames and Opus audio to PCM
 on background threads, keeps a monotonic audio-led playback clock, and offers
 play / pause / seek-to-start / poll-the-due-frame. Refuses any other codec by
 name (H.264, H.265, AAC, VP8/VP9 and Vorbis are not decoded; other formats
-will be transcoded on ingest). No display integration yet: the in-world
-screen surface that draws the frames is a separate rung. Measured on the dev
+will be transcoded on ingest). The display is the in-world screen surface
+(next entry). Measured on the dev
 machine in release mode, RGBA conversion included: 1080p AV1 decodes at
 28 fps on one thread and 69 fps with rav1d's threads (the fixture, 320x180,
 at 1154 and 1802 fps). Design, licence audit and numbers:
 `docs/design/media-player.md`.
-- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream`)
+- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_looping`, `set_audio_mix`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream`, `master_volume`, `sfx_volume`)
 - Data: `tests/fixtures/media/*.webm` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
 - Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark)
+
+### Video on in-world screens (native, in-world screens rung 5 integration, 2026-09-16)
+"Movies on displays": a placed screen whose source is `video:<path>` plays a
+WebM clip through the player above, on loop, with its sound placed in the
+world at the screen, and a click on the screen toggles pause. The path is
+resolved against the data dir then the repo root (the GLB model rule); the
+player opens on the screen's first frame (a screen nobody looks at spawns no
+decode thread); each framed tick takes the frame the player's own clock says
+is due and writes it into the surface at the clip's native size, letterboxed
+to the display's aspect over black bars, never stretched. The sound is the
+clip's Opus track through kira as a looping stream, volume from distance
+(the same 50 m linear law as one-shot spatial sounds) and stereo pan from
+the screen's bearing, updated every frame for every video screen whether or
+not it is on screen, under the master and sfx sliders. Paused shows a
+one-line "Paused at X s of Y s" page and resumes on the kept last frame; a
+missing file or an unsupported codec shows an error page naming the path
+and the codec. Removing the screen stops and joins the decoder and stops the
+sound. New seam on the provider trait: `ScreenWorld` + `world_update`, the
+per-frame world context (screen centre, listener, audio manager); provider
+`status()` fields now really do merge into `debug/screen_done.json`. Not in
+this rung: synchronised playback between players (needs the relay clock), a
+seek bar, subtitles, a file picker, true 3D spatial audio (no kira spatial
+scene in the engine yet). Design: `docs/design/in-world-screens.md`, "Video
+sources". Proven to fail (2026-09-16): two of the tests earned it on real
+bugs during the build (the compose test caught the previous frame's pixels
+showing through the bars when two layouts shared a canvas size, since the
+bars were painted only on reallocation; the loop test caught the frame
+taken just before a wrap being stamped with the next loop's number, since
+the wrap check ran after the poll), and two on staged breaks: with
+`on_button` toggling on release too the pause test failed at "a release
+must not toggle back", and with the error page reduced to the bare word
+"error" both error-page tests failed at "the page must name the path" and
+"the page names the codec", each quoting the text read back from the drawn
+shapes.
+- Native: `src/engine/screens/video.rs` (`VideoProvider`, `resolve_media_path`, `letterbox_layout`, `compose_letterbox`, `audio_placement`), `src/engine/screens.rs` (`provider_for` arm, `world_update` loop in `frame_surfaces`), `src/gui/screen_surface.rs` (`ScreenWorld`, `ScreenProvider::world_update`, `ScreenSurface::world_update`), `src/engine/ipc.rs` (provider status merge)
+- Web: none by design (the screens live inside the native 3D world).
+- Data: `data/media/demo_colour_bar.webm` + `data/media/README.md` (provenance), `data/machines/home.ron` (`wall_screen_3` in the console room, `video:media/demo_colour_bar.webm`)
+- Tests: `src/engine/screens/video.rs` (scheme, path rule, pause toggle, error pages read back from the drawn text, frames + loop over the shipped clip, letterbox layout and compose, placement law)
 
 ### Reactions
 Emoji reactions on messages.
@@ -1772,9 +1810,9 @@ construction editor's zone detail panel has a room-type picker and shows what th
 (GUI-first). The CONSOLE ROOM (colloquially the battlestation; the mothership bridge is the "command
 deck") is the household's fixed workstation: zone type `console_room`, rooms.ron entry `console_room`,
 and a walled 3.5 x 3 m annex north of the common room (x 47.5..51.0, z 44.0..47.0) in
-`ship_structure.ron`, zone `console-room`. It is the PLANNED mounting point for in-world screens
-(`wall_screen`, `desk_monitor`): those are not built yet, no item, machine or mesh exists for them,
-the rooms.ron equipment list just names them so the room is ready when they land. Also added
+`ship_structure.ron`, zone `console-room`. It is the mounting point for in-world screens
+(`wall_screen`, `desk_monitor`, built since: see "In-world screens" and "Video on in-world
+screens"; `wall_screen_3` on its west wall plays the demo clip). Also added
 room-grade zone types `room_garden` and `room_living`, and `room_type` on every house zone with a
 rooms.ron entry.
 - Native: `src/ship/home_structure.rs` (`Zone::room_type`, `name_rooms_from_zones`, `room_actions_for`), `src/ship/fibonacci.rs` (`RoomInfo::room_type`/`label`/`type_key`), `src/ship/room_types.rs` (`lookup_type`, `function_for`, `RoomFunction`), `src/engine/home_meshes.rs` + `src/engine/world_load.rs` (RoomBounds join), `src/gui/pages/construction.rs` (`draw_zone_detail` room-type picker), `src/gui/mod.rs` (`room_type_registry`)

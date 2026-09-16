@@ -157,6 +157,24 @@ impl ScreenSource {
     }
 }
 
+/// What the world hands a provider once per frame, framed or not: where its
+/// screen is, where the listener (the camera) is and which way is the
+/// listener's right, all in the same world frame in metres, plus the audio
+/// manager when the machine has an audio device. A provider that places
+/// sound at its screen (a clip's soundtrack) reads these; every other kind
+/// ignores them. Plain arrays rather than a vector type so this file, the
+/// GUI's, does not pick up a maths dependency for one struct.
+pub struct ScreenWorld<'a> {
+    /// The centre of the display rectangle.
+    pub screen_centre: [f32; 3],
+    /// The camera's effective position.
+    pub listener_pos: [f32; 3],
+    /// The camera's right-hand direction (unit length), for stereo panning.
+    pub listener_right: [f32; 3],
+    /// `None` on a machine with no audio device; sound then plays nowhere.
+    pub audio: Option<&'a mut crate::audio::AudioManager>,
+}
+
 /// Content that is not a plain page: a live stream, a camera, a clip, a web
 /// page. A provider owns the per-screen state of one such source (the
 /// decoder, the viewer, the browsing history) and takes over the surface's
@@ -168,6 +186,12 @@ impl ScreenSource {
 /// handed: `run_and_render` for egui content (a status page, the web view)
 /// and `write_pixels` for finished frames (a decoded video or stream frame).
 pub trait ScreenProvider: Send {
+    /// The world context, once per frame for EVERY surface with a provider,
+    /// whether or not that surface is framed this tick (a clip keeps
+    /// sounding from its screen while the player faces away, so this is not
+    /// tied to the framing budget). Runs before `frame`. Default: nothing.
+    fn world_update(&mut self, _world: &mut ScreenWorld<'_>) {}
+
     /// Draw this frame. Called instead of the surface's default page draw,
     /// with the same ordering guarantees (outside the main egui closure,
     /// before the scene passes). `surface` is the provider's own surface
@@ -571,6 +595,15 @@ impl ScreenSurface {
         self.core.button(uv, pressed);
         if let Some(p) = self.provider.as_mut() {
             p.on_button(uv, pressed);
+        }
+    }
+
+    /// Hand the provider this frame's world context (see
+    /// `ScreenProvider::world_update`). A surface without a provider has
+    /// nothing to place, so this is a no-op for plain pages.
+    pub fn world_update(&mut self, world: &mut ScreenWorld<'_>) {
+        if let Some(p) = self.provider.as_mut() {
+            p.world_update(world);
         }
     }
 

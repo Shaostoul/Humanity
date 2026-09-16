@@ -27,8 +27,11 @@
 //! `update` + `frame_surfaces` right before the scene passes for exactly
 //! this reason.
 
+/// One provider per source kind, each in its own file (rung 5: video).
+pub mod video;
+
 use crate::engine::state::EngineState;
-use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider};
+use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider, ScreenWorld};
 use crate::gui::GuiPage;
 use crate::machines::PlacedMachine;
 use crate::renderer::mesh::{Mesh, Vertex};
@@ -200,10 +203,13 @@ pub fn screen_quad_vertices(local: &QuadGeom) -> ([Vertex; 4], [u32; 6]) {
 pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
     match source {
         ScreenSource::Page(_) | ScreenSource::Unknown(_) => None,
-        // Live streams, in-game cameras, video clips and the readable web:
-        // added by their rungs (see docs/design/in-world-screens.md, the
-        // sources table). Until then the surface's notice names the gap.
-        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Video(_) | ScreenSource::Web(_) => None,
+        // A WebM clip through the purpose-built player, looping, with its
+        // sound placed at the screen (rung 5, `screens/video.rs`).
+        ScreenSource::Video(path) => Some(Box::new(video::VideoProvider::new(path))),
+        // Live streams, in-game cameras and the readable web: added by
+        // their rungs (see docs/design/in-world-screens.md, the sources
+        // table). Until then the surface's notice names the gap.
+        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Web(_) => None,
     }
 }
 
@@ -577,6 +583,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState) {
     }
     let cam = state.camera.effective_position();
     let fwd = state.camera.forward();
+    let right = state.camera.right();
     let so = state.station_off;
     let mut ranked: Vec<(usize, f32)> = Vec::new();
     for q in &state.screens.quads {
@@ -585,6 +592,29 @@ pub(crate) fn frame_surfaces(state: &mut EngineState) {
         let dist = to.length();
         if dist <= FRAME_RANGE_M && to.dot(fwd) > 0.0 {
             ranked.push((q.surface, dist));
+        }
+    }
+    // The world context for EVERY surface with a provider, framed or not: a
+    // clip's sound keeps coming from its screen while the player faces away
+    // or walks off, so its volume and pan follow the listener every frame,
+    // independent of the framing budget below. A surface with no provider
+    // is skipped inside `world_update` (nothing to place).
+    {
+        let EngineState { screens, audio, .. } = state;
+        let Screens { surfaces, quads, .. } = screens;
+        for q in quads.iter() {
+            let Some(s) = surfaces.get_mut(q.surface) else { continue };
+            if s.provider().is_none() {
+                continue;
+            }
+            let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5 + so;
+            let mut world = ScreenWorld {
+                screen_centre: centre.to_array(),
+                listener_pos: cam.to_array(),
+                listener_right: right.to_array(),
+                audio: audio.as_mut(),
+            };
+            s.world_update(&mut world);
         }
     }
     ranked.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));

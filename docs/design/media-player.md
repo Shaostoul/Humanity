@@ -13,9 +13,12 @@ measurements and the honest list of what is not done.
 **What rung 5 delivers:** open a WebM/Matroska file, decode its AV1 video to
 RGBA frames and its Opus audio to PCM, keep a playback clock, offer play,
 pause, seek-to-start and "give me the frame that is due", with decoding on a
-background thread that is joined on drop. **What it does not deliver:** any
-display. The in-world screen surface that draws the frames is a separate rung
-built in parallel; a later rung connects the two.
+background thread that is joined on drop. **The display** is the in-world
+screen surface, a separate rung; the integration that connects the two (a
+`video:<path>` screen playing a clip on loop with its sound at the screen and
+click-to-pause) is the "Video sources" section of
+[in-world-screens.md](in-world-screens.md), and its provider is
+`src/engine/screens/video.rs`.
 
 ## Why not embed VLC
 
@@ -129,6 +132,8 @@ src/audio/mod.rs    AudioManager::play_stream(): hands a streaming sound to kira
 ```rust
 let mut player = VideoPlayer::open("clip.webm")?;   // probes; refuses unsupported codecs by name
 player.attach_audio(&mut audio_manager)?;          // optional: Opus through kira's mixer
+player.attach_audio_looping(&mut audio_manager, true)?; // the same, looping on kira's side (for a clip that repeats)
+player.set_audio_mix(volume, panning, tween_ms);   // place the sound: amplitude factor + stereo pan 0..1
 player.play();                                     // also .pause(), .seek_to_start()
 if let Some(frame) = player.poll() {               // newest frame with pts <= clock, or None
     upload(frame.rgba, frame.width, frame.height); // the surface rung's job
@@ -334,9 +339,22 @@ the no-toolchain build is worth keeping simple.
 
 ## Not done yet (deliberately, this rung)
 
-- **Display integration.** No texture upload, no in-world surface, no UI.
-  The surface rung takes `VideoFrame` and paints it; a later rung connects
-  a file picker or the storage browser to `VideoPlayer::open`.
+- **Display integration: DONE** for in-world screens (`video:<path>` in
+  `data/machines/home.ron`, provider `src/engine/screens/video.rs`; the
+  frames go through `ScreenSurface::write_pixels`, letterboxed, the sound
+  is placed at the screen, a click pauses, the clip loops). Still to come on
+  that side: a file picker or the storage browser feeding `VideoPlayer::open`
+  (today the source is the data file's string), synchronised playback
+  between players (needs the relay clock), a seek bar, subtitles, and true
+  3D spatial audio once the engine has a kira spatial scene (today the
+  stream's volume and pan are set per frame from distance and bearing).
+- **Loop-point audio alignment.** A looping stream wraps at the Opus sample
+  count while the clock wraps at the container duration, a few milliseconds
+  later; `seek_to_start` re-seeks the sound to 0, replaying those
+  milliseconds (under 20 ms on the fixture). Following the AUDIO wrap
+  instead (detecting `position()` falling and restarting the picture then)
+  would remove the glitch; not done because it is below what the ear
+  catches on a tone and the fixture is the only clip so far.
 - **Arbitrary seek.** Only seek-to-start. Real seeking needs the Matroska
   Cues (matroska-demuxer's `seek()` uses them) plus a decoder flush to the
   preceding keyframe and, on the audio side, seek by index instead of a

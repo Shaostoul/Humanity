@@ -144,6 +144,21 @@ impl AudioManager {
         self.ui_volume = vol.clamp(0.0, 1.0);
     }
 
+    /// The current master volume (0.0 - 1.0). A long-lived sound whose
+    /// volume is set per frame (a clip on an in-world screen) reads this so
+    /// a Settings change reaches it live; the one-shot paths snapshot it at
+    /// play time instead.
+    pub fn master_volume(&self) -> f64 {
+        self.master_volume
+    }
+
+    /// The current sound-effects bus volume (0.0 - 1.0). World sounds that
+    /// are not one-shots (a clip playing on a screen) sit on this bus, the
+    /// same one footsteps and machines use.
+    pub fn sfx_volume(&self) -> f64 {
+        self.sfx_volume
+    }
+
     /// Play a sound with distance-based volume falloff (simple spatial audio).
     pub fn play_spatial(
         &mut self,

@@ -598,6 +598,29 @@ impl VideoPlayer {
     /// already ran). A file with no audio track attaches nothing and plays
     /// silent on the wall clock. Call once; a second call replaces the sound.
     pub fn attach_audio(&mut self, manager: &mut crate::audio::AudioManager) -> Result<(), MediaError> {
+        self.attach_audio_looping(manager, false)
+    }
+
+    /// `attach_audio` with the choice of LOOPING the sound on kira's side.
+    ///
+    /// Why a caller that loops the clip needs this: a kira stream that runs
+    /// off its end enters kira's "finished" state and is removed from the
+    /// mixer, after which every `resume` and `seek_to` on its handle is a
+    /// message to nobody. So for a clip meant to repeat (a screen playing a
+    /// film on loop) the stream gets a loop region over its whole length and
+    /// never finishes. The picture side still restarts through
+    /// `seek_to_start` + `play` when the clock reaches the declared end; by
+    /// then kira has already wrapped the sound to its start a few
+    /// milliseconds earlier (the stream ends at the Opus sample count, the
+    /// clock at the container duration), and the `seek_to(0.0)` inside
+    /// `seek_to_start` re-aligns those few milliseconds. Non-looping is the
+    /// one-shot case: the sound ends with the clip, and `play()` after the
+    /// end is a no-op anyway.
+    pub fn attach_audio_looping(
+        &mut self,
+        manager: &mut crate::audio::AudioManager,
+        looping: bool,
+    ) -> Result<(), MediaError> {
         if self.info.audio_track.is_none() {
             return Ok(());
         }
@@ -605,7 +628,10 @@ impl VideoPlayer {
             old.stop(zero_tween());
         }
         let track = audio::OpusTrack::open(&self.path, &self.info)?;
-        let data = kira::sound::streaming::StreamingSoundData::from_decoder(track);
+        let mut data = kira::sound::streaming::StreamingSoundData::from_decoder(track);
+        if looping {
+            data = data.loop_region(..);
+        }
         let mut handle = manager.play_stream(data, 1.0).map_err(MediaError::Audio)?;
         if self.clock.playing {
             handle.seek_to(self.clock.position());
@@ -621,6 +647,20 @@ impl VideoPlayer {
     /// Whether a kira sound is attached (false for silent files and tests).
     pub fn has_audio(&self) -> bool {
         self.audio.is_some()
+    }
+
+    /// Mix the attached sound: `volume` is an amplitude factor (1.0 = as
+    /// decoded, 0.0 = silent) and `panning` runs 0..1 (0 = hard left, 0.5 =
+    /// centre, 1 = hard right, kira's own convention). Both are reached over
+    /// `tween_ms` milliseconds so a listener walking past a screen hears a
+    /// glide, not steps. This is how a caller PLACES the sound in the world:
+    /// the in-world screen provider computes both from the distance and
+    /// bearing of its screen every frame. A no-op without audio attached.
+    pub fn set_audio_mix(&mut self, volume: f64, panning: f64, tween_ms: u64) {
+        let Some(h) = &mut self.audio else { return };
+        let tween = Tween { duration: Duration::from_millis(tween_ms), ..Default::default() };
+        h.set_volume(kira::Volume::Amplitude(volume.max(0.0)), tween);
+        h.set_panning(panning.clamp(0.0, 1.0), tween);
     }
 
     pub fn play(&mut self) {

@@ -2132,6 +2132,24 @@
             zone: "home",
             screen_source: Some("page:tasks"),
         ),
+        // In-world screens (rung 5, video): a wall screen in the CONSOLE
+        // ROOM (the walled annex north of the common room, x 47.5..51,
+        // z 44..47 in ship_structure.ron) playing the shipped demo clip
+        // (data/media/README.md) on loop, its sound placed at the screen; a
+        // click on it pauses. It hangs on the annex's WEST wall (x = 47.5)
+        // 0.15 m in, like the two above, and faces east into the room
+        // (rotation 270 turns the -Z front face to +X), centred on the wall's
+        // z span. The south wall holds the door and the north wall the bay
+        // window, so the side walls are the display walls.
+        (
+            id: "wall_screen_3",
+            machine: "wall_screen",
+            room: "console",
+            offset: (47.65, 1.2, 45.5),
+            rotation: 270.0,
+            zone: "home",
+            screen_source: Some("video:media/demo_colour_bar.webm"),
+        ),
         (
             id: "side_table_2",
             machine: "side_table",

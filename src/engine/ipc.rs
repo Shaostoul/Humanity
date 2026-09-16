@@ -1325,6 +1325,17 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
         "cursor_icon": format!("{:?}", s.core.cursor_icon()),
         "focused": state.screens.focused == Some(ipc.surface),
     });
+    // A provider's status rides along (a clip's position and loop count, a
+    // stream's connection state, a web view's url), so the rig can wait on
+    // and assert provider state. The base fields above win a name clash.
+    if let Some(p) = s.provider() {
+        let extra = p.status();
+        if let (Some(extra), Some(obj)) = (extra.as_object(), done.as_object_mut()) {
+            for (k, v) in extra {
+                obj.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+        }
+    }
     if ipc.snapshot {
         state.screens.snapshot_counter += 1;
         let path = format!("debug/screen_{}_{}.png", s.core.id, state.screens.snapshot_counter);
