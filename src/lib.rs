@@ -121,6 +121,12 @@ pub mod mods;
 #[cfg(feature = "native")]
 pub mod net;
 
+// In-world screens ladder, rung 5: the purpose-built video player core (WebM
+// demux, AV1 + Opus decode, playback clock). Native-only: it links the rav1d
+// decoder and feeds kira, neither of which the relay build carries.
+#[cfg(feature = "native")]
+pub mod media;
+
 #[cfg(feature = "native")]
 pub mod config;
 
