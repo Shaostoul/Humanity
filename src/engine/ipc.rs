@@ -1194,7 +1194,7 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// `debug/screen_done.json`:
 ///
 /// ```json
-/// {"ok": true, "page": "inventory", "wants_keyboard": false,
+/// {"ok": true, "source": "page:inventory", "kind": "page", "wants_keyboard": false,
 ///  "hover_widget": true, "cursor_icon": "Default", "png": "debug/screen_wall_screen_1_3.png"}
 /// ```
 ///
@@ -1317,7 +1317,8 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
     let mut done = serde_json::json!({
         "ok": true,
         "screen": s.core.id,
-        "page": s.core.page_id,
+        "source": s.core.source_id,
+        "kind": s.core.source.kind(),
         "action": ipc.action,
         "wants_keyboard": s.core.wants_keyboard(),
         "hover_widget": s.core.hover_widget(),

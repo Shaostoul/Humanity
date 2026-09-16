@@ -28,7 +28,7 @@
 //! this reason.
 
 use crate::engine::state::EngineState;
-use crate::gui::screen_surface::ScreenSurface;
+use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider};
 use crate::gui::GuiPage;
 use crate::machines::PlacedMachine;
 use crate::renderer::mesh::{Mesh, Vertex};
@@ -170,6 +170,16 @@ pub fn ray_hit_uv(ray_origin: Vec3, ray_dir: Vec3, quad: &QuadGeom) -> Option<(f
 /// counter-clockwise as seen from the front so back-face culling keeps the
 /// visible side: `(BL - TL) x (BR - TL)` points along the outward normal.
 pub fn screen_quad_mesh(device: &wgpu::Device, local: &QuadGeom) -> Mesh {
+    let (vertices, indices) = screen_quad_vertices(local);
+    Mesh::from_vertices(device, &vertices, &indices)
+}
+
+/// The quad's four vertices and six indices, GPU-free so a test can check
+/// the exact data the mesh is built from: vertex 0 is the top-left corner
+/// at uv (0,0), 1 top-right (1,0), 2 bottom-right (1,1), 3 bottom-left
+/// (0,1); the index order winds both triangles so their face normal is the
+/// outward normal (counter-clockwise seen from the front).
+pub fn screen_quad_vertices(local: &QuadGeom) -> ([Vertex; 4], [u32; 6]) {
     let tl = local.origin;
     let tr = local.origin + local.u_axis;
     let br = local.origin + local.u_axis + local.v_axis;
@@ -178,7 +188,31 @@ pub fn screen_quad_mesh(device: &wgpu::Device, local: &QuadGeom) -> Mesh {
     let v = |p: Vec3, uv: [f32; 2]| Vertex { position: p.to_array(), normal: n, uv };
     let vertices = [v(tl, [0.0, 0.0]), v(tr, [1.0, 0.0]), v(br, [1.0, 1.0]), v(bl, [0.0, 1.0])];
     let indices = [0u32, 3, 2, 0, 2, 1];
-    Mesh::from_vertices(device, &vertices, &indices)
+    (vertices, indices)
+}
+
+/// The ONE registry of content providers: which `ScreenProvider` serves a
+/// non-page source. A page source needs none (the surface draws it through
+/// `gui::dispatch`); a kind with no arm yet draws the "not wired" notice.
+/// Each rung of the screens ladder adds its arm here and its provider in
+/// its own file under `src/engine/screens/`, so the live-feed, video and web
+/// rungs never edit each other's code.
+pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
+    match source {
+        ScreenSource::Page(_) | ScreenSource::Unknown(_) => None,
+        // Live streams, in-game cameras, video clips and the readable web:
+        // added by their rungs (see docs/design/in-world-screens.md, the
+        // sources table). Until then the surface's notice names the gap.
+        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Video(_) | ScreenSource::Web(_) => None,
+    }
+}
+
+/// The egui key for a winit key name: winit says "KeyA" and "Digit1" where
+/// egui says "A" and "1"; everything else ("Enter", "ArrowLeft",
+/// "Backspace") is spelled the same. `None` for keys egui has no name for.
+pub fn egui_key_from_winit_name(key_name: &str) -> Option<egui::Key> {
+    let name = key_name.strip_prefix("Key").or_else(|| key_name.strip_prefix("Digit")).unwrap_or(key_name);
+    egui::Key::from_name(name)
 }
 
 /// A dev-IPC interaction in progress (see `engine::ipc::poll_screen_request`).
@@ -209,9 +243,6 @@ pub struct Screens {
     /// The surface that took the last click; it receives typed text while
     /// its page wants keyboard input. Escape or a click elsewhere clears it.
     pub focused: Option<usize>,
-    /// True for the frame in which a primary press went to a screen, so the
-    /// game's own click action (interact / fire / build pick) skips it.
-    pub consumed_click: bool,
     /// A dev-IPC interaction in flight; while set, the look ray leaves that
     /// surface's pointer alone so the synthetic events are not overwritten.
     pub ipc: Option<ScreenIpc>,
@@ -244,10 +275,11 @@ impl Screens {
         match self.hover {
             Some((si, uv)) => {
                 if let Some(s) = self.surfaces.get_mut(si) {
-                    s.core.button((uv.x, uv.y), pressed);
+                    // The surface's own entry point: the egui core AND the
+                    // provider (a clip pauses on click) see the event.
+                    s.button((uv.x, uv.y), pressed);
                     if pressed {
                         self.set_focus(Some(si));
-                        self.consumed_click = true;
                     }
                     return true;
                 }
@@ -293,8 +325,7 @@ impl Screens {
         if !s.core.wants_keyboard() {
             return false;
         }
-        let name = key_name.strip_prefix("Key").or_else(|| key_name.strip_prefix("Digit")).unwrap_or(key_name);
-        if let Some(key) = egui::Key::from_name(name) {
+        if let Some(key) = egui_key_from_winit_name(key_name) {
             s.core.key(key, pressed, modifiers);
         }
         // Typed text only on the press, and never while Ctrl is held (a
@@ -375,18 +406,22 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
         }
         let (w, h) = (def.px.0.max(1), def.px.1.max(1));
         // Reuse the existing surface when it still matches the def; a
-        // changed page or pixel size means a new context and texture.
+        // changed source or pixel size means a new context and texture. A
+        // provider may have resized its surface to its frame (see
+        // `ScreenSurface::resize`), so the size check is against the def's
+        // px only for a surface that has no provider.
         let reused = old_surfaces
             .iter()
             .position(|s| s.core.id == p.id)
             .map(|i| old_surfaces.remove(i))
-            .filter(|s| s.core.page_id == def.page && s.size() == (w, h));
+            .filter(|s| s.core.source_id == def.source && (s.provider().is_some() || s.size() == (w, h)));
         let (surface, surface_is_new) = match reused {
             Some(s) => (s, false),
-            None => (
-                ScreenSurface::new(&state.renderer.device, &p.id, &def.page, w, h, &state.theme),
-                true,
-            ),
+            None => {
+                let mut s = ScreenSurface::new(&state.renderer.device, &p.id, &def.source, w, h, &state.theme);
+                s.set_provider(provider_for(&s.core.source));
+                (s, true)
+            }
         };
         let si = surfaces.len();
         surfaces.push(surface);
@@ -484,11 +519,11 @@ fn pointing_ray(state: &EngineState) -> Option<(Vec3, Vec3)> {
 
 /// Per frame, BEFORE the scene passes: aim the ray, find the nearest screen
 /// within reach, and move that screen's pointer (or take it away). Also
-/// clears `consumed_click` for the new frame. The click / wheel / key events
-/// themselves are routed at winit event time against the hover computed
-/// here, one frame stale at most.
+/// The click / wheel / key events themselves are routed at winit event time
+/// against the hover computed here, one frame stale at most; `route_button`
+/// returns true when a screen took the press and lib.rs withholds that
+/// press from the game's own click action.
 pub(crate) fn update(state: &mut EngineState) {
-    state.screens.consumed_click = false;
     if state.screens.surfaces.is_empty() {
         return;
     }
@@ -567,9 +602,18 @@ pub(crate) fn frame_surfaces(state: &mut EngineState) {
     // Disjoint borrows of EngineState: the surfaces, the renderer's device
     // and queue, the theme and the shared GuiState.
     let EngineState { screens, renderer, theme, gui_state, .. } = state;
+    let Screens { surfaces, quads, .. } = screens;
     for si in chosen {
-        if let Some(s) = screens.surfaces.get_mut(si) {
+        if let Some(s) = surfaces.get_mut(si) {
             s.frame(&renderer.device, &renderer.queue, theme, gui_state);
+            // A provider that resized its surface to its frame left the
+            // scene material pointing at the old texture; rebind it now,
+            // before the scene pass samples it.
+            if s.take_view_changed() {
+                for q in quads.iter().filter(|q| q.surface == si) {
+                    renderer.set_material_albedo_view(q.material, s.view());
+                }
+            }
         }
     }
 }
@@ -670,31 +714,37 @@ mod tests {
         assert_eq!(q3, q);
     }
 
-    /// The mesh corners carry the same UVs the ray test reports: vertex 0 is
-    /// the origin at (0,0), vertex 2 the far corner at (1,1), and the first
-    /// triangle is wound so its face normal is the outward normal.
+    /// The mesh data the quad is built from (read from `screen_quad_vertices`,
+    /// the exact vertices and index order the GPU mesh gets, not a rebuilt
+    /// copy) agrees with the ray test: each vertex's uv is what the ray
+    /// reports at that vertex's position, and BOTH triangles, taken in the
+    /// production index order, wind so their face normal is the outward
+    /// normal. Reversing the index order fails the winding assertions.
     #[test]
     fn quad_mesh_corner_uvs_and_winding_match_the_ray_test() {
         let local = quad_from_placement(Vec3::ZERO, (1.2, 0.7, 0.05), 0.0, "front", 0.0);
-        let tl = local.origin;
-        let tr = local.origin + local.u_axis;
-        let br = local.origin + local.u_axis + local.v_axis;
-        let bl = local.origin + local.v_axis;
-        // Same construction screen_quad_mesh uses; check the winding math it
-        // relies on without needing a GPU device for Mesh::from_vertices.
-        let face_n = (bl - tl).cross(br - tl).normalize();
-        assert!(close(face_n, local.normal), "first triangle winds against the outward normal");
-        let face_n2 = (br - tl).cross(tr - tl).normalize();
-        assert!(close(face_n2, local.normal), "second triangle winds against the outward normal");
+        let (verts, idx) = screen_quad_vertices(&local);
         let eye = Vec3::new(0.0, 0.35, -2.0);
-        let (u, v, _) = ray_hit_uv(eye, (tl - eye).normalize(), &local).expect("tl hits");
-        assert!(u.abs() < 1e-3 && v.abs() < 1e-3);
-        let (u, v, _) = ray_hit_uv(eye, (br - eye).normalize(), &local).expect("br hits");
-        assert!((u - 1.0).abs() < 1e-3 && (v - 1.0).abs() < 1e-3);
+        for (i, v) in verts.iter().enumerate() {
+            let p = Vec3::from_array(v.position);
+            let (u, w, _) = ray_hit_uv(eye, (p - eye).normalize(), &local).unwrap_or_else(|| panic!("vertex {i} hits"));
+            assert!((u - v.uv[0]).abs() < 1e-3 && (w - v.uv[1]).abs() < 1e-3, "vertex {i}: mesh uv {:?}, ray uv ({u}, {w})", v.uv);
+            assert!(close(Vec3::from_array(v.normal), local.normal), "vertex {i} normal");
+        }
+        for tri in idx.chunks(3) {
+            let a = Vec3::from_array(verts[tri[0] as usize].position);
+            let b = Vec3::from_array(verts[tri[1] as usize].position);
+            let c = Vec3::from_array(verts[tri[2] as usize].position);
+            let face_n = (b - a).cross(c - a).normalize();
+            assert!(close(face_n, local.normal), "triangle {tri:?} winds against the outward normal: {face_n:?}");
+        }
+        assert_eq!(verts[0].uv, [0.0, 0.0], "vertex 0 is the top-left origin");
+        assert_eq!(verts[2].uv, [1.0, 1.0], "vertex 2 is the far corner");
     }
 
     /// Key names from winit reach egui un-prefixed: "KeyA" -> A, "Digit1" -> 1,
-    /// the rest as-is. Pinned so the routing does not silently drop letters.
+    /// the rest as-is. Goes through the PRODUCTION helper `route_key` uses,
+    /// so a regression in the prefix strip fails here.
     #[test]
     fn winit_key_names_resolve_to_egui_keys() {
         for (name, want) in [
@@ -704,8 +754,8 @@ mod tests {
             ("ArrowLeft", egui::Key::ArrowLeft),
             ("Backspace", egui::Key::Backspace),
         ] {
-            let stripped = name.strip_prefix("Key").or_else(|| name.strip_prefix("Digit")).unwrap_or(name);
-            assert_eq!(egui::Key::from_name(stripped), Some(want), "{name}");
+            assert_eq!(egui_key_from_winit_name(name), Some(want), "{name}");
         }
+        assert_eq!(egui_key_from_winit_name("NoSuchKey"), None);
     }
 }

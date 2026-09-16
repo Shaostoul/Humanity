@@ -136,11 +136,7 @@ pub fn page_id(page: GuiPage) -> &'static str {
 /// showing them draws blank, which [`draw_tool_page`] reports by returning
 /// `false`.
 pub fn page_from_id(id: &str) -> Option<GuiPage> {
-    ALL_PAGES.iter().copied().find(|p| page_id(*p) == id).or(match id {
-        // The pre-merge name of Maps, kept so old data still resolves.
-        "cosmos" => Some(GuiPage::Maps),
-        _ => None,
-    })
+    ALL_PAGES.iter().copied().find(|p| page_id(*p) == id)
 }
 
 /// Every `GuiPage` variant, spelled out. The exhaustive matches above keep
@@ -210,7 +206,6 @@ mod tests {
             assert!(seen.insert(id), "page id {id:?} is used by two GuiPage variants");
             assert_eq!(page_from_id(id), Some(p), "page id {id:?} does not resolve back to {p:?}");
         }
-        assert_eq!(page_from_id("cosmos"), Some(GuiPage::Maps), "legacy Maps id must still resolve");
         assert_eq!(page_from_id("not_a_page"), None, "an unknown id must not resolve to anything");
     }
 

@@ -1089,7 +1089,7 @@
             container_type: None,
             model: None,
             screen: Some((
-                page: "inventory",
+                source: "inventory",
                 px: (1024, 600),
                 face: "front",
                 bezel_m: 0.015,
@@ -1758,7 +1758,7 @@
             container_type: None,
             model: None,
             screen: Some((
-                page: "inventory",
+                source: "inventory",
                 px: (1280, 720),
                 face: "front",
                 bezel_m: 0.02,
@@ -2111,7 +2111,8 @@
         // and faces north into the room (rotation 180 turns the -Z front
         // face to +Z); wall_screen_2 hangs on the east wall (x = 51) and
         // faces west (rotation 90 turns the front to -X). Same catalog type,
-        // different pages: screen_page overrides the def's default. The
+        // different sources: screen_source overrides the def's default (a page id,
+        // or watch:/camera:/video:/web: plus an argument). The
         // operator will move them into the console room later.
         (
             id: "wall_screen_1",
@@ -2120,7 +2121,7 @@
             offset: (47.0, 1.2, 36.15),
             rotation: 180.0,
             zone: "home",
-            screen_page: Some("inventory"),
+            screen_source: Some("page:inventory"),
         ),
         (
             id: "wall_screen_2",
@@ -2129,7 +2130,7 @@
             offset: (50.85, 1.2, 40.0),
             rotation: 90.0,
             zone: "home",
-            screen_page: Some("tasks"),
+            screen_source: Some("page:tasks"),
         ),
         (
             id: "side_table_2",

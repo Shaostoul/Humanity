@@ -534,7 +534,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         rotation: 0.0,
                                         // Legacy room-editor path (no ship): the default zone.
                                         zone: crate::machines::default_machine_zone(),
-                                        screen_page: None,
+                                        screen_source: None,
                                     });
                                     machines_changed = true;
                                 }
@@ -4082,7 +4082,7 @@ mod multi_select_tests {
     fn home_abc() -> MachineHome {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), box_def());
-        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_page: None };
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into(), screen_source: None };
         MachineHome {
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],

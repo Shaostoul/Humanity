@@ -15,7 +15,8 @@ Code map:
 | A page rendered into a texture | `src/gui/screen_surface.rs` (`ScreenCore`, `ScreenSurface`) |
 | World quads, look-ray hits, input routing, per-frame drawing | `src/engine/screens.rs` |
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
-| Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_page`), `data/machines/home.ron`, `home_solo.ron` |
+| Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
+| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/` (one provider per kind) |
 | Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions) |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
 
@@ -104,10 +105,12 @@ the full-screen inventory.
   Leaving it sends `PointerGone`. Screens beyond reach still render but
   ignore input.
 - **Click:** a primary press or release while a screen is hovered goes to
-  that screen (`Screens::route_button`). The press sets `consumed_click` and
-  the game's own primary-click action skips it (`lib.rs` withholds the press
-  from the camera controller); the release still reaches the controller so a
-  held-button state can never stick, the same rule the in-world modals use.
+  that screen (`Screens::route_button`, which returns true when a screen
+  took the event). On a press that return is what makes `lib.rs` withhold the
+  press from the camera controller, so the game's own click action skips it;
+  the release still reaches the controller so a held-button state can never
+  stick, the same rule the in-world modals use. The surface hands the event
+  to its provider too (`ScreenSurface::button`), so a clip can pause on click.
   A press with no screen under the ray releases keyboard focus.
 - **Wheel:** a notch over a hovered screen scrolls its page and does not
   reach the camera (`route_scroll`).
@@ -143,7 +146,7 @@ the placed instance:
     power: None, ports: [], storage: [], rf_emission: 0.0,
     auto_recipe: None, container_type: None, model: None,
     screen: Some((
-        page: "inventory",          // default page (a gui::dispatch::page_id)
+        source: "inventory",        // default source: a page id, or a scheme (see Sources)
         px: (1280, 720),            // offscreen render size, fixed per def
         face: "front",              // front | back | left | right | top
         bezel_m: 0.02,              // display inset from the face edges
@@ -159,7 +162,7 @@ the placed instance:
     offset: (50.85, 1.2, 40.0),
     rotation: 90.0,
     zone: "home",
-    screen_page: Some("tasks"),     // this one shows the tasks board
+    screen_source: Some("page:tasks"),   // this one shows the tasks board
 ),
 ```
 
@@ -174,7 +177,42 @@ Shipped: `wall_screen` and `desk_monitor` in both `home.ron` and
 `wall_screen` instances in home.ron's common room (`wall_screen_1` inventory
 on the south wall, `wall_screen_2` tasks on the east wall). Placing a screen
 in the construction editor works like any other machine; the page comes from
-the def until the instance's `screen_page` is set in the file.
+the def until the instance's `screen_source` is set in the file.
+
+### Sources
+
+The `source` string names what a screen shows. One field, a scheme prefix,
+so every kind of content a display can carry is data, not a field per kind
+(infinite-of-x). `ScreenSource::parse` in `src/gui/screen_surface.rs` turns
+it into a variant once, when the surface is created:
+
+| string | shows | drawn by |
+|---|---|---|
+| `inventory` or `page:inventory` | a native page (any `gui::dispatch::page_id`) | the surface itself, through `draw_tool_page` |
+| `watch:<stream id>` | an MJPEG live stream (the Watch page's decoder) | the live provider (rung 3) |
+| `camera:<machine instance id>` | the game world from a placed camera's pose | the camera provider (rung 3) |
+| `video:<path>` | a WebM clip through the purpose-built player | the video provider (rung 5) |
+| `web:<url>` | the readable web view, when `readable_web` is on | the web provider (rung 6) |
+
+Anything else, a page id that does not exist or an unknown scheme, parses
+to `Unknown` and the screen draws a notice naming the string; a typo in
+home.ron never takes the world down. A kind whose provider is not wired
+yet draws a "not wired yet" notice the same way.
+
+A **provider** (`ScreenProvider`) owns the per-screen state of a non-page
+source (the decoder, the viewer, the browsing history) and takes over the
+surface's per-frame draw. `engine::screens::provider_for` is the one
+registry: a match from source to provider, one arm per kind, each kind in
+its own file under `src/engine/screens/`, so the rungs that add them never
+edit each other. A provider draws in one of two ways, both methods on the
+surface it is handed: `run_and_render` for egui content (a status page, the
+web view) and `write_pixels` for finished frames (a decoded video or stream
+frame). `write_pixels` with a frame of another size resizes the surface to
+match and `frame_surfaces` rebinds the scene material to the new texture the
+same frame, so a 1920 x 1080 stream on a 1280 x 720 wall shows every pixel.
+Providers also report `status()` fields into the dev IPC's done file (a
+stream's connection state, a clip's position, a web view's url), which is
+what lets the rig wait for and assert on them.
 
 ## Dev IPC (permanent tooling)
 
@@ -190,8 +228,8 @@ Drop `debug/screen_request.json` while the game runs:
 
 The event goes through the same `ScreenCore` methods the look ray uses
 (never a side path), and `debug/screen_done.json` comes back as
-`{"ok", "screen", "page", "action", "wants_keyboard", "hover_widget",
-"cursor_icon", "focused", "png"}`; `png` is present for `snapshot`, which
+`{"ok", "screen", "source", "kind", "action", "wants_keyboard", "hover_widget",
+"cursor_icon", "focused", "png"}` plus the provider's `status()` fields; `png` is present for `snapshot`, which
 reads the surface texture back to `debug/screen_<id>_N.png`. A click is a
 press on one frame and a release on the next, and the done file is written
 after the surface has drawn the frame the event landed in. `hover_widget`

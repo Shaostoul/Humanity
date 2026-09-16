@@ -93,17 +93,125 @@ impl Drop for TextureSwap<'_> {
     }
 }
 
+/// What a screen shows, parsed once from the data file's `source` string.
+///
+/// The string carries a scheme prefix so one field names every kind of
+/// content a display can carry (infinite-of-x: a new kind is a new arm here
+/// and a provider in `engine::screens`, never a new field per kind):
+///
+/// | string                        | variant                      |
+/// |-------------------------------|------------------------------|
+/// | `inventory` or `page:inventory` | `Page(GuiPage::Inventory)` |
+/// | `watch:<stream id>`           | `Live` (an MJPEG live stream)  |
+/// | `camera:<machine instance id>`| `Camera` (an in-game camera)   |
+/// | `video:<path>`                | `Video` (a WebM clip)          |
+/// | `web:<url>`                   | `Web` (the readable web)       |
+///
+/// Anything else (a page id that does not exist, an unknown scheme) is
+/// `Unknown` and draws a plain notice naming the string, never a panic: a
+/// typo in home.ron must not take the world down.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScreenSource {
+    Page(GuiPage),
+    Live(String),
+    Camera(String),
+    Video(String),
+    Web(String),
+    Unknown(String),
+}
+
+impl ScreenSource {
+    /// Parse a data-file source string. A bare id with no colon is a page,
+    /// because "inventory" on a wall is the common case and reads best.
+    pub fn parse(s: &str) -> Self {
+        let s = s.trim();
+        match s.split_once(':') {
+            Some(("page", id)) => match page_from_id(id.trim()) {
+                Some(p) => Self::Page(p),
+                None => Self::Unknown(s.to_string()),
+            },
+            Some(("watch", id)) if !id.trim().is_empty() => Self::Live(id.trim().to_string()),
+            Some(("camera", id)) if !id.trim().is_empty() => Self::Camera(id.trim().to_string()),
+            Some(("video", path)) if !path.trim().is_empty() => Self::Video(path.trim().to_string()),
+            // A URL keeps its own colons ("web:https://..."), hence the
+            // split at the FIRST colon only and the untrimmed remainder.
+            Some(("web", url)) if !url.trim().is_empty() => Self::Web(url.trim().to_string()),
+            Some(_) => Self::Unknown(s.to_string()),
+            None => match page_from_id(s) {
+                Some(p) => Self::Page(p),
+                None => Self::Unknown(s.to_string()),
+            },
+        }
+    }
+
+    /// The scheme name, for the dev IPC's done file and log lines.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Page(_) => "page",
+            Self::Live(_) => "watch",
+            Self::Camera(_) => "camera",
+            Self::Video(_) => "video",
+            Self::Web(_) => "web",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+}
+
+/// Content that is not a plain page: a live stream, a camera, a clip, a web
+/// page. A provider owns the per-screen state of one such source (the
+/// decoder, the viewer, the browsing history) and takes over the surface's
+/// per-frame draw. `engine::screens::provider_for` builds the right one for
+/// a `ScreenSource`; each kind lives in its own file under
+/// `src/engine/screens/`, so the rungs that add them never edit each other.
+///
+/// A provider draws in one of two ways, both methods on the surface it is
+/// handed: `run_and_render` for egui content (a status page, the web view)
+/// and `write_pixels` for finished frames (a decoded video or stream frame).
+pub trait ScreenProvider: Send {
+    /// Draw this frame. Called instead of the surface's default page draw,
+    /// with the same ordering guarantees (outside the main egui closure,
+    /// before the scene passes). `surface` is the provider's own surface
+    /// with the provider temporarily taken out of it, so no double borrow.
+    fn frame(
+        &mut self,
+        surface: &mut ScreenSurface,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        theme: &mut Theme,
+        gui_state: &mut GuiState,
+    );
+
+    /// The scheme this provider serves ("watch", "video", ...).
+    fn kind(&self) -> &'static str;
+
+    /// Extra fields merged into `debug/screen_done.json` (a stream's
+    /// connection state, a clip's position, a web view's url and title), so
+    /// the rig can wait for and assert on provider state.
+    fn status(&self) -> serde_json::Value {
+        serde_json::json!({})
+    }
+
+    /// A primary button press or release landed on the screen at `uv`
+    /// (0..1 each). Return true to say the provider acted on it (a click that
+    /// pauses a clip); the egui core still receives the event either way.
+    fn on_button(&mut self, _uv: (f32, f32), _pressed: bool) -> bool {
+        false
+    }
+}
+
 /// The GPU-free half of a screen: an egui context plus the synthetic input
 /// that drives it. Everything a test needs to prove "the page on a screen
 /// really reacts to a click" lives here.
 pub struct ScreenCore {
     /// The placed machine instance id this screen belongs to (`wall_screen_1`).
     pub id: String,
-    /// The page id from the data file, kept verbatim for messages.
-    pub page_id: String,
-    /// The resolved page, or `None` when the data named a page that does not
-    /// exist; a `None` screen draws a plain notice instead of crashing.
-    pub page: Option<GuiPage>,
+    /// The source string from the data file, kept verbatim for messages and
+    /// for the reuse check when placements rebuild.
+    pub source_id: String,
+    /// The parsed source. `Page` draws through `gui::dispatch`; `Unknown`
+    /// draws a plain notice; the other kinds draw through their provider (or
+    /// a "not wired" notice when no provider exists for them yet).
+    pub source: ScreenSource,
     ctx: egui::Context,
     size: (u32, u32),
     /// Events queued since the last run, in arrival order.
@@ -128,24 +236,24 @@ pub struct ScreenCore {
 }
 
 impl ScreenCore {
-    /// Build a core for `page_id` at `w` x `h` pixels with the app theme and
+    /// Build a core for `source_id` at `w` x `h` pixels with the app theme and
     /// the main UI's font chains applied. An unknown page id is logged once
     /// here and becomes a blank notice screen, never a panic: a typo in
     /// home.ron must not take the world down.
-    pub fn new(id: &str, page_id: &str, w: u32, h: u32, theme: &Theme) -> Self {
+    pub fn new(id: &str, source_id: &str, w: u32, h: u32, theme: &Theme) -> Self {
         let ctx = egui::Context::default();
         super::install_fonts(&ctx);
         theme.apply_to_egui(&ctx);
-        let page = page_from_id(page_id);
-        if page.is_none() {
+        let source = ScreenSource::parse(source_id);
+        if let ScreenSource::Unknown(_) = source {
             log::warn!(
-                "[Screens] {id}: no page named {page_id:?} (see gui::dispatch::page_id for the valid ids); showing a blank screen"
+                "[Screens] {id}: no source named {source_id:?} (a page id from gui::dispatch::page_id, or watch:/camera:/video:/web: plus an argument); showing a notice screen"
             );
         }
         Self {
             id: id.to_string(),
-            page_id: page_id.to_string(),
-            page,
+            source_id: source_id.to_string(),
+            source,
             ctx,
             size: (w.max(1), h.max(1)),
             events: Vec::new(),
@@ -162,6 +270,14 @@ impl ScreenCore {
     /// Pixel size of the surface.
     pub fn size(&self) -> (u32, u32) {
         self.size
+    }
+
+    /// Follow a surface resize (see `ScreenSurface::resize`): the next run
+    /// lays the content out at the new size. The pointer is dropped because
+    /// its pixel position meant something on the old layout.
+    pub fn set_size(&mut self, w: u32, h: u32) {
+        self.size = (w.max(1), h.max(1));
+        self.pointer = None;
     }
 
     /// The screen's own context, for tests and the dev IPC (reading egui
@@ -284,23 +400,21 @@ impl ScreenCore {
     /// closure (which holds the same borrow), and BEFORE the scene pass that
     /// samples the surface texture, or the wall shows last frame's page.
     pub fn run(&mut self, theme: &mut Theme, gui_state: &mut GuiState) -> egui::FullOutput {
-        let page = self.page;
-        let page_id = self.page_id.clone();
-        self.run_with(gui_state, |ctx, state| match page {
-            Some(p) => {
+        let source = self.source.clone();
+        let source_id = self.source_id.clone();
+        self.run_with(gui_state, |ctx, state| match source {
+            ScreenSource::Page(p) => {
                 draw_tool_page(ctx, p, theme, state);
                 // The main loop drains decoded chat images into egui textures
                 // after every page draw; a screen showing chat needs the same,
                 // against ITS cache (the swapped-in one) and ITS context.
                 state.image_cache.poll(ctx);
             }
-            None => {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    ui.centered_and_justified(|ui| {
-                        ui.label(format!("No page named \"{page_id}\""));
-                    });
-                });
-            }
+            ScreenSource::Unknown(_) => notice(ctx, &format!("No source named \"{source_id}\"")),
+            // A provider normally draws these before this path is reached
+            // (see `ScreenSurface::frame`); reaching it means no provider
+            // exists for the kind yet, which is a wiring gap, not an error.
+            other => notice(ctx, &format!("{} source \"{source_id}\" is not wired yet", other.kind())),
         })
     }
 
@@ -344,6 +458,17 @@ impl ScreenCore {
     }
 }
 
+/// A one-line centred notice filling the screen: the "no such source" and
+/// "not wired yet" fallbacks, and any provider's status line. Plain text on
+/// the theme's panel so it reads from across the room.
+pub fn notice(ctx: &egui::Context, text: &str) {
+    egui::CentralPanel::default().show(ctx, |ui| {
+        ui.centered_and_justified(|ui| {
+            ui.label(text);
+        });
+    });
+}
+
 /// sRGB byte to linear float, for the clear colour of an sRGB render target
 /// (wgpu encodes the clear value, so it must be given in linear light).
 fn srgb_to_lin(c: u8) -> f64 {
@@ -358,6 +483,14 @@ pub struct ScreenSurface {
     renderer: egui_wgpu::Renderer,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
+    /// The content provider for a non-page source, built by
+    /// `engine::screens::provider_for`. `None` = the default page draw (or
+    /// the not-wired notice for a kind with no provider yet).
+    provider: Option<Box<dyn ScreenProvider>>,
+    /// Set by `resize` (a provider matched the texture to its frame size)
+    /// and cleared by `take_view_changed`: the scene material binds the OLD
+    /// view until `engine::screens::frame_surfaces` rebinds it.
+    view_changed: bool,
 }
 
 /// The texture format of every surface. It is the SAME format
@@ -372,10 +505,19 @@ impl ScreenSurface {
     /// is a render target (egui draws into it), a sampled texture (the scene
     /// reads it), and copyable both ways (the dev IPC snapshot reads it back;
     /// a future live-feed rung writes into it).
-    pub fn new(device: &wgpu::Device, id: &str, page_id: &str, w: u32, h: u32, theme: &Theme) -> Self {
-        let core = ScreenCore::new(id, page_id, w, h, theme);
+    pub fn new(device: &wgpu::Device, id: &str, source_id: &str, w: u32, h: u32, theme: &Theme) -> Self {
+        let core = ScreenCore::new(id, source_id, w, h, theme);
         let (w, h) = core.size();
         let renderer = egui_wgpu::Renderer::new(device, SURFACE_FORMAT, None, 1, false);
+        let (texture, view) = Self::make_texture(device, w, h);
+        Self { core, renderer, texture, view, provider: None, view_changed: false }
+    }
+
+    /// The texture every surface draws into: a render target (egui draws
+    /// into it), a sampled texture (the scene reads it), and copyable both
+    /// ways (the dev IPC snapshot reads it back; a provider writes frames
+    /// into it).
+    fn make_texture(device: &wgpu::Device, w: u32, h: u32) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Screen Surface Texture"),
             size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
@@ -390,7 +532,7 @@ impl ScreenSurface {
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        Self { core, renderer, texture, view }
+        (texture, view)
     }
 
     /// The view the scene material binds at its albedo slot.
@@ -406,11 +548,98 @@ impl ScreenSurface {
         self.core.size()
     }
 
-    /// Run the page with the pending events and draw it into the texture.
+    /// Install (or remove) the content provider. Called once when the
+    /// surface is created for a non-page source.
+    pub fn set_provider(&mut self, provider: Option<Box<dyn ScreenProvider>>) {
+        self.provider = provider;
+    }
+
+    pub fn provider(&self) -> Option<&dyn ScreenProvider> {
+        self.provider.as_deref()
+    }
+
+    /// True once after `resize` changed the texture: the caller rebinds the
+    /// scene material to the new `view()`.
+    pub fn take_view_changed(&mut self) -> bool {
+        std::mem::replace(&mut self.view_changed, false)
+    }
+
+    /// A primary button event on this screen: the egui core gets it (so a
+    /// page reacts) and the provider is told (so a clip can pause). One
+    /// entry point, so the look ray and the dev IPC cannot disagree.
+    pub fn button(&mut self, uv: (f32, f32), pressed: bool) {
+        self.core.button(uv, pressed);
+        if let Some(p) = self.provider.as_mut() {
+            p.on_button(uv, pressed);
+        }
+    }
+
+    /// Reallocate the texture at a new pixel size (a provider matching the
+    /// surface to its frame). The egui renderer is format-bound, not
+    /// size-bound, so it carries over; the scene material still points at
+    /// the old view until the caller sees `take_view_changed`.
+    pub fn resize(&mut self, device: &wgpu::Device, w: u32, h: u32) {
+        let (w, h) = (w.max(1), h.max(1));
+        if self.core.size() == (w, h) {
+            return;
+        }
+        let (texture, view) = Self::make_texture(device, w, h);
+        self.texture = texture;
+        self.view = view;
+        self.core.set_size(w, h);
+        self.view_changed = true;
+    }
+
+    /// Write a finished RGBA8 frame (sRGB bytes, top row first) into the
+    /// surface. A frame of another size resizes the surface to match, so a
+    /// 1920 x 1080 stream on a 1280 x 720 wall shows every pixel and the
+    /// quad (whose physical size comes from the machine def) stretches it
+    /// by the aspect difference; providers that care scale before writing.
+    pub fn write_pixels(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, rgba: &[u8], w: u32, h: u32) {
+        if w == 0 || h == 0 || rgba.len() != (w as usize) * (h as usize) * 4 {
+            log::warn!("[Screens] {}: write_pixels got {} bytes for {w}x{h}; frame dropped", self.core.id, rgba.len());
+            return;
+        }
+        self.resize(device, w, h);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+    }
+
+    /// Draw this frame into the texture: the provider's content when the
+    /// source has one, else the source's page (or its notice).
     ///
-    /// The FIRST frame after creation runs the page twice: egui Windows and
-    /// Areas measure themselves on frame 1 and only settle their position on
-    /// frame 2, so a single run leaves Window-based pages blank (the same
+    /// Ordering: see `ScreenCore::run`. Call after the main egui closure has
+    /// returned and before the scene passes.
+    pub fn frame(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, theme: &mut Theme, gui_state: &mut GuiState) {
+        // The provider is taken out for the call so it can be handed the
+        // surface it lives in (a provider inside `self` cannot also borrow
+        // `self`), then put back whatever it did.
+        if let Some(mut provider) = self.provider.take() {
+            provider.frame(self, device, queue, theme, gui_state);
+            self.provider = Some(provider);
+            return;
+        }
+        self.run_and_render(device, queue, theme, gui_state, |core, theme, state| core.run(theme, state));
+    }
+
+    /// Run egui content through the core with the pending events and draw
+    /// the result into the texture. `draw` is handed the core so it can call
+    /// `ScreenCore::run` (the source's page) or `ScreenCore::run_with` (any
+    /// other egui content, the way a provider draws a status page or the web
+    /// view) and must return that run's output.
+    ///
+    /// The FIRST frame after creation runs the content twice: egui Windows
+    /// and Areas measure themselves on frame 1 and only settle their position
+    /// on frame 2, so a single run leaves Window-based pages blank (the same
     /// warm-up `ui_snapshots::render_page_png` does). Both runs' texture
     /// deltas are applied because the font atlas is created on run 1.
     ///
@@ -418,15 +647,19 @@ impl ScreenSurface {
     /// and it means a theme edit in Settings reaches every wall screen the
     /// same frame it reaches the main UI, with no change-tracking to get
     /// stale.
-    ///
-    /// Ordering: see `ScreenCore::run`. Call after the main egui closure has
-    /// returned and before the scene passes.
-    pub fn frame(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, theme: &mut Theme, gui_state: &mut GuiState) {
+    pub fn run_and_render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        theme: &mut Theme,
+        gui_state: &mut GuiState,
+        mut draw: impl FnMut(&mut ScreenCore, &mut Theme, &mut GuiState) -> egui::FullOutput,
+    ) {
         theme.apply_to_egui(&self.core.ctx);
         let runs = if self.core.runs() == 0 { 2 } else { 1 };
         let mut last: Option<egui::FullOutput> = None;
         for _ in 0..runs {
-            let out = self.core.run(theme, gui_state);
+            let out = draw(&mut self.core, theme, gui_state);
             for (id, delta) in &out.textures_delta.set {
                 self.renderer.update_texture(device, queue, *id, delta);
             }
@@ -549,7 +782,7 @@ mod tests {
         let mut state = inventory_state();
         let (w, h) = (1280u32, 1700u32);
         let mut core = ScreenCore::new("test_screen", "inventory", w, h, &theme);
-        assert_eq!(core.page, Some(GuiPage::Inventory));
+        assert_eq!(core.source, ScreenSource::Page(GuiPage::Inventory));
 
         crate::gui::pages::inventory::test_clear_recorded_rects();
         crate::gui::pages::inventory::test_close_garden_edit();
@@ -591,9 +824,45 @@ mod tests {
         let mut theme = load_theme();
         let mut state = GuiState::default();
         let mut core = ScreenCore::new("s", "no_such_page", 320, 200, &theme);
-        assert_eq!(core.page, None);
+        assert!(matches!(core.source, ScreenSource::Unknown(_)), "{:?}", core.source);
         let out = core.run(&mut theme, &mut state);
         assert!(!out.shapes.is_empty(), "the notice screen draws something");
+    }
+
+    /// Every source scheme parses to its variant, a bare id is a page, and
+    /// both a missing page and an unknown scheme are `Unknown` (never a
+    /// panic, never a silent fallback to some other page).
+    #[test]
+    fn source_strings_parse_by_scheme() {
+        assert_eq!(ScreenSource::parse("inventory"), ScreenSource::Page(GuiPage::Inventory));
+        assert_eq!(ScreenSource::parse("page:tasks"), ScreenSource::Page(GuiPage::Tasks));
+        assert_eq!(ScreenSource::parse(" page: chat "), ScreenSource::Page(GuiPage::Chat));
+        assert_eq!(ScreenSource::parse("watch:home-cam"), ScreenSource::Live("home-cam".into()));
+        assert_eq!(ScreenSource::parse("camera:camera_post_1"), ScreenSource::Camera("camera_post_1".into()));
+        assert_eq!(ScreenSource::parse("video:media/demo.webm"), ScreenSource::Video("media/demo.webm".into()));
+        // A URL keeps every colon after the first.
+        assert_eq!(
+            ScreenSource::parse("web:https://united-humanity.us/library#slug"),
+            ScreenSource::Web("https://united-humanity.us/library#slug".into())
+        );
+        assert!(matches!(ScreenSource::parse("page:no_such_page"), ScreenSource::Unknown(_)));
+        assert!(matches!(ScreenSource::parse("no_such_page"), ScreenSource::Unknown(_)));
+        assert!(matches!(ScreenSource::parse("hologram:x"), ScreenSource::Unknown(_)));
+        assert!(matches!(ScreenSource::parse("watch:"), ScreenSource::Unknown(_)), "an empty argument is not a source");
+        assert_eq!(ScreenSource::parse("video:x").kind(), "video");
+    }
+
+    /// A non-page source with no provider installed draws the not-wired
+    /// notice rather than a blank or a panic (the state every phase-2 rung
+    /// starts from).
+    #[test]
+    fn unwired_source_draws_a_notice() {
+        let mut theme = load_theme();
+        let mut state = GuiState::default();
+        let mut core = ScreenCore::new("s", "video:media/nothing.webm", 320, 200, &theme);
+        assert_eq!(core.source, ScreenSource::Video("media/nothing.webm".into()));
+        let out = core.run(&mut theme, &mut state);
+        assert!(!out.shapes.is_empty(), "the not-wired notice draws something");
     }
 
     /// (d) THE WATCH PAGE UNDER A SECOND CONTEXT, with the texture swap in
@@ -612,7 +881,7 @@ mod tests {
         state.link_device_qr = None;
 
         let mut core = ScreenCore::new("s", "watch", 640, 360, &theme);
-        assert_eq!(core.page, Some(GuiPage::Watch));
+        assert_eq!(core.source, ScreenSource::Page(GuiPage::Watch));
         for _ in 0..3 {
             core.run(&mut theme, &mut state);
         }
