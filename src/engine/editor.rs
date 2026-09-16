@@ -466,6 +466,7 @@ pub(crate) fn try_place_held_machine(state: &mut EngineState) {
                 offset,
                 rotation: 0.0,
                 zone,
+                screen_page: None,
             });
             state.gui_state.construction_machines_dirty = true;
         }

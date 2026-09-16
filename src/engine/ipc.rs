@@ -1179,6 +1179,180 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
     let _ = std::fs::write(DONE_PATH, done.to_string());
 }
 
+/// In-world screen dev IPC (in-world screens rung 1; permanent tooling, the
+/// same file-drop pattern as the screenshot command). Drop
+/// `debug/screen_request.json`:
+///
+/// ```json
+/// {"screen": "wall_screen_1", "action": "hover|click|scroll|text|snapshot",
+///  "uv": [0.5, 0.2], "dy": 0, "text": ""}
+/// ```
+///
+/// and the engine performs that synthetic event on the named surface THROUGH
+/// THE SAME EVENT API the look ray uses (`ScreenCore::pointer_moved`,
+/// `button`, `scroll`, `text`), never a side path, then writes
+/// `debug/screen_done.json`:
+///
+/// ```json
+/// {"ok": true, "page": "inventory", "wants_keyboard": false,
+///  "hover_widget": true, "cursor_icon": "Default", "png": "debug/screen_wall_screen_1_3.png"}
+/// ```
+///
+/// `snapshot` reads the surface texture back to that PNG (rows padded to 256
+/// and unpadded, like the UI snapshot rig); `png` is absent for the other
+/// actions. This is how the runtime verifier proves a screen works with no
+/// human at the keyboard. The request file is consumed even on error; a
+/// failure writes `{"ok": false, "error": ...}`.
+///
+/// Three steps because a click is two frames and the answer must describe
+/// the frame the event landed in: `poll_screen_request` (update phase)
+/// parses and stores the request; `advance_screen_request` (after
+/// `screens::update`, so the look ray cannot overwrite the event) queues the
+/// event; `complete_screen_request` (after `screens::frame_surfaces`) writes
+/// the done file from the freshly drawn surface.
+pub(crate) fn poll_screen_request(state: &mut EngineState) {
+    const REQUEST_PATH: &str = "debug/screen_request.json";
+    if state.screens.ipc.is_some() || !std::path::Path::new(REQUEST_PATH).exists() {
+        return;
+    }
+    let parsed = std::fs::read_to_string(REQUEST_PATH)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    // Consumed either way (same rule as the other debug polls).
+    let _ = std::fs::remove_file(REQUEST_PATH);
+    let fail = |msg: String| {
+        log::warn!("Screen request: {msg}");
+        write_screen_done(serde_json::json!({"ok": false, "error": msg}));
+    };
+    let Some(v) = parsed else {
+        fail("malformed JSON".to_string());
+        return;
+    };
+    if !state.world_loaded {
+        fail("3D world not loaded".to_string());
+        return;
+    }
+    let id = v.get("screen").and_then(|s| s.as_str()).unwrap_or("").to_string();
+    let Some(surface) = state.screens.surface_index(&id) else {
+        let known: Vec<&str> = state.screens.surfaces.iter().map(|s| s.core.id.as_str()).collect();
+        fail(format!("no screen named {id:?}; placed screens: {known:?}"));
+        return;
+    };
+    let action = v.get("action").and_then(|s| s.as_str()).unwrap_or("snapshot").to_string();
+    if !matches!(action.as_str(), "hover" | "click" | "scroll" | "text" | "snapshot") {
+        fail(format!("unknown action {action:?} (hover|click|scroll|text|snapshot)"));
+        return;
+    }
+    let uv = v
+        .get("uv")
+        .and_then(|a| a.as_array())
+        .and_then(|a| Some((a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)))
+        .unwrap_or((0.5, 0.5));
+    let dy = v.get("dy").and_then(|d| d.as_f64()).unwrap_or(0.0) as f32;
+    let text = v.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
+    state.screens.ipc = Some(crate::engine::screens::ScreenIpc {
+        surface,
+        action,
+        uv,
+        stage: 0,
+        snapshot: v.get("action").and_then(|s| s.as_str()) == Some("snapshot"),
+    });
+    // Stash the scalar payloads on the pending record's owner: dy and text
+    // are only needed once, at queue time, so they ride in a side slot.
+    state.screens.ipc_payload = Some((dy, text));
+}
+
+/// Queue the pending request's event on its surface. Runs right after
+/// `screens::update` so the synthetic pointer wins the frame over the look
+/// ray (which also skips a surface with an IPC in flight).
+pub(crate) fn advance_screen_request(state: &mut EngineState) {
+    let Some(ipc) = state.screens.ipc.as_mut() else { return };
+    let (dy, text) = state.screens.ipc_payload.clone().unwrap_or((0.0, String::new()));
+    let Some(s) = state.screens.surfaces.get_mut(ipc.surface) else {
+        state.screens.ipc = None;
+        return;
+    };
+    match ipc.stage {
+        0 => {
+            match ipc.action.as_str() {
+                "hover" => s.core.pointer_moved(ipc.uv),
+                "click" => {
+                    s.core.button(ipc.uv, true);
+                    ipc.stage = 1;
+                    return;
+                }
+                "scroll" => s.core.scroll(ipc.uv, dy),
+                "text" => {
+                    s.core.pointer_moved(ipc.uv);
+                    s.core.text(&text);
+                }
+                _ => {} // snapshot: nothing to queue, just draw and read back
+            }
+            ipc.stage = 2;
+        }
+        1 => {
+            // The release, one frame after the press: re-interacted rows
+            // (the inventory's container headers) need them on separate
+            // frames, exactly as the headless click test found.
+            s.core.button(ipc.uv, false);
+            ipc.stage = 2;
+        }
+        _ => {}
+    }
+}
+
+/// Write the done file once the surface has drawn the frame the event
+/// landed in (stage 2), taking the snapshot first when asked.
+pub(crate) fn complete_screen_request(state: &mut EngineState) {
+    let Some(ipc) = state.screens.ipc.as_ref() else { return };
+    if ipc.stage < 2 {
+        return;
+    }
+    let ipc = state.screens.ipc.take().expect("checked above");
+    state.screens.ipc_payload = None;
+    let Some(s) = state.screens.surfaces.get(ipc.surface) else {
+        write_screen_done(serde_json::json!({"ok": false, "error": "screen vanished mid-request"}));
+        return;
+    };
+    let mut done = serde_json::json!({
+        "ok": true,
+        "screen": s.core.id,
+        "page": s.core.page_id,
+        "action": ipc.action,
+        "wants_keyboard": s.core.wants_keyboard(),
+        "hover_widget": s.core.hover_widget(),
+        "cursor_icon": format!("{:?}", s.core.cursor_icon()),
+        "focused": state.screens.focused == Some(ipc.surface),
+    });
+    if ipc.snapshot {
+        state.screens.snapshot_counter += 1;
+        let path = format!("debug/screen_{}_{}.png", s.core.id, state.screens.snapshot_counter);
+        let (w, h) = s.size();
+        let pixels = s.read_rgba(&state.renderer.device, &state.renderer.queue);
+        let _ = std::fs::create_dir_all("debug");
+        match image::RgbaImage::from_raw(w, h, pixels) {
+            Some(img) => match img.save(&path) {
+                Ok(()) => {
+                    done["png"] = serde_json::json!(path);
+                }
+                Err(e) => {
+                    done = serde_json::json!({"ok": false, "error": format!("png save failed: {e}")});
+                }
+            },
+            None => {
+                done = serde_json::json!({"ok": false, "error": "readback size mismatch"});
+            }
+        }
+    }
+    write_screen_done(done);
+}
+
+fn write_screen_done(done: serde_json::Value) {
+    const DONE_PATH: &str = "debug/screen_done.json";
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write(DONE_PATH, done.to_string());
+}
+
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
     const DONE_PATH: &str = "debug/camera_done.json";

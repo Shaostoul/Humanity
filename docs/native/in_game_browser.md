@@ -1,5 +1,8 @@
 # In-Game Browser (Web-to-Texture)
 
+> **Status (2026-09-16):** the monitor surface this document describes now exists WITHOUT CEF: any native egui page renders onto a display placed in the world and takes clicks, scroll and typing (see [in-world-screens.md](../design/in-world-screens.md), rungs 1 and 2 of that ladder). The web renderer that will draw into that same surface is decided in [decision-briefs.md, Brief 4](../design/decision-briefs.md) (a no-JavaScript HTML/CSS renderer, not Chromium).
+> The rest of this page is kept as historical reference for the CEF-based design it replaced.
+
 ## Purpose
 
 Render live websites onto 3D surfaces inside the game world. Primary use case: interactive kiosks (e.g., an Amazon affiliate kiosk in a VR marketplace where players can browse and shop on the real Amazon website without leaving the game).

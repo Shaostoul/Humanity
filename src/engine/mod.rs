@@ -26,5 +26,8 @@ pub mod region_meshes;
 pub mod bg_connections;
 pub mod net_route;
 pub mod registries;
+/// In-world screens: native pages on flat displays placed in the 3D world
+/// (quads, look-ray hit tests, input routing, per-frame surface drawing).
+pub mod screens;
 pub mod state;
 pub mod world_load;
