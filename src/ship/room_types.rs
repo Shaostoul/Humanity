@@ -10,6 +10,7 @@
 //! NOTE: distinct from `ship::layout::RoomDef` (the ship-layout schema); this parses the
 //! homestead room-TYPE catalog.
 
+use crate::ship::fibonacci::RoomInfo;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -99,14 +100,59 @@ impl RoomTypeRegistry {
     pub fn action_labels(&self, id: &str) -> Vec<String> {
         self.types
             .get(id)
-            .map(|t| {
-                t.actions
-                    .iter()
-                    .map(|a| self.actions.get(a).map(|d| d.label.clone()).unwrap_or_else(|| a.clone()))
-                    .collect()
-            })
+            .map(|t| t.actions.iter().map(|a| self.action_label(a)).collect())
             .unwrap_or_default()
     }
+
+    /// One action id -> its catalog label (the id itself when the catalog has no entry).
+    pub fn action_label(&self, action_id: &str) -> String {
+        self.actions.get(action_id).map(|d| d.label.clone()).unwrap_or_else(|| action_id.to_string())
+    }
+
+    /// Look up a room TYPE by its rooms.ron key. None also logs a warning: a `Zone::room_type`
+    /// that matches no entry is a typo in the data, and a silent blank would hide it.
+    pub fn lookup_type(&self, room_type: &str) -> Option<&RoomTypeDef> {
+        let def = self.types.get(room_type);
+        if def.is_none() {
+            log::warn!(
+                "room_types: room_type '{room_type}' is not a data/rooms.ron key; the room gets no purpose or actions"
+            );
+        }
+        def
+    }
+
+    /// The FUNCTION of one detected room, ready for the HUD's "you are in ..." surface: display
+    /// name, purpose, action labels and access class. Joins on `RoomInfo::type_key` (the covering
+    /// zone's `room_type` when set, else the room id, which is how the legacy fibonacci ids join).
+    /// A zone-declared room_type that is unknown warns (see `lookup_type`); an anonymous "room_N"
+    /// or generated "corridor_N" id is expected to have no entry and stays quiet. Fallbacks: the
+    /// zone label as the name (then the id), empty purpose and actions, private access.
+    pub fn function_for(&self, room: &RoomInfo) -> RoomFunction {
+        let key = room.type_key();
+        let def = if room.room_type.is_some() { self.lookup_type(key) } else { self.types.get(key) };
+        RoomFunction {
+            display_name: def.map(|t| t.name.clone()).unwrap_or_else(|| {
+                if room.label.is_empty() {
+                    room.id.clone()
+                } else {
+                    room.label.clone()
+                }
+            }),
+            purpose: def.map(|t| t.purpose.clone()).unwrap_or_default(),
+            actions: def.map(|t| t.actions.iter().map(|a| self.action_label(a)).collect()).unwrap_or_default(),
+            access: def.map(|t| t.access.clone()).unwrap_or_else(default_access),
+        }
+    }
+}
+
+/// What a detected room is FOR, as the HUD shows it (see `RoomTypeRegistry::function_for`).
+#[derive(Debug, Clone, Default)]
+pub struct RoomFunction {
+    pub display_name: String,
+    pub purpose: String,
+    /// Action LABELS (already resolved through the catalog), in rooms.ron order.
+    pub actions: Vec<String>,
+    pub access: String,
 }
 
 #[cfg(test)]
@@ -128,5 +174,70 @@ mod tests {
         for l in &labels {
             assert!(!l.is_empty());
         }
+    }
+
+    /// The zone -> room_type -> rooms.ron join (console-room increment). A zone naming "computer"
+    /// yields exactly that entry's action ids; a zone naming a key rooms.ron does not have yields
+    /// none (and warns, see `lookup_type`); a zone with no room_type, or an unknown zone id, yields
+    /// none quietly.
+    #[test]
+    fn a_zone_room_type_joins_to_its_rooms_ron_actions_and_an_unknown_one_yields_none() {
+        use crate::ship::home_structure::{HomeStructure, Zone};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let reg = RoomTypeRegistry::load(&dir);
+        let mut h: HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 3.0)").expect("parses");
+        let zone = |id: &str, room_type: Option<&str>| Zone {
+            id: id.to_string(),
+            type_id: "console_room".to_string(),
+            origin: (0.0, 0.0, 0.0),
+            size: (3.0, 3.0, 3.0),
+            label: String::new(),
+            room_type: room_type.map(str::to_string),
+        };
+        h.zones.push(zone("z-computer", Some("computer")));
+        h.zones.push(zone("z-typo", Some("no_such_room_type")));
+        h.zones.push(zone("z-bare", None));
+
+        // The shipped computer entry's own action list, in its order; if the data changes this
+        // expectation changes with it (the join must hand back exactly what rooms.ron says).
+        let got = h.room_actions_for("z-computer", &reg);
+        assert_eq!(got, vec!["use_terminal", "manage_saves", "review_tasks"], "the computer entry's actions");
+        for a in &got {
+            assert!(reg.actions.contains_key(a), "action id '{a}' exists in room_actions.ron");
+        }
+        assert!(h.room_actions_for("z-typo", &reg).is_empty(), "an unknown room_type yields no actions");
+        assert!(reg.lookup_type("no_such_room_type").is_none(), "and the lookup itself is None (warned)");
+        assert!(h.room_actions_for("z-bare", &reg).is_empty(), "a zone without a room_type yields none");
+        assert!(h.room_actions_for("no-such-zone", &reg).is_empty(), "an unknown zone id yields none");
+    }
+
+    /// `function_for` is the HUD's view of the same join: a room_type resolves name / purpose /
+    /// action labels from rooms.ron; a zone-named room with no room_type shows its zone label; an
+    /// anonymous room shows its id.
+    #[test]
+    fn function_for_resolves_the_room_type_and_falls_back_to_label_then_id() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let reg = RoomTypeRegistry::load(&dir);
+        let room = |id: &str, room_type: Option<&str>, label: &str| RoomInfo {
+            id: id.to_string(),
+            center: glam::Vec3::ZERO,
+            dimensions: glam::Vec3::ONE,
+            is_hologram_room: false,
+            is_spawn_room: false,
+            room_type: room_type.map(str::to_string),
+            label: label.to_string(),
+        };
+        let f = reg.function_for(&room("console-room", Some("console_room"), "Console room"));
+        assert_eq!(f.display_name, "Console room");
+        assert!(f.purpose.to_lowercase().contains("workstation"), "purpose from rooms.ron: {}", f.purpose);
+        assert!(f.actions.contains(&"Use Terminal".to_string()), "action LABELS, not ids: {:?}", f.actions);
+        let f = reg.function_for(&room("room-entry", None, "Entry"));
+        assert_eq!(f.display_name, "Entry", "no room_type -> the zone label");
+        assert!(f.actions.is_empty() && f.purpose.is_empty());
+        let f = reg.function_for(&room("room_7", None, ""));
+        assert_eq!(f.display_name, "room_7", "no zone at all -> the id");
+        // A legacy fibonacci id is itself the key (unchanged behaviour).
+        let f = reg.function_for(&room("kitchen", None, ""));
+        assert_eq!(f.display_name, "Kitchen");
     }
 }

@@ -10,8 +10,13 @@
 # Hot-reloadable: Yes (changes apply without restart via FileWatcher)
 # Referenced by: data/blueprints/homestead_layout.ron (room ids match keys)
 #                data/ships/*.ron (RoomDef.room_type maps to these ids)
+#                data/blueprints/ship_structure.ron (a Zone's optional `room_type`
+#                  names the key the room it covers takes its function from)
 #                src/ship/fibonacci.rs (room_color fallback, room generation)
 #                src/ship/layout.rs (RoomType enum for ship rooms)
+#                src/ship/room_types.rs (RoomTypeRegistry: the purpose / actions /
+#                  access join for the walkable world and the zone detail panel)
+#                src/ship/home_structure.rs (Zone::room_type, room_actions_for)
 # References: data/items.csv (equipment list entries)
 #             data/sounds.toml (ambient_sound ids)
 #             data/materials.csv (default_material ids)
@@ -156,6 +161,27 @@ examples = [
     '["combat", "storage", "security"]',
     '["infrastructure", "essential"]',
 ]
+
+[[fields]]
+name = "actions"
+type = "list(string)"
+required = false
+default = "[]"
+description = "In-room walk-up actions, as ids from data/rooms/room_actions.ron (each resolves to a label and the page it opens). Shown on the HUD as 'Here: ...' when the player stands in a room of this type, and in the construction editor's zone detail panel once a Zone names this key as its room_type."
+constraints = "Each id must exist in data/rooms/room_actions.ron. Order is display order."
+examples = [
+    '["use_terminal", "manage_saves", "review_tasks"]',
+    '["use_terminal", "open_chat", "review_tasks", "check_federation", "manage_saves"]',
+]
+
+[[fields]]
+name = "access"
+type = "string"
+required = false
+default = "private"
+description = "Who may see the room when other players visit the home. Reserved for the home-visiting layer; private rooms (bathroom, bedroom) stay unseen."
+constraints = "One of private, shared, public."
+examples = ["private", "shared", "public"]
 
 # ============================================================================
 # TAG VOCABULARY (recommended, not enforced)

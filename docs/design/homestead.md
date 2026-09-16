@@ -79,18 +79,48 @@ receiving the corridor aperture on the east shell at z 39..41. Ten rooms:
 | study | 47..51, 28..34 | 4 x 6 | Desk work, books, planning |
 | utility | 39..44, 24..28 | 5 x 4 | Batteries, purifier, water heater, breaker |
 | workshop | 47..55, 24..28 (+51..55, 28..36) | ~48 | Benchwork, tools, 3D printer |
+| console room | 47.5..51, 44..47 | 3.5 x 3 | The battlestation: screens, comms, home systems (annex off the common room) |
 
 Adjacency (edges are doors): corridor > entry > common; common > kitchen >
 pantry; common > hall; hall > bedroom, bathroom, wetroom, study; hall or
 workshop > utility; entry > workshop; kitchen > bay (garden door); workshop >
 bay; utility > bay. Exact rects are editor-tunable; the adjacency is the design.
 
-Room identity: until real room detection lands (home_structure.rs header calls
-room subdivision a later stage), place one `Zone` volume per room
-(HomeStructure.zones) so each room has a wireframe label; add room-grade rows
-(kitchen, bedroom, bath...) to `data/blueprints/zone_types.ron`, which is a pure
-data edit. The purpose/actions vocabulary already exists in `data/rooms.ron` +
-`data/rooms/room_actions.ron` and gets joined when detection arrives.
+Room identity (built, console-room increment): rooms are still DETECTED from the
+walls (`HomeStructure::detect_rooms` flood-fills the plan), but they are no longer
+anonymous. Each room-grade `Zone` in `HomeStructure.zones` names the room whose
+centre falls inside its footprint: the detected room takes the zone's id
+("room-kitchen" instead of "room_7"), its label, and, when the zone sets
+`room_type`, its FUNCTION from `data/rooms.ron` (purpose, walk-up actions via
+`data/rooms/room_actions.ron`, access class). Rooms no zone covers keep the
+anonymous `room_N` id. The rules, so the join stays predictable: containment is by
+the room's centre, not by overlap; when several zones contain a centre (a district
+zone around a house full of room zones) the smallest footprint wins; a zone names
+at most one room (the largest it covers), so ids stay unique. A `room_type` that is
+not a rooms.ron key logs a warning and yields no purpose or actions; the zone detail
+panel in the construction editor shows the same warning inline and offers the room
+types as a picker (`HomeStructure::room_actions_for(zone_id, registry)` is the
+GUI-callable join). The room-grade zone types live in
+`data/blueprints/zone_types.ron` (`room_entry` .. `room_workshop`, `console_room`,
+`room_garden`, `room_living`), a pure data edit to extend.
+
+### Console room (the battlestation)
+
+The household's fixed workstation: displays, comms and the home's systems at a
+glance. Zone type `console_room` (zone_types.ron), rooms.ron entry `console_room`
+(actions: use terminal, open chat, review tasks, federation status, manage saves;
+equipment: wall_screen, desk_monitor, desk, chair), placed in ship_structure.ron as
+zone `console-room` with `room_type: Some("console_room")`. It is a walled 3.5 x 3 m
+annex bumped out of the house's north wall into the greenhouse bay, x 47.5..51.0,
+z 44.0..47.0, entered from the common room through a door at x 48.25..49.15 (that
+door replaced one of the common room's bay windows); its own north wall keeps a
+window onto the garden and it carries one ceiling panel light. The in-world screens
+(`wall_screen`, `desk_monitor`) mount here. Vocabulary, settled here and used
+everywhere: "console room" is this room; "battlestation" is its colloquial name;
+"command deck" is the mothership bridge (`docs/game/humanity_one.md`) and is never
+the home. "Battlestation" is ALSO, separately, a device role in
+`docs/design/device-mesh.md` (the operator's PC); that is the device layer, this is
+the room layer, and both names stand.
 
 ## 4. Walls, doors, windows
 
@@ -299,8 +329,11 @@ effort and blocks nothing above.
 6. PlacedLight wattage: house lighting draws no power in the sim.
 7. HVAC runtime: HvacSystem is written but never registered; hvac.ron has no
    loader into the machine layer.
-8. Room detection/naming for emergent wall-bounded regions (Zone labels are the
-   stopgap); rooms.ron's purposes/actions are not yet joined to the box home.
+8. (Closed by the console-room increment.) Wall-bounded rooms are now named by
+   the zone covering their centre and joined to rooms.ron through the zone's
+   `room_type`; see "Room identity" in section 3. Still open: the entry, pantry,
+   hall and utility zones have no rooms.ron entry yet, so they are named but
+   functionless.
 9. Rug/floor-covering flat render path (thin box works, looks chunky).
 10. ConstructionSystem (blueprint build queue over basic.ron) is not registered;
     this design does not depend on it.

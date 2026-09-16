@@ -1020,6 +1020,9 @@ impl ShipStructure {
                 dimensions: dims,
                 is_hologram_room: false,
                 is_spawn_room: false,
+                // A corridor is a generated tube, not a zone-named room: no function to join.
+                room_type: None,
+                label: String::new(),
             });
         }
         out

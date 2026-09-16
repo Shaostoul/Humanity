@@ -221,14 +221,19 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
             state.gui_state.room_bounds = room_info
                 .iter()
-                .map(|r| crate::gui::RoomBounds {
-                    id: r.id.clone(),
-                    min: r.center - r.dimensions * 0.5,
-                    max: r.center + r.dimensions * 0.5,
-                    display_name: room_types.name(&r.id),
-                    purpose: room_types.purpose(&r.id),
-                    actions: room_types.action_labels(&r.id),
-                    access: room_types.access(&r.id),
+                .map(|r| {
+                    // Zone-named rooms resolve through their zone's room_type; legacy ids
+                    // join on themselves (see RoomTypeRegistry::function_for).
+                    let f = room_types.function_for(r);
+                    crate::gui::RoomBounds {
+                        id: r.id.clone(),
+                        min: r.center - r.dimensions * 0.5,
+                        max: r.center + r.dimensions * 0.5,
+                        display_name: f.display_name,
+                        purpose: f.purpose,
+                        actions: f.actions,
+                        access: f.access,
+                    }
                 })
                 .collect();
             let mut placed = 0usize;

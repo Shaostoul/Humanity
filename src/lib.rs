@@ -2709,6 +2709,16 @@ mod native_app {
                                 // repro. `construction_structure_dirty` routes through the exact same
                                 // rebuild_homestead -> rebuild_machine_objects path that workaround hit. (v0.624)
                                 state.gui_state.construction_structure_dirty = true;
+                                // The rooms.ron registry for the ZONE detail panel (console-room
+                                // increment): a zone's room_type picker lists these keys and the
+                                // panel shows the purpose + actions the pick resolves to. Loaded here,
+                                // on editor entry, for the box home too (the legacy-layout branch
+                                // below only fills the Add-Room picker's id list).
+                                let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+                                let mut keys: Vec<String> = reg.types.keys().cloned().collect();
+                                keys.sort();
+                                state.gui_state.construction_room_types = keys;
+                                state.gui_state.room_type_registry = reg;
                                 if let Some(layout) = &state.homestead_layout {
                                     // PIN EVERY room to its current resolved position on open, so
                                     // editing one room no longer reshuffles the auto-laid-out

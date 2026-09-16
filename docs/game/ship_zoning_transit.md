@@ -38,7 +38,9 @@ This spec complements `design/feature_web.md` and should be represented in the F
 
 ### Typical private modules
 - Bedroom
-- Battlestation
+- Console room (battlestation): the household's fixed workstation; the
+  mothership bridge is the "command deck", a different room (see
+  docs/design/homestead.md, Console room)
 - Network
 - Garden
 - Workshop
@@ -154,7 +156,7 @@ Use **simple home labels** as primary titles and **public analogs** as subtext.
 
 Examples:
 - Bedroom -> Public: Crew Quarters District
-- Battlestation -> Public: Operations Center
+- Console room (battlestation) -> Public: Operations Center
 - Network -> Public: Fleet Communications Grid
 - Garden -> Public: Agropark / Community Agriculture Decks
 - Workshop -> Public: Fabrication Complex

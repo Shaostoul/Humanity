@@ -318,11 +318,30 @@ pub fn load_trim_profiles() -> TrimProfiles {
 /// Metadata about a generated room, exposed for gameplay features.
 #[derive(Debug, Clone)]
 pub struct RoomInfo {
+    /// Room id. Legacy fibonacci layouts use the room-type key itself ("kitchen"); the box home's
+    /// flood-filled rooms use the covering ZONE's id ("room-kitchen") when a zone covers the room's
+    /// centre, else the anonymous "room_N" (see `HomeStructure::detect_rooms`).
     pub id: String,
     pub center: Vec3,
     pub dimensions: Vec3,
     pub is_hologram_room: bool,
     pub is_spawn_room: bool,
+    /// The `data/rooms.ron` key this room's FUNCTION (purpose, actions, access) resolves from, when
+    /// the covering zone names one (`Zone::room_type`). None -> the id itself is tried as the key,
+    /// which is how the legacy fibonacci ids ("kitchen", "computer") have always joined.
+    pub room_type: Option<String>,
+    /// Human label carried from the covering zone (e.g. "Entry"), so a zone-named room whose
+    /// zone sets no `room_type` still reads as a place and not as an id. Empty when no zone
+    /// covers the room.
+    pub label: String,
+}
+
+impl RoomInfo {
+    /// The `data/rooms.ron` key this room joins on: the covering zone's `room_type` when set,
+    /// else the room id itself (the legacy fibonacci ids ARE rooms.ron keys).
+    pub fn type_key(&self) -> &str {
+        self.room_type.as_deref().unwrap_or(&self.id)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1384,6 +1403,9 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             dimensions: Vec3::new(dim.x, wall_height, dim.z),
             is_hologram_room: hologram_room == Some(rc.id.as_str()),
             is_spawn_room: spawn_room == Some(rc.id.as_str()),
+            // Legacy layout: the id IS the rooms.ron key, no zone join needed.
+            room_type: None,
+            label: String::new(),
         });
 
         // Ceiling (built for every room; only DRAWN when the roof toggle is on).
@@ -1582,6 +1604,9 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                 dimensions: dim,
                 is_hologram_room: hologram_room == Some(rc.id.as_str()),
                 is_spawn_room: spawn_room == Some(rc.id.as_str()),
+                // Legacy layout: the id IS the rooms.ron key, no zone join needed.
+                room_type: None,
+                label: String::new(),
             });
         }
     }
