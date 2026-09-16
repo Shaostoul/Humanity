@@ -44,6 +44,8 @@ files into the data directory and the game loads them.
 | `sound.toml` | Music, SFX, ambient, voice, spatial audio | TOML |
 | `provider.toml` | Provider Directory entries (who OFFERS: shops, libraries, food banks, individuals) | Signed object (`provider_v1`) |
 | `offering.toml` | Published goods and services (the Market's rows) | Signed object (`offering_v1`) |
+| `web_sites.toml` | The websites database: Browser-page sites with their embed-legality and affiliate records | JSON (`data/web/sites.json`) |
+| `web_readability.toml` | Class/id conventions the readable-web parser drops as chrome | JSON (`data/web/readability.json`) |
 
 **Two of these are not data files.** `provider.toml` and `offering.toml` describe
 the payload of SIGNED OBJECTS that users publish at runtime

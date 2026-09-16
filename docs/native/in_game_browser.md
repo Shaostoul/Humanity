@@ -1,5 +1,17 @@
 # In-Game Browser (Web-to-Texture)
 
+> **Superseded (2026-09-16).** The CEF/Chromium approach below was NOT taken.
+> Brief 4 in `docs/design/decision-briefs.md` chose "the readable web": parse
+> HTML with html5ever and draw it ourselves, no browser engine, no JavaScript.
+> That shipped as `src/web_reader/` + `src/gui/widgets/web_view.rs`, documented
+> in `docs/design/readable-web.md`. The kiosk TOML sketched here became the
+> websites database (`data/web/sites.json`, schema `schemas/web_sites.toml`):
+> its url, allowed-domains, category, placement, affiliate-tag and transparency
+> badge ideas live on there as `embed` and `affiliate` records. This file is
+> kept as the reference for what the in-world screen rungs still want (input
+> forwarding, LOD/suspend, VR interaction); read the sections below as design
+> intent, not as the plan.
+
 ## Purpose
 
 Render live websites onto 3D surfaces inside the game world. Primary use case: interactive kiosks (e.g., an Amazon affiliate kiosk in a VR marketplace where players can browse and shop on the real Amazon website without leaving the game).

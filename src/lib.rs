@@ -121,6 +121,10 @@ pub mod mods;
 #[cfg(feature = "native")]
 pub mod net;
 
+// The readable web (2026-09-16): HTTPS fetch + html5ever parse, no JS. Native-only. docs/design/readable-web.md.
+#[cfg(feature = "native")]
+pub mod web_reader;
+
 #[cfg(feature = "native")]
 pub mod config;
 
@@ -1582,7 +1586,8 @@ mod native_app {
             gui_state.donate_methods = crate::gui::load_donate_methods(&data_dir);
             gui_state.donate_charities = crate::gui::load_donate_charities(&data_dir);
             gui_state.qa_test_tasks = crate::gui::load_qa_test_tasks(&data_dir);
-            gui_state.browser_bookmarks = crate::gui::load_browser_bookmarks(&data_dir);
+            gui_state.web_sites = crate::gui::load_web_sites(&data_dir); // data/web/sites.json, both clients
+            gui_state.web_view.rules = crate::gui::load_web_read_rules(&data_dir);
             // v0.197.0: ai_usage_filters loader removed.
             // v0.415.0: resource_categories + onboarding concepts/core-pages
             // loaders removed with their retired pages.

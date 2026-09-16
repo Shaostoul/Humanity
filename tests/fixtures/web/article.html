@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Silverdale, a test article</title>
+  <style>.x { color: red } STYLE TEXT</style>
+  <script>var STYLE = "SCRIPT TEXT";</script>
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <!-- Everything the reader must drop sits INSIDE the article, so the drop
+       rules themselves are what this fixture exercises (the article wins as
+       the readability root, so anything outside it would never be visited). -->
+  <div id="outer-wrapper">OUTSIDE ARTICLE TEXT</div>
+  <article>
+    <nav><a href="/">NAV TEXT</a></nav>
+    <script>console.log("SCRIPT TEXT");</script>
+    <noscript>NOSCRIPT TEXT</noscript>
+    <template><p>TEMPLATE TEXT</p></template>
+    <div hidden>HIDDEN TEXT</div>
+    <div class="box noprint">NOPRINT TEXT</div>
+    <div id="site-menu">MENU TEXT</div>
+    <aside>ASIDE TEXT</aside>
+    <form action="/search"><input name="q"><button>FORM TEXT</button></form>
+
+    <h1>Silverdale</h1>
+    <p>
+      <strong>Silverdale</strong> is a community in
+      <a href="/wiki/Kitsap_County">Kitsap County</a>, on Dyes
+      Inlet.
+    </p>
+
+    <h2>Getting around</h2>
+    <p>See <a href="nearby.html">nearby towns</a> or
+      <a href="//cdn.example.org/map">a map</a>. Built with
+      <a href="https://united-humanity.us/">HumanityOS</a>.
+      <a href="javascript:void(0)">run script</a></p>
+    <ul>
+      <li>Clear Creek Trail</li>
+      <li>the mall
+        <ul><li>the waterfront</li></ul>
+      </li>
+    </ul>
+
+    <figure>
+      <img src="/img/inlet.jpg" alt="Dyes Inlet at dusk">
+      <img src="/pixel.gif" width="1" height="1" alt="">
+    </figure>
+
+    <h2>Code sample</h2>
+    <pre>fn main() {
+    println!("hi");
+}</pre>
+    <hr>
+    <blockquote><p>A quiet place with a loud mall.</p></blockquote>
+
+    <h3>Population</h3>
+    <table>
+      <thead><tr><th>Year</th><th>Population</th></tr></thead>
+      <tbody>
+        <tr><td>2010</td><td>19,204</td></tr>
+        <tr><td><a href="/wiki/2020">2020</a></td><td>20,733</td></tr>
+      </tbody>
+    </table>
+    <footer>FOOTER TEXT</footer>
+  </article>
+</body>
+</html>

@@ -621,9 +621,11 @@ pub enum GuiPage {
     /// QA testing tasks — operator-facing checklist of features to manually verify.
     /// Each task has Mark Passed / Report Issue buttons that post results to chat.
     Testing,
-    /// Curated bookmarks page. First step toward the in-app browser — for
-    /// now each card opens its URL in the OS default browser via egui's
-    /// open_url. Data lives in `data/browser/bookmarks.json`.
+    /// The Browser page: the websites database (`data/web/sites.json`) as
+    /// site cards, and, when the readable-web opt-in is on, the in-app web
+    /// view that reads a site's pages without a browser engine or
+    /// JavaScript (docs/design/readable-web.md). Opt-in off = cards open
+    /// the OS browser.
     Browser,
     /// Real — the merged "your actual life" tab (v0.358): one page with a
     /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
@@ -4565,10 +4567,15 @@ pub struct GuiState {
     pub qa_test_note: std::collections::HashMap<String, String>,
     /// Filter chip on the Testing page: "all" / category id.
     pub qa_test_filter: String,
-    /// Bookmark categories (`data/browser/bookmarks.json`) shown on the Browser page.
-    pub browser_bookmarks: Vec<BrowserCategory>,
+    /// The websites database (`data/web/sites.json`): categories + one record
+    /// per site with its embedding-legality and affiliate fields. Shown on the
+    /// Browser page; the web mirror (web/pages/web.html) reads the same file.
+    pub web_sites: WebSites,
     /// Filter chip on the Browser page: "all" / category id.
     pub browser_filter: String,
+    /// The readable web view (widgets/web_view.rs): history, the in-flight
+    /// fetch and the page on screen. Only used when `settings.readable_web`.
+    pub web_view: widgets::web_view::WebViewState,
     /// Preview opt-in: render the new two-tier nav (Reality / Sim / Tools /
     /// Settings + sub-pages) instead of the legacy single-row nav. Toggled
     /// from the [≡] / [▤] button in the nav itself. Not persisted yet so
@@ -5783,8 +5790,9 @@ impl Default for GuiState {
             qa_test_status: std::collections::HashMap::new(),
             qa_test_note: std::collections::HashMap::new(),
             qa_test_filter: "all".to_string(),
-            browser_bookmarks: Vec::new(),
+            web_sites: WebSites::default(),
             browser_filter: "all".to_string(),
+            web_view: widgets::web_view::WebViewState::new(),
             // v0.174.0: default to two-tier nav for fresh installs. Existing
             // users with `nav_two_tier=false` saved in config keep their
             // legacy layout until they flip via [▤]; new sessions land on
@@ -7339,43 +7347,28 @@ pub fn load_qa_test_tasks(data_dir: &std::path::Path) -> Vec<QaTestTask> {
         .unwrap_or_default()
 }
 
-/// One bookmark on the Browser page (curated link to an external site).
+/// The websites database types live with the reader (`web_reader::sites`);
+/// re-exported so pages keep the `crate::gui::WebSite` spelling the other
+/// data-driven types use.
 #[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct BrowserBookmark {
-    pub id: String,
-    pub title: String,
-    pub url: String,
-    #[serde(default)] pub description: String,
-    #[serde(default)] pub icon: String,
-}
-
-/// A category of bookmarks. Color is one of: accent, info, success, warning, danger.
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct BrowserCategory {
-    pub id: String,
-    pub name: String,
-    #[serde(default = "default_browser_color")] pub color: String,
-    pub bookmarks: Vec<BrowserBookmark>,
-}
-
-#[cfg(feature = "native")]
-fn default_browser_color() -> String { "accent".to_string() }
+pub use crate::web_reader::sites::{host_of, WebSite, WebSiteAffiliate, WebSiteCategory, WebSiteEmbed, WebSites};
 /// Default underwater clarity (v0.1054): mostly physical, but not so dark that
 /// a first dive is a black screen. The operator can take it either way.
 fn default_water_clarity() -> f32 { 0.35 }
 fn default_precip_density() -> f32 { 1.0 }
 fn default_fog_density() -> f32 { 1.0 }
 
-/// Load browser bookmarks from `data/browser/bookmarks.json`.
+/// Load the websites database from `data/web/sites.json`.
 #[cfg(feature = "native")]
-pub fn load_browser_bookmarks(data_dir: &std::path::Path) -> Vec<BrowserCategory> {
-    #[derive(serde::Deserialize)]
-    struct File { categories: Vec<BrowserCategory> }
-    read_data_json::<File>(data_dir, "browser/bookmarks.json")
-        .map(|f| f.categories)
-        .unwrap_or_default()
+pub fn load_web_sites(data_dir: &std::path::Path) -> WebSites {
+    read_data_json::<WebSites>(data_dir, "web/sites.json").unwrap_or_default()
+}
+
+/// Load the readability hints from `data/web/readability.json` (which
+/// classes and ids mark screen-only chrome on cooperating sites).
+#[cfg(feature = "native")]
+pub fn load_web_read_rules(data_dir: &std::path::Path) -> crate::web_reader::ReadRules {
+    read_data_json::<crate::web_reader::ReadRules>(data_dir, "web/readability.json").unwrap_or_default()
 }
 
 // v0.415.0: OnboardingConcept / OnboardingCorePage + their loaders removed with
@@ -7599,6 +7592,12 @@ pub struct SettingsState {
     pub live_weather: bool,
     /// Track the orbital home station (in-world ring + label; Cosmos toggle).
     pub track_station: bool,
+    /// Read websites inside HumanityOS (the readable web, 2026-09-16). OFF
+    /// by default and independent of the privacy tier: a person who wants
+    /// no website access from the app never has any. On, a Browser-page
+    /// card fetches the page (one HTTPS GET for the URL, plus its images)
+    /// and draws it in the in-app web view; off, cards open the OS browser.
+    pub readable_web: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves
     /// (moving sun sparkle, Fresnel sky mirror) + land micro-texture under
     /// the photo albedo, on planets with baked per-pixel imagery (Earth).
@@ -7756,6 +7755,7 @@ impl Default for SettingsState {
             // visibly replaced the deck mid-ascent; procedural is coherent
             // at every altitude. The Settings toggle turns it back on.
             live_weather: false,
+            readable_web: false,
             track_station: true,
             planet_surface_detail: true,
             water_fft: false,

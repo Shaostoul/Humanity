@@ -214,6 +214,24 @@ own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 - Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
 - Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
 
+### The Readable Web (native + web, 2026-09-16)
+Open a real website INSIDE HumanityOS with no browser engine and no JavaScript: the
+page is fetched over HTTPS on a background thread (10 s timeout, 4 MB cap, http(s)
+only, the scheme gate re-run on every redirect hop, no cookies), parsed with
+html5ever into a readable document (headings, paragraphs, links, images, lists,
+tables, code, quotes; scripts/styles/forms/nav/footer/aside dropped, main/article
+kept), and drawn in egui with clickable links, back/forward, an editable URL row and
+an "Open in browser" escape hatch. OFF by default (`AppConfig.readable_web`, Settings
+> Privacy, independent of the privacy tier); off = Browser-page cards open the OS
+browser as before. The websites database records per site whether its pages may
+legally be shown in-app (`embed.status`, evidence fields enforced by the checker)
+and any affiliate tag with its mandatory disclosure. Design: `docs/design/readable-web.md`.
+- Native: `src/web_reader/` (mod.rs model + limits, dom.rs arena TreeSink, parse.rs readability + blocks, fetch.rs gate + capped fetch), `src/gui/widgets/web_view.rs` (the view), `src/gui/pages/browser.rs` (cards + view), `src/gui/pages/settings.rs` (Privacy toggle), `src/config.rs` (`readable_web`)
+- Web: `web/pages/web.html` (mirror: same cards from the same file, opens in a new window)
+- Data: `data/web/sites.json` (schema `schemas/web_sites.toml`), `data/web/readability.json` (schema `schemas/web_readability.toml`)
+- Checks: `scripts/check-web-sites.js` (preflight), `tests/page_parity_lint.rs` (both clients read `web/sites.json`), fixtures `tests/fixtures/web/`
+- Cargo deps: `html5ever = =0.40.1` (native-only), `url` (now native too)
+
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
 roots (Home/Downloads/Documents/Desktop/Game data/App folder), dirs-first ci-alpha

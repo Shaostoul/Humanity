@@ -3674,6 +3674,23 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         }
         widgets::setting_hint(ui, theme, hint, "Whether other players can open and view your profile page.");
     });
+    ui.add_space(theme.spacing_sm);
+    // The readable web (2026-09-16): in-app fetching of websites is an
+    // explicit opt-in, OFF by default and separate from the tier presets,
+    // so choosing a tier never quietly turns web access on. The hint says
+    // exactly what leaves the machine, per the GUI-first rule: nobody should
+    // have to read a design doc to know what a switch sends.
+    widgets::card(ui, theme, |ui| {
+        if widgets::toggle(ui, theme, "Read websites inside HumanityOS", &mut state.settings.readable_web) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(
+            ui,
+            theme,
+            hint,
+            "Off (default): Browser-page sites open in your system browser and the app never              fetches a web page. On: the site opens inside the app as readable text, links,              images and tables, with no scripts, cookies or trackers. What leaves your              machine is only the address of the page you open (plus its images), sent from              your own connection, never through our server. Independent of the privacy tier.",
+        );
+    });
 }
 
 /// Open a folder (or a file's parent folder) in the OS file manager.

@@ -1,13 +1,13 @@
 {
   "version": 1,
   "default_tier": "private",
-  "_comment": "Privacy tiers shown at first connect (native modal + web modal) and in Settings. The DEFAULT is maximum privacy; Spotlight is maximum publicity by explicit choice (streamers, creators). A tier is a preset over two real switches: hide_presence (relay privacy_update: never online, no last_seen stored, no join/leave/typing signals) and directory_unlisted (profile privacy JSON: hidden from the public member directory). Messages are E2EE regardless of tier.",
+  "_comment": "Privacy tiers shown at first connect (native modal + web modal) and in Settings. The DEFAULT is maximum privacy; Spotlight is maximum publicity by explicit choice (streamers, creators). A tier is a preset over two real switches: hide_presence (relay privacy_update: never online, no last_seen stored, no join/leave/typing signals) and directory_unlisted (profile privacy JSON: hidden from the public member directory). Messages are E2EE regardless of tier. The readable-web opt-in (AppConfig.readable_web) is deliberately NOT part of any tier: it is off by default and stays off until the person flips it, so a tier change never starts the app fetching web pages.",
   "tiers": [
     {
       "id": "private",
       "name": "Private",
       "tagline": "Maximum privacy. The default.",
-      "description": "You never appear online, no last-seen time is stored on the server, no typing or join signals are sent, and you are not listed in the public member directory. Friends can still reach you (friend codes work, and your messages are end-to-end encrypted like everyone's).",
+      "description": "You never appear online, no last-seen time is stored on the server, no typing or join signals are sent, and you are not listed in the public member directory. Friends can still reach you (friend codes work, and your messages are end-to-end encrypted like everyone's). Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
       "hide_presence": true,
       "directory_unlisted": true
     },
@@ -15,7 +15,7 @@
       "id": "balanced",
       "name": "Balanced",
       "tagline": "Visible to your server, invisible to the wider web.",
-      "description": "Members of servers you join can see when you are online. You stay out of the public web member directory.",
+      "description": "Members of servers you join can see when you are online. You stay out of the public web member directory. Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
       "hide_presence": false,
       "directory_unlisted": true
     },
@@ -23,7 +23,7 @@
       "id": "open",
       "name": "Open",
       "tagline": "Findable by people looking for you.",
-      "description": "You appear online to members and in the public member directory, so people can find and follow you.",
+      "description": "You appear online to members and in the public member directory, so people can find and follow you. Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
       "hide_presence": false,
       "directory_unlisted": false
     },
@@ -31,7 +31,7 @@
       "id": "spotlight",
       "name": "Spotlight",
       "tagline": "Maximum publicity. For streamers and creators.",
-      "description": "Everything discoverable by choice: online presence, public directory listing, and your live-stream status shown so viewers can find you the moment you go live.",
+      "description": "Everything discoverable by choice: online presence, public directory listing, and your live-stream status shown so viewers can find you the moment you go live. Reading websites inside the app is a separate switch (Settings > Privacy > Read websites inside HumanityOS), off by default whatever tier you pick.",
       "hide_presence": false,
       "directory_unlisted": false,
       "promote_streaming": true

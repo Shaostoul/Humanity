@@ -615,6 +615,85 @@ fn inventory_container_header_click_toggles_open() {
     );
 }
 
+/// REAL interaction test on the readable web view (2026-09-16): a page with
+/// links is drawn headlessly, one link is clicked with the canonical synthetic
+/// move / press / release sequence, and the view must have QUEUED navigation
+/// to the RESOLVED absolute URL, with no fetch dispatched (fetch_enabled is
+/// off, so nothing touches the network). This is the "shows != works" guard
+/// for the view's links: a label that renders but does not navigate is the
+/// failure this exists to catch. Proven red first by disabling the click
+/// handler in web_view.rs (the assertion below then fails with "no navigation
+/// queued") before it was trusted.
+#[test]
+fn web_view_link_click_queues_navigation_to_the_resolved_url() {
+    use crate::gui::widgets::image_cache::ImageCache;
+    use crate::gui::widgets::web_view::{ViewStatus, WebViewState};
+
+    let ctx = snapshot_ctx();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut view = WebViewState::new();
+    view.fetch_enabled = false;
+    let mut images = ImageCache::new();
+    // The page exactly as the parser produces it from the fixture, so the
+    // href the click must yield is the RESOLVED one, not the fixture's
+    // relative "nearby.html".
+    let page = crate::web_reader::parse_html(
+        include_str!("../../tests/fixtures/web/article.html"),
+        "https://example.com/docs/page.html",
+        &Default::default(),
+    );
+    view.page = Some(page);
+    view.status = ViewStatus::Ready;
+
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0));
+    let run = |ctx: &egui::Context, events: Vec<egui::Event>, view: &mut WebViewState, images: &mut ImageCache| {
+        let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                view.show(ui, &theme, images, None);
+            });
+        });
+    };
+
+    // Settle twice so the scroll area and the wrapped labels have rects.
+    run(&ctx, Vec::new(), &mut view, &mut images);
+    run(&ctx, Vec::new(), &mut view, &mut images);
+    let target = "https://example.com/docs/nearby.html";
+    let rect = view
+        .link_rects()
+        .iter()
+        .find(|(href, _)| href == target)
+        .map(|(_, r)| *r)
+        .expect("the resolved link should have been drawn and its rect recorded");
+    assert!(screen.contains(rect.center()), "link must be on screen to be clickable: {rect:?}");
+    assert!(view.queued_navigation().is_none(), "nothing queued before the click");
+
+    let center = rect.center();
+    let m = egui::Modifiers::default();
+    run(&ctx, vec![egui::Event::PointerMoved(center)], &mut view, &mut images);
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: true, modifiers: m }],
+        &mut view,
+        &mut images,
+    );
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: false, modifiers: m }],
+        &mut view,
+        &mut images,
+    );
+
+    assert_eq!(
+        view.queued_navigation(),
+        Some(target),
+        "clicking the link did NOT queue navigation to the resolved URL -- the link          renders but is not interactive, or resolved to the wrong address"
+    );
+    assert_eq!(view.current_url(), Some(target), "the click is on the history stack");
+    assert!(matches!(view.status, ViewStatus::Fetching(_)), "status says a fetch is pending: {:?}", view.status);
+}
+
 /// REAL interaction test: the "Link a Device" QR action on the Account settings
 /// panel is DISCOVERABLE (renders whenever an identity exists, not buried inside
 /// the seed-phrase reveal like v0.837 was) and actually BUILDS the QR when shown.

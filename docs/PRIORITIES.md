@@ -5187,6 +5187,14 @@
 >    Blitz, a limited custom renderer for cooperating content, or an OS webview
 >    with the WebKit caveat). Needs a dedicated research + design pass before any
 >    build; consolidate web.html + native Browser into this single surface. <<<**
+>    **UPDATE 2026-09-16: RUNG 6 (core) SHIPPED as "the readable web"** per Brief 4
+>    (`docs/design/decision-briefs.md`): html5ever parse + egui draw, NO browser
+>    engine, NO JavaScript; opt-in off by default (Settings > Privacy); one
+>    websites database `data/web/sites.json` now feeds BOTH web.html and the
+>    native Browser page, with per-site embed-legality recorded (34 of 38 await
+>    the operator's terms review; `just check-web-sites` gates it). Design +
+>    what is deliberately not rendered: `docs/design/readable-web.md`. NEXT RUNG:
+>    draw the same view on an in-world screen (built in parallel).
 
 
 > **>>> OPERATOR FIELD SESSION 3 DIRECTIVES (2026-07-04 late, journaled in

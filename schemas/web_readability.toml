@@ -1,0 +1,45 @@
+# Readability hints schema
+#
+# WHY THIS EXISTS
+# The readable web (src/web_reader/parse.rs) turns a fetched page into the
+# parts a person reads. Most of what to drop is fixed by the HTML spec and
+# lives in code: script, style, noscript, template, forms, nav, footer, aside,
+# and the ARIA landmark roles that mean the same. What is NOT fixed is which
+# class names or ids a given site uses for screen-only chrome ("[edit]" links
+# on MediaWiki, cookie banners, skip links, the widespread "noprint"). Those
+# conventions are markup, not domains, and they change; they belong in data so
+# a cooperating site's clutter is a data edit, not a rebuild.
+#
+# This file names MARKUP CONVENTIONS ONLY. It must never contain a domain or a
+# site name: which sites exist is data/web/sites.json's job, and per-site
+# behaviour would make the reader a list of special cases.
+
+[schema]
+name = "web_readability"
+file = "data/web/readability.json"
+description = "Class names and ids that mark screen-only chrome, dropped by the readable-web parser."
+consumers = [
+  "src/gui/mod.rs (load_web_read_rules)",
+  "src/web_reader/parse.rs (ReadRules)",
+  "scripts/check-web-sites.js (shape check)",
+]
+
+[fields.drop_classes]
+type = "string[]"
+required = true
+description = """
+An element carrying ANY of these classes (exact token match on the class
+attribute) is dropped together with everything under it. Keep entries generic:
+"noprint" (print stylesheets hide it, so it is chrome), "mw-editsection"
+(MediaWiki's [edit] links), "sr-only" (screen-reader text that duplicates a
+visible control).
+"""
+
+[fields.drop_ids]
+type = "string[]"
+required = true
+description = """
+An element whose id is ANY of these is dropped with its subtree. Ids are
+site-structural ("mw-navigation", "footer"), so add one only when it is a
+convention shared across a family of sites, not one page.
+"""
