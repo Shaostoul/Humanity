@@ -4076,6 +4076,7 @@ mod multi_select_tests {
             container_type: None,
             model: None,
             screen: None,
+            camera: None,
         }
     }
 

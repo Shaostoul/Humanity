@@ -16,7 +16,8 @@ Code map:
 | World quads, look-ray hits, input routing, per-frame drawing | `src/engine/screens.rs` |
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
 | Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
-| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/` (one provider per kind) |
+| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`, `WorldRender`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/live.rs` (the live stream), `src/engine/screens/camera.rs` (the in-game camera) |
+| One view of the world from any pose | `src/engine/ipc.rs` (`render_view_onto`, `ViewPasses`), shared by the hi-res screenshot and the camera screens |
 | Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions) |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
 
@@ -189,8 +190,8 @@ it into a variant once, when the surface is created:
 | string | shows | drawn by |
 |---|---|---|
 | `inventory` or `page:inventory` | a native page (any `gui::dispatch::page_id`) | the surface itself, through `draw_tool_page` |
-| `watch:<stream id>` | an MJPEG live stream (the Watch page's decoder) | the live provider (rung 3) |
-| `camera:<machine instance id>` | the game world from a placed camera's pose | the camera provider (rung 3) |
+| `watch:<stream id>` | an MJPEG live stream (the Watch page's decoder); the id is the publisher's registered name, lower case | `engine::screens::live::LiveProvider` (rung 3, shipped) |
+| `camera:<machine instance id>` | the game world from a placed camera post's pose | `engine::screens::camera::CameraProvider` (rung 3, shipped) |
 | `video:<path>` | a WebM clip through the purpose-built player | the video provider (rung 5) |
 | `web:<url>` | the readable web view, when `readable_web` is on | the web provider (rung 6) |
 
@@ -213,6 +214,168 @@ same frame, so a 1920 x 1080 stream on a 1280 x 720 wall shows every pixel.
 Providers also report `status()` fields into the dev IPC's done file (a
 stream's connection state, a clip's position, a web view's url), which is
 what lets the rig wait for and assert on them.
+
+## Live and camera sources (rung 3)
+
+Two providers, one file each under `src/engine/screens/`, both built by
+`provider_for` and both reachable from the data file alone: a wall screen
+whose `screen_source` is `watch:shaostoul` shows that live stream, one whose
+source is `camera:camera_post_1` shows what that camera post sees. The
+operator's ask: "live camera feeds of in-game events".
+
+### The live stream: one viewer per screen
+
+`watch:<stream id>` shows the MJPEG stream the relay publishes under a
+registered name (`src/relay/live.rs`: the stream id IS the publisher's
+registered name, lower case, which is what the Watch page's directory
+lists). The provider reuses the Watch page's decoder, `net::live_viewer::
+LiveViewer`, which keeps only the NEWEST decoded frame and hands it to one
+caller through `take_latest`.
+
+That last fact is the rule: **each screen owns its own viewer**. The Watch
+page's `GuiState::watch_viewer` is one shared slot, and a shared viewer
+would split its frames between consumers, so two walls on one stream would
+each show every other frame, or nothing when the Watch page is open. The
+rung-1 critic flagged exactly that. `LiveProvider` therefore starts its own
+`LiveViewer` on its first framed tick, against the configured server
+(`GuiState::server_url`, the same way `pages::watch::start_watching`
+does), and drops it with the surface (a dropped viewer stops its thread).
+Two walls showing one stream cost two sockets, and each gets every frame.
+
+Each framed tick the provider takes the newest frame and writes it into the
+surface with `write_pixels`, **letterboxed to the surface's own pixel
+size** (`live::letterbox_into`, nearest-neighbour, about a millisecond at
+1280 x 720). The surface never changes size, so the wall's quad never
+stretches the picture: a 16:9 stream on a 16:10 desk monitor gets black
+bars, not a squeeze. A frame that already matches the surface is written
+directly.
+
+While no frame has arrived the surface shows a status page through
+`run_and_render` ("Connecting to shaostoul"); when the viewer's thread ends
+(the relay said "not live", the stream ended, the socket failed) the page
+says "Stream offline" with the relay's reason, the viewer is dropped, and a
+new one is opened after `live::RETRY_AFTER` (15 s), so a wall comes back on
+its own when the streamer goes live again. The status page is redrawn only
+when its text changes. `status()` reports `{stream, connected, frames}`
+(frames written to the surface), merged into `debug/screen_done.json`.
+
+### The in-game camera: a camera post and a world screen
+
+`camera:<instance id>` shows the game world from a placed **camera post**.
+The post is an ordinary catalog machine with one new def field:
+
+```ron
+"camera_post": (
+    shape: "box", size: (0.14, 1.7, 0.14), color: (0.2, 0.2, 0.22),
+    label: "Camera post", category: "Displays",
+    camera: Some((0.0, -8.0, 70.0)),   // (yaw, pitch, fov) in degrees
+),
+```
+
+`MachineDef.camera` / `PlacedMachine.camera` is `(yaw_deg, pitch_deg,
+fov_deg)`. Yaw 0 is the body's front (-Z at rotation 0) and the placed
+instance's `rotation` ADDS to it, so turning the post in the editor turns
+the camera; pitch is positive up (a mounted camera looks a little down);
+fov is the vertical field of view. `PlacedMachine::camera_pose`
+(`src/machines.rs`) resolves the lens: just below the machine's top, on its
+FRONT face (so the post's own body is behind the near plane), yaw = def yaw
++ rotation, pitch clamped to 89 degrees either way, fov to 10..150.
+`engine::screens::camera_posts_from` collects every post's pose on every
+placement rebuild AND every count-unchanged move (`Screens::update_poses`),
+so the provider always resolves the CURRENT placements: a post dragged in
+the editor pans its screen on its next render, a deleted post turns its
+screen into a "No camera post named ..." notice.
+
+A camera screen is a **world screen**: its provider does not draw content,
+the engine renders the world for it. `ScreenProvider::world_render` returns
+the screen's scheduling state (last render, interval) and
+`ScreenProvider::render_world` is handed a `WorldRender` handle
+(`engine::screens::camera::EngineWorld`, over the engine state and this
+frame's draw lists) that resolves a post's pose and renders a view from any
+pose into any target. The provider builds a renderer `Camera` at the pose
+with the surface's aspect (`camera::camera_from_pose`; the yaw sign is
+proven by `camera_forward_matches_the_machine_front`, not read off the
+formulas) and has the world rendered STRAIGHT INTO its surface texture. For
+that the surface is created in the scene's swapchain format
+(`ScreenProvider::surface_format`): the scene pipelines were built for that
+format and can draw into no other. The readback (`read_rgba`) and
+`write_pixels` swizzle for a BGRA format, so the dev IPC snapshot of a
+camera screen is a correct PNG.
+
+**The camera budget** (`camera::CAMERA_INTERVAL`, `camera::pick_due`):
+
+- A camera screen renders at most every 100 ms (10 Hz). A skipped tick
+  keeps the last image; the texture persists.
+- At most ONE camera renders per frame across all camera screens. Among the
+  surfaces chosen this frame (`frame_surfaces`: nearest four in range, the
+  hovered one, the IPC target) the due world screens are served in
+  starvation order: never rendered first, then the oldest render, ties to
+  the nearest. Three cameras in a room cycle 0, 1, 2 and none renders on
+  two consecutive frames (`due_cameras_render_one_per_frame_in_starvation_order`).
+- The render size is the surface's own `px`; a smaller camera screen def is
+  a cheaper camera.
+- The passes are the sky (stars) and the scene lists (opaque, transparent,
+  overlay, ring lines): `ViewPasses::SceneOnly`. The planet/cloud pass,
+  celestial lines, god rays and SSAO are NOT run for a camera, for two
+  reasons that are both about the cloud renderer: it keeps per-frame
+  temporal history (screen-space reprojection, a re-anchor order, a
+  translation baseline) fitted to the PLAYER's camera, and a foreign pose
+  at 10 Hz would poison that history for the live frame (the orders are
+  `take()`n by whichever celestial pass runs first in a frame, and a camera
+  screen renders before the live frame's pass); and it is the frame's most
+  expensive pass by an order of magnitude. A camera post inside the
+  homestead sees the station and a star sky through any window; a planet
+  in a camera's window is a later rung (a second temporal history keyed per
+  camera).
+
+**A camera never sees its own screen.** The camera's surface texture is
+the render target of its view, and its own display quad's material samples
+that same texture. wgpu refuses a texture that is both a render attachment
+and a sampled texture within one pass (a validation error that would take
+the frame down), and the draw list is not culled per camera, so
+`camera::without_own_quads` leaves the target screen's quads out of the
+opaque list the camera renders; every other object, other screens' quads
+included, stays. A camera pointed at its own monitor shows the monitor's
+body with no picture on it.
+
+**Ordering.** The render happens inside `frame_surfaces`, before the
+surfaces' own `frame` and before the live frame's scene pass, so the scene
+pass samples THIS frame's view, never last frame's; the provider's `frame`
+only ever draws its notice, and only when the text changes, never over a
+rendered view. `frame_surfaces` takes `SceneDrawLists`, this frame's draw
+lists as built so far; they are still in the HOME frame at that point
+(lib.rs adds `station_off` in place further down the frame), which is the
+frame the camera posts are in. The sun shadow map is the live frame's (fitted
+to the player's view), so geometry outside the player's view is lit without
+its shadow on a camera; and the light list is the previous frame's. Both are
+right while aboard the station, which is the only place a camera screen is
+within framing range.
+
+**`render_view_onto` is shared with the screenshot.** The sky pass and the
+scene passes were refactored OUT of `capture_hires_screenshot`
+(`src/engine/ipc.rs`) into `render_view_onto(state, camera, target, size,
+lists, passes)`. The hi-res screenshot calls it with `ViewPasses::Everything`
+on a copy of the live camera with the capture's aspect (the live camera is
+never touched; before this the path set and restored `state.camera.aspect`
+around the passes), then reads the target back to its PNG exactly as
+before; the done file contract is unchanged. The camera provider calls it
+through `EngineWorld::render_view` with `ViewPasses::SceneOnly`. Both
+resize the shared depth buffer to the target for the duration and restore
+the window size before returning.
+
+**Shipped data** (`data/machines/home.ron`): `camera_post` in both home
+catalogs under "Displays"; `camera_post_1` on the open garden floor west of
+the variety-tower grid, looking east down the tower rows and a little down;
+in the console room (x 47.5..51, z 44..47) `wall_screen_3` on the west wall
+showing `camera:camera_post_1` and `wall_screen_4` on the north wall showing
+`watch:shaostoul`. `shipped_homes_place_a_camera_post_and_the_console_screens_name_it`
+pins that every `camera:` screen names a post that is actually placed.
+
+**Dev IPC.** `debug/screen_request.json` works on both kinds like any
+screen; the done file carries the provider's `status()` fields: a live
+screen's `stream`, `connected`, `frames`; a camera screen's `camera`,
+`renders`, `live`, `error`. A `snapshot` of a camera screen is the rendered
+view as the wall shows it.
 
 ## Dev IPC (permanent tooling)
 
@@ -275,10 +438,11 @@ request another snapshot, compare.
 
 Each is a separate increment on the same surface:
 
-- **Live feed:** a camera or stream frame written into a material's retained
-  texture each frame via `Renderer::update_material_albedo_pixels` (already
-  in place: one `write_texture` per frame at matching size, no reallocation).
-- **Video:** decoded frames through the same updater.
+- **Live feed and in-game camera:** shipped, rung 3 (the section above).
+- **Video:** decoded frames through `write_pixels`, the same path the live
+  frames take.
 - **The readable web:** Brief 4's HTML/CSS renderer drawing into a surface
   the way an egui page does today. The monitor surface does not change; the
   thing drawn into it does.
+- **A planet in a camera's window:** the cloud pass for a second pose needs
+  its own temporal history, keyed per camera.

@@ -27,13 +27,18 @@
 //! `update` + `frame_surfaces` right before the scene passes for exactly
 //! this reason.
 
-use crate::engine::state::EngineState;
-use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider};
+use crate::engine::state::{EngineState, SceneDrawLists};
+use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider, SURFACE_FORMAT};
 use crate::gui::GuiPage;
-use crate::machines::PlacedMachine;
+use crate::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::{Mesh, Vertex};
 use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
+
+/// Rung 3 providers, one file each: the MJPEG live stream and the in-game
+/// camera. Later rungs (video, the readable web) add theirs beside them.
+pub mod camera;
+pub mod live;
 
 /// How far the player can reach a screen with the look ray or the cursor,
 /// in metres. Beyond this a screen still renders but ignores input.
@@ -200,10 +205,14 @@ pub fn screen_quad_vertices(local: &QuadGeom) -> ([Vertex; 4], [u32; 6]) {
 pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
     match source {
         ScreenSource::Page(_) | ScreenSource::Unknown(_) => None,
-        // Live streams, in-game cameras, video clips and the readable web:
-        // added by their rungs (see docs/design/in-world-screens.md, the
-        // sources table). Until then the surface's notice names the gap.
-        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Video(_) | ScreenSource::Web(_) => None,
+        // Rung 3: an MJPEG live stream (its own viewer per screen) and an
+        // in-game camera (the world rendered from a placed camera post).
+        ScreenSource::Live(stream) => Some(Box::new(live::LiveProvider::new(stream))),
+        ScreenSource::Camera(instance) => Some(Box::new(camera::CameraProvider::new(instance))),
+        // Video clips and the readable web: added by their rungs (see
+        // docs/design/in-world-screens.md, the sources table). Until then
+        // the surface's notice names the gap.
+        ScreenSource::Video(_) | ScreenSource::Web(_) => None,
     }
 }
 
@@ -251,6 +260,18 @@ pub struct Screens {
     pub ipc_payload: Option<(f32, String)>,
     /// Monotonic per-session counter for `debug/screen_<id>_N.png`.
     pub snapshot_counter: u32,
+    /// Every placed machine with a `camera` in its def, resolved to the
+    /// pose its lens looks from (rung 3): what a `camera:<id>` screen asks
+    /// for by id. Rebuilt from the placements on every editor rebuild AND
+    /// every count-unchanged move (`update_poses`), so a post dragged in the
+    /// editor pans its screen the same frame.
+    pub camera_posts: Vec<(String, CameraPose)>,
+}
+
+/// The camera posts among `placements`: (instance id, lens pose). Pure, so
+/// a test can pin the pose a placed post resolves to.
+pub fn camera_posts_from(placements: &[PlacedMachine]) -> Vec<(String, CameraPose)> {
+    placements.iter().filter_map(|p| p.camera_pose().map(|pose| (p.id.clone(), pose))).collect()
 }
 
 impl Screens {
@@ -379,6 +400,9 @@ impl Screens {
             q.yaw_deg = p.rotation;
             q.geom = quad_from_placement(pos, p.size, p.rotation, &def.face, def.bezel_m);
         }
+        // A camera post moves with the same drag; its screen follows on the
+        // next due render.
+        self.camera_posts = camera_posts_from(placements);
     }
 }
 
@@ -418,8 +442,23 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
         let (surface, surface_is_new) = match reused {
             Some(s) => (s, false),
             None => {
-                let mut s = ScreenSurface::new(&state.renderer.device, &p.id, &def.source, w, h, &state.theme);
-                s.set_provider(provider_for(&s.core.source));
+                // The provider comes first because it decides the texture
+                // format: a camera screen is rendered straight into by the
+                // scene pipelines, which only draw in the swapchain's format.
+                let provider = provider_for(&ScreenSource::parse(&def.source));
+                let format = provider
+                    .as_ref()
+                    .map_or(SURFACE_FORMAT, |pr| pr.surface_format(state.renderer.surface_format()));
+                let mut s = ScreenSurface::new_with_format(
+                    &state.renderer.device,
+                    &p.id,
+                    &def.source,
+                    w,
+                    h,
+                    &state.theme,
+                    format,
+                );
+                s.set_provider(provider);
                 (s, true)
             }
         };
@@ -480,6 +519,7 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
     state.screens.hover = None;
     state.screens.focused = None;
     state.screens.ipc = None;
+    state.screens.camera_posts = camera_posts_from(placements);
     if !state.screens.quads.is_empty() {
         log::info!("[Screens] {} in-world screen(s) placed", state.screens.quads.len());
     }
@@ -570,8 +610,17 @@ pub(crate) fn update(state: &mut EngineState) {
 /// distant wall still shows a page, just a frozen one.
 ///
 /// Must run outside the main egui closure and before the scene passes (see
-/// the module doc).
-pub(crate) fn frame_surfaces(state: &mut EngineState) {
+/// the module doc). `lists` is this frame's draw lists as built so far, in
+/// the HOME frame: what a camera screen renders (rung 3).
+///
+/// Camera screens: among the surfaces chosen this frame, the world is
+/// rendered for AT MOST ONE world screen, the most-starved one that is due
+/// (`camera::pick_due`: never rendered first, then the oldest render, each
+/// at least `camera::CAMERA_INTERVAL` after its last). The render happens
+/// here, before the surfaces' own `frame`, so the scene pass that follows
+/// samples this frame's view, never last frame's. Skipped screens keep
+/// their last image.
+pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     if state.screens.surfaces.is_empty() {
         return;
     }
@@ -599,6 +648,29 @@ pub(crate) fn frame_surfaces(state: &mut EngineState) {
             chosen.push(si);
         }
     }
+
+    // World screens (rung 3): one render this frame at most. The surfaces
+    // are taken out of the state for the call because the render needs the
+    // WHOLE engine state (renderer, star renderer, sun, anchors) while the
+    // provider needs its surface as the target; nothing in the render path
+    // reads `screens.surfaces`, and they go straight back.
+    let now = std::time::Instant::now();
+    let candidates: Vec<(usize, Option<std::time::Instant>)> = chosen
+        .iter()
+        .filter_map(|&si| {
+            let st = state.screens.surfaces.get(si)?.world_render()?;
+            st.due(now).then_some((si, st.last))
+        })
+        .collect();
+    if let Some(si) = camera::pick_due(&candidates) {
+        let mut surfaces = std::mem::take(&mut state.screens.surfaces);
+        if let Some(s) = surfaces.get_mut(si) {
+            let mut world = camera::EngineWorld { state, lists, surface: si };
+            s.render_world(&mut world, now);
+        }
+        state.screens.surfaces = surfaces;
+    }
+
     // Disjoint borrows of EngineState: the surfaces, the renderer's device
     // and queue, the theme and the shared GuiState.
     let EngineState { screens, renderer, theme, gui_state, .. } = state;

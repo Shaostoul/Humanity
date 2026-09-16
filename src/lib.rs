@@ -17891,7 +17891,22 @@ mod native_app {
                     if !page_active {
                         crate::engine::screens::update(state);
                         crate::engine::ipc::advance_screen_request(state);
-                        crate::engine::screens::frame_surfaces(state);
+                        // This frame's draw lists as built so far, for the
+                        // camera screens (rung 3): a camera renders them
+                        // from its post's pose into its own surface. They
+                        // are still in the HOME frame here (station_off is
+                        // added in place further down, at the "so.length_squared"
+                        // block), which is the frame the camera posts are in.
+                        let screen_lists = SceneDrawLists {
+                            celestial: &celestial_objects,
+                            celestial_transparent: &celestial_transparent,
+                            orbit_lines: &orbit_lines,
+                            opaque: &all_objects,
+                            transparent: &transparent_objects,
+                            overlay: &overlay_objects,
+                            ring_lines: &ring_lines,
+                        };
+                        crate::engine::screens::frame_surfaces(state, &screen_lists);
                         crate::engine::ipc::complete_screen_request(state);
                     }
 

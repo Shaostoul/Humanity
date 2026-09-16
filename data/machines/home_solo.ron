@@ -494,6 +494,17 @@
             stats: [(kind: "display", value: "1024 x 600 touchscreen", status: "ok")],
             screen: Some((source: "page:inventory", px: (1024, 600), face: "front", bezel_m: 0.015, brightness: 1.2)),
         ),
+        // In-world screens (rung 3): a camera post, same def as home.ron. A
+        // screen with screen_source "camera:<the post's instance id>" shows
+        // what it sees. `camera` = (yaw, pitch, fov) degrees; the instance's
+        // rotation adds to the yaw.
+        "camera_post": (
+            shape: "box", size: (0.14, 1.7, 0.14), color: (0.2, 0.2, 0.22),
+            label: "Camera post",
+            category: "Displays",
+            stats: [(kind: "display", value: "camera, 70 degree lens, 10 pictures a second", status: "ok")],
+            camera: Some((0.0, -8.0, 70.0)),
+        ),
         "air_recycler": (
             shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
             label: "Air recycler (O2/CO2)",
