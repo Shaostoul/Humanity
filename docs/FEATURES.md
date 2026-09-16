@@ -216,8 +216,10 @@ own file; an admin can remove any (Dilithium-signed "delete_upload" request).
 
 ### The Readable Web (native + web, 2026-09-16)
 Open a real website INSIDE HumanityOS with no browser engine and no JavaScript: the
-page is fetched over HTTPS on a background thread (10 s timeout, 4 MB cap, http(s)
-only, the scheme gate re-run on every redirect hop, no cookies), parsed with
+page is fetched over HTTPS on a background thread (10 s timeout, 4 MB cap on the page
+itself, http(s) only, the scheme gate re-run on every redirect hop, no cookies; images
+go through the chat image cache, 16 MB each, and are requested only as they scroll
+into view), parsed with
 html5ever into a readable document (headings, paragraphs, links, images, lists,
 tables, code, quotes; scripts/styles/forms/nav/footer/aside dropped, main/article
 kept), and drawn in egui with clickable links, back/forward, an editable URL row and

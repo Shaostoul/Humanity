@@ -551,11 +551,19 @@ impl<'a> PageDraw<'a> {
         });
     }
 
-    /// An image through the shared cache: request on first sight, draw when
-    /// ready, say so while loading, fall back to the alt text on failure.
+    /// An image through the shared cache: requested the first time its place
+    /// on the page is inside the visible part of the scroll area, drawn when
+    /// ready, a placeholder while loading, the alt text on failure.
+    ///
+    /// The "inside the visible part" rule is a privacy promise, not a
+    /// performance trick: the Settings hint says only the page address and
+    /// the images that scroll into view leave the machine. A page with fifty
+    /// pictures below the fold must send nothing for them until the reader
+    /// scrolls there. The headless test
+    /// `web_view_requests_an_image_only_when_it_scrolls_into_view` in
+    /// `ui_snapshots.rs` holds this line.
     fn image(&mut self, ui: &mut egui::Ui, src: &str, alt: &str) {
         let theme = self.theme;
-        self.images.request(src);
         match self.images.status(src) {
             ImageStatus::Ready { .. } => {
                 if let Some(tex) = self.images.get_texture(src) {
@@ -569,15 +577,28 @@ impl<'a> PageDraw<'a> {
                     ui.label(RichText::new(alt).size(theme.font_size_small).italics().color(theme.text_muted()));
                 }
             }
-            ImageStatus::Fetching | ImageStatus::Idle => {
+            status @ (ImageStatus::Fetching | ImageStatus::Idle) => {
                 let what = if alt.is_empty() { "image".to_string() } else { alt.to_string() };
-                ui.label(
+                // The placeholder is laid out first so its rect is known;
+                // that rect against the scroll area's clip rect is the
+                // "has it scrolled into view" test.
+                let placeholder = ui.label(
                     RichText::new(format!("Loading {what}..."))
                         .size(theme.font_size_small)
                         .italics()
                         .color(theme.text_muted()),
                 );
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                let on_screen = ui.is_rect_visible(placeholder.rect);
+                if on_screen && matches!(status, ImageStatus::Idle) {
+                    // First time on screen: this is the one GET for this image.
+                    self.images.request(src);
+                }
+                // Poll for the decoded texture only while a fetch is actually
+                // in flight or was just dispatched; an off-screen idle image
+                // needs no repaint loop (scrolling repaints on its own).
+                if on_screen || matches!(status, ImageStatus::Fetching) {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                }
             }
             ImageStatus::Failed(_) => {
                 let what = if alt.is_empty() { "an image that could not be loaded" } else { alt };

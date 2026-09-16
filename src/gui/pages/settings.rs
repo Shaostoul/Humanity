@@ -3688,7 +3688,14 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             ui,
             theme,
             hint,
-            "Off (default): Browser-page sites open in your system browser and the app never              fetches a web page. On: the site opens inside the app as readable text, links,              images and tables, with no scripts, cookies or trackers. What leaves your              machine is only the address of the page you open (plus its images), sent from              your own connection, never through our server. Independent of the privacy tier.",
+            // One string, wrapped with `\` continuations: egui draws whitespace
+            // as written, so a literal run of spaces here would show as a gap.
+            "Off (default): Browser-page sites open in your system browser and the app never \
+             fetches a web page. On: the site opens inside the app as readable text, links, \
+             images and tables, with no scripts, cookies or trackers. What leaves your \
+             machine is only the address of the page you open (plus the images that scroll \
+             into view), sent from your own connection, never through our server. \
+             Independent of the privacy tier.",
         );
     });
 }

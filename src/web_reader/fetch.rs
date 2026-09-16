@@ -196,8 +196,53 @@ mod tests {
     #[test]
     fn nonsense_is_not_an_address() {
         assert!(matches!(check_url(""), Err(WebError::BadUrl(_))));
+        // A scheme with nothing after it: the URL parser reports an empty host.
         assert!(matches!(check_url("https://"), Err(WebError::BadUrl(_))));
-        assert!(matches!(check_url("http:///nohost"), Err(WebError::BadUrl(_))));
+        assert!(matches!(check_url("http://"), Err(WebError::BadUrl(_))));
+        // A space cannot appear in a host name, so this is not an address
+        // even though it starts like one.
+        assert!(matches!(check_url("http://exa mple.com"), Err(WebError::BadUrl(_))));
+        // NOTE for the next reader: "http:///nohost" is NOT a bad address.
+        // The WHATWG URL rules (which the `url` crate follows, as browsers do)
+        // collapse extra slashes after http/https, so it parses as
+        // "http://nohost/" with a real host. Asserting it fails was a wrong
+        // premise (caught at review 2026-09-16); do not re-add it.
+        assert_eq!(check_url("http:///nohost").unwrap().host_str(), Some("nohost"));
+    }
+
+    /// LIVE smoke against the two public, non-affiliate pages named in
+    /// docs/design/readable-web.md. Ignored by default because it needs the
+    /// network; run it on demand with
+    /// `cargo test --features native --lib -- --ignored web_reader::fetch::live`.
+    /// It proves the whole path end to end: the gate, the manual redirect
+    /// following (united-humanity.us over plain http answers 301 to https),
+    /// the size and type checks, the parse, and that each page comes back
+    /// with real headings rather than an empty notice.
+    #[test]
+    #[ignore]
+    fn live_fetch_of_the_two_reference_pages() {
+        let rules = ReadRules::default();
+        for (raw, expect_host) in [
+            ("http://united-humanity.us", "united-humanity.us"),
+            ("https://united-humanity.us", "united-humanity.us"),
+            ("https://en.wikipedia.org/wiki/Silverdale,_Washington", "en.wikipedia.org"),
+        ] {
+            let page = fetch_page(raw, &rules).unwrap_or_else(|e| panic!("{raw}: {e}"));
+            let final_url = Url::parse(&page.url).expect("final url parses");
+            assert_eq!(final_url.host_str(), Some(expect_host), "{raw} landed on {}", page.url);
+            assert_eq!(final_url.scheme(), "https", "{raw} must end on https after redirects: {}", page.url);
+            assert!(page.notice.is_none(), "{raw}: page came back empty with notice {:?}", page.notice);
+            let headings = page.blocks.iter().filter(|b| matches!(b, Block::Heading { .. })).count();
+            assert!(headings >= 1, "{raw}: {} blocks but no heading (title {:?})", page.blocks.len(), page.title);
+            assert!(!page.title.is_empty(), "{raw}: no title");
+            eprintln!(
+                "{raw} -> {} : {:?}, {} blocks, {} headings",
+                page.url,
+                page.title,
+                page.blocks.len(),
+                headings
+            );
+        }
     }
 
     /// A blocked URL handed to the background path is answered through the

@@ -81,8 +81,15 @@ machine:
    through our relay. User-Agent: `HumanityOS/<version> readable-web`. No
    cookies (the ureq cookie feature is not compiled in, so there is no store
    to send from), no referer, no scripts, no fonts, no stylesheets.
-2. One `GET` per image the page declares, through the same image cache chat
-   uses (the request happens when the image scrolls into view).
+2. One `GET` per image that scrolls into view, through the same image cache
+   chat uses. An image below the fold is not requested until the reader
+   scrolls to it: the view lays out a placeholder, asks egui whether that
+   placeholder is inside the visible part of the scroll area, and only then
+   dispatches the request (`PageDraw::image` in `web_view.rs`). The headless
+   test `web_view_requests_an_image_only_when_it_scrolls_into_view` draws an
+   eighty-paragraph page with one image at the bottom in a 400 px viewport
+   and proves nothing is requested, then in a viewport tall enough to show
+   the whole page and proves it is.
 
 Nothing else. No third-party beacons, because nothing runs to send them.
 
@@ -94,6 +101,14 @@ The fetch itself is gated and bounded (`src/web_reader/fetch.rs`):
   is why redirects are followed by hand (ureq's own follower would not ask).
 - 10 s whole-request timeout, 5 hops of redirect at most, 4 MB body cap
   enforced by `Read::take` (so a wrong Content-Length cannot get around it).
+- Images take a separate path, the chat image cache
+  (`src/gui/widgets/image_cache.rs`), with its own bounds: a 16 MB cap on the
+  bytes downloaded (`MAX_IMAGE_BYTES`; a declared Content-Length over the cap
+  is refused before the body is read, and a body that streams past it with no
+  length is cut off by `Read::take`), a 20 s timeout, and a pixel cap on the
+  decoded texture. ureq follows redirects for images on its own; it only
+  speaks http and https, so an image redirect cannot reach a scheme the page
+  gate would refuse. The 4 MB figure above is the page only.
 - A response that is not `text/html`, `application/xhtml` or `text/plain` is
   refused with the type named ("Not a readable page (server sent
   application/pdf)").
@@ -174,9 +189,14 @@ page of that site, not only the bookmarked one.
 
 Whether embedding a given site, or joining an affiliate programme, is
 acceptable is the operator's call to make and record; this increment records
-the seed state honestly (34 of 38 awaiting review) and was tested against two
-non-affiliate URLs, `https://united-humanity.us` and
-`https://en.wikipedia.org/wiki/Silverdale,_Washington`.
+the seed state honestly (34 of 38 awaiting review). The fetch path was run
+against two non-affiliate URLs, `https://united-humanity.us` (also over plain
+`http://`, which answers 301 and exercises the manual redirect hop) and
+`https://en.wikipedia.org/wiki/Silverdale,_Washington`, first at review on
+2026-09-16 and then as the permanent ignored test
+`web_reader::fetch::tests::live_fetch_of_the_two_reference_pages`. It needs
+the network, so it is skipped by the normal test run; run it on demand with
+`cargo test --features native --lib -- --ignored web_reader::fetch::live`.
 
 ### Readability hints
 
@@ -206,8 +226,18 @@ All offline (`cargo test --features native --lib web_reader`, `web_view`,
 - Widget, headless: a page with a link is drawn with the app's own egui
   context, the link is clicked with the synthetic move/press/release
   sequence, and the view has queued navigation to the resolved absolute URL
-  with no fetch dispatched. This test was proven red first (the click handler
-  disabled) before being trusted.
+  with no fetch dispatched. This test was proven red on 2026-09-16 (at
+  review, and again in the review-fix pass) by disabling the click handler;
+  it then fails with `left: None, right: Some(".../nearby.html")`.
+- Widget, headless, images: an eighty-paragraph page with one image at the
+  bottom is drawn in a 400 px viewport and the image cache must still be
+  idle for it; drawn in a viewport tall enough for the whole page, the cache
+  must be fetching it. Proven red by removing the `is_rect_visible` gate
+  (the first assertion then fails with "fetched while it was off screen").
+- Image cache cap: four tests against a one-shot loopback server prove a
+  declared length over the cap is refused before the body is read, a body
+  that streams past the cap with no length is refused, a body within the cap
+  arrives whole, and exactly-at-the-cap passes while one byte over does not.
 - Config: `readable_web` reads as off for a config that predates it and for a
   fresh install, and a deliberate on survives save + load through both GUI
   legs.
