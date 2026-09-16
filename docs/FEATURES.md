@@ -1725,6 +1725,26 @@ so every existing home parses unchanged) and persist with Save. Data model only 
 graphs (M2), the civic mall (M3), industrial+cargo (M4), hangar/mech (M5) build on it.
 - Native: `src/ship/structure.rs` (`ZoneType` + `zone_types()`), `src/ship/home_structure.rs` (`Zone` + `zones` + `add_zone`/`remove_zone`), `data/blueprints/zone_types.ron`, `src/gui/pages/construction.rs` (`draw_zones_editor`), `src/lib.rs` (zone wireframe render)
 
+### Room identity + the Console room (zone-named rooms, homestead increment)
+Rooms detected from the walls (`HomeStructure::detect_rooms`) stop being anonymous: a room-grade
+zone whose footprint contains a detected room's centre lends it its id, label and, through the new
+`Zone::room_type` (a `data/rooms.ron` key), its FUNCTION: purpose, walk-up actions
+(`data/rooms/room_actions.ron`) and access class, which the HUD's "you are in ..." surface reads
+through `RoomTypeRegistry::function_for`. Rooms no zone covers keep `room_N`. Smallest containing
+zone wins; a zone names at most one room; an unknown `room_type` warns and yields no actions. The
+construction editor's zone detail panel has a room-type picker and shows what the pick resolves to
+(GUI-first). The CONSOLE ROOM (colloquially the battlestation; the mothership bridge is the "command
+deck") is the household's fixed workstation: zone type `console_room`, rooms.ron entry `console_room`,
+and a walled 3.5 x 3 m annex north of the common room (x 47.5..51.0, z 44.0..47.0) in
+`ship_structure.ron`, zone `console-room`. It is the PLANNED mounting point for in-world screens
+(`wall_screen`, `desk_monitor`): those are not built yet, no item, machine or mesh exists for them,
+the rooms.ron equipment list just names them so the room is ready when they land. Also added
+room-grade zone types `room_garden` and `room_living`, and `room_type` on every house zone with a
+rooms.ron entry.
+- Native: `src/ship/home_structure.rs` (`Zone::room_type`, `name_rooms_from_zones`, `room_actions_for`), `src/ship/fibonacci.rs` (`RoomInfo::room_type`/`label`/`type_key`), `src/ship/room_types.rs` (`lookup_type`, `function_for`, `RoomFunction`), `src/engine/home_meshes.rs` + `src/engine/world_load.rs` (RoomBounds join), `src/gui/pages/construction.rs` (`draw_zone_detail` room-type picker), `src/gui/mod.rs` (`room_type_registry`)
+- Data: `data/blueprints/zone_types.ron`, `data/rooms.ron` (`console_room`), `data/blueprints/ship_structure.ron` (zone `console-room` + annex walls, door, light)
+- Docs: `docs/design/homestead.md` (Room identity, Console room), `docs/game/ship_zoning_transit.md`
+
 ### Grow-light power meter (v0.664, homestead gap #5)
 The honest teaching artifact docs/design/self-sufficiency.md called for ("turns red the instant any LED
 is added past the free pump headroom"). A `grow_light` machine (100 W LED panel, matching

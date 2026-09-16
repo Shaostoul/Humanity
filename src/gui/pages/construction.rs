@@ -2875,6 +2875,51 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if let Some(zt) = crate::ship::structure::zone_type(&z.type_id) {
         ui.label(RichText::new(&zt.purpose).size(theme.font_size_small).color(theme.text_muted()));
     }
+    // ROOM TYPE (console-room increment): which data/rooms.ron entry the room this zone covers
+    // takes its FUNCTION from (purpose, walk-up actions, access). "(none)" = the room is named
+    // after the zone but has no function. The picker lists the registry keys the editor loaded on
+    // entry (GUI-first: no data file edit needed to give a room a job), and the lines under it
+    // show exactly what the pick resolves to, so a typo'd key is visible here, not just in the log.
+    let mut new_room_type: Option<Option<String>> = None;
+    let current_rt = z.room_type.clone().unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("room type").size(theme.font_size_small).color(theme.text_muted()));
+        let shown = if current_rt.is_empty() { "(none)".to_string() } else { state.room_type_registry.name(&current_rt) };
+        egui::ComboBox::from_id_salt("zone_room_type").width(160.0).selected_text(shown).show_ui(ui, |ui| {
+            if ui.selectable_label(current_rt.is_empty(), "(none)").clicked() {
+                new_room_type = Some(None);
+            }
+            for k in &state.construction_room_types {
+                if ui.selectable_label(&current_rt == k, state.room_type_registry.name(k)).clicked() {
+                    new_room_type = Some(Some(k.clone()));
+                }
+            }
+        });
+    });
+    if !current_rt.is_empty() {
+        match state.room_type_registry.types.get(&current_rt) {
+            Some(def) => {
+                ui.label(RichText::new(&def.purpose).size(theme.font_size_small).color(theme.text_muted()));
+                // The same join the HUD uses, through the GUI entry point on the structure.
+                let actions: Vec<String> = zone_body(&state.ship_structure, state.construction_zone)
+                    .map(|hs| hs.room_actions_for(&id, &state.room_type_registry))
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|a| state.room_type_registry.action_label(a))
+                    .collect();
+                if !actions.is_empty() {
+                    ui.label(RichText::new(format!("Here: {}", actions.join("  /  "))).size(theme.font_size_small).color(theme.text_muted()));
+                }
+            }
+            None => {
+                ui.label(
+                    RichText::new(format!("'{current_rt}' is not a data/rooms.ron key: no purpose or actions"))
+                        .size(theme.font_size_small)
+                        .color(theme.warning()),
+                );
+            }
+        }
+    }
     let (mut o, mut s, mut ch) = (z.origin, z.size, false);
     ui.horizontal(|ui| {
         ui.label(RichText::new("at").size(theme.font_size_small).color(theme.text_muted()));
@@ -2902,11 +2947,15 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
     let mut new_sel: Option<Option<String>> = None;
+    let room_type_changed = new_room_type.is_some();
     if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
-        if ch {
+        if ch || room_type_changed {
             if let Some(zz) = hs.zones.iter_mut().find(|z| z.id == id) {
                 zz.origin = o;
                 zz.size = s;
+                if let Some(rt) = new_room_type.take() {
+                    zz.room_type = rt;
+                }
             }
         }
         if dup {
@@ -2922,6 +2971,11 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
     if deselect {
         state.construction_zone_selected = None;
+    }
+    // A room_type change re-joins the detected rooms to rooms.ron (the HUD's "you are in" name
+    // + actions), which happens in the structure rebuild; flag it so the change shows at once.
+    if room_type_changed {
+        state.construction_structure_dirty = true;
     }
 }
 

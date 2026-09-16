@@ -176,4 +176,30 @@
         purpose: "Benchwork, tools, 3D printer; the maker floor.",
         default_size: (4.0, 3.0, 4.0),
     ),
+    // Room-grade zones (the console-room increment of docs/design/homestead.md). A zone that
+    // also sets `room_type` (a data/rooms.ron key) gives the room it covers its FUNCTION; the
+    // console room's zone type and room type are both "console_room". Vocabulary: the
+    // "command deck" is the mothership bridge (docs/game/humanity_one.md), never the home;
+    // "battlestation" is this room's colloquial name (docs/design/homestead.md, Console room).
+    (
+        id: "console_room",
+        label: "Console room",
+        color: (0.40, 0.70, 0.90),
+        purpose: "The household's fixed workstation: displays, comms and the home's systems at a glance.",
+        default_size: (3.5, 2.6, 3.0),
+    ),
+    (
+        id: "room_garden",
+        label: "Garden",
+        color: (0.45, 0.78, 0.45),
+        purpose: "Beds, towers and planters; the household's food and the air it breathes.",
+        default_size: (6.0, 3.0, 6.0),
+    ),
+    (
+        id: "room_living",
+        label: "Living room",
+        color: (0.92, 0.70, 0.50),
+        purpose: "Sit, talk, read, watch; the room a household gathers in when nothing needs doing.",
+        default_size: (5.0, 3.0, 5.0),
+    ),
 ]

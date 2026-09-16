@@ -314,6 +314,19 @@ pub struct Zone {
     /// Optional human label (falls back to the type label).
     #[serde(default)]
     pub label: String,
+    /// Optional ROOM TYPE: a `data/rooms.ron` key ("kitchen", "console_room", ...). When set, the
+    /// flood-filled room this zone covers (`detect_rooms`) takes the zone's id AND resolves its
+    /// purpose / in-room actions / access from that rooms.ron entry, so a room finally knows what
+    /// it is for. None -> the room is named after the zone but has no function. Distinct from
+    /// `type_id`: that picks the zone's colour + editor label (zone_types.ron), this picks the
+    /// gameplay function (rooms.ron); the console room sets both to "console_room".
+    ///
+    /// `skip_serializing_if`: the construction editor rewrites ship_structure.ron from this struct
+    /// on every save, so a zone with no function must serialize exactly as it was hand-authored
+    /// (no `room_type: None` sprayed over every zone in every body). That keeps an editor save a
+    /// small diff, which matters in a checkout several sessions share.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub room_type: Option<String>,
 }
 
 /// A road-graph junction (v0.586): a point on the ground the road network routes through.
@@ -463,7 +476,7 @@ impl HomeStructure {
     /// Add a zone of `type_id` at `origin` with `size`; returns its new id. (v0.631, superstructure M1)
     pub fn add_zone(&mut self, type_id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> String {
         let id = self.unique_zone_id();
-        self.zones.push(Zone { id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new() });
+        self.zones.push(Zone { id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new(), room_type: None });
         id
     }
 
@@ -1321,6 +1334,8 @@ impl HomeStructure {
                 dimensions: Vec3::new(w, h, d),
                 is_hologram_room: false,
                 is_spawn_room: true,
+                room_type: None,
+                label: String::new(),
             }];
         }
 
@@ -1384,11 +1399,15 @@ impl HomeStructure {
                     let (x0, x1) = (minx as f32 * CELL, (maxx + 1) as f32 * CELL);
                     let (z0, z1) = (minz as f32 * CELL, (maxz + 1) as f32 * CELL);
                     rooms.push(RoomInfo {
+                        // Anonymous until the zone join below names it (a covering zone lends
+                        // its id + room_type); rooms no zone covers keep this room_N id.
                         id: format!("room_{}", rooms.len() + 1),
                         center: Vec3::new((x0 + x1) * 0.5, h * 0.5, (z0 + z1) * 0.5),
                         dimensions: Vec3::new(x1 - x0, h, z1 - z0),
                         is_hologram_room: false,
                         is_spawn_room: false,
+                        room_type: None,
+                        label: String::new(),
                     });
                 }
             }
@@ -1402,8 +1421,13 @@ impl HomeStructure {
                 dimensions: Vec3::new(w, h, d),
                 is_hologram_room: false,
                 is_spawn_room: true,
+                room_type: None,
+                label: String::new(),
             }];
         }
+        // Give the rooms their identity: a zone that covers a room's centre lends it its id,
+        // label and room_type (the rooms.ron join). Rooms no zone covers keep room_N.
+        self.name_rooms_from_zones(&mut rooms);
         // Spawn in the largest room.
         let best = rooms
             .iter()
@@ -1417,6 +1441,76 @@ impl HomeStructure {
             .unwrap_or(0);
         rooms[best].is_spawn_room = true;
         rooms
+    }
+
+    /// The ROOM IDENTITY join (console-room increment, closes homestead.md's "room_N" gap): a
+    /// flood-filled room whose centre (home-local x/z) lies inside a zone's footprint takes that
+    /// zone's id, label and `room_type`. Rules that keep it predictable:
+    /// - Containment is by the room's CENTRE, not by overlap, so a district-sized zone that merely
+    ///   brushes a room does not rename it, and an L-shaped room picks the zone its centre sits in.
+    /// - When several zones contain a centre (a district zone around a house full of room zones),
+    ///   the SMALLEST footprint wins: the most specific label is the useful one.
+    /// - A zone names at most ONE room (the largest it covers); any other room whose centre also
+    ///   falls in it keeps its room_N, so room ids stay unique for every id-keyed lookup.
+    /// Rooms no zone covers are untouched (still "room_N").
+    fn name_rooms_from_zones(&self, rooms: &mut [RoomInfo]) {
+        if self.zones.is_empty() {
+            return;
+        }
+        // zone index -> index of the room it names (the largest room whose centre it contains).
+        let mut claims: Vec<Option<usize>> = vec![None; self.zones.len()];
+        let area = |r: &RoomInfo| r.dimensions.x * r.dimensions.z;
+        for (ri, room) in rooms.iter().enumerate() {
+            let (cx, cz) = (room.center.x, room.center.z);
+            // The smallest zone whose x/z footprint contains this room's centre (half-open on
+            // the max edge so a centre exactly on a shared boundary belongs to one zone only).
+            let best_zone = self
+                .zones
+                .iter()
+                .enumerate()
+                .filter(|(_, z)| {
+                    cx >= z.origin.0
+                        && cx < z.origin.0 + z.size.0
+                        && cz >= z.origin.2
+                        && cz < z.origin.2 + z.size.2
+                })
+                .min_by(|(_, a), (_, b)| {
+                    (a.size.0 * a.size.2)
+                        .partial_cmp(&(b.size.0 * b.size.2))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .map(|(zi, _)| zi);
+            if let Some(zi) = best_zone {
+                match claims[zi] {
+                    Some(prev) if area(&rooms[prev]) >= area(room) => {}
+                    _ => claims[zi] = Some(ri),
+                }
+            }
+        }
+        for (zi, claim) in claims.iter().enumerate() {
+            if let Some(ri) = claim {
+                let z = &self.zones[zi];
+                let room = &mut rooms[*ri];
+                room.id = z.id.clone();
+                room.label = z.label.clone();
+                room.room_type = z.room_type.clone();
+            }
+        }
+    }
+
+    /// GUI entry point for the room-function join: the in-room ACTION ids of the zone `zone_id`,
+    /// resolved zone -> `room_type` -> `data/rooms.ron`. An unknown zone, or a zone with no
+    /// room_type, yields no actions silently; a room_type that is not a rooms.ron key yields no
+    /// actions AND logs a warning (a typo in the data should be loud, not a mystery blank).
+    /// Resolve the ids to labels/pages with `RoomTypeRegistry::actions` when drawing them.
+    pub fn room_actions_for(&self, zone_id: &str, reg: &crate::ship::room_types::RoomTypeRegistry) -> Vec<String> {
+        self.zones
+            .iter()
+            .find(|z| z.id == zone_id)
+            .and_then(|z| z.room_type.as_deref())
+            .and_then(|rt| reg.lookup_type(rt))
+            .map(|t| t.actions.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -2429,6 +2523,138 @@ mod tests {
         // A stub wall that does not reach the far side leaves the interior one open region.
         h.walls.push(wall((27.0, 0.0), (27.0, 40.0), Vec::new()));
         assert_eq!(h.detect_rooms().len(), 1, "a partial wall does not partition the box");
+    }
+
+    /// Room identity (console-room increment): a flood-filled room whose CENTRE lies inside a zone's
+    /// footprint takes that zone's id + room_type; a room no zone covers keeps its anonymous room_N.
+    /// Written before the join existed: it failed then with ids "room_1" / "room_2" and no room_type.
+    #[test]
+    fn a_covering_zone_names_the_room_it_covers_and_uncovered_rooms_stay_room_n() {
+        let mut h = HomeStructure { width: 20.0, depth: 20.0, ..box_only() };
+        // One full partition at x=10 -> a west room (centre ~(5,10)) and an east room (centre ~(15,10)).
+        h.walls.push(wall((10.0, 0.0), (10.0, 20.0), Vec::new()));
+        // A zone over the WEST half only, naming a rooms.ron key.
+        h.zones.push(Zone {
+            id: "west-lab".to_string(),
+            type_id: "console_room".to_string(),
+            origin: (0.0, 0.0, 0.0),
+            size: (10.0, 3.0, 20.0),
+            label: "West lab".to_string(),
+            room_type: Some("computer".to_string()),
+        });
+        let rooms = h.detect_rooms();
+        assert_eq!(rooms.len(), 2, "the partition still yields exactly two rooms");
+        let west = rooms.iter().find(|r| r.center.x < 10.0).expect("a room west of the wall");
+        let east = rooms.iter().find(|r| r.center.x > 10.0).expect("a room east of the wall");
+        assert_eq!(west.id, "west-lab", "the covered room takes the zone's id, got {}", west.id);
+        assert_eq!(west.room_type.as_deref(), Some("computer"), "and the zone's room_type");
+        assert_eq!(west.label, "West lab", "and the zone's label");
+        assert!(east.id.starts_with("room_"), "the uncovered room keeps room_N, got {}", east.id);
+        assert!(east.room_type.is_none(), "an uncovered room has no room_type");
+        // The join is by CENTRE, not by any overlap: a zone that merely touches the west room's edge
+        // (x 8..12 straddles the wall, centre of neither room inside it) names nothing.
+        h.zones[0].origin = (8.0, 0.0, 0.0);
+        h.zones[0].size = (4.0, 3.0, 20.0);
+        let rooms = h.detect_rooms();
+        assert!(rooms.iter().all(|r| r.id.starts_with("room_")), "a non-covering zone names no room: {:?}",
+            rooms.iter().map(|r| r.id.as_str()).collect::<Vec<_>>());
+    }
+
+    /// Data integrity for the shipped files (console-room increment): every zone_types.ron row
+    /// parses with a unique id, a label, a purpose and a positive size; the console room is one of
+    /// them; every zone in ship_structure.ron names a real zone type; every `room_type` any zone
+    /// sets is a data/rooms.ron key; and no two zones in the home body overlap in plan (touching
+    /// edges are fine, shared interior is not), which is the reviewer's "overlapping rect" trap.
+    #[test]
+    fn shipped_zone_types_parse_and_every_ship_structure_room_type_is_a_rooms_ron_key() {
+        let zt = crate::ship::structure::zone_types();
+        assert!(!zt.is_empty(), "zone_types.ron parses (an empty registry means a parse error was logged)");
+        let mut seen = std::collections::HashSet::new();
+        for t in zt {
+            assert!(seen.insert(t.id.as_str()), "zone type id '{}' is listed twice", t.id);
+            assert!(!t.label.trim().is_empty() && !t.purpose.trim().is_empty(), "'{}' has a label + purpose", t.id);
+            assert!(t.default_size.0 > 0.0 && t.default_size.1 > 0.0 && t.default_size.2 > 0.0, "'{}' size", t.id);
+        }
+        let console = crate::ship::structure::zone_type("console_room").expect("the console room is a zone type");
+        assert_eq!(console.label, "Console room");
+
+        let reg = crate::ship::room_types::RoomTypeRegistry::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
+        assert!(reg.types.contains_key("console_room"), "rooms.ron has the console_room entry");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("blueprints").join("ship_structure.ron");
+        let ship = crate::ship::ship_structure::ShipStructure::load(&path).expect("ship_structure.ron parses");
+        let mut room_typed = 0usize;
+        for sz in &ship.zones {
+            for z in &sz.body.zones {
+                assert!(
+                    crate::ship::structure::zone_type(&z.type_id).is_some(),
+                    "zone '{}' in body '{}' names unknown zone type '{}'", z.id, sz.id, z.type_id
+                );
+                if let Some(rt) = &z.room_type {
+                    room_typed += 1;
+                    assert!(reg.types.contains_key(rt), "zone '{}' names room_type '{}', not a rooms.ron key", z.id, rt);
+                }
+            }
+        }
+        assert!(room_typed >= 9, "the house zones carry room types (got {room_typed})");
+
+        // The console room sits in the home body with its function wired, and overlaps nothing.
+        let home = &ship.zones[ship.home_zone_index()].body;
+        let cr = home.zones.iter().find(|z| z.id == "console-room").expect("the console-room zone is placed");
+        assert_eq!(cr.type_id, "console_room");
+        assert_eq!(cr.room_type.as_deref(), Some("console_room"));
+        let actions = home.room_actions_for("console-room", &reg);
+        assert!(actions.contains(&"use_terminal".to_string()), "the console room's actions resolve: {actions:?}");
+        for (i, a) in home.zones.iter().enumerate() {
+            for b in home.zones.iter().skip(i + 1) {
+                let overlap_x = a.origin.0 < b.origin.0 + b.size.0 && b.origin.0 < a.origin.0 + a.size.0;
+                let overlap_z = a.origin.2 < b.origin.2 + b.size.2 && b.origin.2 < a.origin.2 + a.size.2;
+                assert!(!(overlap_x && overlap_z), "zones '{}' and '{}' overlap in plan", a.id, b.id);
+            }
+        }
+    }
+
+    /// The shipped home's walls really enclose the console-room annex, and the zone join names it:
+    /// `detect_rooms` on the real ship_structure.ron yields a room with the zone's id + room_type,
+    /// the kitchen likewise, and the open greenhouse bay (no zone covers its centre) stays room_N.
+    #[test]
+    fn the_shipped_home_detects_a_console_room_named_by_its_zone() {
+        let h = shipped_home_body();
+        let rooms = h.detect_rooms();
+        let cr = rooms.iter().find(|r| r.id == "console-room").unwrap_or_else(|| {
+            panic!("no console-room among {:?}", rooms.iter().map(|r| r.id.as_str()).collect::<Vec<_>>())
+        });
+        assert_eq!(cr.room_type.as_deref(), Some("console_room"));
+        // The detected room's centre lies inside the authored rect x 47.5..51.0, z 44.0..47.0.
+        assert!(cr.center.x > 47.5 && cr.center.x < 51.0 && cr.center.z > 44.0 && cr.center.z < 47.0, "{:?}", cr.center);
+        // It is a small cell, not the bay: the flood-filled footprint is about 3.5 x 3 m.
+        assert!(cr.dimensions.x < 4.0 && cr.dimensions.z < 3.5, "console room footprint {:?}", cr.dimensions);
+        let kitchen = rooms.iter().find(|r| r.id == "room-kitchen").expect("the kitchen zone names its room");
+        assert_eq!(kitchen.room_type.as_deref(), Some("kitchen"));
+        assert!(rooms.iter().any(|r| r.id.starts_with("room_")), "the open bay keeps an anonymous room_N id");
+        let mut ids: Vec<&str> = rooms.iter().map(|r| r.id.as_str()).collect();
+        let n = ids.len();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "room ids stay unique after the zone join");
+    }
+
+    /// A zone's `room_type` round-trips through the editor's save format, and a zone WITHOUT one
+    /// serializes with no `room_type` line at all (so an editor save leaves hand-authored zones
+    /// textually untouched). Fails if the `skip_serializing_if` on `Zone::room_type` is dropped
+    /// (the None line reappears) or if the field stops round-tripping.
+    #[test]
+    fn room_type_round_trips_and_is_omitted_when_none() {
+        let mut h: HomeStructure = ron::from_str("(width: 20.0, depth: 20.0, height: 3.0)").expect("parses");
+        h.add_zone("room_kitchen", (0.0, 0.0, 0.0), (4.0, 3.0, 4.0));
+        h.add_zone("room_hall", (4.0, 0.0, 0.0), (4.0, 3.0, 4.0));
+        h.zones[0].room_type = Some("kitchen".to_string());
+        let config = ron::ser::PrettyConfig::default().struct_names(false);
+        let text = ron::ser::to_string_pretty(&h, config).expect("serializes");
+        assert!(text.contains("room_type: Some(\"kitchen\")"), "the set room type is written: {text}");
+        assert_eq!(text.matches("room_type").count(), 1, "a zone with no room type writes no room_type line: {text}");
+        let back: HomeStructure = ron::from_str(&text).expect("parses back");
+        assert_eq!(back.zones[0].room_type.as_deref(), Some("kitchen"));
+        assert_eq!(back.zones[1].room_type, None);
     }
 
     #[test]

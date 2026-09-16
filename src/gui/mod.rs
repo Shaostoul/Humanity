@@ -3403,6 +3403,11 @@ pub struct GuiState {
     pub construction_rooms: Vec<ConstructionRoom>,
     /// Room-type ids from the registry, for the Add-Room picker (sorted, stable). (v0.459)
     pub construction_room_types: Vec<String>,
+    /// The rooms.ron + room_actions.ron registry itself, loaded alongside `construction_room_types`
+    /// when the editor opens, so the zone detail panel can show what a zone's `room_type` resolves
+    /// to (purpose + action labels via `HomeStructure::room_actions_for`) without touching disk
+    /// every frame. Empty until the editor first opens. (console-room increment)
+    pub room_type_registry: crate::ship::room_types::RoomTypeRegistry,
     /// Current Add-Room picker selection. (v0.459)
     pub construction_add_type: String,
     /// A room index the panel requested to delete; applied after the scroll loop. (v0.459)
@@ -5377,6 +5382,7 @@ impl Default for GuiState {
             construction_save_note: String::new(),
             construction_rooms: Vec::new(),
             construction_room_types: Vec::new(),
+            room_type_registry: Default::default(),
             construction_add_type: String::new(),
             construction_remove: None,
             construction_plan_view: false,

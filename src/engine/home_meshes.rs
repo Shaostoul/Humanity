@@ -270,14 +270,19 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     let room_types = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
     state.gui_state.room_bounds = room_info
         .iter()
-        .map(|r| crate::gui::RoomBounds {
-            id: r.id.clone(),
-            min: r.center - r.dimensions * 0.5,
-            max: r.center + r.dimensions * 0.5,
-            display_name: room_types.name(&r.id),
-            purpose: room_types.purpose(&r.id),
-            actions: room_types.action_labels(&r.id),
-            access: room_types.access(&r.id),
+        .map(|r| {
+            // The function join: a zone-named room resolves through its zone's room_type
+            // (rooms.ron); a legacy id joins on itself; an anonymous room_N gets its id as name.
+            let f = room_types.function_for(r);
+            crate::gui::RoomBounds {
+                id: r.id.clone(),
+                min: r.center - r.dimensions * 0.5,
+                max: r.center + r.dimensions * 0.5,
+                display_name: f.display_name,
+                purpose: f.purpose,
+                actions: f.actions,
+                access: f.access,
+            }
         })
         .collect();
     // Room geometry changed, so the machines in those rooms must follow (a moved/resized room
