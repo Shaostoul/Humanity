@@ -4,6 +4,11 @@
   "now": [
     {
       "status": "building",
+      "version": "v0.1313.0",
+      "text": "In-world screens: the app's pages as touchscreens in the 3D world. SHIPPED (v0.1313.0): a wall screen placed in the home draws the real inventory or tasks page (the same page, the same data, not a picture of it) and takes look-and-click, scroll and typing; the console room (the home's fixed workstation) as a named zone that joins the room vocabulary; a purpose-built WebM/AV1/Opus player core instead of embedding VLC; and the readable web (HTML parsed and drawn by us, no JavaScript, no Chromium), off by default, with data/web/sites.json recording per site whether embedding it has been reviewed. NEXT: live streams and an in-game camera on a wall, a looping clip with spatial audio and click-to-pause, the readable web on a wall with a rig that proves a click on the wall navigates, then the screens move into the console room. Design in docs/design/in-world-screens.md, readable-web.md, media-player.md."
+    },
+    {
+      "status": "building",
       "version": null,
       "text": "Planet-scale rendering realism -- the arc the project has been built around since v0.85x, run as an autonomous per-iteration loop. SHIPPED: chunked-LOD Earth at true 1 m scale, live NASA weather + seven cloud families, Gerstner oceans, a real sun shadow map, SSAO, god rays, and triplanar ground textures; then the realism pass -- physical atmosphere (sun transmittance, aerial perspective, three-tier exposure), the ocean rework (depth-baked shorelines plus a mipped wave texture that killed the aliasing), synthesized Moon/Mars/Pluto terrain, geomorph LOD crossfades, god-ray occlusion, planet-frame momentum with proximity frame-lock, and the perf fixes (threaded terrain builds, parked-selection skip, async sky-sphere builds -- the 10-second departure hang is gone). NEXT in the queue: a sky-view LUT (one consistent sky the water can reflect), the per-size-category LOD ladder (billboard to alpha card to full model, for plants and animals), light clustering (1000+ sources), and audio-engine integration (the volume sliders are still placebos)."
     },
@@ -326,6 +331,11 @@
       "description": "A 3D educational world where you learn real survival and production skills by doing.",
       "items": [
         {
+          "status": "building",
+          "version": "v0.1313.0 shipped the foundation, the console room, the player core and the readable web; the wall providers are next",
+          "text": "In-world screens: native app pages, live feeds, video and the readable web drawn on displays placed in the 3D world and driven by look-and-click; the console room they populate; the websites database with an embed-legality field per site."
+        },
+        {
           "status": "done",
           "version": null,
           "text": "Engine: a wgpu PBR renderer, an ECS, and 40-plus game systems wired in."
@@ -447,7 +457,7 @@
         }
       ],
       "done": 10,
-      "total": 24
+      "total": 25
     },
     {
       "title": "Accessibility and onboarding",
@@ -607,6 +617,11 @@
     }
   ],
   "recent": [
+    {
+      "status": "done",
+      "version": "v0.1313.0",
+      "text": "In-world screens, rungs 1, 2 and 4: a second egui context rendered into a texture that an unlit material samples, so a wall shows the real inventory page and takes clicks; screens as machine defs with a scheme-prefixed source; the console room and rooms that take their zone's name; plus the video decoder core (WebM, AV1, Opus, pure Rust) and the readable-web core with data/web/sites.json."
+    },
     {
       "status": "done",
       "version": "v0.924-v0.930",
@@ -870,6 +885,6 @@
   ],
   "summary": {
     "done": 45,
-    "total": 104
+    "total": 105
   }
 }
