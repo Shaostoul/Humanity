@@ -346,6 +346,14 @@ pub(crate) fn load_world(state: &mut EngineState) {
             }
             log::info!("Machines: placed {placed} machines");
 
+            // In-world screens (rung 2): a page surface + display quad for
+            // every placed machine whose def carries a `screen`. Built here
+            // on the initial load as well as in rebuild_machine_objects, or
+            // a fresh boot would show blank bodies until the first edit.
+            if let Some(placements) = crate::engine::home_meshes::current_placements(state) {
+                crate::engine::screens::sync_screens(state, &placements);
+            }
+
             // ── Starter livestock (v0.751, ladder rung 7) ── farm animals
             // near the outdoor fields, from data/entities/livestock.ron rows
             // against creatures.csv species. Spawned READY to collect so a

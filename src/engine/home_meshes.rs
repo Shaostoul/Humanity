@@ -348,6 +348,37 @@ pub(crate) fn hangar_placement(state: &EngineState) -> Option<(Vec3, f32)> {
         .map(|p| (Vec3::new(p.pos.0, p.pos.1, p.pos.2), p.rotation))
 }
 
+/// The current machine placements, resolved the way `rebuild_machine_objects`
+/// resolves them (room bounds -> RoomGeom, the ship's zone rects, the live
+/// `home_machines`). `None` before the room geometry exists. Used by the
+/// world load to build the in-world screens once the machines are placed,
+/// without duplicating the resolve at that call site.
+pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<crate::machines::PlacedMachine>> {
+    use std::collections::HashMap;
+    let home = state.gui_state.home_machines.as_ref()?;
+    let rooms: HashMap<String, crate::machines::RoomGeom> = state
+        .gui_state
+        .room_bounds
+        .iter()
+        .map(|rb| {
+            (
+                rb.id.clone(),
+                crate::machines::RoomGeom {
+                    center_x: (rb.min.x + rb.max.x) * 0.5,
+                    center_z: (rb.min.z + rb.max.z) * 0.5,
+                    floor_y: rb.min.y,
+                    ceiling_y: rb.max.y,
+                },
+            )
+        })
+        .collect();
+    if rooms.is_empty() {
+        return None;
+    }
+    let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
+    Some(home.placements(&rooms, zone_rects.as_deref()))
+}
+
 /// World position of a machine's port gizmo (v0.625, the viewport drag-to-connect handles). Ports
 /// carry no authored anchor (they default to 0,0,0), so spread a machine's N ports in a ring just
 /// ABOVE the body, so each reads as its own grab-able handle that never overlaps the machine mesh.
@@ -511,6 +542,10 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
                 half_h.max(half_w) + 0.35,
             );
         }
+        // In-world screens follow their bodies on a move: geometry only, no
+        // surface or renderer slot is touched (a drag must not recreate the
+        // page's context and lose its scroll state).
+        state.screens.update_poses(&placements);
         rebuild_connection_objects(state);
         return;
     }
@@ -643,6 +678,11 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             }
         }
     }
+    // In-world screens (rung 2): a surface + display quad per placed machine
+    // with a `screen` def. Reuses surfaces by instance id (a count change
+    // that keeps a screen keeps its page state), drops the ones whose
+    // machine is gone. Same prior-slot reuse discipline as the bodies above.
+    crate::engine::screens::sync_screens(state, &placements);
     state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
     rebuild_connection_objects(state);
 }

@@ -971,6 +971,13 @@ pub(crate) struct EngineState {
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,
     pub(crate) egui_renderer: egui_wgpu::Renderer,
+    /// In-world screens (rungs 1 and 2, docs/design/in-world-screens.md):
+    /// one egui surface per placed machine with a `screen` def, their world
+    /// quads, and the hover / focus / click-consumed state the input
+    /// handlers read. Built by `screens::sync_screens` from the machine
+    /// placements (world load + editor rebuilds); driven per frame by
+    /// `screens::update` + `screens::frame_surfaces` before the scene pass.
+    pub(crate) screens: crate::engine::screens::Screens,
     pub(crate) gui_state: GuiState,
     pub(crate) theme: Theme,
     /// Whether the 3D world has been fully initialized.

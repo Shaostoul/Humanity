@@ -1426,8 +1426,10 @@ mod native_app {
             // macOS), plus the OS-installed CJK and emoji fonts, which are
             // read from the user's machine and never redistributed. Each is
             // independent and a missing one is a silent no-op, but set_fonts
-            // itself always runs. See src/gui/fonts.rs.
-            crate::gui::fonts::install_font_fallbacks(&egui_ctx);
+            // itself always runs. See src/gui/fonts.rs. The same helper runs
+            // for every in-world screen context (gui::screen_surface), so a
+            // wall screen never shows tofu the main UI does not.
+            crate::gui::install_fonts(&egui_ctx);
             // Load + cache the in-app glossary (data/glossary.json) so
             // widgets::definition_text can pop term definitions on
             // Alt+hover. Silent no-op if the file is missing — definition
@@ -1953,6 +1955,7 @@ mod native_app {
                 egui_renderer,
                 gui_state,
                 theme,
+                screens: crate::engine::screens::Screens::default(),
                 world_loaded: false,
                 boot_timer,
                 window_shown: false,
@@ -2111,6 +2114,32 @@ mod native_app {
                                 state.gui_state.npc_talk_advance();
                             }
                             if pressed {
+                                return;
+                            }
+                        }
+
+                        // In-world screens (rung 1): while the last-clicked
+                        // screen's page has a text field focused, keys and
+                        // typed text go to THAT page and no gameplay key
+                        // handler runs (typing "i" into a wall screen's search
+                        // box must not open the inventory, the same class of
+                        // bug the modal gate above fixed). Escape releases the
+                        // screen's focus instead of opening the menu. Presses
+                        // only, as above: releases fall through so the held-key
+                        // trackers clear. The modifiers come from the raw
+                        // trackers this handler already keeps.
+                        if state.gui_state.active_page == GuiPage::None
+                            && (state.screens.keyboard_captured() || (key == KeyCode::Escape && state.screens.focused.is_some()))
+                        {
+                            let mods = egui::Modifiers {
+                                alt: state.alt_held,
+                                ctrl: state.ctrl_held,
+                                shift: state.shift_held,
+                                mac_cmd: false,
+                                command: state.ctrl_held,
+                            };
+                            let typed = event.text.as_ref().map(|t| t.as_str());
+                            if state.screens.route_key(&key_name, pressed, typed, mods) && pressed {
                                 return;
                             }
                         }
@@ -3023,7 +3052,19 @@ mod native_app {
                         state.gui_state.construction_wall_mode = false;
                         state.gui_state.construction_wall_start = None;
                     } else if !egui_consumed && state.gui_state.active_page == GuiPage::None {
-                        state.controller.process_mouse_button(button, btn_state);
+                        // In-world screens (rung 1): a primary press or release
+                        // while the look ray (or the free cursor) rests on a
+                        // screen goes to that screen's page instead of the
+                        // game. Only the PRESS is withheld from the controller
+                        // (the same rule as the in-world modals, v0.779): the
+                        // release still reaches it so a held button state can
+                        // never stick. `screens.hover` is the hit computed by
+                        // screens::update this frame, so the click lands on
+                        // exactly what the player is looking at.
+                        let screen_took_it = left && state.screens.route_button(pressed);
+                        if !(screen_took_it && pressed) {
+                            state.controller.process_mouse_button(button, btn_state);
+                        }
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
@@ -3037,6 +3078,13 @@ mod native_app {
                             winit::event::MouseScrollDelta::LineDelta(_, y) => y,
                             winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
                         };
+                        // In-world screens (rung 1): a notch over a screen
+                        // scrolls that screen's page and nothing else. The
+                        // sign is winit's line delta, which is also egui's
+                        // wheel convention, so it passes through untouched.
+                        if state.screens.route_scroll(scroll) {
+                            return;
+                        }
                         // Dev FTL speed on the wheel (v0.791.x): while fly mode
                         // is on in first person the wheel is otherwise unused
                         // (FP ignores scroll_delta), so it steps the fly speed
@@ -7419,6 +7467,12 @@ mod native_app {
                                 material: mat_idx,
                             });
                         }
+                        // In-world screens (rung 2): the display quad of every
+                        // placed machine with a `screen` def, drawn with the
+                        // body's own position + yaw (type-24 emitter material
+                        // bound to the surface texture). Hidden with the
+                        // machines, since each sits on a machine body.
+                        state.screens.push_render_objects(&mut all_objects);
                         // Procedural plants (v0.862): one merged mesh per planted
                         // tower, geometry already in world coordinates.
                         for &(mesh_idx, mat_idx) in &state.plant_objects {
@@ -15674,6 +15728,11 @@ mod native_app {
                     poll_camera_request(state);
                     crate::engine::ipc::poll_cloudmap_request(state);
                     crate::engine::ipc::poll_cloud_profile_dump_request(state);
+                    // In-world screen dev IPC (debug/screen_request.json): parsed
+                    // here in the update phase; the event is queued after the
+                    // look ray runs and completed after the surface draws, both
+                    // in the screens block just before the scene passes.
+                    crate::engine::ipc::poll_screen_request(state);
 
                     // F6 location bookmark save (v0.890): runs here so
                     // current_spin + frame-lock state are fresh this frame.
@@ -17796,6 +17855,27 @@ mod native_app {
 
                     // Decide whether to render 3D scene or just a cleared surface
                     let page_active = state.gui_state.active_page != GuiPage::None;
+
+                    // In-world screens (rungs 1 and 2). ORDER MATTERS, twice over:
+                    // (1) this runs OUTSIDE the main egui closure below, because
+                    // drawing a page under a screen's context borrows GuiState
+                    // mutably, the same borrow that closure holds for the whole
+                    // main frame; (2) it runs BEFORE the scene passes, because
+                    // the scene samples each surface's texture and would
+                    // otherwise show the previous frame's page. `update` aims
+                    // the look ray and moves the hovered screen's pointer; the
+                    // dev IPC then queues its synthetic events (after the ray,
+                    // so they win the frame); `frame_surfaces` draws the pages
+                    // (nearest four in range); the IPC completes with the
+                    // freshly drawn frame. Skipped while a menu page covers
+                    // the world: the scene is not drawn then either.
+                    if !page_active {
+                        crate::engine::screens::update(state);
+                        crate::engine::ipc::advance_screen_request(state);
+                        crate::engine::screens::frame_surfaces(state);
+                        crate::engine::ipc::complete_screen_request(state);
+                    }
+
                     let scene_result = if page_active {
                         // UI-only frame: skip 3D render, clear to dark background
                         state.renderer.acquire_surface_cleared(wgpu::Color {
@@ -18301,62 +18381,24 @@ mod native_app {
                                     }
                                 }
 
-                                // Draw active full-screen page
+                                // Draw active full-screen page. The engine-bound
+                                // arms (title screen, in-game None) stay here; every
+                                // plain tool page is drawn by the ONE dispatch table
+                                // in gui::dispatch, which the in-world screens share,
+                                // so a wall screen can show exactly what this can.
                                 match state.gui_state.active_page {
                                     GuiPage::MainMenu => {
                                         main_menu::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
-                                    GuiPage::Settings => {
-                                        settings::draw(ctx, &mut state.theme, &mut state.gui_state);
-                                    }
-                                    GuiPage::Inventory => {
-                                        inventory::draw(ctx, &state.theme, &mut state.gui_state);
-                                    }
-                                    GuiPage::Chat => {
-                                        chat::draw(ctx, &state.theme, &mut state.gui_state);
-                                    }
-                                    // Placeholder pages (web versions exist, native coming)
-                                    GuiPage::Tasks => tasks::draw(ctx, &state.theme, &mut state.gui_state),
-                                    // v0.203.2: GuiPage::Maps routed below to the new Cosmos page.
-                                    GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Real => real::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Platform => platform::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Humanity => humanity::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Library => library::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Calendar => calendar::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Crafting => crafting::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Wallet => wallet::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Guilds => guilds::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Trade => trade::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Files => files::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::BugReport => bugs::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Watch => crate::gui::pages::watch::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Quests => quests::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
-                                    // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
-                                    GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::RelayControl => crate::gui::pages::relay_control::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Laws => crate::gui::pages::laws::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
-                                    // v0.197.0: GuiPage::Agents and GuiPage::AiUsage removed.
-                                    // v0.1145: GuiPage::Cosmos merged into Maps (one
-                                    // page, one name); cosmos.rs stays the module.
-                                    GuiPage::Maps => cosmos::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Testing => testing::draw(ctx, &state.theme, &mut state.gui_state),
-                                    GuiPage::Browser => browser::draw(ctx, &state.theme, &mut state.gui_state),
-                                    // v0.699.0: the 5 Overview* + 12 Settings* dispatch arms
-                                    // were removed with their (dead) enum variants; Settings
-                                    // content is reached via the top-level Settings tab
-                                    // (settings.rs internal router).
                                     GuiPage::None => {}
+                                    page => {
+                                        crate::gui::dispatch::draw_tool_page(
+                                            ctx,
+                                            page,
+                                            &mut state.theme,
+                                            &mut state.gui_state,
+                                        );
+                                    }
                                 }
 
                                 // Drain any freshly-decoded chat images into egui textures.

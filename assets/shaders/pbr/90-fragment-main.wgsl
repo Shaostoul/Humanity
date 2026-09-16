@@ -906,6 +906,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         camera.light3_cone_inner.w,
     );
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
+    // Type 24 (in-world screen) sets this: the fragment is a DISPLAY and its
+    // colour is the sampled page times brightness, replacing the lit result
+    // at the compose step below (a display emits, it does not reflect).
+    var screen_emitter = false;
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
     // Emissive strength normally rides in params.w -- but material type 12
     // REPURPOSES params.w as the "albedo texture present" flag (v0.811), so
@@ -974,6 +978,24 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                     * (t19_trans * 0.15 + t19_backlit * 0.06)
                     * t19_day * t19_shadow;
         }
+    }
+    if (material_type >= 23.5 && material_type < 24.5) {
+        // Type 24: IN-WORLD SCREEN (rung 1, docs/design/in-world-screens.md).
+        // The albedo texture is a ScreenSurface's render target (an egui page
+        // drawn into an sRGB texture) bound by view at group 3. Same
+        // textureSampleGrad as type 19, for the same reason: the gradients
+        // were taken in uniform control flow at the top of this function.
+        // No alpha cutout (a screen is opaque) and no fs_shadow band (it is
+        // an opaque shadow caster, drawn with the depth-only shadow PSO).
+        // base_color tints the page (white in the data = the page as drawn);
+        // params.w is the display brightness, applied at the compose step
+        // where `screen_emitter` replaces the lit colour.
+        let screen_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
+        albedo = albedo * screen_tex.rgb;
+        metallic = 0.0;
+        roughness = 1.0;
+        screen_emitter = true;
     }
     if (material_type >= 20.5 && material_type < 21.5) {
         // ── Type 21: FOLIAGE CLUSTER CARD (v0.1088) ─────────────────────
@@ -2153,6 +2175,16 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
 
     // Procedural emissive (e.g. lava cracks) -- additive, independent of params.w
     color = color + proc_emissive;
+
+    // Type 24 (in-world screen): the display's own light REPLACES the lit
+    // result. Sun, shadow map, sky ambient and room lights above are all
+    // discarded for this fragment; a screen showing a dark page reads dark
+    // and a bright page reads bright regardless of where the sun is. Aerial
+    // haze and underwater extinction below still apply, so a far screen
+    // fades into the atmosphere like everything else in the scene.
+    if (screen_emitter) {
+        color = albedo * max(emissive_strength, 0.0);
+    }
 
     // ── Aerial perspective (v0.916, research roadmap item 2) ──
     // Distant surfaces fade toward the sky's in-scatter color - the single

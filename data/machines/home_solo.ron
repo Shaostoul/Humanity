@@ -476,6 +476,23 @@
             container_type: Some("freezer_chest"),
             model: Some("assets/models/furniture/kitchenfridge/kitchenfridge.gltf"),
         ),
+        // In-world screens (rung 2): displays that show a native app page on
+        // one face. Same two defs as home.ron; place an instance and set its
+        // screen_page ("inventory", "tasks", "chat", ...) to choose the page.
+        "wall_screen": (
+            shape: "box", size: (1.2, 0.7, 0.05), color: (0.08, 0.08, 0.1),
+            label: "Wall screen",
+            category: "Displays",
+            stats: [(kind: "display", value: "1280 x 720 touchscreen", status: "ok")],
+            screen: Some((page: "inventory", px: (1280, 720), face: "front", bezel_m: 0.02, brightness: 1.2)),
+        ),
+        "desk_monitor": (
+            shape: "box", size: (0.6, 0.36, 0.04), color: (0.08, 0.08, 0.1),
+            label: "Desk monitor",
+            category: "Displays",
+            stats: [(kind: "display", value: "1024 x 600 touchscreen", status: "ok")],
+            screen: Some((page: "inventory", px: (1024, 600), face: "front", bezel_m: 0.015, brightness: 1.2)),
+        ),
         "air_recycler": (
             shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
             label: "Air recycler (O2/CO2)",

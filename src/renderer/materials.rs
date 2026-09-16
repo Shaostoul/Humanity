@@ -35,6 +35,23 @@ use super::pipeline::MaterialUniforms;
 use super::{billboard_bake, tree_mesh, AlbedoBindGroup, Material, Renderer};
 use wgpu::util::DeviceExt;
 
+/// Material type 24: an in-world SCREEN (rung 1 of the in-world screens
+/// ladder, docs/design/in-world-screens.md). The albedo texture is a
+/// `ScreenSurface`'s render target bound by view; the shader shows it as an
+/// EMITTER at `params.w` brightness (a display is a light source, not a
+/// reflector: sun and shadow map do not darken it), with aerial haze and
+/// underwater extinction still applied so it stays part of the scene. No
+/// alpha cutout, no `fs_shadow` band: a screen is an opaque shadow caster.
+///
+/// The material type space, as `90-fragment-main.wgsl` dispatches it
+/// (`material.params.z`, banded at +-0.5): 0 panel grid, 1 brushed metal,
+/// 2 concrete, 3 wood, 4..11 the procedural surfaces of the `< N.5` chain,
+/// 12 planet surface / terrain patch, 13 atmosphere shell, 14 scattering
+/// atmosphere, 15 cloud deck, 16 ocean shell, 17 and 18 gas giant bands,
+/// 19 textured mesh (photoscans, furniture), 20 near-tree foliage mesh,
+/// 21 baked cluster card, 22 baked bark, 23 grass strand, 24 screen (this).
+pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
+
 impl Renderer {
     /// Register a material and return its handle (index).
     /// Uses material_type = 0.0 (default panel grid).
@@ -100,23 +117,134 @@ impl Renderer {
             buffer,
             bind_group,
             albedo_bind_group: None,
+            albedo_texture: None,
         });
         idx
     }
 
-    /// Build a group-3 bind group for an sRGB RGBA8 image (v0.811, per-pixel
-    /// planet imagery). The Srgb format makes sampling return LINEAR values
-    /// automatically -- the whole material pipeline is linear; the sRGB
-    /// encode happens once, on store to the sRGB render target. The bind
-    /// group keeps the texture + view alive internally.
-    fn build_albedo_bind_group(&self, rgba: &[u8], width: u32, height: u32) -> AlbedoBindGroup {
-        self.build_material_texture_bind_group(&[rgba], width, height, &self.albedo_sampler)
+    /// Create a single-level sRGB RGBA8 texture and upload `rgba` into it
+    /// (row-major, row 0 = top). The RETAINED form of the texture the
+    /// bind-group builders make internally: `add_textured_material` keeps
+    /// the returned texture on the `Material` so later pixel updates can
+    /// write into it in place.
+    fn create_albedo_texture(&self, rgba: &[u8], width: u32, height: u32) -> wgpu::Texture {
+        assert_eq!(
+            rgba.len(),
+            width as usize * height as usize * 4,
+            "albedo texture byte count must be width*height*4"
+        );
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Material Albedo Texture (retained)"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.write_albedo_pixels(&texture, rgba, width, height);
+        texture
+    }
+
+    /// Upload `rgba` into level 0 of `texture` (which must be `width` x
+    /// `height`). One `queue.write_texture`, no allocation.
+    fn write_albedo_pixels(&self, texture: &wgpu::Texture, rgba: &[u8], width: u32, height: u32) {
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
+    }
+
+    /// Register a material whose albedo slot is bound to an EXISTING texture
+    /// view owned by someone else (in-world screens, rung 1: the view is a
+    /// `ScreenSurface`'s render target, so the scene samples the page's
+    /// pixels directly with no readback and no copy). Everything else about
+    /// the material is `add_material_full`; the bind group keeps the view
+    /// alive, and `albedo_texture` stays `None` because the texture is not
+    /// this material's to update.
+    ///
+    /// Nothing here touches the bind group LAYOUT: the groups come from
+    /// `build_albedo_group_from_view`, the same entry list every other
+    /// textured material uses (the v0.1029 rule).
+    pub fn add_material_with_albedo_view(
+        &mut self,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+        emissive: f32,
+        view: &wgpu::TextureView,
+    ) -> usize {
+        let bg = self.build_albedo_group_from_view(view, &self.albedo_sampler);
+        let idx = self.add_material_full(base_color, metallic, roughness, material_type, emissive);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        idx
+    }
+
+    /// Rebind the albedo slot of material `idx` to another existing view (a
+    /// screen surface recreated at a new size). Drops any retained texture:
+    /// the material no longer owns its albedo. No-op if idx is out of range.
+    pub fn set_material_albedo_view(&mut self, idx: usize, view: &wgpu::TextureView) {
+        if idx >= self.materials.len() {
+            return;
+        }
+        let bg = self.build_albedo_group_from_view(view, &self.albedo_sampler);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        self.materials[idx].albedo_texture = None;
+        super::frame_costs::set_vram_keyed("vram.textures", idx as u64, 0);
+    }
+
+    /// Write new pixels into material `idx`'s RETAINED albedo texture. When
+    /// the size matches the texture it already owns this is one
+    /// `queue.write_texture` and the bind group is untouched (the shape a
+    /// per-frame video feed needs); when the size differs, or the material
+    /// owns no texture yet, a new texture is allocated and rebound. No-op if
+    /// idx is out of range.
+    pub fn update_material_albedo_pixels(&mut self, idx: usize, rgba: &[u8], width: u32, height: u32) {
+        if idx >= self.materials.len() {
+            return;
+        }
+        let same_size = matches!(
+            self.materials[idx].albedo_texture,
+            Some((_, w, h)) if w == width && h == height
+        );
+        if same_size {
+            let (tex, _, _) = self.materials[idx].albedo_texture.as_ref().expect("checked above");
+            self.write_albedo_pixels(tex, rgba, width, height);
+            return;
+        }
+        let texture = self.create_albedo_texture(rgba, width, height);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bg = self.build_albedo_group_from_view(&view, &self.albedo_sampler);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        self.materials[idx].albedo_texture = Some((texture, width, height));
+        super::frame_costs::set_vram_keyed(
+            "vram.textures",
+            idx as u64,
+            (width as u64) * (height as u64) * 4,
+        );
     }
 
     /// The general form (v0.1089): any number of MIP LEVELS, biggest first,
-    /// and an explicit sampler. `build_albedo_bind_group` above is this with
-    /// one level and the shared clamp-V sampler; baked bark passes a full
-    /// chain and the tiling sampler.
+    /// and an explicit sampler. Single-level sRGB albedo images (v0.811,
+    /// per-pixel planet imagery) now go through `create_albedo_texture` so
+    /// the texture is retained on the Material; baked bark passes a full
+    /// chain and the tiling sampler through here. The Srgb format makes
+    /// sampling return LINEAR values automatically -- the whole material
+    /// pipeline is linear; the sRGB encode happens once, on store to the
+    /// sRGB render target.
     ///
     /// Nothing here changes the bind group LAYOUT - the entry list below is
     /// still every binding 0..15, which is the invariant the v0.1029-v0.1038
@@ -321,9 +449,14 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> usize {
-        let albedo_bind_group = self.build_albedo_bind_group(rgba, width, height);
+        // Retained form (rung 1): the texture stays on the Material so
+        // `update_material_albedo_pixels` can write into it in place later.
+        let texture = self.create_albedo_texture(rgba, width, height);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let albedo_bind_group = self.build_albedo_group_from_view(&view, &self.albedo_sampler);
         let idx = self.add_material_full(base_color, metallic, roughness, material_type, emissive);
         self.materials[idx].albedo_bind_group = Some(albedo_bind_group);
+        self.materials[idx].albedo_texture = Some((texture, width, height));
         // VRAM inventory (resource budgets increment 1). Keyed by material
         // index so a later in-place albedo swap REPLACES this figure instead of
         // adding to it.
@@ -395,8 +528,11 @@ impl Renderer {
         if idx >= self.materials.len() {
             return;
         }
-        let bg = self.build_albedo_bind_group(rgba, width, height);
+        let texture = self.create_albedo_texture(rgba, width, height);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bg = self.build_albedo_group_from_view(&view, &self.albedo_sampler);
         self.materials[idx].albedo_bind_group = Some(bg);
+        self.materials[idx].albedo_texture = Some((texture, width, height));
         // The old texture is freed with its bind group, so the inventory
         // REPLACES this material's contribution rather than accumulating.
         super::frame_costs::set_vram_keyed(

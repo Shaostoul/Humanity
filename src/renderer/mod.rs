@@ -173,6 +173,15 @@ pub struct Material {
     /// white fallback instead, so every draw satisfies the shared pipeline
     /// layout. The bind groups internally keep their texture + view alive.
     albedo_bind_group: Option<AlbedoBindGroup>,
+    /// The albedo texture this material OWNS, with its pixel size, when it
+    /// has one (in-world screens, rung 1). `add_textured_material` and
+    /// `set_material_albedo_texture` fill it; `update_material_albedo_pixels`
+    /// writes new pixels into it in place when the size matches, which is
+    /// what a 30 fps live feed needs (the old reallocate-every-call path was
+    /// wrong for video). `None` for materials whose texture lives elsewhere
+    /// and is only bound by view (a screen surface's texture, the temporal
+    /// cloud map): the bind group keeps that view alive, not this field.
+    albedo_texture: Option<(wgpu::Texture, u32, u32)>,
 }
 
 impl Material {
@@ -331,8 +340,8 @@ pub struct Renderer {
     /// 2/3, plus the repeat-all-axes sampler at binding 4. Engine-global:
     /// generated once at startup by renderer::cloud_noise, identical for
     /// every material and planet (per-planet variety comes from the weather
-    /// field's seed). Kept on the struct so build_albedo_bind_group can
-    /// include them in every bind group it makes.
+    /// field's seed). Kept on the struct so build_albedo_group_from_view
+    /// can include them in every bind group it makes.
     cloud_shape_view: wgpu::TextureView,
     cloud_detail_view: wgpu::TextureView,
     cloud_tile_sampler: wgpu::Sampler,

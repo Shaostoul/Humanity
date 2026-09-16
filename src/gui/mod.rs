@@ -13,6 +13,25 @@ pub mod pages;
 pub mod fonts;
 #[cfg(feature = "native")]
 pub mod glossary;
+/// The one page dispatch table (in-world screens, rung 1): every plain tool
+/// page's draw call, shared by the main UI and the world screens.
+#[cfg(feature = "native")]
+pub mod dispatch;
+/// An egui page rendered into its own texture for a screen placed in the
+/// 3D world (in-world screens, rung 1).
+#[cfg(feature = "native")]
+pub mod screen_surface;
+
+/// Install every font fallback chain on an egui context. Called for the main
+/// UI context at boot AND for every in-world screen surface context, so a
+/// screen can never show tofu the main UI does not: the two contexts get
+/// identical font stacks by going through one function. The chains
+/// themselves (Hack for arrows and box drawing, the OS CJK and emoji faces)
+/// are documented in `fonts.rs`.
+#[cfg(feature = "native")]
+pub fn install_fonts(ctx: &egui::Context) {
+    fonts::install_font_fallbacks(ctx);
+}
 
 /// Location-aware rules ("Laws") data loader (v0.496). See pages/laws.rs.
 pub mod laws;

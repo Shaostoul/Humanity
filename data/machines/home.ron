@@ -1068,6 +1068,34 @@
             container_type: Some("furniture_drawer"),
             model: Some("assets/models/furniture/desk/desk.gltf"),
         ),
+        "desk_monitor": (
+            shape: "box",
+            size: (0.6, 0.36, 0.04),
+            color: (0.08, 0.08, 0.1),
+            label: "Desk monitor",
+            category: "Displays",
+            stats: [
+                (
+                    kind: "display",
+                    value: "1024 x 600 touchscreen",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+            screen: Some((
+                page: "inventory",
+                px: (1024, 600),
+                face: "front",
+                bezel_m: 0.015,
+                brightness: 1.2,
+            )),
+        ),
         "shelf": (
             shape: "box",
             size: (1.00, 1.80, 0.30),
@@ -1709,6 +1737,34 @@
             container_type: None,
             model: None,
         ),
+        "wall_screen": (
+            shape: "box",
+            size: (1.2, 0.7, 0.05),
+            color: (0.08, 0.08, 0.1),
+            label: "Wall screen",
+            category: "Displays",
+            stats: [
+                (
+                    kind: "display",
+                    value: "1280 x 720 touchscreen",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+            screen: Some((
+                page: "inventory",
+                px: (1280, 720),
+                face: "front",
+                bezel_m: 0.02,
+                brightness: 1.2,
+            )),
+        ),
         "water_pump": (
             shape: "box",
             size: (0.35, 0.35, 0.35),
@@ -2049,6 +2105,31 @@
             offset: (45.0, 0.0, 40.2),
             rotation: 0.0,
             zone: "home",
+        ),
+        // In-world screens (rung 2): two wall screens in the common room,
+        // mounted 1.2 m up. wall_screen_1 hangs on the south wall (z = 36)
+        // and faces north into the room (rotation 180 turns the -Z front
+        // face to +Z); wall_screen_2 hangs on the east wall (x = 51) and
+        // faces west (rotation 90 turns the front to -X). Same catalog type,
+        // different pages: screen_page overrides the def's default. The
+        // operator will move them into the console room later.
+        (
+            id: "wall_screen_1",
+            machine: "wall_screen",
+            room: "common",
+            offset: (47.0, 1.2, 36.15),
+            rotation: 180.0,
+            zone: "home",
+            screen_page: Some("inventory"),
+        ),
+        (
+            id: "wall_screen_2",
+            machine: "wall_screen",
+            room: "common",
+            offset: (50.85, 1.2, 40.0),
+            rotation: 90.0,
+            zone: "home",
+            screen_page: Some("tasks"),
         ),
         (
             id: "side_table_2",
