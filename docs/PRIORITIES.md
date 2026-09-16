@@ -1,5 +1,64 @@
 # HumanityOS: Priorities
 
+> **ACTIVE: THE IN-WORLD SCREENS LADDER, 2026-09-16.** Operator direction:
+> the native app pages (the real inventory page, not the web page) as
+> touchscreens inside the 3D world; a fixed console room in the home populated
+> by those displays; live feeds and movies on displays; real websites on
+> in-game monitors, with affiliate links only after the legality of each
+> platform is settled; and our own player rather than embedding VLC. Six
+> rungs, in build order, with the state of each:
+>
+> 1. **ScreenSurface** (MERGED, v0.1313): a persistent second egui context
+>    rendered into a wgpu texture that a new unlit material type 24 samples;
+>    the look ray (mouse-look) or the cursor ray (free cursor) becomes synthetic
+>    egui pointer events, so the player looks at the wall and clicks the real
+>    inventory. `debug/screen_request.json` drives the same event path for
+>    the rig. `docs/design/in-world-screens.md`.
+> 2. **The screen as data** (MERGED): `screen: Some((source, px, face,
+>    bezel_m, brightness))` on a machine def; `wall_screen` and
+>    `desk_monitor` in both home designs; two placed in the common room. The
+>    `source` string carries a scheme (`page:`, `watch:`, `camera:`,
+>    `video:`, `web:`) and a `ScreenProvider` per kind plugs into the one
+>    registry `engine::screens::provider_for`.
+> 3. **Live feed and in-game camera** (IN FLIGHT, phase 2): the MJPEG Watch
+>    stream on a wall with one viewer per screen; a `camera_post` machine
+>    whose pose renders the world onto a screen at 10 Hz through a
+>    `render_view_onto` shared with the hires screenshot path.
+> 4. **The console room** (MERGED): room-grade zone types, `room_type` on a
+>    zone joining `data/rooms.ron`, rooms covered by a zone take the zone's
+>    id instead of `room_N`, a `console_room` zone placed in the home.
+>    Vocabulary: command deck = the mothership bridge; console room
+>    (battlestation) = the home workstation. TODO once phase 2 lands: move
+>    the placed screens from the common room into the console room.
+> 5. **Video** (core MERGED, integration IN FLIGHT): WebM/Matroska + AV1 +
+>    Opus through pure-Rust decoders on a background thread with an audio-led
+>    clock (`src/media`, `docs/design/media-player.md`, measured fps in the
+>    doc); phase 2 puts a looping clip on a wall with spatial audio and
+>    click-to-pause. Not done: sync between players, seek, subtitles.
+> 6. **The readable web** (core MERGED, integration IN FLIGHT): html5ever
+>    parse, egui render, no JavaScript, no Chromium (decision brief 4),
+>    behind `readable_web` which defaults to OFF; `data/web/sites.json` is
+>    the one bookmark list both clients read and carries `embed.status` per
+>    site (`needs_review` until a human records the terms basis, url, date
+>    and name) with every affiliate field null. Phase 2 puts the view on a
+>    wall and adds `scripts/verify-screens.js`, the rig that proves a click
+>    on the inventory wall toggles a header and a click on a web link
+>    navigates, with no human at the keyboard. Test targets are our own site
+>    only; nothing affiliate until the legality column says so.
+>
+> **Gates for any screen change:** both cargo checks, the screens / surface /
+> dispatch / machines lib tests, the standalone lints, AND a boot that enters
+> the world and drives the wall through the dev IPC (static verification
+> cannot see a dark or mirrored screen). Once `verify-screens.js` lands it is
+> the named gate.
+>
+> **Deferred from this arc, on purpose:** VR controller rays; per-context
+> `thread_local` page state (a screen and the main UI showing the same page
+> share it); moving affiliate decisions out of `needs_review` (operator reads
+> the terms); synchronised playback between players (needs the relay clock);
+> the rooms.ron entries for entry, pantry, hall and utility (named, not yet
+> functional).
+
 > **NEW ARC FENCED, NOT YET STARTED: POPULATE THE SHIP, AND SEAT A DOZEN,
 > 2026-09-15.** Operator direction, two calls. (1) The LLM-driven AI player is
 > BACKBURNERED in favour of simple AI humans: 500 in one mothership sector that
