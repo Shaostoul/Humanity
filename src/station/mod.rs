@@ -9,6 +9,7 @@
 //! orbit could not be changed without a recompile.
 
 pub mod orbit;
+pub mod station_keeping;
 
 pub use orbit::{AttitudeMode, OrbitDef, PeriodSpec, StationDef};
 
