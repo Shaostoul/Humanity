@@ -2764,14 +2764,13 @@ mod native_app {
                                         3.0
                                     };
                                 }
-                                // Add-Room picker options: room-type ids from the registry (sorted).
-                                let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
-                                let mut types: Vec<String> = reg.types.keys().cloned().collect();
-                                types.sort();
+                                // Add-Room picker default: the first registry key. The sorted key
+                                // list itself was filled above, before this legacy-layout branch,
+                                // so it is not loaded twice.
                                 if state.gui_state.construction_add_type.is_empty() {
-                                    state.gui_state.construction_add_type = types.first().cloned().unwrap_or_default();
+                                    state.gui_state.construction_add_type =
+                                        state.gui_state.construction_room_types.first().cloned().unwrap_or_default();
                                 }
-                                state.gui_state.construction_room_types = types;
                             }
                             return;
                         }
