@@ -320,7 +320,12 @@ pub struct Zone {
     /// it is for. None -> the room is named after the zone but has no function. Distinct from
     /// `type_id`: that picks the zone's colour + editor label (zone_types.ron), this picks the
     /// gameplay function (rooms.ron); the console room sets both to "console_room".
-    #[serde(default)]
+    ///
+    /// `skip_serializing_if`: the construction editor rewrites ship_structure.ron from this struct
+    /// on every save, so a zone with no function must serialize exactly as it was hand-authored
+    /// (no `room_type: None` sprayed over every zone in every body). That keeps an editor save a
+    /// small diff, which matters in a checkout several sessions share.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub room_type: Option<String>,
 }
 
@@ -2631,6 +2636,25 @@ mod tests {
         ids.sort();
         ids.dedup();
         assert_eq!(ids.len(), n, "room ids stay unique after the zone join");
+    }
+
+    /// A zone's `room_type` round-trips through the editor's save format, and a zone WITHOUT one
+    /// serializes with no `room_type` line at all (so an editor save leaves hand-authored zones
+    /// textually untouched). Fails if the `skip_serializing_if` on `Zone::room_type` is dropped
+    /// (the None line reappears) or if the field stops round-tripping.
+    #[test]
+    fn room_type_round_trips_and_is_omitted_when_none() {
+        let mut h: HomeStructure = ron::from_str("(width: 20.0, depth: 20.0, height: 3.0)").expect("parses");
+        h.add_zone("room_kitchen", (0.0, 0.0, 0.0), (4.0, 3.0, 4.0));
+        h.add_zone("room_hall", (4.0, 0.0, 0.0), (4.0, 3.0, 4.0));
+        h.zones[0].room_type = Some("kitchen".to_string());
+        let config = ron::ser::PrettyConfig::default().struct_names(false);
+        let text = ron::ser::to_string_pretty(&h, config).expect("serializes");
+        assert!(text.contains("room_type: Some(\"kitchen\")"), "the set room type is written: {text}");
+        assert_eq!(text.matches("room_type").count(), 1, "a zone with no room type writes no room_type line: {text}");
+        let back: HomeStructure = ron::from_str(&text).expect("parses back");
+        assert_eq!(back.zones[0].room_type.as_deref(), Some("kitchen"));
+        assert_eq!(back.zones[1].room_type, None);
     }
 
     #[test]

@@ -176,7 +176,7 @@
         purpose: "Benchwork, tools, 3D printer; the maker floor.",
         default_size: (4.0, 3.0, 4.0),
     ),
-    // Room-grade zones, console-room increment (in-world screens ladder, rung 4). A zone that
+    // Room-grade zones (the console-room increment of docs/design/homestead.md). A zone that
     // also sets `room_type` (a data/rooms.ron key) gives the room it covers its FUNCTION; the
     // console room's zone type and room type are both "console_room". Vocabulary: the
     // "command deck" is the mothership bridge (docs/game/humanity_one.md), never the home;

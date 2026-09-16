@@ -42,7 +42,8 @@
     ),
     // The household's fixed workstation (colloquially the "battlestation"; the mothership bridge
     // is the "command deck", a different room). Referenced by a Zone's `room_type` in
-    // data/blueprints/ship_structure.ron; the in-world screens (wall_screen, desk_monitor) mount here.
+    // data/blueprints/ship_structure.ron. The planned mounting point for the in-world screens
+    // (wall_screen, desk_monitor): not built yet, listed under equipment so the room is ready.
     "console_room": (
         name: "Console room",
         purpose: "The household's fixed workstation: displays, comms and the home's systems at a glance",

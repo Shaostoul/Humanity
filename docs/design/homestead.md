@@ -64,7 +64,9 @@ Nothing about the bay, the corridor, or the machine plant moves.
 ## 3. Room program
 
 House block: x 39..55, z 24..44 (320 m^2), 3 m ceilings, southeast of the bay,
-receiving the corridor aperture on the east shell at z 39..41. Ten rooms:
+receiving the corridor aperture on the east shell at z 39..41. Twelve rooms:
+eleven inside the block, plus the console-room annex bumped out of its north
+wall into the bay (the last row):
 
 | Room | Rect (x1..x2, z1..z2) | Size m | Purpose |
 |---|---|---|---|
@@ -114,8 +116,10 @@ zone `console-room` with `room_type: Some("console_room")`. It is a walled 3.5 x
 annex bumped out of the house's north wall into the greenhouse bay, x 47.5..51.0,
 z 44.0..47.0, entered from the common room through a door at x 48.25..49.15 (that
 door replaced one of the common room's bay windows); its own north wall keeps a
-window onto the garden and it carries one ceiling panel light. The in-world screens
-(`wall_screen`, `desk_monitor`) mount here. Vocabulary, settled here and used
+window onto the garden and it carries one ceiling panel light. It is the planned
+mounting point for the in-world screens (`wall_screen`, `desk_monitor`); those are
+not built yet (no item, machine or mesh exists for them), the rooms.ron equipment
+list names them so the room is ready when they land. Vocabulary, settled here and used
 everywhere: "console room" is this room; "battlestation" is its colloquial name;
 "command deck" is the mothership bridge (`docs/game/humanity_one.md`) and is never
 the home. "Battlestation" is ALSO, separately, a device role in
