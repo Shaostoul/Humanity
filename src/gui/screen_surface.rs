@@ -197,6 +197,107 @@ pub trait ScreenProvider: Send {
     fn on_button(&mut self, _uv: (f32, f32), _pressed: bool) -> bool {
         false
     }
+
+    /// How far along the provider's content is, for the dev IPC's
+    /// `wait_ready` action (the rig waits for a web page to arrive before it
+    /// clicks a link). A provider whose content is always there (a status
+    /// page) keeps the default.
+    fn load_state(&self) -> LoadState {
+        LoadState::Static
+    }
+
+    /// The rectangles, in surface PIXELS, of the links the provider drew on
+    /// its last frame, in drawing order. The dev IPC's `link` action clicks
+    /// the Nth one through the normal event API, so a rig never has to
+    /// guess pixel coordinates from a screenshot. Empty for content with no
+    /// links.
+    fn link_rects(&self) -> Vec<egui::Rect> {
+        Vec::new()
+    }
+}
+
+/// Where a provider's content stands, as reported through
+/// [`ScreenProvider::load_state`] for the dev IPC's `wait_ready`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoadState {
+    /// The content is always there (a page, a notice): nothing to wait for.
+    Static,
+    /// Something is on its way (a fetch in flight, a clip opening).
+    Loading,
+    /// The content arrived and is drawn.
+    Ready,
+    /// It will not arrive; the string is the one-line reason.
+    Error(String),
+}
+
+/// What `ScreenCore::find_text` found on the last frame: the first drawn
+/// text matching the query, in surface pixels, and how many texts matched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FoundText {
+    /// The full text of the matching galley (a label's whole string).
+    pub text: String,
+    /// The text's rectangle on the surface, in pixels, clipped to the
+    /// region it was actually drawn in.
+    pub rect: egui::Rect,
+    /// How many drawn texts matched the query (the first one is returned).
+    pub matches: usize,
+}
+
+/// Search the shapes egui produced for one frame for a drawn text. Three
+/// tiers, best first: an EXACT match (the galley's whole text equals
+/// `query`), then a text that STARTS WITH it, then one that merely
+/// CONTAINS it; within a tier the first in drawing order wins. So asking
+/// for "Home" on the inventory finds the container header "Home  (Silverdale,
+/// WA ...)" before the person row "You  (Home)" that only mentions it.
+/// Texts clipped entirely away (a label scrolled out of its scroll area)
+/// are skipped. This is the only per-widget text lookup egui affords:
+/// widget rects carry ids, not labels, so the drawn galleys are the honest
+/// source.
+pub fn find_text_in_shapes(shapes: &[egui::epaint::ClippedShape], query: &str) -> Option<FoundText> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+    // Best candidate per tier: 0 exact, 1 prefix, 2 substring.
+    let mut best: [Option<(String, egui::Rect)>; 3] = [None, None, None];
+    let mut matches = 0usize;
+    for cs in shapes {
+        visit_text(&cs.shape, cs.clip_rect, &mut |text, rect| {
+            let tier = if text == query {
+                0
+            } else if text.starts_with(query) {
+                1
+            } else if text.contains(query) {
+                2
+            } else {
+                return;
+            };
+            matches += 1;
+            if best[tier].is_none() {
+                best[tier] = Some((text.to_string(), rect));
+            }
+        });
+    }
+    best.into_iter().flatten().next().map(|(text, rect)| FoundText { text, rect, matches })
+}
+
+/// Walk one shape (recursing into `Shape::Vec`) and call `f` with every
+/// text galley's string and its on-surface rect, clipped to `clip`.
+fn visit_text(shape: &egui::Shape, clip: egui::Rect, f: &mut impl FnMut(&str, egui::Rect)) {
+    match shape {
+        egui::Shape::Text(t) => {
+            let rect = t.galley.rect.translate(t.pos.to_vec2()).intersect(clip);
+            if rect.is_positive() {
+                f(t.galley.text(), rect);
+            }
+        }
+        egui::Shape::Vec(v) => {
+            for s in v {
+                visit_text(s, clip, f);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The GPU-free half of a screen: an egui context plus the synthetic input
@@ -233,6 +334,10 @@ pub struct ScreenCore {
     /// twice (see `ScreenSurface::frame`).
     runs: u64,
     textures: ScreenTextures,
+    /// A text lookup the dev IPC asked for; answered from the NEXT run's
+    /// shapes (see `find_text` / `take_found_text`).
+    find_query: Option<String>,
+    find_result: Option<Option<FoundText>>,
 }
 
 impl ScreenCore {
@@ -264,7 +369,25 @@ impl ScreenCore {
             cursor_icon: egui::CursorIcon::Default,
             runs: 0,
             textures: ScreenTextures::default(),
+            find_query: None,
+            find_result: None,
         }
+    }
+
+    /// Ask for the on-surface position of a drawn text. The answer comes
+    /// from the shapes of the NEXT run (a text is only where the frame put
+    /// it), read back with `take_found_text`. Used by the dev IPC's `find`
+    /// action so a rig can click "the Home header" instead of guessing
+    /// pixel coordinates; see `find_text_in_shapes` for the matching rule.
+    pub fn find_text(&mut self, query: &str) {
+        self.find_query = Some(query.to_string());
+        self.find_result = None;
+    }
+
+    /// The answer to the last `find_text`, once a run has happened: outer
+    /// `None` = no run yet, inner `None` = nothing on the surface matched.
+    pub fn take_found_text(&mut self) -> Option<Option<FoundText>> {
+        self.find_result.take()
     }
 
     /// Pixel size of the surface.
@@ -453,6 +576,12 @@ impl ScreenCore {
         self.wants_keyboard = self.ctx.wants_keyboard_input();
         self.hover_layer = self.pointer.map_or(false, |p| self.ctx.layer_id_at(p).is_some());
         self.cursor_icon = out.platform_output.cursor_icon;
+        // A pending text lookup is answered from THIS run's shapes, before
+        // the GPU half tessellates them away. Costs nothing when no lookup
+        // is pending (the normal case: it is a dev-IPC verb).
+        if let Some(q) = self.find_query.take() {
+            self.find_result = Some(find_text_in_shapes(&out.shapes, &q));
+        }
         self.runs += 1;
         out
     }
@@ -816,6 +945,106 @@ mod tests {
         );
         assert_ne!(before, after, "clicking the Home header through the screen's UV event API did not toggle it");
         assert!(core.hover_widget(), "egui should report a layer under the pointer after the click");
+    }
+
+    /// THE DEV IPC's `find` VERB, END TO END ON A REAL PAGE: ask the core
+    /// where the text "Home" is drawn, click THERE through the same UV event
+    /// API, and the Home container header must toggle. This is what lets the
+    /// runtime rig click a named widget instead of a guessed pixel. Proven
+    /// able to fail (2026-09-16): with the found rect shifted one row down
+    /// (`+ 40.0` on y) the click lands on the container's body and the
+    /// toggle assertion fires with `left: true, right: true`.
+    #[test]
+    fn find_text_locates_the_home_header_and_a_click_there_toggles_it() {
+        let mut theme = load_theme();
+        let mut state = inventory_state();
+        let (w, h) = (1280u32, 1700u32);
+        let mut core = ScreenCore::new("test_screen", "inventory", w, h, &theme);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
+        crate::gui::pages::inventory::test_clear_placed();
+        core.run(&mut theme, &mut state);
+        core.run(&mut theme, &mut state);
+
+        assert!(core.take_found_text().is_none(), "no lookup was asked for yet");
+        core.find_text("Home");
+        core.run(&mut theme, &mut state);
+        let found = core
+            .take_found_text()
+            .expect("a run happened after the lookup")
+            .expect("the inventory page draws a container named Home");
+        // The header reads "Home  (Silverdale, WA ...)": the prefix tier
+        // must beat "You  (Home)", which is drawn first and only contains
+        // the word.
+        assert!(found.text.starts_with("Home"), "prefix match must win over a substring match: {:?}", found.text);
+        assert!(found.matches >= 2, "both the Home header and the You row mention Home: {}", found.matches);
+        // The found text is the header's label; the header's own recorded
+        // click rect must contain it (same row), which ties the shape scan
+        // to the widget the page actually made clickable.
+        let header = crate::gui::pages::inventory::test_recorded_header_rect("1").expect("Home header rect");
+        assert!(
+            header.contains(found.rect.center()),
+            "found text {:?} is not inside the Home header row {header:?}",
+            found.rect
+        );
+
+        let uv = (found.rect.center().x / w as f32, found.rect.center().y / h as f32);
+        let open_id = egui::Id::new(("place_open", "1"));
+        let before = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+        core.pointer_moved(uv);
+        core.run(&mut theme, &mut state);
+        core.button(uv, true);
+        core.run(&mut theme, &mut state);
+        core.button(uv, false);
+        core.run(&mut theme, &mut state);
+        let after = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        assert_ne!(before, after, "clicking at the FOUND text did not toggle the Home header");
+        // The lookup is one-shot: nothing is pending after it was answered.
+        core.run(&mut theme, &mut state);
+        assert!(core.take_found_text().is_none(), "a find is answered once, not on every later frame");
+    }
+
+    /// The matching rule on synthetic shapes: exact beats prefix beats
+    /// substring, the count covers all three, clipped-away text is
+    /// invisible, and nested `Shape::Vec` is walked.
+    #[test]
+    fn find_text_prefers_exact_matches_and_skips_clipped_text() {
+        let ctx = egui::Context::default();
+        let mk = |text: &str, pos: egui::Pos2| {
+            let galley = ctx.fonts(|f| f.layout_no_wrap(text.to_string(), egui::FontId::proportional(14.0), egui::Color32::WHITE));
+            egui::Shape::Text(egui::epaint::TextShape::new(pos, galley, egui::Color32::WHITE))
+        };
+        // Fonts need one frame to exist before galleys can be laid out.
+        let _ = ctx.run(Default::default(), |_| {});
+        let big = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 1000.0));
+        let shapes = vec![
+            egui::epaint::ClippedShape { clip_rect: big, shape: mk("Take me Home tonight", egui::pos2(10.0, 10.0)) },
+            egui::epaint::ClippedShape {
+                clip_rect: big,
+                shape: egui::Shape::Vec(vec![mk("Home", egui::pos2(10.0, 100.0)), mk("Homestead", egui::pos2(10.0, 200.0))]),
+            },
+            // Drawn entirely outside its clip rect: not on the surface.
+            egui::epaint::ClippedShape {
+                clip_rect: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(5.0, 5.0)),
+                shape: mk("Home", egui::pos2(500.0, 500.0)),
+            },
+        ];
+        let found = find_text_in_shapes(&shapes, "Home").expect("found");
+        assert_eq!(found.text, "Home", "the exact match, not the first substring match");
+        assert!((found.rect.min.y - 100.0).abs() < 1.0, "the exact match's own position: {:?}", found.rect);
+        assert_eq!(found.matches, 3, "one substring + one prefix + one exact; the clipped one does not count");
+        // Prefix beats substring: "Homes" is the start of "Homestead" and
+        // appears in nothing else.
+        let prefix = find_text_in_shapes(&shapes, "Homes").expect("prefix match");
+        assert_eq!(prefix.text, "Homestead");
+        // Substring only: drawn first, but "me Home" starts no text, so it
+        // is found through the last tier.
+        let partial = find_text_in_shapes(&shapes, "me Home").expect("substring match");
+        assert_eq!(partial.text, "Take me Home tonight");
+        assert!(find_text_in_shapes(&shapes, "nowhere").is_none());
+        assert!(find_text_in_shapes(&shapes, "   ").is_none(), "an empty query matches nothing");
     }
 
     /// An unknown page id in data must warn and draw a notice, never panic.

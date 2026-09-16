@@ -28,12 +28,15 @@
 //! this reason.
 
 use crate::engine::state::EngineState;
-use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider};
+use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface};
 use crate::gui::GuiPage;
 use crate::machines::PlacedMachine;
 use crate::renderer::mesh::{Mesh, Vertex};
 use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
+
+/// The readable web on a wall (`web:<url>`), rung 6 of the ladder.
+pub mod web;
 
 /// How far the player can reach a screen with the look ray or the cursor,
 /// in metres. Beyond this a screen still renders but ignores input.
@@ -200,10 +203,51 @@ pub fn screen_quad_vertices(local: &QuadGeom) -> ([Vertex; 4], [u32; 6]) {
 pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
     match source {
         ScreenSource::Page(_) | ScreenSource::Unknown(_) => None,
-        // Live streams, in-game cameras, video clips and the readable web:
-        // added by their rungs (see docs/design/in-world-screens.md, the
-        // sources table). Until then the surface's notice names the gap.
-        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Video(_) | ScreenSource::Web(_) => None,
+        // The readable web view on a wall (rung 6): fetches its url once
+        // while in-app web reading is on, draws the off notice otherwise.
+        ScreenSource::Web(url) => Some(Box::new(web::WebProvider::new(url))),
+        // Live streams, in-game cameras and video clips: added by their
+        // rungs (see docs/design/in-world-screens.md, the sources table).
+        // Until then the surface's notice names the gap.
+        ScreenSource::Live(_) | ScreenSource::Camera(_) | ScreenSource::Video(_) => None,
+    }
+}
+
+/// How long the dev IPC's `wait_ready` waits for a provider to report
+/// ready (or an error) before giving up. A readable-web fetch has a 10 s
+/// whole-request timeout of its own, so 15 s covers it with a margin; a
+/// wait that runs out is reported as a failure, never as ready.
+pub const WAIT_READY_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// The dev IPC's `link` verb: the (u, v) to click for the `index`-th link
+/// rect a provider drew, on a surface of `size` pixels. The point is the
+/// rect's centre after clipping the rect to the surface, so a link whose
+/// label runs past the edge still gets a point that is ON the screen; a
+/// rect wholly off the surface, or an index past the end, is `None`.
+pub fn link_uv(rects: &[egui::Rect], index: usize, size: (u32, u32)) -> Option<(f32, f32)> {
+    let rect = *rects.get(index)?;
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(size.0 as f32, size.1 as f32));
+    let on_screen = rect.intersect(screen);
+    if !on_screen.is_positive() {
+        return None;
+    }
+    let c = on_screen.center();
+    Some((c.x / size.0 as f32, c.y / size.1 as f32))
+}
+
+/// The dev IPC's `wait_ready` verb, decided from what the provider reports
+/// and how long the wait has run: `None` = keep waiting (still loading and
+/// under the limit); `Some(Ok(()))` = ready, or static content that has
+/// nothing to wait for; `Some(Err(reason))` = the provider failed, or the
+/// wait ran past `WAIT_READY_LIMIT`. Pure, so the bound is unit-tested.
+pub fn wait_ready_outcome(state: &LoadState, elapsed: std::time::Duration) -> Option<Result<(), String>> {
+    match state {
+        LoadState::Static | LoadState::Ready => Some(Ok(())),
+        LoadState::Error(e) => Some(Err(format!("the screen's content failed: {e}"))),
+        LoadState::Loading if elapsed >= WAIT_READY_LIMIT => {
+            Some(Err(format!("wait_ready timed out after {} s, still loading", WAIT_READY_LIMIT.as_secs())))
+        }
+        LoadState::Loading => None,
     }
 }
 
@@ -227,9 +271,17 @@ pub struct ScreenIpc {
     pub action: String,
     pub uv: (f32, f32),
     /// 0 = event queued this frame, 1 = a click's release still to queue,
-    /// 2 = ready to complete after this frame's `frame_surfaces`.
+    /// 2 = ready to complete after this frame's `frame_surfaces`,
+    /// 3 = `wait_ready` waiting on the provider (bounded by
+    /// `WAIT_READY_LIMIT`; the surface stays framed meanwhile).
     pub stage: u8,
     pub snapshot: bool,
+    /// `link`: which of the provider's link rects to click (0-based).
+    pub link_index: usize,
+    /// `find`: the drawn text to locate.
+    pub find_text: String,
+    /// `wait_ready`: when the wait began.
+    pub started: Option<std::time::Instant>,
 }
 
 /// Every in-world screen, on `EngineState`.
@@ -757,5 +809,45 @@ mod tests {
             assert_eq!(egui_key_from_winit_name(name), Some(want), "{name}");
         }
         assert_eq!(egui_key_from_winit_name("NoSuchKey"), None);
+    }
+
+    /// The `link` verb's rect-to-uv mapping: the centre of the Nth rect in
+    /// 0..1 on a 1280 x 720 surface; a label that runs off the right edge
+    /// is clipped first so the click stays on the screen; wholly off-screen
+    /// rects and out-of-range indices map to nothing.
+    #[test]
+    fn link_uv_maps_the_rect_centre_and_clips_to_the_surface() {
+        let size = (1280u32, 720u32);
+        let rects = vec![
+            egui::Rect::from_min_size(egui::pos2(100.0, 200.0), egui::vec2(120.0, 20.0)),
+            // Runs 400 px past the right edge: the usable centre is inside.
+            egui::Rect::from_min_size(egui::pos2(1000.0, 300.0), egui::vec2(680.0, 20.0)),
+            // Entirely below the surface (scrolled out of view).
+            egui::Rect::from_min_size(egui::pos2(100.0, 900.0), egui::vec2(120.0, 20.0)),
+        ];
+        let (u, v) = link_uv(&rects, 0, size).expect("on screen");
+        assert!((u - 160.0 / 1280.0).abs() < 1e-5 && (v - 210.0 / 720.0).abs() < 1e-5, "({u}, {v})");
+        let (u, v) = link_uv(&rects, 1, size).expect("partly on screen");
+        assert!((u - 1140.0 / 1280.0).abs() < 1e-5, "clipped centre, not the raw centre: u = {u}");
+        assert!(u < 1.0 && (v - 310.0 / 720.0).abs() < 1e-5);
+        assert!(link_uv(&rects, 2, size).is_none(), "an off-screen link cannot be clicked");
+        assert!(link_uv(&rects, 3, size).is_none(), "no such link");
+        assert!(link_uv(&[], 0, size).is_none());
+    }
+
+    /// The `wait_ready` verb is bounded: loading under the limit keeps
+    /// waiting, loading at the limit fails with a timeout, ready and static
+    /// content succeed at once, and an error fails at once with the reason.
+    #[test]
+    fn wait_ready_outcome_is_bounded_by_the_limit() {
+        use std::time::Duration;
+        assert_eq!(wait_ready_outcome(&LoadState::Loading, Duration::from_secs(1)), None);
+        assert_eq!(wait_ready_outcome(&LoadState::Loading, WAIT_READY_LIMIT - Duration::from_millis(1)), None);
+        let timed_out = wait_ready_outcome(&LoadState::Loading, WAIT_READY_LIMIT).expect("decided at the limit");
+        assert!(timed_out.as_ref().unwrap_err().contains("timed out"), "{timed_out:?}");
+        assert_eq!(wait_ready_outcome(&LoadState::Ready, Duration::ZERO), Some(Ok(())));
+        assert_eq!(wait_ready_outcome(&LoadState::Static, Duration::from_secs(99)), Some(Ok(())));
+        let failed = wait_ready_outcome(&LoadState::Error("HTTP 503".into()), Duration::ZERO).expect("decided");
+        assert!(failed.as_ref().unwrap_err().contains("HTTP 503"), "{failed:?}");
     }
 }

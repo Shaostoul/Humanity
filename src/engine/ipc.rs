@@ -2,6 +2,7 @@ use glam::Vec3;
 use crate::engine::frame_lock::*;
 use crate::engine::ipc_parse::*;
 use crate::engine::state::*;
+use crate::gui::screen_surface::LoadState;
 use crate::gui::{GuiPage, GuiState};
 
 /// data/world/showcase.ron shape (v0.863 perpetual showcase).
@@ -1184,13 +1185,15 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// `debug/screen_request.json`:
 ///
 /// ```json
-/// {"screen": "wall_screen_1", "action": "hover|click|scroll|text|snapshot",
-///  "uv": [0.5, 0.2], "dy": 0, "text": ""}
+/// {"screen": "wall_screen_1", "action": "hover|click|scroll|text|snapshot|find|link|wait_ready",
+///  "uv": [0.5, 0.2], "dy": 0, "text": "", "index": 0}
+/// {"screen": "wall_screen_1", "find": {"text": "Home"}}
+/// {"screen": "wall_screen_3", "link": {"index": 0}}
 /// ```
 ///
 /// and the engine performs that synthetic event on the named surface THROUGH
 /// THE SAME EVENT API the look ray uses (`ScreenCore::pointer_moved`,
-/// `button`, `scroll`, `text`), never a side path, then writes
+/// `ScreenSurface::button`, `scroll`, `text`), never a side path, then writes
 /// `debug/screen_done.json`:
 ///
 /// ```json
@@ -1198,10 +1201,19 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 ///  "hover_widget": true, "cursor_icon": "Default", "png": "debug/screen_wall_screen_1_3.png"}
 /// ```
 ///
+/// plus whatever the surface's provider reports through `status()` (a web
+/// screen adds `url`, `title` and `status`: fetching / ready / error / off).
+///
 /// `snapshot` reads the surface texture back to that PNG (rows padded to 256
 /// and unpadded, like the UI snapshot rig); `png` is absent for the other
-/// actions. This is how the runtime verifier proves a screen works with no
-/// human at the keyboard. The request file is consumed even on error; a
+/// actions. `find` answers with where a drawn text is (`found`, `uv`,
+/// `rect_px`, `text`, `matches`) so a rig can click a widget by its label.
+/// `link` clicks the Nth link the provider drew, mapped from its rect's
+/// centre to a uv and sent as a normal press + release. `wait_ready`
+/// completes only once the provider reports ready or failed, bounded by
+/// `screens::WAIT_READY_LIMIT` (a timeout is `ok: false`). This is how the
+/// runtime verifier (`scripts/verify-screens.js`) proves a screen works with
+/// no human at the keyboard. The request file is consumed even on error; a
 /// failure writes `{"ok": false, "error": ...}`.
 ///
 /// Three steps because a click is two frames and the answer must describe
@@ -1238,9 +1250,28 @@ pub(crate) fn poll_screen_request(state: &mut EngineState) {
         fail(format!("no screen named {id:?}; placed screens: {known:?}"));
         return;
     };
-    let action = v.get("action").and_then(|s| s.as_str()).unwrap_or("snapshot").to_string();
-    if !matches!(action.as_str(), "hover" | "click" | "scroll" | "text" | "snapshot") {
-        fail(format!("unknown action {action:?} (hover|click|scroll|text|snapshot)"));
+    let mut action = v.get("action").and_then(|s| s.as_str()).unwrap_or("snapshot").to_string();
+    let mut text = v.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
+    let mut link_index = v.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
+    // The object forms name the verb by their key, so a request reads as
+    // what it does: {"find": {"text": "Home"}} and {"link": {"index": 0}}.
+    if let Some(f) = v.get("find").and_then(|f| f.as_object()) {
+        action = "find".to_string();
+        text = f.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
+    }
+    if let Some(l) = v.get("link").and_then(|l| l.as_object()) {
+        action = "link".to_string();
+        link_index = l.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
+    }
+    if !matches!(
+        action.as_str(),
+        "hover" | "click" | "scroll" | "text" | "snapshot" | "find" | "link" | "wait_ready"
+    ) {
+        fail(format!("unknown action {action:?} (hover|click|scroll|text|snapshot|find|link|wait_ready)"));
+        return;
+    }
+    if action == "find" && text.trim().is_empty() {
+        fail("find needs a non-empty \"text\"".to_string());
         return;
     }
     let uv = v
@@ -1249,13 +1280,16 @@ pub(crate) fn poll_screen_request(state: &mut EngineState) {
         .and_then(|a| Some((a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)))
         .unwrap_or((0.5, 0.5));
     let dy = v.get("dy").and_then(|d| d.as_f64()).unwrap_or(0.0) as f32;
-    let text = v.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
+    let snapshot = action == "snapshot";
     state.screens.ipc = Some(crate::engine::screens::ScreenIpc {
         surface,
+        find_text: if action == "find" { text.clone() } else { String::new() },
         action,
         uv,
         stage: 0,
-        snapshot: v.get("action").and_then(|s| s.as_str()) == Some("snapshot"),
+        snapshot,
+        link_index,
+        started: None,
     });
     // Stash the scalar payloads on the pending record's owner: dy and text
     // are only needed once, at queue time, so they ride in a side slot.
@@ -1272,19 +1306,51 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
         state.screens.ipc = None;
         return;
     };
+    // A verb that cannot be queued (no such link) answers right here; the
+    // message is carried out of the borrow and written below.
+    let mut refused: Option<String> = None;
     match ipc.stage {
         0 => {
             match ipc.action.as_str() {
                 "hover" => s.core.pointer_moved(ipc.uv),
                 "click" => {
-                    s.core.button(ipc.uv, true);
+                    // The surface's own entry point, so the provider hears
+                    // the press too (same as the look ray's `route_button`).
+                    s.button(ipc.uv, true);
                     ipc.stage = 1;
                     return;
+                }
+                "link" => {
+                    // The Nth link rect the provider drew last frame, mapped
+                    // to a uv, then the SAME press the look ray would send.
+                    // Nothing reaches the view except through the event API.
+                    let rects = s.provider().map(|p| p.link_rects()).unwrap_or_default();
+                    match crate::engine::screens::link_uv(&rects, ipc.link_index, s.size()) {
+                        Some(uv) => {
+                            ipc.uv = uv;
+                            s.button(uv, true);
+                            ipc.stage = 1;
+                            return;
+                        }
+                        None => {
+                            refused = Some(format!(
+                                "no link {} on screen: the content drew {} link(s) on the surface",
+                                ipc.link_index,
+                                rects.len()
+                            ));
+                        }
+                    }
                 }
                 "scroll" => s.core.scroll(ipc.uv, dy),
                 "text" => {
                     s.core.pointer_moved(ipc.uv);
                     s.core.text(&text);
+                }
+                "find" => s.core.find_text(&ipc.find_text),
+                "wait_ready" => {
+                    ipc.started = Some(std::time::Instant::now());
+                    ipc.stage = 3;
+                    return;
                 }
                 _ => {} // snapshot: nothing to queue, just draw and read back
             }
@@ -1294,11 +1360,42 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
             // The release, one frame after the press: re-interacted rows
             // (the inventory's container headers) need them on separate
             // frames, exactly as the headless click test found.
-            s.core.button(ipc.uv, false);
+            s.button(ipc.uv, false);
             ipc.stage = 2;
         }
         _ => {}
     }
+    if let Some(msg) = refused {
+        log::warn!("Screen request: {msg}");
+        state.screens.ipc = None;
+        state.screens.ipc_payload = None;
+        write_screen_done(serde_json::json!({"ok": false, "error": msg}));
+    }
+}
+
+/// The fields every done file carries, plus whatever the provider's
+/// `status()` reports (a web view's url, title and fetch state), merged at
+/// the top level so the rig reads `done.status` and `done.url` directly.
+fn screen_done_base(s: &crate::gui::screen_surface::ScreenSurface, action: &str, focused: bool) -> serde_json::Value {
+    let mut done = serde_json::json!({
+        "ok": true,
+        "screen": s.core.id,
+        "source": s.core.source_id,
+        "kind": s.core.source.kind(),
+        "action": action,
+        "wants_keyboard": s.core.wants_keyboard(),
+        "hover_widget": s.core.hover_widget(),
+        "cursor_icon": format!("{:?}", s.core.cursor_icon()),
+        "focused": focused,
+    });
+    if let Some(p) = s.provider() {
+        if let serde_json::Value::Object(fields) = p.status() {
+            for (k, v) in fields {
+                done[k] = v;
+            }
+        }
+    }
+    done
 }
 
 /// Write the done file once the surface has drawn the frame the event
@@ -1308,23 +1405,74 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
     if ipc.stage < 2 {
         return;
     }
+    // `wait_ready` (stage 3) polls the provider every frame until it is
+    // ready, failed, or the bounded wait runs out. While it waits the
+    // request stays in flight, which keeps the surface framed (so a web
+    // view keeps polling its fetch) and the look ray off its pointer.
+    if ipc.stage == 3 {
+        let Some(s) = state.screens.surfaces.get(ipc.surface) else {
+            state.screens.ipc = None;
+            state.screens.ipc_payload = None;
+            write_screen_done(serde_json::json!({"ok": false, "error": "screen vanished mid-request"}));
+            return;
+        };
+        let load = s.provider().map(|p| p.load_state()).unwrap_or(LoadState::Static);
+        let elapsed = ipc.started.map(|t| t.elapsed()).unwrap_or_default();
+        match crate::engine::screens::wait_ready_outcome(&load, elapsed) {
+            None => return,
+            Some(Ok(())) => {
+                let ipc = state.screens.ipc.take().expect("checked above");
+                state.screens.ipc_payload = None;
+                let s = &state.screens.surfaces[ipc.surface];
+                let mut done = screen_done_base(s, &ipc.action, state.screens.focused == Some(ipc.surface));
+                done["waited_ms"] = serde_json::json!(elapsed.as_millis() as u64);
+                write_screen_done(done);
+            }
+            Some(Err(msg)) => {
+                let ipc = state.screens.ipc.take().expect("checked above");
+                state.screens.ipc_payload = None;
+                let s = &state.screens.surfaces[ipc.surface];
+                // The provider's status rides along even on failure, so the
+                // rig can print WHAT it was waiting on.
+                let mut done = screen_done_base(s, &ipc.action, state.screens.focused == Some(ipc.surface));
+                done["ok"] = serde_json::json!(false);
+                done["error"] = serde_json::json!(msg);
+                done["waited_ms"] = serde_json::json!(elapsed.as_millis() as u64);
+                log::warn!("Screen request: {}", done["error"]);
+                write_screen_done(done);
+            }
+        }
+        return;
+    }
     let ipc = state.screens.ipc.take().expect("checked above");
     state.screens.ipc_payload = None;
-    let Some(s) = state.screens.surfaces.get(ipc.surface) else {
+    let focused = state.screens.focused == Some(ipc.surface);
+    let Some(s) = state.screens.surfaces.get_mut(ipc.surface) else {
         write_screen_done(serde_json::json!({"ok": false, "error": "screen vanished mid-request"}));
         return;
     };
-    let mut done = serde_json::json!({
-        "ok": true,
-        "screen": s.core.id,
-        "source": s.core.source_id,
-        "kind": s.core.source.kind(),
-        "action": ipc.action,
-        "wants_keyboard": s.core.wants_keyboard(),
-        "hover_widget": s.core.hover_widget(),
-        "cursor_icon": format!("{:?}", s.core.cursor_icon()),
-        "focused": state.screens.focused == Some(ipc.surface),
-    });
+    let mut done = screen_done_base(s, &ipc.action, focused);
+    if ipc.action == "find" {
+        // Answered from the frame just drawn (see `ScreenCore::find_text`).
+        // `found: false` is a successful answer ("nothing by that name is
+        // on the surface"), not an error; the rig decides what it means.
+        let (w, h) = s.size();
+        match s.core.take_found_text().flatten() {
+            Some(f) => {
+                let c = f.rect.center();
+                done["found"] = serde_json::json!(true);
+                done["text"] = serde_json::json!(f.text);
+                done["matches"] = serde_json::json!(f.matches);
+                done["uv"] = serde_json::json!([c.x / w as f32, c.y / h as f32]);
+                done["rect_px"] = serde_json::json!([f.rect.min.x, f.rect.min.y, f.rect.width(), f.rect.height()]);
+            }
+            None => {
+                done["found"] = serde_json::json!(false);
+                done["text"] = serde_json::json!(ipc.find_text);
+                done["matches"] = serde_json::json!(0);
+            }
+        }
+    }
     if ipc.snapshot {
         state.screens.snapshot_counter += 1;
         let path = format!("debug/screen_{}_{}.png", s.core.id, state.screens.snapshot_counter);
@@ -1393,6 +1541,30 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // a station has no longitude to be local to (the lat/lon conversion
     // further down deliberately does not apply).
     if v.get("station").is_some() {
+        // Optional "screen": park FACING a placed in-world screen instead
+        // of over the deck: `{"station":"home","screen":"wall_screen_3"}`
+        // puts the camera `distance_m` (default 2, inside the 3.5 m input
+        // reach) straight out from the display's centre, at its height,
+        // looking back at it. The pose is computed from the screen's own
+        // quad, so it is exact for any screen in any room and never needs
+        // a hand-typed coordinate. Resolved BEFORE any state changes so an
+        // unknown id fails cleanly with the placed ids listed.
+        let screen_pose: Option<(Vec3, Vec3)> = match v.get("screen").and_then(|s| s.as_str()) {
+            None => None,
+            Some(id) => match state.screens.quads.iter().find(|q| q.id == id) {
+                Some(q) => {
+                    let distance = v.get("distance_m").and_then(|d| d.as_f64()).unwrap_or(2.0).max(0.3) as f32;
+                    let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5;
+                    let n = q.geom.normal.normalize_or_zero();
+                    Some((centre + n * distance, -n))
+                }
+                None => {
+                    let known: Vec<&str> = state.screens.quads.iter().map(|q| q.id.as_str()).collect();
+                    fail(format!("no screen named {id:?}; placed screens: {known:?}"));
+                    return;
+                }
+            },
+        };
         if let Some(hours) = v.get("time").and_then(|a| a.as_f64()) {
             if let Some(req) = state
                 .data_store
@@ -1425,15 +1597,20 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
                 .camera
                 .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
         }
-        // A deliberately FIXED pose over the deck: the whole point is that
-        // several captures differ only by the clock, so the camera must not
-        // vary by so much as a pixel between them.
+        // A deliberately FIXED pose: over the deck by default (the whole
+        // point is that several captures differ only by the clock, so the
+        // camera must not vary by so much as a pixel between them), or in
+        // front of the named screen. Screen quads live in the home frame;
+        // the camera is in render space, hence `+ station_off` (zero while
+        // riding the station, kept for correctness).
         let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
-        state.camera.position = Vec3::new(0.0, hull_top + 14.0, 34.0);
+        let (position, look) = match screen_pose {
+            Some((p, look)) => (p + state.station_off, glam::DVec3::new(look.x as f64, look.y as f64, look.z as f64)),
+            None => (Vec3::new(0.0, hull_top + 14.0, 34.0), glam::DVec3::new(0.0, -0.34, -1.0).normalize()),
+        };
+        state.camera.position = position;
         state.camera.clear_surface();
-        let (yaw, pitch) = crate::dev_travel::look_angles(
-            glam::DVec3::new(0.0, -0.34, -1.0).normalize(),
-        );
+        let (yaw, pitch) = crate::dev_travel::look_angles(look);
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
         state.gui_state.dev_fly_mode = true;
@@ -1451,11 +1628,16 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.gui_state.dev_travel_away = false;
         state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
         let _ = std::fs::create_dir_all("debug");
-        let _ = std::fs::write(
-            DONE_PATH,
-            serde_json::json!({"ok": true, "station": "home"}).to_string(),
-        );
-        log::info!("Camera request: parked aboard the home station");
+        let mut done = serde_json::json!({"ok": true, "station": "home"});
+        if let Some(id) = v.get("screen").and_then(|s| s.as_str()) {
+            done["screen"] = serde_json::json!(id);
+            done["position"] = serde_json::json!([position.x, position.y, position.z]);
+            done["look"] = serde_json::json!([look.x, look.y, look.z]);
+            log::info!("Camera request: parked aboard the home station facing screen {id:?} at {position:?}");
+        } else {
+            log::info!("Camera request: parked aboard the home station");
+        }
+        let _ = std::fs::write(DONE_PATH, done.to_string());
         return;
     }
     // Bookmark restore (v0.890): {"bookmark":"bm-N"} places the camera at

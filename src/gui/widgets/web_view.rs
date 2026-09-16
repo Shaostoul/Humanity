@@ -60,6 +60,10 @@ pub struct WebViewState {
     pub rules: ReadRules,
     /// When false, `show` never dispatches a fetch (tests). Default true.
     pub fetch_enabled: bool,
+    /// Draw the toolbar's "Sites" button (return to the Browser page's card
+    /// list). The Browser page wants it; an in-world screen has no card
+    /// list to return to and turns it off. Default true.
+    pub show_sites_button: bool,
     /// Visited URLs; `pos` indexes the current one.
     history: Vec<String>,
     pos: usize,
@@ -90,6 +94,7 @@ impl WebViewState {
             status: ViewStatus::Idle,
             rules: ReadRules::default(),
             fetch_enabled: true,
+            show_sites_button: true,
             history: Vec::new(),
             pos: 0,
             queued: None,
@@ -192,6 +197,19 @@ impl WebViewState {
         &self.link_rects
     }
 
+    /// True while a background fetch is running for this view. With
+    /// `queued_navigation`, the complete picture of "did this view ask the
+    /// network for anything": a view that never navigated has neither.
+    pub fn fetch_in_flight(&self) -> bool {
+        self.inflight.is_some()
+    }
+
+    /// How many pages the history holds. A wall screen that navigates to
+    /// its page once must leave this at 1, however many frames it draws.
+    pub fn history_len(&self) -> usize {
+        self.history.len()
+    }
+
     /// Dispatch a queued fetch and drain a finished one. Runs at the start of
     /// every `show`, so a result is on screen the frame after it arrives.
     fn pump(&mut self, ctx: &egui::Context) {
@@ -256,7 +274,7 @@ impl WebViewState {
         // ── Toolbar: Sites | < | > | reload | [url] Go | Open in browser ──
         let mut go_to: Option<String> = None;
         ui.horizontal(|ui| {
-            if widgets::compact_button(ui, theme, "Sites", ButtonVariant::Secondary) {
+            if self.show_sites_button && widgets::compact_button(ui, theme, "Sites", ButtonVariant::Secondary) {
                 resp.wants_close = true;
             }
             let back = widgets::Button::secondary("Back")
