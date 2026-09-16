@@ -232,6 +232,14 @@ pub(crate) struct EngineState {
     /// Aboard flag for gating home-local physics (walls, floors,
     /// elevators) - false when the home is far away in orbit.
     pub(crate) aboard_station: bool,
+    /// Drives, dampener rating and g-tolerance rows from `data/ship/flight.ron`.
+    /// Loaded once at boot; degrades to empty (and therefore harmless) when the
+    /// file is missing or malformed, so a typo cannot silently start hurting
+    /// people.
+    pub(crate) flight_data: crate::systems::flight::FlightData,
+    /// What the drive and the rotating sections are doing RIGHT NOW. The single
+    /// source of the felt-gravity number every consequence reads.
+    pub(crate) flight: crate::systems::flight::FlightState,
     /// THIS frame's planet spin angle (v0.878.2): computed ONCE per
     /// frame at the top of RedrawRequested and read by every consumer
     /// (surface lock, frame-lock captures, render, camera requests).

@@ -388,10 +388,15 @@ impl System for FoodSystem {
         // Player environment context (sealed / oxygenated / ambient temp) for the
         // oxygen + body-temperature vitals — computed in the main loop from the
         // player's position vs the sealed homestead volume. Absent = safe defaults.
-        let (env_sealed, env_oxygenated, env_ambient_c) = data
+        let (env_sealed, env_oxygenated, env_ambient_c, env_g_load) = data
             .get::<crate::ecs::components::EnvironmentContext>("environment_context")
-            .map(|e| (e.sealed, e.oxygenated, e.ambient_temp_c))
-            .unwrap_or((true, true, 21.0));
+            .map(|e| (e.sealed, e.oxygenated, e.ambient_temp_c, e.g_load))
+            .unwrap_or((true, true, 21.0, 1.0));
+        // The crew g-tolerance row, if flight data loaded at all. Absent = the
+        // drive is not modelled here, so nobody is crushed by a missing file.
+        let g_tolerance = data
+            .get::<crate::systems::flight::FlightData>("flight_data")
+            .and_then(|f| f.tolerance("crew").cloned());
 
         // ── 1c. COMPOST: drain compost_request -> turn the player's accumulated waste
         //    into fertilizer items (the food -> waste -> compost -> soil cycle) + clear it.
@@ -559,6 +564,30 @@ impl System for FoodSystem {
             } else {
                 effects.remove("hypothermia");
                 effects.remove("heat_exhaustion");
+            }
+
+            // ── SUSTAINED ACCELERATION ──
+            // A hard burn is felt everywhere aboard, sealed hull or not. Harm
+            // ramps from the tolerance row's safe band, so ordinary cruise (a
+            // twentieth of a g on top of the drum's spin) is silent and an
+            // evasion burn is not. Nothing here is scripted: the same vector
+            // sum that tilts the drum floor also fills this number.
+            //
+            // Zero-g is deliberately NOT harmful. Weightlessness has real
+            // long-term costs, but they are bone and muscle over months, which
+            // belongs in a medical model rather than in a per-second drain.
+            if let Some(ref tol) = g_tolerance {
+                let rate = crate::systems::flight::harm_per_sec(tol, env_g_load);
+                if rate > 0.0 {
+                    effects.apply("high_g", CONDITION_LINGER);
+                    let amt = rate * dt;
+                    health_drain += amt;
+                    if amt > worst.1 {
+                        worst = ("crushed by acceleration", amt);
+                    }
+                } else {
+                    effects.remove("high_g");
+                }
             }
 
             // Organic waste accrues while living; high waste -> the unsanitary debuff.
@@ -810,6 +839,7 @@ mod nutrition_tests {
                 sealed: false,
                 oxygenated: true,
                 ambient_temp_c: -20.0,
+                ..Default::default()
             }),
         );
 
@@ -1142,6 +1172,7 @@ mod nutrition_tests {
                 sealed: false,
                 oxygenated: false,
                 ambient_temp_c: -40.0,
+                ..Default::default()
             },
         );
 
@@ -1243,6 +1274,177 @@ mod nutrition_tests {
         assert!(
             world.get::<&Vitals>(player).unwrap().hydration > 40.0,
             "drinking restored hydration"
+        );
+    }
+}
+
+#[cfg(test)]
+mod g_load_wiring_tests {
+    use super::*;
+    use crate::hot_reload::data_store::DataStore;
+    use crate::systems::status_effects::StatusEffectRegistry;
+
+    // Local copies rather than widening nutrition_tests' visibility: these
+    // tests are about the g-load wiring and should not make another module's
+    // internals public just to borrow a fixture.
+    fn data_dir() -> &'static Path {
+        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"))
+    }
+
+    fn make_store() -> DataStore {
+        let mut data = DataStore::new();
+        let reg = StatusEffectRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/status_effects.csv"
+        )))
+        .expect("status_effects.csv");
+        data.insert("status_effect_registry", reg);
+        data.insert("consume_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("rest_request", std::sync::Mutex::new(false));
+        data.insert("compost_request", std::sync::Mutex::new(false));
+        data.insert("drink_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_death", std::sync::Mutex::new(Option::<String>::None));
+        data
+    }
+
+    fn vitals(satiation: f32, hydration: f32) -> Vitals {
+        Vitals {
+            satiation,
+            hydration,
+            energy: 100.0,
+            oxygen: 100.0,
+            body_temp_c: 37.0,
+            waste: 0.0,
+            satiation_max: 100.0,
+            hydration_max: 100.0,
+            energy_max: 100.0,
+            oxygen_max: 100.0,
+            waste_max: 100.0,
+        }
+    }
+    use crate::ecs::components::{EnvironmentContext, Health, StatusEffects, Vitals};
+    use crate::systems::flight::{felt_gravity, FlightData, FlightState};
+
+    fn flight_data() -> FlightData {
+        FlightData::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data"))
+    }
+
+    /// Put the player in an environment at a given felt gravity and run one
+    /// tick. This drives the REAL FoodSystem through the REAL DataStore slots,
+    /// so it proves the wiring rather than re-testing the arithmetic.
+    fn health_lost_at(g: f32, secs: f32) -> (f32, bool) {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert("flight_data", flight_data());
+        data.insert(
+            "environment_context",
+            EnvironmentContext { g_load: g, ..Default::default() },
+        );
+        let mut world = hecs::World::new();
+        let e = world.spawn((
+            vitals(80.0, 80.0),
+            StatusEffects::default(),
+            Health { current: 100.0, max: 100.0 },
+        ));
+        sys.tick(&mut world, secs, &data);
+        let health = world.get::<&Health>(e).unwrap().current;
+        let flagged = world.get::<&StatusEffects>(e).unwrap().has("high_g");
+        (100.0 - health, flagged)
+    }
+
+    /// Ordinary cruise must be completely silent. If this ever fails, living
+    /// aboard a moving ship has become a slow death.
+    #[test]
+    fn cruise_gravity_costs_the_crew_nothing() {
+        let (lost, flagged) = health_lost_at(1.005, 60.0);
+        assert!(lost.abs() < 1e-4, "lost {lost} health at cruise");
+        assert!(!flagged, "high_g must not be flagged at cruise");
+    }
+
+    /// Weightlessness is not an injury. Its real costs are bone and muscle over
+    /// months, which belong in a medical model, not a per-second drain.
+    #[test]
+    fn zero_g_is_not_harmful() {
+        let (lost, flagged) = health_lost_at(0.0, 60.0);
+        assert!(lost.abs() < 1e-4, "lost {lost} health in free fall");
+        assert!(!flagged);
+    }
+
+    /// The operator's scenario, end to end through the real system: a sustained
+    /// evasion burn hurts, flags the condition, and does so at a rate that
+    /// kills in well under a minute.
+    #[test]
+    fn an_evasion_burn_injures_and_then_kills_the_crew() {
+        let burn = FlightState { thrust_g: 5.0, spin_g: 1.0, dampeners_online: true };
+        let felt = felt_gravity(&burn, &flight_data().dampener).felt_g;
+        assert!(felt > 4.9, "dampeners must not rescue a 5 g burn; felt {felt}");
+
+        let (lost, flagged) = health_lost_at(felt, 1.0);
+        assert!(lost > 0.0, "a 5 g burn must hurt");
+        assert!(flagged, "the high_g condition must be visible to the player");
+
+        let seconds_to_die = 100.0 / lost;
+        assert!(
+            (10.0..=60.0).contains(&seconds_to_die),
+            "death in {seconds_to_die:.0}s is outside the band that reads as \
+             'get to a couch NOW' rather than instant or ignorable"
+        );
+    }
+
+    /// The condition must CLEAR when the burn eases, or one hard burn would
+    /// leave the player permanently debuffed.
+    #[test]
+    fn the_condition_clears_once_the_burn_eases() {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert("flight_data", flight_data());
+        data.insert(
+            "environment_context",
+            EnvironmentContext { g_load: 5.0, ..Default::default() },
+        );
+        let mut world = hecs::World::new();
+        let e = world.spawn((
+            vitals(80.0, 80.0),
+            StatusEffects::default(),
+            Health { current: 100.0, max: 100.0 },
+        ));
+        sys.tick(&mut world, 0.5, &data);
+        assert!(world.get::<&StatusEffects>(e).unwrap().has("high_g"), "burn should flag");
+
+        data.insert(
+            "environment_context",
+            EnvironmentContext { g_load: 1.0, ..Default::default() },
+        );
+        sys.tick(&mut world, 0.5, &data);
+        assert!(
+            !world.get::<&StatusEffects>(e).unwrap().has("high_g"),
+            "the condition must clear once the burn eases"
+        );
+    }
+
+    /// Fail-safe: with no flight data loaded, nobody is ever harmed. The loader
+    /// degrades to empty on a missing or malformed file, and this pins that a
+    /// degraded load cannot start crushing people.
+    #[test]
+    fn absent_flight_data_harms_nobody_even_at_lethal_g() {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        // deliberately NO "flight_data" slot
+        data.insert(
+            "environment_context",
+            EnvironmentContext { g_load: 50.0, ..Default::default() },
+        );
+        let mut world = hecs::World::new();
+        let e = world.spawn((
+            vitals(80.0, 80.0),
+            StatusEffects::default(),
+            Health { current: 100.0, max: 100.0 },
+        ));
+        sys.tick(&mut world, 5.0, &data);
+        assert_eq!(
+            world.get::<&Health>(e).unwrap().current,
+            100.0,
+            "a missing flight.ron must never damage the player"
         );
     }
 }

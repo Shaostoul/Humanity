@@ -80,6 +80,7 @@ sandstorm_exposure,Sandstorm Exposure,environmental,0,false,1,5,vision_range:0.3
 toxic_atmosphere,Toxic Atmosphere,environmental,0,false,1,5,none:0:none,8,poison,0,item,atmosphere|toxic,Deals poison damage from breathing contaminated air
 underwater_pressure,Underwater Pressure,environmental,0,true,5,10,speed:0.9:multiply,2,pressure,0,item,aquatic|depth,Reduces speed and deals increasing damage at great depths
 zero_gravity,Zero Gravity,environmental,0,false,1,0,speed:0.6:multiply,0,none,0,none,space|movement,Reduces effective movement speed and changes locomotion mechanics
+high_g,High Gravity,environmental,0,false,1,0,speed:0.5:multiply,0,crush,0,none,space|movement|acceleration,Sustained acceleration beyond what the body tolerates. Movement is laboured and injury accrues until the burn eases.
 sunlight_warmth,Sunlight Warmth,environmental,0,false,1,10,none:0:none,0,none,2,none,temperature|comfort,Gently restores health while basking in warm sunlight
 fresh_air,Fresh Air,environmental,0,false,1,15,stamina_regen:1.25:multiply,0,none,1,none,atmosphere|positive,Boosts stamina regeneration by 25% in clean open air
 hot_spring_comfort,Hot Spring Comfort,environmental,0,false,1,5,none:0:none,0,none,4,none,water|relaxation,Rapidly restores health while soaking in natural hot springs

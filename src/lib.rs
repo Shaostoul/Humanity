@@ -1003,6 +1003,15 @@ mod native_app {
             data_store.insert("camera_position", Vec3::new(0.0, 2.0, 5.0));
             data_store.insert("camera_forward", Vec3::NEG_Z);
             data_store.insert("camera_yaw", 0.0_f32);
+            // Flight tolerances, inserted ONCE: the rows never change at
+            // runtime, and FoodSystem/FarmingSystem only get `&DataStore`, so
+            // this is how the g-load consequences reach them. A missing or
+            // malformed data/ship/flight.ron loads empty, and an empty
+            // tolerance list means nothing is ever harmed.
+            data_store.insert(
+                "flight_data",
+                crate::systems::flight::FlightData::load(&data_dir),
+            );
             // GameTime lives behind a Mutex in the DataStore so TimeSystem (which
             // only gets &DataStore in tick) can write the advanced time each frame
             // and farming/ecology/weather/hydrology + the HUD can read it. Same
@@ -1732,6 +1741,8 @@ mod native_app {
                 station_spawn_snap: false,
                 station_off: Vec3::ZERO,
                 aboard_station: false,
+                flight_data: crate::systems::flight::FlightData::load(&data_dir),
+                flight: crate::systems::flight::FlightState::default(),
                 surface_walk_band: false,
                 surface_owns_translation: false,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
@@ -5522,7 +5533,22 @@ mod native_app {
                         // so sightseeing at Neptune doesn't suffocate/freeze
                         // steerable for the operator and close-range verifies. Turning fly mode off restores normal
                         // survival rules wherever you are.
+                        // What the drive + any spin are doing to a body right
+                        // now, after the dampeners take their cut. Computed ONCE
+                        // here so every branch below reports the same number:
+                        // a burn is felt on both sides of the hull.
+                        let felt = crate::systems::flight::felt_gravity(
+                            &state.flight,
+                            &state.flight_data.dampener,
+                        );
+                        let felt_g_now = felt.felt_g;
+                        // Published for consumers outside this block (farming
+                        // reads its own DataStore slots, not EnvironmentContext).
+                        state.data_store.insert("felt_gravity", felt);
                         let env = if state.controller.fly_mode {
+                            // Fly mode already suspends vacuum and cold; suspend
+                            // the burn too, so sightseeing during a 5 g evasion
+                            // does not quietly kill the operator.
                             crate::ecs::components::EnvironmentContext::default()
                         } else { match state.homestead_bounds {
                             Some((mn, mx))
@@ -5542,6 +5568,8 @@ mod native_app {
                                     .unwrap_or(true);
                                 crate::ecs::components::EnvironmentContext {
                                     oxygenated: breathable,
+                                    // A sealed hull stops vacuum, not acceleration.
+                                    g_load: felt_g_now,
                                     ..Default::default()
                                 }
                             }
@@ -5554,6 +5582,9 @@ mod native_app {
                                 sealed: false,
                                 oxygenated: outside_breathable,
                                 ambient_temp_c: exposed_temp,
+                                // The drive does not care which side of the hull
+                                // you are on: a burn is felt everywhere aboard.
+                                g_load: felt_g_now,
                             },
                             // Homestead not generated yet → assume safe.
                             None => crate::ecs::components::EnvironmentContext::default(),

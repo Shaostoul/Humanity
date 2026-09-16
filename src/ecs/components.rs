@@ -151,6 +151,15 @@ pub struct EnvironmentContext {
     pub oxygenated: bool,
     /// Ambient temperature (Celsius) the body drifts toward when exposed.
     pub ambient_temp_c: f32,
+    /// Felt gravity in g, AFTER inertial dampening (see `systems::flight`).
+    /// This is the acceleration the occupant's body actually experiences: the
+    /// hypotenuse of the drive's thrust and any rotating section's spin, minus
+    /// whatever the dampeners cancelled.
+    ///
+    /// Defaults to 1.0, a comfortable Earth-normal, so any code path that has
+    /// not been taught about flight yet reports a safe value rather than a
+    /// weightless or a lethal one.
+    pub g_load: f32,
 }
 
 impl Default for EnvironmentContext {
@@ -159,6 +168,7 @@ impl Default for EnvironmentContext {
             sealed: true,
             oxygenated: true,
             ambient_temp_c: 21.0,
+            g_load: 1.0,
         }
     }
 }

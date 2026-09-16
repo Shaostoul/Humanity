@@ -400,6 +400,18 @@ impl System for FarmingSystem {
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         let plant_registry = data.get::<PlantRegistry>("plant_registry");
+        // Sustained acceleration, if the flight model is loaded. Resolved once
+        // per tick rather than per crop: it is a ship-wide scalar, exactly like
+        // `home_rf` below, and a burn reaches every planter at once.
+        let g_harm_per_sec = data
+            .get::<crate::systems::flight::FlightData>("flight_data")
+            .and_then(|f| f.tolerance("plant"))
+            .zip(
+                data.get::<crate::systems::flight::FeltGravity>("felt_gravity")
+                    .map(|f| f.felt_g),
+            )
+            .map(|(tol, g)| crate::systems::flight::harm_per_sec(tol, g))
+            .unwrap_or(0.0);
 
         // Get current elapsed time from TimeSystem's GameTime if available
         let elapsed_seconds = data
@@ -1005,6 +1017,15 @@ impl System for FarmingSystem {
             // protect the grow (the operator's "tradeoffs bite"). Outpaces recovery at one router's worth.
             if home_rf > RF_HARM_THRESHOLD {
                 crop.health = (crop.health - RF_HEALTH_PENALTY * home_rf * dt).max(0.0);
+            }
+
+            // Sustained acceleration snaps stems and collapses trellises. Same
+            // shape as the RF drain above: a ship-wide scalar eating crop health
+            // until something gives. Silent at cruise, lethal during an evasion
+            // burn -- which makes "the farm dies if you run from the missile" a
+            // consequence of the flight plan rather than a scripted event.
+            if g_harm_per_sec > 0.0 {
+                crop.health = (crop.health - g_harm_per_sec * dt).max(0.0);
             }
 
             // If health hits zero, crop dies
