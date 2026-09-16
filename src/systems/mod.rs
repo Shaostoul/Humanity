@@ -33,6 +33,7 @@ pub mod hvac;
 pub mod fire;
 pub mod medical;
 pub mod status_effects;
+pub mod flight;
 pub mod food;
 pub mod mining;
 pub mod governance;

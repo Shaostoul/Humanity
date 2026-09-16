@@ -1,0 +1,116 @@
+// Fleet flight: drives, inertial dampeners, and who breaks at what g.
+//
+// Read by src/systems/flight.rs. Everything here is data (infinite-of-x):
+// adding a drive or a tolerance class is adding a row, not writing code.
+//
+// THE ONE THING TO UNDERSTAND BEFORE EDITING: thrust gravity and spin gravity
+// are perpendicular, so inside a rotating drum they add as a hypotenuse and
+// "down" tilts away from the floor by atan(thrust / spin). With the drum
+// spinning for a full 1 g:
+//
+//     thrust 0.05 g -> 1.001 g felt,  2.9 deg of lean
+//     thrust 0.10 g -> 1.005 g felt,  5.7 deg
+//     thrust 0.50 g -> 1.118 g felt, 26.6 deg
+//     thrust 1.00 g -> 1.414 g felt, 45.0 deg
+//     thrust 5.00 g -> 5.099 g felt, 78.7 deg   <- the floor is now a wall
+//
+// So cruise_thrust_g MUST stay small. A high cruise thrust permanently tilts
+// every rotating habitat past the point of being usable, which would defeat
+// the whole reason for building one. Full details and the reasoning:
+// docs/design/gravity-and-movement.md
+(
+    drives: [
+        (
+            id: "fusion_torch",
+            label: "Fusion Torch",
+            // 0.05 g cruise keeps the drum's permanent lean under 3 degrees:
+            // noticeable as character (water pools aft, plants lean, dropped
+            // things always roll the same way) without being a nuisance.
+            cruise_thrust_g: 0.05,
+            // 5 g is an evasion burn, not a travel mode. At this thrust the
+            // drum is uninhabitable and the crew belong in couches.
+            max_thrust_g: 5.0,
+            description: "Continuous-burn fusion drive. Low thrust held for years, which is what gives the static spine its gravity.",
+        ),
+        (
+            id: "chemical_maneuvering",
+            label: "Chemical Maneuvering Thrusters",
+            // Station-keeping and docking only; never a cruise drive.
+            cruise_thrust_g: 0.0,
+            max_thrust_g: 0.3,
+            description: "Short, precise burns for attitude and docking. Cannot sustain a cruise.",
+        ),
+    ],
+
+    // The dampener array. Its job is to keep a spinning section's floor FLAT
+    // by cancelling part of the THRUST term, NOT to reduce gravity in general.
+    //
+    // Sized at 0.15 g it erases the 0.05 g cruise lean completely (the floor
+    // reads as level) while being hopelessly outmatched by a 5 g burn, which
+    // still leaves 78 degrees of tilt. That is why the burn drama needs no
+    // special case: a device this size simply cannot touch it.
+    //
+    // Raising this is the one number that could quietly ruin the design. Above
+    // roughly 0.5 g it starts flattening burns that are supposed to hurt.
+    dampener: (
+        thrust_cancel_g: 0.15,
+        // 40 kW per g cancelled, wired as a priority-1 PowerConsumer so the
+        // electrical sim sheds it first under deficit: lose power and the floor
+        // tips back over, spilling water and rolling anything loose.
+        watts_per_g: 40000.0,
+    ),
+
+    // Who suffers at what felt gravity. Harm is zero at or below safe_g, then
+    // ramps linearly, reaching harm_per_sec exactly at harm_g and continuing
+    // to climb past it.
+    //
+    // Sources for the human numbers: sustained +Gz tolerance without a suit is
+    // roughly 4-6 g before grey-out for a trained subject, and far less for an
+    // untrained one; 1.5 g is comfortably tolerable indefinitely.
+    tolerances: [
+        (
+            id: "crew",
+            safe_g: 1.5,
+            harm_g: 4.0,
+            // Health points per second at 4 g. Player health is a 0-100 scale,
+            // so 2.0/s at 4 g means about 50 seconds from full to dead, and a
+            // 5 g burn kills in roughly 28. Long enough to reach a couch, short
+            // enough that dawdling is fatal.
+            harm_per_sec: 2.0,
+            description: "Unrestrained human. An acceleration couch raises this substantially.",
+        ),
+        (
+            id: "plant",
+            // Plants are structurally fragile in the direction they grow, but
+            // they have no circulatory system to fail, so they take more before
+            // anything happens and then fail mechanically.
+            safe_g: 2.0,
+            harm_g: 5.0,
+            // Crop health is also 0-100. 3.0/s at 5 g is about 33 seconds of
+            // sustained evasion burn to lose a crop, which makes the operator's
+            // "certain plants die during a 5 g burn" literally true.
+            harm_per_sec: 3.0,
+            description: "Stems and trellises fail before roots do. Tall crops suffer first.",
+        ),
+        (
+            id: "livestock",
+            // Smaller bodies tolerate more g than humans, but unrestrained
+            // animals injure themselves being thrown around.
+            safe_g: 2.0,
+            harm_g: 5.0,
+            harm_per_sec: 2.5,
+            description: "Unrestrained animals. Penning and padding raise this.",
+        ),
+        (
+            id: "structure",
+            // Not yet consumed: there is no durability model for machines or
+            // structures (only Container.damage_ratio). Authored now so the
+            // number exists when that model does, and so nobody invents a
+            // second one.
+            safe_g: 3.0,
+            harm_g: 8.0,
+            harm_per_sec: 1.0,
+            description: "Racks, towers and anything tall and thin fail first. Not yet simulated.",
+        ),
+    ],
+)
