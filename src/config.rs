@@ -558,6 +558,13 @@ pub struct AppConfig {
     /// coherent pattern at every altitude. Turn on to match real Earth.
     #[serde(default)]
     pub live_weather: bool,
+    /// Read websites inside HumanityOS (the readable web, 2026-09-16).
+    /// Default OFF: a person who never turns this on never has the app
+    /// fetch a web page. Independent of the privacy tier. On, Browser-page
+    /// cards open in the in-app web view (one HTTPS GET for the page you
+    /// chose, plus the images it declares; no cookies, no scripts).
+    #[serde(default)]
+    pub readable_web: bool,
     /// Cloud march resolution divisor (v0.1285): 1 = full, 2 = half,
     /// 4 = quarter. Was GuiState-only and reset to quarter every boot, so
     /// the operator's half-res play state and the rig's default differed by
@@ -1265,6 +1272,7 @@ impl AppConfig {
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
+            readable_web: state.settings.readable_web,
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
             track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
@@ -1471,6 +1479,7 @@ impl AppConfig {
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
+        state.settings.readable_web = self.readable_web;
         // The cloud resolution rides GuiState directly (the F10 page and the
         // renderer read cloud_dev_res_div); the config is its persistence.
         state.cloud_dev_res_div = self.cloud_res_div.clamp(1, 4);
@@ -1810,6 +1819,35 @@ mod play_mode_tests {
         assert!(!back.online_status_visible, "hidden online status must STAY hidden");
         assert_eq!(back.font_size, 22.0);
         assert_eq!(back.onboarding_quest_progress.get("water:collect-rain"), Some(&true));
+    }
+
+    /// The readable-web opt-in (2026-09-16) must default OFF for a config
+    /// that predates it, and a deliberate ON must survive save + load.
+    /// Off-by-default is the privacy promise: nobody gets the app fetching
+    /// web pages without having turned it on themselves.
+    #[test]
+    fn readable_web_defaults_off_and_round_trips() {
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let old: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert!(!old.readable_web, "an existing config must not gain in-app web fetching");
+        assert!(!AppConfig::default().readable_web, "a fresh install starts with it off");
+
+        let mut c = old.clone();
+        c.readable_web = true;
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"readable_web\":true"), "the field is written: {json}");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(back.readable_web, "an opt-in must STAY on across a restart");
+
+        // And the GUI legs agree: save from state, load into state.
+        let mut state = crate::gui::GuiState::default();
+        state.settings.readable_web = true;
+        let saved = AppConfig::from_gui_state(&state);
+        assert!(saved.readable_web);
+        let mut fresh = crate::gui::GuiState::default();
+        assert!(!fresh.settings.readable_web);
+        saved.apply_to_gui_state(&mut fresh);
+        assert!(fresh.settings.readable_web, "apply_to_gui_state must carry the opt-in");
     }
 }
 

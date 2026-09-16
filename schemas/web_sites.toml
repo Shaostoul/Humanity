@@ -1,0 +1,147 @@
+# Websites database schema
+#
+# WHY THIS EXISTS
+# Before 2026-09-16 the Browser page (native) read data/browser/bookmarks.json
+# and the web bookmarks page (web/pages/web.html) carried its own DEFAULT_SITES
+# array in a <script> tag: two lists, 17 shared URLs, no record anywhere of
+# whether a site's pages may legally be shown INSIDE HumanityOS. The readable
+# web (src/web_reader/, docs/design/readable-web.md) renders sites in-app today
+# and on in-world screens next, so that question stops being academic: showing
+# a site inside a game is exactly the case some terms of service address, and
+# some affiliate programmes forbid or require things about it.
+#
+# data/web/sites.json is the one list both clients read (tests/page_parity_lint.rs
+# holds them to it), and every record carries the legality decision, or the
+# fact that nobody has made one yet.
+#
+# WHAT THIS FILE DOES NOT DO
+# It decides nothing. It records the decision a person made after reading the
+# site's terms. The seed data marks everything needs_review except our own
+# domains, and scripts/check-web-sites.js refuses a record that claims a
+# decision without the evidence fields filled in.
+
+[schema]
+name = "web_site"
+file = "data/web/sites.json"
+description = "One website the Browser page offers, with whether its pages may be shown inside HumanityOS and any affiliate relationship."
+consumers = [
+  "src/gui/mod.rs (load_web_sites, WebSites/WebSite structs)",
+  "src/gui/pages/browser.rs (cards, in-app open when the readable_web opt-in is on)",
+  "web/pages/web.html (fetches the same file at load)",
+  "scripts/check-web-sites.js (the gate)",
+]
+
+# ── Top level ──
+# {
+#   "version": 1,
+#   "own_domains": ["https://united-humanity.us", ...],
+#   "categories": [ { id, name, color }, ... ],
+#   "sites": [ <record>, ... ]
+# }
+
+[fields.own_domains]
+type = "string[]"
+required = true
+description = """
+URL prefixes that are ours: the live site, the self-hosted forge, the GitHub
+repository pages. A site whose url starts with one of these MUST have
+embed.status = "allowed"; the checker fails otherwise. This is data, not code,
+so the native loader and the checker cannot disagree about what "ours" means.
+"""
+
+[fields.categories]
+type = "object[]"
+required = true
+description = """
+Display groups, in the order both clients show them. Each has:
+  id     - snake_case key that site.category references
+  name   - the heading shown
+  color  - one of accent, info, success, warning, danger (theme tokens; the
+           native page maps them to Theme accessors, web to CSS variables)
+"""
+
+# ── One site record ──
+
+[fields.id]
+type = "string"
+required = true
+description = "kebab-case stable key, unique across the file."
+
+[fields.name]
+type = "string"
+required = true
+description = "The site's name as shown on the card."
+
+[fields.url]
+type = "string"
+required = true
+description = "The page the card opens. http or https only; anything else is refused by the reader before a request is made."
+
+[fields.category]
+type = "string"
+required = true
+description = "A categories[].id."
+
+[fields.description]
+type = "string"
+required = false
+description = "One line saying why the site is here, so the page doubles as a reference."
+
+[fields.icon]
+type = "string"
+required = false
+description = "One glyph for the card. No U+FE0F variation selector (it renders as a trailing tofu in the egui font)."
+
+[fields.embed]
+type = "object"
+required = true
+description = """
+Whether this site's pages may be shown inside HumanityOS. Fields:
+
+  status      - "needs_review" | "allowed" | "forbidden" | "unknown"
+                needs_review: nobody has read the terms yet. THE SEED STATE.
+                allowed:      the terms permit display inside another
+                              application, or the site is ours.
+                forbidden:    the terms prohibit it (framing / embedding /
+                              display-in-other-software clauses, or an
+                              affiliate programme rule).
+                unknown:      a person looked and could not find terms that
+                              address it; basis says what was checked.
+  basis       - the clause the decision rests on, quoted or closely
+                paraphrased, or "not yet reviewed" while needs_review.
+  terms_url   - where the terms are. Required for allowed and forbidden;
+                may be null for unknown (the point of unknown is that the
+                terms were not found) and is null while needs_review.
+  reviewed_on - ISO date (YYYY-MM-DD) of the review, or null.
+  reviewed_by - the reviewer's name, or null.
+
+A status other than needs_review REQUIRES basis + reviewed_on + reviewed_by,
+and allowed/forbidden also require terms_url. The checker enforces this so a
+record cannot claim a decision without saying whose and on what.
+
+The native card shows the status in its hover text; nothing else acts on it
+yet. When in-world screens ship, "forbidden" sites will not be placed on
+screens, and "needs_review" sites will be shown with the review badge.
+"""
+
+[fields.affiliate]
+type = "object"
+required = true
+description = """
+Affiliate programme fields, all null today. Fields:
+
+  program    - the programme's name, or null.
+  tag        - the tag or id appended to links, or null.
+  disclosure - the sentence shown above every page of this site while tag is
+               set ("Links to this site carry an affiliate tag that supports
+               HumanityOS; the price is the same for you."). Required (non-
+               empty) whenever tag is set; empty otherwise. This is the
+               transparency badge from the old kiosk design (docs/native/
+               in_game_browser.md): a person always sees when a link earns
+               the cooperative money, and can read exactly what the tag does.
+"""
+
+[fields.notes]
+type = "string"
+required = false
+description = "Anything a maintainer should know: where the record came from, a pending question, a date to re-check the terms."

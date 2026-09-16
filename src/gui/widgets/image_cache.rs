@@ -178,7 +178,10 @@ impl ImageCache {
         thread::Builder::new()
             .name("image-download".to_string())
             .spawn(move || {
-                let msg = match download_bytes(&url_owned) {
+                // Same cap as the inline fetch: the Download button sits in
+                // the viewer for an image that already displayed, so it was
+                // already under this limit once.
+                let msg = match download_bytes(&url_owned, MAX_IMAGE_BYTES) {
                     Ok(bytes) => {
                         if let Some(parent) = dest.parent() {
                             let _ = std::fs::create_dir_all(parent);
@@ -201,9 +204,17 @@ impl ImageCache {
     }
 }
 
+/// Largest image file the cache will download, in bytes (16 MB). Chat photos
+/// are a few MB; a 4K screenshot PNG is around 10 MB. The cap exists so a
+/// page opened in the readable web view (or a hostile chat message) cannot
+/// point at a multi-gigabyte "image" and have the app buffer it whole before
+/// the decoder ever sees it. `max_pixels` bounds the DECODED texture; this
+/// bounds the bytes on the wire, which is a different thing.
+pub const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
+
 /// Blocking HTTP GET via ureq + decode with the `image` crate.
 fn fetch_and_decode(url: &str, max_pixels: u32) -> Result<(u32, u32, Vec<u8>), String> {
-    let bytes = download_bytes(url)?;
+    let bytes = download_bytes(url, MAX_IMAGE_BYTES)?;
     let img = image::load_from_memory(&bytes).map_err(|e| format!("decode: {e}"))?;
     let (w, h) = (img.width(), img.height());
 
@@ -222,8 +233,21 @@ fn fetch_and_decode(url: &str, max_pixels: u32) -> Result<(u32, u32, Vec<u8>), S
     Ok((w, h, rgba.into_raw()))
 }
 
-/// Blocking download of raw bytes from a URL.
-fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
+/// Blocking download of raw bytes from a URL, refusing anything over
+/// `max_bytes`. Two checks, because a server may lie or say nothing:
+///
+/// 1. If the response declares a `Content-Length` above the cap, refuse
+///    before reading a single body byte.
+/// 2. Read through `Read::take(max_bytes + 1)`: if more than `max_bytes`
+///    bytes arrive (no Content-Length, or a false one), refuse. The extra
+///    byte is how "exceeded" is told apart from "exactly at the cap".
+///
+/// ureq follows up to five redirects on its own here; it only speaks http
+/// and https, so a redirect cannot lead anywhere the readable-web scheme
+/// gate would refuse. Production passes [`MAX_IMAGE_BYTES`]; the tests pass
+/// a small cap so they can prove the refusal against a loopback server
+/// without pushing 16 MB through a socket.
+fn download_bytes(url: &str, max_bytes: usize) -> Result<Vec<u8>, String> {
     let resp = ureq::get(url)
         .timeout(std::time::Duration::from_secs(20))
         .call()
@@ -231,11 +255,95 @@ fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
     if resp.status() != 200 {
         return Err(format!("GET {}: HTTP {}", url, resp.status()));
     }
-    let mut reader = resp.into_reader();
+    // Check 1: an honest server tells us up front.
+    if let Some(declared) = resp.header("Content-Length").and_then(|v| v.trim().parse::<usize>().ok()) {
+        if declared > max_bytes {
+            return Err(format!(
+                "GET {url}: image is {declared} bytes, over the {} MB limit",
+                max_bytes / (1024 * 1024)
+            ));
+        }
+    }
+    // Check 2: the bytes themselves, whatever the header said.
+    let mut reader = std::io::Read::take(resp.into_reader(), max_bytes as u64 + 1);
     let mut bytes = Vec::with_capacity(64 * 1024);
-    std::io::Read::read_to_end(&mut reader, &mut bytes)
-        .map_err(|e| format!("read body: {e}"))?;
+    std::io::Read::read_to_end(&mut reader, &mut bytes).map_err(|e| format!("read body: {e}"))?;
+    if bytes.len() > max_bytes {
+        return Err(format!("GET {url}: image exceeds the {} MB limit", max_bytes / (1024 * 1024)));
+    }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod download_cap_tests {
+    use super::download_bytes;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    /// A one-shot HTTP/1.1 server on a random loopback port that answers
+    /// every request with the given status line, headers and body, then
+    /// closes. Returns the URL to fetch. Nothing leaves the machine.
+    fn one_shot_server(headers: &'static str, body: Vec<u8>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                // Read the request head (until the blank line) so the client
+                // has finished sending before we answer.
+                let mut buf = [0u8; 4096];
+                let mut got = Vec::new();
+                while let Ok(n) = stream.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    got.extend_from_slice(&buf[..n]);
+                    if got.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let _ = stream.write_all(format!("HTTP/1.1 200 OK\r\n{headers}\r\n").as_bytes());
+                // The client may hang up mid-body once its cap trips; that is
+                // the point, so a broken pipe here is not an error.
+                let _ = stream.write_all(&body);
+                let _ = stream.flush();
+            }
+        });
+        format!("http://127.0.0.1:{port}/picture.png")
+    }
+
+    #[test]
+    fn a_declared_length_over_the_cap_is_refused_before_the_body_is_read() {
+        // The body is never sent past the cap; the header alone must refuse.
+        let url = one_shot_server("Content-Length: 5000\r\nConnection: close\r\n", vec![b'x'; 5000]);
+        let err = download_bytes(&url, 1024).expect_err("5000 declared bytes over a 1024 cap");
+        assert!(err.contains("5000 bytes") && err.contains("limit"), "{err}");
+    }
+
+    #[test]
+    fn a_body_that_streams_past_the_cap_with_no_length_is_refused() {
+        // No Content-Length: HTTP/1.1 with Connection: close means "read until
+        // the server hangs up", the shape a hostile server would use to hide
+        // its size. The take() cap must still stop it.
+        let url = one_shot_server("Connection: close\r\n", vec![b'y'; 3000]);
+        let err = download_bytes(&url, 1024).expect_err("3000 streamed bytes over a 1024 cap");
+        assert!(err.contains("exceeds") && err.contains("limit"), "{err}");
+    }
+
+    #[test]
+    fn a_body_within_the_cap_comes_through_whole() {
+        let url = one_shot_server("Content-Length: 1000\r\nConnection: close\r\n", vec![b'z'; 1000]);
+        let bytes = download_bytes(&url, 1024).expect("1000 bytes under a 1024 cap");
+        assert_eq!(bytes.len(), 1000);
+        assert!(bytes.iter().all(|&b| b == b'z'));
+    }
+
+    #[test]
+    fn exactly_at_the_cap_is_allowed_one_over_is_not() {
+        let url = one_shot_server("Content-Length: 1024\r\nConnection: close\r\n", vec![b'a'; 1024]);
+        assert_eq!(download_bytes(&url, 1024).expect("exactly the cap is fine").len(), 1024);
+        let url = one_shot_server("Connection: close\r\n", vec![b'b'; 1025]);
+        assert!(download_bytes(&url, 1024).is_err(), "one byte over the cap must be refused");
+    }
 }
 
 /// Scan a plain-text string for image URLs. Returns each URL substring we

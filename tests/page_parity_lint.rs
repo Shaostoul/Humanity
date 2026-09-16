@@ -58,6 +58,16 @@ const PARITY_PAIRS: &[ParityPair] = &[
         web: &["web/pages/library-app.js"],
         data_file: "library/index.json",
     },
+    // Browser: the websites database. Until 2026-09-16 native read
+    // data/browser/bookmarks.json and web.html carried its own DEFAULT_SITES
+    // array (17 shared URLs out of 42). Both now read this one file, which
+    // also records each site's embed-legality decision.
+    ParityPair {
+        page: "Browser",
+        native: &["src/gui/mod.rs", "src/gui/pages/browser.rs"],
+        web: &["web/pages/web.html"],
+        data_file: "web/sites.json",
+    },
 ];
 
 fn read(rel: &str) -> String {

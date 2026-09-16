@@ -461,6 +461,7 @@ preflight:
     node scripts/check-library-counts.js
     node scripts/check-schema-paths.js
     node scripts/check-library-quotes.js
+    node scripts/check-web-sites.js
     just verify
     @echo "OK: preflight passed, safe to push"
 
@@ -516,6 +517,11 @@ check-schema-paths:
 # legitimate, such as reproducing a copyright notice in order to attribute it.
 check-library-quotes:
     node scripts/check-library-quotes.js --verbose
+# Refuse a websites database (data/web/sites.json) that claims an embed
+# decision without recording who made it, when and on what clause, or an
+# affiliate tag without its disclosure. Also shape-checks readability.json.
+check-web-sites:
+    node scripts/check-web-sites.js
 # Refuse an em or en dash in any document the Library ships. The house rule says
 # no em dashes anywhere including docs, and the only thing enforcing it scanned
 # src/gui/, so eight shipped documents had drifted, the Humanity Accord among

@@ -2,6 +2,18 @@
 
 > **Status (2026-09-16):** the monitor surface this document describes now exists WITHOUT CEF: any native egui page renders onto a display placed in the world and takes clicks, scroll and typing (see [in-world-screens.md](../design/in-world-screens.md), rungs 1 and 2 of that ladder). The web renderer that will draw into that same surface is decided in [decision-briefs.md, Brief 4](../design/decision-briefs.md) (a no-JavaScript HTML/CSS renderer, not Chromium).
 > The rest of this page is kept as historical reference for the CEF-based design it replaced.
+>
+> **Superseded (2026-09-16).** The CEF/Chromium approach below was NOT taken.
+> Brief 4 in `docs/design/decision-briefs.md` chose "the readable web": parse
+> HTML with html5ever and draw it ourselves, no browser engine, no JavaScript.
+> That shipped as `src/web_reader/` + `src/gui/widgets/web_view.rs`, documented
+> in `docs/design/readable-web.md`. The kiosk TOML sketched here became the
+> websites database (`data/web/sites.json`, schema `schemas/web_sites.toml`):
+> its url, allowed-domains, category, placement, affiliate-tag and transparency
+> badge ideas live on there as `embed` and `affiliate` records. This file is
+> kept as the reference for what the in-world screen rungs still want (input
+> forwarding, LOD/suspend, VR interaction); read the sections below as design
+> intent, not as the plan.
 
 ## Purpose
 

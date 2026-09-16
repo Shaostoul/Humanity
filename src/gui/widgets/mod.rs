@@ -20,6 +20,10 @@ pub mod body_pill;
 pub mod markdown;
 pub mod msg_format;
 pub mod file_browser;
+// The readable web view (2026-09-16): draws a `web_reader::Page` with
+// clickable links, history and a URL row. Used by the Browser page; the
+// in-world monitor surface is the next rung up.
+pub mod web_view;
 /// Pie chart (resource budgets increment 1): the widget the Performance page
 /// draws its GPU / CPU / VRAM / RAM budgets with.
 pub mod pie;

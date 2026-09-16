@@ -615,6 +615,160 @@ fn inventory_container_header_click_toggles_open() {
     );
 }
 
+/// REAL interaction test on the readable web view (2026-09-16): a page with
+/// links is drawn headlessly, one link is clicked with the canonical synthetic
+/// move / press / release sequence, and the view must have QUEUED navigation
+/// to the RESOLVED absolute URL, with no fetch dispatched (fetch_enabled is
+/// off, so nothing touches the network). This is the "shows != works" guard
+/// for the view's links: a label that renders but does not navigate is the
+/// failure this exists to catch. Proven red on 2026-09-16 (at review, and
+/// again in the review-fix pass) by disabling the `*self.clicked = Some(href)`
+/// line in web_view.rs: the first assertion below then fails with
+/// `left: None, right: Some("https://example.com/docs/nearby.html")`.
+#[test]
+fn web_view_link_click_queues_navigation_to_the_resolved_url() {
+    use crate::gui::widgets::image_cache::ImageCache;
+    use crate::gui::widgets::web_view::{ViewStatus, WebViewState};
+
+    let ctx = snapshot_ctx();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut view = WebViewState::new();
+    view.fetch_enabled = false;
+    let mut images = ImageCache::new();
+    // The page exactly as the parser produces it from the fixture, so the
+    // href the click must yield is the RESOLVED one, not the fixture's
+    // relative "nearby.html".
+    let page = crate::web_reader::parse_html(
+        include_str!("../../tests/fixtures/web/article.html"),
+        "https://example.com/docs/page.html",
+        &Default::default(),
+    );
+    view.page = Some(page);
+    view.status = ViewStatus::Ready;
+
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0));
+    let run = |ctx: &egui::Context, events: Vec<egui::Event>, view: &mut WebViewState, images: &mut ImageCache| {
+        let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                view.show(ui, &theme, images, None);
+            });
+        });
+    };
+
+    // Settle twice so the scroll area and the wrapped labels have rects.
+    run(&ctx, Vec::new(), &mut view, &mut images);
+    run(&ctx, Vec::new(), &mut view, &mut images);
+    let target = "https://example.com/docs/nearby.html";
+    let rect = view
+        .link_rects()
+        .iter()
+        .find(|(href, _)| href == target)
+        .map(|(_, r)| *r)
+        .expect("the resolved link should have been drawn and its rect recorded");
+    assert!(screen.contains(rect.center()), "link must be on screen to be clickable: {rect:?}");
+    assert!(view.queued_navigation().is_none(), "nothing queued before the click");
+
+    let center = rect.center();
+    let m = egui::Modifiers::default();
+    run(&ctx, vec![egui::Event::PointerMoved(center)], &mut view, &mut images);
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: true, modifiers: m }],
+        &mut view,
+        &mut images,
+    );
+    run(
+        &ctx,
+        vec![egui::Event::PointerButton { pos: center, button: egui::PointerButton::Primary, pressed: false, modifiers: m }],
+        &mut view,
+        &mut images,
+    );
+
+    assert_eq!(
+        view.queued_navigation(),
+        Some(target),
+        "clicking the link did NOT queue navigation to the resolved URL -- the link \
+         renders but is not interactive, or resolved to the wrong address"
+    );
+    assert_eq!(view.current_url(), Some(target), "the click is on the history stack");
+    assert!(matches!(view.status, ViewStatus::Fetching(_)), "status says a fetch is pending: {:?}", view.status);
+}
+
+/// REAL rendering test on the readable web view's PRIVACY promise for images
+/// (2026-09-16): the Settings hint says only the address of the page you open
+/// leaves the machine, "plus the images that scroll into view". That holds
+/// only if an image far below the fold is NOT requested while it is off
+/// screen. The page here is eighty paragraphs and then one image whose
+/// address is a closed loopback port (nothing listens on 127.0.0.1:9, so
+/// even if the gate is broken the request goes nowhere). Drawn in a short
+/// viewport the image sits well below the clip rect and the cache must still
+/// be Idle for it; drawn in a viewport tall enough to show the whole page,
+/// the same image is on screen and the cache must be Fetching. Proven red
+/// first: with the `is_rect_visible` gate in `web_view.rs` removed, the first
+/// assertion fails with "the image below the fold was fetched".
+#[test]
+fn web_view_requests_an_image_only_when_it_scrolls_into_view() {
+    use crate::gui::widgets::image_cache::{ImageCache, ImageStatus};
+    use crate::gui::widgets::web_view::{ViewStatus, WebViewState};
+    use crate::web_reader::{Block, Inline, Page};
+
+    let ctx = snapshot_ctx();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut view = WebViewState::new();
+    view.fetch_enabled = false;
+    let mut images = ImageCache::new();
+
+    // Nothing listens on the discard port, so a request (which would be the
+    // failure this test catches) is refused by the OS at once, no network.
+    let src = "http://127.0.0.1:9/below-the-fold.png";
+    let mut blocks: Vec<Block> = (0..80)
+        .map(|i| Block::Paragraph(vec![Inline::Text(format!("Paragraph {i} of the long article above the picture."))]))
+        .collect();
+    blocks.push(Block::Image { src: src.to_string(), alt: "the picture at the bottom".to_string() });
+    view.page = Some(Page {
+        url: "https://example.com/long.html".to_string(),
+        title: "A long page".to_string(),
+        blocks,
+        notice: None,
+    });
+    view.status = ViewStatus::Ready;
+
+    let run = |ctx: &egui::Context, screen: egui::Rect, view: &mut WebViewState, images: &mut ImageCache| {
+        let input = egui::RawInput { screen_rect: Some(screen), events: Vec::new(), ..Default::default() };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                view.show(ui, &theme, images, None);
+            });
+        });
+    };
+
+    // A short viewport: eighty paragraphs of text are far taller than 400 px,
+    // so the image's place on the page is outside the scroll area's clip.
+    let short = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 400.0));
+    run(&ctx, short, &mut view, &mut images);
+    run(&ctx, short, &mut view, &mut images);
+    assert!(
+        matches!(images.status(src), ImageStatus::Idle),
+        "the image below the fold was fetched while it was off screen: {:?}",
+        images.status(src)
+    );
+
+    // A viewport tall enough for the whole page: now the image is visible and
+    // its one GET must have been dispatched (the cache marks it Fetching the
+    // moment `request` runs, before the thread has even connected).
+    let tall = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 20_000.0));
+    run(&ctx, tall, &mut view, &mut images);
+    run(&ctx, tall, &mut view, &mut images);
+    assert!(
+        matches!(images.status(src), ImageStatus::Fetching | ImageStatus::Failed(_)),
+        "the image on screen was never requested: {:?}",
+        images.status(src)
+    );
+}
+
 /// REAL interaction test: the "Link a Device" QR action on the Account settings
 /// panel is DISCOVERABLE (renders whenever an identity exists, not buried inside
 /// the seed-phrase reveal like v0.837 was) and actually BUILDS the QR when shown.

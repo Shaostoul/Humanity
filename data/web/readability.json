@@ -1,0 +1,34 @@
+{
+  "_purpose": "Site-convention hints for the readable web (src/web_reader/parse.rs). The HTML-spec part of readability is fixed in code: script, style, noscript, template, forms, nav, footer, aside and the matching ARIA landmark roles are never content. What differs from site to site is which CLASS or ID marks screen-only chrome, so those live here. Schema: schemas/web_readability.toml. Add a convention when a cooperating site shows clutter; never add a domain, this is about markup conventions, not sites.",
+  "version": 1,
+  "drop_classes": [
+    "noprint",
+    "mw-editsection",
+    "mw-jump-link",
+    "navbox",
+    "catlinks",
+    "printfooter",
+    "mw-indicators",
+    "sistersitebox",
+    "sidebar",
+    "screen-reader-only",
+    "sr-only",
+    "visually-hidden",
+    "skip-link",
+    "cookie-banner",
+    "cookie-consent",
+    "breadcrumb",
+    "breadcrumbs"
+  ],
+  "drop_ids": [
+    "mw-navigation",
+    "mw-panel",
+    "mw-head",
+    "footer",
+    "siteSub",
+    "contentSub",
+    "jump-to-nav",
+    "cookie-banner",
+    "cookie-consent"
+  ]
+}

@@ -15,7 +15,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:rav1d", "dep:libc"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -69,6 +69,12 @@ egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
 tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
 ureq = { version = "2", optional = true }
+# The readable web (src/web_reader/): Servo's HTML5 parser, pinned to an exact
+# version because the TreeSink trait it hands us changes shape between minors
+# and our sink (web_reader/dom.rs) implements it by hand. No JavaScript engine,
+# no layout engine: we parse HTML into a readable document and draw it in egui.
+# native-only; the relay never fetches web pages.
+html5ever = { version = "=0.40.1", optional = true }
 # Process RSS for the F4 System diagnostics overlay (v0.482). Tiny, cross-platform
 # (GetProcessMemoryInfo on Windows, /proc on Linux); native-only.
 memory-stats = { version = "1", optional = true }

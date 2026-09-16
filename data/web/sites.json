@@ -1,0 +1,862 @@
+{
+  "_purpose": "The websites database: every site the Browser page (native) and web.html (web mirror) offer, one record each, with whether its pages may legally be shown INSIDE HumanityOS (the readable web view today, in-world screens next) and any affiliate relationship. Schema: schemas/web_sites.toml. Checked by scripts/check-web-sites.js (unique ids, http(s) URLs, status enum, a decided status needs its evidence, our own domains allowed). Design: docs/design/readable-web.md.",
+  "_workflow": "embed.status starts at needs_review. It leaves that state only when a person reads the site's terms and records basis (the clause), terms_url, reviewed_on (ISO date) and reviewed_by. affiliate.tag stays null until a programme is joined; when it is set, affiliate.disclosure is shown above every page of that site. Nothing here decides legality; it records the decision a human made.",
+  "version": 1,
+  "own_domains": [
+    "https://united-humanity.us",
+    "https://git.united-humanity.us",
+    "https://github.com/Shaostoul/Humanity"
+  ],
+  "categories": [
+    {
+      "id": "humanityos",
+      "name": "HumanityOS",
+      "color": "accent"
+    },
+    {
+      "id": "knowledge",
+      "name": "Open knowledge",
+      "color": "info"
+    },
+    {
+      "id": "skills",
+      "name": "Real-world skills",
+      "color": "success"
+    },
+    {
+      "id": "development",
+      "name": "Development",
+      "color": "accent"
+    },
+    {
+      "id": "sovereign",
+      "name": "Sovereign software",
+      "color": "warning"
+    },
+    {
+      "id": "communication",
+      "name": "Communication",
+      "color": "info"
+    },
+    {
+      "id": "spaceflight",
+      "name": "Science and space",
+      "color": "info"
+    },
+    {
+      "id": "tools",
+      "name": "Tools",
+      "color": "success"
+    },
+    {
+      "id": "games",
+      "name": "Games",
+      "color": "warning"
+    },
+    {
+      "id": "health",
+      "name": "Health",
+      "color": "danger"
+    }
+  ],
+  "sites": [
+    {
+      "id": "live-site",
+      "name": "Live site",
+      "url": "https://united-humanity.us",
+      "category": "humanityos",
+      "description": "Production HumanityOS, chat, profiles, vault, marketplace.",
+      "icon": "🌍",
+      "embed": {
+        "status": "allowed",
+        "basis": "our own site",
+        "terms_url": "https://github.com/Shaostoul/Humanity/blob/main/LICENSE",
+        "reviewed_on": "2026-09-16",
+        "reviewed_by": "HumanityOS project (own site, no third-party terms to read)"
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "github-mirror",
+      "name": "GitHub mirror",
+      "url": "https://github.com/Shaostoul/Humanity",
+      "category": "humanityos",
+      "description": "Primary source repository, releases, CI, issue tracker.",
+      "icon": "🐙",
+      "embed": {
+        "status": "allowed",
+        "basis": "our own site",
+        "terms_url": "https://github.com/Shaostoul/Humanity/blob/main/LICENSE",
+        "reviewed_on": "2026-09-16",
+        "reviewed_by": "HumanityOS project (own site, no third-party terms to read)"
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "forgejo-mirror",
+      "name": "Forgejo mirror",
+      "url": "https://git.united-humanity.us/shaostoul/humanity",
+      "category": "humanityos",
+      "description": "Self-hosted Forgejo mirror, same code, sovereign infrastructure.",
+      "icon": "🛠",
+      "embed": {
+        "status": "allowed",
+        "basis": "our own site",
+        "terms_url": "https://github.com/Shaostoul/Humanity/blob/main/LICENSE",
+        "reviewed_on": "2026-09-16",
+        "reviewed_by": "HumanityOS project (own site, no third-party terms to read)"
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "release-notes",
+      "name": "Release notes",
+      "url": "https://github.com/Shaostoul/Humanity/releases",
+      "category": "humanityos",
+      "description": "Every shipped version with what changed.",
+      "icon": "📝",
+      "embed": {
+        "status": "allowed",
+        "basis": "our own site",
+        "terms_url": "https://github.com/Shaostoul/Humanity/blob/main/LICENSE",
+        "reviewed_on": "2026-09-16",
+        "reviewed_by": "HumanityOS project (own site, no third-party terms to read)"
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "wikipedia",
+      "name": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Main_Page",
+      "category": "knowledge",
+      "description": "Largest free encyclopedia. Mirror via Kiwix for offline use.",
+      "icon": "📖",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "internet-archive",
+      "name": "Internet Archive",
+      "url": "https://archive.org",
+      "category": "knowledge",
+      "description": "Books, films, software, and the Wayback Machine.",
+      "icon": "🏛",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "project-gutenberg",
+      "name": "Project Gutenberg",
+      "url": "https://www.gutenberg.org",
+      "category": "knowledge",
+      "description": "70,000+ free public-domain ebooks.",
+      "icon": "📚",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "openstax",
+      "name": "OpenStax",
+      "url": "https://openstax.org/subjects",
+      "category": "knowledge",
+      "description": "Free, peer-reviewed college textbooks.",
+      "icon": "🎓",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "khan-academy",
+      "name": "Khan Academy",
+      "url": "https://www.khanacademy.org",
+      "category": "knowledge",
+      "description": "Free K-12 + early college courses.",
+      "icon": "🧮",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "ifixit",
+      "name": "iFixit",
+      "url": "https://www.ifixit.com",
+      "category": "skills",
+      "description": "Open repair guides for everything from phones to tractors.",
+      "icon": "🔧",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "instructables",
+      "name": "Instructables",
+      "url": "https://www.instructables.com",
+      "category": "skills",
+      "description": "DIY projects: woodworking, electronics, food, craft.",
+      "icon": "🪚",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "appropedia",
+      "name": "Appropedia",
+      "url": "https://www.appropedia.org",
+      "category": "skills",
+      "description": "Sustainable technology, appropriate-tech, off-grid living wiki.",
+      "icon": "🌱",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "openfarm",
+      "name": "OpenFarm",
+      "url": "https://openfarm.cc",
+      "category": "skills",
+      "description": "Crowdsourced gardening + farming guides per crop and region.",
+      "icon": "🌾",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "codeberg",
+      "name": "Codeberg",
+      "url": "https://codeberg.org",
+      "category": "sovereign",
+      "description": "Non-profit Git hosting on Forgejo, EU-based.",
+      "icon": "⛰",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "forgejo-project",
+      "name": "Forgejo project",
+      "url": "https://forgejo.org",
+      "category": "sovereign",
+      "description": "Self-hostable Git forge. Used by HumanityOS for sovereign mirroring.",
+      "icon": "🍴",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "gnu-project",
+      "name": "GNU project",
+      "url": "https://www.gnu.org",
+      "category": "sovereign",
+      "description": "Foundational free-software movement and tooling.",
+      "icon": "🐃",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "free-software-foundation",
+      "name": "Free Software Foundation",
+      "url": "https://www.fsf.org",
+      "category": "sovereign",
+      "description": "User-freedom advocacy, license stewardship.",
+      "icon": "📜",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "iss-live-tracker",
+      "name": "ISS live tracker",
+      "url": "https://spotthestation.nasa.gov/tracking_map.cfm",
+      "category": "spaceflight",
+      "description": "Where the International Space Station is right now. The mothership is fictional, this is real.",
+      "icon": "🛰",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "stellarium-web",
+      "name": "Stellarium web",
+      "url": "https://stellarium-web.org",
+      "category": "spaceflight",
+      "description": "Browser planetarium, see what's overhead tonight.",
+      "icon": "🌠",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "spaceweather-com",
+      "name": "SpaceWeather.com",
+      "url": "https://www.spaceweather.com",
+      "category": "spaceflight",
+      "description": "Solar storms, aurora forecasts, near-Earth asteroids.",
+      "icon": "☄",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from data/browser/bookmarks.json (native Browser page)"
+    },
+    {
+      "id": "mit-opencourseware",
+      "name": "MIT OpenCourseWare",
+      "url": "https://ocw.mit.edu",
+      "category": "knowledge",
+      "description": "University courses, free.",
+      "icon": "🏫",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "coursera",
+      "name": "Coursera",
+      "url": "https://www.coursera.org",
+      "category": "knowledge",
+      "description": "Online courses from universities.",
+      "icon": "🎓",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "url": "https://github.com",
+      "category": "development",
+      "description": "Code hosting and collaboration.",
+      "icon": "🐙",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "mdn-web-docs",
+      "name": "MDN Web Docs",
+      "url": "https://developer.mozilla.org",
+      "category": "development",
+      "description": "Web technology reference.",
+      "icon": "📘",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "stack-overflow",
+      "name": "Stack Overflow",
+      "url": "https://stackoverflow.com",
+      "category": "development",
+      "description": "Questions and answers for developers.",
+      "icon": "💬",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "rust-book",
+      "name": "Rust Book",
+      "url": "https://doc.rust-lang.org/book",
+      "category": "development",
+      "description": "The Rust programming language, the official book.",
+      "icon": "🦀",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "url": "https://discord.com",
+      "category": "communication",
+      "description": "Voice, video and text chat. Where HumanityOS development is coordinated today.",
+      "icon": "📣",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "element",
+      "name": "Element",
+      "url": "https://element.io",
+      "category": "communication",
+      "description": "Decentralized encrypted chat (Matrix).",
+      "icon": "🔒",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "signal",
+      "name": "Signal",
+      "url": "https://signal.org",
+      "category": "communication",
+      "description": "Private messaging.",
+      "icon": "📱",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "nasa",
+      "name": "NASA",
+      "url": "https://www.nasa.gov",
+      "category": "spaceflight",
+      "description": "Space exploration and science.",
+      "icon": "🚀",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "arxiv",
+      "name": "arXiv",
+      "url": "https://arxiv.org",
+      "category": "spaceflight",
+      "description": "Open-access research papers.",
+      "icon": "📄",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "openstreetmap",
+      "name": "OpenStreetMap",
+      "url": "https://www.openstreetmap.org",
+      "category": "tools",
+      "description": "Free, editable map of the world.",
+      "icon": "🗺",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "libreoffice",
+      "name": "LibreOffice",
+      "url": "https://www.libreoffice.org",
+      "category": "sovereign",
+      "description": "Free office suite.",
+      "icon": "📝",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "url": "https://store.steampowered.com",
+      "category": "games",
+      "description": "Game store and community.",
+      "icon": "🎮",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "gog",
+      "name": "GOG",
+      "url": "https://www.gog.com",
+      "category": "games",
+      "description": "DRM-free games.",
+      "icon": "💿",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "itch-io",
+      "name": "Itch.io",
+      "url": "https://itch.io",
+      "category": "games",
+      "description": "Indie games marketplace.",
+      "icon": "🎲",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "pubmed",
+      "name": "PubMed",
+      "url": "https://pubmed.ncbi.nlm.nih.gov",
+      "category": "health",
+      "description": "Medical research database.",
+      "icon": "🩺",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    },
+    {
+      "id": "examine",
+      "name": "Examine",
+      "url": "https://examine.com",
+      "category": "health",
+      "description": "Supplement and nutrition research, summarized.",
+      "icon": "🍎",
+      "embed": {
+        "status": "needs_review",
+        "basis": "not yet reviewed",
+        "terms_url": null,
+        "reviewed_on": null,
+        "reviewed_by": null
+      },
+      "affiliate": {
+        "program": null,
+        "tag": null,
+        "disclosure": ""
+      },
+      "notes": "seeded from web/pages/web.html DEFAULT_SITES (web bookmarks page)"
+    }
+  ]
+}
