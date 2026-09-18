@@ -123,3 +123,55 @@ screen-emitter hoist), W1 (the water depth prepass, a look call), then
 clustered lights, interior culling and a near-tree LOD ladder, all ranked in
 `docs/design/frame-cost-arc.md`. Open: Settings clamps that make "vegetation
 off" unreachable from the GUI.
+
+## The evening: P2, V1, P3 and the rig that refuses bad numbers
+
+The operator asked whether to replace the megashader with a modular system
+and approved the answer: rungs, not a rewrite. Three builders ran in parallel
+on disjoint files, then a fourth.
+
+**P2, pipelines per material class (v0.1316.0).** The builder shipped three
+classes instead of the two the brief sketched, because a Shell pipeline
+that could still reach the cloud march would have kept the atmosphere shell
+at ten to twenty-five milliseconds: General with every shell branch off,
+Shell with atmosphere and ocean, Cloud with the march alone. The limb's
+atmosphere shell went 25.0 to 0.37 ms, the Sahara's 10.4 to 0.19 with the
+sky rows bit-identical, the low ocean 48.8 to 1.39 (the water was paying
+the march too, which re-scopes the depth prepass from a perf item to a look
+call), the home 11.4 to 3.0, the console room 82.9 to 16.8. The read-only
+review found the one thing the gate could not: with "Scattering atmosphere"
+off, the fallback dome is General class, and a class-keyed sort lifted it
+under the sea and the clouds. The list now groups by planet layer band,
+with a pure key and four tests.
+
+**V1, the near-tree cull.** Built exactly as designed, coverage arithmetic
+untouched, hide radius bit-identical across arms and headings, off-screen
+models kept as shadow-only casters. The measurement refuted the design's
+number: 0.3 ms, not 30 to 50, with 145 of 260 photoscans removed from the
+colour pass. The cost is on-screen fragment work at about 0.47 ms per
+visible model, so the vegetation rung with reach is the LOD ladder. Kept for
+the tested draw plan and the counters.
+
+**P3, one entry per class (v0.1317.0).** fs_main is gone: six class entries
+share a prologue and a lighting tail in a new part, thirteen pipelines each
+compile one entry, and the draw loops pick by class. Phase A on the shipped
+build, a same-boot A/B against a union entry, read the console room 17.1 to
+14.1 ms: register pressure, a fifth of a wall pixel. The review re-ran the
+split script against the base and got byte-identical files. Boot is six
+seconds slower from three more pipeline bakes; a pipeline cache is next.
+
+**The rig.** Two release gates today graded contaminated captures: a
+foreign rig instance during one sweep, then cargo plus a 2.3 GB rustc from
+another worktree during the "quiet" re-measure, with every CPU stage
+stretched while the GPU columns stayed true and the limb reading 6.6 fps
+against a 15 ms GPU sum. A/B on an idle machine put both builds at the cap.
+The toolsmith made the guard mechanical: one process query for every rig
+script, a wait before boot and a check around every capture, contaminated
+captures marked and refused by the report, plus wind and animation-clock
+pins so forest frames can be compared, and a lint that holds every
+render call to the pins. It also found that `just lints` has been red on
+main at the file-size ratchet, so `just verify` cannot pass; the owed
+extractions are ranked right after I1.
+
+Settings now accepts 0 for tree density, grass cover and blade detail, and
+the two console-room vantages exist as fixtures.
