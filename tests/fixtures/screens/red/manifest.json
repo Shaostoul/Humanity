@@ -27,7 +27,8 @@
       "ok": false, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/", "title": "https://united-humanity.us/",
-      "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 3
+      "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 3,
+      "links": []
     },
     "link": {
       "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",

@@ -7,9 +7,10 @@
 //               its drawn text, click it, snapshot again: the two images must
 //               differ and egui must report a widget under the pointer.
 //   web         wait for wall_screen_3 (web:https://united-humanity.us) to
-//               report a loaded page, snapshot, click its first link, wait
-//               again: the url must change, the status must be ready again,
-//               and the snapshot must differ.
+//               report a loaded page, snapshot, click its first link that
+//               stays on our own host, wait again: the url must change and
+//               still be on our host, the status must be ready again, and
+//               the snapshot must differ.
 //   tasks       snapshot wall_screen_2: not a single colour (a page drew).
 //   panics      zero PANIC lines in the rig's run.log.
 //
@@ -106,6 +107,13 @@ function hostOf(url) {
     return "";
   }
 }
+// "On our own site" means the host IS WEB_HOST or a subdomain of it, never
+// merely a host that ends with those letters (evil-united-humanity.us must
+// not count). Every same-host decision in this file goes through here.
+function onOurHost(url) {
+  const h = hostOf(url);
+  return h === WEB_HOST || h.endsWith("." + WEB_HOST);
+}
 function loadPng(dir, name) {
   if (!name) return { error: "no snapshot recorded" };
   const p = path.join(dir, name);
@@ -154,15 +162,18 @@ function judge(m, dir) {
   const ready = web.ready || null;
   add(
     "web_ready",
-    ready && ready.ok === true && ready.status === "ready" && hostOf(ready.url).endsWith(WEB_HOST),
+    ready && ready.ok === true && ready.status === "ready" && onOurHost(ready.url),
     ready ? (ready.error || `${ready.status} ${ready.url} title=${JSON.stringify(ready.title)}${ready.waited_ms != null ? ` after ${ready.waited_ms} ms` : ""}`) : "never ran"
   );
   const link = web.link || null;
   add("web_link", link && link.ok === true, link ? (link.error || `link ${web.link_index ?? 0} clicked at uv ${JSON.stringify(link.uv || null)}`) : "never ran");
+  // The new page must be a DIFFERENT url, loaded, and still on our host: the
+  // gate follows a link on our own site only (the rig picks the index from
+  // the hrefs the screen reports), and a redirect elsewhere must not pass.
   const ready2 = web.ready2 || null;
   add(
     "web_navigated",
-    ready && ready2 && ready2.ok === true && ready2.status === "ready" && ready2.url && ready2.url !== ready.url,
+    ready && ready2 && ready2.ok === true && ready2.status === "ready" && ready2.url && ready2.url !== ready.url && onOurHost(ready2.url),
     ready2 ? (ready2.error || `${ready2.status} ${ready2.url} title=${JSON.stringify(ready2.title)}`) : "never ran"
   );
   const webA = loadPng(dir, web.before);
@@ -546,13 +557,31 @@ async function main() {
     manifest.inventory.after = keepPng(invB, "inventory_after.png");
     save();
 
-    // (b) WEB: wait for the page, snapshot, click link 0, wait, snapshot.
+    // (b) WEB: wait for the page, snapshot, click a same-host link, wait,
+    // snapshot.
     const ready = step("web_ready", await screen({ screen: SCREENS.web, action: "wait_ready" }, 30000));
     manifest.web.ready = ready;
     const webA = step("web_snapshot", await screen({ screen: SCREENS.web, action: "snapshot" }));
     manifest.web.before = keepPng(webA, "web_before.png");
-    manifest.web.link_index = 0;
-    manifest.web.link = step("web_link", await screen({ screen: SCREENS.web, link: { index: 0 } }));
+    // Which link: the first one that stays on our own site (the screen
+    // reports the hrefs it drew, in link order, in `links`). Nothing
+    // third-party is ever fetched by this gate, so a page that drew no such
+    // link gets NO click at all: web_link and web_navigated then fail with
+    // that reason, which is the right answer (the home page must offer a
+    // link into itself, or the wall cannot be proven navigable).
+    const links = Array.isArray(ready.links) ? ready.links : [];
+    const linkIndex = links.findIndex(onOurHost);
+    if (linkIndex < 0) {
+      manifest.web.link_index = null;
+      manifest.web.link_target = null;
+      manifest.web.link = { ok: false, error: `no link on ${WEB_HOST} among the ${links.length} drawn; nothing clicked (this gate never follows a link off our own site)` };
+      step("web_link", manifest.web.link);
+    } else {
+      manifest.web.link_index = linkIndex;
+      manifest.web.link_target = links[linkIndex];
+      log(`link ${linkIndex} -> ${manifest.web.link_target}`);
+      manifest.web.link = step("web_link", await screen({ screen: SCREENS.web, link: { index: linkIndex } }));
+    }
     manifest.web.ready2 = step("web_ready2", await screen({ screen: SCREENS.web, action: "wait_ready" }, 30000));
     const webB = step("web_snapshot2", await screen({ screen: SCREENS.web, action: "snapshot" }));
     manifest.web.after = keepPng(webB, "web_after.png");

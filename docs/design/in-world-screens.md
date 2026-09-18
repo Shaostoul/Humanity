@@ -253,9 +253,12 @@ The rules that make it safe to hang a web page on a wall:
   sites may be placed on screens is the database's `embed.status` call, as
   the readable-web doc says; the shipped `wall_screen_3` shows our own site.
 
-Status for the dev IPC: `{url, title, status}`, where the title is the page's
-first heading (else its `<title>`, else the url) and the status is one of
-`unframed`, `off`, `idle`, `fetching`, `ready` or `error: <reason>`.
+Status for the dev IPC: `{url, title, status, links}`, where the title is
+the page's first heading (else its `<title>`, else the url), the status is
+one of `unframed`, `off`, `idle`, `fetching`, `ready` or `error: <reason>`,
+and `links` lists the hrefs drawn last frame (first 32, in `link` index
+order) so a rig can choose a link by where it goes; the screens gate only
+follows links that stay on our own site.
 
 Shipped placement: `wall_screen_3` in `home.ron`, on the console room's
 east wall (x = 51, z centre 45.5, facing west into the room), source
@@ -283,9 +286,11 @@ The event goes through the same `ScreenCore` methods the look ray uses
 merged at the top level (a web screen adds `url`, `title`, `status`); `png` is
 present for `snapshot`, which reads the surface texture back to
 `debug/screen_<id>_N.png`; `uv` is present for the pointer verbs and says
-where the event landed. A click is a press on one frame and a release on
-the next, and the done file is written after the surface has drawn the
-frame the event landed in. `hover_widget` is whether egui reported a layer
+where the event landed. A click is three frames, hover then press then
+release (the sequence the headless click test proved against re-interacted
+rows, which register nothing on a same-frame move + press), and the done
+file is written after the surface has drawn the frame the last event
+landed in. `hover_widget` is whether egui reported a layer
 under the pointer after that frame (egui does not expose per-widget hover
 publicly); `cursor_icon` distinguishes a text field (Text) or a link
 (PointingHand) from plain content. The request file is consumed even on
@@ -302,9 +307,11 @@ The three verbs a rig needs so it never guesses a pixel:
   error. On the inventory, `"Home"` lands on the container header "Home
   (Silverdale, WA ...)", not the person row "You  (Home)".
 - **`link`** clicks the Nth link the provider drew last frame: the rect is
-  clipped to the surface, its centre becomes the uv, and the press and
-  release go through `ScreenSurface::button` like any click. No such link
-  is `{"ok": false}` with the count the content drew.
+  clipped to the surface, its centre becomes the uv, and the hover, press
+  and release go through the surface on three frames like any click. No
+  such link is `{"ok": false}` with the count the content drew. Which N:
+  the provider's status lists the hrefs in the same order (`links`), so a
+  rig picks by where the link goes instead of trusting index 0.
 - **`wait_ready`** completes only once the provider reports ready or
   failed (`load_state()`), bounded by `WAIT_READY_LIMIT` (15 s; a timeout
   is `{"ok": false}` with the status fields, never a pass). While it waits
@@ -331,8 +338,11 @@ the world through autopilot, parks facing `wall_screen_3`, and then:
    answer, snapshot; the two PNGs must differ and `hover_widget` must be
    true;
 2. web (`wall_screen_3`): `wait_ready` (status must be `ready` on our own
-   host), snapshot, `link 0`, `wait_ready` again (a NEW url, `ready`
-   again), snapshot; the two PNGs must differ;
+   host), snapshot, `link` at the first link whose href stays on our own
+   host (chosen from the `links` the status reported; if the page drew no
+   such link nothing is clicked and the web checks fail, because this gate
+   never fetches a third-party page), `wait_ready` again (a NEW url, still
+   on our host, `ready` again), snapshot; the two PNGs must differ;
 3. tasks (`wall_screen_2`): one snapshot that is not a single colour;
 4. zero PANIC lines in the rig's run.log.
 

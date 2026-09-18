@@ -260,21 +260,16 @@ pub fn egui_key_from_winit_name(key_name: &str) -> Option<egui::Key> {
 }
 
 /// A dev-IPC interaction in progress (see `engine::ipc::poll_screen_request`).
-/// The engine holds it across frames because a click is a press on one frame
-/// and a release on the next (re-interacted rows need them apart), and the
-/// snapshot must be read AFTER the surface has drawn the frame the event
-/// landed in.
+/// The engine holds it across frames because a click is three frames, hover
+/// then press then release (`IpcStage` says why), and the snapshot must be
+/// read AFTER the surface has drawn the frame the last event landed in.
 #[derive(Debug, Clone)]
 pub struct ScreenIpc {
     /// Index into `Screens::surfaces`.
     pub surface: usize,
     pub action: String,
     pub uv: (f32, f32),
-    /// 0 = event queued this frame, 1 = a click's release still to queue,
-    /// 2 = ready to complete after this frame's `frame_surfaces`,
-    /// 3 = `wait_ready` waiting on the provider (bounded by
-    /// `WAIT_READY_LIMIT`; the surface stays framed meanwhile).
-    pub stage: u8,
+    pub stage: IpcStage,
     pub snapshot: bool,
     /// `link`: which of the provider's link rects to click (0-based).
     pub link_index: usize,
@@ -282,6 +277,27 @@ pub struct ScreenIpc {
     pub find_text: String,
     /// `wait_ready`: when the wait began.
     pub started: Option<std::time::Instant>,
+}
+
+/// Where a dev-IPC request is in its frame sequence. A click is THREE
+/// frames, hover then press then release, the sequence the headless click
+/// test proved against re-interacted rows (the inventory's container
+/// headers register nothing on a same-frame move + press, and need the
+/// release on yet another frame). The done file is written after the
+/// surface has drawn the frame the last event landed in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IpcStage {
+    /// The request was parsed this frame; its first event is queued next.
+    Queue,
+    /// The pointer is on the target (hover frame drawn); the press goes next.
+    Press,
+    /// The press was drawn; the release goes next.
+    Release,
+    /// Every event was drawn: write the done file after `frame_surfaces`.
+    Complete,
+    /// `wait_ready`: polling the provider each frame, bounded by
+    /// `WAIT_READY_LIMIT`; the surface stays framed meanwhile.
+    Waiting,
 }
 
 /// Every in-world screen, on `EngineState`.

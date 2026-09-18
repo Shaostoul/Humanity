@@ -272,10 +272,13 @@ boots the real release binary in a portable rig with `readable_web: true`
 written into the rig's own config before boot, enters the world, parks the
 camera in front of the web wall, and through `debug/screen_request.json`
 waits for the page to report `ready` on our own host, snapshots it, clicks
-its first link by index (the engine maps the link's rect to a point and
-sends a normal press and release through the screen's event API, never a
-side path into the view), waits for `ready` again on a NEW url, snapshots
-again, and requires the two images to differ. The same run clicks the
+the first link that stays on our own host (the screen reports the hrefs it
+drew, in link order; the engine maps that link's rect to a point and sends
+a normal hover, press and release on three frames through the screen's
+event API, never a side path into the view; a page with no such link gets
+no click at all, so the gate never fetches a third-party page), waits for
+`ready` again on a NEW url that is still on our host, snapshots again, and
+requires the two images to differ. The same run clicks the
 inventory wall's Home header (found by its drawn text) and checks the tasks
 wall drew a page and the log holds no panic. The status the rig reads back
 is the provider's own (`url`, `title`, `status`), so a run where the

@@ -1209,19 +1209,21 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// actions. `find` answers with where a drawn text is (`found`, `uv`,
 /// `rect_px`, `text`, `matches`) so a rig can click a widget by its label.
 /// `link` clicks the Nth link the provider drew, mapped from its rect's
-/// centre to a uv and sent as a normal press + release. `wait_ready`
-/// completes only once the provider reports ready or failed, bounded by
-/// `screens::WAIT_READY_LIMIT` (a timeout is `ok: false`). This is how the
-/// runtime verifier (`scripts/verify-screens.js`) proves a screen works with
-/// no human at the keyboard. The request file is consumed even on error; a
-/// failure writes `{"ok": false, "error": ...}`.
+/// centre to a uv and sent as a normal click (hover, press, release, one
+/// per frame). `wait_ready` completes only once the provider reports ready
+/// or failed, bounded by `screens::WAIT_READY_LIMIT` (a timeout is
+/// `ok: false`). This is how the runtime verifier
+/// (`scripts/verify-screens.js`) proves a screen works with no human at the
+/// keyboard. The request file is consumed even on error; a failure writes
+/// `{"ok": false, "error": ...}`.
 ///
-/// Three steps because a click is two frames and the answer must describe
-/// the frame the event landed in: `poll_screen_request` (update phase)
-/// parses and stores the request; `advance_screen_request` (after
-/// `screens::update`, so the look ray cannot overwrite the event) queues the
-/// event; `complete_screen_request` (after `screens::frame_surfaces`) writes
-/// the done file from the freshly drawn surface.
+/// Three functions because a click spans three frames (`screens::IpcStage`)
+/// and the answer must describe the frame the LAST event landed in:
+/// `poll_screen_request` (update phase) parses and stores the request;
+/// `advance_screen_request` (after `screens::update`, so the look ray cannot
+/// overwrite the event) queues this frame's event; `complete_screen_request`
+/// (after `screens::frame_surfaces`) writes the done file from the freshly
+/// drawn surface once the stage is `Complete`.
 pub(crate) fn poll_screen_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/screen_request.json";
     if state.screens.ipc.is_some() || !std::path::Path::new(REQUEST_PATH).exists() {
@@ -1286,7 +1288,7 @@ pub(crate) fn poll_screen_request(state: &mut EngineState) {
         find_text: if action == "find" { text.clone() } else { String::new() },
         action,
         uv,
-        stage: 0,
+        stage: crate::engine::screens::IpcStage::Queue,
         snapshot,
         link_index,
         started: None,
@@ -1306,30 +1308,34 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
         state.screens.ipc = None;
         return;
     };
+    use crate::engine::screens::IpcStage;
     // A verb that cannot be queued (no such link) answers right here; the
     // message is carried out of the borrow and written below.
     let mut refused: Option<String> = None;
     match ipc.stage {
-        0 => {
+        IpcStage::Queue => {
             match ipc.action.as_str() {
                 "hover" => s.core.pointer_moved(ipc.uv),
+                // A click is hover, press, release on three frames: the
+                // sequence `screen_click_through_uv_toggles_the_inventory_home_header`
+                // proved, because a re-interacted row registers nothing on
+                // a same-frame move + press.
                 "click" => {
-                    // The surface's own entry point, so the provider hears
-                    // the press too (same as the look ray's `route_button`).
-                    s.button(ipc.uv, true);
-                    ipc.stage = 1;
+                    s.core.pointer_moved(ipc.uv);
+                    ipc.stage = IpcStage::Press;
                     return;
                 }
                 "link" => {
                     // The Nth link rect the provider drew last frame, mapped
-                    // to a uv, then the SAME press the look ray would send.
-                    // Nothing reaches the view except through the event API.
+                    // to a uv, then the SAME hover/press/release the look ray
+                    // would send. Nothing reaches the view except through the
+                    // event API.
                     let rects = s.provider().map(|p| p.link_rects()).unwrap_or_default();
                     match crate::engine::screens::link_uv(&rects, ipc.link_index, s.size()) {
                         Some(uv) => {
                             ipc.uv = uv;
-                            s.button(uv, true);
-                            ipc.stage = 1;
+                            s.core.pointer_moved(uv);
+                            ipc.stage = IpcStage::Press;
                             return;
                         }
                         None => {
@@ -1349,21 +1355,24 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
                 "find" => s.core.find_text(&ipc.find_text),
                 "wait_ready" => {
                     ipc.started = Some(std::time::Instant::now());
-                    ipc.stage = 3;
+                    ipc.stage = IpcStage::Waiting;
                     return;
                 }
                 _ => {} // snapshot: nothing to queue, just draw and read back
             }
-            ipc.stage = 2;
+            ipc.stage = IpcStage::Complete;
         }
-        1 => {
-            // The release, one frame after the press: re-interacted rows
-            // (the inventory's container headers) need them on separate
-            // frames, exactly as the headless click test found.
+        IpcStage::Press => {
+            // The surface's own entry point, so the provider hears the
+            // press too (same as the look ray's `route_button`).
+            s.button(ipc.uv, true);
+            ipc.stage = IpcStage::Release;
+        }
+        IpcStage::Release => {
             s.button(ipc.uv, false);
-            ipc.stage = 2;
+            ipc.stage = IpcStage::Complete;
         }
-        _ => {}
+        IpcStage::Complete | IpcStage::Waiting => {}
     }
     if let Some(msg) = refused {
         log::warn!("Screen request: {msg}");
@@ -1398,18 +1407,20 @@ fn screen_done_base(s: &crate::gui::screen_surface::ScreenSurface, action: &str,
     done
 }
 
-/// Write the done file once the surface has drawn the frame the event
-/// landed in (stage 2), taking the snapshot first when asked.
+/// Write the done file once the surface has drawn the frame the last event
+/// landed in (`IpcStage::Complete`), taking the snapshot first when asked;
+/// a `wait_ready` (`IpcStage::Waiting`) is polled here every frame instead.
 pub(crate) fn complete_screen_request(state: &mut EngineState) {
+    use crate::engine::screens::IpcStage;
     let Some(ipc) = state.screens.ipc.as_ref() else { return };
-    if ipc.stage < 2 {
+    if !matches!(ipc.stage, IpcStage::Complete | IpcStage::Waiting) {
         return;
     }
-    // `wait_ready` (stage 3) polls the provider every frame until it is
-    // ready, failed, or the bounded wait runs out. While it waits the
-    // request stays in flight, which keeps the surface framed (so a web
-    // view keeps polling its fetch) and the look ray off its pointer.
-    if ipc.stage == 3 {
+    // `wait_ready` polls the provider every frame until it is ready,
+    // failed, or the bounded wait runs out. While it waits the request
+    // stays in flight, which keeps the surface framed (so a web view keeps
+    // polling its fetch) and the look ray off its pointer.
+    if ipc.stage == IpcStage::Waiting {
         let Some(s) = state.screens.surfaces.get(ipc.surface) else {
             state.screens.ipc = None;
             state.screens.ipc_payload = None;

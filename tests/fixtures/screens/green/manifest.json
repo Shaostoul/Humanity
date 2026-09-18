@@ -1,6 +1,6 @@
 {
   "kind": "verify-screens",
-  "note": "FIXTURE for scripts/verify-screens.js --self-test: a run where every check passes. The done objects are shaped exactly as the engine writes debug/screen_done.json (base fields + the web provider's url/title/status). The PNGs beside this file are tiny synthetic images: the inventory and web pairs differ by one row, the tasks image has many colours.",
+  "note": "FIXTURE for scripts/verify-screens.js --self-test: a run where every check passes. The done objects are shaped exactly as the engine writes debug/screen_done.json (base fields + the web provider's url/title/status/links). The PNGs beside this file are tiny synthetic images: the inventory and web pairs differ by one row, the tasks image has many colours.",
   "stamp": "fixture-green",
   "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
   "web_host": "united-humanity.us",
@@ -23,10 +23,12 @@
     "before": "web_before.png",
     "after": "web_after.png",
     "link_index": 0,
+    "link_target": "https://united-humanity.us/library",
     "ready": {
       "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
-      "url": "https://united-humanity.us/", "title": "HumanityOS", "status": "ready", "waited_ms": 812
+      "url": "https://united-humanity.us/", "title": "HumanityOS", "status": "ready", "waited_ms": 812,
+      "links": ["https://united-humanity.us/library", "https://united-humanity.us/devlog", "https://github.com/Shaostoul/Humanity"]
     },
     "link": {
       "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",

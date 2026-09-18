@@ -161,15 +161,20 @@ impl ScreenProvider for WebProvider {
         "web"
     }
 
-    /// `{url, title, status}`: the url is the page on screen (or being
-    /// fetched; the screen's own url before any navigation), the title is
-    /// `title()`, the status one of "unframed", "off", "idle", "fetching",
-    /// "ready" or "error: ...". The rig asserts on all three.
+    /// `{url, title, status, links}`: the url is the page on screen (or
+    /// being fetched; the screen's own url before any navigation), the
+    /// title is `title()`, the status one of "unframed", "off", "idle",
+    /// "fetching", "ready" or "error: ...", and `links` the hrefs of the
+    /// links drawn last frame (the first 32, in the same order as
+    /// `link_rects`), so a rig can pick WHICH link to click by its target
+    /// (the screens gate only follows links on our own site).
     fn status(&self) -> serde_json::Value {
+        let links: Vec<&str> = self.view.link_rects().iter().take(32).map(|(h, _)| h.as_str()).collect();
         serde_json::json!({
             "url": self.view.current_url().unwrap_or(&self.url),
             "title": self.title(),
             "status": self.status_word(),
+            "links": links,
         })
     }
 
@@ -360,6 +365,7 @@ mod tests {
         assert_eq!(p.load_state(), LoadState::Ready);
         let rects = p.link_rects();
         assert_eq!(rects.len(), 1, "one link on the page");
+        assert_eq!(p.status()["links"], serde_json::json!([target.clone()]), "the status names the drawn links");
         let (w, h) = core.size();
         let uv = crate::engine::screens::link_uv(&rects, 0, (w, h)).expect("the link is on the surface");
         assert!(uv.0 > 0.0 && uv.0 < 1.0 && uv.1 > 0.0 && uv.1 < 1.0, "uv {uv:?}");

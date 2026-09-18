@@ -1006,6 +1006,36 @@ mod tests {
         assert!(core.take_found_text().is_none(), "a find is answered once, not on every later frame");
     }
 
+    /// THE RIG's PRECONDITION: on a wall-sized inventory (1280 x 720, the
+    /// `wall_screen` def's px) the Home header must be drawn ON the surface
+    /// without scrolling, or `scripts/verify-screens.js` has nothing to
+    /// click. If the inventory layout ever pushes the places tree below a
+    /// 720 px fold, this fails first and says why, instead of the rig
+    /// failing with "found: false" at 2am.
+    #[test]
+    fn home_header_is_on_a_wall_sized_inventory_without_scrolling() {
+        let mut theme = load_theme();
+        let mut state = inventory_state();
+        let (w, h) = (1280u32, 720u32);
+        let mut core = ScreenCore::new("wall_screen_1", "inventory", w, h, &theme);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
+        crate::gui::pages::inventory::test_clear_placed();
+        core.run(&mut theme, &mut state);
+        core.run(&mut theme, &mut state);
+        core.find_text("Home");
+        core.run(&mut theme, &mut state);
+        let found = core.take_found_text().flatten().expect("Home is drawn on a 1280 x 720 inventory");
+        assert!(found.text.starts_with("Home"), "{:?}", found.text);
+        let c = found.rect.center();
+        assert!(
+            c.x > 0.0 && c.x < w as f32 && c.y > 0.0 && c.y < h as f32,
+            "the Home header centre {c:?} must lie on the {w} x {h} wall"
+        );
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+    }
+
     /// The matching rule on synthetic shapes: exact beats prefix beats
     /// substring, the count covers all three, clipped-away text is
     /// invisible, and nested `Shape::Vec` is walked.
