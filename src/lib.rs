@@ -2102,6 +2102,15 @@ mod native_app {
                         // its usual meaning (help panel, then the menu cascade).
                         // The cursor re-grabs through reconcile_cursor, which
                         // reads the flag this cleared (single authority, v0.460).
+                        // A HELD Escape delivers a second press about half a
+                        // second later (winit auto-repeat). No Escape rule below
+                        // wants that: after this press closed the sidebar the
+                        // repeat would open the menu, and a held Escape on the
+                        // menu would toggle it open and shut. Only the first
+                        // press of a hold counts (review finding, 2026-09-18).
+                        if key == KeyCode::Escape && pressed && event.repeat {
+                            return;
+                        }
                         if key == KeyCode::Escape
                             && pressed
                             && crate::engine::input::escape_closes_cloud_dev(&mut state.gui_state)
