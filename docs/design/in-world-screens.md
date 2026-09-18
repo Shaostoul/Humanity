@@ -257,7 +257,7 @@ The rules that make it safe to hang a web page on a wall:
   on a screen: today its only consumer is the review label on the Browser
   page's site cards. A placement gate on it is a later rung (see "The
   ladder above this"); until then the only guard is that the shipped
-  `wall_screen_3` shows our own site.
+  `wall_screen_6` shows our own site.
 
 Status for the dev IPC: `{url, title, status, links}`, where the title is
 the page's first heading (else its `<title>`, else the url), the status is
@@ -266,7 +266,7 @@ and `links` lists the hrefs drawn last frame (first 32, in `link` index
 order) so a rig can choose a link by where it goes; the screens gate only
 follows links that stay on our own site.
 
-Shipped placement: `wall_screen_3` in `home.ron`, on the console room's
+Shipped placement: `wall_screen_6` in `home.ron`, on the console room's
 east wall (x = 51, z centre 45.5, facing west into the room), source
 `web:https://united-humanity.us`.
 
@@ -487,7 +487,7 @@ budget. A provider with nothing to place leaves the default no-op.
 ([media-player.md](media-player.md)) on the screen, on loop, with its sound
 placed at the screen; a click on the screen toggles pause. The operator's
 words: "movies on displays". Provider: `src/engine/screens/video.rs`
-(`VideoProvider`). Shipped: `wall_screen_3` in home.ron's console room plays
+(`VideoProvider`). Shipped: `wall_screen_5` on home.ron's console room north wall plays
 `data/media/demo_colour_bar.webm` (the synthetic 2 s colour-bar clip;
 provenance in `data/media/README.md`).
 
@@ -660,8 +660,8 @@ Drop `debug/screen_request.json` while the game runs:
 {"screen": "wall_screen_1", "action": "hover", "uv": [0.1, 0.1]}
 {"screen": "wall_screen_1", "action": "snapshot"}
 {"screen": "wall_screen_1", "find": {"text": "Home"}}
-{"screen": "wall_screen_3", "action": "wait_ready"}
-{"screen": "wall_screen_3", "link": {"index": 0}}
+{"screen": "wall_screen_6", "action": "wait_ready"}
+{"screen": "wall_screen_6", "link": {"index": 0}}
 ```
 
 The event goes through the same `ScreenCore` methods the look ray uses
@@ -711,7 +711,7 @@ The three verbs a rig needs so it never guesses a pixel:
   completes at once. `waited_ms` says how long it took.
 
 `debug/camera_request.json` with `{"station": "home", "screen":
-"wall_screen_3"}` parks the camera 2 m (`distance_m`) straight out from
+"wall_screen_6"}` parks the camera 2 m (`distance_m`) straight out from
 that screen's centre, at its height, looking back at it: the pose is
 computed from the screen's quad, so any screen in any room can be framed
 without a typed coordinate. Unknown ids fail with the placed ids listed.
@@ -723,7 +723,7 @@ the wall screens are interactive with nobody at the keyboard. It refuses
 while ANY HumanityOS.exe is running (one GPU), refuses a stale exe, boots
 the release binary in its own portable rig (`.probe-rig/screens`, with
 `readable_web: true` written into the rig's config.json before boot), enters
-the world through autopilot, parks facing `wall_screen_3`, and then:
+the world through autopilot, parks facing `wall_screen_6`, and then:
 
 1. inventory (`wall_screen_1`): `find` "Home" (the container header),
    `hover` at the answer, `find` "Garage" (the child container that is
@@ -742,7 +742,7 @@ the world through autopilot, parks facing `wall_screen_3`, and then:
    it did while they were selectable),
    the child row's `found` to flip across the click, and the two PNGs to
    differ; `inventory_changed` is red unless every one of those holds;
-2. web (`wall_screen_3`): `wait_ready` (status must be `ready` on our own
+2. web (`wall_screen_6`): `wait_ready` (status must be `ready` on our own
    host), snapshot, `link` at the first link whose href stays on our own
    host (chosen from the `links` the status reported; if the page drew no
    such link nothing is clicked and the web checks fail, because this gate

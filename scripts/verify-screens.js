@@ -19,7 +19,7 @@
 //               whether or not the click did anything, and a pixel diff
 //               alone cannot tell a dead click from a live one (an
 //               adversarial review found exactly that hole, 2026-09-17).
-//   web         wait for wall_screen_3 (web:https://united-humanity.us) to
+//   web         wait for wall_screen_6 (web:https://united-humanity.us) to
 //               report a loaded page, snapshot, click its first link that
 //               stays on our own host, wait again: the url must change and
 //               still be on our host, the status must be ready again, and
@@ -89,7 +89,7 @@ const LOG = path.join(RIG, "logs", "run.log");
 // THE SCREENS UNDER TEST, fixed on purpose: these are the placed instances
 // in data/machines/home.ron. Renaming one there must break this gate loudly
 // (the screen request answers "no screen named ..."), never shrink it.
-const SCREENS = { inventory: "wall_screen_1", tasks: "wall_screen_2", web: "wall_screen_3" };
+const SCREENS = { inventory: "wall_screen_1", tasks: "wall_screen_2", web: "wall_screen_6" };
 // The only site this gate fetches: our own. The web check asserts the loaded
 // page is on this host, so a redirect elsewhere cannot pass.
 const WEB_HOST = "united-humanity.us";
@@ -699,7 +699,11 @@ async function main() {
     // that reason, which is the right answer (the home page must offer a
     // link into itself, or the wall cannot be proven navigable).
     const links = Array.isArray(ready.links) ? ready.links : [];
-    const linkIndex = links.findIndex(onOurHost);
+    // The first link on our own host that is NOT the page itself: the site's
+    // logo links to "/", and a fragment link ("#s2") stays on the same
+    // document, so neither can prove a navigation (the url would not change).
+    const sameDoc = (a, b) => String(a || "").split("#")[0].replace(/[/]$/, "") === String(b || "").split("#")[0].replace(/[/]$/, "");
+    const linkIndex = links.findIndex((h) => onOurHost(h) && !sameDoc(h, ready.url));
     if (linkIndex < 0) {
       manifest.web.link_index = null;
       manifest.web.link_target = null;

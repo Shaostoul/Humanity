@@ -2,7 +2,7 @@
   "kind": "verify-screens",
   "note": "FIXTURE for scripts/verify-screens.js --self-test: a run where every check passes. The done objects carry the same keys the engine writes to debug/screen_done.json (src/engine/ipc.rs screen_done_base + complete_screen_request): the base fields, `uv` on every pointer verb (hover, click, link), `found`/`text`/`matches` (+ `uv`/`rect_px` when found) on a find, and the web provider's `url`/`title`/`status`/`links` merged at the top level; `focused` is false throughout because the dev IPC never gives a screen keyboard focus (only the look ray's click does). Once the pointer has been hovered onto the inventory wall it stays there, so every later done on that wall reports hover_widget true and the header row's PointingHand cursor. The inventory leg runs in the rig's order: find Home, hover there, find the child row Garage (drawn only while Home is open), snapshot, click, find Garage again (gone), snapshot. The PNGs beside this file are tiny synthetic images: the inventory and web pairs differ by one row, the tasks image has many colours.",
   "stamp": "fixture-green",
-  "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
+  "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_6" },
   "web_host": "united-humanity.us",
   "panics": 0,
   "inventory": {
@@ -43,20 +43,20 @@
     "link_index": 0,
     "link_target": "https://united-humanity.us/library",
     "ready": {
-      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "ok": true, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/", "title": "HumanityOS", "status": "ready", "waited_ms": 812,
       "links": ["https://united-humanity.us/library", "https://united-humanity.us/devlog", "https://github.com/Shaostoul/Humanity"]
     },
     "link": {
-      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
+      "ok": true, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
       "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
       "uv": [0.125, 0.236],
       "url": "https://united-humanity.us/library", "title": "HumanityOS", "status": "fetching",
       "links": ["https://united-humanity.us/library", "https://united-humanity.us/devlog", "https://github.com/Shaostoul/Humanity"]
     },
     "ready2": {
-      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "ok": true, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/library", "title": "Library", "status": "ready", "waited_ms": 640,
       "links": ["https://united-humanity.us/", "https://united-humanity.us/library#accord"]

@@ -256,7 +256,7 @@ screen architecture is `docs/design/in-world-screens.md`). A machine
 instance whose `screen_source` is `web:<url>` gets a `WebProvider`
 (`src/engine/screens/web.rs`) that owns one `WebViewState` of its own and
 draws it into the screen's texture every framed tick. The shipped example is
-`wall_screen_3` in `data/machines/home.ron`, on the console room's east
+`wall_screen_6` in `data/machines/home.ron`, on the console room's east
 wall, showing `https://united-humanity.us`. The player looks at the wall,
 the look ray becomes the view's pointer, and a click on a link navigates the
 wall; Back, Forward, Reload, the address row and "Open in browser" are the
@@ -326,7 +326,7 @@ checks it when a `web:` source is placed on a screen. Still wanted:
 - **A placement gate on `embed.status`:** a `forbidden` site is never
   placed on a screen and a `needs_review` one carries the review badge on
   the wall. Until it exists the only guard is that the shipped
-  `wall_screen_3` shows our own site.
+  `wall_screen_6` shows our own site.
 - From the old kiosk design: input from a VR controller ray, distance-based
   suspend of a wall's fetches, an affiliate dashboard once any programme is
   joined.

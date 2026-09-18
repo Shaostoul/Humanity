@@ -2,7 +2,7 @@
   "kind": "verify-screens",
   "note": "FIXTURE for scripts/verify-screens.js --self-test: a run that must FAIL on exactly these checks and no others. inventory_hover (the hover landed at uv 0.5,0.5, not at the found header), inventory_click (the click's cursor is Default, so the point was on the panel, not the header row), inventory_toggled (the child row Garage is still found after the click: the toggle did nothing), inventory_changed (the before/after PNGs beside this file are byte-identical, and the three sub-proofs above failed), web_ready and web_navigated (the web view answered with an error, on the same url), web_changed (identical web PNGs), tasks_not_blank (tasks.png is one flat colour), no_panics (one PANIC). The find answer is good and both inventory PNGs decode, so inventory_find and inventory_snapshots must still pass: a verdict that fails everything at once proves nothing. Shapes match the engine's done files (see the green fixture's note).",
   "stamp": "fixture-red",
-  "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
+  "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_6" },
   "web_host": "united-humanity.us",
   "panics": 1,
   "inventory": {
@@ -44,21 +44,21 @@
     "link_index": 0,
     "link_target": "https://united-humanity.us/library",
     "ready": {
-      "ok": false, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "ok": false, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/", "title": "https://united-humanity.us/",
       "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 3,
       "links": []
     },
     "link": {
-      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
+      "ok": true, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "uv": [0.125, 0.236],
       "url": "https://united-humanity.us/", "title": "https://united-humanity.us/", "status": "error: Could not reach the site: dns error",
       "links": []
     },
     "ready2": {
-      "ok": false, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "ok": false, "screen": "wall_screen_6", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/", "title": "https://united-humanity.us/",
       "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 2,

@@ -234,7 +234,7 @@ must not toggle back", and with the error page reduced to the bare word
 shapes.
 - Native: `src/engine/screens/video.rs` (`VideoProvider`, `resolve_media_path`, `letterbox_layout`, `compose_letterbox`, `audio_placement`), `src/engine/screens.rs` (`provider_for` arm, `world_update` loop in `frame_surfaces`), `src/gui/screen_surface.rs` (`ScreenWorld`, `ScreenProvider::world_update`, `ScreenSurface::world_update`), `src/engine/ipc.rs` (provider status merge)
 - Web: none by design (the screens live inside the native 3D world).
-- Data: `data/media/demo_colour_bar.webm` + `data/media/README.md` (provenance), `data/machines/home.ron` (`wall_screen_3` in the console room, `video:media/demo_colour_bar.webm`)
+- Data: `data/media/demo_colour_bar.webm` + `data/media/README.md` (provenance), `data/machines/home.ron` (`wall_screen_5` in the console room, `video:media/demo_colour_bar.webm`)
 - Tests: `src/engine/screens/video.rs` (scheme, path rule, pause toggle, error pages read back from the drawn text, frames + loop over the shipped clip, letterbox layout and compose, placement law; after the 2026-09-17 review: mix composition and epsilon gate, the sound link attaches once at the first mix, the stream starts at the placed mix not full volume, the attach waits for both the player and a device, a playing clip drops queued input, a clip paused on its last frame does not rewind, notices lay out at the def's px, the demo clip is byte-identical to the fixture; plus an ignored device test of the real attach), `src/gui/screen_surface.rs` (the event drop empties the queue and the next run sees none), `src/media/tests.rs` (the ignored looping-audio device test: the loop region wraps and the sound stays playing through two passes, with a one-shot control that stops)
 
 ### Reactions
@@ -301,7 +301,7 @@ the provider drew, through the normal hover, press and release on three
 frames), `wait_ready` (bounded by `WAIT_READY_LIMIT`), `uv` on every pointer
 verb and the provider's status fields on every done file (a web screen's
 `url`, `title`, `status` and the `links` it drew); the station camera request
-parks facing a named screen (`{"station":"home","screen":"wall_screen_3"}`).
+parks facing a named screen (`{"station":"home","screen":"wall_screen_6"}`).
 `just verify-screens` boots the release exe in its own rig, writes
 `readable_web: true` before boot, enters the world, and PROVES with no human
 that a click on the inventory wall toggles the Home header, a click on the web
@@ -313,7 +313,7 @@ fixture is the verdict proven able to fail). Design:
 `docs/design/readable-web.md` ("On a wall").
 - Native: `src/engine/screens/web.rs` (`WebProvider`), `src/engine/screens.rs` (`provider_for`, `link_uv`, `wait_ready_outcome`, `WAIT_READY_LIMIT`), `src/gui/screen_surface.rs` (`LoadState`, `FoundText`, `find_text_in_shapes`, `ScreenCore::find_text`), `src/engine/ipc.rs` (the verbs, `screen_done_base`, the screen camera pose), `src/gui/widgets/web_view.rs` (`show_sites_button`, `fetch_in_flight`, `history_len`)
 - Web: none by design (the screens are surfaces inside the native 3D world).
-- Data: `data/machines/home.ron` (`wall_screen_3`, `web:https://united-humanity.us`, console room east wall)
+- Data: `data/machines/home.ron` (`wall_screen_6`, `web:https://united-humanity.us`, console room east wall)
 - Tooling: `scripts/verify-screens.js` (`just verify-screens`; `--dry-verdict`, `--self-test`, wired into `just preflight`), `scripts/lib/png.js` (dependency-free PNG decode/encode/diff/colour stats), `tests/fixtures/screens/{green,red}/`
 
 ### In-App File Browser (native, v0.708)
@@ -1846,7 +1846,7 @@ deck") is the household's fixed workstation: zone type `console_room`, rooms.ron
 and a walled 3.5 x 3 m annex north of the common room (x 47.5..51.0, z 44.0..47.0) in
 `ship_structure.ron`, zone `console-room`. It is the mounting point for in-world screens
 (`wall_screen`, `desk_monitor`, built since: see "In-world screens" and "Video on in-world
-screens"; `wall_screen_3` on its west wall plays the demo clip). Also added
+screens"; `wall_screen_5` on its north wall plays the demo clip). Also added
 room-grade zone types `room_garden` and `room_living`, and `room_type` on every house zone with a
 rooms.ron entry.
 - Native: `src/ship/home_structure.rs` (`Zone::room_type`, `name_rooms_from_zones`, `room_actions_for`), `src/ship/fibonacci.rs` (`RoomInfo::room_type`/`label`/`type_key`), `src/ship/room_types.rs` (`lookup_type`, `function_for`, `RoomFunction`), `src/engine/home_meshes.rs` + `src/engine/world_load.rs` (RoomBounds join), `src/gui/pages/construction.rs` (`draw_zone_detail` room-type picker), `src/gui/mod.rs` (`room_type_registry`)
