@@ -23,41 +23,54 @@
 >   17 (already the right technique). **Low ocean eyes:** the water shell pass
 >   42 to 49 ms, heap-order alpha blend with depth write and no backface cull.
 >
-> **Hypothesis H1** (leading, decided by increment P1 phase A in one boot):
-> the seven PSOs are compiled from ONE 14,296-line module and four use
-> `fs_main`; every fragment of every one of them is charged the module's
-> per-invocation private storage (the cloud march's 2.9 KB
-> `var<private> g_bc_lc` and friends, reachable from `fs_main` through
-> `cloud_layer` even with clouds off). The bandwidth arithmetic fits (5.9 KB
-> per fragment implied). H2: the floor is outside the fragment shader.
+> **H1 CONFIRMED, P1 SHIPPED (v0.1315):** the seven PSOs are compiled from
+> ONE 14,296-line module and four use `fs_main`; every fragment paid the
+> module's per-invocation private storage (the cloud march's 2.9 KB
+> `var<private> g_bc_lc`, reachable from `fs_main` through `cloud_layer` even
+> with clouds off). Proven in one boot by a same-boot A/B through the shader
+> hot reload: the moon's `gpu.celestial` 44.1 ms with the shell branches
+> reachable, 7.4 ms with them unreachable, on a picture that draws none of
+> them. Shipped as WGSL override constants (`05-overrides.wgsl`) guarding
+> the atmosphere, cloud and ocean dispatches, with the two terrain pipelines
+> compiled with all three off and a per-pipeline dead-branch registry pinned
+> by tests. Gate at the operator's settings: moon 45.4 to 8.3 ms, Sahara
+> 31.4 to 5.3, blue marble 5.0 to 1.1, limb 63.5 to 13.3 (10.9 to 24.1 fps),
+> Fuji 85 to 69.
 >
-> **Build order** (ms saved per unit of risk): P1 shader permutation for the
-> terrain PSOs via WGSL `override` constants (phase A: stub the three
-> branches, capture the moon, the image must be pixel-identical; phase B ships
-> only if A moved the number); V1 near-tree frustum cull with the coverage
-> arithmetic untouched (the trap that broke v0.995, v0.1107, v0.1110.1); I1
-> interior vantages, the camera re-render under its own ids, the
+> **Next, in order** (ms saved per unit of risk, `docs/design/frame-cost-arc.md`):
+> P2, the same permutation for the shell draws through the transparent
+> pipeline (the limb's remaining 26 ms is the atmosphere shell, and phase A
+> showed it drops fifty times once the cloud branch is gone; the interior's
+> per-pixel floor is the same module through the opaque pipeline, so P2 also
+> answers the console room's 23 ns per pixel); V1 near-tree frustum cull with
+> the coverage arithmetic untouched (the trap that broke v0.995, v0.1107,
+> v0.1110.1); I1 the two console-room vantages as real fixtures plus the
 > screen-emitter hoist; W1 water depth prepass plus backface cull (a look
 > call, not a silent perf win); then clustered lights, interior culling, a
 > near-tree LOD ladder. Rejected on evidence: a masked-discard variant, an
 > interior depth prepass, a G-buffer.
 >
-> **Instrumentation gaps the measurement named** (a branch is building them):
-> no `cpu.frame_total` or present-wait stage (13 to 20 ms per frame
-> unaccounted at light vantages); the screen surface pass, the camera sky
-> pass, the particle compute and the sky-view LUT untimed; the camera
-> re-render summed into `gpu.scene`; the cloud keys and `gpu.celestial_t`
-> unregistered on the Performance page; nothing splits bodies, patches and
-> grass inside `gpu.celestial`.
+> **Instrumentation landed (v0.1315):** `cpu.frame_total`, `cpu.present_wait`
+> and `cpu.fps_cap_sleep`; scopes on the screen surface pass, the camera sky
+> pass, the particle compute and the sky-view LUT; the camera re-render, its
+> overlay and lines under `gpu.screen_*`; the cloud keys, the water shell and
+> the screens registered on the Performance page, held equal to what the
+> engine records by a scan-based test; and a fix for a pre-existing defect the
+> review found: opening the Performance page decayed every GPU row to zero
+> within a third of a second (the GPU harvest ran on UI-only frames; it now
+> freezes like the CPU column). Still missing: a split of bodies, patches and
+> grass inside `gpu.celestial` (three passes over the same attachments).
 >
 > **Also from this day:** the F10 sidebar took no input because the HUD
 > allocated a full-screen hover rect and egui 0.31's hit test stops at the
 > first covering rect regardless of sense (BUG-076, fixed with a headless
 > click test); Escape closes the expanded sidebar first and repeated Escape
 > presses are dropped; `debug/ui_request.json` drives the main UI for the
-> rig. **Open defects:** `vsync: false` panics at the first settings apply
-> after world entry (being characterised); Settings clamps silently rewrite
-> density and detail values so "vegetation off" is unreachable from the GUI.
+> rig. **Fixed the same day:** `vsync: false` killed the app on its first
+> rendered frame (BUG-077, a surface reconfigure inside the frame arm; now
+> deferred to the next frame's start, proven with a negative control).
+> **Open:** Settings clamps silently rewrite density and detail values so
+> "vegetation off" is unreachable from the GUI.
 
 > **THE IN-WORLD SCREENS LADDER, 2026-09-16.** Operator direction:
 > the native app pages (the real inventory page, not the web page) as
