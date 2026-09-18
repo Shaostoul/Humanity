@@ -1,6 +1,6 @@
 {
   "kind": "verify-screens",
-  "note": "FIXTURE for scripts/verify-screens.js --self-test: a run that must FAIL on exactly these checks and no others: inventory_changed (the before/after PNGs beside this file are byte-identical, which is the differ check proven red on two identical files), web_ready and web_navigated (the web view answered with an error, on the same url), web_changed (identical web PNGs), tasks_not_blank (tasks.png is one flat colour), no_panics (one PANIC). The find and click answers are good, so inventory_find and inventory_click must still pass: a verdict that fails everything at once proves nothing.",
+  "note": "FIXTURE for scripts/verify-screens.js --self-test: a run that must FAIL on exactly these checks and no others. inventory_hover (the hover landed at uv 0.5,0.5, not at the found header), inventory_click (the click's cursor is Default, so the point was on the panel, not the header row), inventory_toggled (the child row Garage is still found after the click: the toggle did nothing), inventory_changed (the before/after PNGs beside this file are byte-identical, and the three sub-proofs above failed), web_ready and web_navigated (the web view answered with an error, on the same url), web_changed (identical web PNGs), tasks_not_blank (tasks.png is one flat colour), no_panics (one PANIC). The find answer is good and both inventory PNGs decode, so inventory_find and inventory_snapshots must still pass: a verdict that fails everything at once proves nothing. Shapes match the engine's done files (see the green fixture's note).",
   "stamp": "fixture-red",
   "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
   "web_host": "united-humanity.us",
@@ -8,21 +8,41 @@
   "inventory": {
     "before": "inventory_before.png",
     "after": "inventory_after.png",
+    "child_text": "Garage",
     "find": {
       "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "found": true, "text": "Home  (Silverdale, WA · 47.645, -122.695)", "matches": 2,
       "uv": [0.083, 0.146], "rect_px": [64.0, 240.0, 300.0, 18.0]
     },
+    "hover": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "hover",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
+      "uv": [0.5, 0.5]
+    },
+    "child_before": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
+      "found": true, "text": "Garage", "matches": 1,
+      "uv": [0.094, 0.208], "rect_px": [96.0, 292.0, 48.0, 18.0]
+    },
     "click": {
       "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "click",
-      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
+      "uv": [0.083, 0.146]
+    },
+    "child_after": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
+      "found": true, "text": "Garage", "matches": 1,
+      "uv": [0.094, 0.208], "rect_px": [96.0, 292.0, 48.0, 18.0]
     }
   },
   "web": {
     "before": "web_before.png",
     "after": "web_after.png",
     "link_index": 0,
+    "link_target": "https://united-humanity.us/library",
     "ready": {
       "ok": false, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
       "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
@@ -32,14 +52,17 @@
     },
     "link": {
       "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
-      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": true,
-      "url": "https://united-humanity.us/", "title": "https://united-humanity.us/", "status": "error: Could not reach the site: dns error"
+      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
+      "uv": [0.125, 0.236],
+      "url": "https://united-humanity.us/", "title": "https://united-humanity.us/", "status": "error: Could not reach the site: dns error",
+      "links": []
     },
     "ready2": {
       "ok": false, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
-      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": true,
+      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
       "url": "https://united-humanity.us/", "title": "https://united-humanity.us/",
-      "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 2
+      "status": "error: Could not reach the site: dns error", "error": "the screen's content failed: Could not reach the site: dns error", "waited_ms": 2,
+      "links": []
     }
   },
   "tasks": {

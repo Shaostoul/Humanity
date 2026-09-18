@@ -3,9 +3,22 @@
 // a portable rig, enters the world, parks the camera in the console room, and
 // PROVES with nobody at the keyboard that the wall screens are interactive:
 //
-//   inventory   snapshot wall_screen_1, find the "Home" container header by
-//               its drawn text, click it, snapshot again: the two images must
-//               differ and egui must report a widget under the pointer.
+//   inventory   find the "Home" container header on wall_screen_1 by its
+//               drawn text, HOVER it, find the child row "Garage" (drawn
+//               only while Home is open), snapshot, click the header, find
+//               "Garage" again, snapshot: the hover must have landed at the
+//               found uv, the click must report egui's PointingHand cursor
+//               (the header row's own, set from row.hovered() in
+//               inventory.rs, so the point is on the row and not merely on
+//               the panel), "Garage" must have flipped from found to gone,
+//               and the two images must differ. The hover comes FIRST so
+//               both snapshots carry the pointer in the same place: egui's
+//               floating scrollbar (egui 0.31 ScrollArea, invisible when
+//               dormant, drawn the instant a pointer is over the area)
+//               otherwise makes two frames differ by a scrollbar column
+//               whether or not the click did anything, and a pixel diff
+//               alone cannot tell a dead click from a live one (an
+//               adversarial review found exactly that hole, 2026-09-17).
 //   web         wait for wall_screen_3 (web:https://united-humanity.us) to
 //               report a loaded page, snapshot, click its first link that
 //               stays on our own host, wait again: the url must change and
@@ -18,7 +31,10 @@
 // into the same ScreenCore event API the look ray uses (never a side path),
 // so a green run here means a player can walk up to the wall and do the same.
 // The operator's words: "We want to make sure people can actually interact
-// with the web display screen in-game." Only our own site is fetched.
+// with the web display screen in-game." The gate only FOLLOWS LINKS on our
+// own site; the page's own images and any redirect go to the hosts the page
+// names (docs/design/readable-web.md, "The opt-in, and what leaves the
+// machine"), which is a property of the page, not of this rig.
 //
 // The rig writes `readable_web: true` into ITS OWN config.json before boot
 // (the switch is off by default and a screen must never fetch while it is),
@@ -33,11 +49,12 @@
 // running, stale binary, rig busy). Exit 2 = the screens failed the gate.
 //
 // --dry-verdict re-judges an EXISTING manifest (its PNGs beside it) without
-// booting anything; --self-test judges the two fixture manifests under
-// tests/fixtures/screens/ (a green one that must pass and a red one whose
-// exact failing checks are known) and is how the verdict logic itself is
-// proven able to fail. Both print "DRY VERDICT (nothing was booted)" so a
-// pasted transcript can never be mistaken for a live run.
+// booting anything; --self-test judges the three fixture manifests under
+// tests/fixtures/screens/ (green must pass; red and dead-click must fail on
+// exactly their known checks, dead-click being the scrollbar-only pixel
+// diff with a child row that never went away) and is how the verdict logic
+// itself is proven able to fail. Both print "DRY VERDICT (nothing was
+// booted)" so a pasted transcript can never be mistaken for a live run.
 //
 // ONE GPU (CLAUDE.md): this refuses to boot while ANY HumanityOS.exe is
 // running, the operator's game included, and never sets the take-focus env
@@ -78,6 +95,16 @@ const SCREENS = { inventory: "wall_screen_1", tasks: "wall_screen_2", web: "wall
 const WEB_HOST = "united-humanity.us";
 // The drawn text the inventory click targets: the Home container's header.
 const INVENTORY_TARGET = "Home";
+// A drawn text that exists ONLY while that container is open: its child
+// container "Garage" (data/places/seed.json, Home's one room, nested as its
+// own card inside Home's open body and drawn nowhere else on the page; the
+// headless test `find_text_locates_the_home_header_and_a_click_there_toggles_it`
+// in src/gui/screen_surface.rs guards that it vanishes when Home closes).
+// Its `found` flipping across the click is the semantic proof the click
+// toggled the header, which no pixel diff can give. Renaming the room in
+// the data breaks this gate loudly (found=false on both sides), never
+// quietly.
+const INVENTORY_CHILD = "Garage";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (s, n) => String(s).padEnd(n);
@@ -114,6 +141,16 @@ function onOurHost(url) {
   const h = hostOf(url);
   return h === WEB_HOST || h.endsWith("." + WEB_HOST);
 }
+// Two uv pairs agree when each axis is within 1e-4. The engine writes f32
+// values and a uv sent back to it round-trips exactly, so this is really
+// an equality; the tolerance only keeps a number-formatting change from
+// failing a good run.
+function uvClose(a, b) {
+  return (
+    Array.isArray(a) && Array.isArray(b) && a.length === 2 && b.length === 2 &&
+    Math.abs(a[0] - b[0]) < 1e-4 && Math.abs(a[1] - b[1]) < 1e-4
+  );
+}
 function loadPng(dir, name) {
   if (!name) return { error: "no snapshot recorded" };
   const p = path.join(dir, name);
@@ -131,28 +168,78 @@ function judge(m, dir) {
   const web = m.web || {};
   const tasks = m.tasks || {};
 
-  // Inventory: two snapshots, a find, a click; the images must differ.
+  // Inventory: find the header, hover it, find the child row, snapshot,
+  // click, find the child row again, snapshot. Six checks; the last one,
+  // inventory_changed, is red unless the hover (a), the click's cursor (b)
+  // and the child row's flip (c) ALL hold as well as the pixel diff. A
+  // pixel diff alone cannot tell a dead click from a live one: the
+  // pointer's own arrival draws egui's floating scrollbar (see the header
+  // comment), so two frames differ whether or not the click did anything.
   const invA = loadPng(dir, inv.before);
   const invB = loadPng(dir, inv.after);
   add("inventory_snapshots", invA.img && invB.img, invA.error || invB.error || `${inv.before}, ${inv.after}`);
   const find = inv.find || null;
+  const findOk = !!(find && find.ok === true && find.found === true && Array.isArray(find.uv));
   add(
     "inventory_find",
-    find && find.ok === true && find.found === true,
+    findOk,
     find ? (find.error || `"${find.text}" at uv ${JSON.stringify(find.uv)} (${find.matches} match(es))`) : "never ran"
   );
+  // (a) The hover landed where the find pointed, BEFORE the first snapshot,
+  // so both snapshots carry the pointer in the same place.
+  const hover = inv.hover || null;
+  const hoverOk = !!(hover && hover.ok === true && findOk && uvClose(hover.uv, find.uv));
+  add(
+    "inventory_hover",
+    hoverOk,
+    hover
+      ? (hover.error ||
+        `${findOk && uvClose(hover.uv, find.uv) ? "at" : "NOT at"} the found uv: hovered ${JSON.stringify(hover.uv || null)} cursor=${hover.cursor_icon}`)
+      : "never ran"
+  );
+  // (b) The click landed ON the header row: egui reported a layer under the
+  // pointer AND the row's own cursor. inventory.rs sets PointingHand from
+  // row.hovered(), so Default means the point was on the panel, not the row.
   const click = inv.click || null;
+  const clickOk = !!(click && click.ok === true && click.hover_widget === true && click.cursor_icon === "PointingHand");
   add(
     "inventory_click",
-    click && click.ok === true && click.hover_widget === true,
-    click ? (click.error || `hover_widget=${click.hover_widget} cursor=${click.cursor_icon} focused=${click.focused}`) : "never ran"
+    clickOk,
+    click
+      ? (click.error ||
+        `hover_widget=${click.hover_widget} cursor=${click.cursor_icon}${click.cursor_icon === "PointingHand" ? "" : " (the header row reports PointingHand)"} focused=${click.focused}`)
+      : "never ran"
+  );
+  // (c) The click's EFFECT, semantically: a row drawn only while the
+  // container is open must be present on one side of the click and absent
+  // on the other. Either direction is a toggle; no change is a dead click.
+  const cb = inv.child_before || null;
+  const ca = inv.child_after || null;
+  const childOk = !!(
+    cb && ca && cb.ok === true && ca.ok === true &&
+    typeof cb.found === "boolean" && typeof ca.found === "boolean" && cb.found !== ca.found
+  );
+  const childName = inv.child_text || (cb && cb.text) || "?";
+  add(
+    "inventory_toggled",
+    childOk,
+    cb && ca
+      ? (cb.error || ca.error ||
+        `"${childName}" found before=${cb.found} after=${ca.found}${childOk ? (cb.found ? " (the click closed the container)" : " (the click opened the container)") : " (no change: the click did not toggle the container)"}`)
+      : "never ran"
   );
   if (invA.img && invB.img) {
     const d = png.diffPixels(invA.img, invB.img);
+    const pixelsOk = !d.sizeMismatch && d.differing > 0;
+    const missing = [];
+    if (!pixelsOk) missing.push(d.sizeMismatch ? "snapshot sizes differ" : "no pixel changed");
+    if (!hoverOk) missing.push("hover not at the target");
+    if (!clickOk) missing.push("click not on the header row");
+    if (!childOk) missing.push("child row did not flip");
     add(
       "inventory_changed",
-      !d.sizeMismatch && d.differing > 0,
-      d.sizeMismatch ? "snapshot sizes differ" : `${d.differing} of ${d.total} pixels changed after the click`
+      pixelsOk && hoverOk && clickOk && childOk,
+      `${d.differing} of ${d.total} pixels changed after the click${missing.length ? `; NOT proven: ${missing.join(", ")}` : "; hover, cursor and child row all agree"}`
     );
   } else {
     add("inventory_changed", false, "no pair of snapshots to compare");
@@ -226,31 +313,57 @@ function printVerdict(verdictPrefix, m, dir) {
 // ── --self-test: the verdict must be able to fail ────────────────────────────
 if (SELF_TEST) {
   const fx = path.join(REPO, "tests", "fixtures", "screens");
-  const green = JSON.parse(fs.readFileSync(path.join(fx, "green", "manifest.json"), "utf8"));
-  const red = JSON.parse(fs.readFileSync(path.join(fx, "red", "manifest.json"), "utf8"));
+  const load = (name) => ({
+    name,
+    dir: path.join(fx, name),
+    m: JSON.parse(fs.readFileSync(path.join(fx, name, "manifest.json"), "utf8")),
+  });
+  // Each fixture with EXACTLY the checks it must fail (in verdict order),
+  // and nothing else. Any drift in the verdict logic (a check that stops
+  // firing, or one that fires on good evidence) shows up here.
+  //   green       every check passes.
+  //   red         identical inventory snapshots, a hover off the target, a
+  //               click whose cursor is Default (on the panel, not the
+  //               row), a child row still found after the click, a web view
+  //               that errored on the same url, a flat tasks snapshot, one
+  //               panic. inventory_find and inventory_snapshots must still
+  //               pass: a verdict that fails everything proves nothing.
+  //   dead-click  THE REVIEWER'S SCENARIO (2026-09-17): hover and cursor
+  //               both good, the two snapshots differ ONLY by a
+  //               scrollbar-like column, and the child row is still found
+  //               after the click. The old verdict passed this; it must
+  //               fail on the child row and, through it, inventory_changed.
+  const fixtures = [
+    { ...load("green"), expect: [] },
+    {
+      ...load("red"),
+      expect: [
+        "inventory_hover", "inventory_click", "inventory_toggled", "inventory_changed",
+        "web_ready", "web_navigated", "web_changed", "tasks_not_blank", "no_panics",
+      ],
+    },
+    { ...load("dead-click"), expect: ["inventory_toggled", "inventory_changed"] },
+  ];
   console.log("verify-screens --self-test: judging the fixture manifests (nothing is booted)");
-  const g = judge(green, path.join(fx, "green"));
-  printVerdict("DRY VERDICT (nothing was booted): ", green, path.join(fx, "green"));
-  const r = judge(red, path.join(fx, "red"));
-  printVerdict("DRY VERDICT (nothing was booted): ", red, path.join(fx, "red"));
-  // The red fixture is built to fail EXACTLY these, and only these: identical
-  // inventory snapshots, a web view that errored on the same url, a flat
-  // tasks snapshot, and one panic. Any drift in the verdict logic (a check
-  // that stops firing, or one that fires on good evidence) shows up here.
-  const expectRed = ["inventory_changed", "web_ready", "web_navigated", "web_changed", "tasks_not_blank", "no_panics"];
-  const gotRed = r.checks.filter((c) => !c.ok).map((c) => c.id);
   const problems = [];
-  if (!g.pass) problems.push(`the green fixture must pass; failed: ${g.checks.filter((c) => !c.ok).map((c) => c.id).join(", ")}`);
-  if (r.pass) problems.push("the red fixture must fail");
-  if (JSON.stringify(gotRed) !== JSON.stringify(expectRed)) {
-    problems.push(`the red fixture must fail exactly [${expectRed.join(", ")}], got [${gotRed.join(", ")}]`);
+  for (const f of fixtures) {
+    const r = judge(f.m, f.dir);
+    printVerdict(`DRY VERDICT (nothing was booted) [${f.name}]: `, f.m, f.dir);
+    const got = r.checks.filter((c) => !c.ok).map((c) => c.id);
+    if (JSON.stringify(got) !== JSON.stringify(f.expect)) {
+      problems.push(
+        f.expect.length
+          ? `the ${f.name} fixture must fail exactly [${f.expect.join(", ")}], got [${got.join(", ")}]`
+          : `the ${f.name} fixture must pass; failed: ${got.join(", ")}`
+      );
+    }
   }
   if (problems.length) {
     console.error("SELF-TEST FAILED:");
     for (const p of problems) console.error(`  ${p}`);
     process.exit(1);
   }
-  console.log("SELF-TEST OK: the green fixture passes, the red fixture fails on exactly the expected checks.");
+  console.log("SELF-TEST OK: green passes; red and dead-click fail on exactly their expected checks.");
   process.exit(0);
 }
 
@@ -542,17 +655,33 @@ async function main() {
     // first snapshot.
     await sleep(4000);
 
-    // (a) INVENTORY: snapshot, find "Home", click it, snapshot, compare.
-    const invA = step("inv_snapshot", await screen({ screen: SCREENS.inventory, action: "snapshot" }));
-    manifest.inventory.before = keepPng(invA, "inventory_before.png");
+    // (a) INVENTORY. The ORDER is the point (see the header comment): find
+    // the header, HOVER it, find the child row, snapshot, click, find the
+    // child row again, snapshot. The hover before the first snapshot puts
+    // the pointer where it will stay for the whole leg (the camera faces
+    // the web wall, so the look ray never touches this surface and never
+    // takes the pointer away), so the only difference left between the two
+    // snapshots is what the click did.
     const find = step("inv_find", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } }));
     manifest.inventory.find = find;
+    manifest.inventory.child_text = INVENTORY_CHILD;
+    const nothingToClick = { ok: false, error: `no "${INVENTORY_TARGET}" text on the inventory screen, nothing to hover or click` };
+    if (find.ok && find.found) {
+      manifest.inventory.hover = step("inv_hover", await screen({ screen: SCREENS.inventory, action: "hover", uv: find.uv }));
+    } else {
+      manifest.inventory.hover = nothingToClick;
+      step("inv_hover", manifest.inventory.hover);
+    }
+    manifest.inventory.child_before = step("inv_child", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_CHILD } }));
+    const invA = step("inv_snapshot", await screen({ screen: SCREENS.inventory, action: "snapshot" }));
+    manifest.inventory.before = keepPng(invA, "inventory_before.png");
     if (find.ok && find.found) {
       manifest.inventory.click = step("inv_click", await screen({ screen: SCREENS.inventory, action: "click", uv: find.uv }));
     } else {
-      manifest.inventory.click = { ok: false, error: `no "${INVENTORY_TARGET}" text on the inventory screen, nothing to click` };
+      manifest.inventory.click = nothingToClick;
       step("inv_click", manifest.inventory.click);
     }
+    manifest.inventory.child_after = step("inv_child2", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_CHILD } }));
     const invB = step("inv_snapshot2", await screen({ screen: SCREENS.inventory, action: "snapshot" }));
     manifest.inventory.after = keepPng(invB, "inventory_after.png");
     save();
@@ -638,6 +767,7 @@ function summarize(d) {
   if (d.url) parts.push(`url=${d.url}`);
   if (d.found !== undefined) parts.push(`found=${d.found}${d.uv ? ` uv=${JSON.stringify(d.uv)}` : ""}`);
   if (d.hover_widget !== undefined) parts.push(`hover_widget=${d.hover_widget}`);
+  if (d.cursor_icon !== undefined) parts.push(`cursor=${d.cursor_icon}`);
   if (d.png) parts.push(d.png);
   if (d.screen && !d.png && !d.status) parts.push(`screen=${d.screen}`);
   if (d.position) parts.push(`position=${JSON.stringify(d.position)}`);

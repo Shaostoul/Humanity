@@ -248,10 +248,15 @@ The rules that make it safe to hang a web page on a wall:
   navigation on the next frame; turning it off again stops the view being
   drawn at all. `off_switch_draws_a_notice_and_never_fetches` in `web.rs`
   proves the off case through the view's own fetch state.
-- **The sites database still applies.** The affiliate disclosure line for
-  the current page's site is drawn above the page on the wall too. Which
-  sites may be placed on screens is the database's `embed.status` call, as
-  the readable-web doc says; the shipped `wall_screen_3` shows our own site.
+- **The sites database is shown on a wall, not enforced.** The affiliate
+  disclosure line for the current page's site is drawn above the page on
+  the wall too. The database also records each site's review state
+  (`embed.status`: needs_review, allowed, forbidden, unknown, with the basis
+  and the reviewer), but nothing checks it when a `web:` source is placed
+  on a screen: today its only consumer is the review label on the Browser
+  page's site cards. A placement gate on it is a later rung (see "The
+  ladder above this"); until then the only guard is that the shipped
+  `wall_screen_3` shows our own site.
 
 Status for the dev IPC: `{url, title, status, links}`, where the title is
 the page's first heading (else its `<title>`, else the url), the status is
@@ -294,7 +299,13 @@ landed in. `hover_widget` is whether egui reported a layer
 under the pointer after that frame (egui does not expose per-widget hover
 publicly); `cursor_icon` distinguishes a text field (Text) or a link
 (PointingHand) from plain content. The request file is consumed even on
-error, and an error writes `{"ok": false, "error"}`.
+error, and an error writes `{"ok": false, "error"}`. That holds when the
+request's screen disappears mid-flight too: a placement rebuild
+(`sync_screens`, an editor change) or a surface index that no longer exists
+abandons the request through `Screens::abandon_ipc`, which clears the
+in-flight record and its payload and writes `{"ok": false, "error"}` naming
+the cause, so a rig reads a failure at once instead of waiting out its own
+timeout.
 
 The three verbs a rig needs so it never guesses a pixel:
 
@@ -334,9 +345,23 @@ the release binary in its own portable rig (`.probe-rig/screens`, with
 `readable_web: true` written into the rig's config.json before boot), enters
 the world through autopilot, parks facing `wall_screen_3`, and then:
 
-1. inventory (`wall_screen_1`): snapshot, `find` "Home", `click` at the
-   answer, snapshot; the two PNGs must differ and `hover_widget` must be
-   true;
+1. inventory (`wall_screen_1`): `find` "Home" (the container header),
+   `hover` at the answer, `find` "Garage" (the child container that is
+   drawn only while Home is open), snapshot, `click` at the answer, `find`
+   "Garage" again, snapshot. The hover comes FIRST so both snapshots carry
+   the pointer in the same place: egui's floating scrollbar fades in under
+   a pointer, so without that hover two frames differ by a scrollbar
+   column whether or not the click did anything, and a pixel diff alone
+   cannot tell a dead click from a live one (an adversarial review found
+   exactly that hole, 2026-09-17). The judge requires the hover to have
+   landed at the found uv, the click's answer to report `hover_widget` AND
+   the `PointingHand` cursor (the inventory sets it from `row.hovered()`,
+   so it proves the point is on the header row, not merely on the panel;
+   the header's labels are non-selectable so egui's text-selection drag
+   cannot override that cursor with the I-beam on the release frame, which
+   it did while they were selectable),
+   the child row's `found` to flip across the click, and the two PNGs to
+   differ; `inventory_changed` is red unless every one of those holds;
 2. web (`wall_screen_3`): `wait_ready` (status must be `ready` on our own
    host), snapshot, `link` at the first link whose href stays on our own
    host (chosen from the `links` the status reported; if the page drew no
@@ -350,11 +375,17 @@ Evidence lands in `.probe-rig/screens/runs/<stamp>/` (the PNG pairs, a
 viewport capture of the console room, the manifest with every done file
 verbatim, the run log). Exit 0 passed, 1 refused, 2 failed. The verdict is a
 pure function of the manifest: `--dry-verdict <manifest.json>` re-judges
-one without booting, and `--self-test` judges the two fixture manifests
-under `tests/fixtures/screens/` (a green one that must pass and a red one
-that must fail on exactly its six known checks, including two byte-identical
-snapshots for the differ check), which is how the verdict logic itself is
-proven able to fail. Both print "DRY VERDICT (nothing was booted)".
+one without booting, and `--self-test` judges the three fixture manifests
+under `tests/fixtures/screens/`: `green` must pass; `red` must fail on
+exactly its nine known checks (byte-identical snapshots, a hover off the
+target, a click whose cursor is not the header's, a child row that never
+went away, a web view that errored on the same url, a flat tasks image, a
+panic) while `inventory_find` and `inventory_snapshots` still pass;
+`dead-click` is the reviewer's scenario, snapshots that differ only by a
+scrollbar-like column while the child row is still found after the click,
+and must fail on exactly `inventory_toggled` and `inventory_changed`. That
+is how the verdict logic itself is proven able to fail. Both modes print
+"DRY VERDICT (nothing was booted)".
 
 ## Performance budget
 
@@ -397,3 +428,8 @@ Each is a separate increment on the same surface:
   The monitor surface did not change; the thing drawn into it did, exactly
   as planned. Still wanted on top of it: a VR-controller ray, and
   distance-based suspend of a wall's fetches.
+- **A placement gate on the sites database:** `embed.status` is recorded
+  and shown (the Browser page's site cards) but not enforced when a `web:`
+  source is placed on a screen. The gate (a `forbidden` site is never
+  placed, a `needs_review` one carries the review badge on the wall) is
+  its own increment on top of rung 6.

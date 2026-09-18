@@ -334,6 +334,30 @@ impl Screens {
         self.focused.and_then(|i| self.surfaces.get(i)).map_or(false, |s| s.core.wants_keyboard())
     }
 
+    /// Drop the dev-IPC interaction in flight because the screen it targets
+    /// no longer exists (`why` names the cause: a placement rebuild, or a
+    /// surface index that is gone), clearing its one-shot payload with it,
+    /// and hand back the failure the caller writes to
+    /// `debug/screen_done.json` (`ipc::write_screen_done`). `None` when
+    /// nothing was in flight, so callers write nothing then. This is the
+    /// one shape for "the request cannot finish": a rig waiting on the done
+    /// file reads `{"ok": false, "error"}` at once instead of waiting out
+    /// its own timeout, which is what happened before 2026-09-17, when two
+    /// paths dropped the record silently (found by an adversarial review).
+    /// Tested on a bare `Screens` because an `EngineState` needs a GPU.
+    pub fn abandon_ipc(&mut self, why: &str) -> Option<serde_json::Value> {
+        self.ipc_payload = None;
+        let ipc = self.ipc.take()?;
+        let msg = format!("screen request {:?} abandoned: {why}", ipc.action);
+        log::warn!("Screen request: {msg}");
+        Some(serde_json::json!({
+            "ok": false,
+            "error": msg,
+            "action": ipc.action,
+            "surface": ipc.surface,
+        }))
+    }
+
     /// Route a primary button press or release. Returns true when a screen
     /// took it (the caller then skips the game's own click action for a
     /// press). A press with no screen under the ray releases keyboard focus,
@@ -541,13 +565,17 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
     if !old_surfaces.is_empty() {
         log::info!("[Screens] dropped {} surface(s) whose machine is gone", old_surfaces.len());
     }
-    // Indices changed: hover is recomputed next frame, focus and any IPC
-    // interaction in flight are simply released.
+    // Indices changed: hover is recomputed next frame, focus is released,
+    // and any IPC interaction in flight is abandoned WITH a done file (a
+    // rig must never wait out its own timeout on a request the engine
+    // dropped; the helper clears the one-shot payload too).
     state.screens.surfaces = surfaces;
     state.screens.quads = quads;
     state.screens.hover = None;
     state.screens.focused = None;
-    state.screens.ipc = None;
+    if let Some(done) = state.screens.abandon_ipc("the placed screens were rebuilt while it was in flight") {
+        crate::engine::ipc::write_screen_done(done);
+    }
     if !state.screens.quads.is_empty() {
         log::info!("[Screens] {} in-world screen(s) placed", state.screens.quads.len());
     }
@@ -865,5 +893,39 @@ mod tests {
         assert_eq!(wait_ready_outcome(&LoadState::Static, Duration::from_secs(99)), Some(Ok(())));
         let failed = wait_ready_outcome(&LoadState::Error("HTTP 503".into()), Duration::ZERO).expect("decided");
         assert!(failed.as_ref().unwrap_err().contains("HTTP 503"), "{failed:?}");
+    }
+
+    /// An IPC interaction whose screen disappears is abandoned WITH a
+    /// failure the rig can read (ok false, an error naming the cause and
+    /// the verb), and its one-shot payload goes with it; with nothing in
+    /// flight there is nothing to write. Both drop paths go through this
+    /// helper (`sync_screens` on a placement rebuild,
+    /// `ipc::advance_screen_request` on a gone surface index), tested here
+    /// on a bare `Screens` because an `EngineState` cannot be built without
+    /// a GPU. Before 2026-09-17 both paths cleared the record silently and
+    /// `scripts/verify-screens.js` waited out its 30 s timeout.
+    #[test]
+    fn abandoning_an_ipc_in_flight_reports_the_cause_and_clears_the_payload() {
+        let mut screens = Screens::default();
+        assert!(screens.abandon_ipc("nothing in flight").is_none(), "nothing to abandon, nothing to write");
+        screens.ipc = Some(ScreenIpc {
+            surface: 3,
+            action: "click".into(),
+            uv: (0.1, 0.2),
+            stage: IpcStage::Press,
+            snapshot: false,
+            link_index: 0,
+            find_text: String::new(),
+            started: None,
+        });
+        screens.ipc_payload = Some((-3.0, "typed".into()));
+        let done = screens.abandon_ipc("the placed screens were rebuilt").expect("a request was in flight");
+        assert_eq!(done["ok"], serde_json::json!(false));
+        let err = done["error"].as_str().unwrap_or("");
+        assert!(err.contains("rebuilt") && err.contains("click"), "the error names the cause and the verb: {err}");
+        assert_eq!(done["surface"], serde_json::json!(3));
+        assert!(screens.ipc.is_none(), "the in-flight record is cleared");
+        assert!(screens.ipc_payload.is_none(), "the one-shot payload is cleared with it");
+        assert!(screens.abandon_ipc("again").is_none(), "abandoning twice writes nothing the second time");
     }
 }

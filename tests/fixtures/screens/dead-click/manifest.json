@@ -1,7 +1,7 @@
 {
   "kind": "verify-screens",
-  "note": "FIXTURE for scripts/verify-screens.js --self-test: a run where every check passes. The done objects carry the same keys the engine writes to debug/screen_done.json (src/engine/ipc.rs screen_done_base + complete_screen_request): the base fields, `uv` on every pointer verb (hover, click, link), `found`/`text`/`matches` (+ `uv`/`rect_px` when found) on a find, and the web provider's `url`/`title`/`status`/`links` merged at the top level; `focused` is false throughout because the dev IPC never gives a screen keyboard focus (only the look ray's click does). Once the pointer has been hovered onto the inventory wall it stays there, so every later done on that wall reports hover_widget true and the header row's PointingHand cursor. The inventory leg runs in the rig's order: find Home, hover there, find the child row Garage (drawn only while Home is open), snapshot, click, find Garage again (gone), snapshot. The PNGs beside this file are tiny synthetic images: the inventory and web pairs differ by one row, the tasks image has many colours.",
-  "stamp": "fixture-green",
+  "note": "FIXTURE for scripts/verify-screens.js --self-test: THE DEAD CLICK an adversarial review found on 2026-09-17. Everything the old verdict looked at is good: the hover landed at the found header, the click reports hover_widget and the header row's PointingHand cursor, and the before/after PNGs beside this file differ, but ONLY by a 3 px scrollbar-like column at the right edge (the pixels egui's floating scrollbar adds when a pointer is over a scroll area), while the child row Garage is still found after the click, which is what a deleted toggle looks like. This run must FAIL on exactly inventory_toggled and inventory_changed, and pass everything else. The web and tasks PNGs are copies of the green fixture's; the inventory PNGs were generated as a synthetic page with and without the column (120 of 3072 pixels differ).",
+  "stamp": "fixture-dead-click",
   "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
   "web_host": "united-humanity.us",
   "panics": 0,
@@ -34,7 +34,8 @@
     "child_after": {
       "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
       "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
-      "found": false, "text": "Garage", "matches": 0
+      "found": true, "text": "Garage", "matches": 1,
+      "uv": [0.094, 0.208], "rect_px": [96.0, 292.0, 48.0, 18.0]
     }
   },
   "web": {

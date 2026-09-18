@@ -93,6 +93,13 @@ machine:
 
 Nothing else. No third-party beacons, because nothing runs to send them.
 
+Where those requests go is decided by the page, not by the address row: an
+image whose `src` names another host is fetched from that host, and a
+redirect is followed to whatever host it names (up to five hops, each one
+scheme-checked but not host-checked). So opening a page can mean talking to
+hosts other than the one you typed; what never happens is a request the
+page did not name.
+
 The fetch itself is gated and bounded (`src/web_reader/fetch.rs`):
 
 - The scheme is checked **before any request**: only `http` and `https`.
@@ -278,12 +285,20 @@ a normal hover, press and release on three frames through the screen's
 event API, never a side path into the view; a page with no such link gets
 no click at all, so the gate never fetches a third-party page), waits for
 `ready` again on a NEW url that is still on our host, snapshots again, and
-requires the two images to differ. The same run clicks the
-inventory wall's Home header (found by its drawn text) and checks the tasks
-wall drew a page and the log holds no panic. The status the rig reads back
-is the provider's own (`url`, `title`, `status`), so a run where the
-setting did not take fails with `off`, never passes by luck. Only our own
-site is fetched.
+requires the two images to differ. The same run proves the inventory wall
+reacts to a click with more than a pixel diff: it finds the Home container
+header by its drawn text, hovers it FIRST so both snapshots carry the
+pointer in the same place (egui's floating scrollbar fades in under a
+pointer, which alone makes two frames differ), checks that a child row
+drawn only while Home is open ("Garage") is found, snapshots, clicks, and
+requires the click's answer to report the header's PointingHand cursor,
+the child row to be gone, and the two images to differ; then it checks the
+tasks wall drew a page and the log holds no panic. The status the rig
+reads back is the provider's own (`url`, `title`, `status`), so a run
+where the setting did not take fails with `off`, never passes by luck. The
+gate only FOLLOWS LINKS on our own site; the page's own images and any
+redirect go to the hosts the page names, exactly as in "The opt-in, and
+what leaves the machine" above.
 
 Run it on the dev machine (never in CI: it needs the GPU) after touching
 the web view, the screen surface, the provider, or the IPC:
@@ -302,11 +317,19 @@ reports its reason.
 
 ## The ladder above
 
-Rung 6 core and its wall integration are shipped. The sites database's
-`embed.status` decides which sites may be placed on screens (`forbidden`
-never; `needs_review` with the review badge). Still wanted, from the old
-kiosk design: input from a VR controller ray, distance-based suspend of a
-wall's fetches, an affiliate dashboard once any programme is joined.
+Rung 6 core and its wall integration are shipped. The sites database
+records each site's review state (`embed.status`: needs_review, allowed,
+forbidden, unknown, with the basis and the reviewer); today its only
+consumer is the review label on the Browser page's site cards, and nothing
+checks it when a `web:` source is placed on a screen. Still wanted:
+
+- **A placement gate on `embed.status`:** a `forbidden` site is never
+  placed on a screen and a `needs_review` one carries the review badge on
+  the wall. Until it exists the only guard is that the shipped
+  `wall_screen_3` shows our own site.
+- From the old kiosk design: input from a VR controller ray, distance-based
+  suspend of a wall's fetches, an affiliate dashboard once any programme is
+  joined.
 
 ## Files
 

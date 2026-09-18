@@ -1215,7 +1215,11 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// `ok: false`). This is how the runtime verifier
 /// (`scripts/verify-screens.js`) proves a screen works with no human at the
 /// keyboard. The request file is consumed even on error; a failure writes
-/// `{"ok": false, "error": ...}`.
+/// `{"ok": false, "error": ...}`, including when the request's screen
+/// disappears mid-flight (a placement rebuild, or a surface index that is
+/// gone): both drop paths go through `Screens::abandon_ipc`, which clears
+/// the record and its payload and names the cause, so a rig never waits
+/// out its own timeout on a request the engine dropped.
 ///
 /// Three functions because a click spans three frames (`screens::IpcStage`)
 /// and the answer must describe the frame the LAST event landed in:
@@ -1305,7 +1309,13 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
     let Some(ipc) = state.screens.ipc.as_mut() else { return };
     let (dy, text) = state.screens.ipc_payload.clone().unwrap_or((0.0, String::new()));
     let Some(s) = state.screens.surfaces.get_mut(ipc.surface) else {
-        state.screens.ipc = None;
+        // The surface index is gone (the placements were rebuilt between
+        // poll and advance): answer with a failure naming the cause rather
+        // than dropping the request silently and leaving a rig to wait out
+        // its own timeout. The helper clears the record and its payload.
+        if let Some(done) = state.screens.abandon_ipc("its surface index no longer exists") {
+            write_screen_done(done);
+        }
         return;
     };
     use crate::engine::screens::IpcStage;
@@ -1422,9 +1432,10 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
     // polling its fetch) and the look ray off its pointer.
     if ipc.stage == IpcStage::Waiting {
         let Some(s) = state.screens.surfaces.get(ipc.surface) else {
-            state.screens.ipc = None;
-            state.screens.ipc_payload = None;
-            write_screen_done(serde_json::json!({"ok": false, "error": "screen vanished mid-request"}));
+            // One shape for every "cannot finish" (see `Screens::abandon_ipc`).
+            if let Some(done) = state.screens.abandon_ipc("its screen vanished while wait_ready was polling") {
+                write_screen_done(done);
+            }
             return;
         };
         let load = s.provider().map(|p| p.load_state()).unwrap_or(LoadState::Static);
@@ -1455,13 +1466,19 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
         }
         return;
     }
+    // The surface must still exist to be described; if it vanished between
+    // the event and this frame, abandon with the cause (one shape for every
+    // "cannot finish", see `Screens::abandon_ipc`).
+    if state.screens.surfaces.get(ipc.surface).is_none() {
+        if let Some(done) = state.screens.abandon_ipc("its screen vanished before the done file could be written") {
+            write_screen_done(done);
+        }
+        return;
+    }
     let ipc = state.screens.ipc.take().expect("checked above");
     state.screens.ipc_payload = None;
     let focused = state.screens.focused == Some(ipc.surface);
-    let Some(s) = state.screens.surfaces.get_mut(ipc.surface) else {
-        write_screen_done(serde_json::json!({"ok": false, "error": "screen vanished mid-request"}));
-        return;
-    };
+    let s = state.screens.surfaces.get_mut(ipc.surface).expect("existence checked just above");
     let mut done = screen_done_base(s, &ipc.action, focused);
     if matches!(ipc.action.as_str(), "hover" | "click" | "scroll" | "text" | "link") {
         // Where the event landed, so the evidence says which point was
@@ -1512,7 +1529,9 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
     write_screen_done(done);
 }
 
-fn write_screen_done(done: serde_json::Value) {
+/// Write `debug/screen_done.json`. `pub(crate)` because `screens::sync_screens`
+/// writes the abandonment failure through here too (see `Screens::abandon_ipc`).
+pub(crate) fn write_screen_done(done: serde_json::Value) {
     const DONE_PATH: &str = "debug/screen_done.json";
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(DONE_PATH, done.to_string());

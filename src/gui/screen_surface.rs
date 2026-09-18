@@ -334,8 +334,10 @@ pub struct ScreenCore {
     /// twice (see `ScreenSurface::frame`).
     runs: u64,
     textures: ScreenTextures,
-    /// A text lookup the dev IPC asked for; answered from the NEXT run's
-    /// shapes (see `find_text` / `take_found_text`).
+    /// A text lookup the dev IPC asked for; answered from EVERY run's
+    /// shapes until the answer is read back with `take_found_text`, so a
+    /// frame that runs the content twice (the warm-up) reports the settled
+    /// layout, not the first pass (see `find_text` / `take_found_text`).
     find_query: Option<String>,
     find_result: Option<Option<FoundText>>,
 }
@@ -375,10 +377,14 @@ impl ScreenCore {
     }
 
     /// Ask for the on-surface position of a drawn text. The answer comes
-    /// from the shapes of the NEXT run (a text is only where the frame put
-    /// it), read back with `take_found_text`. Used by the dev IPC's `find`
-    /// action so a rig can click "the Home header" instead of guessing
-    /// pixel coordinates; see `find_text_in_shapes` for the matching rule.
+    /// from the shapes of every run from now until it is read back with
+    /// `take_found_text` (a text is only where the frame put it), and the
+    /// LAST run's answer is the one read: a surface's first frame runs its
+    /// content twice and only the second run is settled, so a query
+    /// consumed by the first run would report a layout nothing is drawn at
+    /// any more. Used by the dev IPC's `find` action so a rig can click
+    /// "the Home header" instead of guessing pixel coordinates; see
+    /// `find_text_in_shapes` for the matching rule.
     pub fn find_text(&mut self, query: &str) {
         self.find_query = Some(query.to_string());
         self.find_result = None;
@@ -386,7 +392,11 @@ impl ScreenCore {
 
     /// The answer to the last `find_text`, once a run has happened: outer
     /// `None` = no run yet, inner `None` = nothing on the surface matched.
+    /// Reading the answer ends the lookup (the query is dropped with it),
+    /// so later frames do not keep answering a question nobody is waiting
+    /// on.
     pub fn take_found_text(&mut self) -> Option<Option<FoundText>> {
+        self.find_query = None;
         self.find_result.take()
     }
 
@@ -412,6 +422,15 @@ impl ScreenCore {
     /// Number of completed runs.
     pub fn runs(&self) -> u64 {
         self.runs
+    }
+
+    /// How many times the content runs on the NEXT frame: twice on the very
+    /// first frame after creation (the warm-up, see `ScreenSurface::frame`:
+    /// egui Windows and Areas measure themselves on run 1 and settle on run
+    /// 2), once on every frame after. `run_and_render` reads the count from
+    /// here so a headless test can drive the same double run without a GPU.
+    pub fn runs_this_frame(&self) -> usize {
+        if self.runs == 0 { 2 } else { 1 }
     }
 
     /// Map a (u, v) in 0..1 across the screen (u left to right, v top to
@@ -577,10 +596,13 @@ impl ScreenCore {
         self.hover_layer = self.pointer.map_or(false, |p| self.ctx.layer_id_at(p).is_some());
         self.cursor_icon = out.platform_output.cursor_icon;
         // A pending text lookup is answered from THIS run's shapes, before
-        // the GPU half tessellates them away. Costs nothing when no lookup
-        // is pending (the normal case: it is a dev-IPC verb).
-        if let Some(q) = self.find_query.take() {
-            self.find_result = Some(find_text_in_shapes(&out.shapes, &q));
+        // the GPU half tessellates them away, and answered again by every
+        // later run until it is read back, so the LAST run of a frame wins
+        // (the warm-up double run on frame 1 then reports the settled
+        // layout). Costs nothing when no lookup is pending (the normal
+        // case: it is a dev-IPC verb).
+        if let Some(q) = &self.find_query {
+            self.find_result = Some(find_text_in_shapes(&out.shapes, q));
         }
         self.runs += 1;
         out
@@ -785,7 +807,11 @@ impl ScreenSurface {
         mut draw: impl FnMut(&mut ScreenCore, &mut Theme, &mut GuiState) -> egui::FullOutput,
     ) {
         theme.apply_to_egui(&self.core.ctx);
-        let runs = if self.core.runs() == 0 { 2 } else { 1 };
+        // Two runs on the first frame, one after (`ScreenCore::runs_this_frame`
+        // owns the rule so the headless twin drives the same count). A
+        // pending `find` is answered by EVERY run and the last answer wins,
+        // so on the warm-up frame the reported rect is the settled one.
+        let runs = self.core.runs_this_frame();
         let mut last: Option<egui::FullOutput> = None;
         for _ in 0..runs {
             let out = draw(&mut self.core, theme, gui_state);
@@ -992,8 +1018,18 @@ mod tests {
         let uv = (found.rect.center().x / w as f32, found.rect.center().y / h as f32);
         let open_id = egui::Id::new(("place_open", "1"));
         let before = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+        assert!(before, "Home starts open (a depth-0 container defaults to open)");
+        // (c) The child row the screens rig watches (`INVENTORY_CHILD` in
+        // scripts/verify-screens.js): "Garage" is Home's one room in
+        // data/places/seed.json, nested as its own card inside Home's open
+        // body and drawn nowhere else on the page. Present while Home is
+        // open, with the pointer already resting on the header (the rig's
+        // own order: hover, then find the child, then click)...
+        core.find_text("Garage");
         core.pointer_moved(uv);
         core.run(&mut theme, &mut state);
+        let garage = core.take_found_text().flatten().expect("Garage is drawn while Home is open");
+        assert_eq!(garage.text, "Garage", "the room's own header, an exact match: {:?}", garage.text);
         core.button(uv, true);
         core.run(&mut theme, &mut state);
         core.button(uv, false);
@@ -1001,6 +1037,19 @@ mod tests {
         let after = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
         crate::gui::pages::inventory::test_clear_recorded_rects();
         assert_ne!(before, after, "clicking at the FOUND text did not toggle the Home header");
+        // (b) After the release frame the pointer still rests on the header
+        // row, whose hover sets PointingHand (inventory.rs, `row.hovered()`).
+        // The rig requires exactly this of the click's done file, as proof
+        // the point landed on the row and not merely on the panel (any
+        // point over the CentralPanel reports hover_widget).
+        assert!(core.hover_widget(), "egui reports a layer under the pointer after the click");
+        assert_eq!(core.cursor_icon(), egui::CursorIcon::PointingHand, "the header row's own cursor after the click");
+        // ...and gone once Home is closed: the semantic proof of the toggle
+        // that the rig's `inventory_toggled` check rests on. A deleted
+        // toggle leaves Garage drawn and fails here.
+        core.find_text("Garage");
+        core.run(&mut theme, &mut state);
+        assert!(core.take_found_text().flatten().is_none(), "Garage is still drawn after Home was closed");
         // The lookup is one-shot: nothing is pending after it was answered.
         core.run(&mut theme, &mut state);
         assert!(core.take_found_text().is_none(), "a find is answered once, not on every later frame");
@@ -1034,6 +1083,67 @@ mod tests {
             "the Home header centre {c:?} must lie on the {w} x {h} wall"
         );
         crate::gui::pages::inventory::test_clear_recorded_rects();
+    }
+
+    /// A `find` asked BEFORE a surface's first frame must answer from the
+    /// settled layout, not the warm-up. The first frame runs the content
+    /// twice (`runs_this_frame` is 2 on a fresh core, the count
+    /// `run_and_render` uses) because some egui layouts place things by
+    /// what they measured LAST frame and so sit in the wrong place on run
+    /// 1. The content here is the plainest such case: a two-column
+    /// `egui::Grid` places column 2 by the previous frame's column-1 width,
+    /// which on frame 1 is the 40 pt minimum no matter how wide the real
+    /// label is (egui 0.31 `GridLayout::advance`, `prev_col_width`), so the
+    /// second-column label is drawn ~40 pt in on run 1 and ~300 pt in on run
+    /// 2. The answer after the double run must be where a later, fully
+    /// settled frame draws the label. Proven red before the fix
+    /// (2026-09-17): with the query consumed by the first run, the double
+    /// run answered `found: false` for the second-column label (it is not
+    /// drawn on a Grid's first frame at all) while the settled frame found
+    /// it, and the `expect` below fired.
+    #[test]
+    fn a_find_asked_before_the_first_frame_answers_from_the_settled_run() {
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        let (w, h) = (640u32, 360u32);
+        let mut core = ScreenCore::new("probe", "inventory", w, h, &theme);
+        // A capture-free closure is Copy, so the same draw can run again.
+        let draw = |ctx: &egui::Context, _: &mut GuiState| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                egui::Grid::new("settle_probe").show(ui, |ui| {
+                    ui.label("A first-column label a good deal wider than forty points");
+                    ui.label("Settled label");
+                    ui.end_row();
+                });
+            });
+        };
+        assert_eq!(core.runs_this_frame(), 2, "a fresh surface runs its content twice on frame 1");
+        // The rig's own order: the lookup is queued, THEN the frame runs.
+        core.find_text("Settled label");
+        for _ in 0..core.runs_this_frame() {
+            core.run_with(&mut state, draw);
+        }
+        assert_eq!(core.runs_this_frame(), 1, "after frame 1 every frame is one run");
+        let warm = core
+            .take_found_text()
+            .expect("the double run answered the lookup")
+            .expect("the label is drawn after the warm-up frame");
+        // A fully settled frame, asked the same question, is the reference.
+        core.run_with(&mut state, draw);
+        core.find_text("Settled label");
+        core.run_with(&mut state, draw);
+        let settled = core.take_found_text().flatten().expect("the label is drawn on a settled frame");
+        assert_eq!(warm.text, settled.text, "the warm-up frame's answer names a different text");
+        // The grid really did move the label between run 1 and run 2, or
+        // this test would prove nothing: the settled x must be well past the
+        // 40 pt first-frame column.
+        assert!(settled.rect.min.x > 100.0, "the second column settled at x = {}", settled.rect.min.x);
+        assert!(
+            (warm.rect.min - settled.rect.min).length() < 0.5,
+            "the warm-up frame's answer {:?} is not where the settled layout draws it {:?}",
+            warm.rect,
+            settled.rect
+        );
     }
 
     /// The matching rule on synthetic shapes: exact beats prefix beats
