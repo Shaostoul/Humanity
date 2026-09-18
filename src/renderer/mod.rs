@@ -2967,8 +2967,19 @@ impl Renderer {
     /// depth-test-disabled `overlay_pipeline`, so corner orbs / the avatar / rings show THROUGH walls
     /// + floors. Call AFTER `render_transparent_onto`. Reuses the shared object buffer (the prior pass
     /// already drew), so the writes are safe.
-    pub fn render_overlay_onto(&self, camera: &Camera, objects: &[RenderObject], view: &wgpu::TextureView) {
-        let _cost = frame_costs::stage("cpu.overlay");
+    ///
+    /// `who` names whose frame this is for the cost keys (`gpu.overlay` for the live frame,
+    /// `gpu.screen_overlay` for a camera screen's re-render), the same split `render_scene_onto`
+    /// makes; before it a camera wall's overlay draw was summed into the live frame's number.
+    pub fn render_overlay_onto(
+        &self,
+        camera: &Camera,
+        objects: &[RenderObject],
+        view: &wgpu::TextureView,
+        who: frame_costs::SceneView,
+    ) {
+        let (gpu_id, cpu_id) = who.overlay_ids();
+        let _cost = frame_costs::stage(cpu_id);
         if objects.is_empty() {
             return;
         }
@@ -2979,7 +2990,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Overlay Pass"),
-                timestamp_writes: self.pass_timer("gpu.overlay"),
+                timestamp_writes: self.pass_timer(gpu_id),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -4952,13 +4963,18 @@ impl Renderer {
     /// scene (full view-proj + floating origin), so lines sit exactly on
     /// the bodies. Transient per-frame vertex buffer (a few thousand
     /// verts — trivial).
+    ///
+    /// `who`: `gpu.lines` for the live frame, `gpu.screen_lines` for a
+    /// camera screen's re-render (see `render_overlay_onto`).
     pub fn draw_lines_onto(
         &self,
         camera: &Camera,
         verts: &[line::LineVertex],
         view: &wgpu::TextureView,
+        who: frame_costs::SceneView,
     ) {
-        let _cost = frame_costs::stage("cpu.lines");
+        let (gpu_id, cpu_id) = who.lines_ids();
+        let _cost = frame_costs::stage(cpu_id);
         if verts.len() < 2 {
             return;
         }
@@ -4980,7 +4996,7 @@ impl Renderer {
         {
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("World Line Pass"),
-                timestamp_writes: self.pass_timer("gpu.lines"),
+                timestamp_writes: self.pass_timer(gpu_id),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -5152,16 +5168,15 @@ impl Renderer {
                 capacity_hint.max(live),
             ));
         }
-        // The timer is read from the FIELD, not through `compute_pass_timer`
+        // The timers are read from the FIELD, not through `compute_pass_timer`
         // (a `&self` method), because `gpu_particles` is borrowed mutably on
         // the same line: disjoint field borrows are fine, a whole-self borrow
-        // beside a field borrow is not.
-        let timer = self
-            .gpu_timers
-            .as_ref()
-            .and_then(|t| t.compute_writes("gpu.particles_sim"));
+        // beside a field borrow is not. The slot pair itself is claimed
+        // INSIDE `simulate`, past its `live == 0` early return, so a frame
+        // with no live particles never resolves a pair no pass wrote.
+        let timers = self.gpu_timers.as_deref();
         if let Some(g) = self.gpu_particles.as_mut() {
-            g.simulate(&self.device, &self.queue, params, live, timer);
+            g.simulate(&self.device, &self.queue, params, live, timers);
         }
     }
 

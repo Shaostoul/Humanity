@@ -398,9 +398,10 @@ camera screen is a correct PNG.
   per pixel, so this is the camera's one cost knob (see the def field
   above for the measured trade). The re-render publishes under its own
   frame-cost keys, `gpu.screen_sky` / `gpu.screen_scene` /
-  `gpu.screen_transparent` (`frame_costs::SceneView::Screen`), so it shows on
-  the Performance page as "In-world screens" instead of hiding inside the
-  live frame's scene pass.
+  `gpu.screen_transparent` / `gpu.screen_overlay` / `gpu.screen_lines`
+  (`frame_costs::SceneView::Screen`, one key per pass it runs), so it shows
+  on the Performance page as "In-world screens" instead of hiding inside
+  the live frame's numbers.
 - The passes are the sky (stars) and the scene lists (opaque, transparent,
   overlay, ring lines): `ViewPasses::SceneOnly`. The planet/cloud pass,
   celestial lines, god rays and SSAO are NOT run for a camera, for two
@@ -807,9 +808,13 @@ is how the verdict logic itself is proven able to fail. Both modes print
   quarter of the re-render's cost.
 - Every screen pass is on the Performance page: `gpu.screen_ui` (each
   framed screen's egui pass, summed) and the camera re-render's
-  `gpu.screen_sky` / `gpu.screen_scene` / `gpu.screen_transparent`, with
-  `cpu.screen_*` twins; together they are the "In-world screens" row of
-  `data/performance/budget_systems.ron`.
+  `gpu.screen_sky` / `gpu.screen_scene` / `gpu.screen_transparent` /
+  `gpu.screen_overlay` / `gpu.screen_lines`. Each has a same-named
+  `cpu.screen_*` submission stage (`cpu.screen_sky` is the stage guard
+  around `render_view_onto`'s star pass; the others sit in the renderer
+  functions the view calls), so the no-timestamp fallback can read every
+  one of them; together they are the "In-world screens" rows (GPU and CPU)
+  of `data/performance/budget_systems.ron`.
 - At most **4 surfaces re-run their page per frame** (`MAX_FRAMES_PER_TICK`),
   the nearest within **40 m** (`FRAME_RANGE_M`) and in front of the camera,
   plus the hovered one and any IPC target. A surface not framed keeps its

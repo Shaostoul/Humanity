@@ -75,7 +75,31 @@ the engine writes every frame:
   SUMMED, and a pass that stops running decays to zero. On an adapter with
   no timestamp queries the store falls back to CPU submission time and the
   page says so (`gpu_timing: "cpu_fallback"`); a `gpu.x` row then reads
-  `cpu.x`, which is why every timed pass has a same-named CPU stage.
+  `cpu.x`. NOT every pass has such a twin (see "Which passes have a CPU
+  twin" below): for the ones that do not, the fallback has nothing to read,
+  and the Performance page says "not measurable on this adapter" on the row
+  and in the footer instead of showing a 0 that would look free.
+- **UI-only frames freeze BOTH columns.** While a full-screen page is open
+  (the Performance page is one) the engine only clears the surface and
+  draws egui. Those frames are discarded, CPU and GPU alike: the CPU
+  accumulation is thrown away (`frame_costs::discard_frame`) and the GPU
+  timers still claim and resolve their slots but drop the samples when they
+  come back (`GpuTimers::begin_frame(.., world = false)`,
+  `publish_gpu_harvest`). So the pies show your LAST RENDERED WORLD FRAME
+  for as long as you look at them. Until 2026-09-18 only the CPU half was
+  guarded, and the GPU column EMA'd every world pass toward zero while the
+  page was open (3.9 percent of the true value after 20 frames, 0.006
+  percent after 60): the Clouds, In-world screens and World surface rows
+  read about zero exactly where the operator was told to read them. The
+  UI-only passes (`gpu.clear`, `gpu.ui`) freeze too, on purpose: one rule
+  for the column.
+- **Untimed passes are counted.** The timestamp ring holds
+  `MAX_TIMED_PASSES` (64) slot pairs per frame; a pass that asks for one
+  after they are spent runs untimed, which on the pie looks like "free".
+  Each refusal is counted per world frame and surfaced: the GPU pie's
+  footer reads "N passes untimed this frame: raise MAX_TIMED_PASSES", and
+  the JSON drop carries `gpu_untimed_passes`. Zero means every pass was
+  timed.
 - **`cpu.*`**: milliseconds per frame stage, `frame_costs::stage("cpu.x")`
   as a scope guard or `record_cpu` for an explicit span; several calls per
   frame sum.
@@ -104,7 +128,7 @@ reason), or the test names the orphan.
 | `gpu.shadow` | the sun shadow depth pass | |
 | `gpu.scene`, `gpu.transparent`, `gpu.overlay`, `gpu.instanced` | the live frame's homestead/prop passes | |
 | `gpu.screen_ui` | the in-world screens' egui-to-texture pass, one per framed screen, summed | 2026-09-18 |
-| `gpu.screen_sky`, `gpu.screen_scene`, `gpu.screen_transparent` | the camera wall's 10 Hz re-render of the world, under its own keys (it used to sum into `gpu.scene`, so a 17 ms re-render was invisible) | 2026-09-18 |
+| `gpu.screen_sky`, `gpu.screen_scene`, `gpu.screen_transparent`, `gpu.screen_overlay`, `gpu.screen_lines` | the camera wall's 10 Hz re-render of the world, every pass under its own key (the scene pass used to sum into `gpu.scene`, so a 17 ms re-render was invisible; the overlay and line passes summed into `gpu.overlay` / `gpu.lines` until the review the same day) | 2026-09-18 |
 | `gpu.particles`, `gpu.gpu_particles` | billboard and GPU particle draws | |
 | `gpu.particles_sim` | the GPU particle compute step | 2026-09-18 |
 | `gpu.godrays`, `gpu.ssao`, `gpu.bloom` | post-process (bloom reads zero: dormant) | |
@@ -115,15 +139,47 @@ The hi-res screenshot renders its one extra view under the MAIN ids
 (`gpu.stars`, `gpu.scene`...) on purpose: it is a one-off render of the
 player's own view, its other passes are main-keyed already, and it decays
 out of the pie within a second; keying it `screen_*` would misattribute a
-screenshot to the camera wall. Which key a scene pass uses is the
+screenshot to the camera wall. Which key a pass uses is the
 `frame_costs::SceneView` argument of `render_scene_onto` /
-`render_transparent_onto`; `render_view_onto` picks it from `ViewPasses`.
+`render_transparent_onto` / `render_overlay_onto` / `draw_lines_onto` (and
+`SceneView::sky_ids` for the star pass); `render_view_onto` picks it from
+`ViewPasses`.
+
+### Which passes have a CPU twin (and which read zero in the fallback)
+
+The fallback rule is "`gpu.x` reads `cpu.x`". It only helps where a `cpu.x`
+stage exists. The list is `frame_costs::GPU_IDS_WITHOUT_CPU_TWIN`, kept
+equal to what the source tree records by
+`performance::tests::no_twin_list_matches_the_source_tree`; this table is
+the same list in prose (as of 2026-09-18, after the review).
+
+| has a `cpu.*` twin (measurable in the fallback) | NO twin (reads "not measurable on this adapter") |
+|---|---|
+| `gpu.stars` (`cpu.stars`, live path and screenshot) | `gpu.clear`, `gpu.ui` (submitted from the frame loop, no stage) |
+| `gpu.celestial` | `gpu.celestial_t`, `gpu.sky_view` (encoded inside `render_celestial_onto`, under `cpu.celestial`) |
+| `gpu.scene`, `gpu.transparent`, `gpu.overlay`, `gpu.lines` | `gpu.instanced` |
+| `gpu.screen_ui`, `gpu.screen_sky`, `gpu.screen_scene`, `gpu.screen_transparent`, `gpu.screen_overlay`, `gpu.screen_lines` | `gpu.shadow` |
+| `gpu.particles`, `gpu.gpu_particles`, `gpu.particles_sim` | `gpu.cloud_light`, `gpu.cloud_screen`, `gpu.cloud_resolve`, `gpu.cloud_composite`, `gpu.cloud_profile`, `gpu.cloud_profile_calib` (all inside `cpu.celestial`) |
+| `gpu.godrays`, `gpu.ssao`, `gpu.celestial_lines` | `gpu.bloom` (dormant) |
+
+So in the fallback the Clouds, Sun shadows and Interface rows are wholly
+unmeasurable (the page says so on the row and names them in the footer);
+World surface, Homestead + props and Post-process are partial (the hover
+says how many passes read 0); In-world screens, Particles, Star field and
+Orbit + guide lines are fully measurable. To move an id from the right
+column to the left, give its pass a `frame_costs::stage("cpu.x")` guard
+and remove it from `GPU_IDS_WITHOUT_CPU_TWIN`; the test names the drift
+either way.
 
 ### CPU stages that are not passes
 
 - **`cpu.frame_total`**: `RedrawRequested` entry to the end of the last
-  submit (the egui pass), world frames only. UI-only frames are discarded
-  at their acquire, so nothing is recorded for them.
+  submit before `present()`, world frames only. The last submit is the
+  live broadcast's capture copy (`pump_live_broadcast`) when a stream is
+  running, otherwise the egui pass; the screenshot captures and the weather
+  upload sit inside it too. (Until the 2026-09-18 review it closed at the
+  egui submit, leaving the broadcast copy outside.) UI-only frames are
+  discarded at their acquire, so nothing is recorded for them.
 - **`cpu.present_wait`**: around `get_current_texture` (in
   `Renderer::acquire_surface`) plus around `present()` in the frame loop,
   summed. The CPU blocked on the display: vsync and the driver's frame
@@ -148,6 +204,24 @@ screenshot to the camera wall. Which key a scene pass uses is the
 frame_ms  ~=  cpu.frame_total  +  cpu.present_wait(present half)  +  time outside the handler
 cpu.frame_total  =  cpu.fps_cap_sleep  +  instrumented CPU stages  +  UNTIMED CPU work
 ```
+
+**Both identities hold in EMA steady state only, not frame by frame.** The
+CPU column's frame boundary is `Renderer::acquire_surface` (where
+`frame_costs::begin_frame` folds the accumulation), but the handler starts
+well before it: the cap sleep, the ECS tick, terrain builds, the harvests,
+the uploads and every in-world screen stage run BEFORE acquire, while the
+render-submission stages, `cpu.frame_total` and the present half of
+`present_wait` are recorded AFTER it. So one published bucket holds frame
+N's post-acquire stages plus frame N+1's pre-acquire stages: two half
+frames, not one. While every frame costs about the same the sum is one
+frame's worth and the subtraction is exact; across a transient (one spike
+frame, a settings change) the parts of the spike land in two consecutive
+buckets and the smoothed values disagree for the EMA's settling time
+(about a second). Read the subtraction as a steady-state number, and never
+from the first second after something changed. (Moving the boundary to
+`RedrawRequested` entry would fix this, but the world/UI-only decision that
+selects `begin_frame` vs `discard_frame` is only known at acquire; it was
+left as documented.)
 
 So **`cpu.frame_total` minus the instrumented sum** (every `cpu.*` stage
 except `frame_total` itself, `present_wait`'s acquire half is inside the

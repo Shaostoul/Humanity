@@ -1079,6 +1079,11 @@ pub(crate) fn render_view_onto(
     // renderer is somehow absent the clear still runs, so the target is
     // never undefined.
     {
+        // `gpu.screen_sky` / `cpu.screen_sky` for a camera screen, `gpu.stars`
+        // / `cpu.stars` for the screenshot (see `who` above). The CPU stage
+        // is the submission twin the no-timestamp fallback reads.
+        let (sky_gpu, sky_cpu) = who.sky_ids();
+        let _cost = crate::renderer::frame_costs::stage(sky_cpu);
         if let Some(ref star_r) = state.star_renderer {
             star_r.update_camera(
                 &state.renderer.queue,
@@ -1092,9 +1097,7 @@ pub(crate) fn render_view_onto(
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("View Star Pass"),
-                // `gpu.screen_sky` for a camera screen, `gpu.stars` for the
-                // screenshot (see `who` above).
-                timestamp_writes: state.renderer.pass_timer(who.sky_id()),
+                timestamp_writes: state.renderer.pass_timer(sky_gpu),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     resolve_target: None,
@@ -1145,8 +1148,11 @@ pub(crate) fn render_view_onto(
     }
     state.renderer.render_scene_onto(camera, lists.opaque, target, who);
     state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
-    state.renderer.render_overlay_onto(camera, lists.overlay, target);
-    state.renderer.draw_lines_onto(camera, lists.ring_lines, target);
+    // Same `who` for the overlay and the ring lines: a camera screen's draws
+    // publish under `gpu.screen_overlay` / `gpu.screen_lines`, not the live
+    // frame's ids (the 2026-09-18 review found them summed into the Main ones).
+    state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
+    state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
 
     // Put the window's depth buffer back BEFORE returning, or the next live
     // pass would bind a mismatched one. The view-sized buffer is kept for
