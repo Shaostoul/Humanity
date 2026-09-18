@@ -18408,25 +18408,27 @@ mod native_app {
                                 // through a pipeline picked per object by
                                 // MATERIAL CLASS (increment P2 of the
                                 // frame-cost arc, renderer/pipeline.rs
-                                // `shader_class`): the sun's blended core and
-                                // halo are General, the atmosphere and water
-                                // shells are Shell, the cloud shell is Cloud.
-                                // A STABLE sort on (is a shell, is water when
-                                // water goes last) groups the classes so the
-                                // draw loop switches pipelines a handful of
-                                // times per frame instead of per object,
-                                // while keeping every ordering rule above:
-                                // the atmosphere / cloud order the approach
-                                // vanish fix depends on is preserved within
-                                // the shell run (both are shells, and a
-                                // stable sort never reorders equal keys),
-                                // and water still sinks to the very end
-                                // whenever the camera is inside the air or
-                                // underwater. General-before-shell is also
-                                // the physically right order for the one
-                                // case it can change: the sun rising behind
-                                // a limb from orbit now has the atmosphere
-                                // composited over the halo, not under it.
+                                // `shader_class`), and grouping the list
+                                // keeps the pipeline switches to a handful
+                                // per frame instead of one per object. The
+                                // grouping key is the planet LAYER BAND
+                                // (renderer/celestial_order.rs: types 13 to
+                                // 16, the dome or atmosphere, the cloud deck,
+                                // the ocean and its backstop), NOT the class:
+                                // the type-13 fallback dome is General class
+                                // and a class key lifted it in front of the
+                                // sea and the clouds whenever "Scattering
+                                // atmosphere" was off (the P2 review's
+                                // finding). A STABLE sort on (is a layer, is
+                                // water when water goes last) keeps every
+                                // ordering rule above: the cloud/atmosphere
+                                // order the approach-vanish fix depends on
+                                // is preserved within the layer run (equal
+                                // keys are never reordered), water still
+                                // sinks to the very end whenever the camera
+                                // is inside the air or underwater, and the
+                                // sun's blended core and halo, which the body
+                                // order already puts first, stay first.
                                 let water_mats: std::collections::HashSet<usize> =
                                     if water_over_sky {
                                         state.planet_water_materials.values().copied().collect()
@@ -18434,9 +18436,11 @@ mod native_app {
                                         std::collections::HashSet::new()
                                     };
                                 celestial_transparent.sort_by_key(|o| {
-                                    let shell = state.renderer.material_class(o.material)
-                                        != crate::renderer::pipeline::ShaderClass::General;
-                                    (shell, water_mats.contains(&o.material))
+                                    crate::renderer::celestial_order::key_for(
+                                        &state.renderer,
+                                        o.material,
+                                        water_mats.contains(&o.material),
+                                    )
                                 });
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the

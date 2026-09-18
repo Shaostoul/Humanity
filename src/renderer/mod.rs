@@ -20,6 +20,7 @@ pub mod bloom;
 pub mod godrays;
 pub mod ssao;
 pub mod camera;
+pub mod celestial_order;
 /// Frame + texture readback to PNG (screenshot command, hi-res capture, the
 /// probe rig). Extracted from mod.rs in v0.1108 - see the file's header for
 /// why this cluster and not another.
