@@ -519,25 +519,18 @@ mod native_app {
         if state.background_no_cursor {
             return;
         }
-        // Hold Alt in first-person to FREE the cursor (v0.735, operator
-        // directive: the centered machine card has buttons, and the only
-        // way to click them used to be alt-tabbing out via the Windows key).
-        let want_free = state.gui_state.active_page != GuiPage::None
-            || state.gui_state.showroom_active
-            || state.gui_state.construction_active
-            || state.alt_held
-            // The F10 Cloud dev sidebar, open and expanded (2026-09-05): the
-            // sticky version of holding Alt, so the operator can scroll and
-            // click its long switch list without a held key. Closing or
-            // collapsing it drops this term and the cursor re-grabs exactly
-            // as it would have before the panel opened (this function derives
-            // the cursor from flags, so there is no separate "restore" step).
-            || state.gui_state.cloud_dev_sidebar_expanded()
-            // In-world modal panel open (chat v0.772 / creature editor v0.778):
-            // the cursor must reach its inputs + buttons.
-            || state.gui_state.in_world_modal_open()
-            // Dead = the death screen is up; its Respawn button needs the cursor.
-            || state.gui_state.player_death_cause.is_some();
+        // The predicate itself lives in engine::input::cursor_want_free
+        // (2026-09-18) so the dev IPC can report what this authority WANTS
+        // separately from what the window did (a background rig returns
+        // above and never touches the cursor). Its terms: any menu page, the
+        // showroom, the construction editor, Alt held in first person
+        // (v0.735, so the centered machine card's buttons can be clicked),
+        // the F10 Cloud dev sidebar open and expanded (2026-09-05, the
+        // held-Alt rule made sticky; closing or collapsing it drops the term
+        // and the cursor re-grabs with no separate "restore" step), an
+        // in-world modal (chat v0.772 / creature editor v0.778), and the
+        // death screen (its Respawn button needs the cursor).
+        let want_free = crate::engine::input::cursor_want_free(state);
         // Mirror the derived cursor state into GuiState BEFORE the early
         // return below, so the copy is refreshed every call (the early
         // return only skips the winit work). The F10 sidebar reads it to
@@ -1850,6 +1843,7 @@ mod native_app {
                 cosmetics: Vec::new(),
                 showroom_return_pos: Vec3::new(0.0, 1.7, 0.0),
                 cursor_free: false,
+                ui_ipc: None,
                 homestead_walls: None,
                 homestead_material_walls: Vec::new(),
                 homestead_trim: None,
@@ -2092,6 +2086,29 @@ mod native_app {
                             return;
                         }
 
+                        // Escape closes the F10 Cloud dev sidebar FIRST, and does
+                        // nothing else that frame (operator, 2026-09-18: "when I
+                        // press esc it closes the F10 menu only instead of also
+                        // opening up the menu, but only while the F10 menu is
+                        // up"). It is first in the Escape ordering because the
+                        // topmost thing on screen is what Escape means: an
+                        // expanded sidebar is the overlay the operator opened
+                        // most recently and the one under their freed cursor.
+                        // Ahead of the modal and screen gates below on purpose:
+                        // the sidebar never takes the keyboard, so closing it
+                        // interrupts no typing, and the next press still reaches
+                        // whichever of those is open. Only an EXPANDED sidebar
+                        // returns true here; closed or collapsed, Escape keeps
+                        // its usual meaning (help panel, then the menu cascade).
+                        // The cursor re-grabs through reconcile_cursor, which
+                        // reads the flag this cleared (single authority, v0.460).
+                        if key == KeyCode::Escape
+                            && pressed
+                            && crate::engine::input::escape_closes_cloud_dev(&mut state.gui_state)
+                        {
+                            return;
+                        }
+
                         // In-world modal panels own the keyboard (v0.773 chat,
                         // v0.778 creature editor). egui already received this event
                         // above (on_window_event), so text still types into the
@@ -2230,13 +2247,11 @@ mod native_app {
                         // grabbed. The cursor itself is freed by
                         // reconcile_cursor reading cloud_dev_sidebar_expanded,
                         // never here (the single-authority rule, v0.460).
+                        // The rule itself is engine::input::toggle_cloud_dev_panel
+                        // (2026-09-18): the same function the dev IPC's "f10"
+                        // verb calls, so the key and the rig cannot diverge.
                         if key == KeyCode::F10 && pressed {
-                            if state.gui_state.cloud_dev_sidebar_expanded() {
-                                state.gui_state.show_cloud_dev_panel = false;
-                            } else {
-                                state.gui_state.show_cloud_dev_panel = true;
-                                state.gui_state.cloud_dev_collapsed = false;
-                            }
+                            crate::engine::input::toggle_cloud_dev_panel(&mut state.gui_state);
                             return;
                         }
                         // F6 (v0.890): save a LOCATION BOOKMARK - the exact
@@ -15752,6 +15767,14 @@ mod native_app {
                     // look ray runs and completed after the surface draws, both
                     // in the screens block just before the scene passes.
                     crate::engine::ipc::poll_screen_request(state);
+                    // Main-UI dev IPC (debug/ui_request.json, 2026-09-18): the
+                    // F10 / Escape rules and synthetic pointer events against
+                    // the MAIN egui context. Parsed and advanced here, before
+                    // take_egui_input runs below, so a queued event lands in
+                    // THIS frame's egui pass; answered after the frame, next to
+                    // the post-present reconcile_cursor, so the done file
+                    // reports the cursor as the authority left it.
+                    crate::engine::ipc::poll_ui_request(state);
 
                     // F6 location bookmark save (v0.890): runs here so
                     // current_spin + frame-lock state are fresh this frame.
@@ -18993,6 +19016,11 @@ mod native_app {
                             // Handle egui platform output (cursor changes, clipboard, etc.)
                             state.egui_state.handle_platform_output(&state.window, full_output.platform_output);
 
+                            // Main-UI dev IPC "find" (2026-09-18): answer a pending
+                            // text lookup from THIS frame's shapes, before tessellation
+                            // consumes them. A no-op unless a find is pending.
+                            crate::engine::ipc::ui_request_scan_shapes(state, &full_output.shapes);
+
                             // Tessellate and render egui
                             let paint_jobs = state.egui_ctx.tessellate(
                                 full_output.shapes,
@@ -19160,6 +19188,12 @@ mod native_app {
                             // authority, so no `cursor_free` desync. (v0.460)
                             let _ = page_before_frame;
                             reconcile_cursor(state);
+                            // Answer a main-UI dev IPC request whose last event
+                            // landed in the egui frame above (2026-09-18). After
+                            // the reconcile on purpose: "f10" and "escape" are
+                            // judged by whether the cursor authority freed or
+                            // re-grabbed the cursor, and this is the call that did.
+                            crate::engine::ipc::complete_ui_request(state);
 
                             // Land the connect-time donation-info fetch (spawned in the
                             // `peer_list` WS handler) whenever it finishes -- polled here

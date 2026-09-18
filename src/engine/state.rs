@@ -978,6 +978,11 @@ pub(crate) struct EngineState {
     /// placements (world load + editor rebuilds); driven per frame by
     /// `screens::update` + `screens::frame_surfaces` before the scene pass.
     pub(crate) screens: crate::engine::screens::Screens,
+    /// A main-UI dev IPC request in flight (`debug/ui_request.json`,
+    /// 2026-09-18): parsed and advanced in the update phase by
+    /// `ipc::poll_ui_request`, answered after the egui frame by
+    /// `ipc::complete_ui_request`. One at a time, like the screen IPC.
+    pub(crate) ui_ipc: Option<crate::engine::ipc::UiIpc>,
     pub(crate) gui_state: GuiState,
     pub(crate) theme: Theme,
     /// Whether the 3D world has been fully initialized.
