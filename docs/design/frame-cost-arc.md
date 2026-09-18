@@ -493,7 +493,119 @@ pixel, down from 23.3; the light loop's 2.25 ns (section 2) is now half of
 it, so I1's hoist and the clustered grid (section 4, items 3 and 5) are
 next in line for the room, and frustum culling of the draw list after them.
 
-### (d) Instrumentation this cost centre needs
+#### P3 outcome (2026-09-18, worktree agent; per-class fragment entries)
+
+**Phase A verdict: the split is a perf increment for the interior, not only
+a structural one.** The hypothesis was that a surface fragment which still
+carries the terrain block and the vegetation family in one function pays
+for the worst path's register budget even though it never takes those
+branches. Measured as a SAME-BOOT A/B through the megashader hot reload
+(the P1 method), on the split exe rather than on a throwaway pre-split
+build with two more switches: arm "split" is the shipped `fs_surface`;
+arm "union" is a `90-fragment-main.wgsl` swapped onto disk in which
+`fs_surface` also carries the verbatim type-12 block and the 20, 21, 22, 23
+blocks (the pre-split `fs_main` minus the three shells P2 had already
+folded off the general PSOs); arm "split2" is the shipped file restored and
+captured again, the same-boot repeat floor. Same parks, same frozen clock,
+GPU timestamp queries, operator config, 2560 x 1387, DXC (captures, cost
+files and the rig log in the 2026-09-18 session scratchpad `p3-a/`):
+
+| vantage | `gpu.scene` split | union | split2 (floor) | union minus split | `gpu.transparent` split / union / split2 |
+|---|---|---|---|---|---|
+| `console-face-6` | 14.12 | 17.13 | 14.04 | +3.01 ms (21 percent) | 2.35 / 3.01 / 2.52 |
+| `console-face-3` | 11.83 | 14.17 | 11.69 | +2.34 ms (20 percent) | 2.45 / 2.96 / 2.46 |
+| `home-clock-noon` | 2.22 | 2.74 | 2.29 | +0.52 ms (23 percent) | 0.93 / 1.13 / 0.92 |
+
+The repeat floor is under 0.15 ms at every park; the union arm sits 15 to
+20 floors above it. The transparent pass moves the same way because the
+surface transparent PSO compiles the same entry (glass and holograms in the
+room). The union arm's `gpu.scene` at console-face-6 (17.13) also
+reproduces the B0 pre-split exe's reading at the same vantage (16.96,
+below), which is the cross-check that the swap measured the right thing.
+So an interior wall pixel had been carrying about a fifth of its cost as
+the price of sharing one function with the terrain and the trees, on top of
+the floor P1 and P2 removed. The design doc's section 1(b) item 2 stands
+answered: the override route pruned the private globals, and the entry
+split then pruned what the overrides could not, the register frame of the
+worst branch.
+
+**Shipped: the modular shader. One module, six colour entry points, one
+PSO per (class, state) the draws use, thirteen megashader PSOs.** The
+single `fs_main` is gone. `assets/shaders/pbr/80-fragment-shared.wgsl`
+(new, loaded between 50-brdf and 90) holds what every material shares as
+two functions: `frag_prologue` (the instance-data hand-off, the world
+position and uv derivatives taken in uniform control flow, the LOD Bayer
+discard, the normal, the view direction, the material reads, returned as
+one `FragSetup` struct) and `frag_tail` (the shadowed and gated sun, the
+fill, the tiled light loop, the sky-irradiance indirect term with AO, the
+emissives and the screen-emitter override, aerial perspective, underwater
+extinction, the ACES compose). `90-fragment-main.wgsl` then declares
+`fs_surface` (0..11, 17, 18, 19, 24), `fs_terrain` (12), `fs_vegetation`
+(20..23), `fs_water` (16, `HAS_OCEAN_BRANCH`), `fs_shell` (13, 14,
+`HAS_ATMOSPHERE_BRANCH`) and `fs_cloud` (15, `HAS_CLOUD_BRANCH`), each =
+prologue, only its class's blocks, tail (or the shell's early return), and
+keeps `fs_shadow` as the one union cutout twin. Every block is the v0.1315
+`fs_main` text moved verbatim by line range (a script asserted every
+boundary), copied into locals of the same names so the moved text reads as
+it did. Two departures from the brief's class list, both for pixel identity:
+17 (the sun's radial glow, not a gas giant) and 18 (the gas giant bands,
+an OPAQUE planet body in the classic celestial list) are Surface, not Shell,
+because a Shell class that draws opaque would need a fourth opaque PSO, and
+because the sun's halo was General in P2's transparent order.
+
+`src/renderer/pipeline.rs`: `ShaderClass { Surface, Terrain, Vegetation,
+Water, Shell, Cloud }`, each with `fragment_entry()`, `live_branches()`,
+`dead_branches()` and `draws_opaque()`; `shader_class` on the same half-open
+bands; `PSO_REGISTRY` (renamed from `PSO_DEAD_BRANCHES`, one `PsoRow` per
+PSO naming its class, its fragment entry and its dead switches), read by
+the builders through `pso_constants(label)` AND `pso_fragment_entry(label)`
+so no builder types an entry; `Pipeline::opaque_for` beside
+`transparent_for` / `overlay_for`; the PSO set is Surface render,
+transparent and overlay, Terrain render, Vegetation render, Water transparent
+and overlay, Shell transparent, Cloud transparent, the two sun-shadow PSOs
+and the two terrain-batch PSOs (the Shell overlay PSO of P2 is gone,
+nothing drew with it). `build_all_pipelines` times every PSO and logs one
+`[Pipelines]` line per build (boot and every hot reload) with the wall
+time, the serial sum and each PSO's own compile. The opaque draw loops
+(`Renderer::draw_opaque_objects`, shared by the live frame, the camera
+screen and the celestial classic loop) walk their list once per class
+present, in `OPAQUE_CLASS_ORDER` (surface, vegetation, terrain), each walk
+on its own PSO, so the lists that interleave classes at fine grain (a bark
+part beside a photoscan stem) bind each pipeline once and lib.rs sorts
+nothing; the grass draw and the instanced batches pick by class too. The
+transparent loops keep P2's switch-on-class-change over the band-grouped
+list (`celestial_order.rs` is untouched and keys on the band, not the
+class). `validate_wgsl` now refuses a module missing any of the seven
+fragment entries, naming it. Tests: the classifier is pinned per entry
+(every shipped type's class from a hand table, and its class's entry must
+be the ONE entry whose body tests for the type; proven red by sending 23 to
+Surface), each guard must sit inside its class's entry and its function be
+called from exactly one place, each entry reads exactly its live switches
+and the shared parts read none, the module's fragment entries are exactly
+the six plus fs_shadow plus the six exempt cloud passes (no `fs_main`), the
+cutout mirror names the entry each cutout lives in, and the builder scanner
+requires the entry to come from the registry (proven red by typing
+`"fs_surface"` into `make_pbr`).
+
+**Compile time, from the `[Pipelines]` lines (DXC, this machine).** Hot
+reload of the split: the 13 megashader PSOs in 5.6 s wall (18.7 s serial
+sum: Surface Render 1.29, Surface Transparent 1.24, Surface Overlay 0.94,
+Terrain Render 1.25, Vegetation Render 0.96, Water Transparent 1.40, Water
+Overlay 1.58, Shell Transparent 1.04, Cloud Transparent 5.64, Sun Shadow
+0.39, Sun Shadow Alpha 0.72, Patch Batch Render 1.36, Patch Batch Shadow
+0.90) plus the six cloud fullscreen PSOs 6.5 s serial, 12.3 s for the
+whole reload of 19 PSOs, against P2's 11.3 s for 16: the cloud transparent
+PSO is the long pole of the parallel scope in both, and every other PSO
+now bakes a fraction of the old whole-`fs_main` fragment (the union
+variant's reload, same boot, read Surface Render 4.02 s against the split's
+1.29). Boot is slower, and that is the honest cost of three more PSOs: the
+`shaders_and_pipelines` boot phase read 19.4 s on the split exe (13 PSOs,
+12.0 s wall, 38.0 s serial sum, the cloud PSO 11.9 s because the scope
+runs beside the cloud noise bake's 12 threads) against 13.2 s on the P2
+exe in the B0 rig log. Five of the thirteen bake an entry another PSO
+already baked (the three Surface states, the two Water states); a
+pipeline cache or a per-entry DXIL cache would take that back and is the
+next step if boot time matters before launch.
 
 The celestial pass is one timestamp pair covering bodies, terrain, near trees
 and grass together, and one render pass can carry only one

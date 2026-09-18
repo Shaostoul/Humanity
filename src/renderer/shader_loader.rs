@@ -19,19 +19,36 @@ use std::path::PathBuf;
 /// SHADER PERMUTATIONS (increment P1 of the frame-cost arc, 2026-09-18):
 /// one module, but NOT one program. `05-overrides.wgsl` declares WGSL
 /// `override` switches (`HAS_ATMOSPHERE_BRANCH`, `HAS_CLOUD_BRANCH`,
-/// `HAS_OCEAN_BRANCH`, all defaulting to true) that guard fs_main's three
+/// `HAS_OCEAN_BRANCH`, all defaulting to true) that guard the three
 /// heavyweight shell dispatches, and each pipeline in
-/// `pipeline.rs::PSO_DEAD_BRANCHES` is compiled with the switches its
-/// material class needs. Naga substitutes the values before the backend
-/// sees the source, so a switched-off branch is dead code DXC folds away,
-/// together with every function and `var<private>` table only it reached.
-/// The rule for anyone adding a branch to fs_main: if it drags a big
+/// `pipeline.rs::PSO_REGISTRY` is compiled with the switches its material
+/// class needs. Naga substitutes the values before the backend sees the
+/// source, so a switched-off branch is dead code DXC folds away, together
+/// with every function and `var<private>` table only it reached.
+///
+/// CLASS ENTRIES (increment P3, 2026-09-18): one module, SIX colour entry
+/// points. `80-fragment-shared.wgsl` holds what every material shares (the
+/// prologue that takes the derivatives and reads the material, the PBR
+/// tail that lights and composes), and `90-fragment-main.wgsl` has one
+/// `@fragment` entry per material class (`fs_surface`, `fs_terrain`,
+/// `fs_vegetation`, `fs_water`, `fs_shell`, `fs_cloud`; the classes and
+/// their types are `pipeline.rs::ShaderClass`) plus the union `fs_shadow`.
+/// A pipeline compiles only the entry of the class it draws, so its DXIL
+/// never holds another class's blocks, and the three switches guard their
+/// dispatches inside their own entries. `validate_wgsl` refuses a module
+/// missing any of the seven fragment entries (or `vs_main`), the way it
+/// refuses one missing a switch.
+///
+/// The rule for anyone adding a material: put its block in the entry of
+/// its class (or give it a class, an entry and registry rows if it is a
+/// new family), never in the shared parts, and if it drags a big
 /// per-invocation frame into the module (a `var<private>` array, a deep
-/// march), give it a switch here and turn it off in every PSO that can
+/// march), give it a switch as well and turn it off in every PSO that can
 /// never draw that material, because the backend charges that frame to
 /// EVERY fragment of every pipeline that can reach it, not to the fragments
 /// that take the branch. Measured on the terrain pass: see the P1 outcome in
-/// docs/design/frame-cost-arc.md section 1(c).
+/// docs/design/frame-cost-arc.md section 1(c), and the P3 outcome for what
+/// the entry split itself moved.
 pub const PBR_PARTS: &[(&str, &str)] = &[
     ("00-bindings-vertex.wgsl", include_str!("../../assets/shaders/pbr/00-bindings-vertex.wgsl")),
     ("05-overrides.wgsl", include_str!("../../assets/shaders/pbr/05-overrides.wgsl")),
@@ -45,8 +62,23 @@ pub const PBR_PARTS: &[(&str, &str)] = &[
     ),
     ("45-cloud-temporal.wgsl", include_str!("../../assets/shaders/pbr/45-cloud-temporal.wgsl")),
     ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
+    ("80-fragment-shared.wgsl", include_str!("../../assets/shaders/pbr/80-fragment-shared.wgsl")),
     ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),
 ];
+
+/// Every entry point the megashader must declare: the vertex entry, the
+/// six class colour entries and the union shadow twin. `validate_wgsl`
+/// refuses a module lacking any of them, so a class PSO can never be
+/// created against a module that dropped its entry (wgpu would refuse the
+/// pipeline at boot with "Unable to find entry point"; this names it
+/// earlier and on the hot-reload path, where a boot panic is not the
+/// failure mode).
+pub fn required_entry_points() -> Vec<&'static str> {
+    let mut out = vec!["vs_main"];
+    out.extend(super::pipeline::ShaderClass::ALL.iter().map(|c| c.fragment_entry()));
+    out.push(super::pipeline::SHADOW_FRAGMENT_ENTRY);
+    out
+}
 
 /// The assembled megashader source (embedded parts, joined). THE single
 /// source both the pipelines and every source-scanning test read, so a
@@ -242,11 +274,12 @@ pub struct ShaderLoader {
 }
 
 /// Full naga validation of WGSL source WITHOUT touching the GPU (v0.924
-/// megashader hot-reload): parse, validate, and pin the two entry points.
-/// Used as the gate before a hot-reloaded shader is allowed anywhere near
-/// pipeline creation - a mid-edit save must produce a log line, never a
-/// crash. Same checks the `embedded_pbr_shader_parses_and_validates` test
-/// enforces at build time.
+/// megashader hot-reload): parse, validate, and pin the entry points (the
+/// vertex entry, the six class entries and fs_shadow since P3). Used as
+/// the gate before a hot-reloaded shader is allowed anywhere near pipeline
+/// creation - a mid-edit save must produce a log line, never a crash. Same
+/// checks the `embedded_pbr_shader_parses_and_validates` test enforces at
+/// build time.
 pub fn validate_wgsl(source: &str) -> Result<(), String> {
     let module = wgpu::naga::front::wgsl::parse_str(source)
         .map_err(|e| format!("parse error: {e}"))?;
@@ -258,9 +291,14 @@ pub fn validate_wgsl(source: &str) -> Result<(), String> {
         .validate(&module)
         .map_err(|e| format!("validation error: {e:?}"))?;
     let entries: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
-    if !entries.contains(&"vs_main") || !entries.contains(&"fs_main") {
+    let missing: Vec<&str> = required_entry_points()
+        .into_iter()
+        .filter(|name| !entries.contains(name))
+        .collect();
+    if !missing.is_empty() {
         return Err(format!(
-            "entry points missing (an attribute may have orphaned onto a const): {entries:?}"
+            "entry points missing (an attribute may have orphaned onto a const): {missing:?} \
+             not among {entries:?}"
         ));
     }
     check_permutation_switches(&module)?;
@@ -544,13 +582,30 @@ mod tests {
         // Parse error.
         let err = super::validate_wgsl("fn nope( {").expect_err("a parse error must be refused");
         assert!(err.starts_with("parse error"), "refused for the wrong reason: {err}");
-        // Valid WGSL with the permutation switches declared but no
-        // vs_main/fs_main entry points. The switches are included so the
-        // refusal is for the reason this test is about, not for the gate
-        // added later (see the test below for that one).
+        // Valid WGSL with the permutation switches declared but no entry
+        // points at all. The switches are included so the refusal is for
+        // the reason this test is about, not for the gate added later (see
+        // the test below for that one).
         let src = format!("{}fn helper() -> f32 {{ return 1.0; }}", super::test_support::switch_declarations());
         let err = super::validate_wgsl(&src).expect_err("an entryless module must be refused");
         assert!(err.starts_with("entry points missing"), "refused for the wrong reason: {err}");
+        // ONE class entry missing (P3): every class PSO compiles its own
+        // entry, so a module that dropped one is refused and the refusal
+        // names it, on the hot-reload path where a boot panic cannot help.
+        let all = format!(
+            "{}{}",
+            super::test_support::switch_declarations(),
+            super::test_support::entry_stubs()
+        );
+        super::validate_wgsl(&all).expect("every required entry present passes");
+        let stub = super::test_support::entry_stub("fs_vegetation");
+        assert!(all.contains(&stub), "the vegetation stub is in the full set");
+        let one_gone = all.replace(&stub, "");
+        let err = super::validate_wgsl(&one_gone).expect_err("a missing class entry must be refused");
+        assert!(
+            err.starts_with("entry points missing") && err.contains("fs_vegetation"),
+            "the refusal must name the missing entry: {err}"
+        );
     }
 
     /// Parse + full naga validation ONLY, with no gate of ours: what wgpu's
@@ -664,6 +719,24 @@ mod test_support {
             .map(|name| format!("override {name}: bool = true;\n"))
             .collect()
     }
+
+    /// A minimal declaration of one required entry point: the vertex entry
+    /// returns a position, a colour entry returns a colour, the shadow twin
+    /// returns nothing (it only ever discards).
+    pub fn entry_stub(name: &str) -> String {
+        match name {
+            "vs_main" => format!("@vertex fn {name}() -> @builtin(position) vec4<f32> {{ return vec4<f32>(0.0); }}\n"),
+            n if n == super::super::pipeline::SHADOW_FRAGMENT_ENTRY => format!("@fragment fn {name}() {{ }}\n"),
+            _ => format!("@fragment fn {name}() -> @location(0) vec4<f32> {{ return vec4<f32>(0.0); }}\n"),
+        }
+    }
+
+    /// Every entry point `validate_wgsl` requires, as stubs, so a minimal
+    /// test source gets PAST the entry gate and its refusal is for the
+    /// reason the test is about.
+    pub fn entry_stubs() -> String {
+        super::required_entry_points().into_iter().map(entry_stub).collect()
+    }
 }
 
 #[cfg(test)]
@@ -694,13 +767,13 @@ mod hlsl_guard_tests {
     /// megashader test both call - a guard nobody calls is not a guard.
     #[test]
     fn the_gate_itself_rejects_an_array_return() {
-        // With the permutation switches declared, so the refusal below is
-        // the HLSL guard's and not the switch gate's.
+        // With the permutation switches declared and every required entry
+        // stubbed, so the refusal below is the HLSL guard's and not the
+        // switch or entry gate's.
         let src = format!(
-            "{}fn f() -> array<f32, 2> {{ var a: array<f32, 2>; return a; }}\n\
-             @vertex fn vs_main() -> @builtin(position) vec4<f32> {{ return vec4<f32>(0.0); }}\n\
-             @fragment fn fs_main() -> @location(0) vec4<f32> {{ return vec4<f32>(0.0); }}\n",
-            super::test_support::switch_declarations()
+            "{}fn f() -> array<f32, 2> {{ var a: array<f32, 2>; return a; }}\n{}",
+            super::test_support::switch_declarations(),
+            super::test_support::entry_stubs()
         );
         let err = validate_wgsl(&src)
             .expect_err("validate_wgsl must reject what the HLSL backend cannot compile");

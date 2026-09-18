@@ -4831,12 +4831,15 @@ mod canopy_parity_tests {
     #[test]
     fn every_vegetation_branch_agrees_about_light() {
         let src = assembled_pbr_source();
-        let fs = &src[src.find("fn fs_main").expect("fs_main missing")
+        // The six class entries (P3), fs_surface first through fs_cloud
+        // last, up to the shadow twin: every material block lives in one of
+        // them, so this window is the whole colour dispatch.
+        let fs = &src[src.find("fn fs_surface").expect("fs_surface missing")
             ..src.find("fn fs_shadow").expect("fs_shadow missing")];
 
         // 1. The canopy block, verbatim, once per card family. Card families
-        //    in fs_main: the type-12 sprite branch, and the type-12 packed
-        //    branch (legacy silhouettes + the far sheet).
+        //    (both in fs_terrain): the type-12 sprite branch, and the type-12
+        //    packed branch (legacy silhouettes + the far sheet).
         let block = [
             "let vc = canopy_card_shading(normal, camera.sun_direction.xyz, view_dir);",
             "sun_gate = sun_gate * vc.sun_gain;",
@@ -4845,9 +4848,10 @@ mod canopy_parity_tests {
         let calls = fs.matches(block[0]).count();
         assert_eq!(
             calls, 2,
-            "fs_main applies the canopy kernel at {calls} sites; there are 2 card families \
-             (the sprite branch and the packed branch). A card family without it is lit as a \
-             flat plate facing the sky, which is the v0.1109 bright ring."
+            "the class entries apply the canopy kernel at {calls} sites; there are 2 card \
+             families (the sprite branch and the packed branch, both in fs_terrain). A card \
+             family without it is lit as a flat plate facing the sky, which is the v0.1109 \
+             bright ring."
         );
         for line in block {
             assert_eq!(

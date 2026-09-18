@@ -3,8 +3,8 @@
 //! One predicate and the test that keeps it honest. It lives in its own file
 //! rather than in `materials.rs` because it is not material registration: it
 //! is the CPU half of a contract with `fs_shadow` in
-//! `assets/shaders/pbr/90-fragment-main.wgsl`, and its sibling half (fs_main
-//! vs fs_shadow) is already guarded next door in
+//! `assets/shaders/pbr/90-fragment-main.wgsl`, and its sibling half (the
+//! class entries vs fs_shadow) is already guarded next door in
 //! `renderer::pipeline::shadow_cutout_tests`.
 //!
 //! THE FAILURE THIS EXISTS TO CATCH is the one v0.1106-v0.1107 shipped twice:

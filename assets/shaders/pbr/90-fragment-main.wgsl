@@ -830,127 +830,77 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 const TERRAIN_TERMINATOR_LO: f32 = -0.012;
 const TERRAIN_TERMINATOR_HI: f32 = 0.004;
 
+// ── CLASS FRAGMENT ENTRIES (increment P3 of the frame-cost arc, 2026-09-18) ──
+//
+// One colour entry per MATERIAL CLASS, in place of the single fs_main that
+// carried every material until v0.1315. Each entry is: frag_prologue, then
+// only the material blocks of its own class, then frag_tail (both in
+// 80-fragment-shared.wgsl), or an early return for a shell that never
+// takes the BRDF path. A pipeline compiles the ONE entry of the class it
+// draws (src/renderer/pipeline.rs PSO_REGISTRY, one row per pipeline), and
+// the draw loops pick the pipeline by the material's class (`shader_class`
+// there, pinned to the type tests below by its tests), so a wall fragment
+// no longer carries the terrain block, a terrain fragment no longer
+// carries the vegetation family, and only the cloud shell's fragments ever
+// see the volumetric march.
+//
+// The classes and their types (`material.params.z`, banded at +-0.5):
+//   fs_surface     0..11 the procedural surfaces, 17 the sun's radial glow,
+//                  18 gas giant bands, 19 textured meshes, 24 screens, and
+//                  the default look for any type nothing else claims
+//   fs_terrain     12 planet surface: terrain patches, the sprite tree cards
+//                  baked into them, the far canopy sheet, orbital water
+//   fs_vegetation  20 procedural plant, 21 cluster card, 22 baked bark,
+//                  23 grass strand
+//   fs_water       16 the ocean shell (HAS_OCEAN_BRANCH)
+//   fs_shell       13 the Fresnel atmosphere fallback, 14 the scattering
+//                  atmosphere (HAS_ATMOSPHERE_BRANCH)
+//   fs_cloud       15 the cloud shell (HAS_CLOUD_BRANCH)
+//
+// PERMUTATION GUARDS (P1, 05-overrides.wgsl) stay on the three heavyweight
+// shell dispatches, each inside its own class entry now. A pipeline
+// compiled with a switch false gets a constant-false condition and the
+// compiler folds the branch away with everything only it referenced; the
+// switch is written FIRST in the `&&` purely as the convention
+// pipeline.rs::permutation_tests pins (one shape, so every guard reads the
+// same). The same tests require each guarded function to be called from
+// exactly ONE place before fs_shadow (its guard, inside its class entry),
+// every type test to live in exactly one entry, and each entry to use
+// exactly the switches its class keeps live. Change any of that and the
+// tests together.
+//
+// A material that somehow reaches the wrong entry (a shell in an opaque
+// list, say) falls through to the default look: visibly wrong, never
+// silently absent, and the debug builds stop at the draw site.
+//
+// Every block below is the fs_main text of v0.1315 moved verbatim (P3 is a
+// code motion). fs_shadow, further down, stays ONE union twin of the
+// cutouts across all classes: it carries no heavyweight storage, and the
+// shadow pass has no class routing to gain from a split.
+
 @fragment
-fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
-    // Route the per-instance data to the obj_* accessors (flat varying;
-    // zero for classic draws, the batched patch's translation + fade for
-    // terrain-batch draws).
-    g_inst_data = in.inst_data;
-    // Screen-space derivatives of the world position, taken FIRST - before
-    // the Bayer discard below or any non-uniform branch - so they are valid
-    // wherever they are later consumed (v0.977: the ground textures rotate
-    // these into the pinned domain for textureSampleGrad anisotropy).
-    let wp_dx = dpdx(in.world_position);
-    let wp_dy = dpdy(in.world_position);
-    // Screen-space derivatives of the TEXTURE coordinate, taken here for the
-    // same reason and under the same rule (v0.1089, baked bark): they are what
-    // `textureSampleGrad` needs to pick a mip level, and textureSampleGrad is
-    // the LOD-selecting sample that is legal inside non-uniform control flow -
-    // which every material-type branch below is. Meaningless for the material
-    // types whose uv carries a packed integer; those never read it.
-    let uv_dx = dpdx(in.uv);
-    let uv_dy = dpdy(in.uv);
-    // LOD crossfade (v0.920): model[0].w carries the per-object fade (see
-    // RenderObject::fade). 0 = normal. Positive f = fading IN: keep pixels
-    // whose 4x4 Bayer threshold is below f. Negative -f = fading OUT: keep
-    // pixels at/above f. A rising patch at t and its falling partner at -t
-    // partition the screen per-pixel, so terrain LOD swaps dissolve instead
-    // of popping - with opaque depth intact and zero overdraw holes.
-    let lod_fade = obj_lod_fade();
-    if (lod_fade != 0.0) {
-        let px = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
-        // 4x4 Bayer matrix via bit interleaving: thresholds (0.5..15.5)/16.
-        let bx = px.x % 4u;
-        let by = px.y % 4u;
-        let bayer_i = (bx % 2u) * 8u + (by % 2u) * 4u + ((bx / 2u) % 2u) * 2u + (by / 2u) % 2u;
-        let b = (f32(bayer_i) + 0.5) / 16.0;
-        if (lod_fade > 0.0) {
-            if (b >= lod_fade) { discard; }
-        } else {
-            if (b < -lod_fade) { discard; }
-        }
-    }
-    // var (not let) since v0.907: the ground PBR pass perturbs the terrain
-    // normal with the material's normal map before the lighting below.
-    var normal = normalize(in.world_normal);
-    let view_dir = normalize(camera.view_pos.xyz - in.world_position);
+fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
+    var s = frag_prologue(in);
+    // The fs_main names, so the moved block text below is verbatim (see the
+    // FragSetup note in 80-fragment-shared.wgsl).
+    let wp_dx = s.wp_dx;
+    let wp_dy = s.wp_dy;
+    let uv_dx = s.uv_dx;
+    let uv_dy = s.uv_dy;
+    var normal = s.normal;
+    let view_dir = s.view_dir;
+    var albedo = s.albedo;
+    var metallic = s.metallic;
+    var roughness = s.roughness;
+    let material_type = s.material_type;
+    var sun_gate = s.sun_gate;
+    var ao = s.ao;
+    var frag_up = s.frag_up;
+    var proc_emissive = s.proc_emissive;
+    var screen_emitter = s.screen_emitter;
+    var out_alpha = s.out_alpha;
+    var emissive_strength = s.emissive_strength;
 
-    var albedo = material.base_color.rgb;
-    var metallic = material.params.x;
-    var roughness = material.params.y;
-    let material_type = material.params.z;
-    // Sun visibility for THIS fragment, 1 unless a branch knows better. Only
-    // the planet-surface branch sets it (v0.1052 terminator gate); everything
-    // else - ship interiors, props, the other bodies - is unaffected.
-    var sun_gate = 1.0;
-    // ── AMBIENT OCCLUSION, OFF ALBEDO (v0.1104) ──
-    // Two branches used to fold their cavity occlusion straight into albedo
-    // (ground detail, baked bark), both with a comment admitting why: "the
-    // shared PBR tail has no AO input on this path". It has one now. Darkening
-    // albedo attenuates the SUN exactly as much as it attenuates the sky,
-    // which no occlusion term should ever do - a crevice is shielded from the
-    // hemisphere, not from a collimated beam it happens to face. This is
-    // consumed by the indirect term at the bottom of fs_main and by nothing
-    // else. (SSAO into the same slot is a separate job: it needs the SSAO
-    // texture bound into group 3, i.e. three create_bind_group sites.)
-    var ao = 1.0;
-    // Local up for this fragment, for the sky-irradiance term. Default is the
-    // camera's radial up (light3_cone_inner.yzw, published every frame by
-    // lib.rs) which is right for anything within a few km of the camera -
-    // trees, props, grass, machines. The planet-surface branch overwrites it
-    // per fragment, because that one pass draws the whole disc from orbit and
-    // a single camera-relative up would be wrong across most of it.
-    var frag_up = vec3<f32>(
-        camera.light3_cone_inner.y,
-        camera.light3_cone_inner.z,
-        camera.light3_cone_inner.w,
-    );
-    var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
-    // Type 24 (in-world screen) sets this: the fragment is a DISPLAY and its
-    // colour is the sampled page times brightness, replacing the lit result
-    // at the compose step below (a display emits, it does not reflect).
-    var screen_emitter = false;
-    var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
-    // Emissive strength normally rides in params.w -- but material type 12
-    // REPURPOSES params.w as the "albedo texture present" flag (v0.811), so
-    // the type-12 branch zeroes this to keep planets from self-glowing.
-    var emissive_strength = material.params.w;
-
-    // Types 14 + 15 short-circuit the whole PBR surface path: an atmosphere
-    // is a participating MEDIUM and a cloud deck is a self-lit coverage
-    // field -- neither takes its color from a BRDF. Types >= 15.5 would fall
-    // through to the default panel-grid look (none exist yet).
-    //
-    // PERMUTATION GUARDS (P1, 05-overrides.wgsl): each dispatch is ANDed with
-    // its pipeline-overridable switch. A pipeline compiled with the switch
-    // false gets a constant-false condition, and the compiler folds the
-    // branch away with everything only it referenced. The switch is written
-    // FIRST in each `&&` purely as the convention pipeline.rs::
-    // permutation_tests pins (one shape, so every guard reads the same and
-    // the test can find it); the operand order changes nothing about the
-    // folding. Which pipeline keeps which switch is pipeline.rs
-    // PSO_DEAD_BRANCHES, by MATERIAL CLASS since increment P2: the general
-    // PSOs (opaque, transparent, overlay, both sun-shadow) and the terrain
-    // batch PSOs compile all three off, the shell PSOs keep the atmosphere
-    // and ocean and fold the cloud march away, and the cloud PSO keeps only
-    // the march. The draw loops pick the PSO from the material's class
-    // (`shader_class`), so a fragment that somehow carried one of these
-    // types on the wrong pipeline would fall through to the default look,
-    // which is the correct failure for a material the pipeline was never
-    // meant to draw.
-    // The same test requires each of these three functions to be called
-    // from exactly ONE place before fs_shadow, this guarded line, so a
-    // second call anywhere else in fs_main is a red test, not a silent way
-    // around the switch. Change the guards and the test together.
-    if (HAS_ATMOSPHERE_BRANCH && material_type >= 13.5 && material_type < 14.5) {
-        return atmosphere_scattering(in.world_position, front_facing);
-    }
-    if (HAS_CLOUD_BRANCH && material_type >= 14.5 && material_type < 15.5) {
-        return cloud_layer(in.world_position, front_facing);
-    }
-    if (HAS_OCEAN_BRANCH && material_type >= 15.5 && material_type < 16.5) {
-        return ocean_shell(in);
-    }
     if (material_type >= 18.5 && material_type < 19.5) {
         // Type 19: TEXTURED MESH (v0.909, the photoscanned-plant path):
         // the material's albedo texture times base_color, alpha-cutout for
@@ -1018,186 +968,6 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         metallic = 0.0;
         roughness = 1.0;
         screen_emitter = true;
-    }
-    if (material_type >= 20.5 && material_type < 21.5) {
-        // ── Type 21: FOLIAGE CLUSTER CARD (v0.1088) ─────────────────────
-        // A quad textured with a baked cluster sprite (dozens of shaped
-        // blossoms/leaves per card - the operator's reference-photo
-        // redirect: canopy detail lives in TEXTURE, not triangles).
-        // UV contract (tree_mesh::encode_card_uv, all three sites must
-        // agree exactly): uv.x = 2*ao_code + u01, ao_code 0..63.
-        let cc_code = floor(in.uv.x * 0.5);
-        let cc_u = in.uv.x - 2.0 * cc_code;
-        let cc_ao = cc_code / 63.0;
-        // textureSampleGrad, not textureSampleLevel(0) (v0.1101): v0.1090
-        // built these cards a full alpha-coverage-preserving mip chain and a
-        // trilinear sampler with anisotropy_clamp 8 to stop the crawling,
-        // and then this fetch forced LOD 0 and used NEITHER. The upload code
-        // was the evidence; the rendered result never changed.
-        //
-        // The gradients are safe despite cc_u's discontinuity: within one
-        // card `floor(uv.x*0.5)` is constant, so d(cc_u) == d(uv.x), and the
-        // only fragments where that fails are quads straddling two cards -
-        // there the derivative reads large, which selects a coarser mip. Erring
-        // blurry on a card seam is exactly the right failure direction.
-        let cc_tex = textureSampleGrad(
-            albedo_texture, albedo_sampler,
-            vec2<f32>(cc_u, in.uv.y), uv_dx, uv_dy);
-        if (cc_tex.a < 0.5) {
-            discard;
-        }
-        // SUN LEAVES VERSUS SHADE LEAVES (v0.1109). A crown grows two
-        // different leaves: the outer, sun-exposed ones are smaller, thicker
-        // and yellower-green, the inner shade ones larger, thinner and darker
-        // with a bluer green (Boardman 1977, "Comparative photosynthesis of
-        // sun and shade plants", Annu. Rev. Plant Physiol. 28:355). cc_ao IS
-        // the card's crown depth, so this costs one mix - and it is what gives
-        // a crown VOLUME at range, where the sprite's own per-leaf colour
-        // variation has averaged away into the mip chain and only the
-        // card-scale gradient survives.
-        //
-        // The two tints are near luminance-neutral (0.97 and 1.03 against the
-        // Rec.709 weights) so this is a CHROMATIC gradient; the achromatic
-        // part of the crown-depth gradient stays where it was, in the
-        // (0.35 + 0.65 * cc_ao) term below.
-        //
-        // Crown-core AO is baked per-station into the code; keep a floor so
-        // the deepest cards read as shaded foliage, not holes.
-        //
-        // v0.1110: the tint + extinction moved into `crown_depth_shade`
-        // (10-lighting-patterns.wgsl) so the ATLAS BAKE can apply the identical
-        // expression. It decoded this same AO code and discarded it, which made
-        // every far-field card ~1.5x brighter than the near crown it stands
-        // for - half of the operator's "LOD billboards get full light".
-        albedo = albedo * cc_tex.rgb * crown_depth_shade(cc_ao);
-        emissive_strength = 0.0;
-        // CUTICLE SHEEN (v0.1109). The cluster material used to ship roughness
-        // 0.9 for both layers and this branch never overrode it, so every leaf
-        // in the forest was pure matte diffuse. Measured leaf BRDFs put the
-        // adaxial specular lobe at roughness ~0.20-0.40 with 3-6% normal
-        // incidence rising steeply toward grazing (Bousquet, Lacherade,
-        // Jacquemoud & Moya 2005, Remote Sensing of Environment 98:201-211).
-        // f0 is already 0.04 for a dielectric down in the PBR tail, so the
-        // Fresnel half was right and the missing half was the LOBE WIDTH.
-        //
-        // The material carries the tissue's base roughness (leaf 0.62, petal
-        // 0.88 - a petal is papery, not waxy: billboard_bake::cluster_
-        // roughness) and this narrows it toward the sunlit shell, because a
-        // sun leaf's cuticle is thick and waxy where a shaded interior leaf's
-        // is thin and dull. Leaf shell lands at 0.38, leaf core at 0.62.
-        roughness = clamp(material.params.y * mix(1.0, 0.62, cc_ao), 0.10, 1.0);
-        // Foliage transmission (the BUG-056 lesson: cards are LEAVES, never
-        // plain mesh) - same day-gated backlit term as the type-20 leaf
-        // branch, scaled by AO so the crown core does not glow.
-        // MULTIPLIED BY THE SHADOW MAP (v0.1101): BUG-060 established that no
-        // sun-derived term may skip it - a leaf in shadow receives no sun to
-        // transmit - and that fix landed on the type-20 leaf and type-23
-        // grass branches but MISSED this one, so cluster cards standing
-        // inside another tree's shadow kept emitting their full backlit term
-        // and shaded crowns glowed. Two of three is how a fix looks when it
-        // is applied by search-and-edit instead of by enumerating the term's
-        // every occurrence.
-        let cc_sun = normalize(camera.sun_direction.xyz);
-        let cc_backlit = max(-dot(normal, cc_sun), 0.0);
-        let cc_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
-        let cc_shadow = sun_shadow(in.world_position, dot(normal, cc_sun));
-        proc_emissive = proc_emissive
-            + albedo * camera.sun_color.rgb
-                * (cc_backlit * 0.30) * cc_day * cc_shadow * (0.3 + 0.7 * cc_ao);
-    }
-    if (material_type >= 21.5 && material_type < 22.5) {
-        // ── Type 22: BAKED BARK (v0.1089) ───────────────────────────────
-        // The wood of a procedural tree, on its own mesh with real cylindrical
-        // UVs (renderer::tree_mesh::TreeParts::bark_tube) sampling a
-        // per-species baked texture through the SAME per-material albedo slot
-        // cluster cards use. No new binding: bindings 11/12 look free in this
-        // file but are the atmosphere LUTs in the Rust layout, and a new
-        // texture_2d<f32> there would type-match and silently sample a 256x64
-        // LUT as bark.
-        //
-        // WHAT THIS REPLACES. The type-20 bark branch below invents fissures
-        // from object-space voronoi noise and then FADES THEM OUT over 2.5-12 m
-        // (`detail`) and 0.8-3 m (`micro`), because procedural noise has no mip
-        // chain and aliases the instant a trunk minifies. Beyond arm's reach a
-        // trunk was therefore one flat colour per face - measured at 0.27 luma
-        // levels of cross-trunk detail against a 0.258-level quantization
-        // floor. A baked texture HAS mips, so this branch carries NO distance
-        // gate on albedo, normal or roughness: trilinear + 8x anisotropic
-        // minification is the correct band-limiter, and detail survives to
-        // wherever the trunk is still resolvable.
-        //
-        // CHANNELS (bake_bark_rgba): rgb = species colour x plate field;
-        // ALPHA = the same field as a LINEAR height/AO scalar. Alpha is not
-        // gamma-encoded in an Rgba8UnormSrgb texture, so it is the one clean
-        // linear channel available without a second texture - it carries both
-        // the relief this branch differentiates and the roughness break.
-        let bk_dim = vec2<f32>(textureDimensions(albedo_texture, 0));
-        let bk = textureSampleGrad(albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
-        albedo = albedo * bk.rgb;
-        metallic = 0.0;
-        // params.w is the emissive slot everywhere; type 22 does not repurpose
-        // it (its wind class is implied by the type in the vertex stage), but
-        // zero it explicitly so a stray non-zero can never make a trunk glow.
-        emissive_strength = 0.0;
-
-        // RELIEF. Central differences of the baked height, sampled with the
-        // SAME gradients as the base fetch so each tap lands on the same mip
-        // level: the height field the taps see is the FILTERED one, so relief
-        // softens with distance on its own, physically, instead of by a
-        // hand-tuned distance gate.
-        //
-        // The tap offset is the larger of two texels and ONE SCREEN PIXEL's
-        // footprint. Two texels alone is right up close and useless at range:
-        // by 8 m a pixel already covers ~40 texels, so three taps 2 texels
-        // apart all land inside one filtered texel, the difference is zero and
-        // the trunk goes flat. That was measured in a probe capture, not
-        // reasoned about.
-        let bk_o = max(
-            vec2<f32>(2.0, 2.0) / max(bk_dim, vec2<f32>(1.0)),
-            abs(uv_dx) + abs(uv_dy),
-        );
-        let h_l = textureSampleGrad(
-            albedo_texture, albedo_sampler,
-            in.uv - vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
-        let h_r = textureSampleGrad(
-            albedo_texture, albedo_sampler,
-            in.uv + vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
-        let h_d = textureSampleGrad(
-            albedo_texture, albedo_sampler,
-            in.uv - vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
-        let h_u = textureSampleGrad(
-            albedo_texture, albedo_sampler,
-            in.uv + vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
-        // COTANGENT-FRAME TBN (Mikkelsen). The vertex format has no tangent,
-        // and adding one would widen every vertex in the engine for bark
-        // alone; the screen-space derivatives already taken at the top of this
-        // function reconstruct the frame exactly, per pixel, for a few ALU.
-        let bk_dp2perp = cross(wp_dy, normal);
-        let bk_dp1perp = cross(normal, wp_dx);
-        let bk_t = bk_dp2perp * uv_dx.x + bk_dp1perp * uv_dy.x;
-        let bk_b = bk_dp2perp * uv_dx.y + bk_dp1perp * uv_dy.y;
-        let bk_scale = inverseSqrt(max(max(dot(bk_t, bk_t), dot(bk_b, bk_b)), 1e-20));
-        // 0.75 is a deep push: bark IS genuinely rough, and the cracks have to
-        // read as grooves that catch a raking sun, not as painted lines.
-        let bk_rel = 0.75;
-        normal = normalize(
-            normal - ((bk_t * (h_r - h_l) + bk_b * (h_u - h_d)) * bk_scale) * bk_rel,
-        );
-
-        // ROUGHNESS from the same height: crevices hold dust and torn fibre
-        // and scatter widely; ridge crests are worn smooth by weather. This is
-        // what makes the specular response VARY across a trunk instead of
-        // banding uniformly, which is the other half of reading as bark.
-        roughness = clamp(0.98 - 0.30 * bk.a, 0.55, 0.99);
-        // Contact-scale ambient occlusion, straight off the height channel.
-        // v0.1104: this used to multiply ALBEDO, with a comment defending that
-        // as deliberate ("it darkens sun and sky identically"). It is not
-        // defensible now that the tail has a real AO input and a real indirect
-        // term: darkening albedo makes a fissure absorb less DIRECT sun, which
-        // no occlusion does. A fissure is shielded from the sky and lit
-        // normally by whatever beam reaches it, and the relief normals above
-        // already shade it correctly against the sun.
-        ao = 0.72 + 0.28 * bk.a;
     }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
@@ -1273,11 +1043,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
     //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
     //   3 = Wood                          7 = Leather         11 = Lava
-    //  12 = Planet surface (per-pixel imagery when params.w > 0.5, else per-face
-    //       color + water flag packed in UV; ocean sun glint either way)
-    //  13 = Atmosphere shell (fresnel limb tint -- the pre-v0.807 fallback)
-    //  14 = Atmosphere shell (analytic single scattering -- handled above)
-    //  15 = Cloud layer (animated procedural deck -- handled above)
+    // Types 17, 18, 19 and 24 were handled above; every other type this
+    // entry can see (none exist yet) keeps the plain PBR look of its
+    // base_color.
     if material_type < 0.5 {
         // Type 0: Default panel grid (walls, floors)
         if metallic < 0.1 && roughness > 0.3 {
@@ -1370,7 +1138,47 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         proc_emissive = vec3<f32>(1.0, 0.3, 0.0) * heat * 3.0; // glowing cracks
         roughness = mix(0.9, 0.3, heat);
         metallic = 0.0;
-    } else if material_type < 12.5 {
+    }
+
+    // Hand the class's result to the shared tail.
+    s.normal = normal;
+    s.albedo = albedo;
+    s.metallic = metallic;
+    s.roughness = roughness;
+    s.sun_gate = sun_gate;
+    s.ao = ao;
+    s.frag_up = frag_up;
+    s.proc_emissive = proc_emissive;
+    s.screen_emitter = screen_emitter;
+    s.out_alpha = out_alpha;
+    s.emissive_strength = emissive_strength;
+    return frag_tail(in, s);
+}
+
+@fragment
+fn fs_terrain(in: VertexOutput) -> @location(0) vec4<f32> {
+    var s = frag_prologue(in);
+    // The fs_main names, so the moved block text below is verbatim (see the
+    // FragSetup note in 80-fragment-shared.wgsl).
+    let wp_dx = s.wp_dx;
+    let wp_dy = s.wp_dy;
+    let uv_dx = s.uv_dx;
+    let uv_dy = s.uv_dy;
+    var normal = s.normal;
+    let view_dir = s.view_dir;
+    var albedo = s.albedo;
+    var metallic = s.metallic;
+    var roughness = s.roughness;
+    let material_type = s.material_type;
+    var sun_gate = s.sun_gate;
+    var ao = s.ao;
+    var frag_up = s.frag_up;
+    var proc_emissive = s.proc_emissive;
+    var screen_emitter = s.screen_emitter;
+    var out_alpha = s.out_alpha;
+    var emissive_strength = s.emissive_strength;
+
+    if (material_type >= 11.5 && material_type < 12.5) {
         // Type 12: Planet surface (v0.763) -- per-face color packed into the UV
         // channel by Mesh::from_planet_surface / terrain::planet_surface::
         // pack_color_to_uv. uv.x holds two 8-bit channels plus a water flag as
@@ -1761,7 +1569,227 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             ao = vc.sky_frac;
         }
         } // close the sprite-card / packed-color split (v0.961)
-    } else if (material_type >= 19.5 && material_type < 20.5) {
+    }
+
+    // Hand the class's result to the shared tail.
+    s.normal = normal;
+    s.albedo = albedo;
+    s.metallic = metallic;
+    s.roughness = roughness;
+    s.sun_gate = sun_gate;
+    s.ao = ao;
+    s.frag_up = frag_up;
+    s.proc_emissive = proc_emissive;
+    s.screen_emitter = screen_emitter;
+    s.out_alpha = out_alpha;
+    s.emissive_strength = emissive_strength;
+    return frag_tail(in, s);
+}
+
+@fragment
+fn fs_vegetation(in: VertexOutput) -> @location(0) vec4<f32> {
+    var s = frag_prologue(in);
+    // The fs_main names, so the moved block text below is verbatim (see the
+    // FragSetup note in 80-fragment-shared.wgsl).
+    let wp_dx = s.wp_dx;
+    let wp_dy = s.wp_dy;
+    let uv_dx = s.uv_dx;
+    let uv_dy = s.uv_dy;
+    var normal = s.normal;
+    let view_dir = s.view_dir;
+    var albedo = s.albedo;
+    var metallic = s.metallic;
+    var roughness = s.roughness;
+    let material_type = s.material_type;
+    var sun_gate = s.sun_gate;
+    var ao = s.ao;
+    var frag_up = s.frag_up;
+    var proc_emissive = s.proc_emissive;
+    var screen_emitter = s.screen_emitter;
+    var out_alpha = s.out_alpha;
+    var emissive_strength = s.emissive_strength;
+
+    if (material_type >= 20.5 && material_type < 21.5) {
+        // ── Type 21: FOLIAGE CLUSTER CARD (v0.1088) ─────────────────────
+        // A quad textured with a baked cluster sprite (dozens of shaped
+        // blossoms/leaves per card - the operator's reference-photo
+        // redirect: canopy detail lives in TEXTURE, not triangles).
+        // UV contract (tree_mesh::encode_card_uv, all three sites must
+        // agree exactly): uv.x = 2*ao_code + u01, ao_code 0..63.
+        let cc_code = floor(in.uv.x * 0.5);
+        let cc_u = in.uv.x - 2.0 * cc_code;
+        let cc_ao = cc_code / 63.0;
+        // textureSampleGrad, not textureSampleLevel(0) (v0.1101): v0.1090
+        // built these cards a full alpha-coverage-preserving mip chain and a
+        // trilinear sampler with anisotropy_clamp 8 to stop the crawling,
+        // and then this fetch forced LOD 0 and used NEITHER. The upload code
+        // was the evidence; the rendered result never changed.
+        //
+        // The gradients are safe despite cc_u's discontinuity: within one
+        // card `floor(uv.x*0.5)` is constant, so d(cc_u) == d(uv.x), and the
+        // only fragments where that fails are quads straddling two cards -
+        // there the derivative reads large, which selects a coarser mip. Erring
+        // blurry on a card seam is exactly the right failure direction.
+        let cc_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            vec2<f32>(cc_u, in.uv.y), uv_dx, uv_dy);
+        if (cc_tex.a < 0.5) {
+            discard;
+        }
+        // SUN LEAVES VERSUS SHADE LEAVES (v0.1109). A crown grows two
+        // different leaves: the outer, sun-exposed ones are smaller, thicker
+        // and yellower-green, the inner shade ones larger, thinner and darker
+        // with a bluer green (Boardman 1977, "Comparative photosynthesis of
+        // sun and shade plants", Annu. Rev. Plant Physiol. 28:355). cc_ao IS
+        // the card's crown depth, so this costs one mix - and it is what gives
+        // a crown VOLUME at range, where the sprite's own per-leaf colour
+        // variation has averaged away into the mip chain and only the
+        // card-scale gradient survives.
+        //
+        // The two tints are near luminance-neutral (0.97 and 1.03 against the
+        // Rec.709 weights) so this is a CHROMATIC gradient; the achromatic
+        // part of the crown-depth gradient stays where it was, in the
+        // (0.35 + 0.65 * cc_ao) term below.
+        //
+        // Crown-core AO is baked per-station into the code; keep a floor so
+        // the deepest cards read as shaded foliage, not holes.
+        //
+        // v0.1110: the tint + extinction moved into `crown_depth_shade`
+        // (10-lighting-patterns.wgsl) so the ATLAS BAKE can apply the identical
+        // expression. It decoded this same AO code and discarded it, which made
+        // every far-field card ~1.5x brighter than the near crown it stands
+        // for - half of the operator's "LOD billboards get full light".
+        albedo = albedo * cc_tex.rgb * crown_depth_shade(cc_ao);
+        emissive_strength = 0.0;
+        // CUTICLE SHEEN (v0.1109). The cluster material used to ship roughness
+        // 0.9 for both layers and this branch never overrode it, so every leaf
+        // in the forest was pure matte diffuse. Measured leaf BRDFs put the
+        // adaxial specular lobe at roughness ~0.20-0.40 with 3-6% normal
+        // incidence rising steeply toward grazing (Bousquet, Lacherade,
+        // Jacquemoud & Moya 2005, Remote Sensing of Environment 98:201-211).
+        // f0 is already 0.04 for a dielectric down in the PBR tail, so the
+        // Fresnel half was right and the missing half was the LOBE WIDTH.
+        //
+        // The material carries the tissue's base roughness (leaf 0.62, petal
+        // 0.88 - a petal is papery, not waxy: billboard_bake::cluster_
+        // roughness) and this narrows it toward the sunlit shell, because a
+        // sun leaf's cuticle is thick and waxy where a shaded interior leaf's
+        // is thin and dull. Leaf shell lands at 0.38, leaf core at 0.62.
+        roughness = clamp(material.params.y * mix(1.0, 0.62, cc_ao), 0.10, 1.0);
+        // Foliage transmission (the BUG-056 lesson: cards are LEAVES, never
+        // plain mesh) - same day-gated backlit term as the type-20 leaf
+        // branch, scaled by AO so the crown core does not glow.
+        // MULTIPLIED BY THE SHADOW MAP (v0.1101): BUG-060 established that no
+        // sun-derived term may skip it - a leaf in shadow receives no sun to
+        // transmit - and that fix landed on the type-20 leaf and type-23
+        // grass branches but MISSED this one, so cluster cards standing
+        // inside another tree's shadow kept emitting their full backlit term
+        // and shaded crowns glowed. Two of three is how a fix looks when it
+        // is applied by search-and-edit instead of by enumerating the term's
+        // every occurrence.
+        let cc_sun = normalize(camera.sun_direction.xyz);
+        let cc_backlit = max(-dot(normal, cc_sun), 0.0);
+        let cc_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+        let cc_shadow = sun_shadow(in.world_position, dot(normal, cc_sun));
+        proc_emissive = proc_emissive
+            + albedo * camera.sun_color.rgb
+                * (cc_backlit * 0.30) * cc_day * cc_shadow * (0.3 + 0.7 * cc_ao);
+    }
+    if (material_type >= 21.5 && material_type < 22.5) {
+        // ── Type 22: BAKED BARK (v0.1089) ───────────────────────────────
+        // The wood of a procedural tree, on its own mesh with real cylindrical
+        // UVs (renderer::tree_mesh::TreeParts::bark_tube) sampling a
+        // per-species baked texture through the SAME per-material albedo slot
+        // cluster cards use. No new binding: bindings 11/12 look free in this
+        // file but are the atmosphere LUTs in the Rust layout, and a new
+        // texture_2d<f32> there would type-match and silently sample a 256x64
+        // LUT as bark.
+        //
+        // WHAT THIS REPLACES. The type-20 bark branch below invents fissures
+        // from object-space voronoi noise and then FADES THEM OUT over 2.5-12 m
+        // (`detail`) and 0.8-3 m (`micro`), because procedural noise has no mip
+        // chain and aliases the instant a trunk minifies. Beyond arm's reach a
+        // trunk was therefore one flat colour per face - measured at 0.27 luma
+        // levels of cross-trunk detail against a 0.258-level quantization
+        // floor. A baked texture HAS mips, so this branch carries NO distance
+        // gate on albedo, normal or roughness: trilinear + 8x anisotropic
+        // minification is the correct band-limiter, and detail survives to
+        // wherever the trunk is still resolvable.
+        //
+        // CHANNELS (bake_bark_rgba): rgb = species colour x plate field;
+        // ALPHA = the same field as a LINEAR height/AO scalar. Alpha is not
+        // gamma-encoded in an Rgba8UnormSrgb texture, so it is the one clean
+        // linear channel available without a second texture - it carries both
+        // the relief this branch differentiates and the roughness break.
+        let bk_dim = vec2<f32>(textureDimensions(albedo_texture, 0));
+        let bk = textureSampleGrad(albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
+        albedo = albedo * bk.rgb;
+        metallic = 0.0;
+        // params.w is the emissive slot everywhere; type 22 does not repurpose
+        // it (its wind class is implied by the type in the vertex stage), but
+        // zero it explicitly so a stray non-zero can never make a trunk glow.
+        emissive_strength = 0.0;
+
+        // RELIEF. Central differences of the baked height, sampled with the
+        // SAME gradients as the base fetch so each tap lands on the same mip
+        // level: the height field the taps see is the FILTERED one, so relief
+        // softens with distance on its own, physically, instead of by a
+        // hand-tuned distance gate.
+        //
+        // The tap offset is the larger of two texels and ONE SCREEN PIXEL's
+        // footprint. Two texels alone is right up close and useless at range:
+        // by 8 m a pixel already covers ~40 texels, so three taps 2 texels
+        // apart all land inside one filtered texel, the difference is zero and
+        // the trunk goes flat. That was measured in a probe capture, not
+        // reasoned about.
+        let bk_o = max(
+            vec2<f32>(2.0, 2.0) / max(bk_dim, vec2<f32>(1.0)),
+            abs(uv_dx) + abs(uv_dy),
+        );
+        let h_l = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv - vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
+        let h_r = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv + vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
+        let h_d = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv - vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
+        let h_u = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv + vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
+        // COTANGENT-FRAME TBN (Mikkelsen). The vertex format has no tangent,
+        // and adding one would widen every vertex in the engine for bark
+        // alone; the screen-space derivatives already taken at the top of this
+        // function reconstruct the frame exactly, per pixel, for a few ALU.
+        let bk_dp2perp = cross(wp_dy, normal);
+        let bk_dp1perp = cross(normal, wp_dx);
+        let bk_t = bk_dp2perp * uv_dx.x + bk_dp1perp * uv_dy.x;
+        let bk_b = bk_dp2perp * uv_dx.y + bk_dp1perp * uv_dy.y;
+        let bk_scale = inverseSqrt(max(max(dot(bk_t, bk_t), dot(bk_b, bk_b)), 1e-20));
+        // 0.75 is a deep push: bark IS genuinely rough, and the cracks have to
+        // read as grooves that catch a raking sun, not as painted lines.
+        let bk_rel = 0.75;
+        normal = normalize(
+            normal - ((bk_t * (h_r - h_l) + bk_b * (h_u - h_d)) * bk_scale) * bk_rel,
+        );
+
+        // ROUGHNESS from the same height: crevices hold dust and torn fibre
+        // and scatter widely; ridge crests are worn smooth by weather. This is
+        // what makes the specular response VARY across a trunk instead of
+        // banding uniformly, which is the other half of reading as bark.
+        roughness = clamp(0.98 - 0.30 * bk.a, 0.55, 0.99);
+        // Contact-scale ambient occlusion, straight off the height channel.
+        // v0.1104: this used to multiply ALBEDO, with a comment defending that
+        // as deliberate ("it darkens sun and sky identically"). It is not
+        // defensible now that the tail has a real AO input and a real indirect
+        // term: darkening albedo makes a fissure absorb less DIRECT sun, which
+        // no occlusion does. A fissure is shielded from the sky and lit
+        // normally by whatever beam reaches it, and the relief normals above
+        // already shade it correctly against the sun.
+        ao = 0.72 + 0.28 * bk.a;
+    }
+    if (material_type >= 19.5 && material_type < 20.5) {
         // ── Type 20: PROCEDURAL PLANT (v0.1063) ──────────────────────────
         // Same packed-per-face-colour transport as type 12 (written by
         // renderer::plant_mesh), but this is its OWN type for two reasons.
@@ -2024,7 +2052,65 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 + albedo * camera.sun_color.rgb
                     * (trans * 0.15 + backlit * 0.06) * leaf_sun_day * g_shadow;
         }
-    } else if material_type < 13.5 {
+    }
+
+    // Hand the class's result to the shared tail.
+    s.normal = normal;
+    s.albedo = albedo;
+    s.metallic = metallic;
+    s.roughness = roughness;
+    s.sun_gate = sun_gate;
+    s.ao = ao;
+    s.frag_up = frag_up;
+    s.proc_emissive = proc_emissive;
+    s.screen_emitter = screen_emitter;
+    s.out_alpha = out_alpha;
+    s.emissive_strength = emissive_strength;
+    return frag_tail(in, s);
+}
+
+@fragment
+fn fs_water(in: VertexOutput) -> @location(0) vec4<f32> {
+    let s = frag_prologue(in);
+    let material_type = s.material_type;
+    // The ocean shell is a whole program of its own (ocean_shell above:
+    // FFT tile sampling, water_shade, the sky mirror and Fresnel) and never
+    // takes the BRDF path.
+    if (HAS_OCEAN_BRANCH && material_type >= 15.5 && material_type < 16.5) {
+        return ocean_shell(in);
+    }
+    return frag_tail(in, s);
+}
+
+@fragment
+fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    var s = frag_prologue(in);
+    // The fs_main names, so the moved block text below is verbatim (see the
+    // FragSetup note in 80-fragment-shared.wgsl).
+    let wp_dx = s.wp_dx;
+    let wp_dy = s.wp_dy;
+    let uv_dx = s.uv_dx;
+    let uv_dy = s.uv_dy;
+    var normal = s.normal;
+    let view_dir = s.view_dir;
+    var albedo = s.albedo;
+    var metallic = s.metallic;
+    var roughness = s.roughness;
+    let material_type = s.material_type;
+    var sun_gate = s.sun_gate;
+    var ao = s.ao;
+    var frag_up = s.frag_up;
+    var proc_emissive = s.proc_emissive;
+    var screen_emitter = s.screen_emitter;
+    var out_alpha = s.out_alpha;
+    var emissive_strength = s.emissive_strength;
+
+    // Type 14 short-circuits the whole PBR surface path: an atmosphere is a
+    // participating MEDIUM and takes no colour from a BRDF.
+    if (HAS_ATMOSPHERE_BRANCH && material_type >= 13.5 && material_type < 14.5) {
+        return atmosphere_scattering(in.world_position, front_facing);
+    }
+    if (material_type >= 12.5 && material_type < 13.5) {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
         // oversized transparent sphere. Nearly invisible looking straight
         // through the center, densest at the grazing-angle limb, so it reads as
@@ -2039,203 +2125,32 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         metallic = 0.0;
     }
 
-    // Fresnel reflectance at normal incidence
-    // Dielectrics: 0.04, metals: tinted by albedo
-    let f0 = mix(vec3<f32>(0.04), albedo, metallic);
+    // Hand the class's result to the shared tail.
+    s.normal = normal;
+    s.albedo = albedo;
+    s.metallic = metallic;
+    s.roughness = roughness;
+    s.sun_gate = sun_gate;
+    s.ao = ao;
+    s.frag_up = frag_up;
+    s.proc_emissive = proc_emissive;
+    s.screen_emitter = screen_emitter;
+    s.out_alpha = out_alpha;
+    s.emissive_strength = emissive_strength;
+    return frag_tail(in, s);
+}
 
-    // Evaluate main directional light (from camera uniforms), attenuated
-    // by the sun shadow map (v0.899). Only the SUN term is shadowed; fill
-    // and ambient stay, so shadows read as shade, not holes.
-    // ── TERRAIN TERMINATOR GATE (v0.1052) ──
-    // Operator: "some weird lighting at night in the desert... we've had this
-    // lighting bug before." They are right that it recurred, and this is why.
-    //
-    // The celestial pass (which draws planet terrain) stamps a HARDCODED white
-    // sun at intensity 2.5 over the camera uniform - unchanged since v0.451 -
-    // so the atmosphere-corrected night sun colour that lib.rs computes never
-    // reaches the ground. On top of that, the terrain sun term is
-    // dot(MESH normal, sun_dir) with no local-horizon test, and the sand normal
-    // map tilts that normal by tens of degrees. So after sunset the flat desert
-    // correctly falls to ambient, while the band toward the sunset azimuth -
-    // where grazing geometry and normal-map facets present the most surfaces
-    // tilted at a sun that is BELOW THE HORIZON - still catches ~25x more light
-    // than anything else in frame. That is the bright streak.
-    //
-    // Every other surface in that pass already has this gate: water and foam
-    // test dot(RADIAL normal, sun), and the cloud march tests each sample's own
-    // sphere normal. Terrain never got one. The window keeps a small negative
-    // tail so genuine alpenglow and mountain-top light survive - a fragment
-    // above the local sphere really does see the sun a little past geometric
-    // sunset - while ruling out light from a sun a degree or more under.
-    let sun_ndl = dot(normal, normalize(camera.sun_direction.xyz));
-    var lo = evaluate_light(
-        camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
-        normal, view_dir, albedo, metallic, roughness, f0)
-        * sun_shadow_offset(in.world_position, sun_ndl, normal)
-        * sun_gate;
-
-    // Evaluate fill light (from camera uniforms). NIGHT GATE for planet
-    // surfaces (operator, v0.1186: "the oceans are glowing" on the dark
-    // side from orbit): the fill is a fixed cool light with no relation
-    // to the sun, so on a planet's night side it fabricated illumination
-    // - invisible on dark land albedo, glowing cyan on the bright
-    // bathymetry ocean. Type 12 (textured planet) scales the fill by the
-    // sun's local elevation with a small twilight tail; every other
-    // material keeps the unconditional fill (it exists for near-field
-    // readability, not planetary lighting).
-    var fill_gate = 1.0;
-    if (material_type >= 11.5 && material_type < 12.5) {
-        fill_gate = smoothstep(-0.08, 0.12, sun_ndl);
+@fragment
+fn fs_cloud(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    let s = frag_prologue(in);
+    let material_type = s.material_type;
+    // The cloud deck is a self-lit coverage field marched per fragment
+    // (40-clouds.wgsl and 41-cloud-bodies.wgsl, with their per-invocation
+    // tables): the one program whose fragments genuinely pay for the march.
+    if (HAS_CLOUD_BRANCH && material_type >= 14.5 && material_type < 15.5) {
+        return cloud_layer(in.world_position, front_facing);
     }
-    lo = lo + evaluate_light(
-        camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
-        normal, view_dir, albedo, metallic, roughness, f0) * fill_gate;
-
-    // Point + spot lights — UNCAPPED (v0.782): the storage buffer holds every
-    // scene light; light_count bounds the loop. The early range/attenuation
-    // rejection keeps far lights nearly free, so the practical ceiling is GPU
-    // fill cost, not a software cap.
-    let num_lights = i32(camera.light_count.x);
-    // Clustering L1b: when tiling is on, loop ONLY this fragment's tile
-    // list (bounded by local overlap, not the global count - what lifts
-    // the 256 cap to 2048). The light body below is untouched: only the
-    // index it evaluates comes from the tile list.
-    let tile_w_px = shadow_u.params2.z;
-    let use_tiles = tile_w_px > 0.5;
-    var tile_base = 0u;
-    var loop_n = num_lights;
-    if (use_tiles) {
-        let tx = min(u32(in.clip_position.x / tile_w_px), TILE_COLS - 1u);
-        let ty = min(u32(in.clip_position.y / shadow_u.params2.w), TILE_ROWS - 1u);
-        let tile = ty * TILE_COLS + tx;
-        tile_base = tile * TILE_CAP;
-        loop_n = i32(min(tile_counts[tile], TILE_CAP));
-    }
-    for (var j = 0; j < loop_n; j = j + 1) {
-        var i = j;
-        if (use_tiles) {
-            i = i32(tile_indices[tile_base + u32(j)]);
-            // Respect THIS pass's declared light count (v0.1155, the
-            // tiled-only night glow): the tile lists are built once per
-            // frame from the lit interior pass, but the celestial/terrain
-            // pass writes its camera uniform without lit_uniform, so its
-            // light_count is 0 - the classic loop gives terrain NO point
-            // lights, and the tiled path must not smuggle them in through
-            // the tile lists. Without this guard, interior lights lit the
-            // whole night terrain whenever tiling was on.
-            if (i >= num_lights) {
-                continue;
-            }
-        }
-        var light_pos = scene_lights[i].pos_intensity.xyz;
-        let intensity = scene_lights[i].pos_intensity.w;
-        let light_color = scene_lights[i].color_range.xyz;
-        let radius = scene_lights[i].color_range.w;
-        let sent = scene_lights[i].spot.w;
-
-        // LINE light (v0.786, sentinel cos_outer == -2.0): the whole segment
-        // [pos, spot.xyz] emits -- light each fragment from the CLOSEST point
-        // on the segment (capsule-light representative point), so a strip
-        // washes the full wall instead of pooling at one point. Rust mirror +
-        // tests: light::line_light_closest_point.
-        if (sent < -1.5) {
-            let a = light_pos;
-            let b = scene_lights[i].spot.xyz;
-            let ab = b - a;
-            let t = clamp(dot(in.world_position - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-            light_pos = a + ab * t;
-        }
-
-        let to_light = light_pos - in.world_position;
-        let dist = length(to_light);
-
-        // Cheap reject: outside the light's range, contribution is exactly 0
-        // (the linear range window below hits zero at dist == radius).
-        if (dist >= radius) { continue; }
-
-        let light_dir = to_light / max(dist, 0.001);
-
-        // Attenuation: inverse square with radius falloff
-        var attenuation = intensity / (1.0 + dist * dist) * max(1.0 - dist / max(radius, 0.001), 0.0);
-
-        // Spot cone (v0.639): cos_outer == -1.0 is the Point/Bar sentinel, so this only narrows
-        // an actual spot light -- zero extra cost/behavior change for every other light.
-        let spot = scene_lights[i].spot;
-        let cos_outer = spot.w;
-        if (cos_outer > -1.0) {
-            let cos_inner = scene_lights[i].cone_inner.x;
-            // spot.xyz is the aim direction in the light-to-fragment sense; -light_dir (which
-            // points fragment-to-light) flips to the same sense for the dot product.
-            let cos_angle = dot(normalize(spot.xyz), -light_dir);
-            attenuation = attenuation * smoothstep(cos_outer, cos_inner, cos_angle);
-        }
-
-        if (attenuation > 0.001) {
-            lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
-        }
-    }
-
-    // ── INDIRECT LIGHT (v0.1104) ──
-    // Real sky irradiance from the per-frame sky-view table (see sky_ambient
-    // at the top of this file), floored at the old constant so ship interiors
-    // and deep space - where there is no sky and the pads that carry it are
-    // zeroed - keep exactly the silhouette floor they had. With sky = 0 this
-    // expression is bit-identical to the pre-v0.1104 line it replaces; the
-    // Rust twin renderer::sky_ambient asserts that.
-    //
-    // AO multiplies ONLY this term. It is occlusion of the HEMISPHERE.
-    let ambient = albedo * max(sky_ambient(normal, frag_up), AMBIENT_FLOOR) * ao;
-
-    var color = ambient + lo;
-
-    // Emissive: params.w controls emissive strength (0 = none, 1+ = glow)
-    // Emissive objects use base_color as their glow color, bypassing lighting.
-    // (Declared as a var at the top; type 12 zeroes it -- see there.)
-    if (emissive_strength > 0.0) {
-        color = color + albedo * emissive_strength;
-    }
-
-    // Procedural emissive (e.g. lava cracks) -- additive, independent of params.w
-    color = color + proc_emissive;
-
-    // Type 24 (in-world screen): the display's own light REPLACES the lit
-    // result. Sun, shadow map, sky ambient and room lights above are all
-    // discarded for this fragment; a screen showing a dark page reads dark
-    // and a bright page reads bright regardless of where the sun is. Aerial
-    // haze and underwater extinction below still apply, so a far screen
-    // fades into the atmosphere like everything else in the scene.
-    if (screen_emitter) {
-        color = albedo * max(emissive_strength, 0.0);
-    }
-
-    // ── Aerial perspective (v0.916, research roadmap item 2) ──
-    // Distant surfaces fade toward the sky's in-scatter color - the single
-    // strongest landscape realism cue. Exponential height haze: the CPU
-    // pokes sigma (already folded with the camera-altitude density falloff
-    // and the Settings strength) into light1_cone_inner.y, the slant cap
-    // scale into light1_cone_inner.z, the day/sunset-tinted sky color into [2].yzw, and
-    // the camera's radial up into [3].yzw. The SLANT path bound keeps a
-    // noon sun and orbit views clear: looking up exits the haze layer in a
-    // few km, so only long, flat sightlines accumulate fog. sigma = 0 (off
-    // in space, at night the color also darkens) makes this a no-op.
-    color = aerial_apply(color, in.world_position);
-    // Underwater extinction AFTER aerial haze: above water the aerial term is
-    // the atmosphere, below it the water column is what attenuates, and the two
-    // are mutually exclusive in practice (aerial sigma is a surface-air value).
-    // `false`: everything that reaches the shared tail - terrain, seabed,
-    // props, vegetation - is geometry seen THROUGH the water column when it
-    // sits below sea level, not the interface itself.
-    color = underwater_apply(color, in.world_position, false);
-
-    // ACES-like tone mapping (more filmic than Reinhard)
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    color = clamp((color * (a * color + vec3<f32>(b))) / (color * (c * color + vec3<f32>(d)) + vec3<f32>(e)), vec3<f32>(0.0), vec3<f32>(1.0));
-
-    return vec4<f32>(color, out_alpha);
+    return frag_tail(in, s);
 }
 
 // ── SHADOW-PASS FRAGMENT (v0.1106) ──────────────────────────────────────
