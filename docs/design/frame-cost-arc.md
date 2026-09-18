@@ -408,6 +408,84 @@ ms), toward the 0.2 ms the stub measured. Then the same for the opaque
 classic PSO once the interior draw lists prove no shell goes through it,
 which is what re-prices the console-room wall pixel in section 2.
 
+#### P2 outcome (2026-09-18, worktree agent; per-material-class pipelines)
+
+**Shipped: three material classes, ten megashader PSOs, pipeline picked per
+draw by class.** `src/renderer/pipeline.rs` gains `ShaderClass { General,
+Shell, Cloud }` and `shader_class(material_type)`, pinned to the three
+guarded dispatch bands of `90-fragment-main.wgsl` by a test that sweeps the
+type space at half steps (proven red once by narrowing the ocean band, then
+restored). General (every type outside the three bands) compiles all three
+switches off; Shell (14 atmosphere, 16 water) keeps the atmosphere and ocean
+branches and folds the cloud march away; Cloud (15) keeps the march alone.
+The five classic PSOs and the two terrain PSOs are General; three new PSOs
+serve the shells (`shell_transparent_pipeline`, `shell_overlay_pipeline` for
+the water's v0.1060 depth-write path, `cloud_transparent_pipeline`). Every
+transparent and overlay draw loop (`render_transparent_onto`,
+`render_overlay_onto`, the celestial transparent loop, and through them the
+hi-res screenshot and the camera screens) picks `transparent_for(class)` /
+`overlay_for(class)` and switches only when the class changes; the opaque
+loops debug-assert that no shell is in their list. The celestial transparent
+list is stable-sorted general-first, then shells (water last inside an
+atmosphere, as before), so the switches are a handful per frame. Hot reload
+rebuilds all ten through the same named-struct path (`MegashaderPsos`).
+
+Why three classes and not the two the brief sketched (General plus one Shell
+with all three switches on): P1 already measured that a PSO which can reach
+`cloud_layer` charges the march's frame to every fragment it draws, so a
+Shell PSO with the cloud switch on would have left the atmosphere shell at
+its 10 to 25 ms and the brief's own expectations (limb near 1 ms, Sahara
+near 0.2) unmet. The cloud shell had to be alone on the only program that
+keeps the march. The pipeline-per-class table is in
+`docs/design/shader-organization.md`.
+
+Gate, `probe-sweep --operator-config`, same five-vantage list and order in
+both boots, B0 = the shipped v0.1315.1 exe (a byte-identical copy), B1 =
+this change; GPU timestamp queries, 2560 x 1387, clouds off; captures,
+cost files and diff tools in the 2026-09-18 session scratchpad
+(`p2-b0-pristine/`, `p2-b1-classes/`, `p2-b1-moon-repeat/`,
+`p2-screens-b0/`, `p2-screens-b1/`, `p2-diff.js`, `p2-blockstats.js`,
+`p2-outliers.js`, `diff-p2-*.png`):
+
+| vantage | cost key | B0 | B1 | fps B0 | B1 | floor | pixels B0 vs B1 (outside HUD) |
+|---|---|---|---|---|---|---|---|
+| `limb-400km` | `gpu.celestial_t` | 25.01 | 0.37 | 24.5 | 30 | 25 | 10.5 percent, mean 1.12; 24 px over 16, every one a star dot in the top strip at the frame edges |
+| `sahara-noon-ground` | `gpu.celestial_t` | 10.35 | 0.19 | 30 | 29.9 | 20 | 16.0 percent, mean 1.27, max 12; sky rows 0.00; block means within 0.11 |
+| `ocean-storm-low` | `gpu.celestial_t` | 48.82 | 1.39 | 17.1 | 30.1 | 18 | per pixel 52.8 percent at mean 26.5, because the sea's wave phase runs on seconds since boot (not the frozen game clock), so no two boots agree pixel for pixel; sky rows 0.00; the 8x6 block MEANS of the sea agree within 2.6 levels (Sahara control 0.11), which the default look could not do |
+| `home-clock-noon` | `gpu.scene` | 11.39 | 2.99 | 30 | 30 | none | 0.41 percent at mean 1.06; the largest cluster 22 px at (415,136) |
+| `home-clock-noon` | `gpu.transparent` | 4.81 | 1.24 | | | | |
+| `moon-surface-200m` | `gpu.celestial` | 7.66 | 7.28 | 30 | 30 | 25 | 88.7 percent at mean 4.13 (speckle over the whole regolith, block means within 0.36); the SAME-BUILD cross-boot floor, B1 against a second B1 boot, is wider: 90.6 percent at mean 5.15, `gpu.celestial` 7.29 |
+
+`gpu.celestial` elsewhere: limb 13.69 to 13.66, Sahara 5.43 to 5.86, ocean
+5.92 to 5.68 (noise; the terrain PSOs were P1's). Nothing slower anywhere;
+every floored vantage at or above its floor, the limb for the first time at
+these settings (24.5 to the 30 fps vsync cap). Zero panics in all six boots
+of the increment. The brief expected the water to stay roughly unchanged;
+the three-class design also takes the water shell off the program that
+carries the march, and the ocean-storm-low shell fell 35x. Increment W1's
+premise (42 to 49 ms of water at two ocean vantages, section 3) is gone;
+re-measure before spending it.
+
+The console room, through `verify-screens` (parks in the console room,
+`HUMANITY_FRAME_COSTS=1`, the last once-a-second drop the rig leaves in
+`debug/frame_costs.json`, same flow stage in both runs): `gpu.scene` 82.89
+to 16.77 ms, `gpu.transparent` 12.08 to 2.82, frame 109.6 to 36.4 ms, and
+12 of 12 screen checks pass in both runs with identical pixel-change counts
+for the inventory click (57,625) and the web link (194,350), so the six
+wall screens render as before. The two console viewport captures cannot be
+diffed per pixel: the autopilot parks the camera a few degrees differently
+each boot (both captures show the same room, screens and doorway light, one
+a little higher and squarer to the wall). One oddity for the record: the
+pristine capture's HUD read 96 fps at its screenshot instant while its
+costs drop, taken later at the parked pose, read 82.9 ms of `gpu.scene`;
+the drop is the reading (it is the pose the brief's 76 to 83 ms baseline was
+measured at, and it reproduces it), the HUD ring lagged the walk.
+
+What the interior's remaining 16.8 ms is: at 3.55 Mpx that is 4.7 ns per
+pixel, down from 23.3; the light loop's 2.25 ns (section 2) is now half of
+it, so I1's hoist and the clustered grid (section 4, items 3 and 5) are
+next in line for the room, and frustum culling of the draw list after them.
+
 ### (d) Instrumentation this cost centre needs
 
 The celestial pass is one timestamp pair covering bodies, terrain, near trees

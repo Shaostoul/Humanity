@@ -928,10 +928,16 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // FIRST in each `&&` purely as the convention pipeline.rs::
     // permutation_tests pins (one shape, so every guard reads the same and
     // the test can find it); the operand order changes nothing about the
-    // folding. The terrain-batch PSOs compile all three off (pipeline.rs
-    // PSO_DEAD_BRANCHES); a patch fragment that somehow carried one of these
-    // types would fall through to the default look there, which is the
-    // correct failure for a material the pipeline was never meant to draw.
+    // folding. Which pipeline keeps which switch is pipeline.rs
+    // PSO_DEAD_BRANCHES, by MATERIAL CLASS since increment P2: the general
+    // PSOs (opaque, transparent, overlay, both sun-shadow) and the terrain
+    // batch PSOs compile all three off, the shell PSOs keep the atmosphere
+    // and ocean and fold the cloud march away, and the cloud PSO keeps only
+    // the march. The draw loops pick the PSO from the material's class
+    // (`shader_class`), so a fragment that somehow carried one of these
+    // types on the wrong pipeline would fall through to the default look,
+    // which is the correct failure for a material the pipeline was never
+    // meant to draw.
     // The same test requires each of these three functions to be called
     // from exactly ONE place before fs_shadow, this guarded line, so a
     // second call anywhere else in fs_main is a red test, not a silent way

@@ -27,7 +27,16 @@
 //
 // Which pipeline sets what lives in ONE place, `PSO_DEAD_BRANCHES` in
 // src/renderer/pipeline.rs, and a test there pins these declarations, the
-// guards in fs_main and that table against each other. Add a switch here
+// guards in fs_main and that table against each other. Since increment P2
+// the table is organised by MATERIAL CLASS (`shader_class` there, pinned to
+// the three guarded bands below by its own test): the general pipelines
+// (opaque props and walls, glass, gizmos, both sun-shadow variants) and the
+// terrain-batch pair compile all three switches off, the shell pipelines
+// (atmosphere shell, water shell) keep the atmosphere and ocean and fold
+// the cloud march away, and the cloud pipeline keeps the march alone. The
+// draw loops pick the pipeline from the material's class, so the only
+// fragments that ever pay for the march's private frame are the cloud
+// shell's own. Add a switch here
 // when a new fs_main branch drags a large per-invocation frame into the
 // module; name it HAS_<THING>_BRANCH, default it to true, guard the dispatch
 // with it as the FIRST operand of the condition, and register it there.

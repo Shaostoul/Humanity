@@ -18393,15 +18393,40 @@ mod native_app {
                                 // pipeline (v0.1060): only correct when water
                                 // is last in the list.
                                 state.renderer.water_depth_write = near_planet_air;
-                                if water_over_sky {
-                                    let water_mats: std::collections::HashSet<usize> =
-                                        state.planet_water_materials.values().copied().collect();
-                                    // Stable: water sinks to the end (drawn
-                                    // last = nearest), everything else keeps
-                                    // its relative order.
-                                    celestial_transparent
-                                        .sort_by_key(|o| water_mats.contains(&o.material));
-                                }
+                                // The transparent celestial list is drawn
+                                // through a pipeline picked per object by
+                                // MATERIAL CLASS (increment P2 of the
+                                // frame-cost arc, renderer/pipeline.rs
+                                // `shader_class`): the sun's blended core and
+                                // halo are General, the atmosphere and water
+                                // shells are Shell, the cloud shell is Cloud.
+                                // A STABLE sort on (is a shell, is water when
+                                // water goes last) groups the classes so the
+                                // draw loop switches pipelines a handful of
+                                // times per frame instead of per object,
+                                // while keeping every ordering rule above:
+                                // the atmosphere / cloud order the approach
+                                // vanish fix depends on is preserved within
+                                // the shell run (both are shells, and a
+                                // stable sort never reorders equal keys),
+                                // and water still sinks to the very end
+                                // whenever the camera is inside the air or
+                                // underwater. General-before-shell is also
+                                // the physically right order for the one
+                                // case it can change: the sun rising behind
+                                // a limb from orbit now has the atmosphere
+                                // composited over the halo, not under it.
+                                let water_mats: std::collections::HashSet<usize> =
+                                    if water_over_sky {
+                                        state.planet_water_materials.values().copied().collect()
+                                    } else {
+                                        std::collections::HashSet::new()
+                                    };
+                                celestial_transparent.sort_by_key(|o| {
+                                    let shell = state.renderer.material_class(o.material)
+                                        != crate::renderer::pipeline::ShaderClass::General;
+                                    (shell, water_mats.contains(&o.material))
+                                });
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
