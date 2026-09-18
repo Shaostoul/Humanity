@@ -10099,8 +10099,10 @@ mod native_app {
                                         as u32;
                                 let alt_over = cam_local.length() - d.radius;
                                 // Default: no card hiding unless the model
-                                // loop below actually covered a radius.
+                                // loop below actually covered a radius, and
+                                // no shadow-only range unless it culled one.
                                 state.renderer.tree_card_hide_m = 0.0;
+                                state.renderer.celestial_colour_skip = 0..0;
                                 if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
                                     let moved =
                                         (state.near_trees_center - cam_local).length();
@@ -10249,13 +10251,12 @@ mod native_app {
                                     // report (metres): scale = target / model.
                                     const TREE_MODEL_H: [[f32; 3]; 2] =
                                         [[1.27, 0.92, 0.70], [1.06, 0.85, 0.83]];
-                                    let td2 = tree_dist * tree_dist;
                                     // The photoscans are 120-190k tris each;
                                     // cap DRAWN trees (nearest first - the
                                     // list is distance-sorted) so a dense
                                     // forest stays in budget. Cards cover the
                                     // rest.
-                                    let mut drawn = 0u32;
+                                    //
                                     // v0.914 (operator: "the nearest trees to
                                     // me are disappearing"): cards hid across
                                     // the WHOLE slider radius while models
@@ -10274,32 +10275,66 @@ mod native_app {
                                     // the camera keeps moving, so trees ahead
                                     // of the player overtake the ranking. See
                                     // near_trees::ModelCoverage.
-                                    let mut cov = chunks::ModelCoverage::new(tree_dist);
+                                    //
+                                    // Frame-cost arc increment V1 (2026-09-18):
+                                    // the COLOUR draw list is frustum-culled;
+                                    // the model set (nearest N all round) and
+                                    // the coverage arithmetic are not, and an
+                                    // off-screen model still casts its shadow.
+                                    // All of it lives in
+                                    // near_trees::NearTreeDrawPlan, so the cull
+                                    // cannot reach the hide radius (the three
+                                    // ways that went wrong before are BUG-068).
+                                    // The frustum is the patch selector's own,
+                                    // built above from the same f64 view-
+                                    // projection the celestial draw uses, and
+                                    // re-based on the camera here so the test
+                                    // runs on metre-scale camera-relative
+                                    // positions: a planet-scale coordinate
+                                    // never reaches it.
+                                    let tree_frustum =
+                                        frustum.into_local(glam::DQuat::IDENTITY, cam_local);
                                     // The draw budget (hoisted above, where the
                                     // harvest cap is derived from it) bounds how
                                     // many 3D trees can draw at ANY distance, so
                                     // raising the distance without it just packs
                                     // the same set into a tighter ring.
+                                    let mut plan = chunks::NearTreeDrawPlan::new(
+                                        Some(&tree_frustum),
+                                        chunks::ModelCoverage::new(tree_dist),
+                                        near_tree_draw_budget,
+                                    );
+                                    // Off-screen models go here instead of the
+                                    // colour list; appended to the END of
+                                    // celestial_objects after the loop, and the
+                                    // renderer is told the range so the colour
+                                    // pass skips them while the sun shadow pass
+                                    // (which walks the whole list) still draws
+                                    // them. A conifer behind the player shades
+                                    // the ground in front at a low sun.
+                                    let mut near_tree_shadow_only: Vec<RenderObject> = Vec::new();
                                     let now_s = state.start_time.elapsed().as_secs_f32();
                                     let fade_in =
                                         ((now_s - state.near_tree_born_s) / 0.35).clamp(0.0, 1.0);
                                     for (ti, tr) in state.near_trees.iter().enumerate() {
                                         let base_local = tr.dir * tr.r_m;
-                                        let d2 = (base_local - cam_local).length_squared();
-                                        // RANGE FIRST, then the budget, and the
-                                        // budget CONTINUES rather than breaking:
-                                        // an exhausted budget still has to tell
-                                        // the coverage tracker where the models
+                                        // Camera-relative, f64: the range test,
+                                        // the frustum test and the coverage
+                                        // distance all read this one vector.
+                                        let rel = base_local - cam_local;
+                                        // RANGE FIRST, then the frustum, then
+                                        // the two budgets. The plan CONTINUES
+                                        // past an exhausted budget rather than
+                                        // breaking: the coverage tracker needs
+                                        // the tail to know where the models
                                         // stopped, and a `break` would throw
-                                        // away exactly the trees that define it.
-                                        // The tail is a few hundred f64 compares.
-                                        if d2 > td2 {
+                                        // away exactly the trees that define
+                                        // it. The tail is a few hundred f64
+                                        // compares and six dot products each.
+                                        let (slot, d2) = plan.consider(rel, tr.height_m);
+                                        let chunks::TreeSlot::Lookup { .. } = slot else {
                                             continue;
-                                        }
-                                        if drawn >= near_tree_draw_budget {
-                                            cov.uncovered(d2);
-                                            continue;
-                                        }
+                                        };
                                         // New trees dissolve in; survivors and
                                         // fully-faded sets draw normally.
                                         let obj_fade = if fade_in < 1.0
@@ -10350,6 +10385,57 @@ mod native_app {
                                             Some(t) => format!("{}_v{}", t.model, va + 1),
                                             None => format!("fir_sapling_v{}", va + 1),
                                         };
+                                        // MESHES FIRST, draws after (V1): the
+                                        // plan has to know whether this tree
+                                        // has any mesh before anything is
+                                        // pushed, because a tree the coverage
+                                        // budget credits may be off-screen
+                                        // (coverage yes, draw no) and a tree
+                                        // the draw budget wants may be past
+                                        // where the coverage stopped (draw yes,
+                                        // coverage no).
+                                        //
+                                        // A procedural tree is ONE mesh; the
+                                        // photoscans are a trunk + foliage pair.
+                                        // v0.1089: a procedural tree is TWO
+                                        // meshes now - foliage (type 20) and
+                                        // the baked-bark wood (type 22) - the
+                                        // same shape the photoscans have always
+                                        // had. A missing ":wood" key just
+                                        // `continue`s, so a species built
+                                        // before this (or with no wood at all)
+                                        // still draws.
+                                        let suffixes: &[&str] =
+                                            if use_proc { &["", ":wood"] } else { &["", "_bark"] };
+                                        let mut parts: [Option<(usize, usize)>; 2] = [None, None];
+                                        for (pi, suffix) in suffixes.iter().enumerate() {
+                                            let key = format!("{stem}{suffix}");
+                                            let Some(&(mi, ma)) =
+                                                state.decoration_mesh_cache.get(&key)
+                                            else {
+                                                continue;
+                                            };
+                                            if mi == usize::MAX {
+                                                continue;
+                                            }
+                                            parts[pi] = Some((mi, ma));
+                                        }
+                                        let has_mesh = parts.iter().any(|p| p.is_some());
+                                        // The plan feeds the coverage tracker
+                                        // here (drew, or uncovered because the
+                                        // mesh has not streamed in yet - the
+                                        // case the old rule was blind to) and
+                                        // says where the meshes go: the colour
+                                        // list, or the shadow-only list for an
+                                        // off-screen model.
+                                        let sink: &mut Vec<RenderObject> =
+                                            match plan.resolve(slot, d2, has_mesh) {
+                                                chunks::TreeDraw::Colour => &mut celestial_objects,
+                                                chunks::TreeDraw::ShadowOnly => {
+                                                    &mut near_tree_shadow_only
+                                                }
+                                                chunks::TreeDraw::None => continue,
+                                            };
                                         let pos_render = render_off + rot_d * base_local;
                                         // Y-up model onto the local radial up,
                                         // spun by its own yaw, riding the
@@ -10370,31 +10456,8 @@ mod native_app {
                                             }
                                             _ => tr.height_m / TREE_MODEL_H[sp][va],
                                         };
-                                        let mut any = false;
-                                        // A procedural tree is ONE mesh; the
-                                        // photoscans are a trunk + foliage pair.
-                                        // v0.1089: a procedural tree is TWO
-                                        // meshes now - foliage (type 20) and
-                                        // the baked-bark wood (type 22) - the
-                                        // same shape the photoscans have always
-                                        // had. A missing ":wood" key just
-                                        // `continue`s, so a species built
-                                        // before this (or with no wood at all)
-                                        // still draws.
-                                        let suffixes: &[&str] =
-                                            if use_proc { &["", ":wood"] } else { &["", "_bark"] };
-                                        for suffix in suffixes {
-                                            let key = format!("{stem}{suffix}");
-                                            let Some(&(mi, ma)) =
-                                                state.decoration_mesh_cache.get(&key)
-                                            else {
-                                                continue;
-                                            };
-                                            if mi == usize::MAX {
-                                                continue;
-                                            }
-                                            any = true;
-                                            celestial_objects.push(RenderObject { fade: obj_fade,
+                                        for (mi, ma) in parts.into_iter().flatten() {
+                                            sink.push(RenderObject { fade: obj_fade,
                                                 position: Vec3::new(
                                                     pos_render.x as f32,
                                                     pos_render.y as f32,
@@ -10422,7 +10485,7 @@ mod native_app {
                                                     else {
                                                         break;
                                                     };
-                                                    celestial_objects.push(RenderObject {
+                                                    sink.push(RenderObject {
                                                         fade: obj_fade,
                                                         position: Vec3::new(
                                                             pos_render.x as f32,
@@ -10437,17 +10500,16 @@ mod native_app {
                                                 }
                                             }
                                         }
-                                        if any {
-                                            drawn += 1;
-                                            cov.drew(d2);
-                                        } else {
-                                            // In range, inside the budget, and
-                                            // STILL no model - its mesh has not
-                                            // streamed in yet. The old rule was
-                                            // blind to this case entirely.
-                                            cov.uncovered(d2);
-                                        }
                                     }
+                                    // The off-screen models ride at the END of
+                                    // the celestial list so the skip is one
+                                    // contiguous range; everything pushed after
+                                    // this point (later bodies, station parts)
+                                    // lands past the range and draws normally.
+                                    let skip_from = celestial_objects.len();
+                                    celestial_objects.append(&mut near_tree_shadow_only);
+                                    state.renderer.celestial_colour_skip =
+                                        skip_from..celestial_objects.len();
                                     let set_n = state.near_trees.len();
                                     // THE CARD-HIDE RADIUS IS A PROMISE: every
                                     // terrain tree card inside it discards,
@@ -10463,8 +10525,13 @@ mod native_app {
                                     // from the promise (view-culled draw count
                                     // v0.995, the budget-th tree v0.1107, the
                                     // farthest DRAWN tree v0.1110.1). The
-                                    // stories are in docs/BUGS.md.
-                                    let hide_m: f32 = cov.hide_radius_m();
+                                    // stories are in docs/BUGS.md. The V1
+                                    // frustum cull is a fourth thing that could
+                                    // have leaked in; the plan's counters are
+                                    // what keep it out, and the `[NearTree]`
+                                    // line below is where a leak would show
+                                    // (hide moving with the heading).
+                                    let hide_m: f32 = plan.hide_radius_m();
                                     state.renderer.tree_card_hide_m = hide_m;
                                     // Handoff diag (v0.994.1): 1 Hz numbers for
                                     // the model/card boundary.
@@ -10476,12 +10543,32 @@ mod native_app {
                                             .map(|d| d.as_secs())
                                             .unwrap_or(0);
                                         if LASTT.swap(now, Ordering::Relaxed) != now {
+                                            let c = plan.counts;
                                             log::info!(
                                                 "[TreeHandoff] near={} drawn={} covered={:.0}m window={:.0}m hide={:.0}m",
                                                 set_n,
-                                                drawn,
-                                                cov.covered_radius_m(),
+                                                c.drawn,
+                                                plan.covered_radius_m(),
                                                 tree_dist + 60.0,
+                                                hide_m,
+                                            );
+                                            // The V1 counter line the frame-cost
+                                            // arc asked for: harvested / in
+                                            // range / frustum passed / drawn,
+                                            // plus the pre-cull budget counter
+                                            // the coverage saw and the hide
+                                            // radius at full f32 precision
+                                            // (`{:?}` round-trips), so two
+                                            // boots can be diffed to the bit.
+                                            log::info!(
+                                                "[NearTree] harvested={} in_range={} frustum={} drawn={} shadow_only={} budget={} cov_models={} hide={:?}m",
+                                                set_n,
+                                                c.in_range,
+                                                c.frustum_passed,
+                                                c.drawn,
+                                                c.shadow_only,
+                                                near_tree_draw_budget,
+                                                c.cov_models,
                                                 hide_m,
                                             );
                                         }
