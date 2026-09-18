@@ -907,6 +907,68 @@ for the whole sweep, not just the launch; a mid-sweep arrival inflated one
 vegetation vantage cannot carry a pixel-identity proof while wind is on;
 either the rig grows a wind pin or such proofs move to a treeless vantage.
 
+#### Both rig lessons closed (2026-09-18, same day)
+
+**1. The machine guard now holds for the whole sweep, and watches the CPU too.**
+`scripts/lib/machine-guard.js` is the single place the process query lives
+(`probe-sweep.js` had none at all, `verify-runtime.js` and `verify-screens.js`
+carried a private copy each, so a fix to one never reached the others). Before
+each boot it WAITS, bounded and logged, for any competing process to leave;
+around each capture it samples before AND after, because in this very incident
+the other rig was already gone by the time the sweep ended. A capture that
+overlapped one is marked `contaminated` with the offending pids in the
+manifest, and `perf-report.js` prints it as CONTAMINATED, refuses to grade it
+against its floor or a baseline, and exits 2.
+
+The watch list is wider than "a second HumanityOS.exe", because an hour after
+the V1 measurement the orchestrator's re-measure read 6.6 fps at the limb
+against a 15 ms GPU sum with **no** other game instance alive: a `cargo.exe`
+and a 2.3 GB `rustc.exe` from another worktree's release build were saturating
+the CPU, so every `cpu.*` stage stretched (`patch_build` 24 ms) while the GPU
+columns stayed normal. A frame time measures the whole machine, so the guard
+watches `HumanityOS.exe`, `cargo.exe`, `rustc.exe`, `link.exe` and `cl.exe`.
+`rust-analyzer` and `mspdbsrv` are deliberately excluded: a guard that blocks
+constantly gets bypassed. Proven able to fail by `just rig-tests` (13 guard
+tests + 6 grader tests, pure node, 0.4 s, inside `just verify`), each red case
+verified by inverting the rule and watching exactly those tests go red.
+
+**2. The wind pin exists, and the hypothesis behind it is half refuted.**
+Showcase `{"wind":"<m/s>"|"auto"}` pins the wind speed the vegetation sees at
+the single publish site (`engine::ipc::published_foliage_wind`, called from
+`lib.rs`), so the near-tree sway and the grass sway are pinned together. A
+pinned 0 is published as 1e-4 m/s, never as a literal 0, because the shader
+reads `wind_v <= 0.0` as "no publisher" and substitutes a 4 m/s fallback
+breeze: publishing the honest number would have made the knob do the opposite
+of its name with nothing anywhere saying so.
+
+But **the wind pin alone cannot deliver the pixel-identity proof this lesson
+asked for**, and the reason is arithmetic in `00-bindings-vertex.wgsl`, not
+measurement noise. `weather: clear` already pinned the wind to 4 m/s at these
+vantages, so the wind value was never the variable; the ANIMATION CLOCK was.
+The sway amplitude is `h * (0.020 + 0.55 * hn * lean_frac)` and only
+`lean_frac` depends on wind, so at zero wind a 22 m fir still breathes about
+0.44 m at the tip at 0.9 Hz, and the leaf flutter keeps a floor of
+`clamp(wind_v/6, 0.35, 3)`. Both are sines of `t = camera.sun_color.w`, which
+is app-start-relative and therefore different on every boot. So the increment
+also ships `{"anim_clock":"<seconds>"|"auto"}`, consumed at the one
+`render_celestial_onto` call in `lib.rs`, which stamps it into the colour AND
+shadow camera buffers; that is what actually holds a canopy still, and it
+freezes the ocean wave phase and cloud advection with it. The identity recipe
+is both pins together, per capture.
+
+Neither pin is a sweep default, and only `silverdale-osm-ground` carries
+`wind: 0` in `tests/visual/vantages.json`. `fuji-forest-ground`'s regressions
+require a visible calm-weather sway ("NO storm-strength lean in calm
+weather... Crowns sway but stay centred over their bases") and
+`fuji-grass-underfoot`'s require "GRASS MOVES IN WIND" and "GRASS LAYS OVER
+FURTHER THAN THE TREES" at a stated speed: pinning wind at either would leave
+the gate green by making it unfalsifiable, which is worse than having no gate.
+`silverdale`'s three regressions are road z-fighting, building placement and
+panics, none of which involve sway, and it stands in the forest that made its
+own two boots incomparable. `probe-sweep.js` resets both pins to `auto` for
+every vantage that does not set them, including the eight with no `showcase`
+block at all, because showcase pins are sticky across cells.
+
 **Increment W1 (queued behind V1, same shape):** the water depth prepass.
 Vantage `ocean-grazing-calm` (floor 20) and `ocean-storm-low` (floor 18); cost
 key `gpu.celestial_t`, 46.5 and 48.6 ms, expected to fall to roughly the

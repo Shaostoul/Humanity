@@ -68,6 +68,11 @@ const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
 const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
+// ONE MACHINE, in one place: scripts/lib/machine-guard.js (was a second private
+// copy of the process query here). This gate judges clicks and pixels, not
+// timings, so it keeps refusing on the GAME only; a concurrent build slows it
+// but cannot change its verdict.
+const MG = require("./lib/machine-guard.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -386,24 +391,7 @@ console.log("verify-screens  real binary, real world entry, real clicks on the w
 console.log("");
 
 // 1. ONE GPU: nothing else may be running, the operator's game included.
-function runningInstances() {
-  try {
-    const out = execSync(
-      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'HumanityOS.exe\'\\" | ForEach-Object { $_.ProcessId.ToString() + \'|\' + $_.ExecutablePath }"',
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
-    );
-    return out
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((l) => {
-        const [pid, exe] = l.split("|");
-        return { pid: Number(pid), exe: exe || "" };
-      });
-  } catch {
-    return [];
-  }
-}
+const runningInstances = MG.listInstances;
 const instances = runningInstances();
 if (instances.length) {
   refuse([

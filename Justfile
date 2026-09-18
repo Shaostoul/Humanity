@@ -385,6 +385,7 @@ verify:
     cargo check --features relay --no-default-features
     cargo test --features native --lib
     just lints
+    just rig-tests
     @echo "-- cross-language KATs: a browser and the relay must encode identically --"
     just vote-kat
     just mod-kat
@@ -437,12 +438,34 @@ verify-runtime *ARGS:
 verify-screens *ARGS:
     node scripts/verify-screens.js {{ARGS}}
 
-# The four src/gui file-scanner lints (no em dashes, theme tokens, theme-editor
-# coverage, tofu glyphs). Compiled standalone with rustc so they never link the
-# native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
+# The std-only file-scanner lints, twelve of them now: no em dashes, theme
+# tokens, theme-editor coverage, tofu glyphs, engine wiring, the page registry,
+# page parity, settings persistence, the monolith size ratchet, the focus opt-in
+# allowlist, account SQL, and the rig determinism pins (rig_pin_lint, added
+# 2026-09-18 after the hi-res capture path was found about to ignore the new
+# anim_clock pin). The NAMES DO NOT ALL MATCH `*lint*` - file_size_ratchet and
+# theme_editor_coverage are required checks that a `tests/*lint*` glob would
+# silently skip, so this list is the authority, not a wildcard.
+#
+# Compiled standalone with rustc so they never link the native bin, which dodges
+# the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
 # One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
 lints:
-    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+
+# The RIG's own tests: the measuring instruments, checked the way the code they
+# measure is checked. Pure node, no GPU, under a second, so it runs inside
+# `just verify` rather than waiting for someone to remember it.
+#
+# Covers today: the one-machine guard (scripts/lib/machine-guard.js) and
+# perf-report's refusal to grade a contaminated capture. Both exist because on
+# 2026-09-18 two separate readings came back wrong and looked right: a second
+# builder's instance arrived mid-sweep and its 9 ms of stolen GPU sat in a
+# comparison table as data (docs/design/frame-cost-arc.md, "V1 outcome"), and a
+# concurrent cargo/rustc build read 6.6 fps at the limb against a 15 ms GPU sum.
+# Add a file here whenever a rig script grows a judgement of its own.
+rig-tests:
+    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js
 
 # Render ALL 38 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after. For just

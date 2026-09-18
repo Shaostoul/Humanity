@@ -5,6 +5,128 @@ use crate::engine::state::*;
 use crate::gui::screen_surface::LoadState;
 use crate::gui::{GuiPage, GuiState};
 
+// ── VEGETATION DETERMINISM PINS (2026-09-18) ─────────────────────────────────
+//
+// Why these exist: two boots of the SAME exe at `fuji-forest-ground` differ in
+// 42 to 44 percent of pixels outside the HUD (mean channel delta 9 to 14),
+// while the sky and bare-ground blocks of the same frames read 0.00. Every one
+// of those pixels is foliage or its shadow. So no vegetation vantage could
+// carry a pixel-identity proof at all, and the V1 near-tree increment had to
+// rest its "the model set did not change" claim on counters and unit tests
+// instead of on a capture (docs/design/frame-cost-arc.md, "V1 outcome").
+//
+// What actually moves the pixels, read out of `00-bindings-vertex.wgsl`:
+//   * the WIND SPEED published to the sway uniform, which sets the static lean
+//     (v^2), the gust-front travel speed and part of the sway amplitude; and
+//   * the ANIMATION CLOCK `t` (= `camera.sun_color.w`), which every sway,
+//     gust and flutter term is a sine of. This is app-start-relative, so it is
+//     different at every boot even when the wind is identical.
+//
+// `weather: clear` already pins the wind to 4 m/s, so the clock is the larger
+// half - which is why there are TWO pins here and not one. Both are dev knobs
+// with no effect unless a showcase_request sets them.
+
+/// Smallest wind speed the pin will publish, in m/s.
+///
+/// NOT zero, and this is the whole trap: the shader treats the published slot
+/// as "unwritten / no publisher yet" when the speed is `<= 0.0` and substitutes
+/// a 4 m/s fallback breeze (`00-bindings-vertex.wgsl`, the LIVE WIND INPUT
+/// block). Publishing a literal 0 for `{"wind":"0"}` would therefore hand the
+/// forest a BREEZE while the manifest, the log and the operator all believed
+/// the air was still - the exact class of defect this file's pins exist to
+/// close. 1e-4 m/s is 0.1 mm/s: it clears the guard and its static lean
+/// (6e-4 * v^2) is 6e-12 of a tree height, i.e. nothing any capture can see.
+pub(crate) const FOLIAGE_WIND_PIN_MIN: f32 = 1.0e-4;
+
+/// Fallback wind direction when the pin is active and the weather's direction
+/// is degenerate. The shader ALSO falls back to its 4 m/s breeze when the
+/// published direction has `dot(w,w) < 0.25`, so a pinned speed with a zero
+/// direction would be silently ignored the same way a pinned 0 would be.
+const FOLIAGE_WIND_PIN_DIR: Vec3 = Vec3::new(0.86, 0.0, 0.32);
+
+/// A showcase pin that is either a number or the word `auto` (release it).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum ShowcasePin {
+    /// `"auto"`: hand the value back to the simulation.
+    Auto,
+    /// `"<number>"`: hold it here.
+    Value(f32),
+}
+
+/// Pull one `"key":"value"` string out of a showcase request body.
+///
+/// The showcase handler has always done this with a hand-rolled scan rather
+/// than a JSON parse (the request is a dev file drop, not a wire format). It
+/// lives here as a named function so the chain from the dropped text to the
+/// pinned value is testable end to end: with it inline in a closure, a
+/// mistyped key would have been caught by nothing at all.
+pub(crate) fn showcase_value(text: &str, key: &str) -> Option<String> {
+    let k = format!("\"{key}\"");
+    let at = text.find(&k)? + k.len();
+    let rest = &text[at..];
+    let q0 = rest.find('"')? + 1;
+    let q1 = rest[q0..].find('"')? + q0;
+    Some(rest[q0..q1].to_string())
+}
+
+/// Parse one pin value. `None` for anything unparseable, so a typo leaves the
+/// existing state alone instead of silently resetting it to a default.
+pub(crate) fn parse_showcase_pin(raw: &str) -> Option<ShowcasePin> {
+    let t = raw.trim();
+    if t.eq_ignore_ascii_case("auto") {
+        return Some(ShowcasePin::Auto);
+    }
+    t.parse::<f32>().ok().filter(|v| v.is_finite()).map(ShowcasePin::Value)
+}
+
+/// THE ONE PLACE the foliage wind reaches the shader, in pure form.
+///
+/// `renderer.foliage_wind` is poked into BOTH camera buffers (the colour pass
+/// and the shadow pass) at offset 576, and the vertex shader's wind branch is
+/// shared by every swaying material: procedural plants (type 20), cluster cards
+/// (21), baked bark (22), grass strands (23) and opted-in photoscans (19). So
+/// pinning here pins the near-tree sway and the grass sway together, which is
+/// the requirement - a rig that stilled the trees but not the sward would have
+/// bought nothing at `fuji-grass-underfoot`.
+///
+/// `prev` is the slot's current contents, so a degenerate weather direction
+/// keeps the last good one exactly as the pre-pin code did (it only rewrote
+/// `[3]` in that case).
+///
+/// Returns `[dir.x, dir.y, dir.z, speed]`, direction always unit length.
+pub(crate) fn published_foliage_wind(
+    pin: Option<f32>,
+    weather_dir: Vec3,
+    weather_speed: f32,
+    prev: [f32; 4],
+) -> [f32; 4] {
+    let speed = match pin {
+        // Clamped up off zero, never down to it: see FOLIAGE_WIND_PIN_MIN.
+        Some(p) => p.max(FOLIAGE_WIND_PIN_MIN),
+        None => weather_speed,
+    };
+    // Direction, in order of preference: the weather's, then whatever was last
+    // published, then the constant. The last two matter only because the
+    // shader ALSO falls back to its 4 m/s breeze on a short direction vector,
+    // so a pin must never publish one - a pinned calm undone by a degenerate
+    // direction would be a knob that silently does the opposite of what it says.
+    let dir = normalised_or(weather_dir, || {
+        normalised_or(Vec3::new(prev[0], prev[1], prev[2]), || FOLIAGE_WIND_PIN_DIR)
+    });
+    [dir.x, dir.y, dir.z, speed]
+}
+
+/// Normalise `v`, or evaluate `fallback` when it is too short to normalise
+/// safely. The 1e-3 threshold is the same one the pre-pin publish site used.
+fn normalised_or(v: Vec3, fallback: impl FnOnce() -> Vec3) -> Vec3 {
+    let len = v.length();
+    if len > 1.0e-3 {
+        v / len
+    } else {
+        fallback()
+    }
+}
+
 /// data/world/showcase.ron shape (v0.863 perpetual showcase).
 #[derive(serde::Deserialize)]
 pub(crate) struct ShowcaseCfg {
@@ -178,14 +300,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     }
     let text = std::fs::read_to_string(REQ).unwrap_or_default();
     let _ = std::fs::remove_file(REQ);
-    let grab = |key: &str| -> Option<String> {
-        let k = format!("\"{key}\"");
-        let at = text.find(&k)? + k.len();
-        let rest = &text[at..];
-        let q0 = rest.find('"')? + 1;
-        let q1 = rest[q0..].find('"')? + q0;
-        Some(rest[q0..q1].to_string())
-    };
+    // Delegates to the named, unit-tested extractor above; the closure stays so
+    // the ~60 call sites below read unchanged.
+    let grab = |key: &str| -> Option<String> { showcase_value(&text, key) };
     // Plant only when BOTH keys are present; a cam-only request just moves
     // the camera (the perpetual-showcase auto-seed owns default planting).
     if let (Some(tower), Some(plant)) = (grab("tower"), grab("plant")) {
@@ -228,6 +345,57 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if let Ok(mut r) = req.lock() {
                 *r = Some(sc.max(0.0));
             }
+        }
+    }
+    // Optional "wind":"0" pins the wind speed the VEGETATION sees, in m/s;
+    // "wind":"auto" hands it back to the weather. See published_foliage_wind
+    // above for the zero trap. Pins the near-tree sway and the grass sway
+    // together, because both read the one uniform this sets.
+    //
+    // NOT a whole-weather wind pin: the ocean, the clouds and the HUD keep
+    // reading the simulated wind. This is deliberately the narrow knob the
+    // rig needs (a deterministic sway input), not a second weather system.
+    if let Some(w) = grab("wind") {
+        match parse_showcase_pin(&w) {
+            Some(ShowcasePin::Auto) => {
+                state.foliage_wind_override = None;
+                log::info!("Showcase: wind -> auto (vegetation follows the weather again)");
+            }
+            Some(ShowcasePin::Value(v)) => {
+                let v = v.clamp(0.0, 60.0);
+                state.foliage_wind_override = Some(v);
+                log::info!("Showcase: wind -> {v} m/s pinned (vegetation sway only)");
+            }
+            None => log::warn!("Showcase: wind \"{w}\" is not a number or \"auto\" - pin unchanged"),
+        }
+    }
+    // Optional "anim_clock":"300" freezes the CELESTIAL-pass animation clock at
+    // that many seconds; "auto" returns it live.
+    //
+    // This is the pin that actually makes a forest capture comparable per
+    // pixel, and `wind` alone is not enough for that: the sway keeps a
+    // wind-INDEPENDENT breathe term (`sway_amp = h * (0.020 + ...)`, about
+    // 0.44 m at the tip of a 22 m fir, at 0.9 Hz) and the leaf flutter keeps a
+    // floor of `clamp(wind_v/6, 0.35, 3)`, both of them sines of this clock.
+    // Pin it and the whole vertex-side animation of the pass holds still -
+    // foliage sway, ocean wave phase and cloud advection alike, in the colour
+    // pass AND in the shadow pass, since both stamp it from the same value.
+    //
+    // Use it for identity proofs, NOT for a normal sweep: a frozen clock makes
+    // every "does this move" gate (fuji-grass-underfoot's GRASS MOVES IN WIND,
+    // the ladder's temporal pairs) unfalsifiable.
+    if let Some(c) = grab("anim_clock") {
+        match parse_showcase_pin(&c) {
+            Some(ShowcasePin::Auto) => {
+                state.anim_clock_pin = None;
+                log::info!("Showcase: anim_clock -> auto (live)");
+            }
+            Some(ShowcasePin::Value(v)) => {
+                let v = v.max(0.0);
+                state.anim_clock_pin = Some(v);
+                log::info!("Showcase: anim_clock -> {v} s pinned (sway + waves + cloud advection frozen)");
+            }
+            None => log::warn!("Showcase: anim_clock \"{c}\" is not a number or \"auto\" - pin unchanged"),
         }
     }
     // Optional "sea":"0.8" pins the ocean sea state (0 = glassy calm,
@@ -1133,8 +1301,14 @@ pub(crate) fn render_view_onto(
             sun_dir_f,
             // Same clock as the live path: cloud decks drift with time, and
             // a capture should freeze the exact frame the player is looking
-            // at.
-            state.start_time.elapsed().as_secs_f32(),
+            // at. That includes the `anim_clock` pin - this is the SECOND
+            // caller of render_celestial_onto (the hi-res offscreen capture
+            // and the live-broadcast pump), and a pin honoured by only one of
+            // the two would mean a rig's own screenshot rendered a swaying
+            // canopy while the window it came from stood still.
+            state
+                .anim_clock_pin
+                .unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()),
             cloud_ground_params(state),
             ground_anchor(state),
             ocean_anchor256(state),
@@ -2527,4 +2701,164 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
         })
         .to_string(),
     );
+}
+
+// ── Rig determinism pins: the tests ──────────────────────────────────────────
+//
+// These pin the two rules that are easy to get silently wrong and impossible to
+// notice from a capture:
+//   1. a pinned 0 must NOT be published as a literal 0, because the shader
+//      reads that as "no publisher" and hands back a 4 m/s breeze - the pin
+//      would then do the OPPOSITE of what it says, with nothing in the log,
+//      the manifest or the picture to say so; and
+//   2. "auto" must genuinely release the pin, or every later vantage in the
+//      sweep inherits it (showcase pins are sticky across cells - the diag
+//      channels needed an explicit per-vantage reset for the same reason).
+// Both were verified red by inverting the rule before shipping.
+#[cfg(test)]
+mod showcase_pin_tests {
+    use super::*;
+
+    /// A plain unit wind direction, the shape WeatherSystem always publishes
+    /// (`Vec3::new(angle.cos(), 0.0, angle.sin()).normalize()`).
+    fn east() -> Vec3 {
+        Vec3::new(1.0, 0.0, 0.0)
+    }
+
+    #[test]
+    fn showcase_pin_parses_numbers_and_auto_and_rejects_junk() {
+        assert_eq!(parse_showcase_pin("auto"), Some(ShowcasePin::Auto));
+        assert_eq!(parse_showcase_pin("AUTO"), Some(ShowcasePin::Auto));
+        assert_eq!(parse_showcase_pin(" auto "), Some(ShowcasePin::Auto));
+        assert_eq!(parse_showcase_pin("0"), Some(ShowcasePin::Value(0.0)));
+        assert_eq!(parse_showcase_pin("8.5"), Some(ShowcasePin::Value(8.5)));
+        assert_eq!(parse_showcase_pin("300"), Some(ShowcasePin::Value(300.0)));
+        // A typo must leave the pin ALONE rather than resetting it: a silent
+        // mid-sweep state change is exactly what nothing ever prints.
+        assert_eq!(parse_showcase_pin("clam"), None);
+        assert_eq!(parse_showcase_pin(""), None);
+        // NaN / inf would poison the uniform and every sine downstream of it.
+        assert_eq!(parse_showcase_pin("NaN"), None);
+        assert_eq!(parse_showcase_pin("inf"), None);
+    }
+
+    #[test]
+    fn the_request_body_the_rig_writes_reaches_the_pins_by_their_real_key_names() {
+        // Covers the one link a pure-function test would otherwise miss: the
+        // KEY NAMES. A vantage that writes {"wind":"0"} and a handler that
+        // reads "winds" would leave every test above green and every capture
+        // silently unpinned. These are the exact strings tests/visual/
+        // vantages.json and probe-sweep.js write.
+        let body = r#"{"time":"2.9","weather":"clear","wind":"0","anim_clock":"300"}"#;
+        assert_eq!(showcase_value(body, "wind").as_deref(), Some("0"));
+        assert_eq!(showcase_value(body, "anim_clock").as_deref(), Some("300"));
+        assert_eq!(
+            parse_showcase_pin(&showcase_value(body, "wind").unwrap()),
+            Some(ShowcasePin::Value(0.0))
+        );
+        assert_eq!(
+            parse_showcase_pin(&showcase_value(body, "anim_clock").unwrap()),
+            Some(ShowcasePin::Value(300.0))
+        );
+        // The release form probe-sweep sends for every unpinned vantage.
+        let release = r#"{"wind":"auto","anim_clock":"auto"}"#;
+        assert_eq!(parse_showcase_pin(&showcase_value(release, "wind").unwrap()), Some(ShowcasePin::Auto));
+        assert_eq!(
+            parse_showcase_pin(&showcase_value(release, "anim_clock").unwrap()),
+            Some(ShowcasePin::Auto)
+        );
+        // An absent key must read as absent, not as some default: that is what
+        // makes "the handler leaves the pin alone" mean anything.
+        assert_eq!(showcase_value(r#"{"time":"2.9"}"#, "wind"), None);
+    }
+
+    #[test]
+    fn unpinned_wind_publishes_the_weather_value_unchanged() {
+        let prev = [0.86, 0.0, 0.32, 4.0];
+        let out = published_foliage_wind(None, east(), 12.5, prev);
+        assert_eq!(out[3], 12.5, "no pin means the weather wind reaches the shader");
+        assert!((Vec3::new(out[0], out[1], out[2]).length() - 1.0).abs() < 1.0e-5);
+    }
+
+    #[test]
+    fn a_pinned_zero_is_never_published_as_a_literal_zero() {
+        // THE TRAP, from `00-bindings-vertex.wgsl`:
+        //   if (dot(wind_w, wind_w) < 0.25 || wind_v <= 0.0) {
+        //       wind_w = vec3(0.86, 0.0, 0.32); wind_v = 4.0;
+        //   }
+        // A published 0 therefore comes back out of the shader as a 4 m/s
+        // breeze. The pin has to clear that guard from above, never sit on it.
+        let out = published_foliage_wind(Some(0.0), east(), 4.0, [0.86, 0.0, 0.32, 4.0]);
+        assert!(out[3] > 0.0, "a published speed of 0 trips the shader's fallback breeze");
+        assert_eq!(out[3], FOLIAGE_WIND_PIN_MIN);
+        // Still arithmetically still: the static lean is 6e-4 * v^2 of a tree
+        // height, so at 1e-4 m/s it is 6e-12 - nothing a capture can resolve.
+        assert!(6.0e-4 * out[3] * out[3] < 1.0e-9);
+    }
+
+    #[test]
+    fn a_pinned_zero_keeps_the_direction_long_enough_to_clear_the_guard() {
+        // The shader has a SECOND fallback, on the direction: dot(w,w) < 0.25.
+        // A pinned speed with a short direction vector would be discarded the
+        // same way a pinned 0 is, so the published direction must always be
+        // unit - including when the weather hands us a degenerate one.
+        let out = published_foliage_wind(Some(0.0), Vec3::ZERO, 4.0, [0.86, 0.0, 0.32, 4.0]);
+        let d = Vec3::new(out[0], out[1], out[2]);
+        assert!(d.dot(d) >= 0.25, "published direction must clear the shader's dot(w,w) guard");
+        assert!((d.length() - 1.0).abs() < 1.0e-5);
+        assert_eq!(out[3], FOLIAGE_WIND_PIN_MIN);
+    }
+
+    #[test]
+    fn a_pinned_speed_overrides_the_weather_in_both_directions() {
+        // Calmer than the weather...
+        let calm = published_foliage_wind(Some(1.0), east(), 18.0, [1.0, 0.0, 0.0, 18.0]);
+        assert_eq!(calm[3], 1.0);
+        // ...and stormier, so the rig can photograph a gale on a clear day.
+        let gale = published_foliage_wind(Some(18.0), east(), 2.0, [1.0, 0.0, 0.0, 2.0]);
+        assert_eq!(gale[3], 18.0);
+    }
+
+    #[test]
+    fn auto_restores_the_weather_value() {
+        let pinned = published_foliage_wind(Some(0.0), east(), 7.0, [1.0, 0.0, 0.0, 7.0]);
+        assert_eq!(pinned[3], FOLIAGE_WIND_PIN_MIN);
+        let released = published_foliage_wind(None, east(), 7.0, pinned);
+        assert_eq!(released[3], 7.0);
+    }
+
+    #[test]
+    fn a_degenerate_weather_direction_keeps_the_last_published_one() {
+        // Pre-pin behaviour, preserved exactly: the old site rewrote only the
+        // speed when the weather direction could not be normalised.
+        let prev = [0.0, 0.0, 1.0, 4.0];
+        let out = published_foliage_wind(None, Vec3::ZERO, 9.0, prev);
+        assert_eq!([out[0], out[1], out[2]], [prev[0], prev[1], prev[2]]);
+        assert_eq!(out[3], 9.0);
+    }
+
+    #[test]
+    fn the_wind_pin_cannot_freeze_a_canopy_on_its_own() {
+        // The honest limit of the wind pin, kept as an executable note because
+        // it is the whole reason `anim_clock` exists beside it.
+        //
+        // The sway amplitude in `00-bindings-vertex.wgsl` is
+        //     sway_amp = h * (0.020 + 0.55 * hn * lean_frac)
+        // and `lean_frac` is the only wind-dependent term. At a pinned zero the
+        // 0.020 breathe survives: 0.44 m at the tip of a 22 m fir, oscillating
+        // at `sway_hz = 0.9 + 0.02 * wind_v`, i.e. on the animation clock. So
+        // a wind pin alone leaves a forest moving between two boots, which is
+        // exactly what 42 to 44 percent of differing pixels looked like.
+        let h = 22.0_f32; // a full-height fir vertex, metres
+        let hn = 1.0_f32; // cantilever profile at the tip
+        let amp = |v: f32| h * (0.020 + 0.55 * hn * (6.0e-4 * v * v).min(0.30));
+        let pinned = published_foliage_wind(Some(0.0), east(), 4.0, [1.0, 0.0, 0.0, 4.0])[3];
+        assert!(
+            amp(pinned) > 0.4,
+            "a pinned-calm canopy still breathes ~0.44 m at the tip: only anim_clock stops it"
+        );
+        // And the pin DOES remove the wind-driven part, which is why it is
+        // still worth having: at 4 m/s the amplitude is measurably larger.
+        assert!(amp(4.0) > amp(pinned));
+    }
 }

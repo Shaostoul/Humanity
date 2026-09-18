@@ -33,6 +33,13 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn, spawnSync, execSync } = require("child_process");
+// ONE MACHINE, in one place: scripts/lib/machine-guard.js. This gate used to
+// carry its own copy of the process query, verify-screens.js carried a second
+// copy, and probe-sweep.js carried none at all - so a fix to one never reached
+// the others. This gate reads panics and captures rather than fps, so it keeps
+// gating on the GAME only (listInstances); the sweep it spawns applies the
+// wider build-aware guard to its own capture windows.
+const MG = require("./lib/machine-guard.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -130,24 +137,7 @@ if (DRY) {
 // ── 2. Nobody else may be driving this rig ───────────────────────────────────
 // Environment precondition, checked BEFORE the binary one: if another probe
 // owns the rig you cannot run at all, whatever binary you were going to test.
-function runningInstances() {
-  try {
-    const out = execSync(
-      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'HumanityOS.exe\'\\" | ForEach-Object { $_.ProcessId.ToString() + \'|\' + $_.ExecutablePath }"',
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
-    );
-    return out
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((l) => {
-        const [pid, exe] = l.split("|");
-        return { pid: Number(pid), exe: exe || "" };
-      });
-  } catch {
-    return []; // not Windows, or no powershell: degrade to no-op
-  }
-}
+const runningInstances = MG.listInstances;
 const rigExe = path.join(RIG, "HumanityOS.exe");
 const instances = runningInstances();
 const mine = instances.filter((p) => p.exe.toLowerCase() === rigExe.toLowerCase());
