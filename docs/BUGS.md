@@ -1194,3 +1194,36 @@ non-interactable. A paint-only overlay must allocate nothing: use the
 painter (or a `layer_painter`) and no `allocate_rect`. When a panel "shows
 but won't click", list every Area drawn in the same frame and check their
 rects before reading the input path.
+
+## BUG-077: `vsync: false` killed the app on its first frame (fixed v0.1315.0)
+
+**Symptom:** with `"vsync": false` in config.json the app died on its FIRST
+rendered frame, menu or world (`wgpu_hal::dx12 ResizeBuffers failed ...
+0x887A0001`, `surface configuration failed: window is in use`, then
+`PANIC ... In Surface::configure / Invalid surface`). Toggling VSync off in
+Settings at runtime would hit the same panic and, because the setting is
+persisted, every later launch would die the same way. Found by the
+2026-09-18 frame-cost measurement, reproduced twice by the runtime verifier
+(once without ever entering the world, which is what placed it on the first
+frame rather than at world entry).
+
+**Cause:** the settings-apply block runs at the TAIL of the frame arm in
+`src/lib.rs`, where that frame's swapchain `TextureView` is still in scope,
+and `Renderer::set_vsync` reconfigured the surface right there. DXGI refuses
+`ResizeBuffers` while a back buffer is still referenced (wgpu-core's own
+comment at the acquired-texture check names this hole, gfx-rs/wgpu#4105),
+and wgpu's default fatal error handler ends the process. `vsync: true` never
+showed it because the surface already sat in AutoVsync and the old code only
+reconfigured on a change.
+
+**Fix:** `set_vsync` records the wanted present mode
+(`Renderer::pending_present_mode`) and `apply_pending_surface_config` applies
+it at the start of the next frame, before the surface texture is acquired,
+when no view of it can be alive. Pinned by
+`renderer::vsync_deferral_tests` (the mapping and the change-only rule);
+the runtime proof is a rig boot with `vsync: false` in the rig's config that
+reaches the world with zero panics.
+
+**Lesson:** never reconfigure the surface from inside the frame arm. Window
+resize already runs from `WindowEvent::Resized`, outside it, which is why
+resizing never crashed.

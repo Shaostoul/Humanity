@@ -230,6 +230,10 @@ pub struct Renderer {
     pub queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    /// A present-mode change waiting for the start of the next frame (see
+    /// `set_vsync` and BUG-077: the surface must not be reconfigured while
+    /// a frame's swapchain view is alive). `None` almost always.
+    pending_present_mode: Option<wgpu::PresentMode>,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     /// The spare depth buffer for off-screen views (camera screens, the
@@ -1991,24 +1995,41 @@ impl Renderer {
             shadow_comparison_sampler,
             sun_shadows: true,
             shadow_strength: 1.0,
+            pending_present_mode: None,
         }
     }
 
-    /// Handle window/canvas resize.
     /// Apply the Settings VSync toggle (v0.909 - the toggle used to save a
     /// value nothing read). AutoVsync caps at the monitor refresh;
     /// AutoNoVsync uncaps (mailbox/immediate as the platform allows).
+    ///
+    /// DEFERRED, not immediate (BUG-077, 2026-09-18): this is called from
+    /// the settings-apply block at the TAIL of the frame arm, while that
+    /// frame's swapchain `TextureView` is still in scope. Reconfiguring the
+    /// surface there makes DXGI's ResizeBuffers refuse (an outstanding
+    /// back-buffer reference, 0x887A0001), wgpu reports "window is in use"
+    /// and its default fatal handler ends the process. With `vsync: true`
+    /// nothing ever reconfigured, so nobody saw it; with `vsync: false` in
+    /// the config the app died on its FIRST frame, menu or world. The mode
+    /// is recorded here and applied by `apply_pending_surface_config` at the
+    /// start of the next frame, before the surface texture is acquired.
     pub fn set_vsync(&mut self, on: bool) {
-        let mode = if on {
-            wgpu::PresentMode::AutoVsync
-        } else {
-            wgpu::PresentMode::AutoNoVsync
-        };
-        if self.config.present_mode != mode {
+        let mode = vsync_present_mode(on);
+        self.pending_present_mode = pending_mode_change(self.config.present_mode, mode);
+    }
+
+    /// Apply a present-mode change recorded by `set_vsync`. Call once per
+    /// frame BEFORE `acquire_surface` / `acquire_surface_cleared`, when no
+    /// view of a swapchain texture can be alive (see BUG-077). A no-op when
+    /// nothing is pending, which is every frame but the one after a toggle.
+    pub fn apply_pending_surface_config(&mut self) {
+        if let Some(mode) = self.pending_present_mode.take() {
             self.config.present_mode = mode;
             self.surface.configure(&self.device, &self.config);
         }
     }
+
+    /// Handle window/canvas resize.
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
@@ -5434,5 +5455,47 @@ impl Renderer {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         (texture, view)
+    }
+}
+
+/// The present mode the Settings VSync switch means: on = capped at the
+/// monitor refresh, off = uncapped (mailbox or immediate as the platform
+/// allows). Pure, so the mapping is unit-tested without a device.
+pub fn vsync_present_mode(on: bool) -> wgpu::PresentMode {
+    if on { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync }
+}
+
+/// What `set_vsync` must record: `Some(want)` only when the surface is not
+/// already in that mode, so a settings apply that changes nothing never
+/// schedules a reconfigure (that was true of the old immediate path too, and
+/// it is why `vsync: true` never crashed: it never reconfigured).
+pub fn pending_mode_change(current: wgpu::PresentMode, want: wgpu::PresentMode) -> Option<wgpu::PresentMode> {
+    if current == want { None } else { Some(want) }
+}
+
+#[cfg(test)]
+mod vsync_deferral_tests {
+    use super::*;
+
+    /// BUG-077: the switch maps to the two auto modes and nothing else.
+    #[test]
+    fn vsync_switch_maps_to_the_auto_modes() {
+        assert_eq!(vsync_present_mode(true), wgpu::PresentMode::AutoVsync);
+        assert_eq!(vsync_present_mode(false), wgpu::PresentMode::AutoNoVsync);
+    }
+
+    /// A reconfigure is scheduled only on a real change: the first settings
+    /// apply after boot (vsync true in the config, surface already AutoVsync)
+    /// must schedule nothing, and a toggle to off must schedule exactly the
+    /// off mode. The apply itself runs at the next frame's start, never in
+    /// the frame arm, which is the whole fix.
+    #[test]
+    fn a_reconfigure_is_pending_only_when_the_mode_changes() {
+        let vs = wgpu::PresentMode::AutoVsync;
+        let no = wgpu::PresentMode::AutoNoVsync;
+        assert_eq!(pending_mode_change(vs, vsync_present_mode(true)), None, "no change, nothing to apply");
+        assert_eq!(pending_mode_change(vs, vsync_present_mode(false)), Some(no), "off is a change");
+        assert_eq!(pending_mode_change(no, vsync_present_mode(true)), Some(vs), "back on is a change");
+        assert_eq!(pending_mode_change(no, vsync_present_mode(false)), None);
     }
 }

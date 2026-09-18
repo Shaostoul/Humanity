@@ -17942,6 +17942,13 @@ mod native_app {
                         crate::engine::ipc::complete_screen_request(state);
                     }
 
+                    // A VSync toggle recorded by the previous frame's settings
+                    // apply is applied HERE, before this frame's surface
+                    // texture exists: reconfiguring the surface while a
+                    // frame's swapchain view was alive is what killed the
+                    // app with vsync off (BUG-077).
+                    state.renderer.apply_pending_surface_config();
+
                     let scene_result = if page_active {
                         // UI-only frame: skip 3D render, clear to dark background
                         state.renderer.acquire_surface_cleared(wgpu::Color {
