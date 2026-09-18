@@ -28,17 +28,18 @@
 //! this reason.
 
 use crate::engine::state::{EngineState, SceneDrawLists};
-use crate::gui::screen_surface::{ScreenSurface, ScreenSource, ScreenProvider, SURFACE_FORMAT};
+use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface, SURFACE_FORMAT};
 use crate::gui::GuiPage;
 use crate::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::{Mesh, Vertex};
 use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
 
-/// Rung 3 providers, one file each: the MJPEG live stream and the in-game
-/// camera. Later rungs (video, the readable web) add theirs beside them.
+/// Providers, one file each: the MJPEG live stream and the in-game camera
+/// (rung 3) and the readable web (rung 6). Rung 5 (video) adds its own beside them.
 pub mod camera;
 pub mod live;
+pub mod web;
 
 /// How far the player can reach a screen with the look ray or the cursor,
 /// in metres. Beyond this a screen still renders but ignores input.
@@ -209,10 +210,50 @@ pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
         // in-game camera (the world rendered from a placed camera post).
         ScreenSource::Live(stream) => Some(Box::new(live::LiveProvider::new(stream))),
         ScreenSource::Camera(instance) => Some(Box::new(camera::CameraProvider::new(instance))),
-        // Video clips and the readable web: added by their rungs (see
-        // docs/design/in-world-screens.md, the sources table). Until then
-        // the surface's notice names the gap.
-        ScreenSource::Video(_) | ScreenSource::Web(_) => None,
+        // The readable web view on a wall (rung 6): fetches its url once
+        // while in-app web reading is on, draws the off notice otherwise.
+        ScreenSource::Web(url) => Some(Box::new(web::WebProvider::new(url))),
+        // Video clips: added by rung 5 (see docs/design/in-world-screens.md,
+        // the sources table). Until then the surface's notice names the gap.
+        ScreenSource::Video(_) => None,
+    }
+}
+
+/// How long the dev IPC's `wait_ready` waits for a provider to report
+/// ready (or an error) before giving up. A readable-web fetch has a 10 s
+/// whole-request timeout of its own, so 15 s covers it with a margin; a
+/// wait that runs out is reported as a failure, never as ready.
+pub const WAIT_READY_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// The dev IPC's `link` verb: the (u, v) to click for the `index`-th link
+/// rect a provider drew, on a surface of `size` pixels. The point is the
+/// rect's centre after clipping the rect to the surface, so a link whose
+/// label runs past the edge still gets a point that is ON the screen; a
+/// rect wholly off the surface, or an index past the end, is `None`.
+pub fn link_uv(rects: &[egui::Rect], index: usize, size: (u32, u32)) -> Option<(f32, f32)> {
+    let rect = *rects.get(index)?;
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(size.0 as f32, size.1 as f32));
+    let on_screen = rect.intersect(screen);
+    if !on_screen.is_positive() {
+        return None;
+    }
+    let c = on_screen.center();
+    Some((c.x / size.0 as f32, c.y / size.1 as f32))
+}
+
+/// The dev IPC's `wait_ready` verb, decided from what the provider reports
+/// and how long the wait has run: `None` = keep waiting (still loading and
+/// under the limit); `Some(Ok(()))` = ready, or static content that has
+/// nothing to wait for; `Some(Err(reason))` = the provider failed, or the
+/// wait ran past `WAIT_READY_LIMIT`. Pure, so the bound is unit-tested.
+pub fn wait_ready_outcome(state: &LoadState, elapsed: std::time::Duration) -> Option<Result<(), String>> {
+    match state {
+        LoadState::Static | LoadState::Ready => Some(Ok(())),
+        LoadState::Error(e) => Some(Err(format!("the screen's content failed: {e}"))),
+        LoadState::Loading if elapsed >= WAIT_READY_LIMIT => {
+            Some(Err(format!("wait_ready timed out after {} s, still loading", WAIT_READY_LIMIT.as_secs())))
+        }
+        LoadState::Loading => None,
     }
 }
 
@@ -225,20 +266,44 @@ pub fn egui_key_from_winit_name(key_name: &str) -> Option<egui::Key> {
 }
 
 /// A dev-IPC interaction in progress (see `engine::ipc::poll_screen_request`).
-/// The engine holds it across frames because a click is a press on one frame
-/// and a release on the next (re-interacted rows need them apart), and the
-/// snapshot must be read AFTER the surface has drawn the frame the event
-/// landed in.
+/// The engine holds it across frames because a click is three frames, hover
+/// then press then release (`IpcStage` says why), and the snapshot must be
+/// read AFTER the surface has drawn the frame the last event landed in.
 #[derive(Debug, Clone)]
 pub struct ScreenIpc {
     /// Index into `Screens::surfaces`.
     pub surface: usize,
     pub action: String,
     pub uv: (f32, f32),
-    /// 0 = event queued this frame, 1 = a click's release still to queue,
-    /// 2 = ready to complete after this frame's `frame_surfaces`.
-    pub stage: u8,
+    pub stage: IpcStage,
     pub snapshot: bool,
+    /// `link`: which of the provider's link rects to click (0-based).
+    pub link_index: usize,
+    /// `find`: the drawn text to locate.
+    pub find_text: String,
+    /// `wait_ready`: when the wait began.
+    pub started: Option<std::time::Instant>,
+}
+
+/// Where a dev-IPC request is in its frame sequence. A click is THREE
+/// frames, hover then press then release, the sequence the headless click
+/// test proved against re-interacted rows (the inventory's container
+/// headers register nothing on a same-frame move + press, and need the
+/// release on yet another frame). The done file is written after the
+/// surface has drawn the frame the last event landed in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IpcStage {
+    /// The request was parsed this frame; its first event is queued next.
+    Queue,
+    /// The pointer is on the target (hover frame drawn); the press goes next.
+    Press,
+    /// The press was drawn; the release goes next.
+    Release,
+    /// Every event was drawn: write the done file after `frame_surfaces`.
+    Complete,
+    /// `wait_ready`: polling the provider each frame, bounded by
+    /// `WAIT_READY_LIMIT`; the surface stays framed meanwhile.
+    Waiting,
 }
 
 /// Every in-world screen, on `EngineState`.
@@ -285,6 +350,30 @@ impl Screens {
     /// this is true, the same way it does for an open in-world modal.
     pub fn keyboard_captured(&self) -> bool {
         self.focused.and_then(|i| self.surfaces.get(i)).map_or(false, |s| s.core.wants_keyboard())
+    }
+
+    /// Drop the dev-IPC interaction in flight because the screen it targets
+    /// no longer exists (`why` names the cause: a placement rebuild, or a
+    /// surface index that is gone), clearing its one-shot payload with it,
+    /// and hand back the failure the caller writes to
+    /// `debug/screen_done.json` (`ipc::write_screen_done`). `None` when
+    /// nothing was in flight, so callers write nothing then. This is the
+    /// one shape for "the request cannot finish": a rig waiting on the done
+    /// file reads `{"ok": false, "error"}` at once instead of waiting out
+    /// its own timeout, which is what happened before 2026-09-17, when two
+    /// paths dropped the record silently (found by an adversarial review).
+    /// Tested on a bare `Screens` because an `EngineState` needs a GPU.
+    pub fn abandon_ipc(&mut self, why: &str) -> Option<serde_json::Value> {
+        self.ipc_payload = None;
+        let ipc = self.ipc.take()?;
+        let msg = format!("screen request {:?} abandoned: {why}", ipc.action);
+        log::warn!("Screen request: {msg}");
+        Some(serde_json::json!({
+            "ok": false,
+            "error": msg,
+            "action": ipc.action,
+            "surface": ipc.surface,
+        }))
     }
 
     /// Route a primary button press or release. Returns true when a screen
@@ -512,13 +601,17 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
     if !old_surfaces.is_empty() {
         log::info!("[Screens] dropped {} surface(s) whose machine is gone", old_surfaces.len());
     }
-    // Indices changed: hover is recomputed next frame, focus and any IPC
-    // interaction in flight are simply released.
+    // Indices changed: hover is recomputed next frame, focus is released,
+    // and any IPC interaction in flight is abandoned WITH a done file (a
+    // rig must never wait out its own timeout on a request the engine
+    // dropped; the helper clears the one-shot payload too).
     state.screens.surfaces = surfaces;
     state.screens.quads = quads;
     state.screens.hover = None;
     state.screens.focused = None;
-    state.screens.ipc = None;
+    if let Some(done) = state.screens.abandon_ipc("the placed screens were rebuilt while it was in flight") {
+        crate::engine::ipc::write_screen_done(done);
+    }
     state.screens.camera_posts = camera_posts_from(placements);
     if !state.screens.quads.is_empty() {
         log::info!("[Screens] {} in-world screen(s) placed", state.screens.quads.len());
@@ -829,5 +922,79 @@ mod tests {
             assert_eq!(egui_key_from_winit_name(name), Some(want), "{name}");
         }
         assert_eq!(egui_key_from_winit_name("NoSuchKey"), None);
+    }
+
+    /// The `link` verb's rect-to-uv mapping: the centre of the Nth rect in
+    /// 0..1 on a 1280 x 720 surface; a label that runs off the right edge
+    /// is clipped first so the click stays on the screen; wholly off-screen
+    /// rects and out-of-range indices map to nothing.
+    #[test]
+    fn link_uv_maps_the_rect_centre_and_clips_to_the_surface() {
+        let size = (1280u32, 720u32);
+        let rects = vec![
+            egui::Rect::from_min_size(egui::pos2(100.0, 200.0), egui::vec2(120.0, 20.0)),
+            // Runs 400 px past the right edge: the usable centre is inside.
+            egui::Rect::from_min_size(egui::pos2(1000.0, 300.0), egui::vec2(680.0, 20.0)),
+            // Entirely below the surface (scrolled out of view).
+            egui::Rect::from_min_size(egui::pos2(100.0, 900.0), egui::vec2(120.0, 20.0)),
+        ];
+        let (u, v) = link_uv(&rects, 0, size).expect("on screen");
+        assert!((u - 160.0 / 1280.0).abs() < 1e-5 && (v - 210.0 / 720.0).abs() < 1e-5, "({u}, {v})");
+        let (u, v) = link_uv(&rects, 1, size).expect("partly on screen");
+        assert!((u - 1140.0 / 1280.0).abs() < 1e-5, "clipped centre, not the raw centre: u = {u}");
+        assert!(u < 1.0 && (v - 310.0 / 720.0).abs() < 1e-5);
+        assert!(link_uv(&rects, 2, size).is_none(), "an off-screen link cannot be clicked");
+        assert!(link_uv(&rects, 3, size).is_none(), "no such link");
+        assert!(link_uv(&[], 0, size).is_none());
+    }
+
+    /// The `wait_ready` verb is bounded: loading under the limit keeps
+    /// waiting, loading at the limit fails with a timeout, ready and static
+    /// content succeed at once, and an error fails at once with the reason.
+    #[test]
+    fn wait_ready_outcome_is_bounded_by_the_limit() {
+        use std::time::Duration;
+        assert_eq!(wait_ready_outcome(&LoadState::Loading, Duration::from_secs(1)), None);
+        assert_eq!(wait_ready_outcome(&LoadState::Loading, WAIT_READY_LIMIT - Duration::from_millis(1)), None);
+        let timed_out = wait_ready_outcome(&LoadState::Loading, WAIT_READY_LIMIT).expect("decided at the limit");
+        assert!(timed_out.as_ref().unwrap_err().contains("timed out"), "{timed_out:?}");
+        assert_eq!(wait_ready_outcome(&LoadState::Ready, Duration::ZERO), Some(Ok(())));
+        assert_eq!(wait_ready_outcome(&LoadState::Static, Duration::from_secs(99)), Some(Ok(())));
+        let failed = wait_ready_outcome(&LoadState::Error("HTTP 503".into()), Duration::ZERO).expect("decided");
+        assert!(failed.as_ref().unwrap_err().contains("HTTP 503"), "{failed:?}");
+    }
+
+    /// An IPC interaction whose screen disappears is abandoned WITH a
+    /// failure the rig can read (ok false, an error naming the cause and
+    /// the verb), and its one-shot payload goes with it; with nothing in
+    /// flight there is nothing to write. Both drop paths go through this
+    /// helper (`sync_screens` on a placement rebuild,
+    /// `ipc::advance_screen_request` on a gone surface index), tested here
+    /// on a bare `Screens` because an `EngineState` cannot be built without
+    /// a GPU. Before 2026-09-17 both paths cleared the record silently and
+    /// `scripts/verify-screens.js` waited out its 30 s timeout.
+    #[test]
+    fn abandoning_an_ipc_in_flight_reports_the_cause_and_clears_the_payload() {
+        let mut screens = Screens::default();
+        assert!(screens.abandon_ipc("nothing in flight").is_none(), "nothing to abandon, nothing to write");
+        screens.ipc = Some(ScreenIpc {
+            surface: 3,
+            action: "click".into(),
+            uv: (0.1, 0.2),
+            stage: IpcStage::Press,
+            snapshot: false,
+            link_index: 0,
+            find_text: String::new(),
+            started: None,
+        });
+        screens.ipc_payload = Some((-3.0, "typed".into()));
+        let done = screens.abandon_ipc("the placed screens were rebuilt").expect("a request was in flight");
+        assert_eq!(done["ok"], serde_json::json!(false));
+        let err = done["error"].as_str().unwrap_or("");
+        assert!(err.contains("rebuilt") && err.contains("click"), "the error names the cause and the verb: {err}");
+        assert_eq!(done["surface"], serde_json::json!(3));
+        assert!(screens.ipc.is_none(), "the in-flight record is cleared");
+        assert!(screens.ipc_payload.is_none(), "the one-shot payload is cleared with it");
+        assert!(screens.abandon_ipc("again").is_none(), "abandoning twice writes nothing the second time");
     }
 }

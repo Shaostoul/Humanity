@@ -16,9 +16,11 @@ Code map:
 | World quads, look-ray hits, input routing, per-frame drawing | `src/engine/screens.rs` |
 | The screen material (type 24) | `src/renderer/materials.rs` (`MATERIAL_TYPE_SCREEN`, `add_material_with_albedo_view`), `assets/shaders/pbr/90-fragment-main.wgsl` |
 | Data shape | `src/machines.rs` (`ScreenDef`, `MachineInstance.screen_source`), `data/machines/home.ron`, `home_solo.ron` |
-| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`, `WorldRender`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/live.rs` (the live stream), `src/engine/screens/camera.rs` (the in-game camera) |
+| Sources and providers | `src/gui/screen_surface.rs` (`ScreenSource`, `ScreenProvider`, `WorldRender`, `LoadState`), `src/engine/screens.rs` (`provider_for`, the registry), `src/engine/screens/live.rs` (the live stream), `src/engine/screens/camera.rs` (the in-game camera) |
 | One view of the world from any pose | `src/engine/ipc.rs` (`render_view_onto`, `ViewPasses`), shared by the hi-res screenshot and the camera screens |
-| Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions) |
+| The web provider (rung 6) | `src/engine/screens/web.rs` (`WebProvider`) |
+| Dev IPC | `src/engine/ipc.rs` (`poll_screen_request` and its two companions; `poll_camera_request`'s `station` + `screen` pose) |
+| The screens rig | `scripts/verify-screens.js` (`just verify-screens`), `scripts/lib/png.js`, fixtures under `tests/fixtures/screens/` |
 | Hooks in the main loop | `src/lib.rs` (search "In-world screens") |
 
 The decision that required this increment is Brief 4 in
@@ -213,7 +215,60 @@ match and `frame_surfaces` rebinds the scene material to the new texture the
 same frame, so a 1920 x 1080 stream on a 1280 x 720 wall shows every pixel.
 Providers also report `status()` fields into the dev IPC's done file (a
 stream's connection state, a clip's position, a web view's url), which is
-what lets the rig wait for and assert on them.
+what lets the rig wait for and assert on them. Two more hooks serve the rig:
+`load_state()` (static / loading / ready / error, what `wait_ready` polls)
+and `link_rects()` (the links drawn last frame, what `link` clicks).
+
+## Web sources (rung 6, integration)
+
+`web:<url>` puts the readable web (`docs/design/readable-web.md`) on a
+wall. The provider (`src/engine/screens/web.rs`, `WebProvider`) owns one
+`WebViewState` per screen, the same widget the Browser page hosts, so a wall
+has its own history, its own in-flight fetch and its own status line; two
+walls showing two sites never share a page, and neither touches the Browser
+page's view. What the player sees is the view's toolbar (Back, Forward,
+Reload, the address row with Go, Open in browser; the "Sites" button is
+hidden because a wall has no card list to return to), the status line, and
+the page in a scroll area with clickable links. Looking at a link and
+clicking navigates the wall, exactly as in the Browser page.
+
+The rules that make it safe to hang a web page on a wall:
+
+- **One navigation per screen.** The provider navigates to its url on the
+  first frame it draws while in-app web reading is on, and never again on
+  its own (`navigated` is the guard). The view's fetch runs on a background
+  thread and is polled once per frame; that is the whole per-frame cost.
+  Reload, Back, Forward and link clicks are the player's, through the view.
+- **Off means off.** `AppConfig.readable_web` (Settings > Privacy, "Read
+  websites inside HumanityOS") is off by default. While it is off the
+  screen draws a notice ("In-app web reading is off", the url it would
+  show, and the exact switch) and NEVER calls the view: no navigate, no
+  `show`, so no fetch can be dispatched. The promise the Browser page makes,
+  that a person who never turns the switch on never has the app fetch a
+  page, holds on the wall. Turning the switch on later starts the one
+  navigation on the next frame; turning it off again stops the view being
+  drawn at all. `off_switch_draws_a_notice_and_never_fetches` in `web.rs`
+  proves the off case through the view's own fetch state.
+- **The sites database is shown on a wall, not enforced.** The affiliate
+  disclosure line for the current page's site is drawn above the page on
+  the wall too. The database also records each site's review state
+  (`embed.status`: needs_review, allowed, forbidden, unknown, with the basis
+  and the reviewer), but nothing checks it when a `web:` source is placed
+  on a screen: today its only consumer is the review label on the Browser
+  page's site cards. A placement gate on it is a later rung (see "The
+  ladder above this"); until then the only guard is that the shipped
+  `wall_screen_3` shows our own site.
+
+Status for the dev IPC: `{url, title, status, links}`, where the title is
+the page's first heading (else its `<title>`, else the url), the status is
+one of `unframed`, `off`, `idle`, `fetching`, `ready` or `error: <reason>`,
+and `links` lists the hrefs drawn last frame (first 32, in `link` index
+order) so a rig can choose a link by where it goes; the screens gate only
+follows links that stay on our own site.
+
+Shipped placement: `wall_screen_3` in `home.ron`, on the console room's
+east wall (x = 51, z centre 45.5, facing west into the room), source
+`web:https://united-humanity.us`.
 
 ## Live and camera sources (rung 3)
 
@@ -427,23 +482,113 @@ Drop `debug/screen_request.json` while the game runs:
 {"screen": "wall_screen_1", "action": "text", "uv": [0.5, 0.5], "text": "hello"}
 {"screen": "wall_screen_1", "action": "hover", "uv": [0.1, 0.1]}
 {"screen": "wall_screen_1", "action": "snapshot"}
+{"screen": "wall_screen_1", "find": {"text": "Home"}}
+{"screen": "wall_screen_3", "action": "wait_ready"}
+{"screen": "wall_screen_3", "link": {"index": 0}}
 ```
 
 The event goes through the same `ScreenCore` methods the look ray uses
 (never a side path), and `debug/screen_done.json` comes back as
 `{"ok", "screen", "source", "kind", "action", "wants_keyboard", "hover_widget",
-"cursor_icon", "focused", "png"}` plus the provider's `status()` fields; `png` is present for `snapshot`, which
-reads the surface texture back to `debug/screen_<id>_N.png`. A click is a
-press on one frame and a release on the next, and the done file is written
-after the surface has drawn the frame the event landed in. `hover_widget`
-is whether egui reported a layer under the pointer after that frame (egui
-does not expose per-widget hover publicly); `cursor_icon` distinguishes a
-text field (Text) or a link (PointingHand) from plain content. The request
-file is consumed even on error, and an error writes `{"ok": false, "error"}`.
+"cursor_icon", "focused", "uv", "png"}` plus the provider's `status()` fields
+merged at the top level (a web screen adds `url`, `title`, `status`); `png` is
+present for `snapshot`, which reads the surface texture back to
+`debug/screen_<id>_N.png`; `uv` is present for the pointer verbs and says
+where the event landed. A click is three frames, hover then press then
+release (the sequence the headless click test proved against re-interacted
+rows, which register nothing on a same-frame move + press), and the done
+file is written after the surface has drawn the frame the last event
+landed in. `hover_widget` is whether egui reported a layer
+under the pointer after that frame (egui does not expose per-widget hover
+publicly); `cursor_icon` distinguishes a text field (Text) or a link
+(PointingHand) from plain content. The request file is consumed even on
+error, and an error writes `{"ok": false, "error"}`. That holds when the
+request's screen disappears mid-flight too: a placement rebuild
+(`sync_screens`, an editor change) or a surface index that no longer exists
+abandons the request through `Screens::abandon_ipc`, which clears the
+in-flight record and its payload and writes `{"ok": false, "error"}` naming
+the cause, so a rig reads a failure at once instead of waiting out its own
+timeout.
 
-This is how the runtime verifier proves a screen works with nobody at the
-keyboard: request a snapshot, read the PNG, request a click on a header,
-request another snapshot, compare.
+The three verbs a rig needs so it never guesses a pixel:
+
+- **`find`** answers where a drawn text is: `{"found", "text", "matches",
+  "uv", "rect_px"}`. egui exposes no label lookup (widget rects carry ids,
+  not text), so the core scans the frame's own shapes for text galleys:
+  an exact match wins, then a text that starts with the query, then one
+  that contains it, first in drawing order within a tier; text clipped
+  out of a scroll area is skipped. `found: false` is an answer, not an
+  error. On the inventory, `"Home"` lands on the container header "Home
+  (Silverdale, WA ...)", not the person row "You  (Home)".
+- **`link`** clicks the Nth link the provider drew last frame: the rect is
+  clipped to the surface, its centre becomes the uv, and the hover, press
+  and release go through the surface on three frames like any click. No
+  such link is `{"ok": false}` with the count the content drew. Which N:
+  the provider's status lists the hrefs in the same order (`links`), so a
+  rig picks by where the link goes instead of trusting index 0.
+- **`wait_ready`** completes only once the provider reports ready or
+  failed (`load_state()`), bounded by `WAIT_READY_LIMIT` (15 s; a timeout
+  is `{"ok": false}` with the status fields, never a pass). While it waits
+  the request stays in flight, which keeps the surface framed so a web
+  view keeps polling its fetch. Static content (a page, the off notice)
+  completes at once. `waited_ms` says how long it took.
+
+`debug/camera_request.json` with `{"station": "home", "screen":
+"wall_screen_3"}` parks the camera 2 m (`distance_m`) straight out from
+that screen's centre, at its height, looking back at it: the pose is
+computed from the screen's quad, so any screen in any room can be framed
+without a typed coordinate. Unknown ids fail with the placed ids listed.
+
+### The screens rig
+
+`just verify-screens` (`scripts/verify-screens.js`) is the gate that proves
+the wall screens are interactive with nobody at the keyboard. It refuses
+while ANY HumanityOS.exe is running (one GPU), refuses a stale exe, boots
+the release binary in its own portable rig (`.probe-rig/screens`, with
+`readable_web: true` written into the rig's config.json before boot), enters
+the world through autopilot, parks facing `wall_screen_3`, and then:
+
+1. inventory (`wall_screen_1`): `find` "Home" (the container header),
+   `hover` at the answer, `find` "Garage" (the child container that is
+   drawn only while Home is open), snapshot, `click` at the answer, `find`
+   "Garage" again, snapshot. The hover comes FIRST so both snapshots carry
+   the pointer in the same place: egui's floating scrollbar fades in under
+   a pointer, so without that hover two frames differ by a scrollbar
+   column whether or not the click did anything, and a pixel diff alone
+   cannot tell a dead click from a live one (an adversarial review found
+   exactly that hole, 2026-09-17). The judge requires the hover to have
+   landed at the found uv, the click's answer to report `hover_widget` AND
+   the `PointingHand` cursor (the inventory sets it from `row.hovered()`,
+   so it proves the point is on the header row, not merely on the panel;
+   the header's labels are non-selectable so egui's text-selection drag
+   cannot override that cursor with the I-beam on the release frame, which
+   it did while they were selectable),
+   the child row's `found` to flip across the click, and the two PNGs to
+   differ; `inventory_changed` is red unless every one of those holds;
+2. web (`wall_screen_3`): `wait_ready` (status must be `ready` on our own
+   host), snapshot, `link` at the first link whose href stays on our own
+   host (chosen from the `links` the status reported; if the page drew no
+   such link nothing is clicked and the web checks fail, because this gate
+   never fetches a third-party page), `wait_ready` again (a NEW url, still
+   on our host, `ready` again), snapshot; the two PNGs must differ;
+3. tasks (`wall_screen_2`): one snapshot that is not a single colour;
+4. zero PANIC lines in the rig's run.log.
+
+Evidence lands in `.probe-rig/screens/runs/<stamp>/` (the PNG pairs, a
+viewport capture of the console room, the manifest with every done file
+verbatim, the run log). Exit 0 passed, 1 refused, 2 failed. The verdict is a
+pure function of the manifest: `--dry-verdict <manifest.json>` re-judges
+one without booting, and `--self-test` judges the three fixture manifests
+under `tests/fixtures/screens/`: `green` must pass; `red` must fail on
+exactly its nine known checks (byte-identical snapshots, a hover off the
+target, a click whose cursor is not the header's, a child row that never
+went away, a web view that errored on the same url, a flat tasks image, a
+panic) while `inventory_find` and `inventory_snapshots` still pass;
+`dead-click` is the reviewer's scenario, snapshots that differ only by a
+scrollbar-like column while the child row is still found after the click,
+and must fail on exactly `inventory_toggled` and `inventory_changed`. That
+is how the verdict logic itself is proven able to fail. Both modes print
+"DRY VERDICT (nothing was booted)".
 
 ## Performance budget
 
@@ -480,9 +625,15 @@ Each is a separate increment on the same surface:
 
 - **Live feed and in-game camera:** shipped, rung 3 (the section above).
 - **Video:** decoded frames through `write_pixels`, the same path the live
-  frames take.
-- **The readable web:** Brief 4's HTML/CSS renderer drawing into a surface
-  the way an egui page does today. The monitor surface does not change; the
-  thing drawn into it does.
+  frames take (rung 5, merging next).
+- **The readable web:** shipped (rung 6, the "Web sources" section above).
+  The monitor surface did not change; the thing drawn into it did, exactly
+  as planned. Still wanted on top of it: a VR-controller ray, and
+  distance-based suspend of a wall's fetches.
+- **A placement gate on the sites database:** `embed.status` is recorded
+  and shown (the Browser page's site cards) but not enforced when a `web:`
+  source is placed on a screen. The gate (a `forbidden` site is never
+  placed, a `needs_review` one carries the review badge on the wall) is
+  its own increment on top of rung 6.
 - **A planet in a camera's window:** the cloud pass for a second pose needs
   its own temporal history, keyed per camera.

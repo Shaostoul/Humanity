@@ -2197,6 +2197,22 @@
             rotation: 270.0,
             zone: "home",
         ),
+        // The readable web on a wall (rung 6): a wall screen in the console
+        // room (the battlestation annex, x 47.5..51, z 44..47) hung on its
+        // east wall (x = 51) at the room's z centre, facing west into the
+        // room (rotation 90 turns the -Z front face to -X). Shows our own
+        // site when in-app web reading is on (Settings > Privacy), the
+        // off notice otherwise. `scripts/verify-screens.js` clicks its
+        // first link and proves the page changes.
+        (
+            id: "wall_screen_6",
+            machine: "wall_screen",
+            room: "console-room",
+            offset: (50.85, 1.2, 45.5),
+            rotation: 90.0,
+            zone: "home",
+            screen_source: Some("web:https://united-humanity.us"),
+        ),
         (
             id: "side_table_2",
             machine: "side_table",

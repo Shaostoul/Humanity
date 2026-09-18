@@ -250,6 +250,34 @@ and any affiliate tag with its mandatory disclosure. Design: `docs/design/readab
 - Checks: `scripts/check-web-sites.js` (preflight), `tests/page_parity_lint.rs` (both clients read `web/sites.json`), fixtures `tests/fixtures/web/`
 - Cargo deps: `html5ever = =0.40.1` (native-only), `url` (now native too)
 
+### The Readable Web on a Wall + the screens rig (native, in-world screens rung 6 integration, 2026-09-16)
+A `web:<url>` screen source puts the readable web view on an in-world display:
+one `WebViewState` per screen (own history, own fetch, own status line),
+navigated to its url ONCE on the first frame drawn while in-app web reading is
+on, drawn every framed tick, links clickable by the look ray. While
+`readable_web` is off the wall draws a notice naming the exact switch
+(Settings > Privacy) and never touches the view, so nothing is fetched. The
+dev IPC gained `find` (where is the drawn text "Home", answered from the
+frame's shapes: exact, then prefix, then substring), `link` (click the Nth link
+the provider drew, through the normal hover, press and release on three
+frames), `wait_ready` (bounded by `WAIT_READY_LIMIT`), `uv` on every pointer
+verb and the provider's status fields on every done file (a web screen's
+`url`, `title`, `status` and the `links` it drew); the station camera request
+parks facing a named screen (`{"station":"home","screen":"wall_screen_3"}`).
+`just verify-screens` boots the release exe in its own rig, writes
+`readable_web: true` before boot, enters the world, and PROVES with no human
+that a click on the inventory wall toggles the Home header, a click on the web
+wall's first same-host link navigates to a new page on our own site (no other
+site is ever fetched), the tasks wall drew a page, and no panic occurred;
+`--dry-verdict` and `--self-test` judge manifests without booting (the red
+fixture is the verdict proven able to fail). Design:
+`docs/design/in-world-screens.md` ("Web sources", "The screens rig") and
+`docs/design/readable-web.md` ("On a wall").
+- Native: `src/engine/screens/web.rs` (`WebProvider`), `src/engine/screens.rs` (`provider_for`, `link_uv`, `wait_ready_outcome`, `WAIT_READY_LIMIT`), `src/gui/screen_surface.rs` (`LoadState`, `FoundText`, `find_text_in_shapes`, `ScreenCore::find_text`), `src/engine/ipc.rs` (the verbs, `screen_done_base`, the screen camera pose), `src/gui/widgets/web_view.rs` (`show_sites_button`, `fetch_in_flight`, `history_len`)
+- Web: none by design (the screens are surfaces inside the native 3D world).
+- Data: `data/machines/home.ron` (`wall_screen_3`, `web:https://united-humanity.us`, console room east wall)
+- Tooling: `scripts/verify-screens.js` (`just verify-screens`; `--dry-verdict`, `--self-test`, wired into `just preflight`), `scripts/lib/png.js` (dependency-free PNG decode/encode/diff/colour stats), `tests/fixtures/screens/{green,red}/`
+
 ### In-App File Browser (native, v0.708)
 Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
 roots (Home/Downloads/Documents/Desktop/Game data/App folder), dirs-first ci-alpha

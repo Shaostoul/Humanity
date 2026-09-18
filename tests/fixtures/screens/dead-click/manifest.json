@@ -1,0 +1,74 @@
+{
+  "kind": "verify-screens",
+  "note": "FIXTURE for scripts/verify-screens.js --self-test: THE DEAD CLICK an adversarial review found on 2026-09-17. Everything the old verdict looked at is good: the hover landed at the found header, the click reports hover_widget and the header row's PointingHand cursor, and the before/after PNGs beside this file differ, but ONLY by a 3 px scrollbar-like column at the right edge (the pixels egui's floating scrollbar adds when a pointer is over a scroll area), while the child row Garage is still found after the click, which is what a deleted toggle looks like. This run must FAIL on exactly inventory_toggled and inventory_changed, and pass everything else. The web and tasks PNGs are copies of the green fixture's; the inventory PNGs were generated as a synthetic page with and without the column (120 of 3072 pixels differ).",
+  "stamp": "fixture-dead-click",
+  "screens": { "inventory": "wall_screen_1", "tasks": "wall_screen_2", "web": "wall_screen_3" },
+  "web_host": "united-humanity.us",
+  "panics": 0,
+  "inventory": {
+    "before": "inventory_before.png",
+    "after": "inventory_after.png",
+    "child_text": "Garage",
+    "find": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
+      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
+      "found": true, "text": "Home  (Silverdale, WA · 47.645, -122.695)", "matches": 2,
+      "uv": [0.083, 0.146], "rect_px": [64.0, 240.0, 300.0, 18.0]
+    },
+    "hover": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "hover",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
+      "uv": [0.083, 0.146]
+    },
+    "child_before": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
+      "found": true, "text": "Garage", "matches": 1,
+      "uv": [0.094, 0.208], "rect_px": [96.0, 292.0, 48.0, 18.0]
+    },
+    "click": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "click",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
+      "uv": [0.083, 0.146]
+    },
+    "child_after": {
+      "ok": true, "screen": "wall_screen_1", "source": "page:inventory", "kind": "page", "action": "find",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
+      "found": true, "text": "Garage", "matches": 1,
+      "uv": [0.094, 0.208], "rect_px": [96.0, 292.0, 48.0, 18.0]
+    }
+  },
+  "web": {
+    "before": "web_before.png",
+    "after": "web_after.png",
+    "link_index": 0,
+    "link_target": "https://united-humanity.us/library",
+    "ready": {
+      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
+      "url": "https://united-humanity.us/", "title": "HumanityOS", "status": "ready", "waited_ms": 812,
+      "links": ["https://united-humanity.us/library", "https://united-humanity.us/devlog", "https://github.com/Shaostoul/Humanity"]
+    },
+    "link": {
+      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "link",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "PointingHand", "focused": false,
+      "uv": [0.125, 0.236],
+      "url": "https://united-humanity.us/library", "title": "HumanityOS", "status": "fetching",
+      "links": ["https://united-humanity.us/library", "https://united-humanity.us/devlog", "https://github.com/Shaostoul/Humanity"]
+    },
+    "ready2": {
+      "ok": true, "screen": "wall_screen_3", "source": "web:https://united-humanity.us", "kind": "web", "action": "wait_ready",
+      "wants_keyboard": false, "hover_widget": true, "cursor_icon": "Default", "focused": false,
+      "url": "https://united-humanity.us/library", "title": "Library", "status": "ready", "waited_ms": 640,
+      "links": ["https://united-humanity.us/", "https://united-humanity.us/library#accord"]
+    }
+  },
+  "tasks": {
+    "png": "tasks.png",
+    "done": {
+      "ok": true, "screen": "wall_screen_2", "source": "page:tasks", "kind": "page", "action": "snapshot",
+      "wants_keyboard": false, "hover_widget": false, "cursor_icon": "Default", "focused": false,
+      "png": "debug/screen_wall_screen_2_7.png"
+    }
+  }
+}

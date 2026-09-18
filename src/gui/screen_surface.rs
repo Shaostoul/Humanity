@@ -228,6 +228,23 @@ pub trait ScreenProvider: Send {
     /// for at most one screen per frame. `surface` is this provider's own
     /// surface, its texture the natural target.
     fn render_world(&mut self, _surface: &mut ScreenSurface, _world: &mut dyn WorldRender, _now: Instant) {}
+
+    /// How far along the provider's content is, for the dev IPC's
+    /// `wait_ready` action (the rig waits for a web page to arrive before it
+    /// clicks a link). A provider whose content is always there (a status
+    /// page) keeps the default.
+    fn load_state(&self) -> LoadState {
+        LoadState::Static
+    }
+
+    /// The rectangles, in surface PIXELS, of the links the provider drew on
+    /// its last frame, in drawing order. The dev IPC's `link` action clicks
+    /// the Nth one through the normal event API, so a rig never has to
+    /// guess pixel coordinates from a screenshot. Empty for content with no
+    /// links.
+    fn link_rects(&self) -> Vec<egui::Rect> {
+        Vec::new()
+    }
 }
 
 /// A world screen's scheduling state (see `ScreenProvider::world_render`).
@@ -265,6 +282,90 @@ pub trait WorldRender {
     fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool;
 }
 
+/// Where a provider's content stands, as reported through
+/// [`ScreenProvider::load_state`] for the dev IPC's `wait_ready`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoadState {
+    /// The content is always there (a page, a notice): nothing to wait for.
+    Static,
+    /// Something is on its way (a fetch in flight, a clip opening).
+    Loading,
+    /// The content arrived and is drawn.
+    Ready,
+    /// It will not arrive; the string is the one-line reason.
+    Error(String),
+}
+
+/// What `ScreenCore::find_text` found on the last frame: the first drawn
+/// text matching the query, in surface pixels, and how many texts matched.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FoundText {
+    /// The full text of the matching galley (a label's whole string).
+    pub text: String,
+    /// The text's rectangle on the surface, in pixels, clipped to the
+    /// region it was actually drawn in.
+    pub rect: egui::Rect,
+    /// How many drawn texts matched the query (the first one is returned).
+    pub matches: usize,
+}
+
+/// Search the shapes egui produced for one frame for a drawn text. Three
+/// tiers, best first: an EXACT match (the galley's whole text equals
+/// `query`), then a text that STARTS WITH it, then one that merely
+/// CONTAINS it; within a tier the first in drawing order wins. So asking
+/// for "Home" on the inventory finds the container header "Home  (Silverdale,
+/// WA ...)" before the person row "You  (Home)" that only mentions it.
+/// Texts clipped entirely away (a label scrolled out of its scroll area)
+/// are skipped. This is the only per-widget text lookup egui affords:
+/// widget rects carry ids, not labels, so the drawn galleys are the honest
+/// source.
+pub fn find_text_in_shapes(shapes: &[egui::epaint::ClippedShape], query: &str) -> Option<FoundText> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+    // Best candidate per tier: 0 exact, 1 prefix, 2 substring.
+    let mut best: [Option<(String, egui::Rect)>; 3] = [None, None, None];
+    let mut matches = 0usize;
+    for cs in shapes {
+        visit_text(&cs.shape, cs.clip_rect, &mut |text, rect| {
+            let tier = if text == query {
+                0
+            } else if text.starts_with(query) {
+                1
+            } else if text.contains(query) {
+                2
+            } else {
+                return;
+            };
+            matches += 1;
+            if best[tier].is_none() {
+                best[tier] = Some((text.to_string(), rect));
+            }
+        });
+    }
+    best.into_iter().flatten().next().map(|(text, rect)| FoundText { text, rect, matches })
+}
+
+/// Walk one shape (recursing into `Shape::Vec`) and call `f` with every
+/// text galley's string and its on-surface rect, clipped to `clip`.
+fn visit_text(shape: &egui::Shape, clip: egui::Rect, f: &mut impl FnMut(&str, egui::Rect)) {
+    match shape {
+        egui::Shape::Text(t) => {
+            let rect = t.galley.rect.translate(t.pos.to_vec2()).intersect(clip);
+            if rect.is_positive() {
+                f(t.galley.text(), rect);
+            }
+        }
+        egui::Shape::Vec(v) => {
+            for s in v {
+                visit_text(s, clip, f);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// The GPU-free half of a screen: an egui context plus the synthetic input
 /// that drives it. Everything a test needs to prove "the page on a screen
 /// really reacts to a click" lives here.
@@ -299,6 +400,12 @@ pub struct ScreenCore {
     /// twice (see `ScreenSurface::frame`).
     runs: u64,
     textures: ScreenTextures,
+    /// A text lookup the dev IPC asked for; answered from EVERY run's
+    /// shapes until the answer is read back with `take_found_text`, so a
+    /// frame that runs the content twice (the warm-up) reports the settled
+    /// layout, not the first pass (see `find_text` / `take_found_text`).
+    find_query: Option<String>,
+    find_result: Option<Option<FoundText>>,
 }
 
 impl ScreenCore {
@@ -330,7 +437,33 @@ impl ScreenCore {
             cursor_icon: egui::CursorIcon::Default,
             runs: 0,
             textures: ScreenTextures::default(),
+            find_query: None,
+            find_result: None,
         }
+    }
+
+    /// Ask for the on-surface position of a drawn text. The answer comes
+    /// from the shapes of every run from now until it is read back with
+    /// `take_found_text` (a text is only where the frame put it), and the
+    /// LAST run's answer is the one read: a surface's first frame runs its
+    /// content twice and only the second run is settled, so a query
+    /// consumed by the first run would report a layout nothing is drawn at
+    /// any more. Used by the dev IPC's `find` action so a rig can click
+    /// "the Home header" instead of guessing pixel coordinates; see
+    /// `find_text_in_shapes` for the matching rule.
+    pub fn find_text(&mut self, query: &str) {
+        self.find_query = Some(query.to_string());
+        self.find_result = None;
+    }
+
+    /// The answer to the last `find_text`, once a run has happened: outer
+    /// `None` = no run yet, inner `None` = nothing on the surface matched.
+    /// Reading the answer ends the lookup (the query is dropped with it),
+    /// so later frames do not keep answering a question nobody is waiting
+    /// on.
+    pub fn take_found_text(&mut self) -> Option<Option<FoundText>> {
+        self.find_query = None;
+        self.find_result.take()
     }
 
     /// Pixel size of the surface.
@@ -355,6 +488,15 @@ impl ScreenCore {
     /// Number of completed runs.
     pub fn runs(&self) -> u64 {
         self.runs
+    }
+
+    /// How many times the content runs on the NEXT frame: twice on the very
+    /// first frame after creation (the warm-up, see `ScreenSurface::frame`:
+    /// egui Windows and Areas measure themselves on run 1 and settle on run
+    /// 2), once on every frame after. `run_and_render` reads the count from
+    /// here so a headless test can drive the same double run without a GPU.
+    pub fn runs_this_frame(&self) -> usize {
+        if self.runs == 0 { 2 } else { 1 }
     }
 
     /// Map a (u, v) in 0..1 across the screen (u left to right, v top to
@@ -519,6 +661,15 @@ impl ScreenCore {
         self.wants_keyboard = self.ctx.wants_keyboard_input();
         self.hover_layer = self.pointer.map_or(false, |p| self.ctx.layer_id_at(p).is_some());
         self.cursor_icon = out.platform_output.cursor_icon;
+        // A pending text lookup is answered from THIS run's shapes, before
+        // the GPU half tessellates them away, and answered again by every
+        // later run until it is read back, so the LAST run of a frame wins
+        // (the warm-up double run on frame 1 then reports the settled
+        // layout). Costs nothing when no lookup is pending (the normal
+        // case: it is a dev-IPC verb).
+        if let Some(q) = &self.find_query {
+            self.find_result = Some(find_text_in_shapes(&out.shapes, q));
+        }
         self.runs += 1;
         out
     }
@@ -793,7 +944,11 @@ impl ScreenSurface {
         mut draw: impl FnMut(&mut ScreenCore, &mut Theme, &mut GuiState) -> egui::FullOutput,
     ) {
         theme.apply_to_egui(&self.core.ctx);
-        let runs = if self.core.runs() == 0 { 2 } else { 1 };
+        // Two runs on the first frame, one after (`ScreenCore::runs_this_frame`
+        // owns the rule so the headless twin drives the same count). A
+        // pending `find` is answered by EVERY run and the last answer wins,
+        // so on the warm-up frame the reported rect is the settled one.
+        let runs = self.core.runs_this_frame();
         let mut last: Option<egui::FullOutput> = None;
         for _ in 0..runs {
             let out = draw(&mut self.core, theme, gui_state);
@@ -964,6 +1119,220 @@ mod tests {
         );
         assert_ne!(before, after, "clicking the Home header through the screen's UV event API did not toggle it");
         assert!(core.hover_widget(), "egui should report a layer under the pointer after the click");
+    }
+
+    /// THE DEV IPC's `find` VERB, END TO END ON A REAL PAGE: ask the core
+    /// where the text "Home" is drawn, click THERE through the same UV event
+    /// API, and the Home container header must toggle. This is what lets the
+    /// runtime rig click a named widget instead of a guessed pixel. Proven
+    /// able to fail (2026-09-16): with the found rect shifted one row down
+    /// (`+ 40.0` on y) the click lands on the container's body and the
+    /// toggle assertion fires with `left: true, right: true`.
+    #[test]
+    fn find_text_locates_the_home_header_and_a_click_there_toggles_it() {
+        let mut theme = load_theme();
+        let mut state = inventory_state();
+        let (w, h) = (1280u32, 1700u32);
+        let mut core = ScreenCore::new("test_screen", "inventory", w, h, &theme);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
+        crate::gui::pages::inventory::test_clear_placed();
+        core.run(&mut theme, &mut state);
+        core.run(&mut theme, &mut state);
+
+        assert!(core.take_found_text().is_none(), "no lookup was asked for yet");
+        core.find_text("Home");
+        core.run(&mut theme, &mut state);
+        let found = core
+            .take_found_text()
+            .expect("a run happened after the lookup")
+            .expect("the inventory page draws a container named Home");
+        // The header reads "Home  (Silverdale, WA ...)": the prefix tier
+        // must beat "You  (Home)", which is drawn first and only contains
+        // the word.
+        assert!(found.text.starts_with("Home"), "prefix match must win over a substring match: {:?}", found.text);
+        assert!(found.matches >= 2, "both the Home header and the You row mention Home: {}", found.matches);
+        // The found text is the header's label; the header's own recorded
+        // click rect must contain it (same row), which ties the shape scan
+        // to the widget the page actually made clickable.
+        let header = crate::gui::pages::inventory::test_recorded_header_rect("1").expect("Home header rect");
+        assert!(
+            header.contains(found.rect.center()),
+            "found text {:?} is not inside the Home header row {header:?}",
+            found.rect
+        );
+
+        let uv = (found.rect.center().x / w as f32, found.rect.center().y / h as f32);
+        let open_id = egui::Id::new(("place_open", "1"));
+        let before = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+        assert!(before, "Home starts open (a depth-0 container defaults to open)");
+        // (c) The child row the screens rig watches (`INVENTORY_CHILD` in
+        // scripts/verify-screens.js): "Garage" is Home's one room in
+        // data/places/seed.json, nested as its own card inside Home's open
+        // body and drawn nowhere else on the page. Present while Home is
+        // open, with the pointer already resting on the header (the rig's
+        // own order: hover, then find the child, then click)...
+        core.find_text("Garage");
+        core.pointer_moved(uv);
+        core.run(&mut theme, &mut state);
+        let garage = core.take_found_text().flatten().expect("Garage is drawn while Home is open");
+        assert_eq!(garage.text, "Garage", "the room's own header, an exact match: {:?}", garage.text);
+        core.button(uv, true);
+        core.run(&mut theme, &mut state);
+        core.button(uv, false);
+        core.run(&mut theme, &mut state);
+        let after = core.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(true);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        assert_ne!(before, after, "clicking at the FOUND text did not toggle the Home header");
+        // (b) After the release frame the pointer still rests on the header
+        // row, whose hover sets PointingHand (inventory.rs, `row.hovered()`).
+        // The rig requires exactly this of the click's done file, as proof
+        // the point landed on the row and not merely on the panel (any
+        // point over the CentralPanel reports hover_widget).
+        assert!(core.hover_widget(), "egui reports a layer under the pointer after the click");
+        assert_eq!(core.cursor_icon(), egui::CursorIcon::PointingHand, "the header row's own cursor after the click");
+        // ...and gone once Home is closed: the semantic proof of the toggle
+        // that the rig's `inventory_toggled` check rests on. A deleted
+        // toggle leaves Garage drawn and fails here.
+        core.find_text("Garage");
+        core.run(&mut theme, &mut state);
+        assert!(core.take_found_text().flatten().is_none(), "Garage is still drawn after Home was closed");
+        // The lookup is one-shot: nothing is pending after it was answered.
+        core.run(&mut theme, &mut state);
+        assert!(core.take_found_text().is_none(), "a find is answered once, not on every later frame");
+    }
+
+    /// THE RIG's PRECONDITION: on a wall-sized inventory (1280 x 720, the
+    /// `wall_screen` def's px) the Home header must be drawn ON the surface
+    /// without scrolling, or `scripts/verify-screens.js` has nothing to
+    /// click. If the inventory layout ever pushes the places tree below a
+    /// 720 px fold, this fails first and says why, instead of the rig
+    /// failing with "found: false" at 2am.
+    #[test]
+    fn home_header_is_on_a_wall_sized_inventory_without_scrolling() {
+        let mut theme = load_theme();
+        let mut state = inventory_state();
+        let (w, h) = (1280u32, 720u32);
+        let mut core = ScreenCore::new("wall_screen_1", "inventory", w, h, &theme);
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+        crate::gui::pages::inventory::test_close_garden_edit();
+        crate::gui::pages::inventory::test_close_mining_edit();
+        crate::gui::pages::inventory::test_clear_placed();
+        core.run(&mut theme, &mut state);
+        core.run(&mut theme, &mut state);
+        core.find_text("Home");
+        core.run(&mut theme, &mut state);
+        let found = core.take_found_text().flatten().expect("Home is drawn on a 1280 x 720 inventory");
+        assert!(found.text.starts_with("Home"), "{:?}", found.text);
+        let c = found.rect.center();
+        assert!(
+            c.x > 0.0 && c.x < w as f32 && c.y > 0.0 && c.y < h as f32,
+            "the Home header centre {c:?} must lie on the {w} x {h} wall"
+        );
+        crate::gui::pages::inventory::test_clear_recorded_rects();
+    }
+
+    /// A `find` asked BEFORE a surface's first frame must answer from the
+    /// settled layout, not the warm-up. The first frame runs the content
+    /// twice (`runs_this_frame` is 2 on a fresh core, the count
+    /// `run_and_render` uses) because some egui layouts place things by
+    /// what they measured LAST frame and so sit in the wrong place on run
+    /// 1. The content here is the plainest such case: a two-column
+    /// `egui::Grid` places column 2 by the previous frame's column-1 width,
+    /// which on frame 1 is the 40 pt minimum no matter how wide the real
+    /// label is (egui 0.31 `GridLayout::advance`, `prev_col_width`), so the
+    /// second-column label is drawn ~40 pt in on run 1 and ~300 pt in on run
+    /// 2. The answer after the double run must be where a later, fully
+    /// settled frame draws the label. Proven red before the fix
+    /// (2026-09-17): with the query consumed by the first run, the double
+    /// run answered `found: false` for the second-column label (it is not
+    /// drawn on a Grid's first frame at all) while the settled frame found
+    /// it, and the `expect` below fired.
+    #[test]
+    fn a_find_asked_before_the_first_frame_answers_from_the_settled_run() {
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        let (w, h) = (640u32, 360u32);
+        let mut core = ScreenCore::new("probe", "inventory", w, h, &theme);
+        // A capture-free closure is Copy, so the same draw can run again.
+        let draw = |ctx: &egui::Context, _: &mut GuiState| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                egui::Grid::new("settle_probe").show(ui, |ui| {
+                    ui.label("A first-column label a good deal wider than forty points");
+                    ui.label("Settled label");
+                    ui.end_row();
+                });
+            });
+        };
+        assert_eq!(core.runs_this_frame(), 2, "a fresh surface runs its content twice on frame 1");
+        // The rig's own order: the lookup is queued, THEN the frame runs.
+        core.find_text("Settled label");
+        for _ in 0..core.runs_this_frame() {
+            core.run_with(&mut state, draw);
+        }
+        assert_eq!(core.runs_this_frame(), 1, "after frame 1 every frame is one run");
+        let warm = core
+            .take_found_text()
+            .expect("the double run answered the lookup")
+            .expect("the label is drawn after the warm-up frame");
+        // A fully settled frame, asked the same question, is the reference.
+        core.run_with(&mut state, draw);
+        core.find_text("Settled label");
+        core.run_with(&mut state, draw);
+        let settled = core.take_found_text().flatten().expect("the label is drawn on a settled frame");
+        assert_eq!(warm.text, settled.text, "the warm-up frame's answer names a different text");
+        // The grid really did move the label between run 1 and run 2, or
+        // this test would prove nothing: the settled x must be well past the
+        // 40 pt first-frame column.
+        assert!(settled.rect.min.x > 100.0, "the second column settled at x = {}", settled.rect.min.x);
+        assert!(
+            (warm.rect.min - settled.rect.min).length() < 0.5,
+            "the warm-up frame's answer {:?} is not where the settled layout draws it {:?}",
+            warm.rect,
+            settled.rect
+        );
+    }
+
+    /// The matching rule on synthetic shapes: exact beats prefix beats
+    /// substring, the count covers all three, clipped-away text is
+    /// invisible, and nested `Shape::Vec` is walked.
+    #[test]
+    fn find_text_prefers_exact_matches_and_skips_clipped_text() {
+        let ctx = egui::Context::default();
+        let mk = |text: &str, pos: egui::Pos2| {
+            let galley = ctx.fonts(|f| f.layout_no_wrap(text.to_string(), egui::FontId::proportional(14.0), egui::Color32::WHITE));
+            egui::Shape::Text(egui::epaint::TextShape::new(pos, galley, egui::Color32::WHITE))
+        };
+        // Fonts need one frame to exist before galleys can be laid out.
+        let _ = ctx.run(Default::default(), |_| {});
+        let big = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 1000.0));
+        let shapes = vec![
+            egui::epaint::ClippedShape { clip_rect: big, shape: mk("Take me Home tonight", egui::pos2(10.0, 10.0)) },
+            egui::epaint::ClippedShape {
+                clip_rect: big,
+                shape: egui::Shape::Vec(vec![mk("Home", egui::pos2(10.0, 100.0)), mk("Homestead", egui::pos2(10.0, 200.0))]),
+            },
+            // Drawn entirely outside its clip rect: not on the surface.
+            egui::epaint::ClippedShape {
+                clip_rect: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(5.0, 5.0)),
+                shape: mk("Home", egui::pos2(500.0, 500.0)),
+            },
+        ];
+        let found = find_text_in_shapes(&shapes, "Home").expect("found");
+        assert_eq!(found.text, "Home", "the exact match, not the first substring match");
+        assert!((found.rect.min.y - 100.0).abs() < 1.0, "the exact match's own position: {:?}", found.rect);
+        assert_eq!(found.matches, 3, "one substring + one prefix + one exact; the clipped one does not count");
+        // Prefix beats substring: "Homes" is the start of "Homestead" and
+        // appears in nothing else.
+        let prefix = find_text_in_shapes(&shapes, "Homes").expect("prefix match");
+        assert_eq!(prefix.text, "Homestead");
+        // Substring only: drawn first, but "me Home" starts no text, so it
+        // is found through the last tier.
+        let partial = find_text_in_shapes(&shapes, "me Home").expect("substring match");
+        assert_eq!(partial.text, "Take me Home tonight");
+        assert!(find_text_in_shapes(&shapes, "nowhere").is_none());
+        assert!(find_text_in_shapes(&shapes, "   ").is_none(), "an empty query matches nothing");
     }
 
     /// An unknown page id in data must warn and draw a notice, never panic.

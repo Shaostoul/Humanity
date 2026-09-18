@@ -602,12 +602,30 @@ fn draw_container(
             }
             let (dotr, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
             ui.painter().circle_filled(dotr.center(), 5.0, dot);
-            ui.label(
-                RichText::new(&title).strong().color(theme.text_primary()).size(theme.font_size_body),
+            // Both labels are NON-selectable: this row is a control (the whole
+            // row toggles the container), not prose. A selectable label
+            // starts egui's text-selection drag on press, which shows the
+            // I-beam (CursorIcon::Text) for the press and release frames
+            // and overrides the row's own PointingHand set below; the
+            // screens rig reads the cursor of exactly that release frame as
+            // its proof the click landed on the header row. Proven per frame
+            // headlessly, 2026-09-17: with selectable labels the sequence
+            // was hover PointingHand, press Text, release Text, then
+            // PointingHand; with these non-selectable it is hover
+            // PointingHand, press Default (egui does not count a widget as
+            // hovered while the button is held on it), release PointingHand.
+            ui.add(
+                egui::Label::new(
+                    RichText::new(&title).strong().color(theme.text_primary()).size(theme.font_size_body),
+                )
+                .selectable(false),
             );
             if !hint.is_empty() {
-                ui.label(
-                    RichText::new(format!("· {hint}")).size(theme.font_size_small).color(theme.text_muted()),
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("· {hint}")).size(theme.font_size_small).color(theme.text_muted()),
+                    )
+                    .selectable(false),
                 );
             }
             ui.allocate_space(egui::vec2(ui.available_width().max(0.0), 1.0));

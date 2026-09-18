@@ -420,6 +420,23 @@ verify:
 verify-runtime *ARGS:
     node scripts/verify-runtime.js {{ARGS}}
 
+# The in-world SCREENS gate: boots target/release/HumanityOS.exe in its own
+# portable rig (.probe-rig/screens, readable_web written on before boot),
+# enters the world, parks in the console room, and proves with nobody at the
+# keyboard that the wall screens are interactive: a click on the inventory
+# wall's "Home" header (found by its drawn text) changes the screen, a click
+# on the web wall's first link navigates to a new page (our own site only),
+# the tasks wall drew a page, and run.log holds no PANIC. Every event goes
+# through debug/screen_request.json into the same event API the look ray
+# uses. Refuses while ANY HumanityOS.exe is running (one GPU) or the exe is
+# stale. Exit 0 pass / 1 refused / 2 failed; evidence (PNG pairs, viewport,
+# manifest, log) under .probe-rig/screens/runs/<stamp>/.
+#   just verify-screens --dry-verdict <manifest.json>   re-judge without booting
+#   node scripts/verify-screens.js --self-test           the verdict on the fixtures (no GPU)
+# Boot the real binary, click the wall screens through the dev IPC, judge.
+verify-screens *ARGS:
+    node scripts/verify-screens.js {{ARGS}}
+
 # The four src/gui file-scanner lints (no em dashes, theme tokens, theme-editor
 # coverage, tofu glyphs). Compiled standalone with rustc so they never link the
 # native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
@@ -462,6 +479,7 @@ preflight:
     node scripts/check-schema-paths.js
     node scripts/check-library-quotes.js
     node scripts/check-web-sites.js
+    node scripts/verify-screens.js --self-test
     just verify
     @echo "OK: preflight passed, safe to push"
 
