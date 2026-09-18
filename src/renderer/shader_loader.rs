@@ -147,6 +147,25 @@ pub fn boot_pbr_source() -> std::borrow::Cow<'static, str> {
     if std::env::var("HUMANITY_SHADERS_FROM_DISK").ok().as_deref() == Some("1") {
         if let Some(dir) = find_shaders_dir() {
             if let Some(src) = assembled_pbr_source_from_dir(&dir) {
+                // The same gate the hot reload passes through. A parse or
+                // validation error would die loudly inside wgpu's module
+                // creation anyway; what this catches that wgpu cannot is a
+                // tree from BEFORE the permutation (no switch declared, no
+                // guard using one: a stale checkout or mirror), which
+                // compiles and boots and silently hands the terrain pass the
+                // cloud march again (see check_permutation_switches). A rig
+                // exists to measure what is on disk, so a disk tree that
+                // fails the gate is a boot failure with the cause in the
+                // log, not a quiet fallback the rig would then measure as if
+                // it were the edit.
+                if let Err(e) = validate_wgsl(&src) {
+                    panic!(
+                        "[Shaders] HUMANITY_SHADERS_FROM_DISK=1: the on-disk megashader under \
+                         {:?} was REJECTED and this boot refuses to measure something else \
+                         instead: {e}",
+                        dir.join("pbr")
+                    );
+                }
                 log::info!(
                     "[Shaders] BOOT FROM DISK ({} bytes) under {:?}",
                     src.len(),
@@ -244,7 +263,67 @@ pub fn validate_wgsl(source: &str) -> Result<(), String> {
             "entry points missing (an attribute may have orphaned onto a const): {entries:?}"
         ));
     }
+    check_permutation_switches(&module)?;
     check_hlsl_expressible(source)?;
+    Ok(())
+}
+
+/// The permutation switches (P1) must be DECLARED by the module, or the
+/// pipeline constants that switch the terrain PSOs' shell branches off bind
+/// to nothing.
+///
+/// Why this is a refusal and not a warning: naga's override substitution
+/// returns a module UNCHANGED when it declares no overrides, and wgpu 24
+/// raises no error for a constant key the module does not declare. So a
+/// megashader from BEFORE the permutation, with no switch declared and no
+/// guard using one (a `HUMANITY_SHADERS_FROM_DISK` boot or a hot reload
+/// against a stale `assets/shaders/pbr/`, a `--shipped-assets` rig whose
+/// mirror predates P1), compiles, boots, renders correctly and silently
+/// hands every terrain fragment the whole cloud march again: the 45 ms
+/// floor P1 removed, back with no log line anywhere. Nothing downstream can
+/// tell; this gate can. (Deleting 05-overrides.wgsl ALONE is not that case:
+/// the guards then reference undefined identifiers and naga refuses the
+/// source as a parse error before this runs.)
+///
+/// Checked on the PARSED module rather than the text, so the declaration's
+/// spacing is free but its meaning is pinned: each switch must exist, be a
+/// `bool`, and default to `true` (every pipeline that does not name a switch
+/// relies on that default to keep its branch).
+fn check_permutation_switches(module: &wgpu::naga::Module) -> Result<(), String> {
+    use wgpu::naga::{Expression, Literal, Scalar, ScalarKind, TypeInner};
+    for name in super::pipeline::ALL_BRANCH_SWITCHES {
+        let Some((_, switch)) = module
+            .overrides
+            .iter()
+            .find(|(_, o)| o.name.as_deref() == Some(*name))
+        else {
+            return Err(format!(
+                "permutation switch missing: the module declares no `override {name}: bool = true;` \
+                 (assets/shaders/pbr/05-overrides.wgsl). Without it the pipeline constant that \
+                 switches this branch off binds to nothing and every terrain fragment silently \
+                 pays for the branch again; refusing the module"
+            ));
+        };
+        let is_bool = matches!(
+            module.types[switch.ty].inner,
+            TypeInner::Scalar(Scalar { kind: ScalarKind::Bool, .. })
+        );
+        if !is_bool {
+            return Err(format!(
+                "permutation switch {name} must be declared `bool` (pipeline.rs maps 0.0 onto a \
+                 bool override as `value != 0.0`); refusing the module"
+            ));
+        }
+        let defaults_true = switch
+            .init
+            .is_some_and(|h| matches!(module.global_expressions[h], Expression::Literal(Literal::Bool(true))));
+        if !defaults_true {
+            return Err(format!(
+                "permutation switch {name} must default to `= true`: every pipeline that does not \
+                 name it relies on that default to keep its branch compiled in; refusing the module"
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -462,9 +541,127 @@ mod tests {
     #[test]
     fn validate_wgsl_rejects_broken_and_entryless_sources() {
         // Parse error.
-        assert!(super::validate_wgsl("fn nope( {").is_err());
-        // Valid WGSL but no vs_main/fs_main entry points.
-        assert!(super::validate_wgsl("fn helper() -> f32 { return 1.0; }").is_err());
+        let err = super::validate_wgsl("fn nope( {").expect_err("a parse error must be refused");
+        assert!(err.starts_with("parse error"), "refused for the wrong reason: {err}");
+        // Valid WGSL with the permutation switches declared but no
+        // vs_main/fs_main entry points. The switches are included so the
+        // refusal is for the reason this test is about, not for the gate
+        // added later (see the test below for that one).
+        let src = format!("{}fn helper() -> f32 {{ return 1.0; }}", super::test_support::switch_declarations());
+        let err = super::validate_wgsl(&src).expect_err("an entryless module must be refused");
+        assert!(err.starts_with("entry points missing"), "refused for the wrong reason: {err}");
+    }
+
+    /// Parse + full naga validation ONLY, with no gate of ours: what wgpu's
+    /// own module creation would accept. Used to show that the sources the
+    /// switch gate refuses are sources nothing else would have refused.
+    fn naga_alone_accepts(source: &str) -> bool {
+        let Ok(module) = wgpu::naga::front::wgsl::parse_str(source) else {
+            return false;
+        };
+        wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .is_ok()
+    }
+
+    /// A megashader as it looked BEFORE the permutation for `name`: no
+    /// `override` declaration and no `HAS_X && ` in its guard. That is the
+    /// shape of a stale tree (a `--shipped-assets` mirror or an on-disk
+    /// checkout that predates P1), and it is the DANGEROUS shape: it parses
+    /// and validates, naga substitutes nothing into a module that declares
+    /// no overrides, wgpu 24 raises no unknown-key error, and the terrain
+    /// PSOs' constants bind to nothing. (Stripping the declaration alone
+    /// leaves the guard referencing an undefined identifier, which naga
+    /// refuses as a parse error on its own; that half-pruned shape needs no
+    /// gate of ours.)
+    fn without_switch(src: &str, name: &str) -> String {
+        let decl = format!("override {name}: bool = true;");
+        let guard_use = format!("{name} && ");
+        assert!(src.contains(&decl), "the source declares {name}");
+        assert_eq!(src.matches(&guard_use).count(), 1, "the source guards ONE dispatch with {name}");
+        src.replace(&decl, "").replace(&guard_use, "")
+    }
+
+    /// The gate REFUSES a megashader that lacks a permutation switch, naming
+    /// the switch, and the sources it refuses are ones naga alone ACCEPTS:
+    /// without this refusal they compile, boot and render correctly while
+    /// every terrain fragment silently pays for the cloud march again, and
+    /// nothing downstream can tell. Three shapes of the same defect: one
+    /// switch gone (declaration and guard, the pre-permutation shape for
+    /// that branch), all three gone (a tree from before P1), and a switch
+    /// declared but defaulting to `false`.
+    #[test]
+    fn validate_wgsl_refuses_a_megashader_missing_a_permutation_switch() {
+        use super::super::pipeline::{ALL_BRANCH_SWITCHES, BRANCH_CLOUD};
+        let intact = super::assembled_pbr_source();
+        super::validate_wgsl(intact).expect("the embedded megashader passes the gate");
+
+        // One switch gone: naga alone accepts it; the gate refuses it and
+        // names the switch.
+        let one_gone = without_switch(intact, BRANCH_CLOUD);
+        assert!(
+            naga_alone_accepts(&one_gone),
+            "the pre-permutation shape must be a source naga accepts, or this test is not \
+             testing the silent case"
+        );
+        let err = super::validate_wgsl(&one_gone)
+            .expect_err("a megashader without HAS_CLOUD_BRANCH must be refused");
+        assert!(
+            err.contains(BRANCH_CLOUD) && err.contains("permutation switch missing"),
+            "the refusal must name the missing switch: {err}"
+        );
+
+        // All three gone (the stale-tree case): naga accepts, the gate refuses.
+        let mut all_gone = intact.to_string();
+        for name in ALL_BRANCH_SWITCHES {
+            all_gone = without_switch(&all_gone, name);
+        }
+        for name in ALL_BRANCH_SWITCHES {
+            // (The names survive in comments, which is fine; only the
+            // declaration and the guard use matter to naga.)
+            assert!(
+                !all_gone.contains(&format!("override {name}")) && !all_gone.contains(&format!("{name} && ")),
+                "{name} is neither declared nor used any more"
+            );
+        }
+        assert!(naga_alone_accepts(&all_gone), "a pre-P1 megashader is valid WGSL");
+        let err = super::validate_wgsl(&all_gone).expect_err("a switchless megashader must be refused");
+        assert!(err.contains("permutation switch missing"), "wrong reason: {err}");
+
+        // Declared, but defaulting to false: every pipeline that does not
+        // name the switch would lose the branch. Naga accepts, the gate
+        // refuses naming the switch and the required default.
+        let decl = format!("override {BRANCH_CLOUD}: bool = true;");
+        let flipped = intact.replace(&decl, &format!("override {BRANCH_CLOUD}: bool = false;"));
+        assert!(naga_alone_accepts(&flipped), "a false default is valid WGSL");
+        let err = super::validate_wgsl(&flipped)
+            .expect_err("a switch defaulting to false must be refused");
+        assert!(
+            err.contains(BRANCH_CLOUD) && err.contains("= true"),
+            "the refusal must name the switch and the required default: {err}"
+        );
+
+        // For completeness: the half-pruned shape (declaration gone, guard
+        // kept) is refused too, by naga's parser, before our gate runs.
+        let half = intact.replace(&decl, "");
+        let err = super::validate_wgsl(&half).expect_err("an undefined identifier is refused");
+        assert!(err.starts_with("parse error"), "refused by the parser: {err}");
+    }
+}
+
+/// Shared by the two test modules below: the permutation switch
+/// declarations a minimal test source needs to get PAST the switch gate, so
+/// each test's refusal is for the reason that test is about.
+#[cfg(test)]
+mod test_support {
+    pub fn switch_declarations() -> String {
+        super::super::pipeline::ALL_BRANCH_SWITCHES
+            .iter()
+            .map(|name| format!("override {name}: bool = true;\n"))
+            .collect()
     }
 }
 
@@ -496,12 +693,16 @@ mod hlsl_guard_tests {
     /// megashader test both call - a guard nobody calls is not a guard.
     #[test]
     fn the_gate_itself_rejects_an_array_return() {
-        let src = "fn f() -> array<f32, 2> { var a: array<f32, 2>; return a; }\n\
-                   @vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }\n\
-                   @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
-        assert!(
-            validate_wgsl(src).is_err(),
-            "validate_wgsl must reject what the HLSL backend cannot compile"
+        // With the permutation switches declared, so the refusal below is
+        // the HLSL guard's and not the switch gate's.
+        let src = format!(
+            "{}fn f() -> array<f32, 2> {{ var a: array<f32, 2>; return a; }}\n\
+             @vertex fn vs_main() -> @builtin(position) vec4<f32> {{ return vec4<f32>(0.0); }}\n\
+             @fragment fn fs_main() -> @location(0) vec4<f32> {{ return vec4<f32>(0.0); }}\n",
+            super::test_support::switch_declarations()
         );
+        let err = validate_wgsl(&src)
+            .expect_err("validate_wgsl must reject what the HLSL backend cannot compile");
+        assert!(err.contains("HLSL"), "refused for the wrong reason: {err}");
     }
 }
