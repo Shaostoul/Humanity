@@ -6,7 +6,10 @@
 //!
 //! Every assertion here is about the DECODED RESULT (pixels, samples, pts,
 //! thread state), never about the setup that produced it. The live tests are
-//! timing-based with wide margins; they take about 2.5 s each.
+//! timing-based: each runs about 2 s alone, and the playback test runs until
+//! the clip ends rather than for a fixed window, so a loaded machine makes it
+//! slower, not red (see `real_time_floor` for what a count can and cannot
+//! prove under load).
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -14,19 +17,43 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use kira::sound::streaming::Decoder as _;
+use kira::sound::PlaybackState;
 
 use super::audio::OpusTrack;
 use super::video::decode_video;
-use super::{probe, take_due_frame, MediaError, VideoFrame, VideoPlayer};
+use super::{probe, take_due_frame, AudioAttach, MediaError, VideoFrame, VideoPlayer};
 
 const BAR: &str = "colour-bar-av1-opus.webm";
 const UNSUPPORTED: &str = "unsupported-vp8-vorbis.webm";
 /// The fixture's declared duration: ffmpeg pads the Opus stream to 2.008 s.
 const BAR_DURATION_S: f64 = 2.008;
+/// Frames in the fixture: 2 s at 30 fps.
+const BAR_FRAMES: usize = 60;
 /// The bar's speed in the recipe (`overlay=x='mod(t*140,320)'`).
 const BAR_SPEED_PX_PER_S: f64 = 140.0;
 /// libopus look-ahead, as written in the fixture's OpusHead.
 const PRE_SKIP: usize = 312;
+
+/// The floor on how many of `frames_due` a real-time polling loop must
+/// receive: half of them. Why half and not all: `poll()` hands out the
+/// NEWEST due frame and drops the older due ones (the caller wants the
+/// present, not a backlog), so every time the test thread is off the CPU
+/// for longer than one frame period (33 ms, ten times its 3 ms sleep) a
+/// frame is skipped BY DESIGN. Under machine load that is common: a run on
+/// a busy desktop delivered 37 of 59 against a fixed threshold of 40 and
+/// failed three times in a row while the same code passed alone. Half rate
+/// means the loop was away no more than one frame in two on average, which
+/// a loaded desktop still manages, while every defect this count exists to
+/// catch delivers a handful at most: a decode thread that never wakes once
+/// the four-frame queue fills (at most 4), frames dropped as a stale
+/// generation (0 after the drop), a decoder that stalls on the caller. The
+/// real-time proof is carried by the OTHER assertions in each live test
+/// (the last frame reached the caller, the clock stopped at the declared
+/// end, or the clip wrapped): this floor only has to tell "frames flow"
+/// from "frames stopped", and half is far from both.
+fn real_time_floor(frames_due: usize) -> usize {
+    frames_due / 2
+}
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -224,21 +251,72 @@ fn live_playback_delivers_frames_in_order_and_never_ahead_of_the_clock() {
     std::thread::sleep(Duration::from_millis(100));
     assert!(player.poll().is_none(), "paused clock: nothing new is due");
 
-    player.play();
+    // `start` is taken BEFORE play() so the wall reading below can never
+    // be behind the clock's own anchor.
     let start = Instant::now();
+    player.play();
     let mut last_pts = first.pts_s;
     let mut delivered = 0;
-    while start.elapsed() < Duration::from_millis(2600) {
+    // The loop's own cadence, so a failure message can say whether the
+    // machine or the player was late: the longest gap between two polls.
+    let mut polls = 0u32;
+    let mut last_poll = Instant::now();
+    let mut longest_gap = Duration::ZERO;
+    // Run until the clock STOPS at the declared end, which the player only
+    // does once the decoder has delivered its last frame, with a deadline
+    // far beyond real time so a loaded machine finishes late instead of
+    // failing early. A fixed 2.6 s window used to sit here; with the rest
+    // of the suite sharing the machine a debug-build decoder ran at about
+    // 15 fps and the window closed with the last frame at 1.233 s, which is
+    // no defect of the player (the clock is the master, frames follow it,
+    // and a slower decoder means dropped frames, not a wrong result).
+    let deadline = start + Duration::from_secs(15);
+    while player.is_playing() {
+        assert!(
+            Instant::now() < deadline,
+            "the clip did not finish within 15 s: {delivered} frames delivered, last pts {last_pts}"
+        );
+        let now = Instant::now();
+        longest_gap = longest_gap.max(now - last_poll);
+        last_poll = now;
+        polls += 1;
         if let Some(f) = player.poll() {
             let clock = player.position_s();
+            // The two properties that hold on EVERY delivered frame whatever
+            // the machine is doing: never ahead of the clock, never out of
+            // order. These are the gate; the count below is only a floor.
             assert!(f.pts_s <= clock + 1e-9, "frame at {} s handed out when the clock read {clock} s", f.pts_s);
             assert!(f.pts_s > last_pts, "out of order: {} after {last_pts}", f.pts_s);
             last_pts = f.pts_s;
             delivered += 1;
         }
+        // The REAL-TIME proof, on the clock and not on the decoder: the
+        // position tracks the wall whatever the machine is doing. The
+        // position is read FIRST and the wall second, so a preemption
+        // between the two reads can only make the wall larger; the clock
+        // may therefore never read ahead of the wall, and it may lag it by
+        // no more than a preemption's worth (0.3 s is generous; a clock
+        // running at half speed would be a second behind by the end).
+        let pos = player.position_s();
+        let wall = start.elapsed().as_secs_f64().min(player.duration_s());
+        assert!(pos <= wall + 1e-3, "the clock ran ahead of the wall: {pos} s at {wall} s");
+        assert!(wall - pos < 0.3, "the clock fell behind the wall: {pos} s at {wall} s");
         std::thread::sleep(Duration::from_millis(3));
     }
-    assert!(delivered >= 40, "most of the 59 remaining frames should arrive in real time, got {delivered}");
+    let elapsed = start.elapsed().as_secs_f64();
+    assert!(
+        elapsed >= BAR_DURATION_S - 0.05,
+        "a wall-driven clock cannot reach the end early: finished after {elapsed:.3} s"
+    );
+    let floor = real_time_floor(BAR_FRAMES - 1);
+    assert!(
+        delivered >= floor,
+        "frames stopped flowing: {delivered} of {} delivered (floor {floor}; the loop polled {polls} times over \
+         {elapsed:.2} s, longest gap between polls {:.1} ms)",
+        BAR_FRAMES - 1,
+        longest_gap.as_secs_f64() * 1e3
+    );
+    println!("live playback: {delivered} of 59 frames, finished after {elapsed:.3} s, longest poll gap {:.1} ms", longest_gap.as_secs_f64() * 1e3);
     // WebM stores pts in millisecond ticks, so frame 59 sits at 1.967 s, not 59/30.
     assert!((last_pts - 59.0 / 30.0).abs() < 0.002, "the last frame reached the caller, last pts {last_pts}");
     assert!(player.at_end(), "position {} of {}", player.position_s(), player.duration_s());
@@ -344,6 +422,140 @@ fn audio_led_clock_follows_kira_when_a_device_exists() {
     let after = player.position_s();
     assert!(after > 0.2 && after < 0.8, "the clock runs again after the rewind, got {after}");
     println!("audio-led: {delivered} frames in 1.5 s, clock {pos:.3} s, after rewind {after:.3} s");
+}
+
+/// The LOOPING attach (`AudioAttach { looping: true }`, the `loop_region`
+/// branch), on a machine with an audio device. This is the path every
+/// in-world video screen takes, and until this test nothing executed it:
+/// the device test above goes through the one-shot attach.
+///
+/// Phase A lets the stream run off its end with NO help from the caller and
+/// proves what the loop region is for: kira's own position wraps back toward
+/// zero and the sound is still `Playing` afterwards. Phase B then drives the
+/// clip the way the screen provider does (rewind the picture when the clock
+/// reaches the declared end) through a second full pass, so the run goes
+/// past `duration_s` at least twice, and the sound is still `Playing` at the
+/// end with no error raised. Phase C is the control that proves the test
+/// can tell the difference: the same clip attached WITHOUT looping reads a
+/// state other than `Playing` once it has run off its end.
+///
+/// Run it in RELEASE mode: rav1d's own debug-only `DisjointMut` borrow
+/// checker can panic on one of rav1d's worker threads under a debug build
+/// with several decoders running (observed once in 16 debug runs of the
+/// suite, 2026-09-17; it aborts the whole test process), and this test keeps
+/// a decoder alive for two full passes. See "Known limits" in
+/// docs/design/media-player.md. A debug run that completes is still valid.
+#[test]
+#[ignore = "needs an audio output device; run: cargo test --release --features native --lib -- --ignored --nocapture media::tests::looping_audio (release: rav1d's debug-only borrow checker can abort a debug run, see docs/design/media-player.md Known limits)"]
+fn looping_audio_keeps_playing_past_the_end_when_a_device_exists() {
+    let mut audio = match crate::audio::AudioManager::try_new() {
+        Ok(a) => a,
+        Err(e) => {
+            println!("skipped: no audio device ({e})");
+            return;
+        }
+    };
+    // Muted at the master AND at the attach: this is about the transport,
+    // not the speakers.
+    audio.set_master_volume(0.0);
+
+    let mut player = VideoPlayer::open_with_threads(fixture(BAR), 1).expect("open");
+    player
+        .attach_audio_with(&mut audio, AudioAttach { looping: true, volume: 0.0, panning: 0.5 })
+        .expect("attach the Opus track looping");
+    assert!(player.has_audio());
+    // kira applies the pause on its audio thread; give it a moment, then
+    // the sound must be paused (nothing leaks out before the first play).
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(player.audio_state(), Some(PlaybackState::Paused), "attached while the player is paused");
+    let dur = player.duration_s();
+
+    // Phase A: run past the end on the stream's own; watch kira's position.
+    player.play();
+    let start = Instant::now();
+    let mut prev_audio = 0.0;
+    let mut audio_wraps = 0;
+    let mut max_audio = 0.0f64;
+    let mut frames_a = 0;
+    while start.elapsed().as_secs_f64() < dur + 0.4 {
+        if player.poll().is_some() {
+            frames_a += 1;
+        }
+        let ap = player.audio_position_s().expect("a sound is attached");
+        // A drop of more than half a second is a wrap, not jitter (kira
+        // applies commands asynchronously, so tiny backward steps happen).
+        if ap < prev_audio - 0.5 {
+            audio_wraps += 1;
+        }
+        prev_audio = ap;
+        max_audio = max_audio.max(ap);
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    let state_a = player.audio_state();
+    assert!(player.at_end(), "the picture clock reached the declared end, position {}", player.position_s());
+    assert!(
+        audio_wraps >= 1,
+        "kira's position never dropped back: the loop region did not wrap (max position {max_audio:.3} s of {dur} s)"
+    );
+    assert_eq!(state_a, Some(PlaybackState::Playing), "a looping stream must never finish; it read {state_a:?}");
+    assert!(frames_a >= real_time_floor(BAR_FRAMES), "frames flowed during the first pass, got {frames_a}");
+    assert!(player.take_error().is_none());
+
+    // Phase B: the provider's loop rule, a second full pass.
+    let mut picture_loops = 0;
+    let mut frames_b = 0;
+    let mut last_pts = -1.0;
+    let mut second_pass_frames = 0;
+    let start_b = Instant::now();
+    while start_b.elapsed().as_secs_f64() < dur + 0.4 {
+        if player.at_end() {
+            player.seek_to_start();
+            player.play();
+            picture_loops += 1;
+            last_pts = -1.0;
+        }
+        if let Some(f) = player.poll() {
+            assert!(f.pts_s <= player.position_s() + 1e-9, "frame {} ahead of the clock", f.pts_s);
+            assert!(f.pts_s > last_pts, "out of order after a wrap: {} after {last_pts}", f.pts_s);
+            last_pts = f.pts_s;
+            frames_b += 1;
+            if picture_loops >= 1 {
+                second_pass_frames += 1;
+            }
+        }
+        assert_eq!(player.audio_state(), Some(PlaybackState::Playing), "the sound must stay attached and playing through a rewind");
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    assert!(picture_loops >= 1, "the picture wrapped at least once in phase B");
+    assert!(
+        second_pass_frames >= real_time_floor(BAR_FRAMES),
+        "frames must keep flowing after the wrap, got {second_pass_frames}"
+    );
+    assert_eq!(player.audio_state(), Some(PlaybackState::Playing));
+    assert!(player.take_error().is_none(), "no decode or audio error across two passes");
+    let total_s = start.elapsed().as_secs_f64();
+    assert!(total_s > 2.0 * dur, "the run must go past the duration twice, ran {total_s:.2} s");
+
+    // Phase C: the control. Without the loop region the same stream is done
+    // once it runs off its end, and the test would say so.
+    let mut oneshot = VideoPlayer::open_with_threads(fixture(BAR), 1).expect("open");
+    oneshot
+        .attach_audio_with(&mut audio, AudioAttach { looping: false, volume: 0.0, panning: 0.5 })
+        .expect("attach one-shot");
+    oneshot.play();
+    let start_c = Instant::now();
+    while start_c.elapsed().as_secs_f64() < dur + 0.4 {
+        let _ = oneshot.poll();
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    let state_c = oneshot.audio_state();
+    assert_ne!(state_c, Some(PlaybackState::Playing), "a one-shot stream past its end is no longer playing (control)");
+
+    println!(
+        "looping audio: phase A {frames_a} frames, {audio_wraps} audio wrap(s), max kira position {max_audio:.3} s of {dur} s, state {state_a:?}; \
+         phase B {frames_b} frames, {picture_loops} picture loop(s), {second_pass_frames} after the wrap; \
+         total {total_s:.2} s; control one-shot state after its end {state_c:?}"
+    );
 }
 
 /// Measured, not guessed: frames per second of the full pipeline (demux,

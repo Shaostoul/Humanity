@@ -160,6 +160,24 @@ impl ScreenSource {
     }
 }
 
+/// What the world hands a provider once per frame, framed or not: where its
+/// screen is, where the listener (the camera) is and which way is the
+/// listener's right, all in the same world frame in metres, plus the audio
+/// manager when the machine has an audio device. A provider that places
+/// sound at its screen (a clip's soundtrack) reads these; every other kind
+/// ignores them. Plain arrays rather than a vector type so this file, the
+/// GUI's, does not pick up a maths dependency for one struct.
+pub struct ScreenWorld<'a> {
+    /// The centre of the display rectangle.
+    pub screen_centre: [f32; 3],
+    /// The camera's effective position.
+    pub listener_pos: [f32; 3],
+    /// The camera's right-hand direction (unit length), for stereo panning.
+    pub listener_right: [f32; 3],
+    /// `None` on a machine with no audio device; sound then plays nowhere.
+    pub audio: Option<&'a mut crate::audio::AudioManager>,
+}
+
 /// Content that is not a plain page: a live stream, a camera, a clip, a web
 /// page. A provider owns the per-screen state of one such source (the
 /// decoder, the viewer, the browsing history) and takes over the surface's
@@ -171,6 +189,12 @@ impl ScreenSource {
 /// handed: `run_and_render` for egui content (a status page, the web view)
 /// and `write_pixels` for finished frames (a decoded video or stream frame).
 pub trait ScreenProvider: Send {
+    /// The world context, once per frame for EVERY surface with a provider,
+    /// whether or not that surface is framed this tick (a clip keeps
+    /// sounding from its screen while the player faces away, so this is not
+    /// tied to the framing budget). Runs before `frame`. Default: nothing.
+    fn world_update(&mut self, _world: &mut ScreenWorld<'_>) {}
+
     /// Draw this frame. Called instead of the surface's default page draw,
     /// with the same ordering guarantees (outside the main egui closure,
     /// before the scene passes). `surface` is the provider's own surface
@@ -572,6 +596,32 @@ impl ScreenCore {
         self.events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
     }
 
+    /// How many synthetic events are queued for the next run.
+    pub fn pending_events(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Throw away every queued event and forget the pointer, for a frame
+    /// whose picture came from BYTES rather than from a run (a playing clip
+    /// or a live stream written with `write_pixels`). Returns how many were
+    /// dropped.
+    ///
+    /// Why this exists: the look ray reports a `PointerMoved` every frame it
+    /// is on a screen and moving, and the queue is only ever drained by a
+    /// run. A playing clip never runs egui, so without this the backlog
+    /// grew without bound for as long as the player watched the film, and
+    /// the click that paused it replayed the whole backlog through egui in
+    /// one run. Forgetting the pointer as well means the next look-ray
+    /// report re-announces the position (it is deduplicated against the
+    /// remembered one), so egui's first run after the drop starts from a
+    /// fresh `PointerMoved` rather than from nothing.
+    pub fn drop_pending_events(&mut self) -> usize {
+        let n = self.events.len();
+        self.events.clear();
+        self.pointer = None;
+        n
+    }
+
     /// Whether a text field on this screen had keyboard focus at the end of
     /// the last run. lib.rs routes typed text here only while this is true,
     /// so pressing W to walk never types into a wall screen by accident.
@@ -850,6 +900,15 @@ impl ScreenSurface {
         }
     }
 
+    /// Hand the provider this frame's world context (see
+    /// `ScreenProvider::world_update`). A surface without a provider has
+    /// nothing to place, so this is a no-op for plain pages.
+    pub fn world_update(&mut self, world: &mut ScreenWorld<'_>) {
+        if let Some(p) = self.provider.as_mut() {
+            p.world_update(world);
+        }
+    }
+
     /// Reallocate the texture at a new pixel size (a provider matching the
     /// surface to its frame). The egui renderer is format-bound, not
     /// size-bound, so it carries over; the scene material still points at
@@ -874,11 +933,19 @@ impl ScreenSurface {
     /// (the live provider letterboxes into the surface's own size, see
     /// `engine::screens::live::letterbox_into`). The bytes are RGBA whatever
     /// the texture's format; a BGRA surface swizzles on the way in.
+    ///
+    /// This frame's picture is bytes, not a run, so the core's queued input
+    /// has no page to land on: it is dropped here (`drop_pending_events`),
+    /// for every provider that writes pixels, so a backlog can never build
+    /// behind a stream or a clip. A provider whose frames arrive slower than
+    /// the render rate should also drop on the ticks it does NOT write (the
+    /// video provider does, in `plan_frame`).
     pub fn write_pixels(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, rgba: &[u8], w: u32, h: u32) {
         if w == 0 || h == 0 || rgba.len() != (w as usize) * (h as usize) * 4 {
             log::warn!("[Screens] {}: write_pixels got {} bytes for {w}x{h}; frame dropped", self.core.id, rgba.len());
             return;
         }
+        self.core.drop_pending_events();
         self.resize(device, w, h);
         let swizzled;
         let bytes: &[u8] = if is_bgra(self.format) {
@@ -1431,6 +1498,45 @@ mod tests {
         assert!(result.is_err(), "the panic propagates");
         let back = state.link_device_qr.as_ref().map(|(_, t)| t.id());
         assert_eq!(back, Some(main_id), "after the panic the main handle must be back in GuiState");
+    }
+
+    /// The event queue is bounded by a drop, and the drop is complete: N
+    /// distinct pointer reports queue N events; `drop_pending_events` empties
+    /// the queue and the very next run sees NO events at all (read back from
+    /// egui's input inside the run, not from the counter); and because the
+    /// pointer is forgotten too, the next report of the same position is
+    /// not deduplicated away but queued afresh, so egui learns where the
+    /// pointer is before the first click after a drop. Proven able to fail:
+    /// with the drop's `clear()` removed the count stays N and the run sees
+    /// N events.
+    #[test]
+    fn dropping_pending_events_empties_the_queue_and_the_next_run_sees_none() {
+        let mut state = GuiState::default();
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 320, 180, &theme);
+        let n = 25;
+        for i in 0..n {
+            // Distinct positions, as a look ray sweeping across a screen.
+            core.pointer_moved((i as f32 / n as f32, 0.5));
+        }
+        assert_eq!(core.pending_events(), n, "one event per distinct position");
+        // A repeat of the current position queues nothing (the existing dedupe).
+        core.pointer_moved(((n - 1) as f32 / n as f32, 0.5));
+        assert_eq!(core.pending_events(), n);
+
+        assert_eq!(core.drop_pending_events(), n, "the drop reports what it threw away");
+        assert_eq!(core.pending_events(), 0);
+        let mut seen = None;
+        core.run_with(&mut state, |ctx, _| seen = Some(ctx.input(|i| i.events.len())));
+        assert_eq!(seen, Some(0), "the run after a drop must receive no events");
+
+        // The pointer was forgotten: the same position is announced again.
+        core.pointer_moved(((n - 1) as f32 / n as f32, 0.5));
+        assert_eq!(core.pending_events(), 1, "after a drop the position is re-announced, not deduplicated");
+        let mut seen = None;
+        core.run_with(&mut state, |ctx, _| seen = Some(ctx.input(|i| i.events.len())));
+        assert_eq!(seen, Some(1));
+        assert_eq!(core.pending_events(), 0, "a run drains what it was given");
     }
 
     /// Keyboard routing evidence: a text field on a screen reports

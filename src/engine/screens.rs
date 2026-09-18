@@ -28,7 +28,7 @@
 //! this reason.
 
 use crate::engine::state::{EngineState, SceneDrawLists};
-use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface, SURFACE_FORMAT};
+use crate::gui::screen_surface::{LoadState, ScreenProvider, ScreenSource, ScreenSurface, ScreenWorld, SURFACE_FORMAT};
 use crate::gui::GuiPage;
 use crate::machines::{CameraPose, PlacedMachine};
 use crate::renderer::mesh::{Mesh, Vertex};
@@ -36,9 +36,10 @@ use crate::renderer::RenderObject;
 use glam::{Quat, Vec3};
 
 /// Providers, one file each: the MJPEG live stream and the in-game camera
-/// (rung 3) and the readable web (rung 6). Rung 5 (video) adds its own beside them.
+/// (rung 3), the video clip (rung 5) and the readable web (rung 6).
 pub mod camera;
 pub mod live;
+pub mod video;
 pub mod web;
 
 /// How far the player can reach a screen with the look ray or the cursor,
@@ -213,9 +214,9 @@ pub fn provider_for(source: &ScreenSource) -> Option<Box<dyn ScreenProvider>> {
         // The readable web view on a wall (rung 6): fetches its url once
         // while in-app web reading is on, draws the off notice otherwise.
         ScreenSource::Web(url) => Some(Box::new(web::WebProvider::new(url))),
-        // Video clips: added by rung 5 (see docs/design/in-world-screens.md,
-        // the sources table). Until then the surface's notice names the gap.
-        ScreenSource::Video(_) => None,
+        // A WebM clip through the purpose-built player, looping, with its
+        // sound placed at the screen (rung 5, `screens/video.rs`).
+        ScreenSource::Video(path) => Some(Box::new(video::VideoProvider::new(path))),
     }
 }
 
@@ -719,6 +720,7 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
     }
     let cam = state.camera.effective_position();
     let fwd = state.camera.forward();
+    let right = state.camera.right();
     let so = state.station_off;
     let mut ranked: Vec<(usize, f32)> = Vec::new();
     for q in &state.screens.quads {
@@ -727,6 +729,39 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
         let dist = to.length();
         if dist <= FRAME_RANGE_M && to.dot(fwd) > 0.0 {
             ranked.push((q.surface, dist));
+        }
+    }
+    // The world context for EVERY surface with a provider, framed or not: a
+    // clip's sound keeps coming from its screen while the player faces away
+    // or walks off, so its volume and pan follow the listener every frame,
+    // independent of the framing budget below. A surface with no provider
+    // is skipped inside `world_update` (nothing to place).
+    //
+    // This walks the QUADS, and relies on there being exactly one quad per
+    // surface, which `sync_screens` guarantees by construction (one
+    // placement makes one surface and one quad, `surface: si`). If a surface
+    // ever gets a second quad (a two-sided display, a mirror), this loop
+    // must dedupe by surface index, or that surface's provider would get two
+    // world updates a frame and its mix would be sent twice (harmless for
+    // the epsilon gate, wasteful for the audio thread). Not deduped today
+    // because the invariant holds and a per-frame seen-set is a cost paid
+    // for a case that does not exist.
+    {
+        let EngineState { screens, audio, .. } = state;
+        let Screens { surfaces, quads, .. } = screens;
+        for q in quads.iter() {
+            let Some(s) = surfaces.get_mut(q.surface) else { continue };
+            if s.provider().is_none() {
+                continue;
+            }
+            let centre = q.geom.origin + (q.geom.u_axis + q.geom.v_axis) * 0.5 + so;
+            let mut world = ScreenWorld {
+                screen_centre: centre.to_array(),
+                listener_pos: cam.to_array(),
+                listener_right: right.to_array(),
+                audio: audio.as_mut(),
+            };
+            s.world_update(&mut world);
         }
     }
     ranked.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
