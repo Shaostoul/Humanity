@@ -1377,7 +1377,13 @@ pub fn section_disclosure(
             ]
         };
         ui.painter().add(egui::Shape::convex_polygon(pts, theme.text_secondary(), Stroke::NONE));
-        ui.label(RichText::new(title).size(sz).color(theme.text_primary()));
+        // NOT selectable: egui labels default to text selection, and a
+        // selectable label takes the press for a selection drag, so clicking
+        // the section's TITLE did nothing (only the triangle toggled; the
+        // runtime verifier saw the Text cursor over "Status" and no change,
+        // 2026-09-16). The title is a control here, not prose: the whole row
+        // below is the click target and the title must be part of it.
+        ui.add(egui::Label::new(RichText::new(title).size(sz).color(theme.text_primary())).selectable(false));
     });
     let resp = row.response.interact(Sense::click());
     if resp.hovered() {

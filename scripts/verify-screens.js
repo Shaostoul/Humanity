@@ -3,6 +3,9 @@
 // a portable rig, enters the world, parks the camera in the console room, and
 // PROVES with nobody at the keyboard that the wall screens are interactive:
 //
+//   inventory   collapse the sections above it (Status, Equipment) by
+//               clicking their titles until "Home" is drawn (a 1280 x 720
+//               wall shows the Status cards first), then
 //   inventory   find the "Home" container header on wall_screen_1 by its
 //               drawn text, HOVER it, find the child row "Garage" (drawn
 //               only while Home is open), snapshot, click the header, find
@@ -662,6 +665,26 @@ async function main() {
     // the web wall, so the look ray never touches this surface and never
     // takes the pointer away), so the only difference left between the two
     // snapshots is what the click did.
+    // (a0) Bring the Home header INTO VIEW first. At 1280 x 720 the Status
+    // cards push "You & your places" below the fold (the first live run,
+    // 2026-09-18, found no "Home" text at all), so collapse the sections
+    // above it by clicking their TITLES until "Home" is drawn. A section
+    // title toggles its section because widgets::section_disclosure draws
+    // it as a non-selectable label (a selectable one takes the press for a
+    // text-selection drag and nothing collapses). Evidence in the manifest.
+    manifest.inventory.reveal = [];
+    for (const section of ["Status", "Equipment"]) {
+      const probe = await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } });
+      if (probe.ok && probe.found) break;
+      const sec = await screen({ screen: SCREENS.inventory, find: { text: section } });
+      const rec = { section, find: sec };
+      if (sec.ok && sec.found) {
+        rec.click = await screen({ screen: SCREENS.inventory, action: "click", uv: sec.uv });
+        await sleep(300);
+      }
+      manifest.inventory.reveal.push(rec);
+      log(`reveal: "${section}" ${sec.ok && sec.found ? `collapsed at uv ${JSON.stringify(sec.uv)}` : "not drawn"}`);
+    }
     const find = step("inv_find", await screen({ screen: SCREENS.inventory, find: { text: INVENTORY_TARGET } }));
     manifest.inventory.find = find;
     manifest.inventory.child_text = INVENTORY_CHILD;

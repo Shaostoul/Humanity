@@ -725,7 +725,13 @@ the release binary in its own portable rig (`.probe-rig/screens`, with
 `readable_web: true` written into the rig's config.json before boot), enters
 the world through autopilot, parks facing `wall_screen_6`, and then:
 
-1. inventory (`wall_screen_1`): `find` "Home" (the container header),
+1. inventory (`wall_screen_1`): first collapse the sections above the
+   places (`find` "Status", `click` its title; then "Equipment" if needed)
+   until "Home" is drawn, because a 1280 x 720 wall shows the Status cards
+   first and the container header sits below the fold (the section title
+   toggles its section: `widgets::section_disclosure` draws it as a
+   non-selectable label, so the press is a click, not a text-selection
+   drag). Then `find` "Home" (the container header),
    `hover` at the answer, `find` "Garage" (the child container that is
    drawn only while Home is open), snapshot, `click` at the answer, `find`
    "Garage" again, snapshot. The hover comes FIRST so both snapshots carry

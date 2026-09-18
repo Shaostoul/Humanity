@@ -1277,7 +1277,15 @@ mod tests {
     /// 720 px fold, this fails first and says why, instead of the rig
     /// failing with "found: false" at 2am.
     #[test]
-    fn home_header_is_on_a_wall_sized_inventory_without_scrolling() {
+    fn a_section_title_click_collapses_it_and_brings_home_into_view_on_a_wall() {
+        // The rig's reveal step, headless: on a 1280 x 720 wall the Status
+        // cards can push the Home container header below the fold (the live
+        // run of 2026-09-18 found no "Home" text at all), so the rig clicks
+        // the "Status" TITLE to collapse it. That only works because the
+        // section widget's title is a non-selectable label: a selectable one
+        // takes the press for a text-selection drag and the section stays
+        // open (the widget fix in `widgets::section_disclosure`; with it
+        // reverted, "Weight" is still drawn after the click and this fails).
         let mut theme = load_theme();
         let mut state = inventory_state();
         let (w, h) = (1280u32, 720u32);
@@ -1288,14 +1296,33 @@ mod tests {
         crate::gui::pages::inventory::test_clear_placed();
         core.run(&mut theme, &mut state);
         core.run(&mut theme, &mut state);
-        core.find_text("Home");
+        let find = |core: &mut ScreenCore, theme: &mut Theme, state: &mut GuiState, text: &str| {
+            core.find_text(text);
+            core.run(theme, state);
+            core.take_found_text().flatten()
+        };
+        let status = find(&mut core, &mut theme, &mut state, "Status").expect("the Status section title is drawn");
+        assert!(find(&mut core, &mut theme, &mut state, "Weight").is_some(), "Status is open: its Weight card is drawn");
+        // The same three-frame click the dev IPC sends, at the title's centre.
+        let c = status.rect.center();
+        let uv = (c.x / w as f32, c.y / h as f32);
+        core.pointer_moved(uv);
         core.run(&mut theme, &mut state);
-        let found = core.take_found_text().flatten().expect("Home is drawn on a 1280 x 720 inventory");
-        assert!(found.text.starts_with("Home"), "{:?}", found.text);
-        let c = found.rect.center();
+        core.button(uv, true);
+        core.run(&mut theme, &mut state);
+        core.button(uv, false);
+        core.run(&mut theme, &mut state);
         assert!(
-            c.x > 0.0 && c.x < w as f32 && c.y > 0.0 && c.y < h as f32,
-            "the Home header centre {c:?} must lie on the {w} x {h} wall"
+            find(&mut core, &mut theme, &mut state, "Weight").is_none(),
+            "clicking the Status TITLE must collapse the section (its Weight card must no longer be drawn)"
+        );
+        // With Status collapsed the Home container header is on the wall.
+        let home = find(&mut core, &mut theme, &mut state, "Home").expect("Home is drawn once Status is collapsed");
+        assert!(home.text.starts_with("Home"), "{:?}", home.text);
+        let hc = home.rect.center();
+        assert!(
+            hc.x > 0.0 && hc.x < w as f32 && hc.y > 0.0 && hc.y < h as f32,
+            "the Home header centre {hc:?} must lie on the {w} x {h} wall"
         );
         crate::gui::pages::inventory::test_clear_recorded_rects();
     }
