@@ -54,35 +54,19 @@ pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
 
 impl Renderer {
     /// The pipeline CLASS a material draws with (increment P2 of the
-    /// frame-cost arc): `pipeline::shader_class` of its CPU-side type copy.
-    /// A missing material index answers General, which is what every draw
-    /// loop skips anyway (`materials.get(..)` returns None there). The draw
-    /// lists in lib.rs sort on this so a transparent list is grouped by
-    /// class and the draw loops switch pipelines a handful of times per
-    /// frame rather than per object.
+    /// frame-cost arc, six classes since P3): `pipeline::shader_class` of
+    /// its CPU-side type copy. A missing material index answers Surface,
+    /// which is what every draw loop skips anyway (`materials.get(..)`
+    /// returns None there). The transparent celestial list in lib.rs is
+    /// grouped by the planet layer band (`celestial_order`), not by this,
+    /// and the opaque loops walk their lists once per class present
+    /// (`Renderer::draw_opaque_objects`), so nothing sorts on the class
+    /// itself today; this is the one place outside the renderer that can
+    /// still ask.
     pub fn material_class(&self, material: usize) -> ShaderClass {
         self.materials
             .get(material)
-            .map_or(ShaderClass::General, |m| shader_class(m.material_type))
-    }
-
-    /// The opaque draw sites' guard (P2): the general render PSO folds every
-    /// shell branch away, so an atmosphere, cloud or water shell in an OPAQUE
-    /// list would draw as the default look with no error anywhere. Debug
-    /// builds stop on it, naming the site; release builds pay nothing (the
-    /// shells all ride the transparent lists by construction, and this is
-    /// the check that keeps that true as lib.rs grows).
-    #[inline]
-    pub(super) fn debug_assert_opaque_class(&self, material: &Material, site: &str) {
-        debug_assert!(
-            shader_class(material.material_type) == ShaderClass::General,
-            "{site}: material type {} is a {:?}-class shell in an OPAQUE draw list; shells \
-             must be pushed to the transparent list (lib.rs celestial_transparent)",
-            material.material_type,
-            shader_class(material.material_type)
-        );
-        // Release builds: the parameters are still used, so no warning.
-        let _ = (material, site);
+            .map_or(ShaderClass::Surface, |m| shader_class(m.material_type))
     }
 
     /// Register a material and return its handle (index).

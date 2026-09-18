@@ -121,8 +121,9 @@ const TILE_CAP: u32 = 64u;
 // which this DX12 adapter reports broken for indirect draws). Shared code
 // must therefore NEVER touch `object.` directly: go through obj_model() /
 // obj_normal_matrix() / obj_lod_fade(), which both variants define.
-// g_inst_data is set at the top of vs_main (the attribute) and fs_main
-// (flat varying) so the accessors work identically in both stages; the
+// g_inst_data is set at the top of vs_main (the attribute) and of every
+// fragment entry (flat varying, in frag_prologue and in fs_shadow) so the
+// accessors work identically in both stages; the
 // classic variant ignores it (classic draws bind a 16-byte zero dummy at
 // slot 1).
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
