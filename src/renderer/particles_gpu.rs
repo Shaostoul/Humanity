@@ -200,12 +200,20 @@ impl GpuParticles {
     /// Advance the pool by one frame. `live` is clamped to the pool size, so a
     /// density slider can be dragged past capacity without any risk - it simply
     /// stops getting denser.
+    ///
+    /// `timestamp_writes` is one slot pair from the renderer's frame-cost
+    /// timers (`GpuTimers::compute_writes("gpu.particles_sim")`), threaded in
+    /// from the caller exactly the way the render passes get theirs, so the
+    /// sim shows on the Performance page instead of folding into "Elsewhere".
+    /// `None` = untimed (no timestamp queries on this adapter, or the frame's
+    /// slots are spent).
     pub fn simulate(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         mut params: SimParams,
         live: u32,
+        timestamp_writes: Option<wgpu::ComputePassTimestampWrites<'_>>,
     ) {
         self.live = live.min(self.capacity);
         if self.live == 0 {
@@ -221,7 +229,7 @@ impl GpuParticles {
         {
             let mut pass = enc.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Particle Sim Pass"),
-                timestamp_writes: None,
+                timestamp_writes,
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.bind_group, &[]);
@@ -362,7 +370,8 @@ mod device_tests {
         // Several frames: the first seeds the pool from zeroed state, later ones
         // exercise the advance and the recycle-on-death branch.
         for _ in 0..8 {
-            gp.simulate(&device, &queue, params, 100_000);
+            // Untimed: this test has no frame-cost timers.
+            gp.simulate(&device, &queue, params, 100_000, None);
         }
         device.poll(wgpu::Maintain::Wait);
         assert_eq!(gp.live, 100_000);

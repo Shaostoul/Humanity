@@ -116,6 +116,10 @@ impl WorldRender for EngineWorld<'_, '_> {
         self.state.screens.camera_posts.iter().find(|(id, _)| id == instance_id).map(|(_, pose)| *pose)
     }
 
+    fn device(&self) -> &wgpu::Device {
+        &self.state.renderer.device
+    }
+
     fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool {
         // No world, no picture: the target is left untouched and the
         // caller is told so (a skipped render must not count as one, or
@@ -263,6 +267,19 @@ impl ScreenProvider for CameraProvider {
                 self.outcome = Some(Err(format!("No camera post named {} is placed", self.instance)));
             }
             Some(pose) => {
+                // The camera renders at ITS OWN size (`MachineDef::camera_px`,
+                // default 640 x 360), not the wall's `screen.px`: the surface
+                // was created at the wall's size and is resized to the pose's
+                // on the first picture (a no-op on every later one, and it
+                // follows a def edit at once since the pose is re-resolved
+                // per render). The cost of a view is per pixel, so this is
+                // what makes a camera cheap; the wall quad's physical size
+                // is unchanged and the sampler scales the picture up. The
+                // resize sets `view_changed`, and `frame_surfaces` rebinds
+                // the wall's material to the new texture before the scene
+                // pass samples it.
+                let (w, h) = pose.px;
+                surface.resize(world.device(), w, h);
                 let (w, h) = surface.size();
                 let camera = camera_from_pose(&pose, w as f32 / h.max(1) as f32);
                 // Counted only if the engine really rendered (it skips
@@ -302,6 +319,7 @@ mod tests {
             model: None,
             screen: None,
             camera,
+            camera_px: crate::machines::CAMERA_PX_DEFAULT,
         }
     }
 

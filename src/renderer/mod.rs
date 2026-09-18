@@ -815,7 +815,10 @@ pub struct Renderer {
     /// GPU pass timing (resource budgets increment 1). `None` when the adapter
     /// has no TIMESTAMP_QUERY feature, in which case the Performance page shows
     /// CPU-side pass times and says so.
-    gpu_timers: Option<frame_costs::GpuTimers>,
+    /// Shared (`Arc`) so a pass submitted outside this module - the in-world
+    /// screens' egui pass in `gui::screen_surface` - can open a timestamp
+    /// scope through the same query ring; see `Renderer::gpu_timers`.
+    gpu_timers: Option<std::sync::Arc<frame_costs::GpuTimers>>,
     /// Throttle for the VRAM/RAM inventory walk (at most once a second, and
     /// only while the Performance page is open).
     inventory_sampled: std::sync::Mutex<Option<std::time::Instant>>,
@@ -1046,7 +1049,7 @@ impl Renderer {
             if patch_indirect { "SUPPORTED (one submit per batch)" } else { "unsupported (per-draw loop)" }
         );
         // GPU pass timers. `None` = no timestamp queries on this adapter.
-        let gpu_timers = frame_costs::GpuTimers::new(&device, &queue);
+        let gpu_timers = frame_costs::GpuTimers::new(&device, &queue).map(std::sync::Arc::new);
         frame_costs::set_gpu_timing(gpu_timers.is_some());
         log::info!(
             "[FrameCosts] GPU pass timing: {}",
@@ -2768,13 +2771,21 @@ impl Renderer {
 
     /// Render 3D objects onto an already-acquired surface texture.
     /// Uses LoadOp::Load to preserve existing content (e.g. stars rendered first).
+    ///
+    /// `who` says whose frame this pass is, which decides the cost keys it
+    /// is published under: the live window (`gpu.scene`) or a camera
+    /// screen's 10 Hz re-render (`gpu.screen_scene`). Same pass, same
+    /// pipeline; only the bookkeeping differs, so the Performance page can
+    /// show the camera wall as its own number.
     pub fn render_scene_onto(
         &self,
         camera: &Camera,
         objects: &[RenderObject],
         view: &wgpu::TextureView,
+        who: frame_costs::SceneView,
     ) {
-        let _cost = frame_costs::stage("cpu.scene");
+        let (gpu_id, cpu_id) = who.scene_ids();
+        let _cost = frame_costs::stage(cpu_id);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -2790,7 +2801,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Scene Overlay Pass"),
-                timestamp_writes: self.pass_timer("gpu.scene"),
+                timestamp_writes: self.pass_timer(gpu_id),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -2862,13 +2873,16 @@ impl Renderer {
     /// alpha-blended (v0.456). Call AFTER `render_scene_onto`: it preserves the colour
     /// (LoadOp::Load) and LOADS the scene depth (so glass behind a wall is occluded) but does
     /// not WRITE depth (so you see through it). A material's `base_color.a` is its opacity.
+    /// `who` picks the cost keys the same way it does for `render_scene_onto`.
     pub fn render_transparent_onto(
         &self,
         camera: &Camera,
         objects: &[RenderObject],
         view: &wgpu::TextureView,
+        who: frame_costs::SceneView,
     ) {
-        let _cost = frame_costs::stage("cpu.transparent");
+        let (gpu_id, cpu_id) = who.transparent_ids();
+        let _cost = frame_costs::stage(cpu_id);
         if objects.is_empty() {
             return;
         }
@@ -2887,7 +2901,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Transparent Pass"),
-                timestamp_writes: self.pass_timer("gpu.transparent"),
+                timestamp_writes: self.pass_timer(gpu_id),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3962,7 +3976,7 @@ impl Renderer {
         // runs frame-locked near an atmosphere body (the uniform is stashed
         // by the lib.rs atmosphere hook; None elsewhere = zero cost).
         if let Some(u) = self.sky_view_uniform {
-            self.sky_view.encode(&self.queue, &mut encoder, &u);
+            self.sky_view.encode(&self.queue, &mut encoder, &u, self.pass_timer("gpu.sky_view"));
         }
 
         // ── Temporal cloud octa pass (clouds phase 4) ── re-march + EMA the
@@ -5124,7 +5138,9 @@ impl Renderer {
         live: u32,
         capacity_hint: u32,
     ) {
-        let _cost = frame_costs::stage("cpu.gpu_particle_sim");
+        // Named to pair with the compute pass's `gpu.particles_sim`, so the
+        // no-timestamp fallback (`gpu.x` reads `cpu.x`) finds it.
+        let _cost = frame_costs::stage("cpu.particles_sim");
         if self.gpu_particles.is_none()
             || self
                 .gpu_particles
@@ -5136,8 +5152,16 @@ impl Renderer {
                 capacity_hint.max(live),
             ));
         }
+        // The timer is read from the FIELD, not through `compute_pass_timer`
+        // (a `&self` method), because `gpu_particles` is borrowed mutably on
+        // the same line: disjoint field borrows are fine, a whole-self borrow
+        // beside a field borrow is not.
+        let timer = self
+            .gpu_timers
+            .as_ref()
+            .and_then(|t| t.compute_writes("gpu.particles_sim"));
         if let Some(g) = self.gpu_particles.as_mut() {
-            g.simulate(&self.device, &self.queue, params, live);
+            g.simulate(&self.device, &self.queue, params, live, timer);
         }
     }
 
@@ -5268,7 +5292,15 @@ impl Renderer {
     /// Acquire surface and clear to black, returning the texture for star + scene rendering.
     pub fn acquire_surface(&self) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
         self.frame_costs_begin(true);
+        // `cpu.present_wait`, half 1: acquiring the next swapchain image
+        // blocks when the display has not released one yet (vsync, or the
+        // driver's own frame queue). The other half is timed around
+        // `present()` in the frame loop; both sum under the one id, so the
+        // Performance page can tell "waiting for the display" from
+        // "CPU-bound", which the 2026-09-18 measurement could not.
+        let wait_t0 = std::time::Instant::now();
         let output = self.surface.get_current_texture()?;
+        frame_costs::record_cpu("cpu.present_wait", wait_t0.elapsed());
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

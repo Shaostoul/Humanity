@@ -139,6 +139,24 @@ pub struct MachineDef {
     /// machine that is not a camera. See `PlacedMachine::camera_pose`.
     #[serde(default)]
     pub camera: Option<(f32, f32, f32)>,
+    /// The pixel size `(width, height)` a camera on this machine RENDERS at:
+    /// the surface a `camera:<id>` screen is resized to on its first picture,
+    /// whatever the wall's own `screen.px` says. The cost of a camera view
+    /// is per pixel (the 2026-09-18 measurement: 17 ms for a 1280 x 720
+    /// re-render in a 10 fps room, a full extra scene pass), so this is the
+    /// one knob that makes a camera cheap: the default 640 x 360 is a
+    /// quarter of the wall's pixels for roughly a quarter of the cost, and
+    /// the wall quad's physical size is unchanged, the sampler scales the
+    /// picture up. Only read for a machine that has a `camera`.
+    #[serde(default = "default_camera_px")]
+    pub camera_px: (u32, u32),
+}
+
+/// The default camera render size (see `MachineDef::camera_px`).
+pub const CAMERA_PX_DEFAULT: (u32, u32) = (640, 360);
+
+fn default_camera_px() -> (u32, u32) {
+    CAMERA_PX_DEFAULT
 }
 
 /// The resolved world pose of a placed camera machine (rung 3): where the
@@ -161,6 +179,10 @@ pub struct CameraPose {
     pub pitch_deg: f32,
     /// Vertical field of view in degrees, clamped to a lens that can exist.
     pub fov_deg: f32,
+    /// The pixel size the view is rendered at (`MachineDef::camera_px`,
+    /// each side clamped to at least 1 so a zero in data cannot make a
+    /// zero-sized texture).
+    pub px: (u32, u32),
 }
 
 /// The most a camera may look up or down, in degrees. 89 leaves the look
@@ -195,6 +217,7 @@ impl PlacedMachine {
             yaw_deg,
             pitch_deg: pitch_def.clamp(-CAMERA_PITCH_LIMIT_DEG, CAMERA_PITCH_LIMIT_DEG),
             fov_deg: fov_def.clamp(CAMERA_FOV_RANGE_DEG.0, CAMERA_FOV_RANGE_DEG.1),
+            px: (self.camera_px.0.max(1), self.camera_px.1.max(1)),
         })
     }
 }
@@ -674,6 +697,9 @@ pub struct PlacedMachine {
     /// a camera screen can resolve where this post looks from (rung 3; see
     /// `camera_pose`, which folds in `rotation`).
     pub camera: Option<(f32, f32, f32)>,
+    /// The def's `camera_px`: the size the camera renders at (see
+    /// `MachineDef::camera_px`). Meaningless without a `camera`.
+    pub camera_px: (u32, u32),
 }
 
 impl BuildabilityReport {
@@ -1628,6 +1654,7 @@ impl MachineHome {
                     s
                 }),
                 camera: def.camera,
+                camera_px: def.camera_px,
             });
         }
         out
@@ -1823,6 +1850,7 @@ mod tests {
             model: None,
             screen: None,
             camera: None,
+            camera_px: CAMERA_PX_DEFAULT,
         }
     }
 
@@ -2895,5 +2923,64 @@ mod tests {
         let report = home.buildability_report(4.5);
         let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the solo home has electrical machines");
         assert_ne!(circuit.status, CheckStatus::Fail, "solo home power must be fully wired: {}", circuit.detail);
+    }
+}
+
+/// The camera render size (`MachineDef::camera_px`, 2026-09-18): its default,
+/// its clamp, and that it survives a RON round trip both when written out
+/// and when left out of the file.
+#[cfg(test)]
+mod camera_px_tests {
+    use super::*;
+
+    /// A def with a camera resolves the default 640 x 360 when the file says
+    /// nothing, and a zero side is clamped to 1 rather than making a
+    /// zero-sized texture.
+    #[test]
+    fn camera_px_defaults_to_640_by_360_and_clamps_zero() {
+        let mut p = PlacedMachine {
+            id: "camera_post_1".into(),
+            room: "garden".into(),
+            pos: (0.0, 0.0, 0.0),
+            top_y: 1.7,
+            floor_y: 0.0,
+            ceiling_y: 3.0,
+            shape: "box".into(),
+            size: (0.14, 1.7, 0.14),
+            color: (0.2, 0.2, 0.22),
+            label: "Camera post".into(),
+            stats: Vec::new(),
+            rotation: 0.0,
+            model: None,
+            screen: None,
+            camera: Some((0.0, -8.0, 70.0)),
+            camera_px: CAMERA_PX_DEFAULT,
+        };
+        assert_eq!(CAMERA_PX_DEFAULT, (640, 360));
+        assert_eq!(p.camera_pose().unwrap().px, (640, 360));
+        p.camera_px = (0, 0);
+        assert_eq!(p.camera_pose().unwrap().px, (1, 1), "a zero side clamps to 1");
+        p.camera_px = (320, 180);
+        assert_eq!(p.camera_pose().unwrap().px, (320, 180));
+    }
+
+    /// A machine def parsed from RON without `camera_px` gets the default;
+    /// one that names it keeps it; and a def written back out and re-read
+    /// carries the same value (the serde round trip).
+    #[test]
+    fn camera_px_round_trips_through_ron() {
+        // The smallest def RON accepts (every other field is defaulted).
+        let bare = r#"(shape: "box", size: (0.14, 1.7, 0.14), color: (0.2, 0.2, 0.22), camera: Some((0.0, -8.0, 70.0)))"#;
+        let def: MachineDef = ron::from_str(bare).expect("a bare camera def parses");
+        assert_eq!(def.camera_px, CAMERA_PX_DEFAULT, "absent camera_px reads the default");
+
+        let named = r#"(shape: "box", size: (0.14, 1.7, 0.14), color: (0.2, 0.2, 0.22), camera: Some((0.0, -8.0, 70.0)), camera_px: (320, 180))"#;
+        let def: MachineDef = ron::from_str(named).expect("a def naming camera_px parses");
+        assert_eq!(def.camera_px, (320, 180));
+
+        let out = ron::to_string(&def).expect("a def serialises");
+        assert!(out.contains("camera_px"), "the field is written out: {out}");
+        let back: MachineDef = ron::from_str(&out).expect("the written def parses again");
+        assert_eq!(back.camera_px, (320, 180), "the value survives the round trip");
     }
 }

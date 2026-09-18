@@ -1054,6 +1054,18 @@ pub(crate) fn render_view_onto(
     passes: ViewPasses,
 ) {
     let (w, h) = size;
+    // Whose frame these passes are, for the cost keys. A camera screen's
+    // 10 Hz re-render publishes under its own `gpu.screen_*` ids so the
+    // Performance page shows the wall as its own number; the hi-res
+    // screenshot keeps the MAIN ids on purpose: it is a one-off render of
+    // the player's own view (its other passes, celestial and god rays, are
+    // main-keyed already), it decays out of the pie within a second, and
+    // keying it as a "screen" would misattribute a screenshot to the
+    // camera wall.
+    let who = match passes {
+        ViewPasses::Everything => crate::renderer::frame_costs::SceneView::Main,
+        ViewPasses::SceneOnly => crate::renderer::frame_costs::SceneView::Screen,
+    };
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
     state.renderer.begin_view_depth(w, h);
@@ -1080,6 +1092,9 @@ pub(crate) fn render_view_onto(
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("View Star Pass"),
+                // `gpu.screen_sky` for a camera screen, `gpu.stars` for the
+                // screenshot (see `who` above).
+                timestamp_writes: state.renderer.pass_timer(who.sky_id()),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     resolve_target: None,
@@ -1128,8 +1143,8 @@ pub(crate) fn render_view_onto(
         state.renderer.render_godrays_onto(camera, sun_dir_f, target, godray_scale(state));
         state.renderer.render_ssao_onto(camera, target);
     }
-    state.renderer.render_scene_onto(camera, lists.opaque, target);
-    state.renderer.render_transparent_onto(camera, lists.transparent, target);
+    state.renderer.render_scene_onto(camera, lists.opaque, target, who);
+    state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
     state.renderer.render_overlay_onto(camera, lists.overlay, target);
     state.renderer.draw_lines_onto(camera, lists.ring_lines, target);
 

@@ -519,9 +519,61 @@ pub fn sample_process_memory() {}
 
 // ────────────────────────────── GPU timestamps ──────────────────────────────
 
-/// How many render passes can be timed per frame. Each takes two timestamp
-/// slots (begin + end). 48: a world frame with the cloud caches uses ~22 passes, the far rung's calibration frame 2 more and its mip burst 6 more the engine submits.
-const MAX_TIMED_PASSES: usize = 48;
+/// How many render/compute passes can be timed per frame. Each takes two
+/// timestamp slots (begin + end). A world frame with the cloud caches uses
+/// ~22 passes, the far rung's calibration frame 2 more and its mip burst 6
+/// more; the in-world screens add one egui pass PER FRAMED SCREEN (up to six
+/// in the console room) plus the camera screen's sky, scene and transparent
+/// passes, and the particle sim and sky-view LUT passes are timed too since
+/// the 2026-09-18 instrumentation pass. 64 leaves room for all of that at
+/// once; the cost is 1 KB of query slots.
+const MAX_TIMED_PASSES: usize = 64;
+
+/// Which frame a scene-object pass (opaque or transparent) belongs to, so
+/// its cost is published under its OWN key instead of being summed into the
+/// live frame's. The camera wall screen re-renders the scene at 10 Hz
+/// through the same `render_scene_onto` / `render_transparent_onto` the
+/// live frame uses; before this enum both landed in `gpu.scene`, and a
+/// 17 ms camera re-render was invisible as its own number (the 2026-09-18
+/// measurement at the operator's settings).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SceneView {
+    /// The live window frame (and the hi-res screenshot, which renders the
+    /// same view once): `gpu.scene` / `gpu.transparent`.
+    Main,
+    /// An in-world camera screen's re-render: `gpu.screen_scene` /
+    /// `gpu.screen_transparent`, with matching `cpu.*` stages so the
+    /// no-timestamp fallback rule (`gpu.x` reads `cpu.x`) still holds.
+    Screen,
+}
+
+impl SceneView {
+    /// (GPU pass id, CPU stage id) for the opaque scene pass.
+    pub fn scene_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.scene", "cpu.scene"),
+            SceneView::Screen => ("gpu.screen_scene", "cpu.screen_scene"),
+        }
+    }
+
+    /// (GPU pass id, CPU stage id) for the transparent pass.
+    pub fn transparent_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.transparent", "cpu.transparent"),
+            SceneView::Screen => ("gpu.screen_transparent", "cpu.screen_transparent"),
+        }
+    }
+
+    /// GPU pass id for the sky (star) pass that opens a view: the live frame
+    /// and the screenshot keep `gpu.stars`; a camera screen's sky is its own
+    /// number.
+    pub fn sky_id(self) -> &'static str {
+        match self {
+            SceneView::Main => "gpu.stars",
+            SceneView::Screen => "gpu.screen_sky",
+        }
+    }
+}
 
 /// wgpu timestamp-query ring. One query set is enough because we resolve the
 /// PREVIOUS frame's writes at the start of the next frame and read the result
@@ -598,6 +650,28 @@ impl GpuTimers {
         st.next += 2;
         st.pending.push((id, begin));
         Some(wgpu::RenderPassTimestampWrites {
+            query_set: &self.query_set,
+            beginning_of_pass_write_index: Some(begin),
+            end_of_pass_write_index: Some(begin + 1),
+        })
+    }
+
+    /// The compute-pass twin of `writes`: the same slot pair, handed to a
+    /// `ComputePassDescriptor` (wgpu keeps the two descriptor types distinct
+    /// even though they carry identical fields). Used by the GPU particle
+    /// sim, the one compute pass the frame submits.
+    pub fn compute_writes(
+        &self,
+        id: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        let mut st = self.state.lock().ok()?;
+        if st.next as usize + 2 > MAX_TIMED_PASSES * 2 {
+            return None;
+        }
+        let begin = st.next;
+        st.next += 2;
+        st.pending.push((id, begin));
+        Some(wgpu::ComputePassTimestampWrites {
             query_set: &self.query_set,
             beginning_of_pass_write_index: Some(begin),
             end_of_pass_write_index: Some(begin + 1),
@@ -709,6 +783,23 @@ impl Renderer {
         id: &'static str,
     ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
         self.gpu_timers.as_ref().and_then(|t| t.writes(id))
+    }
+
+    /// The compute-pass twin of `pass_timer`, for a `ComputePassDescriptor`.
+    pub(crate) fn compute_pass_timer(
+        &self,
+        id: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        self.gpu_timers.as_ref().and_then(|t| t.compute_writes(id))
+    }
+
+    /// A shared handle to the frame's timers, for a pass that is submitted
+    /// OUTSIDE the renderer module and has no `&Renderer` in hand when it
+    /// builds its descriptor: the in-world screens' egui-to-texture pass
+    /// (`gui::screen_surface`) is created with a device and a queue only.
+    /// `None` on an adapter without timestamp queries, same as `pass_timer`.
+    pub(crate) fn gpu_timers(&self) -> Option<Arc<GpuTimers>> {
+        self.gpu_timers.clone()
     }
 
     /// Frame boundary. Called from the two surface-acquire entry points, which

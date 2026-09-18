@@ -410,60 +410,234 @@ mod tests {
         }
     }
 
-    /// Every measurement id the registry names must be one the engine can
-    /// actually produce, or the row is decoration. Ids that are wired from
-    /// lib.rs (still pending) are listed here so this test states the debt
-    /// instead of hiding it.
+    // ── The join between the registry and the engine, in BOTH directions ──
+    //
+    // The ids the engine records are read from the SOURCE TREE, not from a
+    // hand-typed list: the previous version of this test carried its own
+    // copy of the ids and drifted (it vouched for `cpu.mesh_upload`, which
+    // nothing had recorded in months). A string literal shaped like
+    // `gpu.x` / `cpu.x` / `vram.x` / `ram.x` in non-comment, non-test code
+    // IS a measurement id: that is the whole convention of `frame_costs`.
+
+    /// Files compiled only under `cfg(test)` by their parent module (the
+    /// `#[cfg(test)] mod ui_snapshots;` line in gui/mod.rs), so nothing in
+    /// them records at runtime; the seeded numbers they stage would
+    /// otherwise read as recorders.
+    const TEST_ONLY_FILES: &[&str] = &["src/gui/ui_snapshots.rs"];
+
+    /// Ids the engine records that are DELIBERATELY not a pie row, each with
+    /// its reason. A recorded id that is neither a row nor on this list
+    /// fails `every_recorded_id_is_a_row_or_a_listed_remainder`.
+    const REMAINDER_IDS: &[(&str, &str)] = &[
+        (
+            "cpu.frame_total",
+            "the whole frame (RedrawRequested entry to the last submit); the CPU pie's \
+             rows are its parts, so a row would count everything twice",
+        ),
+        (
+            "cpu.chunk_veg_and_draws",
+            "a bucket that CONTAINS cpu.near_tree_harvest and cpu.grass_harvest (both \
+             rows); its own uncovered part is draw-list assembly, honest remainder",
+        ),
+        (
+            "vram.patch_arena_reserved",
+            "the arena's up-front reservation, shown in the VRAM footer, not a slice \
+             (vram.patch_arena is the slice)",
+        ),
+        (
+            "vram.driver_reserved",
+            "the allocator's total, which the VRAM pie's untracked remainder is \
+             computed against",
+        ),
+        (
+            "vram.driver_allocated",
+            "recorded for the HUMANITY_FRAME_COSTS JSON drop; the pie uses reserved",
+        ),
+    ];
+
+    /// Ids the registry may name before (or after) their recorder exists:
+    /// the page shows them at zero until the call site is wired. Each entry
+    /// states its debt rather than hiding it.
+    const PENDING_IDS: &[&str] = &[
+        // Wired for timing in `renderer/bloom.rs` (`BloomPass::apply` takes
+        // the slot pair) but DORMANT: nothing calls `apply` today, because
+        // bloom_intensity defaults to 0 and the call site was removed with
+        // it. The row stays so switching bloom back on needs no registry
+        // edit; the source scan cannot see an id that only a doc comment
+        // and a dead parameter carry.
+        "gpu.bloom",
+    ];
+
+    /// One per registered ECS system (`cpu.system.<slug>`), interned at
+    /// registration by `ecs::systems::SystemRunner` from the system's own
+    /// name. Not rows: `cpu.systems` is their sum and a row per system would
+    /// count the tick twice (see `ecs_tick_is_not_counted_twice_on_the_cpu_pie`).
+    const ECS_FAMILY_PREFIX: &str = "cpu.system.";
+
+    /// Every `.rs` file under `src/`, recursively.
+    fn rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                rust_sources(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+    }
+
+    /// The file's code with comments and its trailing `#[cfg(test)] mod`
+    /// region dropped (test modules sit at the bottom of a file by
+    /// convention here, and a doc comment quoting `pass_timer("gpu.x")` is
+    /// prose, not a recorder).
+    fn code_only(src: &str) -> String {
+        let mut out = String::with_capacity(src.len());
+        let lines: Vec<&str> = src.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim_start();
+            if t == "#[cfg(test)]" {
+                let next = lines[i + 1..].iter().find(|l| !l.trim().is_empty());
+                if next.is_some_and(|l| l.trim_start().starts_with("mod ")) {
+                    break;
+                }
+            }
+            if t.starts_with("//") {
+                continue;
+            }
+            // A trailing `// comment` after code is dropped too.
+            let code = match line.find("//") {
+                Some(ix) => &line[..ix],
+                None => line,
+            };
+            out.push_str(code);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// Every id-shaped string literal in `code`: `"gpu.…"`, `"cpu.…"`,
+    /// `"vram.…"`, `"ram.…"`. A literal ending in `.` is a PREFIX (the ECS
+    /// family's `intern_id("cpu.system.", …)`), reported as such.
+    fn ids_in(code: &str, out: &mut std::collections::BTreeSet<String>) {
+        let mut i = 0;
+        while let Some(off) = code[i..].find('"') {
+            let start = i + off + 1;
+            let Some(len) = code[start..].find('"') else { break };
+            let lit = &code[start..start + len];
+            i = start + len + 1;
+            let shaped = ["gpu.", "cpu.", "vram.", "ram."].iter().any(|p| lit.starts_with(p))
+                && lit.len() > 4
+                && lit.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'.');
+            if shaped {
+                out.insert(lit.to_string());
+            }
+        }
+    }
+
+    /// The set of ids the engine records, read from the source tree.
+    fn recorded_ids() -> std::collections::BTreeSet<String> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut files = Vec::new();
+        rust_sources(&root.join("src"), &mut files);
+        assert!(files.len() > 100, "the source walk found only {} files", files.len());
+        let mut ids = std::collections::BTreeSet::new();
+        for f in files {
+            let rel = f.strip_prefix(root).unwrap_or(&f).to_string_lossy().replace('\\', "/");
+            if TEST_ONLY_FILES.contains(&rel.as_str()) {
+                continue;
+            }
+            let src = std::fs::read_to_string(&f).unwrap_or_default();
+            ids_in(&code_only(&src), &mut ids);
+        }
+        ids
+    }
+
+    /// Every measurement id the registry names must be one the engine
+    /// actually records (found in the source tree), or be on the explicit
+    /// pending list; otherwise the row is decoration.
     #[test]
-    fn registry_sources_are_ids_the_engine_knows() {
-        // Written by src/renderer (this increment).
-        const RENDERER_IDS: &[&str] = &[
-            "gpu.celestial", "gpu.shadow", "gpu.scene", "gpu.transparent",
-            "gpu.overlay", "gpu.instanced", "gpu.particles", "gpu.gpu_particles",
-            "gpu.lines", "gpu.celestial_lines", "gpu.clear",
-            // Post-process passes: the timestamp pair is threaded from
-            // `Renderer::pass_timer` into each module's pass descriptor.
-            // `gpu.bloom` is wired in `renderer/bloom.rs` but reads zero until
-            // the bloom post-process gets a call site again (bloom_intensity
-            // defaults to 0 and nothing calls `BloomPass::apply` today).
-            "gpu.godrays", "gpu.ssao", "gpu.bloom",
-            "cpu.celestial", "cpu.scene", "cpu.transparent", "cpu.overlay",
-            "cpu.lines", "cpu.celestial_lines", "cpu.particles",
-            "cpu.gpu_particles", "cpu.gpu_particle_sim", "cpu.godrays",
-            "cpu.ssao", "cpu.patch_upload", "cpu.grass_upload",
-            "cpu.water_upload", "cpu.weather_upload", "cpu.atmo_luts",
-            "cpu.lights", "cpu.light_tiles", "cpu.mesh_upload",
-            "vram.patch_arena", "vram.patch_arena_reserved", "vram.meshes",
-            "vram.textures", "vram.render_targets", "vram.particles",
-            "vram.grass", "vram.uniforms", "vram.driver_reserved",
-            "vram.driver_allocated", "ram.resident", "ram.committed_extra",
-        ];
-        // Written from the frame loop in lib.rs (pass timers on the two passes
-        // it submits itself, plus its own stage timers).
-        const FRAME_LOOP_IDS: &[&str] = &[
-            "gpu.ui", "gpu.stars", "cpu.systems", "cpu.patch_build",
-            "cpu.near_tree_harvest", "cpu.grass_harvest",
-        ];
-        // Named by the registry, not yet wired anywhere (the page shows them at
-        // zero until their call site exists).
-        const PENDING_IDS: &[&str] = &["cpu.patch_select"];
+    fn registry_sources_are_ids_the_engine_records() {
+        let recorded = recorded_ids();
         for r in systems() {
             for s in &r.sources {
-                let known = RENDERER_IDS.contains(&s.as_str())
-                    || FRAME_LOOP_IDS.contains(&s.as_str())
+                let known = recorded.contains(s)
                     || PENDING_IDS.contains(&s.as_str())
-                    // One id per registered ECS system, interned at
-                    // registration from the system's own name by
-                    // `ecs::systems::SystemRunner`.
-                    || s.starts_with("cpu.system.");
+                    || s.starts_with(ECS_FAMILY_PREFIX);
                 assert!(
                     known,
-                    "row {} names measurement {:?}, which nothing produces and which \
-                     is not on the pending list",
+                    "row {} names measurement {:?}, which nothing in src/ records and \
+                     which is not on the pending list",
                     r.id, s
                 );
             }
         }
+    }
+
+    /// The other direction: every id the engine records is either a registry
+    /// row's source or is explicitly listed as remainder with a reason. This
+    /// is what keeps a new timestamp scope from silently folding into
+    /// "Elsewhere" (the 2026-09-18 measurement found the four cloud passes,
+    /// gpu.celestial_t and the screens' passes doing exactly that).
+    #[test]
+    fn every_recorded_id_is_a_row_or_a_listed_remainder() {
+        let recorded = recorded_ids();
+        let registered: std::collections::BTreeSet<&str> = systems()
+            .iter()
+            .flat_map(|r| r.sources.iter().map(|s| s.as_str()))
+            .collect();
+        let mut orphans = Vec::new();
+        for id in &recorded {
+            if id.ends_with('.') {
+                // A prefix family: only the ECS one is known.
+                assert_eq!(id, ECS_FAMILY_PREFIX, "unknown measurement prefix family {id:?}");
+                continue;
+            }
+            let ok = registered.contains(id.as_str())
+                || REMAINDER_IDS.iter().any(|(r, _)| r == id)
+                || id.starts_with(ECS_FAMILY_PREFIX);
+            if !ok {
+                orphans.push(id.clone());
+            }
+        }
+        assert!(
+            orphans.is_empty(),
+            "these measurement ids are recorded by the engine but are neither a row \
+             in data/performance/budget_systems.ron nor listed in REMAINDER_IDS with \
+             a reason, so they fold into \"Elsewhere\" unseen: {orphans:?}"
+        );
+        // And the remainder list may not go stale either: every entry must
+        // still be recorded somewhere, or it is documenting a ghost.
+        for (id, why) in REMAINDER_IDS {
+            assert!(
+                recorded.contains(*id),
+                "REMAINDER_IDS lists {id:?} ({why}), but nothing in src/ records it any more"
+            );
+        }
+        // The two lists must not overlap: an id is a row or a remainder.
+        for (id, _) in REMAINDER_IDS {
+            assert!(!registered.contains(id), "{id:?} is both a registry source and a listed remainder");
+        }
+    }
+
+    /// The scanner itself: comments and test modules are dropped, prefixes
+    /// are reported as prefixes, and lookalike strings are ignored.
+    #[test]
+    fn id_scanner_reads_code_not_prose() {
+        let src = "\
+// a doc line quoting pass_timer(\"gpu.prose\")\n\
+let a = stage(\"cpu.real\"); // trailing pass_timer(\"gpu.trailing\")\n\
+let b = intern_id(\"cpu.system.\", name);\n\
+let c = \"not an id\";\n\
+let d = \"gpu.Upper\";\n\
+#[cfg(test)]\n\
+mod tests {\n\
+    let t = stage(\"cpu.test_only\");\n\
+}\n";
+        let mut ids = std::collections::BTreeSet::new();
+        ids_in(&code_only(src), &mut ids);
+        let got: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+        assert_eq!(got, vec!["cpu.real", "cpu.system."]);
     }
 
     /// A row may not name the ECS aggregate AND a per-system id in the same

@@ -4077,6 +4077,7 @@ mod multi_select_tests {
             model: None,
             screen: None,
             camera: None,
+            camera_px: crate::machines::CAMERA_PX_DEFAULT,
         }
     }
 
