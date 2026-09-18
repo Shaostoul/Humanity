@@ -4,8 +4,14 @@ Status: SHIPPED v0.973.0 (2026-07-26). Implemented as CONTIGUOUS slices of
 the original file (byte-identical concatenation, zero semantic risk) rather
 than the thematic regrouping sketched below; regrouping can happen gradually
 WITHIN the split structure now that each part is its own file. Part names:
-00-bindings-vertex, 10-lighting-patterns, 20-surface-detail, 30-atmosphere,
-40-clouds, 50-brdf, 90-fragment-main. Verified per the v0.782 bar: full
+00-bindings-vertex, 05-overrides (the pipeline permutation switches, added
+by increment P1 of the frame-cost arc, 2026-09-18: `override` constants that
+guard fs_main's atmosphere, cloud and ocean dispatches, compiled off for the
+terrain PSOs through `pipeline.rs::PSO_DEAD_BRANCHES`; the rule is in the
+`PBR_PARTS` doc comment in `src/renderer/shader_loader.rs` and the numbers
+in `docs/design/frame-cost-arc.md`), 10-lighting-patterns, 20-surface-detail,
+30-atmosphere, 40-clouds, 41-cloud-bodies, 45-cloud-temporal, 50-brdf,
+90-fragment-main. Verified per the v0.782 bar: full
 battery + boot + 4-vantage probe sweep (renders identical) + hot-reload
 exercise (part save reassembles in 1.3 s). Operator question: "Is there any particular
 reason you didn't break each shader down to its own file? Wouldn't a bunch of

@@ -3,6 +3,7 @@
 use super::camera::CameraUniforms;
 use super::mesh::Vertex;
 use bytemuck::{Pod, Zeroable};
+use std::collections::HashMap;
 
 /// GPU-side object transform uniforms (matches shader ObjectUniforms).
 #[repr(C)]
@@ -766,14 +767,23 @@ impl Pipeline {
         batch_shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
     ) -> wgpu::RenderPipeline {
+        // The permutation this PSO compiles: see PSO_DEAD_BRANCHES. Terrain
+        // patches never draw an atmosphere, cloud or ocean shell, so those
+        // three fs_main branches are switched OFF here and the cloud march's
+        // per-invocation tables never reach this pipeline's DXIL.
+        let label = "Patch Batch Render Pipeline";
+        let constants = pso_constants(label);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Patch Batch Render Pipeline"),
+            label: Some(label),
             layout: Some(layout),
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
                 buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
             },
             fragment: Some(wgpu::FragmentState {
                 module: batch_shader,
@@ -783,7 +793,10 @@ impl Pipeline {
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
@@ -831,20 +844,32 @@ impl Pipeline {
         batch_shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
     ) -> wgpu::RenderPipeline {
+        // Same permutation as the patch render PSO (PSO_DEAD_BRANCHES):
+        // fs_shadow never reaches the three shells anyway, but the terrain
+        // module is compiled with one consistent set of switches so the two
+        // patch PSOs can never drift apart.
+        let label = "Patch Batch Shadow Pipeline";
+        let constants = pso_constants(label);
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Patch Batch Shadow Pipeline"),
+            label: Some(label),
             layout: Some(layout),
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
                 buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
             },
             fragment: Some(wgpu::FragmentState {
                 module: batch_shader,
                 entry_point: Some("fs_shadow"),
                 targets: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
             }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -906,6 +931,12 @@ impl Pipeline {
                         cull: Option<wgpu::Face>,
                         depth_write: bool|
          -> wgpu::RenderPipeline {
+            // The classic PSOs keep every fs_main branch: the atmosphere and
+            // cloud shells draw through the transparent variant and the water
+            // shell through the overlay variant (PSO_DEAD_BRANCHES lists them
+            // with an empty dead set, so this map is empty and the shader's
+            // `= true` defaults rule).
+            let constants = pso_constants(label);
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(pipeline_layout),
@@ -913,7 +944,10 @@ impl Pipeline {
                     module: shader,
                     entry_point: Some("vs_main"),
                     buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: shader,
@@ -923,7 +957,10 @@ impl Pipeline {
                         blend: Some(blend),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -976,6 +1013,11 @@ impl Pipeline {
         //    Godot's SHADOW_CASTER alpha-scissor path).
         // `targets: &[]` matches the shadow pass's empty color_attachments.
         let make_shadow = |label: &'static str, cutout: bool| -> wgpu::RenderPipeline {
+            // Registered with an empty dead set (PSO_DEAD_BRANCHES): the
+            // classic shadow casters include the water shell, whose VERTEX
+            // displacement rides this module, and fs_shadow never reaches the
+            // three fs_main shells, so there is nothing to switch off here.
+            let constants = pso_constants(label);
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(pipeline_layout),
@@ -983,14 +1025,20 @@ impl Pipeline {
                     module: shader,
                     entry_point: Some("vs_main"),
                     buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
                 },
                 fragment: if cutout {
                     Some(wgpu::FragmentState {
                         module: shader,
                         entry_point: Some("fs_shadow"),
                         targets: &[],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                        compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
                     })
                 } else {
                     None
@@ -1061,6 +1109,96 @@ impl Pipeline {
             )
         })
     }
+}
+
+// ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
+//    docs/design/frame-cost-arc.md section 1) ──
+//
+// Every PSO in `build_all_pipelines` compiles the ONE megashader module, and
+// fs_main's material dispatch (90-fragment-main.wgsl) reaches three
+// heavyweight early-return branches: the atmosphere integrator (type 14), the
+// volumetric cloud march (type 15) and the ocean shell (type 16). A branch a
+// pipeline can never take still costs it. The cloud march declares
+// per-invocation `var<private>` tables (2.9 KB of zero-initialised,
+// dynamically indexed storage in 41-cloud-bodies.wgsl), and the backend must
+// materialise that frame for EVERY fragment of every pipeline whose entry
+// point can reach it: terrain patches included, which never draw a shell.
+// Phase A of P1 measured that reach directly (numbers in the design doc).
+//
+// The fix is the industry-standard one (Unreal calls them material
+// permutations, Unity shader variants): WGSL `override` switches declared in
+// assets/shaders/pbr/05-overrides.wgsl guard the three dispatch sites, and
+// each PSO is compiled with the switches its material class needs through
+// `wgpu::PipelineCompilationOptions::constants`. Naga substitutes the values
+// before the backend ever sees the source, so a switched-off branch reaches
+// DXC as `if (false && ...)` and is folded away together with everything
+// only it referenced. One authored source, no duplicated shader text.
+//
+// THIS TABLE IS THE REGISTRY. A builder asks `pso_constants(label)` for its
+// map; an unregistered label panics at boot, so a new PSO must declare its
+// permutation here; and `permutation_tests` below pins the table against the
+// shader source, so nobody can re-enable a branch on the terrain PSOs, or
+// switch one off on a pipeline that draws through it, without a red test.
+
+/// The three fs_main branch switches, by the exact `override` name the
+/// shader declares (05-overrides.wgsl). A pipeline-constant key is the
+/// identifier string when the declaration carries no `@id`.
+pub const BRANCH_ATMOSPHERE: &str = "HAS_ATMOSPHERE_BRANCH";
+pub const BRANCH_CLOUD: &str = "HAS_CLOUD_BRANCH";
+pub const BRANCH_OCEAN: &str = "HAS_OCEAN_BRANCH";
+
+/// Every switch the megashader declares, in declaration order. The
+/// permutation test requires each one to exist with a `= true` default, so
+/// every pipeline that does NOT name a switch keeps that branch compiled in.
+pub const ALL_BRANCH_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN];
+
+/// The terrain-batch pipelines draw planet-surface patches only (material
+/// types 12 and 13, plus the sprite cards baked into the same meshes): never
+/// an atmosphere shell, a cloud shell or the water shell, which all draw
+/// through the classic pipelines in the transparent pass. So all three
+/// branches are dead there.
+pub const TERRAIN_DEAD_BRANCHES: &[&str] = ALL_BRANCH_SWITCHES;
+
+/// (PSO label, the fs_main branches compiled OUT of it). An empty list means
+/// the pipeline keeps every branch (the shader defaults). The seven labels
+/// are exactly the PSOs `build_all_pipelines` creates from the megashader.
+///
+/// Why the classic five keep everything in this increment: the transparent
+/// variant draws the atmosphere and cloud shells, the overlay variant draws
+/// the water shell when depth-write is on, the opaque variant draws every
+/// prop, interior wall and near tree (and pruning THAT one is the interior
+/// arc's follow-up once the draw lists prove no shell ever goes through
+/// it), and the two sun-shadow PSOs never run fs_main at all.
+pub const PSO_DEAD_BRANCHES: &[(&str, &[&str])] = &[
+    ("PBR-lite Render Pipeline", &[]),
+    ("PBR-lite Transparent Pipeline", &[]),
+    ("PBR-lite Overlay Pipeline", &[]),
+    ("Sun Shadow Pipeline", &[]),
+    ("Sun Shadow Alpha Pipeline", &[]),
+    ("Patch Batch Render Pipeline", TERRAIN_DEAD_BRANCHES),
+    ("Patch Batch Shadow Pipeline", TERRAIN_DEAD_BRANCHES),
+];
+
+/// The pipeline-constant map for one registered PSO: each dead branch's
+/// switch set to 0.0 (wgpu carries every override value as an f64; naga maps
+/// it onto a `bool` override as `value != 0.0`). Switches not named in the
+/// map keep the shader's `= true` default. Panics on a label that is not in
+/// `PSO_DEAD_BRANCHES`: a pipeline built from the megashader without a
+/// declared permutation is exactly the silent regression this registry
+/// exists to prevent, and the panic lands at first boot, where the
+/// boot-verify rig catches it.
+pub fn pso_constants(label: &str) -> HashMap<String, f64> {
+    let (_, dead) = PSO_DEAD_BRANCHES
+        .iter()
+        .find(|(l, _)| *l == label)
+        .unwrap_or_else(|| {
+            panic!(
+                "PSO {label:?} is not in PSO_DEAD_BRANCHES (src/renderer/pipeline.rs): \
+                 declare which fs_main branches it compiles out (an empty list keeps \
+                 every branch)"
+            )
+        });
+    dead.iter().map(|name| ((*name).to_string(), 0.0)).collect()
 }
 
 /// The fs_main <-> fs_shadow cutout mirror (v0.1106).
@@ -1161,5 +1299,147 @@ mod shadow_cutout_tests {
              and the module then validates fine and dies at pipeline creation \
              with \"Unable to find entry point\" (the v0.876 lesson)"
         );
+    }
+}
+
+/// The shader-permutation registry against the shader source (P1).
+///
+/// Three things must agree or a terrain fragment silently pays for the cloud
+/// march again: the `override` declarations in 05-overrides.wgsl, the guards
+/// on fs_main's three shell dispatches, and PSO_DEAD_BRANCHES. None of that
+/// is visible to the GPU-less test runner, so every check reads the ONE
+/// assembled source (and this file's own text for the builder wiring), the
+/// same way the cutout-mirror tests above do.
+#[cfg(test)]
+mod permutation_tests {
+    use super::super::shader_loader::{assembled_pbr_batch_source, assembled_pbr_source};
+    use super::*;
+
+    /// The fs_main side of the assembled source (everything before fs_shadow).
+    fn fs_main_side() -> &'static str {
+        let src = assembled_pbr_source();
+        let at = src.find("fn fs_shadow").expect("fs_shadow missing");
+        &src[..at]
+    }
+
+    #[test]
+    fn the_megashader_declares_every_switch_defaulting_on() {
+        // Both modules the boot compiles (classic + terrain-batch variant)
+        // must carry the declarations: the batch substitution only swaps the
+        // OBJECT-SOURCE block, and a switch missing from either module makes
+        // naga silently ignore the constant for it (process_overrides
+        // returns early on a module with no overrides), which would re-enable
+        // the branch with no error anywhere.
+        for (which, src) in [("classic", assembled_pbr_source()), ("batch", assembled_pbr_batch_source())] {
+            for name in ALL_BRANCH_SWITCHES {
+                let decl = format!("override {name}: bool = true;");
+                assert!(
+                    src.contains(&decl),
+                    "{which} megashader lacks {decl:?} - every pipeline that does not \
+                     name the switch relies on that `= true` default"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fs_main_guards_each_shell_dispatch_with_its_switch() {
+        let main = fs_main_side();
+        // (switch, the dispatch condition it guards, the call it makes dead).
+        // The switch must be the FIRST operand of the `&&` so that a false
+        // constant makes the whole condition constant-false and the call
+        // unreachable, not merely skipped at runtime.
+        let sites = [
+            (BRANCH_ATMOSPHERE, "material_type >= 13.5 && material_type < 14.5", "return atmosphere_scattering("),
+            (BRANCH_CLOUD, "material_type >= 14.5 && material_type < 15.5", "return cloud_layer("),
+            (BRANCH_OCEAN, "material_type >= 15.5 && material_type < 16.5", "return ocean_shell("),
+        ];
+        for (switch, cond, call) in sites {
+            let guard = format!("if ({switch} && {cond}) {{");
+            let at = main.find(&guard).unwrap_or_else(|| {
+                panic!("fs_main no longer guards the shell dispatch with {guard:?}")
+            });
+            let after = &main[at + guard.len()..];
+            let next_line = after.lines().nth(1).unwrap_or("").trim();
+            assert!(
+                next_line.starts_with(call),
+                "the line after {guard:?} must be the {call:?} return, found {next_line:?}"
+            );
+            // Exactly one call site in fs_main's half, so the guard covers
+            // every path into the branch.
+            assert_eq!(
+                main.matches(call).count(),
+                1,
+                "{call:?} must be reachable from fs_main through its guard ONLY"
+            );
+        }
+    }
+
+    #[test]
+    fn the_registry_covers_exactly_the_seven_megashader_psos() {
+        let labels: Vec<&str> = PSO_DEAD_BRANCHES.iter().map(|(l, _)| *l).collect();
+        assert_eq!(
+            labels,
+            [
+                "PBR-lite Render Pipeline",
+                "PBR-lite Transparent Pipeline",
+                "PBR-lite Overlay Pipeline",
+                "Sun Shadow Pipeline",
+                "Sun Shadow Alpha Pipeline",
+                "Patch Batch Render Pipeline",
+                "Patch Batch Shadow Pipeline",
+            ]
+        );
+        for (label, dead) in PSO_DEAD_BRANCHES {
+            let terrain = label.starts_with("Patch Batch");
+            if terrain {
+                assert_eq!(
+                    *dead, ALL_BRANCH_SWITCHES,
+                    "{label}: the terrain PSOs must compile out ALL three shell branches"
+                );
+            } else {
+                assert!(
+                    dead.is_empty(),
+                    "{label}: the classic PSOs keep every branch in this increment \
+                     (the shells draw through them)"
+                );
+            }
+            // Every dead name is a declared switch, and the map carries 0.0
+            // (naga's bool mapping: value != 0.0) for exactly those names.
+            let map = pso_constants(label);
+            assert_eq!(map.len(), dead.len(), "{label}: one constant per dead branch");
+            for name in *dead {
+                assert!(ALL_BRANCH_SWITCHES.contains(name), "{label}: {name} is not a declared switch");
+                assert_eq!(map.get(*name), Some(&0.0), "{label}: {name} must be switched OFF (0.0)");
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "not in PSO_DEAD_BRANCHES")]
+    fn pso_constants_panics_on_an_unregistered_label() {
+        let _ = pso_constants("Some Future Pipeline");
+    }
+
+    /// The builders must actually ASK the registry. Read this file's own text
+    /// and require that, between the first patch builder and the end of
+    /// `build_all_pipelines`, no compilation options are left at the default
+    /// and every builder calls `pso_constants(label)`.
+    #[test]
+    fn every_megashader_pso_builder_asks_the_registry() {
+        let me = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/renderer/pipeline.rs"))
+            .expect("pipeline.rs readable");
+        let start = me.find("fn build_patch_render(").expect("build_patch_render");
+        let end = me.find("// ── SHADER PERMUTATIONS").expect("registry banner");
+        let builders = &me[start..end];
+        assert!(
+            !builders.contains("PipelineCompilationOptions::default()"),
+            "a megashader PSO builder compiles with default options - it must take its \
+             constants from pso_constants(label) so PSO_DEAD_BRANCHES governs it"
+        );
+        let asks = builders.matches("let constants = pso_constants(label);").count();
+        assert_eq!(asks, 4, "expected the four builders (patch render, patch shadow, make_pbr, make_shadow) to ask the registry, found {asks}");
+        let uses = builders.matches("constants: &constants,").count();
+        assert_eq!(uses, 8, "expected 8 stage compilation sites wired to the registry map, found {uses}");
     }
 }
