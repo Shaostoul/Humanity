@@ -803,6 +803,55 @@
       "settle_s": 10
     },
     {
+      "id": "console-face-6",
+      "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
+      "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",
+      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the console room was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state.",
+      "regressions": [
+        "the six console screens render their pages (verify-screens 12/12)",
+        "a screen is an emitter: sun and shadow map never darken the page",
+        "the room draws no atmosphere, cloud or ocean shell (P2 keeps gpu.scene on the general pipelines)"
+      ],
+      "camera": {
+        "station": "home",
+        "screen": "wall_screen_6",
+        "distance_m": 2.2,
+        "time": 14.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "perf_floor_fps": 10,
+      "_camera_note": "station+screen+distance_m is the camera_request form scripts/verify-screens.js uses to park; time pinned so the sun through the deck glass does not vary between captures."
+    },
+    {
+      "id": "console-face-3",
+      "desc": "The console room, 2.2 m from the west wall, facing wall_screen_3 (the garden camera feed). The camera wall.",
+      "expect": "The camera feed (a live 10 Hz re-render of the garden post) above the inventory screen on the west wall; the feed shows the garden, not a frozen frame or a black quad.",
+      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the console room was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state. This one keeps the camera wall in view, which the measurement found adds about 17 ms only while visible (its re-render lands under gpu.screen_scene since the instrumentation increment).",
+      "regressions": [
+        "the camera screen re-renders the garden at 10 Hz under its own gpu.screen_* ids",
+        "the six console screens render their pages (verify-screens 12/12)"
+      ],
+      "camera": {
+        "station": "home",
+        "screen": "wall_screen_3",
+        "distance_m": 2.2,
+        "time": 14.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "perf_floor_fps": 10,
+      "_camera_note": "station+screen+distance_m is the camera_request form scripts/verify-screens.js uses to park; time pinned so the sun through the deck glass does not vary between captures."
+    },
+    {
       "id": "ocean-700m",
       "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
       "expect": "Wave field to the horizon, no flat facets.",
