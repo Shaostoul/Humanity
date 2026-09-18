@@ -519,9 +519,10 @@ files and the rig log in the 2026-09-18 session scratchpad `p3-a/`):
 The repeat floor is under 0.15 ms at every park; the union arm sits 15 to
 20 floors above it. The transparent pass moves the same way because the
 surface transparent PSO compiles the same entry (glass and holograms in the
-room). The union arm's `gpu.scene` at console-face-6 (17.13) also
-reproduces the B0 pre-split exe's reading at the same vantage (16.96,
-below), which is the cross-check that the swap measured the right thing.
+room). The union arm's `gpu.scene` at console-face-6 (17.13) also lands on
+the B0 pre-split exe's reading at the same vantage (16.96, below, a
+different boot and so a slightly different park), which is the cross-check
+that the swap measured the right thing.
 So an interior wall pixel had been carrying about a fifth of its cost as
 the price of sharing one function with the terrain and the trees, on top of
 the floor P1 and P2 removed. The design doc's section 1(b) item 2 stands
@@ -606,6 +607,60 @@ exe in the B0 rig log. Five of the thirteen bake an entry another PSO
 already baked (the three Surface states, the two Water states); a
 pipeline cache or a per-entry DXIL cache would take that back and is the
 next step if boot time matters before launch.
+
+**Gate, `probe-sweep --operator-config`, the nine vantages in one boot per
+arm, same file order in both.** B0 = the P2 build (the exe from the P2
+worktree, byte-identical to what main shipped, run from a scratch checkout
+of main so the on-disk shader it booted was the pre-split one), B1 = this
+change; DXC staged beside both exes; GPU timestamp queries, 2560 x 1387,
+the operator's clouds-off config with the showcase pins per vantage;
+captures, cost files, diff tool and heatmaps in the 2026-09-18 session
+scratchpad (`p3-b0/`, `p3-b1/`, `p3-b1b/`, `p3-a/`, `p3-diff.js`,
+`p3-gate.js`, `heat-*.png`). The first B1 sweep ran while a foreign cargo
+build saturated the CPU (its frame times are not data: the moon read
+313 ms with `cpu.patch_build` 33.7, the unsettled-teleport signature), so
+it was repeated on a gated quiet machine; the table is that repeat, and the
+first sweep serves as the same-build cross-boot pair (its GPU keys agree
+with the repeat within 0.1 to 0.7 ms everywhere). Pixels are compared on
+rows 100 to 1300 (the HUD bands excluded), luminance levels out of 255:
+
+| vantage | key | B0 | B1 | fps B0 | B1 | floor | pixels B0 vs B1 |
+|---|---|---|---|---|---|---|---|
+| `sahara-noon-ground` | `gpu.celestial` | 5.74 | 5.08 | 30 | 29.9 | 20 | 13.1 percent differ, mean 0.07, max 10; sky rows 0.00; block means within 0.07 |
+| `ocean-storm-low` | `gpu.celestial` / `_t` | 5.73 / 1.38 | 5.24 / 1.38 | 30 | 30 | 18 | 41 percent at mean 2.2 (the wave phase, on the wall clock); sky rows 0.004; the 8x6 sea block means within 0.63 |
+| `fuji-forest-ground` | `gpu.celestial` | 21.41 | 17.70 | 30.2 | 27.6 | 9 | 39 percent at mean 4.8 (the sway runs on a live clock); sky rows 0.00; block means within 0.9 |
+| `limb-400km` | `gpu.celestial` / `_t` | 13.72 / 0.37 | 12.35 / 0.34 | 30 | 29.9 | 25 | 15 percent at mean 0.09; 59 px over 32, all star dots; block means within 0.16 |
+| `blue-marble-clouds` (clouds ON, `fs_cloud` exercised) | `gpu.celestial` / `_t` | 1.05 / 2.28 | 0.86 / 2.31 | 29.8 | 30 | 25 | 24 percent at mean 0.9; the pixels over 32 are star and constellation dots, the disc and its deck carry sparse dither only; block means within 0.12 |
+| `moon-surface-200m` | `gpu.celestial` | 7.32 | 6.90 | 30 | 30 | 25 | 90 percent at mean 4.3, uniform regolith speckle plus a one-pixel horizon shift; block means within 3.7 (this session's same-build cross-boot pair read 7.3 with one unsettled capture) |
+| `home-clock-noon` | `gpu.scene` / `gpu.transparent` | 3.02 / 1.24 | 2.32 / 0.93 | 30 | 29.9 | none | 3 percent at mean 0.015; block means within 0.16 |
+| `console-face-6` | `gpu.scene` / `gpu.transparent` | 16.96 / 2.85 | 14.16 / 2.45 | 30 | 29.8 | 10 | 2.2 percent at mean 0.02, max 28 |
+| `console-face-3` | `gpu.scene` / `gpu.transparent` | 14.00 / 2.97 | 11.81 / 2.64 | 30 | 29.9 | 10 | 1.2 percent at mean 0.06; the 1931 px over 32 are the wall screens' text, which the same-build pair also shows (1742), the rest is doorway edge from pose drift |
+
+No key slower anywhere; every floored vantage at or above its floor; the
+interior faster as phase A predicted (gpu.scene 2.2 to 2.8 ms at the
+console, 0.7 at the homestead, and gpu.transparent 0.3 to 0.4 with it,
+because the glass and the holograms compile the surface entry too), and
+gpu.celestial faster at every planet vantage, most at Fuji (3.7 ms, where
+the classic list is dominated by bark and cluster cards that now compile
+the vegetation entry alone) and least at the Sahara and the moon (0.4 to
+0.7, at the same-build cross-boot spread of that key). The CPU side is
+unchanged: the phase-A boot, certified quiet, read `cpu.scene` 1.76 ms at
+console-face-6 against B0's 1.75, and a third, quiet, frame-costed
+capture of Fuji (`p3-b1c/`) read `cpu.celestial` 5.89 against B0's 5.85
+and `cpu.scene` 1.42 against 1.45 with the frame at 33.5 ms and 30 fps
+(`gpu.celestial` 17.82), so the per-class walks of the opaque lists cost
+nothing measurable even on the largest classic list in the game; the
+repeat sweep's higher CPU stages (Fuji at 27.6 fps in the table) rose
+together with `cpu.screen_ui`, `cpu.stars` and `cpu.particles`, which the
+split does not touch, and a foreign build was found running when that
+sweep ended. 30 fps is the vsync cap. Zero panics in every boot of the
+increment (B0, the three B1 sweeps, phase A, the screens and runtime
+gates).
+`verify-screens` passes 12 of 12 on the split (the inventory click changes
+57,625 pixels and the web link 194,396, both as before), and its own
+console-room drop reads `gpu.scene` 14.24 ms and `gpu.transparent` 2.63
+where the P2 outcome's same reading was 16.77 and 2.82; `verify-runtime`
+enters the world at all three of its vantages with zero panics.
 
 The celestial pass is one timestamp pair covering bodies, terrain, near trees
 and grass together, and one render pass can carry only one
