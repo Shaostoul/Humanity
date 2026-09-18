@@ -716,6 +716,20 @@ that screen's centre, at its height, looking back at it: the pose is
 computed from the screen's quad, so any screen in any room can be framed
 without a typed coordinate. Unknown ids fail with the placed ids listed.
 
+The MAIN egui context has its own sibling, `debug/ui_request.json`
+(2026-09-18): `f10` / `escape` run the F10 sidebar's key rules through the
+same `engine::input` functions the keys call, `pointer_move` / `click` push
+synthetic pointer events into the main context's pending input (window
+pixels, three frames for a click), `find` locates a drawn text on the main
+frame through this module's `find_text_in_shapes` (so both IPCs answer a
+lookup the same way), `state` just reports, and
+`debug/ui_request_done.json` answers with the cursor state on both sides of
+the winit boundary, the sidebar flags, egui's `wants_pointer_input` and
+`is_pointer_over_area`, and a named `cloud_dev_*` flag before and after.
+Table row and field list: `docs/dev/performance-profiling.md`, "The debug
+file protocol". A rig that wants a wall screen AND the sidebar in one run
+uses both files; each is one request at a time.
+
 ### The screens rig
 
 `just verify-screens` (`scripts/verify-screens.js`) is the gate that proves

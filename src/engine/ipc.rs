@@ -1621,6 +1621,302 @@ pub(crate) fn write_screen_done(done: serde_json::Value) {
     let _ = std::fs::write(DONE_PATH, done.to_string());
 }
 
+/// Where a main-UI dev IPC click is in its three-frame sequence.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum UiIpcStage {
+    /// The pointer move was queued; the press goes on the next frame.
+    Press,
+    /// The press was queued; the release goes on the next frame.
+    Release,
+    /// Every event landed (or the verb needed none): answer after this
+    /// frame's egui pass.
+    Complete,
+}
+
+/// One main-UI dev IPC request in flight (`debug/ui_request.json`,
+/// 2026-09-18, permanent tooling like `debug/screen_request.json`). Lives on
+/// `EngineState::ui_ipc`; one at a time.
+#[derive(Debug)]
+pub(crate) struct UiIpc {
+    pub(crate) action: String,
+    /// The pointer verbs' position: window PIXELS as requested, and the
+    /// egui POINTS they map to (the pixels-per-point of the live context).
+    pub(crate) pos_px: Option<(f32, f32)>,
+    pub(crate) pos_points: Option<egui::Pos2>,
+    /// The `GuiState` sidebar flag the done file reports before and after.
+    pub(crate) flag: Option<String>,
+    pub(crate) flag_before: Option<serde_json::Value>,
+    pub(crate) stage: UiIpcStage,
+    /// "escape": whether the rule closed the sidebar (its return value).
+    pub(crate) closed: Option<bool>,
+    /// "find": the drawn text to look for, and the answer once
+    /// `ui_request_scan_shapes` has seen this frame's shapes (outer None =
+    /// not scanned yet, inner None = not drawn).
+    pub(crate) find_text: Option<String>,
+    pub(crate) found: Option<Option<crate::gui::screen_surface::FoundText>>,
+}
+
+/// Main-UI dev IPC, the sibling of `poll_screen_request` for the MAIN egui
+/// context rather than a wall screen's. Drop `debug/ui_request.json` while
+/// the game runs:
+///
+/// ```json
+/// {"action": "f10", "flag": "show_cloud_dev_panel"}
+/// {"action": "escape"}
+/// {"action": "state", "flag": "cloud_dev_dither_off"}
+/// {"action": "pointer_move", "pos": [200, 300]}
+/// {"action": "click", "pos": [200, 300], "flag": "cloud_dev_dither_off"}
+/// {"action": "find", "text": "Depth dither"}
+/// ```
+///
+/// `find` answers where a drawn text is on the MAIN frame (`found`, `text`,
+/// `matches`, `rect_px`, `pos_px` = the rect's centre in window pixels, the
+/// value a following `click` takes as its `pos`), through the same
+/// `find_text_in_shapes` the screens' `find` uses: exact match first, then
+/// a prefix, then a substring, first in drawing order within a tier, with
+/// text clipped out of a scroll area skipped. The scan runs on this frame's
+/// shapes in lib.rs (`ui_request_scan_shapes`, between `ctx.run` and
+/// tessellation). This is the verb that lets a rig click a named toggle
+/// without guessing a pixel from a screenshot.
+///
+/// `f10` and `escape` call `engine::input::toggle_cloud_dev_panel` and
+/// `engine::input::escape_closes_cloud_dev`, the SAME functions the keys
+/// run, so a rig proves the rules the operator's keys use. What they do not
+/// exercise is the winit layer between the key and those functions (the
+/// modifier trackers, the keybind-capture gate, the Escape ordering against
+/// the modal and screen-focus gates): that is what the headless harness and
+/// the operator's own key are for. `pointer_move` and `click` push
+/// `egui::Event::PointerMoved` / `PointerButton` into the main context's
+/// pending input (`egui_state.egui_input_mut().events`), so egui's own
+/// hit-testing runs against the real panel; a click is move, press, release
+/// on three consecutive frames, the sequence the headless click tests
+/// proved. `pos` is in window pixels (what a screenshot shows), converted
+/// here with the live pixels-per-point. `state` changes nothing and just
+/// reports. The optional `flag` names any `GuiState` `cloud_dev_*` field (or
+/// `show_cloud_dev_panel` / `cloud_dev_collapsed`), reported before and
+/// after through `engine::input::cloud_dev_flag`.
+///
+/// Every request is consumed, even a bad one, and answered in
+/// `debug/ui_request_done.json` (see `complete_ui_request` for the fields; a
+/// bad request writes `{"ok": false, "error"}` at once). Runs in the update
+/// phase, BEFORE `take_egui_input`, so a queued event lands in this frame's
+/// egui pass; a click in flight is advanced here too, one event per frame.
+pub(crate) fn poll_ui_request(state: &mut EngineState) {
+    const REQUEST_PATH: &str = "debug/ui_request.json";
+    // A click in flight: press, then release, one per frame, each landing in
+    // the egui pass that follows this call.
+    if let Some(ipc) = state.ui_ipc.as_mut() {
+        let button = |pos: egui::Pos2, pressed: bool| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        match (ipc.stage, ipc.pos_points) {
+            (UiIpcStage::Press, Some(pos)) => {
+                state.egui_state.egui_input_mut().events.push(button(pos, true));
+                ipc.stage = UiIpcStage::Release;
+            }
+            (UiIpcStage::Release, Some(pos)) => {
+                state.egui_state.egui_input_mut().events.push(button(pos, false));
+                ipc.stage = UiIpcStage::Complete;
+            }
+            // Complete waits for `complete_ui_request` after the frame. A
+            // pointer stage with no position cannot happen (the parse below
+            // refuses it), but if it did the request must not hang a rig.
+            (UiIpcStage::Complete, _) => {}
+            (_, None) => ipc.stage = UiIpcStage::Complete,
+        }
+        return;
+    }
+    if !std::path::Path::new(REQUEST_PATH).exists() {
+        return;
+    }
+    let parsed = std::fs::read_to_string(REQUEST_PATH)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+    // Consumed either way (same rule as the other debug polls).
+    let _ = std::fs::remove_file(REQUEST_PATH);
+    let fail = |msg: String| {
+        log::warn!("UI request: {msg}");
+        write_ui_done(serde_json::json!({"ok": false, "error": msg}));
+    };
+    let Some(v) = parsed else {
+        fail("malformed JSON".to_string());
+        return;
+    };
+    let Some(action) = v.get("action").and_then(|s| s.as_str()).map(|s| s.to_string()) else {
+        fail("missing \"action\" (f10|escape|state|pointer_move|click|find)".to_string());
+        return;
+    };
+    let find_text = v.get("text").and_then(|t| t.as_str()).map(|t| t.trim().to_string());
+    if action == "find" && find_text.as_deref().map_or(true, |t| t.is_empty()) {
+        fail("find needs a non-empty \"text\"".to_string());
+        return;
+    }
+    // The flag is validated up front so a typo answers at once instead of
+    // reporting nulls after a three-frame click.
+    let flag = v.get("flag").and_then(|f| f.as_str()).map(|f| f.to_string());
+    let flag_before = match flag.as_deref() {
+        Some(f) => match crate::engine::input::cloud_dev_flag(&state.gui_state, f) {
+            Some(val) => Some(val),
+            None => {
+                fail(format!(
+                    "unknown flag {f:?}: name a GuiState cloud_dev_* field, show_cloud_dev_panel or cloud_dev_collapsed"
+                ));
+                return;
+            }
+        },
+        None => None,
+    };
+    // Window pixels -> egui points, using the live context's scale so a
+    // rig can take its coordinates straight from a screenshot.
+    let pos_px = v
+        .get("pos")
+        .and_then(|a| a.as_array())
+        .and_then(|a| Some((a.first()?.as_f64()? as f32, a.get(1)?.as_f64()? as f32)));
+    let ppp = state.egui_ctx.pixels_per_point();
+    let pos_points = pos_px.map(|(x, y)| egui::pos2(x / ppp, y / ppp));
+    let needs_pos = matches!(action.as_str(), "pointer_move" | "click");
+    if needs_pos && pos_points.is_none() {
+        fail(format!("{action:?} needs \"pos\": [x, y] in window pixels"));
+        return;
+    }
+    let mut closed = None;
+    let stage = match action.as_str() {
+        "f10" => {
+            crate::engine::input::toggle_cloud_dev_panel(&mut state.gui_state);
+            UiIpcStage::Complete
+        }
+        "escape" => {
+            closed = Some(crate::engine::input::escape_closes_cloud_dev(&mut state.gui_state));
+            UiIpcStage::Complete
+        }
+        // Answered from this frame's shapes by `ui_request_scan_shapes`.
+        "state" | "find" => UiIpcStage::Complete,
+        "pointer_move" | "click" => {
+            let pos = pos_points.expect("checked above");
+            state.egui_state.egui_input_mut().events.push(egui::Event::PointerMoved(pos));
+            // The winit-side pixel cache too, so the in-world screens' free
+            // cursor ray (screens::pointing_ray) agrees with egui about
+            // where the pointer is.
+            if let Some(px) = pos_px {
+                state.cursor_pos = px;
+            }
+            if action == "click" {
+                UiIpcStage::Press
+            } else {
+                UiIpcStage::Complete
+            }
+        }
+        other => {
+            fail(format!("unknown action {other:?} (f10|escape|state|pointer_move|click|find)"));
+            return;
+        }
+    };
+    let find_text = if action == "find" { find_text } else { None };
+    state.ui_ipc = Some(UiIpc { action, pos_px, pos_points, flag, flag_before, stage, closed, find_text, found: None });
+}
+
+/// Answer a pending `find` from the MAIN egui frame's shapes. lib.rs calls
+/// this right after `egui_ctx.run` and before tessellation (which consumes
+/// the shapes), every frame; it is a no-op unless a `find` is pending, so
+/// it costs nothing on a normal frame. The lookup rule is the screens'
+/// `find_text_in_shapes`, so both IPCs answer the same way.
+pub(crate) fn ui_request_scan_shapes(state: &mut EngineState, shapes: &[egui::epaint::ClippedShape]) {
+    let Some(ipc) = state.ui_ipc.as_mut() else { return };
+    let Some(text) = ipc.find_text.as_deref() else { return };
+    ipc.found = Some(crate::gui::screen_surface::find_text_in_shapes(shapes, text));
+}
+
+/// Answer the main-UI dev IPC request once its last event has landed: runs
+/// after the egui pass, the present, and the post-frame `reconcile_cursor`,
+/// so every field describes the frame the rig asked about with the cursor
+/// as the authority left it. Fields:
+///
+/// - `ok`, `action`; `error` on a failure.
+/// - `cursor_free`: the winit side (`EngineState::cursor_free`, what the
+///   window was told); `gui_cursor_free`: the GuiState mirror the sidebar
+///   reads; `cursor_want_free`: what `reconcile_cursor`'s predicate wants
+///   this frame; `background_no_cursor`: true in a script-launched rig,
+///   where the window is never touched and so the first two stay false
+///   whatever the third says (read `cursor_want_free` there).
+/// - `cloud_dev_sidebar_expanded`, `show_cloud_dev_panel`, `cloud_dev_collapsed`.
+/// - `active_page` (the `GuiPage` variant name), `world_loaded`.
+/// - `wants_pointer_input`, `is_pointer_over_area`: egui's own answers as
+///   of the frame that just ran (over the sidebar both are true; over the
+///   world with nothing under the pointer both are false).
+/// - `flag`, `flag_before`, `flag_after` when a flag was named.
+/// - `pos_px`, `pos_points`, `pixels_per_point` for the pointer verbs.
+/// - `closed` for "escape": whether the rule closed the sidebar.
+pub(crate) fn complete_ui_request(state: &mut EngineState) {
+    let Some(ipc) = state.ui_ipc.as_ref() else { return };
+    if ipc.stage != UiIpcStage::Complete {
+        return;
+    }
+    let ipc = state.ui_ipc.take().expect("checked above");
+    let gui = &state.gui_state;
+    let mut done = serde_json::json!({
+        "ok": true,
+        "action": ipc.action,
+        "cursor_free": state.cursor_free,
+        "gui_cursor_free": gui.cursor_free,
+        "cursor_want_free": crate::engine::input::cursor_want_free(state),
+        "background_no_cursor": state.background_no_cursor,
+        "cloud_dev_sidebar_expanded": gui.cloud_dev_sidebar_expanded(),
+        "show_cloud_dev_panel": gui.show_cloud_dev_panel,
+        "cloud_dev_collapsed": gui.cloud_dev_collapsed,
+        "active_page": format!("{:?}", gui.active_page),
+        "world_loaded": state.world_loaded,
+        "wants_pointer_input": state.egui_ctx.wants_pointer_input(),
+        "is_pointer_over_area": state.egui_ctx.is_pointer_over_area(),
+        "pixels_per_point": state.egui_ctx.pixels_per_point(),
+    });
+    if let Some(flag) = ipc.flag.as_deref() {
+        done["flag"] = serde_json::json!(flag);
+        done["flag_before"] = ipc.flag_before.clone().unwrap_or(serde_json::Value::Null);
+        done["flag_after"] = crate::engine::input::cloud_dev_flag(gui, flag).unwrap_or(serde_json::Value::Null);
+    }
+    if let (Some(px), Some(pt)) = (ipc.pos_px, ipc.pos_points) {
+        done["pos_px"] = serde_json::json!([px.0, px.1]);
+        done["pos_points"] = serde_json::json!([pt.x, pt.y]);
+    }
+    if let Some(closed) = ipc.closed {
+        done["closed"] = serde_json::json!(closed);
+    }
+    if ipc.action == "find" {
+        // Points -> window pixels, so `pos_px` can go straight into a
+        // `click` request. `found: false` is an answer, not an error.
+        let ppp = state.egui_ctx.pixels_per_point();
+        done["query"] = serde_json::json!(ipc.find_text.clone().unwrap_or_default());
+        match ipc.found.flatten() {
+            Some(f) => {
+                let r = f.rect;
+                let c = r.center();
+                done["found"] = serde_json::json!(true);
+                done["text"] = serde_json::json!(f.text);
+                done["matches"] = serde_json::json!(f.matches);
+                done["rect_points"] = serde_json::json!([r.min.x, r.min.y, r.max.x, r.max.y]);
+                done["rect_px"] = serde_json::json!([r.min.x * ppp, r.min.y * ppp, r.max.x * ppp, r.max.y * ppp]);
+                done["pos_points"] = serde_json::json!([c.x, c.y]);
+                done["pos_px"] = serde_json::json!([c.x * ppp, c.y * ppp]);
+            }
+            None => {
+                done["found"] = serde_json::json!(false);
+                done["matches"] = serde_json::json!(0);
+            }
+        }
+    }
+    write_ui_done(done);
+}
+
+/// Write `debug/ui_request_done.json`.
+fn write_ui_done(done: serde_json::Value) {
+    const DONE_PATH: &str = "debug/ui_request_done.json";
+    let _ = std::fs::create_dir_all("debug");
+    let _ = std::fs::write(DONE_PATH, done.to_string());
+}
+
 pub(crate) fn poll_camera_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/camera_request.json";
     const DONE_PATH: &str = "debug/camera_done.json";

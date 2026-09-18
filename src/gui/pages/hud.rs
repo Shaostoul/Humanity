@@ -82,7 +82,20 @@ pub fn draw(
         // The HUD is paint-only; it needs no input. (v0.461)
         .interactable(false)
         .show(ctx, |ui| {
-            ui.allocate_rect(screen, egui::Sense::hover());
+            // NO `ui.allocate_rect(screen, Sense::hover())` here (BUG-076, 2026-09-18).
+            // That line used to give the Area a full-screen widget rect "so it has a
+            // size". egui's hit test does not care that the Area is non-interactable
+            // or that the rect only senses hover: it walks widget rects top-down and
+            // STOPS at the first one that covers the search area (hit_test.rs, the
+            // `included_layers` loop), so every widget in a Background-order panel
+            // underneath was dropped and could never be clicked. The F10 Cloud dev
+            // SIDEBAR (a SidePanel, Background order, 2026-09-05) sat under this layer
+            // and took no input at all; the construction editor's panels had hit the
+            // same wall in v0.461, which is why lib.rs skips the HUD in build mode.
+            // The HUD needs no rect: every element below paints at absolute screen
+            // coordinates through the painter, whose clip rect is the whole screen
+            // regardless of the Area's own (now empty) size. Pinned by
+            // `cloud_dev::tests::a_sidebar_checkbox_click_flips_its_flag_under_the_hud`.
             let painter = ui.painter();
 
             // ── Health bar (top-left) ──

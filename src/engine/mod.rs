@@ -13,6 +13,10 @@ pub mod frame_lock;
 pub mod geom;
 pub mod home_meshes;
 pub mod home_spawn;
+/// The F10 sidebar's key rules (F10 toggle, Escape-closes-first), the
+/// cursor-free predicate and the flag-by-name lookup the dev IPC reports
+/// (2026-09-18). Pure GuiState logic: the key, the tests and the IPC share it.
+pub mod input;
 pub mod ipc;
 pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).

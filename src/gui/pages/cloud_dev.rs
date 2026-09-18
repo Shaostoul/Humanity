@@ -876,3 +876,144 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> bool {
     }
     changed
 }
+
+/// Headless interaction tests for the F10 sidebar (2026-09-18, the
+/// operator's "pops up but I can't interact with any of the stuff inside
+/// it"). Pure egui layout + hit-testing, no GPU: the panel is drawn under a
+/// fresh Context, one of its checkboxes is located by its drawn text, and a
+/// synthetic move / press / release is sent on three frames, the sequence
+/// `ui_snapshots` proved against re-interacted rows.
+///
+/// Two tests, one question each:
+///   - the panel ALONE: are its widgets fine in isolation?
+///   - the panel UNDER THE HUD, exactly the two calls lib.rs makes in the
+///     world frame: does the HUD layer eat the click?
+/// The second is the operator's case, and it was RED on 2026-09-18 before
+/// hud.rs stopped allocating a full-screen hover rect (see the comment
+/// there and BUGS.md BUG-076).
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui::screen_surface::find_text_in_shapes;
+
+    /// The label of the checkbox the tests click. Its full text, so the
+    /// lookup is an EXACT match and can never land on a NEEDS TESTING list
+    /// entry that names the same prefix.
+    const TARGET: &str = "Depth dither (off = smoother clouds, agate arcs on overcast)";
+
+    /// One egui frame of the world UI as lib.rs composes it: the HUD first
+    /// (when asked), then the F10 sidebar, then the crosshair painter. The
+    /// crosshair is included on purpose: it is a `layer_painter` in the
+    /// Foreground order and must never take part in hit-testing, and this
+    /// proves it does not.
+    fn frame(
+        ctx: &egui::Context,
+        theme: &Theme,
+        state: &mut GuiState,
+        events: Vec<egui::Event>,
+        with_hud: bool,
+    ) -> egui::FullOutput {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 900.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            if with_hud {
+                crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
+            }
+            draw(ctx, theme, state);
+            let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("crosshair")));
+            painter.circle_filled(ctx.screen_rect().center(), 3.0, egui::Color32::from_white_alpha(180)); // theme-exempt: the lib.rs crosshair, reproduced verbatim
+        })
+    }
+
+    /// Draw two settle frames, find the target checkbox, click it with the
+    /// canonical three-frame sequence, and return (before, after) of the
+    /// flag it is bound to.
+    fn click_dither_checkbox(with_hud: bool) -> (bool, bool) {
+        let ctx = egui::Context::default();
+        crate::gui::fonts::install_font_fallbacks(&ctx);
+        let theme = crate::gui::theme::load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut state = GuiState::default();
+        state.show_cloud_dev_panel = true;
+        state.cloud_dev_collapsed = false;
+        // What reconcile_cursor mirrors while the sidebar is expanded.
+        state.cursor_free = true;
+        state.show_hud = true;
+
+        // Settle twice (the scroll area and the HUD's sizing pass), then
+        // read the label's on-screen rect from the settled frame's shapes.
+        frame(&ctx, &theme, &mut state, Vec::new(), with_hud);
+        let out = frame(&ctx, &theme, &mut state, Vec::new(), with_hud);
+        let found = find_text_in_shapes(&out.shapes, TARGET)
+            .unwrap_or_else(|| panic!("the checkbox {TARGET:?} was not drawn"));
+        assert_eq!(found.text, TARGET, "the lookup must be the exact label, not a list entry");
+        if with_hud {
+            // The fix removed the HUD's only allocation; the HUD must still
+            // PAINT (its Area now has no size, but its painter's clip rect
+            // is the whole screen). The credits readout is the cheapest
+            // proof: "0 CR" under the health bar with a default state.
+            let credits = find_text_in_shapes(&out.shapes, " CR")
+                .expect("the HUD's credits readout must still be painted after the fix");
+            assert!(credits.text.ends_with(" CR"), "unexpected credits text {:?}", credits.text);
+        }
+        let pos = found.rect.center();
+
+        let before = state.cloud_dev_dither_off;
+        let m = egui::Modifiers::default();
+        frame(&ctx, &theme, &mut state, vec![egui::Event::PointerMoved(pos)], with_hud);
+        // egui itself reports the pointer over an area here in BOTH
+        // configurations (the SidePanel counts through the background
+        // area; the non-interactable HUD is skipped by `layer_id_at`), so
+        // lib.rs's `egui_consumed` gate would be true and neither the
+        // controller nor the in-world screens would ever see this click.
+        // That rules those out as the thief: whatever eats the click does
+        // so INSIDE egui's hit test.
+        assert!(ctx.is_pointer_over_area(), "egui must consider the sidebar an area under the pointer");
+        assert!(ctx.wants_pointer_input(), "egui must want the pointer over the sidebar");
+        frame(
+            &ctx,
+            &theme,
+            &mut state,
+            vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m }],
+            with_hud,
+        );
+        frame(
+            &ctx,
+            &theme,
+            &mut state,
+            vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m }],
+            with_hud,
+        );
+        (before, state.cloud_dev_dither_off)
+    }
+
+    /// The panel by itself: a click on a checkbox flips the flag it binds.
+    /// This passing while the next test fails is what localises the fault
+    /// to the frame the panel shares with the HUD, not the panel.
+    #[test]
+    fn a_sidebar_checkbox_click_flips_its_flag_when_the_panel_is_alone() {
+        let (before, after) = click_dither_checkbox(false);
+        assert_ne!(before, after, "the panel's own checkbox did not toggle in isolation");
+    }
+
+    /// The operator's case: the HUD is drawn in the same frame (lib.rs draws
+    /// it whenever the world is up with no page open). Before 2026-09-18 the
+    /// HUD's Area allocated a full-screen `Sense::hover` rect in the Middle
+    /// order; egui's hit test (hit_test.rs, the `included_layers` walk)
+    /// stops at the first widget that covers the search area, whatever its
+    /// sense, so every widget in the Background-order sidebar under it was
+    /// dropped and no click could land. Proven red on 2026-09-18 with the
+    /// allocation in place: `before == after` (false, false).
+    #[test]
+    fn a_sidebar_checkbox_click_flips_its_flag_under_the_hud() {
+        let (before, after) = click_dither_checkbox(true);
+        assert_ne!(
+            before, after,
+            "the HUD layer ate the click: the sidebar renders under it but cannot be clicked \
+             (the 'panel shows but won't click' class, BUG-076)"
+        );
+    }
+}

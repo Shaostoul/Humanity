@@ -1143,3 +1143,54 @@ with the fix reverted it fails (proven 2026-09-18).
 **Lesson:** any egui label that sits inside a click target must be
 non-selectable, or the click target is only the part of the row that is not
 text. Check for this whenever a "row is clickable" claim is made.
+
+## BUG-076: The F10 sidebar rendered under the HUD and took no input (fixed 2026-09-18)
+
+**Symptom:** the operator, 2026-09-18: "the F10 menu that allows me to
+adjust clouds and other stuff pops up but, I can't interact with any of the
+stuff inside it." The sidebar drew, the cursor was free, nothing on it
+responded to a click. It had been this way since the panel became a LEFT
+SIDEBAR on 2026-09-05 (U1); the Window it replaced had worked.
+
+**Cause:** the in-game HUD (`hud::draw`) is a non-interactable egui `Area`
+in the Middle order that began with `ui.allocate_rect(screen,
+Sense::hover())`, a full-screen widget rect "so the layer has a size".
+egui's hit test (`hit_test.rs`, the `included_layers` walk) does not consult
+an Area's `interactable` flag and does not care that a rect only senses
+hover: it walks widget rects top-down and STOPS at the first one that covers
+the search area, so every widget in a Background-order layer underneath is
+dropped. A `SidePanel` lives in the Background order. The old F10 `Window`
+was a Middle-order Area created AFTER the HUD, so it sat above it; the
+sidebar sat below it and could never be clicked. The construction editor's
+side panels had hit the same wall in v0.461, which is why lib.rs skips the
+HUD in build mode; the sidebar was the first Background panel drawn
+alongside the HUD since. `wants_pointer_input()` still read true over the
+sidebar (the HUD is skipped by `layer_id_at`, so the panel counted as an
+area), which is why the click did not reach the game either: it went
+nowhere.
+
+Candidates ruled out on the way: `reconcile_cursor` runs every redraw and
+its predicate includes the expanded sidebar (the cursor WAS free);
+`egui_consumed` only gates the game's handling, never egui's; the screens'
+`route_button` runs only when `!egui_consumed`, so it never saw the click;
+the crosshair is a `layer_painter` with no widget rect; the panel is drawn
+by exactly one code path (`lib.rs`, the main egui closure); winit passes
+F10's WM_SYSKEYUP to `DefWindowProc` only when the window has a native
+menu, so Windows menu mode is never entered.
+
+**Fix:** the HUD allocates no rect at all; every element paints at absolute
+screen coordinates through the painter, whose clip rect is the whole screen
+regardless of the Area's (now empty) size, so nothing visible changed.
+Pinned by `cloud_dev::tests::a_sidebar_checkbox_click_flips_its_flag_under_the_hud`,
+which draws the HUD and the sidebar in one headless frame, locates a
+checkbox by its drawn text and clicks it with the canonical move / press /
+release; with the allocation restored it fails (`before == after`, proven
+2026-09-18). Its twin `..._when_the_panel_is_alone` passes either way, which
+is what localised the fault to the shared frame rather than the panel.
+
+**Lesson:** a full-screen widget rect in a higher egui order is opaque to
+every panel below it, even with `Sense::hover` and even in an Area marked
+non-interactable. A paint-only overlay must allocate nothing: use the
+painter (or a `layer_painter`) and no `allocate_rect`. When a panel "shows
+but won't click", list every Area drawn in the same frame and check their
+rects before reading the input path.
