@@ -499,13 +499,19 @@ pub struct AppConfig {
     /// raise it used to be a code edit.
     #[serde(default = "default_grass_harvest_cap")]
     pub grass_harvest_cap: f32,
-    /// Vegetation spawn density multiplier: scales trees + grass per terrain
-    /// cell. 0.6 default (v0.1083) -- the historical 1.0 forest measured
-    /// 131-162 ms/frame at max settings once the perf counters were honest.
+    /// Forest density: trees per vegetation cell, 0.0..=1.0. 0.6 default
+    /// (v0.1083) -- the historical 1.0 forest measured 131-162 ms/frame at
+    /// max settings once the perf counters were honest. ZERO IS NO TREES
+    /// (2026-09-18; the floor was 0.1 and a typed 0 was rewritten at boot).
     #[serde(default = "default_tree_density")]
     pub tree_density: f32,
+    /// Grass ground cover, 0.0..=3.0: 1.0 is a real turf, 3.0 deep meadow,
+    /// ZERO IS NO GRASS (the harvest is skipped entirely).
     #[serde(default = "default_grass_density")]
     pub grass_density: f32,
+    /// Grass blade detail, 0.0..=1.0: blades per tuft with width compensating
+    /// so cover is unchanged. ZERO TURNS THE GRASS LAYER OFF (it is not a
+    /// mesh rung; see `terrain::grass::grass_layer_on`).
     #[serde(default = "default_grass_detail")]
     pub grass_detail: f32,
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff (m).
@@ -1463,9 +1469,22 @@ impl AppConfig {
             .clamp(crate::terrain::grass::GRASS_MID_M + 1.0, GRASS_FAR_MAX_M);
         state.settings.grass_harvest_cap =
             self.grass_harvest_cap.clamp(1000.0, GRASS_HARVEST_CAP_MAX);
-        state.settings.tree_density = self.tree_density.clamp(0.1, 1.0);
-        state.settings.grass_density = self.grass_density.clamp(0.1, 3.0);
-        state.settings.grass_detail = self.grass_detail.clamp(0.1, 1.0);
+        // ZERO MEANS OFF for all three vegetation knobs (2026-09-18). These
+        // floors were 0.1, which silently rewrote a typed 0 at the next boot
+        // and made "no trees" / "no grass" unreachable from Settings (the
+        // frame-cost rig's bisect, and any player on a weak machine). The
+        // clamps still bite at the ceilings and at 0; the shared range
+        // constants are the ones the terrain code counts with, so the config
+        // cannot admit a value the streams would refuse.
+        state.settings.tree_density = self.tree_density.clamp(
+            crate::terrain::planet_chunks::TREE_DENSITY_MIN,
+            crate::terrain::planet_chunks::TREE_DENSITY_MAX,
+        );
+        state.settings.grass_density = self.grass_density.clamp(
+            crate::terrain::grass::GRASS_COVER_MIN,
+            crate::terrain::grass::GRASS_COVER_MAX,
+        );
+        state.settings.grass_detail = self.grass_detail.clamp(0.0, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.shadow_strength = self.shadow_strength;

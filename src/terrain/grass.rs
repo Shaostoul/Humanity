@@ -159,8 +159,47 @@ pub fn grass_peak_per_m2() -> f32 {
     // per tiller with width compensating, so it cannot move leaf area at all.
     // The distinction is the whole point - the operator wanted thick grass and
     // thin forest, and one slider could not express that.
-    GRASS_TARGET_LAI * crate::terrain::planet_chunks::grass_density()
+    grass_peak_per_m2_at(crate::terrain::planet_chunks::grass_density())
+}
+
+/// Legal range of the COVERAGE setting (`grass_density` in Settings and
+/// `AppConfig`). ZERO MEANS NO GRASS (2026-09-18): the floor used to be 0.1,
+/// so a player on a weak machine, or the frame-cost rig bisecting "is it the
+/// grass?", could not turn the layer off from the GUI, and a typed 0 was
+/// rewritten to 0.1 at the next boot. 1.0 is a real turf (LAI ~3.3); 3.0 is
+/// deep meadow.
+pub const GRASS_COVER_MIN: f32 = 0.0;
+pub const GRASS_COVER_MAX: f32 = 3.0;
+
+/// The peak formula with COVERAGE AS AN ARGUMENT: `grass_peak_per_m2` is this
+/// at the live setting. Pure so a caller can cost a value that is not live
+/// yet (the Settings page, while the player is still dragging) and so the
+/// harvest can be tested at cover 0 without touching the process-wide atomic
+/// that every other grass test reads. Out-of-range and NaN covers clamp to
+/// the legal range; NaN lands on the floor, which is "no grass".
+#[inline]
+pub fn grass_peak_per_m2_at(cover: f32) -> f32 {
+    let cover = if cover.is_nan() {
+        GRASS_COVER_MIN
+    } else {
+        cover.clamp(GRASS_COVER_MIN, GRASS_COVER_MAX)
+    };
+    GRASS_TARGET_LAI * cover
         / (GRASS_LEAF_AREA_UNIT * GRASS_MEAN_H2_M2 * (1.0 + GRASS_FILLER_LAI_SHARE))
+}
+
+/// IS THE GRASS LAYER ON AT ALL, from the two Settings values that can turn it
+/// off. Cover 0 means nothing to harvest (the peak density is 0, so every
+/// cell's count is 0); detail 0 means nothing to draw, and rather than build
+/// a zero-blade mesh the frame loop simply skips the harvest for it too. The
+/// frame loop asks this ONCE per frame before the harvest; it is the only
+/// place the "0 = off" rule for grass has to be known.
+///
+/// NaN and negatives read as off: a corrupt value should cost nothing and be
+/// obvious, not draw a sward at some invented density.
+#[inline]
+pub fn grass_layer_on(cover: f32, detail: f32) -> bool {
+    cover > 0.0 && detail > 0.0
 }
 /// Density at `GRASS_MID_M`, tillers per m^2.
 #[inline]
@@ -258,7 +297,12 @@ pub const GRASS_FILLER_FRACTION: f32 = 9.5 / 45.0;
 /// distance ramp.
 #[inline]
 pub fn grass_filler_per_m2() -> f32 {
-    grass_peak_per_m2() * GRASS_FILLER_FRACTION
+    grass_filler_per_m2_at(crate::terrain::planet_chunks::grass_density())
+}
+/// The filler peak with coverage as an argument (see `grass_peak_per_m2_at`).
+#[inline]
+pub fn grass_filler_per_m2_at(cover: f32) -> f32 {
+    grass_peak_per_m2_at(cover) * GRASS_FILLER_FRACTION
 }
 /// Height of a filler instance as a fraction of the tussock height the same
 /// spot would grow. 0.40-0.65 of a 0.24-0.52 m sward is 10-34 cm, i.e.
@@ -709,6 +753,36 @@ pub fn near_grass_instances(
     depth: u8,
     max_n: usize,
 ) -> Vec<NearGrass> {
+    near_grass_instances_at_cover(
+        def,
+        source,
+        albedo,
+        center_dir,
+        far_m,
+        margin_m,
+        depth,
+        max_n,
+        crate::terrain::planet_chunks::grass_density(),
+    )
+}
+
+/// The harvest with COVERAGE AS AN ARGUMENT. `near_grass_instances` is this
+/// at the live Settings value; this form exists so a test can prove what
+/// cover 0 does (nothing) without writing the process-wide atomic that every
+/// other grass test reads under the parallel harness, the same reason the
+/// tree harvest takes its density as an argument (`near_trees.rs`, v0.1111).
+#[allow(clippy::too_many_arguments)]
+pub fn near_grass_instances_at_cover(
+    def: &PlanetDef,
+    source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
+    center_dir: DVec3,
+    far_m: f64,
+    margin_m: f64,
+    depth: u8,
+    max_n: usize,
+    cover: f32,
+) -> Vec<NearGrass> {
     let mut out: Vec<NearGrass> = Vec::new();
     let center = center_dir.normalize();
     let lat_c = center.y.clamp(-1.0, 1.0).asin();
@@ -748,8 +822,13 @@ pub fn near_grass_instances(
     // `GRASS_TARGET_LAI` and `veg_density` is not read anywhere in this
     // function. Turning quality down costs blade DETAIL (`grass_detail_for`),
     // never ground cover.
-    let peak_tussock = grass_peak_per_m2();
-    let peak_filler = grass_filler_per_m2();
+    // Both from the `cover` ARGUMENT, not the atomic: at cover 0 both peaks
+    // are 0, every cell's count rounds to 0 and the class loop `continue`s
+    // before it touches a stream, so the harvest returns empty with nothing
+    // divided by zero on the way (the per-item threshold `item / count` is
+    // only ever computed for a count above zero).
+    let peak_tussock = grass_peak_per_m2_at(cover);
+    let peak_filler = grass_filler_per_m2_at(cover);
     // Metres per radian of latitude; longitude is this times cos(lat).
     let m_per_rad = def.radius.max(1.0);
     let coslat = lat_c.cos().max(0.05);
@@ -2267,6 +2346,87 @@ mod tests {
              re-rolled, which is the LOD-reshuffle bug v0.897 fixed for trees",
             b.len()
         );
+    }
+
+    /// COVER 0 IS OFF, AND CLEANLY SO: the peak is 0, the ramp times it is 0
+    /// at every distance, nothing on the way is NaN, and the layer gate reads
+    /// off. Pure functions only, so this runs beside every other grass test
+    /// without touching the process-wide atomic they all read.
+    #[test]
+    fn cover_zero_is_off_with_no_nan_anywhere_in_the_ramp() {
+        assert_eq!(grass_peak_per_m2_at(0.0), 0.0, "cover 0 must give a zero peak");
+        assert_eq!(grass_filler_per_m2_at(0.0), 0.0, "cover 0 must give a zero filler peak");
+        assert_eq!(grass_peak_per_m2_at(-2.0), 0.0, "below 0 clamps to 0, not to 0.1");
+        assert_eq!(grass_peak_per_m2_at(f32::NAN), 0.0, "NaN lands on the floor (off)");
+        assert_eq!(
+            grass_peak_per_m2_at(9.0),
+            grass_peak_per_m2_at(GRASS_COVER_MAX),
+            "the ceiling still bites"
+        );
+        // The live accessor is the same formula at the same value: the two
+        // must never be allowed to drift into two peaks.
+        assert_eq!(
+            grass_peak_per_m2(),
+            grass_peak_per_m2_at(crate::terrain::planet_chunks::grass_density())
+        );
+        // The ramp at cover 0, every half-metre from the camera to past the
+        // far edge: identically 0 and never NaN. This is what the draw-time
+        // gate would multiply by, if anything had been harvested.
+        let mut d = 0.0_f32;
+        while d <= grass_far_m() + 5.0 {
+            let v = grass_peak_per_m2_at(0.0) * grass_ramp_at(d);
+            assert!(v == 0.0 && !v.is_nan(), "cover 0 ramp at {d} m is {v}");
+            d += 0.5;
+        }
+        // The per-instance functions do not depend on cover at all, so they
+        // cannot be poisoned by it; pin that they stay finite at the extremes.
+        for thr in [0.0_f32, 0.5, 1.0] {
+            assert!(grass_appear_distance(thr).is_finite());
+            assert!(grass_live_emerge(thr, 0.0).is_finite());
+        }
+        // The layer gate: off when either knob is 0, or garbage; on otherwise.
+        assert!(!grass_layer_on(0.0, 0.6), "cover 0 must read as off");
+        assert!(!grass_layer_on(1.0, 0.0), "detail 0 must read as off");
+        assert!(!grass_layer_on(0.0, 0.0));
+        assert!(!grass_layer_on(-1.0, 1.0), "negative cover must read as off");
+        assert!(!grass_layer_on(f32::NAN, 1.0), "NaN cover must read as off");
+        assert!(!grass_layer_on(1.0, f32::NAN), "NaN detail must read as off");
+        assert!(grass_layer_on(1.0, 0.1), "a real turf at the bottom detail rung is on");
+        assert!(grass_layer_on(0.05, 1.0), "a sliver of cover is still on");
+    }
+
+    /// The same fact through the REAL harvest on REAL ground: at the Fuji
+    /// site that `grass_bases_sit_on_the_drawn_surface` proves grows a sward,
+    /// cover 1.0 harvests tillers and cover 0 harvests none. The positive
+    /// control is what makes the empty result mean something.
+    #[test]
+    fn harvest_at_cover_zero_emits_nothing_where_cover_one_grows_a_sward() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let center = dir_of(35.3, 138.8);
+        let at = |cover: f32| {
+            near_grass_instances_at_cover(&def, &src, Some(&albedo), center, 12.0, 0.0, 17, 4000, cover)
+        };
+        let sward = at(1.0);
+        assert!(
+            sward.len() >= 50,
+            "fixture: only {} strands at cover 1.0 - not a sward, so an empty result at 0 \
+             would prove nothing",
+            sward.len()
+        );
+        let none = at(0.0);
+        assert!(none.is_empty(), "cover 0 still harvested {} strands", none.len());
+        // And every strand of the positive control is finite, so the cover
+        // argument did not route a NaN into the per-instance fields either.
+        for g in &sward {
+            assert!(g.thr.is_finite() && g.height_m.is_finite(), "NaN in a harvested strand");
+        }
     }
 
     /// The density ramp must reach zero smoothly at GRASS_FAR_M. A layer that

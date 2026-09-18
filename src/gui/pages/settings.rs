@@ -2828,10 +2828,16 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // (v0.1106). They used to be one "vegetation" slider, which meant a
         // player who wanted thick grass under thin forest could not ask for it,
         // and turning quality down secretly stripped ground cover.
-        if widgets::labeled_slider(ui, theme, "Trees: forest density", &mut state.settings.tree_density, 0.1..=1.0) {
+        // ZERO MEANS OFF on all three (2026-09-18). The floors were 0.1, so a
+        // player on a weak machine (or the frame-cost rig bisecting "is it
+        // the trees?") could not ask for no vegetation at all, and a typed 0
+        // was rewritten to 0.1 at the next boot. The number box beside each
+        // slider is there so exactly 0 can be TYPED, not just dragged to; the
+        // range constants are the same ones the terrain code counts with.
+        if widgets::labeled_slider_entry(ui, theme, "Trees: forest density", &mut state.settings.tree_density, crate::terrain::planet_chunks::TREE_DENSITY_MIN..=crate::terrain::planet_chunks::TREE_DENSITY_MAX, crate::terrain::planet_chunks::TREE_DENSITY_MAX, 0.01) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland. Rebuilds terrain as you move, so the change appears patch by patch.");
+        widgets::setting_hint(ui, theme, hint, "How many trees grow per patch of land. 1.0 is dense forest, 0.6 is open woodland, 0 is NO TREES AT ALL (the cheapest setting: no tree cards are baked and no tree models are placed). Rebuilds terrain as you move, so the change appears patch by patch.");
         // GRASS DRAW DISTANCE (v0.1109). The operator's headline ask: "I would
         // like to see how the game performs when I extend the grass to render
         // further away." Raising this stretches the density ramp's last leg, so
@@ -2873,14 +2879,14 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, "The hard ceiling on how many tufts one harvest may produce. It exists so a bad combination of distance and ground cover cannot lock the game up; it is exposed so raising it is your decision rather than a code change. COST: memory and harvest time, both straight-line with the number. Grass stops looking better long before this stops rising.");
-        if widgets::labeled_slider(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, 0.1..=3.0) {
+        if widgets::labeled_slider_entry(ui, theme, "Grass: ground cover", &mut state.settings.grass_density, crate::terrain::grass::GRASS_COVER_MIN..=crate::terrain::grass::GRASS_COVER_MAX, crate::terrain::grass::GRASS_COVER_MAX, 0.02) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts. This is about how the world LOOKS, not how fast it runs.");
-        if widgets::labeled_slider(ui, theme, "Grass: blade detail", &mut state.settings.grass_detail, 0.1..=1.0) {
+        widgets::setting_hint(ui, theme, hint, "How much grass is on the ground. 1.0 is a real lawn or pasture; 3.0 is deep meadow you wade through; below 0.5 the ground starts showing between tufts; 0 is NO GRASS AT ALL (nothing is harvested or drawn, so the draw-distance and instance-cap controls above cost nothing). This is about how the world LOOKS, not how fast it runs.");
+        if widgets::labeled_slider_entry(ui, theme, "Grass: blade detail", &mut state.settings.grass_detail, 0.0..=1.0, 1.0, 0.01) {
             state.settings_dirty = true;
         }
-        widgets::setting_hint(ui, theme, hint, "How finely each tuft of grass is modelled. Turn this DOWN for frames: blades get fewer but wider, so the ground keeps exactly as much grass on it and only the close-up sharpness changes.");
+        widgets::setting_hint(ui, theme, hint, "How finely each tuft of grass is modelled. Turn this DOWN for frames: blades get fewer but wider, so the ground keeps exactly as much grass on it and only the close-up sharpness changes. 0.1 is the coarsest tuft; 0 switches the grass layer OFF entirely, same as ground cover 0.");
         if widgets::labeled_slider(ui, theme, "Water: wave mesh detail (14-20)", &mut state.settings.water_detail_depth, 14.0..=20.0) {
             state.settings_dirty = true;
         }
@@ -4186,11 +4192,10 @@ pub fn grass_ramp_area_m2(near: f32, mid: f32, far: f32) -> f32 {
 /// a value the player is still dragging (the atomic is only written by the
 /// render loop, one frame later).
 pub fn grass_peak_at_cover(cover: f32) -> f32 {
-    use crate::terrain::grass::{
-        GRASS_FILLER_LAI_SHARE, GRASS_LEAF_AREA_UNIT, GRASS_MEAN_H2_M2, GRASS_TARGET_LAI,
-    };
-    GRASS_TARGET_LAI * cover
-        / (GRASS_LEAF_AREA_UNIT * GRASS_MEAN_H2_M2 * (1.0 + GRASS_FILLER_LAI_SHARE))
+    // ONE formula (2026-09-18): this used to be a copy of the terrain
+    // module's arithmetic, which is exactly how an estimate and the thing it
+    // estimates drift apart. The pure form now lives beside the live one.
+    crate::terrain::grass::grass_peak_per_m2_at(cover)
 }
 
 /// Estimated grass instances DRAWN at a given draw distance and coverage:
@@ -4423,6 +4428,62 @@ mod veg_lod_range_tests {
         wild.grass_far_m = 1.0e9;
         wild.apply_to_gui_state(&mut state);
         assert_eq!(state.settings.grass_far_m, config::GRASS_FAR_MAX_M);
+    }
+
+    /// ZERO MEANS OFF, AND SURVIVES A RESTART (2026-09-18). The three
+    /// vegetation knobs used to clamp to a 0.1 floor in `apply_to_gui_state`,
+    /// so a player who typed 0 got 0.1 back at the next boot and "vegetation
+    /// off" was unreachable from the GUI (the frame-cost arc's open item). A
+    /// typed 0 must come back as 0; a negative must clamp to 0, not to 0.1;
+    /// and the ceilings must still bite.
+    #[test]
+    fn zero_vegetation_survives_a_config_round_trip_and_negatives_clamp_to_zero() {
+        let mut cfg = config::AppConfig::default();
+        cfg.tree_density = 0.0;
+        cfg.grass_density = 0.0;
+        cfg.grass_detail = 0.0;
+        let mut state = crate::gui::GuiState::default();
+        cfg.apply_to_gui_state(&mut state);
+        assert_eq!(state.settings.tree_density, 0.0, "tree_density 0 was rewritten at apply");
+        assert_eq!(state.settings.grass_density, 0.0, "grass_density 0 was rewritten at apply");
+        assert_eq!(state.settings.grass_detail, 0.0, "grass_detail 0 was rewritten at apply");
+        // The values the config writes back are the ones the state holds, so
+        // the next boot reads 0 again: a real round trip, not a one-way apply.
+        let back = config::AppConfig::from_gui_state(&state);
+        assert_eq!(back.tree_density, 0.0);
+        assert_eq!(back.grass_density, 0.0);
+        assert_eq!(back.grass_detail, 0.0);
+
+        let mut neg = config::AppConfig::default();
+        neg.tree_density = -0.5;
+        neg.grass_density = -2.0;
+        neg.grass_detail = -1.0;
+        neg.apply_to_gui_state(&mut state);
+        assert_eq!(state.settings.tree_density, 0.0, "negative tree_density must clamp to 0");
+        assert_eq!(state.settings.grass_density, 0.0, "negative grass_density must clamp to 0");
+        assert_eq!(state.settings.grass_detail, 0.0, "negative grass_detail must clamp to 0");
+
+        let mut wild = config::AppConfig::default();
+        wild.tree_density = 7.0;
+        wild.grass_density = 7.0;
+        wild.grass_detail = 7.0;
+        wild.apply_to_gui_state(&mut state);
+        assert_eq!(state.settings.tree_density, crate::terrain::planet_chunks::TREE_DENSITY_MAX);
+        assert_eq!(state.settings.grass_density, crate::terrain::grass::GRASS_COVER_MAX);
+        assert_eq!(state.settings.grass_detail, 1.0);
+
+        // The Settings sliders offer the same floor the config accepts: the
+        // page must not show a range the boot path would then refuse.
+        assert_eq!(crate::terrain::planet_chunks::TREE_DENSITY_MIN, 0.0);
+        assert_eq!(crate::terrain::grass::GRASS_COVER_MIN, 0.0);
+        // And the cost rows on the page stay finite at 0 cover: the estimate
+        // helpers are what the hint text prints while the player drags.
+        for far in [13.0_f32, 22.0, 80.0, config::GRASS_FAR_MAX_M] {
+            assert_eq!(grass_drawn_estimate(far, 0.0), 0.0);
+            assert_eq!(grass_harvest_estimate(far, 0.0), 0.0);
+        }
+        let within = grass_far_within_cap(config::GRASS_HARVEST_CAP_DEFAULT, 0.0);
+        assert!(within.is_finite() && within >= crate::terrain::grass::GRASS_MID_M + 1.0);
     }
 
     /// The help text makes two SEPARATE cost claims and they scale

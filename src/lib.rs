@@ -10552,9 +10552,20 @@ mod native_app {
                                 // distance, so an eye much higher than that
                                 // sees nothing anyway; the headroom covers
                                 // eye height, jumping and standing on a rock.
+                                // "0 = off" for BOTH grass knobs lives in one
+                                // pure predicate (2026-09-18): cover 0 has
+                                // nothing to harvest, detail 0 has nothing to
+                                // draw, and skipping the harvest here is what
+                                // keeps a zero-blade mesh away from the
+                                // renderer. The else branch below clears the
+                                // set, so flipping to 0 empties the sward on
+                                // the same frame.
                                 let grass_on = chunked_drawn
                                     && above_ground < 60.0
-                                    && state.gui_state.settings.grass_density > 0.001;
+                                    && crate::terrain::grass::grass_layer_on(
+                                        state.gui_state.settings.grass_density,
+                                        state.gui_state.settings.grass_detail,
+                                    );
                                 if grass_on {
                                     // The drawn ground's own LOD: the finest
                                     // patch on screen is the one under the
