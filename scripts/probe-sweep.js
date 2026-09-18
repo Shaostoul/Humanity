@@ -62,6 +62,13 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const G = require("./rig-graphics.js");
+// ONE MACHINE, for the whole sweep. See scripts/lib/machine-guard.js: the
+// launch-only check let another builder's instance arrive mid-sweep and inflate
+// one gpu.celestial reading by 9 ms, and it never looked at builds at all - a
+// concurrent cargo/rustc read 6.6 fps at the limb against a 15 ms GPU sum
+// (both 2026-09-18). Neither failure looked like a failure; both produced a
+// number.
+const MG = require("./lib/machine-guard.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -504,6 +511,24 @@ async function main() {
     process.exit(1);
   }
 
+  // ── ONE MACHINE, BEFORE THE BOOT ──────────────────────────────────────────
+  // Bounded wait for anyone else's renderer OR build to leave. The rig exe is
+  // declared "ours" so a leftover of our own (which setupRig kills a moment
+  // later) can never deadlock this. Recorded in the manifest either way: a
+  // sweep that sat waiting 150 s ran NEXT TO somebody, which is worth knowing
+  // when its numbers are compared with one that did not.
+  const rigExePath = path.join(RIG, "HumanityOS.exe");
+  const preBoot = MG.waitForFree({
+    own: { exe: rigExePath },
+    label: "pre-boot",
+    log: (m) => console.log(m),
+  });
+  if (!preBoot.free) {
+    log(`  !! BOOTING ANYWAY beside ${preBoot.blockers.length} competing process(es) after a ${preBoot.waited_s} s wait:`);
+    for (const p of preBoot.blockers) log(`  !!   ${MG.describe(p)}`);
+    log(`  !! Every capture in this sweep will be marked contaminated and perf-report will refuse to grade it.`);
+  }
+
   setupRig();
   // Fresh session: clear old screenshots + done-files + log so paths + boot
   // detection are unambiguous.
@@ -540,6 +565,16 @@ async function main() {
     env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_SHADERS_FROM_DISK: "1" },
   });
   const pid = child.pid;
+  // Ownership, handed to the guard around every capture: our spawned pid PLUS
+  // the rig exe path (the engine can delegate to a second copy of itself, whose
+  // pid we never see - the same reason `kill` uses taskkill /T).
+  const OWN = { pids: [pid], exe: rigExePath };
+  // Guard one capture window: sample competing processes before the shot and
+  // again after, and mark on the union. Checking both ends catches one that
+  // arrives and exits INSIDE the window, which is the exact shape of the V1
+  // contamination (the other rig was gone by the time the sweep ended).
+  const guardBegin = () => MG.foreignProcs(OWN);
+  const guardEnd = (rec, before) => MG.markCapture(rec, before, MG.foreignProcs(OWN), log);
   fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(pid));
   child.unref();
   let killed = false;
@@ -616,6 +651,10 @@ async function main() {
           const done = await waitFile("camera_done.json", 60000);
           if (!done || done.ok !== true) throw new Error(`camera: ${JSON.stringify(done)}`);
           await sleep((lad.settle_s ?? 8) * 1000);
+          // Same capture guard as the vantage loop: a rung's pair/cross
+          // captures are compared per pixel and per ms, so a second renderer
+          // anywhere in this window makes the rung unscoreable.
+          const rungPre = guardBegin();
           for (const half of ["a", "b"]) {
             if (half === "b") await sleep((lad.pair_gap_s ?? 3) * 1000);
             clearDone("screenshot_done.json");
@@ -689,6 +728,7 @@ async function main() {
           // sweep env carries HUMANITY_FRAME_COSTS=1).
           const fc = path.join(RIG, "debug", "frame_costs.json");
           if (fs.existsSync(fc)) fs.copyFileSync(fc, path.join(OUT, `${id}-costs.json`));
+          guardEnd(rec, rungPre);
           rec.ok = true;
         } catch (e) {
           log(`  rung FAILED: ${e.message}`);
@@ -712,7 +752,7 @@ async function main() {
       log(`discarded first pass: ${v0.id}`);
       try {
         if (v0.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0" }, v0.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto" }, v0.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
         }
         clearDone("camera_done.json");
@@ -725,6 +765,11 @@ async function main() {
       }
     }
 
+    // Is a wind / anim_clock determinism pin currently held? Showcase pins are
+    // sticky across cells, and these two are the ones that can silently make a
+    // LATER vantage's gate unfalsifiable (a frozen canopy passes every "does it
+    // move" test by standing still).
+    let pinsActive = false;
     for (const v of vantages) {
       log(`vantage ${v.id}`);
       const rec = {
@@ -737,8 +782,19 @@ async function main() {
       };
       try {
         if (v.showcase) {
-          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0" }, v.showcase)); // diag channels are sticky across cells (2026-09-05): reset unless the cell pins one
+          req("showcase_request.json", Object.assign({ map_diag: "0", cloud_top_bound: "0", cloud_uniform_step: "0", cloud_step_m: "0", wind: "auto", anim_clock: "auto" }, v.showcase)); // diag channels + the determinism pins are sticky across cells: reset unless the cell pins one
           await sleep(3500);
+          pinsActive = "wind" in v.showcase || "anim_clock" in v.showcase;
+        } else if (pinsActive) {
+          // The 8 vantages with NO showcase block would otherwise INHERIT a
+          // previous cell's wind / anim_clock pin, which is how a frozen
+          // canopy or a frozen sky ends up in a frame nobody asked to freeze.
+          // Only sent when a pin is actually live, so an ordinary sweep pays
+          // nothing for it.
+          req("showcase_request.json", { wind: "auto", anim_clock: "auto" });
+          await sleep(1500);
+          pinsActive = false;
+          log(`  released the previous vantage's wind / anim_clock pin`);
         }
         clearDone("camera_done.json");
         req("camera_request.json", v.camera);
@@ -771,6 +827,9 @@ async function main() {
           // cloud map needs a few seconds to re-converge before the shot.
           await sleep(v.hold_altitude ? 900 : 6000);
         }
+        // Capture window opens: anyone else on this GPU from here to the last
+        // shot below invalidates this vantage's timing numbers.
+        const guardPre = guardBegin();
         clearDone("screenshot_done.json");
         req("screenshot_request.json", {});
         const shot = await waitFile("screenshot_done.json", 60000);
@@ -824,6 +883,9 @@ async function main() {
           if (moved !== dd.files) log(`  !! profile dump: engine wrote ${dd.files} files, ${moved} moved`);
           log(`  profile atlas dumped: ${moved} files -> ${v.id}-profile/ (knob ${dd.knob}, flags ${dd.flags})`);
         }
+        // Capture window closes. Marks rec.contaminated when a foreign
+        // instance was up at either end.
+        guardEnd(rec, guardPre);
         rec.fps = typeof shot.fps === "number" ? Math.round(shot.fps * 10) / 10 : null;
         rec.frame_ms = typeof shot.frame_ms_avg === "number" ? Math.round(shot.frame_ms_avg * 10) / 10 : null;
         // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). Several
@@ -940,6 +1002,18 @@ async function main() {
     panics,
     captured: results.filter((r) => r.ok).length,
     total: results.length,
+    // ONE-MACHINE provenance for this run. `contaminated` counts vantages whose
+    // capture window overlapped another renderer or a build; perf-report.js
+    // refuses to grade those. `pre_boot_wait_s` is how long the pre-boot wait
+    // held: nonzero means somebody else had this machine minutes ago.
+    contaminated: results.filter((r) => r.contaminated).length,
+    machine_guard: {
+      own_pid: pid,
+      watched: MG.WATCHED,
+      pre_boot_wait_s: preBoot.waited_s,
+      pre_boot_free: preBoot.free,
+      pre_boot_blockers: preBoot.blockers.map((p) => ({ pid: p.pid, name: p.name, exe: p.exe })),
+    },
     ...gfx,
     graphics_changed_during_run: graphicsChanged,
     // The ladder spec rides along so ladder-score.mjs can score a sweep
@@ -951,6 +1025,18 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
   log(`manifest -> ${path.join(OUT, "manifest.json")}`);
   log(`captured ${manifest.captured}/${manifest.total}, panics=${panics}`);
+  // Loud at the END too: the tail of the log is what an agent or a tired
+  // operator actually reads before writing a number down.
+  if (manifest.contaminated) {
+    log(`!! ${manifest.contaminated} of ${manifest.total} vantage(s) CONTAMINATED - another renderer or a`);
+    log(`!! build shared this machine during their capture windows. Their fps / frame_ms / cpu.* / gpu.*`);
+    log(`!! figures are NOT readings of this build; perf-report.js will refuse to grade them. Re-run when`);
+    log(`!! the machine is free (the guard now waits for you before booting):`);
+    log(`!!   tasklist //FI "IMAGENAME eq HumanityOS.exe"`);
+    log(`!!   tasklist //FI "IMAGENAME eq cargo.exe"   &&  tasklist //FI "IMAGENAME eq rustc.exe"`);
+  } else if (preBoot.waited_s > 0) {
+    log(`machine guard: waited ${preBoot.waited_s} s before boot, clean capture windows after that.`);
+  }
   // Repeat the provenance at the END too: the tail of the log is what an agent
   // or a tired operator actually reads before writing down a verdict.
   const gfxCount = Object.keys(manifest.graphics || {}).length;

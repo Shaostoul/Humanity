@@ -1926,6 +1926,10 @@ mod native_app {
                 cloud_prev_spin: None,
                 cloud_map_sun_epoch: glam::DVec3::ZERO,
                 sea_state_override: None,
+                // Rig determinism pins, both off by default (showcase_request
+                // {"wind":...} / {"anim_clock":...} turn them on).
+                foliage_wind_override: None,
+                anim_clock_pin: None,
                 ocean_event_pin_request: None,
                 ocean_event_pin: None,
                 cloud_cover_override: None,
@@ -15066,19 +15070,22 @@ mod native_app {
                         // consume. Direction is a unit world vector; speed
                         // rides in w. The renderer pokes it into both camera
                         // buffers (colour + shadow) at offset 576.
+                        //
+                        // Routed through engine::ipc::published_foliage_wind
+                        // so the rig's {"wind":"0"} pin (EngineState::
+                        // foliage_wind_override) lands HERE, at the single
+                        // place the value reaches the shader, and therefore
+                        // pins the near-tree sway and the grass sway together.
+                        // That helper also holds the do-not-publish-a-literal-
+                        // zero rule: the shader reads speed <= 0 as "nobody is
+                        // publishing" and substitutes a 4 m/s breeze.
                         {
-                            let d = w.wind_direction;
-                            let len = (d.x * d.x + d.y * d.y + d.z * d.z).sqrt();
-                            if len > 1.0e-3 {
-                                state.renderer.foliage_wind = [
-                                    (d.x / len) as f32,
-                                    (d.y / len) as f32,
-                                    (d.z / len) as f32,
-                                    w.wind_speed,
-                                ];
-                            } else {
-                                state.renderer.foliage_wind[3] = w.wind_speed;
-                            }
+                            state.renderer.foliage_wind = crate::engine::ipc::published_foliage_wind(
+                                state.foliage_wind_override,
+                                w.wind_direction,
+                                w.wind_speed,
+                                state.renderer.foliage_wind,
+                            );
                         }
                         // Sea state from wind (v0.909): 2 m/s or less reads
                         // glassy, ~15 m/s is a full storm sea. The showcase
@@ -18529,7 +18536,15 @@ mod native_app {
                                         water_mats.contains(&o.material),
                                     )
                                 });
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
+                                // The 5th argument is this pass's ANIMATION CLOCK: live wall time unless the rig
+                                // pinned it (showcase_request {"anim_clock":"300"}). The pass stamps it into
+                                // sun_color.w on BOTH the colour and the shadow camera buffers, and the vertex
+                                // wind branch, the ocean wave phase and the cloud advection are all sines of it.
+                                // Pinning it is the only way two boots of one exe produce comparable forest
+                                // pixels: the sway's amplitude floor is wind-independent, so the wind pin alone
+                                // cannot freeze a canopy. tests/rig_pin_lint.rs requires the pin AT every call
+                                // site of this function, which is why it is written out here rather than hoisted.
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.anim_clock_pin.unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

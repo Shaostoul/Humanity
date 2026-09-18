@@ -881,6 +881,28 @@ pub(crate) struct EngineState {
     /// Dev/showcase pin for the ocean sea state (None = follow the game
     /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
     pub(crate) sea_state_override: Option<f32>,
+    /// Dev/showcase pin for the wind speed the VEGETATION sees, m/s (None =
+    /// follow the game weather). Set via showcase_request {"wind":"0"|"auto"}.
+    /// Applied at the single publish site in lib.rs through
+    /// `ipc::published_foliage_wind`, so the near-tree sway and the grass sway
+    /// are pinned by the same value. The ocean, clouds and HUD keep reading the
+    /// simulated wind - this is the rig's sway input, not a weather override.
+    pub(crate) foliage_wind_override: Option<f32>,
+    /// Dev/showcase pin for the CELESTIAL-pass animation clock in seconds
+    /// (None = live, app-start-relative). Set via showcase_request
+    /// {"anim_clock":"300"|"auto"}; consumed at the single
+    /// `render_celestial_onto` call in lib.rs, which stamps it into both the
+    /// colour and the shadow camera buffers at `sun_color.w`.
+    ///
+    /// Exists because the foliage sway is a sine of that clock with a
+    /// wind-independent amplitude floor, so two boots of one exe could never
+    /// produce comparable forest pixels no matter what the wind did: 42 to 44
+    /// percent of the frame differed, all of it foliage and its shadows
+    /// (docs/design/frame-cost-arc.md, "V1 outcome"). Freezes the ocean wave
+    /// phase and cloud advection with it, so it is an identity-proof knob, not
+    /// a sweep default - a frozen clock makes every "does it move" gate
+    /// unfalsifiable.
+    pub(crate) anim_clock_pin: Option<f32>,
     /// Dev/showcase request for an ocean disaster event pin (ABYSSAL rung 2):
     /// showcase_request {"ocean_event":"tsunami"|"rogue"|"maelstrom"|
     /// "hurricane"|"off"}, optional "ocean_event_bearing" in radians in the

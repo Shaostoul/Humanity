@@ -36,7 +36,18 @@ const baseById = base ? Object.fromEntries(base.vantages.map((v) => [v.id, v])) 
 const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
-console.log(`\nPerf sweep  ${m.stamp}   captured ${m.captured}/${m.total}   panics ${m.panics}`);
+console.log(
+  `\nPerf sweep  ${m.stamp}   captured ${m.captured}/${m.total}   panics ${m.panics}` +
+    (m.contaminated ? `   CONTAMINATED ${m.contaminated}` : "")
+);
+// A manifest with no `contaminated` key at all predates the mid-sweep machine
+// guard (2026-09-18), so nothing in it can say whether a second renderer or a
+// build was up. Say so rather than letting the table imply a clean machine.
+if (!("contaminated" in m)) {
+  console.log("machine     UNRECORDED (manifest predates the mid-sweep guard - cannot say what else was running)");
+} else if (m.machine_guard && m.machine_guard.pre_boot_wait_s > 0) {
+  console.log(`machine     waited ${m.machine_guard.pre_boot_wait_s} s for a competing process before booting`);
+}
 // Which settings produced these numbers. A sweep manifest from before
 // 2026-08-02 has no record at all, and that is worth saying out loud rather
 // than letting the table imply the readings are comparable to a current one.
@@ -61,7 +72,29 @@ console.log("-".repeat(base ? 78 : 60));
 
 let worst = 0;
 let belowFloor = 0;
+let contaminated = 0;
 for (const v of m.vantages) {
+  // ONE MACHINE, for the whole sweep (scripts/lib/machine-guard.js). A capture
+  // whose window overlapped another renderer or a build is not a reading of
+  // this build. Both shapes happened on 2026-09-18: a mid-sweep second instance
+  // put 75.79 ms in a table where every clean boot read 66.8 to 67.1, and a
+  // concurrent cargo/rustc read 6.6 fps at the limb against a 15 ms GPU sum. So
+  // this report does not grade such a capture, does not compare it to a
+  // baseline, and exits non-zero - a missing number is recoverable, a wrong one
+  // is not.
+  if (v.contaminated) {
+    contaminated++;
+    const who =
+      (v.contaminated_by || [])
+        .map((p) => `${p.name || "HumanityOS.exe"} ${p.pid}`)
+        .join(", ") || "unknown process";
+    console.log(
+      pad(v.id, 26) + padL(v.fps ?? "-", 8) + padL(v.frame_ms ?? "-", 8) + padL(v.perf_floor_fps ?? "-", 8) +
+        (base ? padL("-", 10) : "") + `  CONTAMINATED (${who})`
+    );
+    worst = 2;
+    continue;
+  }
   if (!v.ok) {
     console.log(pad(v.id, 26) + padL("-", 8) + padL("-", 8) + padL("-", 8) + (base ? padL("-", 10) : "") + "  CAPTURE FAILED");
     worst = 2;
@@ -89,6 +122,13 @@ for (const v of m.vantages) {
   );
 }
 console.log("-".repeat(base ? 78 : 60));
+if (contaminated) {
+  console.log(`${contaminated} vantage(s) CONTAMINATED: another renderer or a build shared the machine during`);
+  console.log("the capture. Those numbers are not readings of this build and were NOT graded. For a clean sweep:");
+  console.log('  tasklist //FI "IMAGENAME eq HumanityOS.exe"    # wait until only your own rig is listed');
+  console.log('  tasklist //FI "IMAGENAME eq rustc.exe"         # and until no build is compiling');
+  console.log("  just probe-sweep --only <vantage>              # the guard now waits for you before booting");
+}
 if (belowFloor) console.log(`${belowFloor} vantage(s) below the advisory fps floor.`);
 if (m.panics) console.log(`WARNING: ${m.panics} PANIC(s) in the probe log this sweep.`);
 if (worst === 0) console.log("All captured vantages at/above floor.\n");
