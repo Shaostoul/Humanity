@@ -37,18 +37,39 @@
 > 31.4 to 5.3, blue marble 5.0 to 1.1, limb 63.5 to 13.3 (10.9 to 24.1 fps),
 > Fuji 85 to 69.
 >
+> **P2 SHIPPED (2026-09-18, the per-class pipelines):** the ten megashader
+> PSOs now compile per material class through the same override switches:
+> General (all three shell branches off: the five classic PSOs and the two
+> terrain PSOs), Shell (atmosphere and ocean on, cloud off: the atmosphere and
+> water shells) and Cloud (only the cloud march on: the type-15 deck). A
+> `shader_class(material_type)` classifier is pinned to the WGSL guard bands
+> by a test that was proven red; the draw loops select the PSO by class
+> (`transparent_for` / `overlay_for`) and switch only on change; the
+> celestial transparent list is stable-sorted General before shells. At the
+> operator's settings: limb `gpu.celestial_t` 25.0 to 0.37 ms (24.5 to 30
+> fps, the floor of 25 met), Sahara 10.4 to 0.19 with the sky rows
+> bit-identical, ocean-storm-low 48.8 to 1.39 (the water shell was paying the
+> cloud march too, so W1 below is re-scoped), the home `gpu.scene` 11.4 to
+> 3.0, the console room 82.9 to 16.8 ms with verify-screens 12/12, the moon
+> unchanged. The operator then approved the modular shader system as the next
+> rungs, not a rewrite: keep the part-file assembly and the switches, split
+> the entry per class (P3), defer a data-driven material graph.
+>
 > **Next, in order** (ms saved per unit of risk, `docs/design/frame-cost-arc.md`):
-> P2, the same permutation for the shell draws through the transparent
-> pipeline (the limb's remaining 26 ms is the atmosphere shell, and phase A
-> showed it drops fifty times once the cloud branch is gone; the interior's
-> per-pixel floor is the same module through the opaque pipeline, so P2 also
-> answers the console room's 23 ns per pixel); V1 near-tree frustum cull with
-> the coverage arithmetic untouched (the trap that broke v0.995, v0.1107,
-> v0.1110.1); I1 the two console-room vantages as real fixtures plus the
-> screen-emitter hoist; W1 water depth prepass plus backface cull (a look
-> call, not a silent perf win); then clustered lights, interior culling, a
-> near-tree LOD ladder. Rejected on evidence: a masked-discard variant, an
-> interior depth prepass, a G-buffer.
+> P3 (IN FLIGHT) splits `fs_main` into per-class entry points (surface,
+> terrain, vegetation, water, shell, cloud) sharing the part files, each PSO
+> compiling only its entry, with a phase A that first measures whether folding
+> the terrain and vegetation blocks out of an interior fragment moves
+> `gpu.scene` (register pressure), so the doc claims only what was measured;
+> V1 (IN FLIGHT) near-tree frustum cull with the coverage arithmetic untouched
+> (the trap that broke v0.995, v0.1107, v0.1110.1); I1 the screen-emitter
+> hoist plus `gpu.screen_scene` ids (the two console-room vantages
+> `console-face-6` and `console-face-3` now exist as fixtures, floor 10);
+> W1 re-scoped: the water shell is 1.4 ms after P2, so the depth prepass plus
+> backface cull is now a fidelity and ordering call (deterministic nearest
+> fragment instead of heap-order blend), not a perf item; then clustered
+> lights, interior culling, a near-tree LOD ladder. Rejected on evidence: a
+> masked-discard variant, an interior depth prepass, a G-buffer.
 >
 > **Instrumentation landed (v0.1315):** `cpu.frame_total`, `cpu.present_wait`
 > and `cpu.fps_cap_sleep`; scopes on the screen surface pass, the camera sky
@@ -69,8 +90,12 @@
 > rig. **Fixed the same day:** `vsync: false` killed the app on its first
 > rendered frame (BUG-077, a surface reconfigure inside the frame arm; now
 > deferred to the next frame's start, proven with a negative control).
-> **Open:** Settings clamps silently rewrite density and detail values so
-> "vegetation off" is unreachable from the GUI.
+> **Closed the same day:** the Settings clamps that rewrote a typed 0 to 0.1
+> at the next boot. Zero now means off for tree density, grass cover and blade
+> detail (`AppConfig::apply` clamps to the shared range constants,
+> `trees_in_cell` answers 0 in both vegetation streams, the grass harvest is
+> gated by one pure predicate), six headless tests with positive controls on
+> real ground; no web mirror exists for these sliders.
 
 > **THE IN-WORLD SCREENS LADDER, 2026-09-16.** Operator direction:
 > the native app pages (the real inventory page, not the web page) as
