@@ -268,9 +268,10 @@ pub fn validate_wgsl(source: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The permutation switches (P1) must be DECLARED by the module, or the
-/// pipeline constants that switch the terrain PSOs' shell branches off bind
-/// to nothing.
+/// The permutation switches (P1, and the P2 class split) must be DECLARED
+/// by the module, or the pipeline constants that switch the general and
+/// terrain PSOs' shell branches off (and the cloud march off the shell
+/// PSOs) bind to nothing.
 ///
 /// Why this is a refusal and not a warning: naga's override substitution
 /// returns a module UNCHANGED when it declares no overrides, and wgpu 24

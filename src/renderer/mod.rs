@@ -75,7 +75,7 @@ pub const SUN_SHADOW_EXTENT_M: f32 = 1500.0;
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
-use pipeline::{ObjectUniforms, Pipeline};
+use pipeline::{ObjectUniforms, Pipeline, ShaderClass};
 
 /// Max opaque/transparent objects drawn per frame (dynamic uniform buffer capacity + the per-pass
 /// draw cap). Bumped 256 -> 1024 in v0.528: a fully built home (the dense indoor garden alone is
@@ -2775,6 +2775,9 @@ impl Renderer {
                     Some(m) => m,
                     None => continue,
                 };
+                // Opaque list, general render PSO, every shell branch folded
+                // away (P2): a shell here would draw as the default look.
+                self.debug_assert_opaque_class(material, "scene opaque pass");
 
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
@@ -2876,6 +2879,9 @@ impl Renderer {
                     Some(m) => m,
                     None => continue,
                 };
+                // Opaque list, general render PSO, every shell branch folded
+                // away (P2): a shell here would draw as the default look.
+                self.debug_assert_opaque_class(material, "scene opaque pass");
 
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
@@ -2956,7 +2962,6 @@ impl Renderer {
                 ..Default::default()
             });
 
-            render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
             // Slot 1: zero per-instance data for classic draws (increment 2).
             render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
@@ -2966,11 +2971,26 @@ impl Renderer {
             self.upload_object_uniforms(objects.iter());
 
             let mut bound_material = usize::MAX;
-            let mut bound_material = usize::MAX;
+            // The pipeline is picked by the material's CLASS (P2,
+            // pipeline.rs `shader_class`): glass, holograms and particles
+            // ride the general transparent PSO, a shell rides the shell or
+            // cloud one. Switched only when the class changes, so a list of
+            // general objects binds one pipeline once, as before.
+            let mut bound_class: Option<ShaderClass> = None;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                let class = pipeline::shader_class(material.material_type);
+                if bound_class != Some(class) {
+                    bound_class = Some(class);
+                    render_pass.set_pipeline(self.pipeline.transparent_for(class));
+                    // Rebind slot 1 and force the material rebind after a
+                    // pipeline switch, the same belt-and-braces the v0.1060
+                    // water switch uses.
+                    render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+                    bound_material = usize::MAX;
+                }
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 // Material bind groups (2 + 3) skipped when unchanged
@@ -3040,7 +3060,6 @@ impl Renderer {
                 }),
                 ..Default::default()
             });
-            render_pass.set_pipeline(&self.pipeline.overlay_pipeline);
             // Slot 1: zero per-instance data for classic draws (increment 2).
             render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
@@ -3048,11 +3067,21 @@ impl Renderer {
             let uniform_align = 256_u64;
             self.upload_object_uniforms(objects.iter());
             let mut bound_material = usize::MAX;
-            let mut bound_material = usize::MAX;
+            // Pipeline by material class (P2), switched only on a class
+            // change: the gizmo list is all general, so this binds the
+            // general overlay PSO once. See `Pipeline::overlay_for`.
+            let mut bound_class: Option<ShaderClass> = None;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                let class = pipeline::shader_class(material.material_type);
+                if bound_class != Some(class) {
+                    bound_class = Some(class);
+                    render_pass.set_pipeline(self.pipeline.overlay_for(class));
+                    render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+                    bound_material = usize::MAX;
+                }
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 // Material bind groups (2 + 3) skipped when unchanged
@@ -4636,6 +4665,11 @@ impl Renderer {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                // The opaque list draws through the general render PSO,
+                // which has every shell branch folded away (P2): a shell
+                // here would render as the default look. Debug-asserted at
+                // every opaque draw site; the shells live in `transparent`.
+                self.debug_assert_opaque_class(material, "celestial classic loop");
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 // Material bind groups (2 + 3) skipped when unchanged
@@ -4806,7 +4840,6 @@ impl Renderer {
             // hidden by its own planet while the limb halo survives. Few and far
             // apart, so no depth sorting needed. (v0.763)
             if !transparent.is_empty() {
-                render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
                 // Slot 1: zero per-instance data for classic draws (increment 2).
                 render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 let mut bound_material = usize::MAX;
@@ -4835,27 +4868,37 @@ impl Renderer {
                 // atmosphere: nothing is drawn after the sea, so its depth
                 // cannot wrongly occlude the atmosphere or cloud shells. From
                 // orbit the flag stays false and the old behaviour is kept.
+                //
+                // P2 (the class split) folds that switch into the general
+                // pipeline selection below: the PSO is chosen by (material
+                // class, overlay-or-transparent), where the class comes from
+                // `shader_class` (the atmosphere and water shells are Shell,
+                // the cloud shell is Cloud, the sun's blended core and halo
+                // are General) and overlay is true only for a water caster
+                // while the depth-write gate holds. The lib.rs sort keeps
+                // the list grouped (general first, then the shells, water
+                // last inside an atmosphere), so this switches a handful of
+                // times per frame, never per patch.
                 let water_dw = self.water_depth_write && !self.water_caster_mats.is_empty();
-                let mut on_water_pipe = false;
+                let mut bound_pipe: Option<(ShaderClass, bool)> = None;
                 for (i, obj) in transparent.iter().enumerate() {
                     let slot = objects.len() + i;
                     if slot >= MAX_OBJECTS { break; }
-                    if water_dw {
-                        let is_water = self.water_caster_mats.contains(&obj.material);
-                        if is_water != on_water_pipe {
-                            on_water_pipe = is_water;
-                            render_pass.set_pipeline(if is_water {
-                                &self.pipeline.overlay_pipeline
-                            } else {
-                                &self.pipeline.transparent_pipeline
-                            });
-                            render_pass
-                                .set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
-                            bound_material = usize::MAX;
-                        }
-                    }
                     let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                     let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                    let class = pipeline::shader_class(material.material_type);
+                    let overlay = water_dw && self.water_caster_mats.contains(&obj.material);
+                    if bound_pipe != Some((class, overlay)) {
+                        bound_pipe = Some((class, overlay));
+                        render_pass.set_pipeline(if overlay {
+                            self.pipeline.overlay_for(class)
+                        } else {
+                            self.pipeline.transparent_for(class)
+                        });
+                        render_pass
+                            .set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+                        bound_material = usize::MAX;
+                    }
                     let dynamic_offset = (uniform_align as u32) * (slot as u32);
                     render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                     // Material bind groups (2 + 3) skipped when unchanged
@@ -5430,6 +5473,8 @@ impl Renderer {
                     Some(m) => m,
                     None => continue,
                 };
+                // Opaque batches, general render PSO (P2): no shell here.
+                self.debug_assert_opaque_class(material, "instanced batches");
 
                 // Material bind groups (2 + 3) skipped when unchanged
                 // (v0.891): consecutive batches can share a material.

@@ -62,6 +62,27 @@ pub struct Pipeline {
     /// (depth_compare Always) so build-mode gizmos (corner orbs, the avatar, rings) draw ON TOP of
     /// the world -- visible through walls + floors. No depth write either.
     pub overlay_pipeline: wgpu::RenderPipeline,
+    /// The SHELL class's transparent PSO (increment P2 of the frame-cost arc):
+    /// the same blend / cull / depth state as `transparent_pipeline`, compiled
+    /// with the atmosphere and ocean branches kept and the cloud branch OFF.
+    /// The atmosphere shell (type 14) and the water shell (type 16) draw
+    /// through it. Never reach for these fields directly from a draw loop:
+    /// `transparent_for(shader_class(...))` picks the PSO by the material's
+    /// class, so a shell can never be drawn by a pipeline that folded its
+    /// branch away.
+    pub shell_transparent_pipeline: wgpu::RenderPipeline,
+    /// The SHELL class's overlay PSO (P2): `overlay_pipeline`'s state (alpha
+    /// blend, no cull, depth WRITE), which the water shell uses when
+    /// `water_depth_write` is on (v0.1060), compiled like
+    /// `shell_transparent_pipeline`. Selected through `overlay_for`.
+    pub shell_overlay_pipeline: wgpu::RenderPipeline,
+    /// The CLOUD class's transparent PSO (P2): `transparent_pipeline`'s state
+    /// with ONLY the cloud branch kept. The cloud shell (type 15) is the one
+    /// material whose fragments genuinely run the volumetric march, and it
+    /// is the only pipeline whose fragments pay for the march's private
+    /// tables: the whole point of the class split. Selected through
+    /// `transparent_for`.
+    pub cloud_transparent_pipeline: wgpu::RenderPipeline,
     /// Terrain-batch opaque variant (draw-batching increments 1+2):
     /// compiled from the BATCH shader module (per-instance attribute
     /// object source), group 1 is `patch_bind_group_layout`. Same
@@ -126,8 +147,9 @@ pub struct Pipeline {
 /// thirteen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RebuiltPipelines {
-    /// PSOs whose fragment entry is `fs_main` or `fs_shadow`: the seven
-    /// registered in `PSO_DEAD_BRANCHES`.
+    /// PSOs whose fragment entry is `fs_main` or `fs_shadow`: the ten
+    /// registered in `PSO_DEAD_BRANCHES` (five general, two shell, one
+    /// cloud, two terrain-batch).
     pub megashader: usize,
     /// The cloud fullscreen PSOs (`fs_cloud_*` entries), exempt from the
     /// registry because they never enter `fs_main`.
@@ -503,15 +525,18 @@ impl Pipeline {
                 push_constant_ranges: &[],
             });
 
-        let (
-            render_pipeline,
-            transparent_pipeline,
-            overlay_pipeline,
-            shadow_pipeline,
-            shadow_pipeline_alpha,
-            patch_render_pipeline,
-            patch_shadow_pipeline,
-        ) = Self::build_all_pipelines(
+        let MegashaderPsos {
+            render: render_pipeline,
+            transparent: transparent_pipeline,
+            overlay: overlay_pipeline,
+            shell_transparent: shell_transparent_pipeline,
+            shell_overlay: shell_overlay_pipeline,
+            cloud_transparent: cloud_transparent_pipeline,
+            shadow: shadow_pipeline,
+            shadow_alpha: shadow_pipeline_alpha,
+            patch_render: patch_render_pipeline,
+            patch_shadow: patch_shadow_pipeline,
+        } = Self::build_all_pipelines(
             device,
             surface_format,
             shader,
@@ -546,6 +571,9 @@ impl Pipeline {
             shadow_pipeline_alpha,
             transparent_pipeline,
             overlay_pipeline,
+            shell_transparent_pipeline,
+            shell_overlay_pipeline,
+            cloud_transparent_pipeline,
             patch_render_pipeline,
             patch_shadow_pipeline,
             cloud_light_bake_pipeline,
@@ -666,7 +694,7 @@ impl Pipeline {
         )
     }
 
-    /// Rebuild EVERY PSO compiled from the megashader module (the seven
+    /// Rebuild EVERY PSO compiled from the megashader module (the ten
     /// registry PSOs of `build_all_pipelines` plus the six cloud fullscreen
     /// PSOs) from a NEW module while keeping every bind group layout object
     /// intact (v0.924 megashader hot-reload): the layouts are what live bind
@@ -706,26 +734,30 @@ impl Pipeline {
                 ],
                 push_constant_ranges: &[],
             });
-        let (render, transparent, overlay, shadow, shadow_alpha, patch_render, patch_shadow) =
-            Self::build_all_pipelines(
-                device,
-                surface_format,
-                shader,
-                batch_shader,
-                &pipeline_layout,
-                &patch_pipeline_layout,
-            );
+        let fresh = Self::build_all_pipelines(
+            device,
+            surface_format,
+            shader,
+            batch_shader,
+            &pipeline_layout,
+            &patch_pipeline_layout,
+        );
         // Each fresh PSO is paired with the field it replaces, and the pair
         // tables are what the returned counts are read from. The `&mut`
         // borrows are of DISJOINT fields, which Rust allows side by side.
+        // The fresh set is a named struct (not a tuple) so a slot can only
+        // ever be paired with the PSO of the same name.
         let megashader_slots = [
-            (&mut self.render_pipeline, render),
-            (&mut self.transparent_pipeline, transparent),
-            (&mut self.overlay_pipeline, overlay),
-            (&mut self.shadow_pipeline, shadow),
-            (&mut self.shadow_pipeline_alpha, shadow_alpha),
-            (&mut self.patch_render_pipeline, patch_render),
-            (&mut self.patch_shadow_pipeline, patch_shadow),
+            (&mut self.render_pipeline, fresh.render),
+            (&mut self.transparent_pipeline, fresh.transparent),
+            (&mut self.overlay_pipeline, fresh.overlay),
+            (&mut self.shell_transparent_pipeline, fresh.shell_transparent),
+            (&mut self.shell_overlay_pipeline, fresh.shell_overlay),
+            (&mut self.cloud_transparent_pipeline, fresh.cloud_transparent),
+            (&mut self.shadow_pipeline, fresh.shadow),
+            (&mut self.shadow_pipeline_alpha, fresh.shadow_alpha),
+            (&mut self.patch_render_pipeline, fresh.patch_render),
+            (&mut self.patch_shadow_pipeline, fresh.patch_shadow),
         ];
         let megashader = megashader_slots.len();
         for (slot, fresh) in megashader_slots {
@@ -829,6 +861,46 @@ impl Pipeline {
             &self.shadow_pipeline_alpha
         } else {
             &self.shadow_pipeline
+        }
+    }
+
+    /// The TRANSPARENT-state PSO (alpha blend, no cull, depth test, no depth
+    /// write) a material of `class` must draw with (increment P2). One
+    /// accessor so every transparent draw loop picks the same way: the
+    /// class comes from `shader_class(material_type)`, never from a field
+    /// name typed at the call site, so a shell cannot be handed a pipeline
+    /// that compiled its branch away (the fragment would fall through to
+    /// the default look, a white blended sphere where the sky should be).
+    pub fn transparent_for(&self, class: ShaderClass) -> &wgpu::RenderPipeline {
+        match class {
+            ShaderClass::General => &self.transparent_pipeline,
+            ShaderClass::Shell => &self.shell_transparent_pipeline,
+            ShaderClass::Cloud => &self.cloud_transparent_pipeline,
+        }
+    }
+
+    /// The OVERLAY-state PSO (alpha blend, no cull, depth WRITE) for a
+    /// material of `class`. Two users: the editor gizmos (general) and the
+    /// water shell when `water_depth_write` is on (v0.1060, a shell). There
+    /// is deliberately no cloud overlay PSO: nothing routes the cloud shell
+    /// through an overlay list, and a PSO nothing draws with would cost a
+    /// full megashader compile at every boot and every hot reload for no
+    /// pixel. A cloud-class object in an overlay list is a caller bug; it
+    /// trips the debug assertion, and in release draws through the shell
+    /// overlay PSO where the type-15 dispatch is folded away, so the shell
+    /// renders as the default look (visibly wrong, never silently absent).
+    pub fn overlay_for(&self, class: ShaderClass) -> &wgpu::RenderPipeline {
+        match class {
+            ShaderClass::General => &self.overlay_pipeline,
+            ShaderClass::Shell => &self.shell_overlay_pipeline,
+            ShaderClass::Cloud => {
+                debug_assert!(
+                    false,
+                    "a cloud-class material (type 15) was routed to an overlay list; \
+                     the cloud shell only ever draws through transparent_for(Cloud)"
+                );
+                &self.shell_overlay_pipeline
+            }
         }
     }
 
@@ -962,7 +1034,7 @@ impl Pipeline {
         })
     }
 
-    /// ALL SEVEN PSO compiles shared by `new` and hot-reload's
+    /// ALL TEN PSO compiles shared by `new` and hot-reload's
     /// `recreate_pipelines`, in ONE thread scope (v0.1142). Measured
     /// 2026-08-15: `Pipeline::new` was 3.9 s of the 4.1 s
     /// shaders_and_pipelines boot span, because only the three PBR variants
@@ -970,8 +1042,11 @@ impl Pipeline {
     /// and two terrain-patch PSOs compiled serially after them on the main
     /// thread. Each PSO bakes a full megashader fragment through Naga->DXIL,
     /// they are all independent, and `create_render_pipeline` takes `&self`
-    /// on a Send+Sync Device, so all seven belong in the same scope: wall
-    /// time falls toward the slowest single compile.
+    /// on a Send+Sync Device, so all of them belong in the same scope: wall
+    /// time falls toward the slowest single compile (since P2 that is the
+    /// cloud transparent PSO, the only one that still bakes the march; the
+    /// general PSOs fold all three shell branches away and compile faster
+    /// than they did before the split).
     fn build_all_pipelines(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -979,15 +1054,7 @@ impl Pipeline {
         batch_shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
         patch_pipeline_layout: &wgpu::PipelineLayout,
-    ) -> (
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-        wgpu::RenderPipeline,
-    ) {
+    ) -> MegashaderPsos {
         // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
         // The three PBR variants (opaque / transparent glass / editor overlay)
         // each bake the WHOLE pbr_simple.wgsl fragment into a backend PSO, which
@@ -1005,11 +1072,11 @@ impl Pipeline {
                         cull: Option<wgpu::Face>,
                         depth_write: bool|
          -> wgpu::RenderPipeline {
-            // The classic PSOs keep every fs_main branch: the atmosphere and
-            // cloud shells draw through the transparent variant and the water
-            // shell through the overlay variant (PSO_DEAD_BRANCHES lists them
-            // with an empty dead set, so this map is empty and the shader's
-            // `= true` defaults rule).
+            // Which fs_main branches this PSO keeps is the registry's call
+            // (PSO_DEAD_BRANCHES, keyed by label): the general PSOs fold all
+            // three shells away, the shell PSOs keep the atmosphere and
+            // ocean, the cloud PSO keeps only the march. Switches the map
+            // does not name keep the shader's `= true` default.
             let constants = pso_constants(label);
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
@@ -1087,10 +1154,13 @@ impl Pipeline {
         //    Godot's SHADOW_CASTER alpha-scissor path).
         // `targets: &[]` matches the shadow pass's empty color_attachments.
         let make_shadow = |label: &'static str, cutout: bool| -> wgpu::RenderPipeline {
-            // Registered with an empty dead set (PSO_DEAD_BRANCHES): the
-            // classic shadow casters include the water shell, whose VERTEX
-            // displacement rides this module, and fs_shadow never reaches the
-            // three fs_main shells, so there is nothing to switch off here.
+            // Registered as GENERAL (all three switches off) in
+            // PSO_DEAD_BRANCHES, and that is a no-op for these two: fs_shadow
+            // never reaches the three fs_main shells and vs_main reads no
+            // switch (the water shell's VERTEX displacement rides this module
+            // untouched), so the constants change nothing the backend keeps.
+            // They are named anyway so every megashader PSO is compiled with
+            // an explicit permutation rather than an implicit default.
             let constants = pso_constants(label);
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
@@ -1133,8 +1203,20 @@ impl Pipeline {
                 cache: None,
             })
         };
+        // The three fixed-function states the class PSOs are built in. The
+        // SAME state for a general and a shell PSO of one flavour, by
+        // construction: only the label (and so the registry's constant map)
+        // differs, which is what makes routing by class a pure perf change
+        // with no blend / cull / depth consequence.
+        //  - Transparent: alpha blend, double-sided, depth test, no write.
+        //  - Overlay: alpha blend, double-sided, depth WRITE.
+        let transparent_state = (wgpu::BlendState::ALPHA_BLENDING, None, false);
+        let overlay_state = (wgpu::BlendState::ALPHA_BLENDING, None, true);
+        let pbr = |label: &'static str, (blend, cull, depth_write): (wgpu::BlendState, Option<wgpu::Face>, bool)| {
+            make_pbr(label, blend, cull, depth_write)
+        };
         std::thread::scope(|s| {
-            let opaque = s.spawn(|| {
+            let render = s.spawn(|| {
                 make_pbr(
                     "PBR-lite Render Pipeline",
                     wgpu::BlendState::REPLACE,
@@ -1142,47 +1224,67 @@ impl Pipeline {
                     true,
                 )
             });
-            let transparent = s.spawn(|| {
-                make_pbr(
-                    "PBR-lite Transparent Pipeline",
-                    wgpu::BlendState::ALPHA_BLENDING,
-                    None,
-                    false,
-                )
-            });
-            let overlay = s.spawn(|| {
-                make_pbr(
-                    "PBR-lite Overlay Pipeline",
-                    wgpu::BlendState::ALPHA_BLENDING,
-                    None,
-                    true,
-                )
-            });
+            let transparent = s.spawn(|| pbr("PBR-lite Transparent Pipeline", transparent_state));
+            let overlay = s.spawn(|| pbr("PBR-lite Overlay Pipeline", overlay_state));
+            // The class PSOs (P2): identical states, different registry rows.
+            let shell_transparent =
+                s.spawn(|| pbr("PBR-lite Shell Transparent Pipeline", transparent_state));
+            let shell_overlay = s.spawn(|| pbr("PBR-lite Shell Overlay Pipeline", overlay_state));
+            let cloud_transparent =
+                s.spawn(|| pbr("PBR-lite Cloud Transparent Pipeline", transparent_state));
             let shadow = s.spawn(|| make_shadow("Sun Shadow Pipeline", false));
             let shadow_alpha = s.spawn(|| make_shadow("Sun Shadow Alpha Pipeline", true));
             let patch_render = s.spawn(|| {
                 Self::build_patch_render(device, surface_format, batch_shader, patch_pipeline_layout)
             });
-            // The seventh compiles on this thread while the six workers run.
+            // The tenth compiles on this thread while the nine workers run.
             let patch_shadow =
                 Self::build_patch_shadow(device, batch_shader, patch_pipeline_layout);
-            (
-                opaque.join().expect("opaque PBR pipeline compile panicked"),
-                transparent
+            MegashaderPsos {
+                render: render.join().expect("opaque PBR pipeline compile panicked"),
+                transparent: transparent
                     .join()
                     .expect("transparent PBR pipeline compile panicked"),
-                overlay.join().expect("overlay PBR pipeline compile panicked"),
-                shadow.join().expect("sun shadow pipeline compile panicked"),
-                shadow_alpha
+                overlay: overlay.join().expect("overlay PBR pipeline compile panicked"),
+                shell_transparent: shell_transparent
+                    .join()
+                    .expect("shell transparent PBR pipeline compile panicked"),
+                shell_overlay: shell_overlay
+                    .join()
+                    .expect("shell overlay PBR pipeline compile panicked"),
+                cloud_transparent: cloud_transparent
+                    .join()
+                    .expect("cloud transparent PBR pipeline compile panicked"),
+                shadow: shadow.join().expect("sun shadow pipeline compile panicked"),
+                shadow_alpha: shadow_alpha
                     .join()
                     .expect("sun shadow alpha pipeline compile panicked"),
-                patch_render
+                patch_render: patch_render
                     .join()
                     .expect("patch render pipeline compile panicked"),
                 patch_shadow,
-            )
+            }
         })
     }
+}
+
+/// Every PSO `build_all_pipelines` compiles from the megashader, by name.
+/// A named struct rather than a ten-element tuple so `new` and
+/// `recreate_pipelines` cannot pair a fresh PSO with the wrong slot: a tuple
+/// of ten identical types would let the shell overlay land in the general
+/// overlay's field with no error anywhere, and the water would then draw
+/// through a pipeline whose ocean branch is folded away.
+struct MegashaderPsos {
+    render: wgpu::RenderPipeline,
+    transparent: wgpu::RenderPipeline,
+    overlay: wgpu::RenderPipeline,
+    shell_transparent: wgpu::RenderPipeline,
+    shell_overlay: wgpu::RenderPipeline,
+    cloud_transparent: wgpu::RenderPipeline,
+    shadow: wgpu::RenderPipeline,
+    shadow_alpha: wgpu::RenderPipeline,
+    patch_render: wgpu::RenderPipeline,
+    patch_shadow: wgpu::RenderPipeline,
 }
 
 // ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
@@ -1239,33 +1341,119 @@ pub const BRANCH_OCEAN: &str = "HAS_OCEAN_BRANCH";
 /// every pipeline that does NOT name a switch keeps that branch compiled in.
 pub const ALL_BRANCH_SWITCHES: &[&str] = &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN];
 
-/// The terrain-batch pipelines draw planet-surface patches only (material
-/// types 12 and 13, plus the sprite cards baked into the same meshes): never
-/// an atmosphere shell, a cloud shell or the water shell, which all draw
-/// through the classic pipelines in the transparent pass. So all three
-/// branches are dead there.
-pub const TERRAIN_DEAD_BRANCHES: &[&str] = ALL_BRANCH_SWITCHES;
+// ── MATERIAL CLASSES (increment P2 of the frame-cost arc) ──
+//
+// P1 proved the floor sits under EVERY PSO that compiles fs_main with the
+// cloud branch reachable: the Sahara's atmosphere shell, drawn through the
+// classic transparent PSO, fell from 10.44 to 0.19 ms the moment cloud_layer
+// was unreachable, and the console room's interior walls were paying the
+// same floor through the opaque PSO. So the material type space is cut into
+// CLASSES, each class gets pipelines compiled with exactly the branches its
+// materials dispatch to, and the draw loops pick the pipeline by the class
+// of the material in hand (`shader_class`, `Pipeline::transparent_for`,
+// `Pipeline::overlay_for`). The atmosphere shell no longer shares a program
+// with the cloud march; an interior wall no longer shares one with anything.
 
-/// (PSO label, the fs_main branches compiled OUT of it). An empty list means
-/// the pipeline keeps every branch (the shader defaults). The seven labels
-/// are exactly the PSOs `build_all_pipelines` creates from the megashader
-/// with an fs_main / fs_shadow fragment entry; the six cloud fullscreen
-/// PSOs are exempt (see the banner above) and are deliberately absent.
+/// Which family of fs_main programs a material draws with. The classes are
+/// defined by the three GUARDED dispatches in 90-fragment-main.wgsl, and
+/// nothing else: `shader_class` is pinned to the shader's own type bands by
+/// `shader_class_is_pinned_to_the_guarded_dispatch_bands`, so the classifier
+/// cannot drift from the WGSL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShaderClass {
+    /// Everything that is not one of the three shells: the procedural
+    /// surfaces 0..11, terrain 12 (which rides the patch pipelines anyway),
+    /// the legacy Fresnel atmosphere 13, the gas giants 17 and 18, textured
+    /// meshes 19, the vegetation family 20..23 and the screens 24. Its
+    /// pipelines fold all three shell branches away.
+    General,
+    /// The atmosphere shell (type 14, `atmosphere_scattering`) and the ocean
+    /// shell (type 16, `ocean_shell`). Its pipelines keep those two branches
+    /// and fold the cloud march away, which is what re-prices the limb.
+    Shell,
+    /// The cloud shell (type 15, `cloud_layer`), alone: the one class whose
+    /// fragments genuinely run the march, so the only pipeline that pays
+    /// for the march's per-invocation tables.
+    Cloud,
+}
+
+impl ShaderClass {
+    /// The fs_main branch switches this class's pipelines keep ON. Every
+    /// switch appears in exactly one class's live set (pinned by the
+    /// classifier test), so no two classes compile the same shell program.
+    pub const fn live_branches(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::General => &[],
+            ShaderClass::Shell => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN],
+            ShaderClass::Cloud => &[BRANCH_CLOUD],
+        }
+    }
+
+    /// The complement of `live_branches` over `ALL_BRANCH_SWITCHES`: what
+    /// `pso_constants` switches OFF for a pipeline of this class. Spelled
+    /// out per class (rather than computed) so it can be a `const` the
+    /// registry table below reads at compile time.
+    pub const fn dead_branches(self) -> &'static [&'static str] {
+        match self {
+            ShaderClass::General => ALL_BRANCH_SWITCHES,
+            ShaderClass::Shell => &[BRANCH_CLOUD],
+            ShaderClass::Cloud => &[BRANCH_ATMOSPHERE, BRANCH_OCEAN],
+        }
+    }
+}
+
+/// The class of a material, from its `material.params.z` type value, using
+/// the SAME half-open bands fs_main dispatches on (`>= 13.5 && < 14.5` is
+/// type 14, and so on). Pure, so a draw loop can call it per object without
+/// touching the renderer, and so the test can sweep the whole type space.
+pub fn shader_class(material_type: f32) -> ShaderClass {
+    let t = material_type;
+    if t >= 14.5 && t < 15.5 {
+        ShaderClass::Cloud
+    } else if (t >= 13.5 && t < 14.5) || (t >= 15.5 && t < 16.5) {
+        ShaderClass::Shell
+    } else {
+        ShaderClass::General
+    }
+}
+
+/// (PSO label, the fs_main branches compiled OUT of it), each row written
+/// as the class the PSO serves so the table reads as the routing it is.
+/// The ten labels are exactly the PSOs `build_all_pipelines` creates from
+/// the megashader with an fs_main / fs_shadow fragment entry; the six cloud
+/// fullscreen PSOs are exempt (see the banner above) and are deliberately
+/// absent.
 ///
-/// Why the classic five keep everything in this increment: the transparent
-/// variant draws the atmosphere and cloud shells, the overlay variant draws
-/// the water shell when depth-write is on, the opaque variant draws every
-/// prop, interior wall and near tree (and pruning THAT one is the interior
-/// arc's follow-up once the draw lists prove no shell ever goes through
-/// it), and the two sun-shadow PSOs never run fs_main at all.
+/// Row by row:
+/// - The three general colour PSOs draw every general material: opaque
+///   props, walls, planet bodies and near trees through the render PSO;
+///   glass, holograms, particles and the sun's blended core through the
+///   transparent PSO; the editor gizmos through the overlay PSO. None of
+///   them can draw a shell any more (the draw loops route by class), so all
+///   three shell branches are folded away. The opaque list is asserted
+///   shell-free in debug builds at every opaque draw site.
+/// - The two shell PSOs draw the atmosphere and water shells (transparent
+///   state for both; overlay state for the water when it writes depth) with
+///   the cloud march folded away.
+/// - The cloud transparent PSO draws the cloud shell and nothing else.
+/// - The two sun-shadow PSOs are registered general as a no-op: fs_shadow
+///   never reaches the shells and vs_main reads no switch, so the constants
+///   change nothing the backend keeps (the water's vertex displacement is
+///   untouched). Named so every megashader PSO carries an explicit row.
+/// - The two terrain-batch PSOs draw planet-surface patches only (types 12
+///   and 13 plus the sprite cards baked into the same meshes), never a
+///   shell: all three off, the P1 permutation.
 pub const PSO_DEAD_BRANCHES: &[(&str, &[&str])] = &[
-    ("PBR-lite Render Pipeline", &[]),
-    ("PBR-lite Transparent Pipeline", &[]),
-    ("PBR-lite Overlay Pipeline", &[]),
-    ("Sun Shadow Pipeline", &[]),
-    ("Sun Shadow Alpha Pipeline", &[]),
-    ("Patch Batch Render Pipeline", TERRAIN_DEAD_BRANCHES),
-    ("Patch Batch Shadow Pipeline", TERRAIN_DEAD_BRANCHES),
+    ("PBR-lite Render Pipeline", ShaderClass::General.dead_branches()),
+    ("PBR-lite Transparent Pipeline", ShaderClass::General.dead_branches()),
+    ("PBR-lite Overlay Pipeline", ShaderClass::General.dead_branches()),
+    ("PBR-lite Shell Transparent Pipeline", ShaderClass::Shell.dead_branches()),
+    ("PBR-lite Shell Overlay Pipeline", ShaderClass::Shell.dead_branches()),
+    ("PBR-lite Cloud Transparent Pipeline", ShaderClass::Cloud.dead_branches()),
+    ("Sun Shadow Pipeline", ShaderClass::General.dead_branches()),
+    ("Sun Shadow Alpha Pipeline", ShaderClass::General.dead_branches()),
+    ("Patch Batch Render Pipeline", ShaderClass::General.dead_branches()),
+    ("Patch Batch Shadow Pipeline", ShaderClass::General.dead_branches()),
 ];
 
 /// The pipeline-constant map for one registered PSO: each dead branch's
@@ -1555,33 +1743,44 @@ mod permutation_tests {
         }
     }
 
+    /// The expected routing, PSO by PSO (P2). A hand-written twin of the
+    /// registry so a row cannot be changed without this test naming the
+    /// change: the general five and the terrain two fold every shell away,
+    /// the shell two keep the atmosphere and ocean, the cloud one keeps the
+    /// march alone.
+    const EXPECTED_PSO_CLASSES: &[(&str, ShaderClass)] = &[
+        ("PBR-lite Render Pipeline", ShaderClass::General),
+        ("PBR-lite Transparent Pipeline", ShaderClass::General),
+        ("PBR-lite Overlay Pipeline", ShaderClass::General),
+        ("PBR-lite Shell Transparent Pipeline", ShaderClass::Shell),
+        ("PBR-lite Shell Overlay Pipeline", ShaderClass::Shell),
+        ("PBR-lite Cloud Transparent Pipeline", ShaderClass::Cloud),
+        ("Sun Shadow Pipeline", ShaderClass::General),
+        ("Sun Shadow Alpha Pipeline", ShaderClass::General),
+        ("Patch Batch Render Pipeline", ShaderClass::General),
+        ("Patch Batch Shadow Pipeline", ShaderClass::General),
+    ];
+
     #[test]
-    fn the_registry_covers_exactly_the_seven_megashader_psos() {
+    fn the_registry_covers_exactly_the_ten_megashader_psos() {
         let labels: Vec<&str> = PSO_DEAD_BRANCHES.iter().map(|(l, _)| *l).collect();
-        assert_eq!(
-            labels,
-            [
-                "PBR-lite Render Pipeline",
-                "PBR-lite Transparent Pipeline",
-                "PBR-lite Overlay Pipeline",
-                "Sun Shadow Pipeline",
-                "Sun Shadow Alpha Pipeline",
-                "Patch Batch Render Pipeline",
-                "Patch Batch Shadow Pipeline",
-            ]
-        );
-        for (label, dead) in PSO_DEAD_BRANCHES {
-            let terrain = label.starts_with("Patch Batch");
-            if terrain {
-                assert_eq!(
-                    *dead, ALL_BRANCH_SWITCHES,
-                    "{label}: the terrain PSOs must compile out ALL three shell branches"
-                );
-            } else {
+        let expected: Vec<&str> = EXPECTED_PSO_CLASSES.iter().map(|(l, _)| *l).collect();
+        assert_eq!(labels, expected, "the registry's rows (or their order) changed");
+        for ((label, dead), (_, class)) in PSO_DEAD_BRANCHES.iter().zip(EXPECTED_PSO_CLASSES) {
+            assert_eq!(
+                *dead,
+                class.dead_branches(),
+                "{label}: must compile out exactly the {class:?} class's dead branches"
+            );
+            // The dead and live sets of a class partition the switch list:
+            // nothing is both, nothing is neither.
+            for name in ALL_BRANCH_SWITCHES {
+                let live = class.live_branches().contains(name);
+                let is_dead = dead.contains(name);
                 assert!(
-                    dead.is_empty(),
-                    "{label}: the classic PSOs keep every branch in this increment \
-                     (the shells draw through them)"
+                    live != is_dead,
+                    "{label}: {name} must be exactly one of live / dead for {class:?} \
+                     (live = {live}, dead = {is_dead})"
                 );
             }
             // Every dead name is a declared switch, and the map carries 0.0
@@ -1593,6 +1792,102 @@ mod permutation_tests {
                 assert_eq!(map.get(*name), Some(&0.0), "{label}: {name} must be switched OFF (0.0)");
             }
         }
+        // The general colour PSOs and the terrain PSOs carry the SAME
+        // permutation (all off): a general fragment never enters a shell.
+        for label in [
+            "PBR-lite Render Pipeline",
+            "PBR-lite Transparent Pipeline",
+            "PBR-lite Overlay Pipeline",
+            "Patch Batch Render Pipeline",
+            "Patch Batch Shadow Pipeline",
+        ] {
+            assert_eq!(pso_constants(label).len(), ALL_BRANCH_SWITCHES.len(), "{label}: all three off");
+        }
+    }
+
+    /// Every `if (HAS_X && material_type >= a && material_type < b)` guard
+    /// in fs_main, as (switch, a, b), read out of the SHADER so the test
+    /// cannot agree with a stale copy of the bands.
+    fn guarded_dispatch_bands() -> Vec<(&'static str, f32, f32)> {
+        let main = code_only(fs_main_side());
+        let mut out = Vec::new();
+        for switch in ALL_BRANCH_SWITCHES {
+            let prefix = format!("if ({switch} && material_type >= ");
+            let at = main
+                .find(&prefix)
+                .unwrap_or_else(|| panic!("fs_main has no guard reading {prefix:?}"));
+            let rest = &main[at + prefix.len()..];
+            let (lo, rest) = rest
+                .split_once(" && material_type < ")
+                .expect("a guard's band is `>= a && material_type < b`");
+            let hi: String = rest.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+            out.push((*switch, lo.trim().parse().expect("band low"), hi.parse().expect("band high")));
+        }
+        out
+    }
+
+    /// THE CLASSIFIER IS PINNED TO THE WGSL (P2). `shader_class` must send
+    /// every type inside a guarded dispatch band to a class whose pipelines
+    /// keep that band's switch, and every other type in the shader's type
+    /// space (0 to 24, swept at half steps so both band edges are exercised)
+    /// to General. Proven red once by widening the ocean band's class to
+    /// General for `t >= 16.0` (the test named type 16.0 and the ocean
+    /// switch), then restored.
+    #[test]
+    fn shader_class_is_pinned_to_the_guarded_dispatch_bands() {
+        let bands = guarded_dispatch_bands();
+        assert_eq!(bands.len(), ALL_BRANCH_SWITCHES.len(), "one guarded band per switch");
+        // The three bands must not overlap, or a type would have two
+        // classes and the loops' "switch on class change" would thrash.
+        for (i, (sa, la, ha)) in bands.iter().enumerate() {
+            for (sb, lb, hb) in bands.iter().skip(i + 1) {
+                assert!(ha <= lb || hb <= la, "guard bands overlap: {sa} [{la}, {ha}) and {sb} [{lb}, {hb})");
+            }
+        }
+        // Sweep the type space. 0.0, 0.5, 1.0 ... 24.5: the whole-number
+        // points are the shipped types, the half points are the band edges
+        // (13.5 is IN the atmosphere band, 14.5 in the cloud band, ...).
+        let mut t = 0.0_f32;
+        while t <= 24.5 {
+            let class = shader_class(t);
+            let in_band = bands.iter().find(|(_, lo, hi)| t >= *lo && t < *hi);
+            match in_band {
+                Some((switch, lo, hi)) => {
+                    assert!(
+                        class.live_branches().contains(switch),
+                        "material type {t} is inside the {switch} band [{lo}, {hi}) but \
+                         shader_class sends it to {class:?}, whose pipelines compile that \
+                         branch OUT; it would render as the default look"
+                    );
+                    assert_ne!(class, ShaderClass::General, "type {t}: a guarded band is never General");
+                }
+                None => assert_eq!(
+                    class,
+                    ShaderClass::General,
+                    "material type {t} is outside every guarded band but shader_class \
+                     sends it to {class:?}; it would pay for a shell program it never runs"
+                ),
+            }
+            t += 0.5;
+        }
+        // Each switch is live in exactly ONE class, and the cloud switch's
+        // class keeps nothing else: the march's per-invocation frame is
+        // charged to cloud-shell fragments and to no other material. That
+        // is the number P2 exists to move.
+        let classes = [ShaderClass::General, ShaderClass::Shell, ShaderClass::Cloud];
+        for switch in ALL_BRANCH_SWITCHES {
+            let owners: Vec<ShaderClass> =
+                classes.iter().copied().filter(|c| c.live_branches().contains(switch)).collect();
+            assert_eq!(owners.len(), 1, "{switch} must be live in exactly one class, found {owners:?}");
+        }
+        assert_eq!(ShaderClass::Cloud.live_branches(), &[BRANCH_CLOUD], "the cloud class keeps only the march");
+        assert!(ShaderClass::General.live_branches().is_empty(), "general keeps no shell branch");
+        // And the shipped shell types land where the doc table says.
+        assert_eq!(shader_class(14.0), ShaderClass::Shell, "the atmosphere shell");
+        assert_eq!(shader_class(15.0), ShaderClass::Cloud, "the cloud shell");
+        assert_eq!(shader_class(16.0), ShaderClass::Shell, "the ocean shell");
+        assert_eq!(shader_class(13.0), ShaderClass::General, "the legacy Fresnel atmosphere");
+        assert_eq!(shader_class(super::super::materials::MATERIAL_TYPE_SCREEN), ShaderClass::General);
     }
 
     #[test]
