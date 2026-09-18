@@ -37,7 +37,7 @@
 > 31.4 to 5.3, blue marble 5.0 to 1.1, limb 63.5 to 13.3 (10.9 to 24.1 fps),
 > Fuji 85 to 69.
 >
-> **P2 SHIPPED (2026-09-18, the per-class pipelines):** the ten megashader
+> **P2 SHIPPED (v0.1316.0, 2026-09-18, the per-class pipelines):** the ten megashader
 > PSOs now compile per material class through the same override switches:
 > General (all three shell branches off: the five classic PSOs and the two
 > terrain PSOs), Shell (atmosphere and ocean on, cloud off: the atmosphere and
@@ -63,7 +63,7 @@
 > compiling only its entry, with a phase A that first measures whether folding
 > the terrain and vegetation blocks out of an interior fragment moves
 > `gpu.scene` (register pressure), so the doc claims only what was measured;
-> V1 SHIPPED AND REFUTED (same day): the near-tree colour draws are
+> V1 SHIPPED AND REFUTED (v0.1316.0): the near-tree colour draws are
 > frustum-culled with the coverage arithmetic untouched (hide radius
 > bit-identical, 151.9 m in both arms, no oscillation on a heading change;
 > off-screen models kept as shadow-only casters because a conifer behind the
