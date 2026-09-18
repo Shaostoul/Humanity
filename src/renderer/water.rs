@@ -894,7 +894,7 @@ mod tests {
         // cannot protect it: the whole defect was the ocean shell passing its
         // own surface fragments down the submerged path. Pin the three sites -
         // the two ocean_shell ones say TRUE (this fragment is the interface),
-        // the shared fs_main tail says FALSE (terrain, seabed, props are seen
+        // the shared frag_tail says FALSE (terrain, seabed, props are seen
         // THROUGH the water). A new call site fails this until it is classified.
         let defs = wgsl.matches("fn underwater_apply(").count();
         let calls = wgsl.matches("underwater_apply(").count() - defs;
@@ -908,7 +908,7 @@ mod tests {
         assert_eq!(
             wgsl.matches("in.world_position, false)").count(),
             1,
-            "the shared fs_main tail must pass on_surface = false"
+            "the shared frag_tail must pass on_surface = false"
         );
     }
 }

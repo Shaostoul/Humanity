@@ -84,7 +84,8 @@ pub fn hemispheric(zenith: [f32; 3], horizon: [f32; 3], n_dot_up: f32) -> [f32; 
     out
 }
 
-/// The whole ambient expression at the bottom of `fs_main`:
+/// The whole ambient expression at the bottom of `frag_tail` (the shared
+/// tail every class entry calls, 80-fragment-shared.wgsl):
 /// `albedo * max(sky_ambient(...), AMBIENT_FLOOR) * ao`.
 pub fn ambient_term(albedo: [f32; 3], sky: [f32; 3], ao: f32) -> [f32; 3] {
     let mut out = [0.0f32; 3];

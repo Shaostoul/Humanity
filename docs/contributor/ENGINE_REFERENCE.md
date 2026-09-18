@@ -269,7 +269,7 @@ The `params.z` field selects procedural material:
 - **2** = Concrete (FBM noise, speckled) -- structural surfaces
 - **3** = Wood grain (ring pattern + fine grain) -- furniture, flooring
 
-To add a new material type: add an `else if` branch in `fs_main()` checking `material_type < N.5`.
+To add a new material type: add an `else if` branch checking `material_type < N.5` in the class entry that owns it (`fs_surface`, `fs_terrain`, `fs_vegetation`, `fs_water`, `fs_shell` or `fs_cloud` in `assets/shaders/pbr/90-fragment-main.wgsl`; the class per type is `src/renderer/pipeline.rs::shader_class`, and each PSO in `PSO_REGISTRY` compiles exactly one entry).
 
 ---
 

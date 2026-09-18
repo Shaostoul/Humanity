@@ -314,7 +314,8 @@ const GROUND_LEGACY_TILE_M: f32 = 2.0;
 // true per-plane UV gradients via textureSampleGrad lets the hardware
 // anisotropic filter (x8, ground_textures.rs) take multiple taps along
 // the long axis instead. Gradients come from dpdx/dpdy of world_position
-// taken at the TOP of fs_main (uniform control flow, always valid) and
+// taken at the TOP of frag_prologue (80-fragment-shared.wgsl; uniform
+// control flow, always valid, before any class entry branches) and
 // rotated into the pinned domain by the caller - pt is anchor + inv_m *
 // (wp - eye), both constant per draw, so d(pt) = inv_m * d(wp) exactly.
 fn ground_triplanar_grad(
@@ -625,7 +626,7 @@ struct GroundDetail {
 /// renormalising by what was actually taken.
 ///
 /// `p` and the gradients are in the pinned metre domain; the caller has
-/// already rotated the fs_main-top dpdx/dpdy of world_position into it, which
+/// already rotated the prologue-top dpdx/dpdy of world_position into it, which
 /// is exact because pt = anchor + inv_m * (wp - eye) with anchor/eye constant
 /// per draw. Passing true gradients (rather than one analytic LOD) is what
 /// engages the x8 anisotropic filter, without which a flat sightline smears.

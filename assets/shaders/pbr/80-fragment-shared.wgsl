@@ -270,7 +270,7 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
         camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
         normal, view_dir, albedo, metallic, roughness, f0) * fill_gate;
 
-    // Point + spot lights — UNCAPPED (v0.782): the storage buffer holds every
+    // Point + spot lights, UNCAPPED (v0.782): the storage buffer holds every
     // scene light; light_count bounds the loop. The early range/attenuation
     // rejection keeps far lights nearly free, so the practical ceiling is GPU
     // fill cost, not a software cap.

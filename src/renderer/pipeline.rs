@@ -180,7 +180,7 @@ pub struct RebuiltPipelines {
     /// `PSO_REGISTRY`, one row per (class, state) the draw loops use.
     pub megashader: usize,
     /// The cloud fullscreen PSOs (`fs_cloud_*` entries), exempt from the
-    /// registry because they never enter `fs_main`.
+    /// registry because they never enter a class entry or frag_tail.
     pub cloud: usize,
 }
 

@@ -58,11 +58,26 @@
 > the entry per class (P3), defer a data-driven material graph.
 >
 > **Next, in order** (ms saved per unit of risk, `docs/design/frame-cost-arc.md`):
-> P3 (IN FLIGHT) splits `fs_main` into per-class entry points (surface,
-> terrain, vegetation, water, shell, cloud) sharing the part files, each PSO
-> compiling only its entry, with a phase A that first measures whether folding
-> the terrain and vegetation blocks out of an interior fragment moves
-> `gpu.scene` (register pressure), so the doc claims only what was measured;
+> P3 SHIPPED (v0.1317.0): `fs_main` is gone; six class entries (surface,
+> terrain, vegetation, water, shell, cloud) share `frag_prologue` and
+> `frag_tail` in a new 80-fragment-shared part, thirteen PSOs each compile one
+> entry, draw loops pick the opaque PSO by class, and a `[Pipelines]` line
+> logs per-PSO compile times. Phase A on the shipped build (same-boot A/B
+> against a union entry carrying the terrain and vegetation blocks): console
+> `gpu.scene` 17.1 to 14.1 ms, home 2.7 to 2.2, so the split is a perf
+> increment (register pressure), and the gate had every vantage faster or
+> equal with pixels inside the rig floors. Cost: boot 6 s slower from three
+> more PSO bakes; a wgpu pipeline cache is the named next step. **Rig guard
+> shipped the same release:** `scripts/lib/machine-guard.js` is the one process
+> query (HumanityOS, cargo, rustc, link, cl), probe-sweep waits before boot
+> and samples before and after every capture, a contaminated capture is
+> marked and perf-report refuses to grade it; `wind` and `anim_clock`
+> showcase pins; `tests/rig_pin_lint.rs`. **Found by that work, OPEN:**
+> `just lints` is RED on main at `file_size_ratchet` (lib.rs 19.9k lines vs
+> an 18.1k budget, renderer/mod.rs 5.6k vs 3.9k, chat.rs, gui/mod.rs and six
+> more), so `just verify` cannot pass and every downstream lint is bypassed;
+> the fix is the owed extractions, not a budget raise. Rank it right after
+> I1.
 > V1 SHIPPED AND REFUTED (v0.1316.0): the near-tree colour draws are
 > frustum-culled with the coverage arithmetic untouched (hide radius
 > bit-identical, 151.9 m in both arms, no oscillation on a heading change;

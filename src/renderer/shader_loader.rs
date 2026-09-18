@@ -104,7 +104,8 @@ struct BatchUniforms {
     // The rotation-only model matrix every patch in the batch shares this
     // frame (planet rotation; patches never scale). Per-patch translation
     // + fade arrive through the inst_pos_fade instance attribute, captured
-    // into g_inst_data by vs_main (attribute) and fs_main (flat varying).
+    // into g_inst_data by vs_main (attribute) and frag_prologue (flat varying,
+    // for every class entry).
     rot: mat4x4<f32>,
 };
 @group(1) @binding(0) var<uniform> batch: BatchUniforms;

@@ -12,7 +12,7 @@ naga/FXC gotchas that have actually bitten, and the verify bar.
   **3** textures + shadow map (full layout below).
 - `MaterialUniforms` is `base_color: vec4` + `params: vec4` where
   `params = (metallic, roughness, material_type, emissive_strength)`.
-- The fragment entry `fs_main` reads `material.params.z` and branches into one
+- Six fragment entries, one per material class (`fs_surface`, `fs_terrain`, `fs_vegetation`, `fs_water`, `fs_shell`, `fs_cloud` in `90-fragment-main.wgsl`, P3 of the frame-cost arc, 2026-09-18), share `frag_prologue` and `frag_tail` (`80-fragment-shared.wgsl`); each reads `material.params.z` and branches into one
   of the material types. Types 13.5..16.5 short-circuit the PBR path entirely
   (they are participating media, not surfaces); most others tweak
   albedo/metallic/roughness/emissive and fall through to the shared
@@ -32,7 +32,7 @@ exists but nothing calls it today). Also be aware `assets/shaders/README.md`
 describes an older binding convention (group 2 textures, group 3 material)
 that pbr_simple does NOT follow; trust this doc + `src/renderer/pipeline.rs`.
 
-## Material type table (from `pbr_simple.wgsl` `fs_main`)
+## Material type table (the class entries in `90-fragment-main.wgsl`; the class per type is `pipeline.rs::shader_class`, pinned to the WGSL bands by a test)
 
 | Type | What it is |
 |------|------------|
@@ -94,7 +94,7 @@ builds without the asset still boot.
 1. Pick the next free number (20 as of this writing). Grep the shader for
    `material_type >=` to see the dispatch pattern: ranges are half-open
    floating bands (`>= 18.5 && < 19.5` is type 19).
-2. Add the branch in `fs_main` (or a short-circuit before the PBR tail if
+2. Add the branch in the class entry that owns the type (extend `shader_class` and its band test if it is a new class; each PSO in `PSO_REGISTRY` compiles ONE entry), or a short-circuit before `frag_tail` if
    your material is not a lit surface). Set `albedo` / `metallic` /
    `roughness` / `proc_emissive` / `emissive_strength` and fall through, or
    `return` a final color.
