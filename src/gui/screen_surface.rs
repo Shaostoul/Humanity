@@ -45,6 +45,9 @@ use super::dispatch::{draw_tool_page, page_from_id};
 use super::theme::Theme;
 use super::widgets::image_cache::ImageCache;
 use super::{GuiPage, GuiState};
+use crate::machines::CameraPose;
+use crate::renderer::camera::Camera;
+use std::time::{Duration, Instant};
 
 /// The `GuiState` fields that hold egui `TextureHandle`s, one set per
 /// surface. See the module doc for why these must be swapped, not shared.
@@ -197,6 +200,69 @@ pub trait ScreenProvider: Send {
     fn on_button(&mut self, _uv: (f32, f32), _pressed: bool) -> bool {
         false
     }
+
+    /// The texture format this provider's surface must be created with.
+    /// Default: [`SURFACE_FORMAT`]. A provider that has the game world
+    /// rendered STRAIGHT INTO its surface (the camera provider) returns
+    /// `scene_format`, the swapchain's format, because the scene pipelines
+    /// were built for that format and can draw into no other. Asked once,
+    /// when the surface is created (`engine::screens::sync_screens`).
+    fn surface_format(&self, _scene_format: wgpu::TextureFormat) -> wgpu::TextureFormat {
+        SURFACE_FORMAT
+    }
+
+    /// A WORLD SCREEN shows the game world itself (an in-game camera) and
+    /// needs the engine's renderer and the frame's draw lists, which `frame`
+    /// is not handed. Such a provider returns `Some` here, with when it last
+    /// had the world rendered for it and how often it wants one, and the
+    /// engine (`engine::screens::frame_surfaces`) serves at most ONE world
+    /// screen per frame, the most-starved due one, through `render_world`
+    /// before the usual `frame`. Default: not a world screen.
+    fn world_render(&self) -> Option<WorldRenderState> {
+        None
+    }
+
+    /// Render the world for this screen: the engine's `world` handle gives
+    /// the pose of any placed camera and renders a view from any pose into
+    /// any target. Called only for a world screen, only when it is due, and
+    /// for at most one screen per frame. `surface` is this provider's own
+    /// surface, its texture the natural target.
+    fn render_world(&mut self, _surface: &mut ScreenSurface, _world: &mut dyn WorldRender, _now: Instant) {}
+}
+
+/// A world screen's scheduling state (see `ScreenProvider::world_render`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldRenderState {
+    /// When the world was last rendered for this screen; `None` = never.
+    pub last: Option<Instant>,
+    /// The least time between two renders of this screen (the camera
+    /// budget: 100 ms, 10 Hz).
+    pub interval: Duration,
+}
+
+impl WorldRenderState {
+    /// Whether a render is due at `now`: never rendered, or `interval` has
+    /// passed since the last one.
+    pub fn due(&self, now: Instant) -> bool {
+        self.last.map_or(true, |t| now.duration_since(t) >= self.interval)
+    }
+}
+
+/// What the engine offers a world screen while serving it: implemented in
+/// `engine::screens::camera` over the engine state and the frame's draw
+/// lists, named here so the provider trait stays free of engine types.
+pub trait WorldRender {
+    /// The pose of the placed camera machine `instance_id` (its def has a
+    /// `camera` and it is placed right now), or `None`. Re-resolved on every
+    /// call, so a post moved or removed in the editor is seen at once.
+    fn camera_pose(&self, instance_id: &str) -> Option<CameraPose>;
+
+    /// Render the world as seen by `camera` into `target`, a render
+    /// attachment of `size` pixels in the scene's own format. Returns
+    /// whether a view was actually rendered: `false` means the engine
+    /// skipped it (the world is not loaded) and the target is untouched, so
+    /// the provider must not count it as a picture.
+    fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool;
 }
 
 /// The GPU-free half of a screen: an egui context plus the synthetic input
@@ -483,6 +549,12 @@ pub struct ScreenSurface {
     renderer: egui_wgpu::Renderer,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
+    /// The texture's format: [`SURFACE_FORMAT`] for every page and every
+    /// provider that draws pixels or egui content; the scene's swapchain
+    /// format for a surface the world is rendered straight into (see
+    /// `ScreenProvider::surface_format`). The readback and the pixel upload
+    /// swizzle for a BGRA format so their byte contract stays RGBA.
+    format: wgpu::TextureFormat,
     /// The content provider for a non-page source, built by
     /// `engine::screens::provider_for`. `None` = the default page draw (or
     /// the not-wired notice for a kind with no provider yet).
@@ -493,38 +565,69 @@ pub struct ScreenSurface {
     view_changed: bool,
 }
 
-/// The texture format of every surface. It is the SAME format
-/// `renderer/materials.rs` uses for albedo textures (`Rgba8UnormSrgb`), which
-/// is what makes binding the surface's view at the material's albedo slot
-/// correct without a conversion: the PBR sampler decodes sRGB to linear on
-/// read exactly as it does for any other albedo image.
+/// The texture format of every surface that draws pixels or egui content.
+/// It is the SAME format `renderer/materials.rs` uses for albedo textures
+/// (`Rgba8UnormSrgb`), which is what makes binding the surface's view at the
+/// material's albedo slot correct without a conversion: the PBR sampler
+/// decodes sRGB to linear on read exactly as it does for any other albedo
+/// image. A world screen uses the scene's format instead (`new_with_format`);
+/// the sampler handles both the same way.
 pub const SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
+/// Whether `format` stores its channels blue-first, so RGBA bytes must be
+/// swizzled on the way in and out of the texture.
+fn is_bgra(format: wgpu::TextureFormat) -> bool {
+    matches!(format, wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb)
+}
+
+/// Swap the red and blue byte of every pixel in place (RGBA <-> BGRA).
+fn swap_rb(pixels: &mut [u8]) {
+    for px in pixels.chunks_exact_mut(4) {
+        px.swap(0, 2);
+    }
+}
+
 impl ScreenSurface {
-    /// Create the surface and its texture at a fixed pixel size. The texture
-    /// is a render target (egui draws into it), a sampled texture (the scene
-    /// reads it), and copyable both ways (the dev IPC snapshot reads it back;
-    /// a future live-feed rung writes into it).
+    /// Create the surface and its texture at a fixed pixel size in
+    /// [`SURFACE_FORMAT`]. The texture is a render target (egui draws into
+    /// it), a sampled texture (the scene reads it), and copyable both ways
+    /// (the dev IPC snapshot reads it back; a provider writes frames into it).
     pub fn new(device: &wgpu::Device, id: &str, source_id: &str, w: u32, h: u32, theme: &Theme) -> Self {
+        Self::new_with_format(device, id, source_id, w, h, theme, SURFACE_FORMAT)
+    }
+
+    /// [`new`](Self::new) with an explicit texture format: the scene's
+    /// swapchain format for a surface the world is rendered straight into
+    /// (the camera provider). The surface's own egui renderer is created for
+    /// the same format, so a notice page draws into it correctly too.
+    pub fn new_with_format(
+        device: &wgpu::Device,
+        id: &str,
+        source_id: &str,
+        w: u32,
+        h: u32,
+        theme: &Theme,
+        format: wgpu::TextureFormat,
+    ) -> Self {
         let core = ScreenCore::new(id, source_id, w, h, theme);
         let (w, h) = core.size();
-        let renderer = egui_wgpu::Renderer::new(device, SURFACE_FORMAT, None, 1, false);
-        let (texture, view) = Self::make_texture(device, w, h);
-        Self { core, renderer, texture, view, provider: None, view_changed: false }
+        let renderer = egui_wgpu::Renderer::new(device, format, None, 1, false);
+        let (texture, view) = Self::make_texture(device, w, h, format);
+        Self { core, renderer, texture, view, format, provider: None, view_changed: false }
     }
 
     /// The texture every surface draws into: a render target (egui draws
-    /// into it), a sampled texture (the scene reads it), and copyable both
-    /// ways (the dev IPC snapshot reads it back; a provider writes frames
-    /// into it).
-    fn make_texture(device: &wgpu::Device, w: u32, h: u32) -> (wgpu::Texture, wgpu::TextureView) {
+    /// into it, the world is rendered into it), a sampled texture (the scene
+    /// reads it), and copyable both ways (the dev IPC snapshot reads it back;
+    /// a provider writes frames into it).
+    fn make_texture(device: &wgpu::Device, w: u32, h: u32, format: wgpu::TextureFormat) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Screen Surface Texture"),
             size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: SURFACE_FORMAT,
+            format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC
@@ -544,6 +647,11 @@ impl ScreenSurface {
         &self.texture
     }
 
+    /// The texture's format (see the `format` field).
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.format
+    }
+
     pub fn size(&self) -> (u32, u32) {
         self.core.size()
     }
@@ -556,6 +664,23 @@ impl ScreenSurface {
 
     pub fn provider(&self) -> Option<&dyn ScreenProvider> {
         self.provider.as_deref()
+    }
+
+    /// The provider's world-screen scheduling state, `None` for a page or a
+    /// provider that draws its own content (see `ScreenProvider::world_render`).
+    pub fn world_render(&self) -> Option<WorldRenderState> {
+        self.provider.as_ref().and_then(|p| p.world_render())
+    }
+
+    /// Have the world rendered for this screen's provider (a world screen
+    /// only; the engine calls this for at most one screen per frame). The
+    /// provider is taken out for the call, like in `frame`, so it can be
+    /// handed the surface it lives in.
+    pub fn render_world(&mut self, world: &mut dyn WorldRender, now: Instant) {
+        if let Some(mut provider) = self.provider.take() {
+            provider.render_world(self, world, now);
+            self.provider = Some(provider);
+        }
     }
 
     /// True once after `resize` changed the texture: the caller rebinds the
@@ -583,7 +708,7 @@ impl ScreenSurface {
         if self.core.size() == (w, h) {
             return;
         }
-        let (texture, view) = Self::make_texture(device, w, h);
+        let (texture, view) = Self::make_texture(device, w, h, self.format);
         self.texture = texture;
         self.view = view;
         self.core.set_size(w, h);
@@ -594,13 +719,25 @@ impl ScreenSurface {
     /// surface. A frame of another size resizes the surface to match, so a
     /// 1920 x 1080 stream on a 1280 x 720 wall shows every pixel and the
     /// quad (whose physical size comes from the machine def) stretches it
-    /// by the aspect difference; providers that care scale before writing.
+    /// by the aspect difference; providers that care scale before writing
+    /// (the live provider letterboxes into the surface's own size, see
+    /// `engine::screens::live::letterbox_into`). The bytes are RGBA whatever
+    /// the texture's format; a BGRA surface swizzles on the way in.
     pub fn write_pixels(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, rgba: &[u8], w: u32, h: u32) {
         if w == 0 || h == 0 || rgba.len() != (w as usize) * (h as usize) * 4 {
             log::warn!("[Screens] {}: write_pixels got {} bytes for {w}x{h}; frame dropped", self.core.id, rgba.len());
             return;
         }
         self.resize(device, w, h);
+        let swizzled;
+        let bytes: &[u8] = if is_bgra(self.format) {
+            let mut v = rgba.to_vec();
+            swap_rb(&mut v);
+            swizzled = v;
+            &swizzled
+        } else {
+            rgba
+        };
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
@@ -608,7 +745,7 @@ impl ScreenSurface {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            rgba,
+            bytes,
             wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
             wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         );
@@ -710,8 +847,19 @@ impl ScreenSurface {
     }
 
     /// Read the surface back as tightly packed RGBA8 rows (top row first),
-    /// for the dev IPC snapshot. Blocks on the GPU; dev tooling only.
+    /// for the dev IPC snapshot. Blocks on the GPU; dev tooling only. A
+    /// BGRA surface (a world screen in the scene's format) is swizzled so
+    /// the caller always gets RGBA.
     pub fn read_rgba(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<u8> {
+        let mut pixels = self.read_raw(device, queue);
+        if is_bgra(self.format) {
+            swap_rb(&mut pixels);
+        }
+        pixels
+    }
+
+    /// The readback in the texture's own byte order.
+    fn read_raw(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<u8> {
         let (w, h) = self.core.size();
         // wgpu requires copy rows padded to 256 bytes.
         let bpr = ((w * 4 + 255) / 256) * 256;

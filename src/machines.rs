@@ -128,6 +128,75 @@ pub struct MachineDef {
     /// monitor and a console are all "a box with a screen on its front".
     #[serde(default)]
     pub screen: Option<ScreenDef>,
+    /// An in-game CAMERA on this machine (in-world screens, rung 3): the
+    /// machine is a camera post whose head looks along `(yaw_deg, pitch_deg)`
+    /// with a `fov_deg` lens, and a screen whose source is
+    /// `camera:<this instance's id>` shows what it sees. Yaw is about the
+    /// vertical axis, 0 = the body's front (-Z at rotation 0), and the placed
+    /// instance's `rotation` ADDS to it, so turning the post in the editor
+    /// turns the camera. Pitch: positive looks up, negative down (a security
+    /// camera on a post usually looks a little down). `None` for every
+    /// machine that is not a camera. See `PlacedMachine::camera_pose`.
+    #[serde(default)]
+    pub camera: Option<(f32, f32, f32)>,
+}
+
+/// The resolved world pose of a placed camera machine (rung 3): where the
+/// lens is and which way it looks, in the HOME frame the machine bodies are
+/// drawn in. Built by `PlacedMachine::camera_pose`; the engine's camera
+/// screen provider turns it into a renderer `Camera`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CameraPose {
+    /// The lens position: the machine's top minus a small margin (the head
+    /// sits at the top of the post), pushed to the FRONT face so the post's
+    /// own body is behind the near plane and never blocks the view.
+    pub position: (f32, f32, f32),
+    /// Look yaw in degrees about the vertical axis, same convention as the
+    /// machine `rotation` (0 = the body's front, -Z; 90 turns the front to
+    /// -X): the def's yaw plus the instance's rotation.
+    pub yaw_deg: f32,
+    /// Look pitch in degrees, clamped to `CAMERA_PITCH_LIMIT_DEG` either way
+    /// so a data typo can never point the lens past straight up or down
+    /// (which would flip the view basis).
+    pub pitch_deg: f32,
+    /// Vertical field of view in degrees, clamped to a lens that can exist.
+    pub fov_deg: f32,
+}
+
+/// The most a camera may look up or down, in degrees. 89 leaves the look
+/// basis well-defined (straight up would make "which way is up" ambiguous).
+pub const CAMERA_PITCH_LIMIT_DEG: f32 = 89.0;
+/// The narrowest and widest lens a camera def may ask for, in degrees.
+pub const CAMERA_FOV_RANGE_DEG: (f32, f32) = (10.0, 150.0);
+/// How far below the machine's top the lens sits, in metres: the head of a
+/// camera post is the top of its body, and the lens is a little below the
+/// very top edge.
+pub const CAMERA_LENS_BELOW_TOP_M: f32 = 0.05;
+
+impl PlacedMachine {
+    /// Where this machine's camera looks from, when it has one. `None` for
+    /// a machine whose def has no `camera`.
+    pub fn camera_pose(&self) -> Option<CameraPose> {
+        let (yaw_def, pitch_def, fov_def) = self.camera?;
+        let yaw_deg = yaw_def + self.rotation;
+        // The lens sits on the front face so the body is behind it. The
+        // front face at rotation 0 is -Z; the yaw turns it about Y the same
+        // way the renderer turns the body mesh (`Quat::from_rotation_y`).
+        let yaw = yaw_deg.to_radians();
+        let front = (-yaw.sin(), -yaw.cos());
+        let half_depth = self.size.2 * 0.5;
+        let position = (
+            self.pos.0 + front.0 * half_depth,
+            (self.top_y - CAMERA_LENS_BELOW_TOP_M).max(self.pos.1),
+            self.pos.2 + front.1 * half_depth,
+        );
+        Some(CameraPose {
+            position,
+            yaw_deg,
+            pitch_deg: pitch_def.clamp(-CAMERA_PITCH_LIMIT_DEG, CAMERA_PITCH_LIMIT_DEG),
+            fov_deg: fov_def.clamp(CAMERA_FOV_RANGE_DEG.0, CAMERA_FOV_RANGE_DEG.1),
+        })
+    }
 }
 
 /// What a machine's screen shows and how it sits on the body (rung 2).
@@ -601,6 +670,10 @@ pub struct PlacedMachine {
     /// The def's screen, carried through so the renderer can build the
     /// display quad and the input ray-test next to the body (rung 2).
     pub screen: Option<ScreenDef>,
+    /// The def's camera `(yaw_deg, pitch_deg, fov_deg)`, carried through so
+    /// a camera screen can resolve where this post looks from (rung 3; see
+    /// `camera_pose`, which folds in `rotation`).
+    pub camera: Option<(f32, f32, f32)>,
 }
 
 impl BuildabilityReport {
@@ -1554,6 +1627,7 @@ impl MachineHome {
                     }
                     s
                 }),
+                camera: def.camera,
             });
         }
         out
@@ -1748,6 +1822,7 @@ mod tests {
             container_type: None,
             model: None,
             screen: None,
+            camera: None,
         }
     }
 

@@ -17891,7 +17891,22 @@ mod native_app {
                     if !page_active {
                         crate::engine::screens::update(state);
                         crate::engine::ipc::advance_screen_request(state);
-                        crate::engine::screens::frame_surfaces(state);
+                        // This frame's draw lists as built so far, for the
+                        // camera screens (rung 3): a camera renders them
+                        // from its post's pose into its own surface. They
+                        // are still in the HOME frame here (station_off is
+                        // added in place further down, at the "so.length_squared"
+                        // block), which is the frame the camera posts are in.
+                        let screen_lists = SceneDrawLists {
+                            celestial: &celestial_objects,
+                            celestial_transparent: &celestial_transparent,
+                            orbit_lines: &orbit_lines,
+                            opaque: &all_objects,
+                            transparent: &transparent_objects,
+                            overlay: &overlay_objects,
+                            ring_lines: &ring_lines,
+                        };
+                        crate::engine::screens::frame_surfaces(state, &screen_lists);
                         crate::engine::ipc::complete_screen_request(state);
                     }
 
@@ -17907,6 +17922,17 @@ mod native_app {
                         // In-game: render stars first, then scene objects on top
                         match state.renderer.acquire_surface() {
                             Ok((output, view)) => {
+                                // DAYLIGHT GATE (v0.1059): inside an
+                                // atmosphere with the sun well up, the
+                                // stars are washed out by the sky drawn
+                                // over them, so the star draw is skipped.
+                                // ONE function decides it for this pass and
+                                // for every off-screen view (the camera
+                                // screens, the hi-res screenshot), so a
+                                // camera can never show stars by day while
+                                // the window shows none; the rule itself
+                                // is documented on `sky_daylight`.
+                                let daylight = crate::engine::ipc::sky_daylight(state);
                                 // Pass 1: Stars (clear to black + draw star points)
                                 if let Some(ref mut star_r) = state.star_renderer {
                                     // Sky settings (v0.786): constellation toggle +
@@ -17964,33 +17990,8 @@ mod native_app {
                                             depth_stencil_attachment: None,
                                             ..Default::default()
                                         });
-                                        // DAYLIGHT GATE (v0.1059): inside an
-                                        // atmosphere with the sun more than
-                                        // ~6 degrees up, every star is washed
-                                        // out by the sky drawn over it, so the
-                                        // 16.8 M-point draw is pure waste. Sun
-                                        // BELOW that still draws the full sky,
-                                        // so dusk, dawn and night are
-                                        // untouched, and so is space (no
-                                        // frame-locked body = no atmosphere to
-                                        // hide behind).
-                                        let daylight = state
-                                            .frame_lock_body
-                                            .as_deref()
-                                            .and_then(|b| state.planet_defs.get(b))
-                                            .map(|d| {
-                                                let alt = state.frame_lock_anchor.length()
-                                                    - d.radius;
-                                                let up = state
-                                                    .frame_lock_anchor
-                                                    .normalize_or_zero();
-                                                let to_sun = (state.sun_world_pos
-                                                    - state.ship_world_pos)
-                                                    .normalize_or_zero();
-                                                let sun_up = up.dot(to_sun);
-                                                alt < 120_000.0 && sun_up > 0.10
-                                            })
-                                            .unwrap_or(false);
+                                        // `daylight` was decided above, by the
+                                        // same function the off-screen views use.
                                         star_r.render_pass(&mut pass, daylight);
                                     }
                                     state.renderer.queue.submit(std::iter::once(encoder.finish()));

@@ -130,6 +130,11 @@ struct CameraTransition {
 // ── Camera ───────────────────────────────────────────────────
 
 /// Unified camera supporting three modes.
+///
+/// `Clone` so an offscreen render (the hi-res screenshot, a camera screen)
+/// can take a copy with its own aspect ratio and leave the live camera
+/// untouched; every field is plain data, the transition included.
+#[derive(Clone)]
 pub struct Camera {
     // Shared state
     pub position: Vec3,

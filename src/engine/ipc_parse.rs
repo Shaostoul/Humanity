@@ -60,6 +60,32 @@ pub(crate) fn screenshot_done_json(
     }
 }
 
+/// Merge a screen provider's `status()` fields into a `debug/screen_done.json`
+/// body (`complete_screen_request`), so the rig can wait for a stream's
+/// `connected` or a camera's `renders > 0` on a wall the same way it waits
+/// for a page. Two rules, both about not lying in the done file:
+///
+/// - A provider key never shadows one of the IPC's own fixed keys (`ok`,
+///   `screen`, `error`, ...): the first writer wins.
+/// - A NULL-valued provider field is skipped, not written. The IPC's own
+///   failure schema is `{"ok": false, "error": "..."}`; a successful request
+///   that wrote a provider's `"error": null` next to `"ok": true` would hand
+///   a rig two contradicting answers about whether something went wrong.
+///   Absent means "nothing to report"; a value means a report.
+///
+/// Pure (no engine state), so the rules are pinned by a test.
+pub(crate) fn merge_provider_status(done: &mut serde_json::Value, extra: &serde_json::Value) {
+    let Some(extra) = extra.as_object() else { return };
+    for (k, v) in extra {
+        if v.is_null() {
+            continue;
+        }
+        if done.get(k).is_none() {
+            done[k.as_str()] = v.clone();
+        }
+    }
+}
+
 /// Resources + status shown in the planet-info tooltip, sourced from
 /// `data/planets/tooltips.json` (infinite-of-X: the body list is data, not a
 /// match arm). Parsed once and cached. Unlisted bodies fall back to
@@ -121,6 +147,50 @@ pub(crate) fn parse_notification_prefs(val: &serde_json::Value) -> NotifPrefsPay
         tasks: val.get("tasks").and_then(|v| v.as_bool()).unwrap_or(true),
         dnd_start: val.get("dnd_start").and_then(|v| v.as_str()).map(|s| s.to_string()),
         dnd_end: val.get("dnd_end").and_then(|v| v.as_str()).map(|s| s.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod provider_status_merge_tests {
+    use super::merge_provider_status;
+
+    /// A provider's fields ride into the done file, a null field is
+    /// skipped (so a successful request never carries `"error": null`
+    /// beside `"ok": true`), and a provider key never shadows the IPC's
+    /// own fixed keys.
+    #[test]
+    fn null_provider_fields_are_skipped_and_fixed_keys_are_never_shadowed() {
+        let mut done = serde_json::json!({"ok": true, "screen": "wall_screen_3", "kind": "camera"});
+        // What the camera provider reports on success (its error field is
+        // named camera_error; null when there is none).
+        let extra = serde_json::json!({
+            "camera": "camera_post_1",
+            "renders": 4,
+            "live": true,
+            "camera_error": null,
+            // A hostile or careless provider key that collides with a fixed
+            // key: the fixed value wins.
+            "ok": false,
+            "screen": "somewhere_else",
+        });
+        merge_provider_status(&mut done, &extra);
+        assert_eq!(done["camera"], "camera_post_1");
+        assert_eq!(done["renders"], 4);
+        assert_eq!(done["live"], true);
+        assert!(done.get("camera_error").is_none(), "a null field is absent, not null: {done}");
+        assert!(done.get("error").is_none(), "no `error` key on a successful request: {done}");
+        assert_eq!(done["ok"], true, "the IPC's own ok is never shadowed");
+        assert_eq!(done["screen"], "wall_screen_3");
+        // A set error field does ride along, under the provider's own name.
+        let mut done = serde_json::json!({"ok": true});
+        merge_provider_status(&mut done, &serde_json::json!({"camera_error": "No camera post named x is placed", "renders": 0}));
+        assert_eq!(done["camera_error"], "No camera post named x is placed");
+        assert_eq!(done["renders"], 0);
+        assert_eq!(done["ok"], true);
+        // A non-object status (a provider with nothing to say) merges nothing.
+        let mut done = serde_json::json!({"ok": true});
+        merge_provider_status(&mut done, &serde_json::Value::Null);
+        assert_eq!(done, serde_json::json!({"ok": true}));
     }
 }
 

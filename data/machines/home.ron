@@ -1765,6 +1765,35 @@
                 brightness: 1.2,
             )),
         ),
+        // In-world screens (rung 3): a camera post. A thin 1.7 m post
+        // whose head (the top of the post) carries the lens; a screen with
+        // screen_source "camera:<this instance's id>" shows what it sees.
+        // `camera` is (yaw, pitch, fov) in degrees: yaw 0 = the post's
+        // front (-Z at rotation 0) and the placed instance's rotation adds
+        // to it; pitch -8 looks a little down like a mounted camera; a 70
+        // degree lens.
+        "camera_post": (
+            shape: "box",
+            size: (0.14, 1.7, 0.14),
+            color: (0.2, 0.2, 0.22),
+            label: "Camera post",
+            category: "Displays",
+            stats: [
+                (
+                    kind: "display",
+                    value: "camera, 70 degree lens, 10 pictures a second",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            rf_emission: 0.0,
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+            camera: Some((0.0, -8.0, 70.0)),
+        ),
         "water_pump": (
             shape: "box",
             size: (0.35, 0.35, 0.35),
@@ -2131,6 +2160,42 @@
             rotation: 90.0,
             zone: "home",
             screen_source: Some("page:tasks"),
+        ),
+        // In-world screens (rung 3): the console room (x 47.5..51, z 44..47)
+        // watches the homestead. wall_screen_3 hangs on the west wall
+        // (x = 47.5) facing east into the room (rotation 270 turns the -Z
+        // front to +X) and shows the garden camera; wall_screen_4 hangs on
+        // the north wall (z = 47) facing south (rotation 0, the front is -Z)
+        // and shows the operator's live stream (a stream id is the
+        // publisher's registered name in lower case).
+        (
+            id: "wall_screen_3",
+            machine: "wall_screen",
+            room: "console-room",
+            offset: (47.65, 1.2, 45.5),
+            rotation: 270.0,
+            zone: "home",
+            screen_source: Some("camera:camera_post_1"),
+        ),
+        (
+            id: "wall_screen_4",
+            machine: "wall_screen",
+            room: "console-room",
+            offset: (49.25, 1.2, 46.85),
+            rotation: 0.0,
+            zone: "home",
+            screen_source: Some("watch:shaostoul"),
+        ),
+        // The garden camera: a post on the open garden floor west of the
+        // variety-tower grid (the ntower array starts at x 7, z 56), looking
+        // east along +X (rotation 270) down the tower rows.
+        (
+            id: "camera_post_1",
+            machine: "camera_post",
+            room: "garden",
+            offset: (4.0, 0.0, 59.3),
+            rotation: 270.0,
+            zone: "home",
         ),
         (
             id: "side_table_2",
