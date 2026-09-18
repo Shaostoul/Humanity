@@ -941,23 +941,28 @@ folding it into a perf claim. Do the backface cull in the same increment.
    cost, because it converts the largest unexplained number in the report
    into a decided question. Do this first, alone, before anything else
    touches the shader.
-2. **V1, near-tree frustum culling.** Reach: 30 to 50 ms at the forest
-   vantages, the worst frames measured (156 and 175 ms). Risk: moderate and
-   well understood, because the trap is named, dated and has broken three
-   times, so the gate is written against it. Second rather than first only
-   because P1 may change what a tree fragment costs, and measuring V1 against
-   a moving floor wastes the measurement.
+2. **V1, near-tree frustum culling. SHIPPED AND REFUTED (2026-09-18, the
+   "V1 outcome" block in section 3).** The reach claimed here was 30 to 50
+   ms; the measurement is 0.3 ms with 145 of 260 photoscans removed from the
+   colour pass, because the near-tree cost is on-screen fragment work
+   (about 0.47 ms per visible model) and the off-screen models cost nothing
+   the timestamps can see. Kept for the tested draw plan, the counters and
+   the shadow-only split; the rung with reach is item 6's LOD ladder, after
+   P3's phase A has said what a foliage fragment costs on its own entry.
 3. **I1, interior instrumentation plus the screen-emitter hoist.** Reach:
    about 8 ms directly, plus it is the prerequisite for every later interior
    claim (two real vantages, and the camera screen's 16.9 ms pulled out of
    `gpu.scene`). Risk: near zero; the hoist is provably a no-op and the rest
    is measurement.
-4. **W1, the water depth prepass plus backface cull.** Reach: a large fraction
-   of 42 to 49 ms at two ocean vantages. Risk: the highest of the four,
-   because it is the only increment that changes the image, and it changes it
+4. **W1, the water depth prepass plus backface cull. RE-SCOPED after P2:**
+   the 42 to 49 ms at the ocean vantages was the cloud march's private frame
+   charged to every water fragment, not overdraw; the shell PSO took
+   ocean-storm-low's `gpu.celestial_t` to 1.39 ms. What remains of W1 is a
+   fidelity and ordering change (a deterministic nearest fragment instead of
+   the heap-order blend, which differs on every pixel with alpha below 1),
    on the sea, the surface the operator has given the most feedback about
    (the v0.1060, v0.1055 and increment-7 notes are all operator-driven). Ship
-   it with a pixel diff and a look call, never as a silent perf win.
+   it, if at all, with a pixel diff and a look call, never as a perf item.
 5. **Clustered light grid, replacing `light_tiles.rs`.** Reach: 8 ms today,
    and the ability to turn `lights_tiled` on by default without the
    drop-past-64 hazard. Risk: real, because it changes lighting. Deferred
@@ -989,7 +994,13 @@ material vocabulary with alpha-cutout vegetation at planet scale).
   (`src/config.rs:1400`), `grass_far_m` 0 becomes 13 (`GRASS_MID_M + 1`).
   "Vegetation off" is therefore not reachable from the GUI, which matters for
   this arc specifically, because the operator cannot reproduce the bisect that
-  found vegetation is 80 percent of the worst frame.
+  found vegetation is 80 percent of the worst frame. **CLOSED 2026-09-18:**
+  zero means off for tree density, grass cover and blade detail (the clamps
+  use the shared range constants, `trees_in_cell` answers 0 in both
+  vegetation streams, the grass harvest is gated by one pure predicate), six
+  headless tests with positive controls. `grass_far_m` keeps its 13 m floor
+  because cover 0 stops the grass entirely and the ramp shape needs far past
+  mid; `water_detail_depth` is untouched and still clamps at 14.
 
 ## 6. Confidence
 
