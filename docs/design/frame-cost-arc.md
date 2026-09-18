@@ -426,9 +426,16 @@ transparent and overlay draw loop (`render_transparent_onto`,
 hi-res screenshot and the camera screens) picks `transparent_for(class)` /
 `overlay_for(class)` and switches only when the class changes; the opaque
 loops debug-assert that no shell is in their list. The celestial transparent
-list is stable-sorted general-first, then shells (water last inside an
-atmosphere, as before), so the switches are a handful per frame. Hot reload
-rebuilds all ten through the same named-struct path (`MegashaderPsos`).
+list is stable-sorted so the planet LAYER BAND (types 13 to 16: the fallback
+dome or the scattering atmosphere, the cloud deck, the ocean and its
+backstop) draws after everything else, water last inside an atmosphere as
+before, so the switches are a handful per frame. The key is the band and NOT
+the class (`renderer/celestial_order.rs`, four tests): the P2 review found
+that a class key lifted the type-13 fallback dome, which is General class,
+in front of the sea and the clouds whenever "Scattering atmosphere" was off,
+compositing the haze under the deck; no gate could see it because the
+operator config runs scattering on. Hot reload rebuilds all ten through the
+same named-struct path (`MegashaderPsos`).
 
 Why three classes and not the two the brief sketched (General plus one Shell
 with all three switches on): P1 already measured that a PSO which can reach

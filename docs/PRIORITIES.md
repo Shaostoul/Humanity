@@ -45,7 +45,9 @@
 > `shader_class(material_type)` classifier is pinned to the WGSL guard bands
 > by a test that was proven red; the draw loops select the PSO by class
 > (`transparent_for` / `overlay_for`) and switch only on change; the
-> celestial transparent list is stable-sorted General before shells. At the
+> celestial transparent list is stable-sorted by planet layer band (the
+> review caught a class-keyed sort lifting the fallback dome under the sea
+> with scattering off; fixed with a pure key and four tests). At the
 > operator's settings: limb `gpu.celestial_t` 25.0 to 0.37 ms (24.5 to 30
 > fps, the floor of 25 met), Sahara 10.4 to 0.19 with the sky rows
 > bit-identical, ocean-storm-low 48.8 to 1.39 (the water shell was paying the
