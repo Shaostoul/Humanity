@@ -3148,6 +3148,16 @@ mod native_app {
                     }
                 }
                 WindowEvent::RedrawRequested => {
+                    // `cpu.frame_total` starts HERE, at the handler's entry,
+                    // and is recorded after the last submit (the broadcast
+                    // capture copy, just before present) for world frames.
+                    // Frame time minus this, minus `cpu.present_wait`, is
+                    // the time outside the handler (event pumping); this
+                    // minus the sum of the instrumented stages is the CPU
+                    // work nobody has timed yet, in EMA steady state (the
+                    // stages straddle the acquire boundary, see
+                    // docs/dev/performance-profiling.md).
+                    let frame_t0 = Instant::now();
                     // Frame-rate caps (v0.1016, operator request): sleep off
                     // the remainder of the frame budget BEFORE stamping dt,
                     // so game time simply sees a longer (correct) frame.
@@ -3169,7 +3179,15 @@ mod native_app {
                                 std::time::Duration::from_secs_f64(1.0 / cap as f64);
                             let elapsed = state.last_frame.elapsed();
                             if elapsed < target {
+                                // Deliberate pacing, recorded as its own
+                                // stage so it is never mistaken for work
+                                // inside `cpu.frame_total`.
+                                let sleep_t0 = Instant::now();
                                 std::thread::sleep(target - elapsed);
+                                crate::renderer::frame_costs::record_cpu(
+                                    "cpu.fps_cap_sleep",
+                                    sleep_t0.elapsed(),
+                                );
                             }
                         }
                     }
@@ -9870,7 +9888,14 @@ mod native_app {
                                 // Sustained build-budget saturation is worth
                                 // seeing in the log (normal for a few seconds
                                 // during an approach; suspicious if constant).
-                                if selection.build_requests.len() > chunks::PATCH_BUILDS_PER_FRAME
+                                // `budget` is the LIVE per-frame build
+                                // budget (the terrain_builds_per_frame
+                                // setting, clamped, computed above); the
+                                // old line compared against and printed the
+                                // PATCH_BUILDS_PER_FRAME constant (24),
+                                // which the setting had long since replaced,
+                                // so the log claimed 24 while 64 were built.
+                                if selection.build_requests.len() > budget
                                     && cs.frame.saturating_sub(cs.last_saturation_log) > 300
                                 {
                                     cs.last_saturation_log = cs.frame;
@@ -9878,7 +9903,7 @@ mod native_app {
                                         "Planet chunks '{}': build budget saturated ({} requested, {} per frame) - refining progressively",
                                         b.id,
                                         selection.build_requests.len(),
-                                        chunks::PATCH_BUILDS_PER_FRAME,
+                                        budget,
                                     );
                                 }
                                 // LRU eviction past the byte cap: swap the GPU
@@ -10104,10 +10129,28 @@ mod native_app {
                                     // while the harvest waits up to 12 m of
                                     // walking to notice, and that window is
                                     // exactly the orphaned-card window.
-                                    if moved > 12.0
-                                        || tree_draw_depth != state.near_tree_depth
-                                        || veg_harvest_density != state.near_tree_density
-                                    {
+                                    // The gate itself lives in
+                                    // terrain::near_tree_gate (pure, tested):
+                                    // movement is eager, the two change
+                                    // terms are rate-limited, and the reason
+                                    // comes back for the log. The 2026-09-18
+                                    // measurement saw this fire every frame
+                                    // while parked; the log line below now
+                                    // says which term did it.
+                                    let since_last_s = state.start_time.elapsed().as_secs_f32()
+                                        - state.near_tree_born_s;
+                                    let recompute_why =
+                                        crate::terrain::near_tree_gate::near_tree_recompute_reason(
+                                            moved,
+                                            tree_draw_depth,
+                                            state.near_tree_depth,
+                                            veg_harvest_density,
+                                            state.near_tree_density,
+                                            since_last_s,
+                                        );
+                                    if let Some(why) = recompute_why {
+                                        let (prev_depth, prev_density) =
+                                            (state.near_tree_depth, state.near_tree_density);
                                         let src = chunks::ElevationSource::Heightmap {
                                             hm,
                                             detail: &cs.detail,
@@ -10165,11 +10208,24 @@ mod native_app {
                                         state.near_tree_born_s =
                                             state.start_time.elapsed().as_secs_f32();
                                         state.near_trees_center = cam_local;
-                                        log::info!(
-                                            "[NearTree] recompute: {} trees within {:.0} m (alt {:.0} m)",
+                                        // Debug level: at info this was a
+                                        // per-frame flood while parked. The
+                                        // reason and the before/after values
+                                        // are what a future reader needs to
+                                        // tell a walk from an oscillating
+                                        // input.
+                                        log::debug!(
+                                            "[NearTree] recompute ({}): {} trees within {:.0} m (alt {:.0} m; moved {:.1} m, depth {} -> {}, density {:.2} -> {:.2}, {:.2} s since last)",
+                                            why.label(),
                                             state.near_trees.len(),
                                             tree_dist + 60.0,
-                                            alt_over
+                                            alt_over,
+                                            moved,
+                                            prev_depth,
+                                            tree_draw_depth,
+                                            prev_density,
+                                            veg_harvest_density,
+                                            since_last_s,
                                         );
                                     }
                                     // Near-tree MODEL CACHE + sprite atlas
@@ -17974,6 +18030,13 @@ mod native_app {
                                 let daylight = crate::engine::ipc::sky_daylight(state);
                                 // Pass 1: Stars (clear to black + draw star points)
                                 if let Some(ref mut star_r) = state.star_renderer {
+                                    // `cpu.stars`: the submission twin of the
+                                    // `gpu.stars` pass below, so the no-timestamp
+                                    // fallback (`gpu.x` reads `cpu.x`) has a number
+                                    // for the Star field row (it read 0 before
+                                    // 2026-09-18). Same pair as `SceneView::Main`'s
+                                    // `sky_ids`, which the screenshot path uses.
+                                    let _cost = crate::renderer::frame_costs::stage("cpu.stars");
                                     // Sky settings (v0.786): constellation toggle +
                                     // theme color. Rebuilds the line buffer only
                                     // when the color actually changed.
@@ -18387,14 +18450,19 @@ mod native_app {
                                         o.position += so;
                                     }
                                 }
-                                state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
+                                // `SceneView::Main`: these four are the live frame's
+                                // `gpu.scene` / `gpu.transparent` / `gpu.overlay` /
+                                // `gpu.lines`; a camera screen's re-render of the same
+                                // lists is keyed `gpu.screen_*` (`render_view_onto`).
+                                let main_view = crate::renderer::frame_costs::SceneView::Main;
+                                state.renderer.render_scene_onto(&state.camera, &all_objects, &view, main_view);
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)
-                                state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view);
+                                state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view, main_view);
                                 // Pass 2.6: editor gizmos on top (depth off), visible through walls. (v0.560)
-                                state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view);
+                                state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view, main_view);
                                 // Pass 2.7: door auto-open rings as constant-width lines (v0.565).
-                                state.renderer.draw_lines_onto(&state.camera, &ring_lines, &view);
+                                state.renderer.draw_lines_onto(&state.camera, &ring_lines, &view, main_view);
                                 // Pass 2.8: particle billboards (v0.966) -
                                 // drifting leaves, space dust - blended over
                                 // everything, depth-tested, no depth write.
@@ -19128,6 +19196,11 @@ mod native_app {
 
                                 state.renderer.queue.submit(std::iter::once(encoder.finish()));
                             }
+                            // `cpu.frame_total` does NOT close here: the egui submit
+                            // is not the frame's last. The screenshot captures, the
+                            // weather upload and the live broadcast's capture copy
+                            // (`pump_live_broadcast`, its own submit) all follow, so
+                            // the total is recorded just before `present()` below.
 
                             // Free egui textures that are no longer needed
                             for id in &full_output.textures_delta.free {
@@ -19197,7 +19270,34 @@ mod native_app {
                             // same thing OBS's window capture would grab.
                             pump_live_broadcast(state, &surface_texture.texture);
 
+                            // `cpu.frame_total` closes HERE: handler entry to the
+                            // last submit, which is the broadcast copy above when
+                            // a stream is live (the 2026-09-18 review found the
+                            // total closed at the egui submit, leaving that copy
+                            // outside it). World frames only - a UI-only frame's
+                            // accumulation is discarded at its acquire, and a
+                            // stage recorded after that discard would leak into
+                            // the next world frame.
+                            if !page_active {
+                                crate::renderer::frame_costs::record_cpu(
+                                    "cpu.frame_total",
+                                    frame_t0.elapsed(),
+                                );
+                            }
+
+                            // `cpu.present_wait`, half 2 (half 1 is around
+                            // `get_current_texture` in `acquire_surface`):
+                            // present blocks when the swapchain queue is full,
+                            // which is what "waiting for the display" costs
+                            // on the CPU. World frames only (see frame_total).
+                            let present_t0 = Instant::now();
                             surface_texture.present();
+                            if !page_active {
+                                crate::renderer::frame_costs::record_cpu(
+                                    "cpu.present_wait",
+                                    present_t0.elapsed(),
+                                );
+                            }
 
                             // Catch a page change made by an egui click this frame (the
                             // per-frame reconciliation ran before the egui frame). Same single

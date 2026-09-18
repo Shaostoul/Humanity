@@ -334,11 +334,23 @@ The post is an ordinary catalog machine with one new def field:
     shape: "box", size: (0.14, 1.7, 0.14), color: (0.2, 0.2, 0.22),
     label: "Camera post", category: "Displays",
     camera: Some((0.0, -8.0, 70.0)),   // (yaw, pitch, fov) in degrees
+    camera_px: (640, 360),             // the size the camera RENDERS at (default)
 ),
 ```
 
 `MachineDef.camera` / `PlacedMachine.camera` is `(yaw_deg, pitch_deg,
-fov_deg)`. Yaw 0 is the body's front (-Z at rotation 0) and the placed
+fov_deg)`. `camera_px` (default `(640, 360)`, `CAMERA_PX_DEFAULT`; each
+side clamped to at least 1) is the pixel size the camera's view is
+rendered at, carried into `CameraPose::px`: the wall screen's surface is
+RESIZED to it on the camera's first picture, whatever the wall def's own
+`screen.px` says. **The trade (2026-09-18 measurement at the operator's
+settings):** the cost of a camera view is per pixel. A camera re-rendering
+the console room into the wall's 1280 x 720 surface cost 17 ms whenever
+its wall was in view, a full extra scene pass in a 10 fps room. A 640 x 360
+render is a quarter of those pixels for roughly a quarter of the cost; the
+wall quad's physical size is unchanged and the sampler scales the picture
+up, so a security feed reads as a security feed. A def that wants a sharp
+camera pays for it explicitly by raising `camera_px`. Yaw 0 is the body's front (-Z at rotation 0) and the placed
 instance's `rotation` ADDS to it, so turning the post in the editor turns
 the camera; pitch is positive up (a mounted camera looks a little down);
 fov is the vertical field of view. `PlacedMachine::camera_pose`
@@ -377,8 +389,19 @@ camera screen is a correct PNG.
   starvation order: never rendered first, then the oldest render, ties to
   the nearest. Three cameras in a room cycle 0, 1, 2 and none renders on
   two consecutive frames (`due_cameras_render_one_per_frame_in_starvation_order`).
-- The render size is the surface's own `px`; a smaller camera screen def is
-  a cheaper camera.
+- The render size is the camera post's `camera_px` (default 640 x 360), not
+  the wall's `screen.px`: the provider resizes its surface to the pose's
+  size on the first picture (`ScreenSurface::resize`, through the
+  `WorldRender::device` handle) and `frame_surfaces` rebinds the wall's
+  material to the new texture the same frame. The wall quad's physical size
+  is unchanged; the sampler scales the picture up. The cost of a view is
+  per pixel, so this is the camera's one cost knob (see the def field
+  above for the measured trade). The re-render publishes under its own
+  frame-cost keys, `gpu.screen_sky` / `gpu.screen_scene` /
+  `gpu.screen_transparent` / `gpu.screen_overlay` / `gpu.screen_lines`
+  (`frame_costs::SceneView::Screen`, one key per pass it runs), so it shows
+  on the Performance page as "In-world screens" instead of hiding inside
+  the live frame's numbers.
 - The passes are the sky (stars) and the scene lists (opaque, transparent,
   overlay, ring lines): `ViewPasses::SceneOnly`. The planet/cloud pass,
   celestial lines, god rays and SSAO are NOT run for a camera, for two
@@ -792,6 +815,20 @@ is how the verdict logic itself is proven able to fail. Both modes print
 - Surfaces are fixed-size (the def's `px`), allocated once per placed screen
   and reused across editor rebuilds by instance id; a move recomputes
   geometry only. Only a changed page or pixel size recreates a surface.
+  The two exceptions resize IN PLACE (`ScreenSurface::resize`, same context,
+  new texture): a pixel provider writing frames of another size, and a
+  camera screen taking its post's `camera_px` (default 640 x 360) on its
+  first picture, a quarter of a 1280 x 720 wall's pixels for about a
+  quarter of the re-render's cost.
+- Every screen pass is on the Performance page: `gpu.screen_ui` (each
+  framed screen's egui pass, summed) and the camera re-render's
+  `gpu.screen_sky` / `gpu.screen_scene` / `gpu.screen_transparent` /
+  `gpu.screen_overlay` / `gpu.screen_lines`. Each has a same-named
+  `cpu.screen_*` submission stage (`cpu.screen_sky` is the stage guard
+  around `render_view_onto`'s star pass; the others sit in the renderer
+  functions the view calls), so the no-timestamp fallback can read every
+  one of them; together they are the "In-world screens" rows (GPU and CPU)
+  of `data/performance/budget_systems.ron`.
 - At most **4 surfaces re-run their page per frame** (`MAX_FRAMES_PER_TICK`),
   the nearest within **40 m** (`FRAME_RANGE_M`) and in front of the camera,
   plus the hovered one and any IPC target. A surface not framed keeps its

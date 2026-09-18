@@ -1771,7 +1771,11 @@
         // `camera` is (yaw, pitch, fov) in degrees: yaw 0 = the post's
         // front (-Z at rotation 0) and the placed instance's rotation adds
         // to it; pitch -8 looks a little down like a mounted camera; a 70
-        // degree lens.
+        // degree lens. `camera_px` is the size the camera RENDERS at, not
+        // the wall's px: the cost of a camera view is per pixel (measured
+        // 2026-09-18: a 1280 x 720 re-render was 17 ms, a full extra scene
+        // pass in a 10 fps room), so 640 x 360 is a quarter of the wall's
+        // pixels for about a quarter of the cost; the wall stretches it.
         "camera_post": (
             shape: "box",
             size: (0.14, 1.7, 0.14),
@@ -1793,6 +1797,7 @@
             container_type: None,
             model: None,
             camera: Some((0.0, -8.0, 70.0)),
+            camera_px: (640, 360),
         ),
         "water_pump": (
             shape: "box",

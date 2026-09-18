@@ -164,11 +164,17 @@ impl SkyViewPass {
     }
 
     /// Render the sky-view table for this frame's camera/sun/planet state.
+    ///
+    /// `timestamp_writes` is one slot pair from the renderer's frame-cost
+    /// timers (`Renderer::pass_timer("gpu.sky_view")`), threaded in from the
+    /// caller the way the post-process passes get theirs, so the LUT refresh
+    /// is a number on the Performance page. `None` = untimed.
     pub fn encode(
         &self,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         uniform: &SkyViewUniform,
+        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(uniform));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -182,7 +188,7 @@ impl SkyViewPass {
                 },
             })],
             depth_stencil_attachment: None,
-            timestamp_writes: None,
+            timestamp_writes,
             occlusion_query_set: None,
         });
         pass.set_pipeline(&self.pipeline);

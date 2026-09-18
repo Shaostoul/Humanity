@@ -1054,6 +1054,18 @@ pub(crate) fn render_view_onto(
     passes: ViewPasses,
 ) {
     let (w, h) = size;
+    // Whose frame these passes are, for the cost keys. A camera screen's
+    // 10 Hz re-render publishes under its own `gpu.screen_*` ids so the
+    // Performance page shows the wall as its own number; the hi-res
+    // screenshot keeps the MAIN ids on purpose: it is a one-off render of
+    // the player's own view (its other passes, celestial and god rays, are
+    // main-keyed already), it decays out of the pie within a second, and
+    // keying it as a "screen" would misattribute a screenshot to the
+    // camera wall.
+    let who = match passes {
+        ViewPasses::Everything => crate::renderer::frame_costs::SceneView::Main,
+        ViewPasses::SceneOnly => crate::renderer::frame_costs::SceneView::Screen,
+    };
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
     state.renderer.begin_view_depth(w, h);
@@ -1067,6 +1079,11 @@ pub(crate) fn render_view_onto(
     // renderer is somehow absent the clear still runs, so the target is
     // never undefined.
     {
+        // `gpu.screen_sky` / `cpu.screen_sky` for a camera screen, `gpu.stars`
+        // / `cpu.stars` for the screenshot (see `who` above). The CPU stage
+        // is the submission twin the no-timestamp fallback reads.
+        let (sky_gpu, sky_cpu) = who.sky_ids();
+        let _cost = crate::renderer::frame_costs::stage(sky_cpu);
         if let Some(ref star_r) = state.star_renderer {
             star_r.update_camera(
                 &state.renderer.queue,
@@ -1080,6 +1097,7 @@ pub(crate) fn render_view_onto(
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("View Star Pass"),
+                timestamp_writes: state.renderer.pass_timer(sky_gpu),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     resolve_target: None,
@@ -1128,10 +1146,13 @@ pub(crate) fn render_view_onto(
         state.renderer.render_godrays_onto(camera, sun_dir_f, target, godray_scale(state));
         state.renderer.render_ssao_onto(camera, target);
     }
-    state.renderer.render_scene_onto(camera, lists.opaque, target);
-    state.renderer.render_transparent_onto(camera, lists.transparent, target);
-    state.renderer.render_overlay_onto(camera, lists.overlay, target);
-    state.renderer.draw_lines_onto(camera, lists.ring_lines, target);
+    state.renderer.render_scene_onto(camera, lists.opaque, target, who);
+    state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
+    // Same `who` for the overlay and the ring lines: a camera screen's draws
+    // publish under `gpu.screen_overlay` / `gpu.screen_lines`, not the live
+    // frame's ids (the 2026-09-18 review found them summed into the Main ones).
+    state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
+    state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
 
     // Put the window's depth buffer back BEFORE returning, or the next live
     // pass would bind a mismatched one. The view-sized buffer is kept for

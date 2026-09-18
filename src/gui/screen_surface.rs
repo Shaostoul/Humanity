@@ -298,6 +298,11 @@ pub trait WorldRender {
     /// call, so a post moved or removed in the editor is seen at once.
     fn camera_pose(&self, instance_id: &str) -> Option<CameraPose>;
 
+    /// The GPU device, so a world screen can resize its surface to the
+    /// camera's own render size (`CameraPose::px`) before the render; the
+    /// provider's `render_world` is otherwise handed no device.
+    fn device(&self) -> &wgpu::Device;
+
     /// Render the world as seen by `camera` into `target`, a render
     /// attachment of `size` pixels in the scene's own format. Returns
     /// whether a view was actually rendered: `false` means the engine
@@ -764,6 +769,15 @@ pub struct ScreenSurface {
     /// and cleared by `take_view_changed`: the scene material binds the OLD
     /// view until `engine::screens::frame_surfaces` rebinds it.
     view_changed: bool,
+    /// The renderer's frame-cost timestamp ring, shared by `Arc`
+    /// (`Renderer::gpu_timers`), so the egui-to-texture pass below can open
+    /// a `gpu.screen_ui` scope the way every renderer pass opens its own.
+    /// `None` on an adapter without timestamp queries, and for the headless
+    /// twin (tests, snapshots) that never had a renderer; the pass is then
+    /// simply untimed. Installed by `engine::screens::sync_screens` right
+    /// after creation (`set_gpu_timers`); the constructors take no renderer
+    /// so the tests can build a surface from a bare device.
+    gpu_timers: Option<std::sync::Arc<crate::renderer::frame_costs::GpuTimers>>,
 }
 
 /// The texture format of every surface that draws pixels or egui content.
@@ -814,7 +828,27 @@ impl ScreenSurface {
         let (w, h) = core.size();
         let renderer = egui_wgpu::Renderer::new(device, format, None, 1, false);
         let (texture, view) = Self::make_texture(device, w, h, format);
-        Self { core, renderer, texture, view, format, provider: None, view_changed: false }
+        Self {
+            core,
+            renderer,
+            texture,
+            view,
+            format,
+            provider: None,
+            view_changed: false,
+            gpu_timers: None,
+        }
+    }
+
+    /// Hand the surface the renderer's frame-cost timers so its egui pass is
+    /// timed as `gpu.screen_ui` (see the field). Called once at creation by
+    /// `engine::screens::sync_screens`; a surface never given one draws
+    /// untimed, which is what the headless twin wants.
+    pub fn set_gpu_timers(
+        &mut self,
+        timers: Option<std::sync::Arc<crate::renderer::frame_costs::GpuTimers>>,
+    ) {
+        self.gpu_timers = timers;
     }
 
     /// The texture every surface draws into: a render target (egui draws
@@ -1010,6 +1044,11 @@ impl ScreenSurface {
         gui_state: &mut GuiState,
         mut draw: impl FnMut(&mut ScreenCore, &mut Theme, &mut GuiState) -> egui::FullOutput,
     ) {
+        // `cpu.screen_ui`: the egui run(s), tessellation and submit for this
+        // screen, CPU side. Several screens a frame sum under the one id;
+        // pairs with the pass's `gpu.screen_ui` for the no-timestamp
+        // fallback rule.
+        let _cost = crate::renderer::frame_costs::stage("cpu.screen_ui");
         theme.apply_to_egui(&self.core.ctx);
         // Two runs on the first frame, one after (`ScreenCore::runs_this_frame`
         // owns the rule so the headless twin drives the same count). A
@@ -1056,7 +1095,10 @@ impl ScreenSurface {
                         },
                     })],
                     depth_stencil_attachment: None,
-                    timestamp_writes: None,
+                    // One `gpu.screen_ui` scope per framed screen; the
+                    // frame-cost store sums same-id passes, so the pie shows
+                    // all the screens' egui passes as one number.
+                    timestamp_writes: self.gpu_timers.as_ref().and_then(|t| t.writes("gpu.screen_ui")),
                     occlusion_query_set: None,
                 })
                 .forget_lifetime();

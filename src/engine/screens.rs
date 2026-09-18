@@ -549,6 +549,10 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
                     format,
                 );
                 s.set_provider(provider);
+                // The frame-cost timers, so the screen's egui pass is timed
+                // as `gpu.screen_ui` (None on an adapter without timestamp
+                // queries: the pass is then simply untimed).
+                s.set_gpu_timers(state.renderer.gpu_timers());
                 (s, true)
             }
         };

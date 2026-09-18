@@ -18,6 +18,11 @@ pub mod grass;
 /// tillers and near-field trees both stand on it).
 pub mod drawn_surface;
 pub mod far_trees;
+/// The near-tree harvest's re-run gate (moved / LOD changed / density
+/// changed, the change terms rate-limited), pure so it is testable without
+/// a planet and so the frame loop's `[NearTree] recompute` log can name
+/// its reason (2026-09-18, the parked-camera log flood).
+pub mod near_tree_gate;
 /// Real OpenStreetMap regions (data/maps/regions/*.bin): the HOSMREG2
 /// reader, the fetcher's projection contract, a polygon ear clipper, and the
 /// 3D extrusion mesher. Shared by the Maps page's 2D Planet view and the

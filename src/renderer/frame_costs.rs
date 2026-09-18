@@ -72,9 +72,67 @@ pub struct Snapshot {
     pub gpu_timing: GpuTiming,
     /// Whether any frame has been measured yet (false before world entry).
     pub has_frames: bool,
+    /// How many passes asked for a timestamp slot pair in the last WORLD frame
+    /// and were refused because the ring (`MAX_TIMED_PASSES`) was full. Such a
+    /// pass is simply untimed, which on the pie looks like "free"; the
+    /// Performance page prints this count so that silence is never mistaken
+    /// for a measurement. Exact (not smoothed), frozen on UI-only frames like
+    /// the rest of the GPU column.
+    pub gpu_untimed_passes: u32,
+}
+
+/// The `gpu.*` ids whose pass has NO same-named `cpu.*` stage. On an adapter
+/// without timestamp queries a `gpu.x` row reads `cpu.x` (`Snapshot::value`);
+/// for these ids there is nothing to read, so the row would show 0 and look
+/// free. The Performance page consults this list to say "not measurable on
+/// this adapter" instead. Kept in lockstep with the source tree by
+/// `gui::pages::performance::tests::no_twin_list_matches_the_source_tree`,
+/// which derives the same set by scanning `src/` for recorded ids: add a
+/// `cpu.x` stage (or a new twin-less `gpu.x` pass) and that test names the
+/// drift.
+pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
+    // The UI-only frame's surface clear and the main egui pass: submitted from
+    // lib.rs's frame loop, no stage guard around them.
+    "gpu.clear",
+    "gpu.ui",
+    // The star pass has a `cpu.stars` twin on the LIVE path, but these passes
+    // never got one: the transparent celestial pass (ocean shells), the sun
+    // shadow depth pass, the sky-view LUT refresh, the instanced batches.
+    "gpu.celestial_t",
+    "gpu.shadow",
+    "gpu.sky_view",
+    "gpu.instanced",
+    // The whole cloud deck is encoded inside `render_celestial_onto`, under
+    // `cpu.celestial`; its four (plus two calibration) passes have no
+    // per-pass CPU twin.
+    "gpu.cloud_light",
+    "gpu.cloud_screen",
+    "gpu.cloud_resolve",
+    "gpu.cloud_composite",
+    "gpu.cloud_profile",
+    "gpu.cloud_profile_calib",
+    // Dormant (nothing calls BloomPass::apply today) and twin-less.
+    "gpu.bloom",
+];
+
+/// Whether `gpu.x` has a `cpu.x` stage the no-timestamp fallback can read.
+pub fn gpu_id_has_cpu_twin(id: &str) -> bool {
+    !GPU_IDS_WITHOUT_CPU_TWIN.contains(&id)
 }
 
 impl Snapshot {
+    /// Whether `id` (a `gpu.*` id) is a real measurement in this snapshot:
+    /// always with timestamp queries; in the CPU fallback only when the pass
+    /// has a `cpu.*` twin to read. A row whose sources are all unmeasurable
+    /// must say so rather than read 0 (the Clouds row on an adapter without
+    /// `TIMESTAMP_QUERY` read exactly zero, silently, before this).
+    pub fn gpu_measurable(&self, id: &str) -> bool {
+        match self.gpu_timing {
+            GpuTiming::Timestamps => true,
+            GpuTiming::CpuFallback => gpu_id_has_cpu_twin(id),
+        }
+    }
+
     /// Look a value up by source id across every column. `gpu.*` ids fall back
     /// to the matching `cpu.*` id when the adapter has no timestamp queries,
     /// which is what makes one registry serve both paths.
@@ -120,6 +178,8 @@ struct Store {
     last_frame_start: Option<Instant>,
     timestamps: bool,
     has_frames: bool,
+    /// Slot-pair refusals in the last world frame (see `Snapshot::gpu_untimed_passes`).
+    gpu_untimed: u32,
 }
 
 fn store() -> &'static Mutex<Store> {
@@ -215,6 +275,41 @@ pub(crate) fn publish_gpu_frame(samples: &[(&'static str, f32)]) {
                 s.gpu.push(Entry { id, value: v as f64 });
             }
         }
+    }
+}
+
+/// What to do with one frame's harvested GPU durations, given whose frame
+/// they were. This is the GPU twin of the CPU side's `begin_frame` /
+/// `discard_frame` split, and it is the whole fix for the Performance page
+/// reading zeros:
+///
+///   * a WORLD frame publishes (sum same-id passes, decay absent ones), as
+///     `publish_gpu_frame` describes;
+///   * a UI-ONLY frame (a full-screen page is open, the engine only clears
+///     the surface and draws egui) publishes NOTHING. Its samples are thrown
+///     away and every `gpu.*` value stays frozen at the last world frame.
+///
+/// Before this split the harvest published unconditionally, so opening the
+/// Performance page (itself a UI-only page) EMA'd every world pass toward
+/// zero: 3.9 percent of its true value after 20 frames, 0.006 percent after
+/// 60. The Clouds, In-world screens and World surface rows read about zero
+/// exactly where the operator was told to read them. The UI-only passes
+/// themselves (`gpu.clear`, `gpu.ui`) freeze too, deliberately: one rule for
+/// the whole column, "the pie shows your last rendered world frame", the
+/// same promise the CPU column and the page's own caption make.
+pub(crate) fn publish_gpu_harvest(samples: &[(&'static str, f32)], world: bool) {
+    if world {
+        publish_gpu_frame(samples);
+    }
+    // UI-only: discard. Nothing to do; the store is untouched.
+}
+
+/// Record how many passes went untimed in the last world frame because the
+/// timestamp ring was full. Exact, not smoothed: it is a count, and a single
+/// refused frame is worth knowing about.
+pub(crate) fn set_gpu_untimed(count: u32) {
+    if let Ok(mut s) = store().lock() {
+        s.gpu_untimed = count;
     }
 }
 
@@ -403,6 +498,7 @@ pub fn snapshot() -> Snapshot {
                 frame_ms: 0.0,
                 gpu_timing: GpuTiming::CpuFallback,
                 has_frames: false,
+                gpu_untimed_passes: 0,
             }
         }
     };
@@ -414,6 +510,7 @@ pub fn snapshot() -> Snapshot {
         frame_ms: s.frame_ms,
         gpu_timing: if s.timestamps { GpuTiming::Timestamps } else { GpuTiming::CpuFallback },
         has_frames: s.has_frames,
+        gpu_untimed_passes: s.gpu_untimed,
     }
 }
 
@@ -449,6 +546,10 @@ pub fn dump_json() {
         "cpu_ms": col(&s.cpu),
         "vram_bytes": col(&s.vram),
         "ram_bytes": col(&s.ram),
+        // Passes refused a timestamp slot in the last world frame (0 = every
+        // pass was timed). Non-zero means the `gpu_ms` column is missing
+        // passes and MAX_TIMED_PASSES needs raising.
+        "gpu_untimed_passes": s.gpu_untimed_passes,
     });
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write("debug/frame_costs.json", body.to_string());
@@ -519,9 +620,79 @@ pub fn sample_process_memory() {}
 
 // ────────────────────────────── GPU timestamps ──────────────────────────────
 
-/// How many render passes can be timed per frame. Each takes two timestamp
-/// slots (begin + end). 48: a world frame with the cloud caches uses ~22 passes, the far rung's calibration frame 2 more and its mip burst 6 more the engine submits.
-const MAX_TIMED_PASSES: usize = 48;
+/// How many render/compute passes can be timed per frame. Each takes two
+/// timestamp slots (begin + end). A world frame with the cloud caches uses
+/// ~22 passes, the far rung's calibration frame 2 more and its mip burst 6
+/// more; the in-world screens add one egui pass PER FRAMED SCREEN (up to six
+/// in the console room) plus the camera screen's sky, scene and transparent
+/// passes, and the particle sim and sky-view LUT passes are timed too since
+/// the 2026-09-18 instrumentation pass. 64 leaves room for all of that at
+/// once; the cost is 1 KB of query slots.
+const MAX_TIMED_PASSES: usize = 64;
+
+/// Which frame a scene-object pass (opaque or transparent) belongs to, so
+/// its cost is published under its OWN key instead of being summed into the
+/// live frame's. The camera wall screen re-renders the scene at 10 Hz
+/// through the same `render_scene_onto` / `render_transparent_onto` the
+/// live frame uses; before this enum both landed in `gpu.scene`, and a
+/// 17 ms camera re-render was invisible as its own number (the 2026-09-18
+/// measurement at the operator's settings).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SceneView {
+    /// The live window frame (and the hi-res screenshot, which renders the
+    /// same view once): `gpu.scene` / `gpu.transparent`.
+    Main,
+    /// An in-world camera screen's re-render: `gpu.screen_scene` /
+    /// `gpu.screen_transparent`, with matching `cpu.*` stages so the
+    /// no-timestamp fallback rule (`gpu.x` reads `cpu.x`) still holds.
+    Screen,
+}
+
+impl SceneView {
+    /// (GPU pass id, CPU stage id) for the opaque scene pass.
+    pub fn scene_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.scene", "cpu.scene"),
+            SceneView::Screen => ("gpu.screen_scene", "cpu.screen_scene"),
+        }
+    }
+
+    /// (GPU pass id, CPU stage id) for the transparent pass.
+    pub fn transparent_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.transparent", "cpu.transparent"),
+            SceneView::Screen => ("gpu.screen_transparent", "cpu.screen_transparent"),
+        }
+    }
+
+    /// (GPU pass id, CPU stage id) for the sky (star) pass that opens a view:
+    /// the live frame and the screenshot keep `gpu.stars` / `cpu.stars`; a
+    /// camera screen's sky is its own number.
+    pub fn sky_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.stars", "cpu.stars"),
+            SceneView::Screen => ("gpu.screen_sky", "cpu.screen_sky"),
+        }
+    }
+
+    /// (GPU pass id, CPU stage id) for the editor-gizmo overlay pass. A camera
+    /// screen draws the overlay too (`render_view_onto`), and before these
+    /// keys its cost was summed into the live frame's `gpu.overlay`.
+    pub fn overlay_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.overlay", "cpu.overlay"),
+            SceneView::Screen => ("gpu.screen_overlay", "cpu.screen_overlay"),
+        }
+    }
+
+    /// (GPU pass id, CPU stage id) for the ring / guide line pass, same split.
+    pub fn lines_ids(self) -> (&'static str, &'static str) {
+        match self {
+            SceneView::Main => ("gpu.lines", "cpu.lines"),
+            SceneView::Screen => ("gpu.screen_lines", "cpu.screen_lines"),
+        }
+    }
+}
 
 /// wgpu timestamp-query ring. One query set is enough because we resolve the
 /// PREVIOUS frame's writes at the start of the next frame and read the result
@@ -539,16 +710,93 @@ pub struct GpuTimers {
     ready: Arc<AtomicBool>,
 }
 
+/// The ring's bookkeeping, kept apart from the wgpu objects so its rules
+/// (which frame a batch belongs to, what happens when the slots run out) can
+/// be tested without a GPU adapter.
 #[derive(Default)]
 struct TimerState {
     /// Passes timed during the frame in progress: (id, begin slot index).
     pending: Vec<(&'static str, u32)>,
+    /// Whether the frame in progress (the one filling `pending`) is a WORLD
+    /// frame. Set at each boundary from the caller's `world` flag; the value
+    /// travels with the batch when it goes in flight, because the harvest
+    /// two boundaries later must know whether to publish it.
+    frame_world: bool,
     /// Passes whose timestamps are resolving on the GPU right now.
     in_flight: Vec<(&'static str, u32)>,
+    /// The frame kind of the `in_flight` batch (see `frame_world`).
+    in_flight_world: bool,
     /// Next free slot index in the query set.
     next: u32,
     /// Whether `read_buf` is currently mapped by us.
     mapped: bool,
+    /// Slot-pair requests refused this frame because the ring was full. Each
+    /// one is a pass that ran untimed and reads as "free" on the pie, so the
+    /// count is published (world frames) instead of being swallowed.
+    dropped: u32,
+}
+
+/// What a frame hands back at its boundary (`TimerState::close_frame`).
+struct FrameEnd {
+    /// Whether the frame that just ended was a world frame.
+    world: bool,
+    /// Its refused slot requests.
+    untimed: u32,
+    /// Its timed passes and how many slots they used, when the ring is free
+    /// to resolve them; `None` when the previous readback is still pending
+    /// (that frame's samples are dropped, never aliased onto the next).
+    resolve: Option<(Vec<(&'static str, u32)>, u32)>,
+}
+
+impl TimerState {
+    /// Claim a begin/end slot pair for `id`, returning the begin index, or
+    /// count the refusal when the ring is full.
+    fn take_pair(&mut self, id: &'static str) -> Option<u32> {
+        if self.next as usize + 2 > MAX_TIMED_PASSES * 2 {
+            self.dropped += 1;
+            return None;
+        }
+        let begin = self.next;
+        self.next += 2;
+        self.pending.push((id, begin));
+        Some(begin)
+    }
+
+    /// Frame boundary: close the frame that just ended (its batch, its kind,
+    /// its refusal count) and open the next one as `next_world`. The slots
+    /// are always reclaimed, whether or not the batch can be resolved, so a
+    /// UI-only frame neither leaks slots nor lets its passes alias onto the
+    /// next frame's.
+    fn close_frame(&mut self, next_world: bool) -> FrameEnd {
+        let world = self.frame_world;
+        let untimed = self.dropped;
+        let pending = std::mem::take(&mut self.pending);
+        let used = self.next;
+        self.next = 0;
+        self.dropped = 0;
+        self.frame_world = next_world;
+        let resolve = if self.in_flight.is_empty() && !self.mapped && !pending.is_empty() && used > 0 {
+            Some((pending, used))
+        } else {
+            None
+        };
+        FrameEnd { world, untimed, resolve }
+    }
+
+    /// The batch whose resolve was submitted goes in flight, tagged with the
+    /// kind of the frame that wrote it.
+    fn mark_in_flight(&mut self, batch: Vec<(&'static str, u32)>, world: bool) {
+        self.in_flight = batch;
+        self.in_flight_world = world;
+        self.mapped = true;
+    }
+
+    /// Hand the in-flight batch to the harvest and clear it: (passes, whether
+    /// they were a world frame's).
+    fn take_in_flight(&mut self) -> (Vec<(&'static str, u32)>, bool) {
+        self.mapped = false;
+        (std::mem::take(&mut self.in_flight), self.in_flight_world)
+    }
 }
 
 impl GpuTimers {
@@ -588,15 +836,11 @@ impl GpuTimers {
     }
 
     /// Timestamp writes to hand a render pass descriptor. Returns `None` once
-    /// the frame's slots are exhausted (that pass is simply untimed).
+    /// the frame's slots are exhausted (that pass is untimed, and the refusal
+    /// is counted: see `TimerState::dropped`).
     pub fn writes(&self, id: &'static str) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
         let mut st = self.state.lock().ok()?;
-        if st.next as usize + 2 > MAX_TIMED_PASSES * 2 {
-            return None;
-        }
-        let begin = st.next;
-        st.next += 2;
-        st.pending.push((id, begin));
+        let begin = st.take_pair(id)?;
         Some(wgpu::RenderPassTimestampWrites {
             query_set: &self.query_set,
             beginning_of_pass_write_index: Some(begin),
@@ -604,10 +848,36 @@ impl GpuTimers {
         })
     }
 
-    /// Frame boundary: publish whatever finished, then kick off the resolve of
+    /// The compute-pass twin of `writes`: the same slot pair, handed to a
+    /// `ComputePassDescriptor` (wgpu keeps the two descriptor types distinct
+    /// even though they carry identical fields). Used by the GPU particle
+    /// sim, the one compute pass the frame submits.
+    pub fn compute_writes(
+        &self,
+        id: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        let mut st = self.state.lock().ok()?;
+        let begin = st.take_pair(id)?;
+        Some(wgpu::ComputePassTimestampWrites {
+            query_set: &self.query_set,
+            beginning_of_pass_write_index: Some(begin),
+            end_of_pass_write_index: Some(begin + 1),
+        })
+    }
+
+    /// Frame boundary: harvest whatever finished, then kick off the resolve of
     /// the frame that just ended. Never blocks - `Maintain::Poll` only drains
     /// callbacks that are already complete.
-    pub fn begin_frame(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    ///
+    /// `world` says whether the frame that is STARTING renders the 3D world
+    /// (`Renderer::acquire_surface`) or only clears the surface for a
+    /// full-screen page (`acquire_surface_cleared`). The kind is remembered
+    /// per batch and consulted when that batch's samples come back two
+    /// boundaries later: a world frame's are published, a UI-only frame's are
+    /// discarded so the column stays frozen (`publish_gpu_harvest`). The
+    /// slots and the readback are handled identically for both kinds; only
+    /// the publish differs.
+    pub fn begin_frame(&self, device: &wgpu::Device, queue: &wgpu::Queue, world: bool) {
         let _ = device.poll(wgpu::Maintain::Poll);
         let mut st = match self.state.lock() {
             Ok(s) => s,
@@ -616,6 +886,7 @@ impl GpuTimers {
 
         // 1. Harvest a completed readback into the store.
         if self.ready.swap(false, Ordering::Acquire) {
+            let (batch, batch_world) = st.take_in_flight();
             let mut samples: Vec<(&'static str, f32)> = Vec::new();
             {
                 let view = self.read_buf.slice(..).get_mapped_range();
@@ -627,7 +898,7 @@ impl GpuTimers {
                     view.get(o..o + 8)
                         .map(|b| u64::from_le_bytes(b.try_into().unwrap()))
                 };
-                for (id, begin) in st.in_flight.iter() {
+                for (id, begin) in batch.iter() {
                     let (b, e) = (*begin as usize, *begin as usize + 1);
                     if let (Some(t0), Some(t1)) = (tick(b), tick(e)) {
                         if t1 >= t0 {
@@ -638,18 +909,23 @@ impl GpuTimers {
                 }
             }
             self.read_buf.unmap();
-            st.mapped = false;
-            st.in_flight.clear();
             // Published as ONE frame so same-id passes sum and absent passes
-            // decay (see `publish_gpu_frame`).
-            publish_gpu_frame(&samples);
+            // decay, but ONLY for a world frame's batch; a UI-only frame's is
+            // discarded (see `publish_gpu_harvest` for why).
+            publish_gpu_harvest(&samples, batch_world);
         }
 
-        // 2. Resolve the frame that just ended, if the previous readback is done.
-        let pending = std::mem::take(&mut st.pending);
-        let used = st.next;
-        st.next = 0;
-        if st.in_flight.is_empty() && !st.mapped && !pending.is_empty() && used > 0 {
+        // 2. Close the frame that just ended and open the new one. Its
+        //    refused-slot count is published for world frames only, for the
+        //    same reason as the samples: the page must show the last world
+        //    frame's truth, not the UI-only frame's (which drops nothing).
+        let end = st.close_frame(world);
+        if end.world {
+            set_gpu_untimed(end.untimed);
+        }
+
+        // 3. Resolve the batch, if the previous readback is done.
+        if let Some((batch, used)) = end.resolve {
             let mut enc = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Frame Cost Resolve"),
             });
@@ -668,8 +944,7 @@ impl GpuTimers {
                     flag.store(true, Ordering::Release);
                 }
             });
-            st.mapped = true;
-            st.in_flight = pending;
+            st.mark_in_flight(batch, end.world);
         }
     }
 }
@@ -711,15 +986,38 @@ impl Renderer {
         self.gpu_timers.as_ref().and_then(|t| t.writes(id))
     }
 
+    /// The compute-pass twin of `pass_timer`, for a `ComputePassDescriptor`.
+    pub(crate) fn compute_pass_timer(
+        &self,
+        id: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        self.gpu_timers.as_ref().and_then(|t| t.compute_writes(id))
+    }
+
+    /// A shared handle to the frame's timers, for a pass that is submitted
+    /// OUTSIDE the renderer module and has no `&Renderer` in hand when it
+    /// builds its descriptor: the in-world screens' egui-to-texture pass
+    /// (`gui::screen_surface`) is created with a device and a queue only.
+    /// `None` on an adapter without timestamp queries, same as `pass_timer`.
+    pub(crate) fn gpu_timers(&self) -> Option<Arc<GpuTimers>> {
+        self.gpu_timers.clone()
+    }
+
     /// Frame boundary. Called from the two surface-acquire entry points, which
     /// every frame passes through exactly once: closes the CPU accumulation,
     /// resolves last frame's GPU timestamps, and (only while the Performance
     /// page is open, at most once a second) walks the memory inventory.
     ///
     /// `world` is false for the UI-only path (a page is open, nothing but a
-    /// surface clear happens); those frames are discarded rather than published,
-    /// so opening the Performance page does not decay the numbers you opened it
-    /// to read.
+    /// surface clear and the egui pass happens). Those frames are discarded
+    /// rather than published on BOTH sides: the CPU accumulation is thrown
+    /// away here (`discard_frame`), and the GPU timers still allocate and
+    /// resolve their slots but drop the samples when they come back
+    /// (`GpuTimers::begin_frame` with `world = false`, `publish_gpu_harvest`).
+    /// That is what makes opening the Performance page NOT decay the numbers
+    /// you opened it to read: until 2026-09-18 only the CPU half was guarded,
+    /// and the GPU column EMA'd every world pass toward zero while the page
+    /// (a UI-only page) was open.
     pub(crate) fn frame_costs_begin(&self, world: bool) {
         if world {
             begin_frame();
@@ -727,7 +1025,7 @@ impl Renderer {
             discard_frame();
         }
         if let Some(t) = self.gpu_timers.as_ref() {
-            t.begin_frame(&self.device, &self.queue);
+            t.begin_frame(&self.device, &self.queue, world);
         }
         // Dev rig hook: `HUMANITY_FRAME_COSTS=1` makes a headless probe run
         // behave as if the Performance page were open and drop the numbers to
@@ -940,6 +1238,132 @@ mod tests {
         reset_for_test();
     }
 
+    /// The GPU twin of the test above. The harvest layer must publish a
+    /// world frame's batch and DISCARD a UI-only frame's, so the world passes
+    /// hold the value they had when the Performance page (a UI-only page)
+    /// was opened. Before `publish_gpu_harvest` the harvest published
+    /// unconditionally, and 60 UI-only frames (one second on the page) took
+    /// every world pass to 0.006 percent of its value: this test fails on
+    /// that code (proven by making the UI-only branch publish, 2026-09-18).
+    #[test]
+    fn ui_only_frames_freeze_the_gpu_column_too() {
+        let _g = serial();
+        reset_for_test();
+        // A run of world frames so the EMA has settled on a real number.
+        for _ in 0..40 {
+            publish_gpu_harvest(&[("gpu.scene", 4.0), ("gpu.cloud_screen", 9.0)], true);
+        }
+        let scene = snapshot().value("gpu.scene");
+        let clouds = snapshot().value("gpu.cloud_screen");
+        assert!(scene > 3.9 && clouds > 8.9, "EMA did not settle: {scene} {clouds}");
+        // 60 UI-only frames: only the clear and the egui pass ran.
+        for _ in 0..60 {
+            publish_gpu_harvest(&[("gpu.clear", 0.05), ("gpu.ui", 0.4)], false);
+        }
+        let snap = snapshot();
+        assert_eq!(
+            snap.value("gpu.scene"),
+            scene,
+            "a UI-only frame decayed a world pass; the Performance page would read zero"
+        );
+        assert_eq!(snap.value("gpu.cloud_screen"), clouds);
+        // The UI-only passes freeze too: one rule for the column (the pie is
+        // the last WORLD frame), so nothing from the page's own frames leaks in.
+        assert_eq!(snap.value("gpu.ui"), 0.0, "a UI-only frame's own passes must not publish");
+        reset_for_test();
+    }
+
+    /// The ring remembers whose frame each batch was, all the way to the
+    /// harvest two boundaries later: a batch written by a world frame is
+    /// tagged world when it goes in flight and when it is taken back out; a
+    /// UI-only frame's batch is tagged UI-only. Device-free: this is the
+    /// bookkeeping `GpuTimers::begin_frame` runs, minus the wgpu calls.
+    #[test]
+    fn timer_ring_tags_each_batch_with_its_frame_kind() {
+        let mut st = TimerState::default();
+        // Boot: a world frame starts.
+        let boot = st.close_frame(true);
+        assert!(boot.resolve.is_none(), "nothing to resolve before any pass ran");
+        // The world frame times two passes.
+        assert_eq!(st.take_pair("gpu.scene"), Some(0));
+        assert_eq!(st.take_pair("gpu.ui"), Some(2));
+        // Boundary: the world frame ends, a UI-only frame (a page opened) starts.
+        let end = st.close_frame(false);
+        assert!(end.world, "the batch that just ended was a world frame");
+        let (batch, used) = end.resolve.expect("a free ring resolves the batch");
+        assert_eq!(used, 4);
+        assert_eq!(batch, vec![("gpu.scene", 0), ("gpu.ui", 2)]);
+        st.mark_in_flight(batch, end.world);
+        // The UI-only frame times its clear; slots start from 0 again (no
+        // leak, no alias onto the world frame's pair).
+        assert_eq!(st.take_pair("gpu.clear"), Some(0));
+        // The readback completes: the harvested batch is the world frame's.
+        let (harvested, harvested_world) = st.take_in_flight();
+        assert!(harvested_world, "the harvest must publish this batch");
+        assert_eq!(harvested.len(), 2);
+        // Boundary: the UI-only frame ends, another UI-only frame starts.
+        let end = st.close_frame(false);
+        assert!(!end.world, "the batch that just ended was UI-only");
+        let (batch, _) = end.resolve.expect("the ring is free again");
+        st.mark_in_flight(batch, end.world);
+        let (_, harvested_world) = st.take_in_flight();
+        assert!(!harvested_world, "a UI-only batch must be harvested as UI-only, so it is discarded");
+    }
+
+    /// A pass that asks for a slot pair after the ring is full runs untimed.
+    /// That used to be silent (the pass looked free on the pie); now each
+    /// refusal is counted per frame, handed back at the boundary, and the
+    /// count reaches the snapshot the Performance page reads.
+    #[test]
+    fn refused_slot_requests_are_counted_per_frame() {
+        let _g = serial();
+        let mut st = TimerState::default();
+        st.close_frame(true);
+        for _ in 0..MAX_TIMED_PASSES {
+            assert!(st.take_pair("gpu.filler").is_some());
+        }
+        assert!(st.take_pair("gpu.late_1").is_none(), "the ring must be full");
+        assert!(st.take_pair("gpu.late_2").is_none());
+        assert!(st.take_pair("gpu.late_3").is_none());
+        let end = st.close_frame(true);
+        assert_eq!(end.untimed, 3, "three refusals in that frame");
+        // The counter is per frame: the new frame starts clean.
+        assert!(st.take_pair("gpu.next_frame").is_some());
+        assert_eq!(st.close_frame(true).untimed, 0);
+
+        // And the count is visible where the page looks.
+        reset_for_test();
+        assert_eq!(snapshot().gpu_untimed_passes, 0);
+        set_gpu_untimed(end.untimed);
+        assert_eq!(snapshot().gpu_untimed_passes, 3);
+        reset_for_test();
+    }
+
+    /// In the CPU fallback a `gpu.*` id is only a measurement when a
+    /// same-named `cpu.*` stage exists to read; the Clouds passes have none,
+    /// so the page must say "not measurable" rather than show their 0.
+    #[test]
+    fn gpu_ids_without_a_cpu_twin_are_not_measurable_in_fallback() {
+        let mk = |t| Snapshot {
+            gpu: Vec::new(),
+            cpu: Vec::new(),
+            vram: Vec::new(),
+            ram: Vec::new(),
+            frame_ms: 0.0,
+            gpu_timing: t,
+            has_frames: true,
+            gpu_untimed_passes: 0,
+        };
+        let fallback = mk(GpuTiming::CpuFallback);
+        assert!(fallback.gpu_measurable("gpu.scene"), "gpu.scene has cpu.scene");
+        assert!(!fallback.gpu_measurable("gpu.cloud_screen"), "the cloud passes have no twin");
+        assert!(!fallback.gpu_measurable("gpu.shadow"));
+        let real = mk(GpuTiming::Timestamps);
+        assert!(real.gpu_measurable("gpu.cloud_screen"), "timestamps measure every pass");
+        assert!(gpu_id_has_cpu_twin("gpu.screen_sky"), "cpu.screen_sky was added 2026-09-18");
+        assert!(!gpu_id_has_cpu_twin("gpu.ui"));
+    }
+
     /// Several passes can share one id in a single frame (the scene pass runs
     /// twice; bloom is four passes). Their durations must SUM, not average.
     #[test]
@@ -997,14 +1421,19 @@ mod tests {
     }
 
     /// REAL GPU verification of the timestamp path, headless (no window, no
-    /// world): create a device with TIMESTAMP_QUERY, run three frames of a
-    /// trivial render pass through `writes()`, and prove a duration comes back.
+    /// world): create a device with TIMESTAMP_QUERY, run four world frames of
+    /// a trivial render pass through `writes()` AND the particle sim's
+    /// compute pass through `compute_writes()` (via `GpuParticles::simulate`,
+    /// the live caller), prove a duration comes back for each, then run
+    /// UI-only frames and prove the world numbers hold (the 2026-09-18 major:
+    /// the harvest used to publish UI-only frames and decay them).
     ///
     /// This is the part `cargo check` cannot cover - query-set creation, the
-    /// `timestamp_writes` descriptor, `resolve_query_set`, the readback map and
-    /// the tick-to-millisecond maths are all runtime wgpu validation, which is
-    /// exactly the failure class that shipped ten unbootable releases in
-    /// v0.1029-v0.1038. Ignored by default because it needs a GPU adapter:
+    /// `timestamp_writes` descriptors (render AND compute), `resolve_query_set`,
+    /// the readback map and the tick-to-millisecond maths are all runtime wgpu
+    /// validation, which is exactly the failure class that shipped ten
+    /// unbootable releases in v0.1029-v0.1038. Ignored by default because it
+    /// needs a GPU adapter (a brief device use, not a booted instance):
     ///   cargo test --features native --lib gpu_timestamps -- --ignored --nocapture
     #[test]
     #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
@@ -1049,9 +1478,22 @@ mod tests {
         });
         let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
 
-        reset_for_test();
-        for _ in 0..4 {
-            timers.begin_frame(&device, &queue);
+        // The compute half: the live particle sim, 100k slots, timed through
+        // `compute_writes` exactly as `Renderer::simulate_gpu_particles` does.
+        let mut particles = super::super::particles_gpu::GpuParticles::new(&device, 100_000);
+        let sim = super::super::particles_gpu::SimParams {
+            origin_radius: [0.0, 50.0, 0.0, 15.0],
+            dir_spread: [0.0, -1.0, 0.0, 0.05],
+            gravity_dt: [0.0, -2.0, 0.0, 1.0 / 60.0],
+            speed_life: [9.0, 14.0, 1.4, 2.0],
+            size_shape: [0.02, 0.02, 0.0, 0.0],
+            color_start: [0.6, 0.7, 0.9, 0.4],
+            color_end: [0.6, 0.7, 0.9, 0.2],
+            count_frame_streak: [0.0, 0.0, 0.0, 0.0],
+        };
+
+        // One frame's worth of passes: the big clear (render) + the sim (compute).
+        let world_frame = |timers: &GpuTimers, particles: &mut super::super::particles_gpu::GpuParticles| {
             let mut enc = device.create_command_encoder(&Default::default());
             {
                 let _pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1070,12 +1512,19 @@ mod tests {
                 });
             }
             queue.submit(std::iter::once(enc.finish()));
+            particles.simulate(&device, &queue, sim, 100_000, Some(timers));
+        };
+
+        reset_for_test();
+        for _ in 0..4 {
+            timers.begin_frame(&device, &queue, true);
+            world_frame(&timers, &mut particles);
             let _ = device.poll(wgpu::Maintain::Wait);
         }
         // One more boundary so the last frame's readback is harvested.
-        timers.begin_frame(&device, &queue);
+        timers.begin_frame(&device, &queue, true);
         let _ = device.poll(wgpu::Maintain::Wait);
-        timers.begin_frame(&device, &queue);
+        timers.begin_frame(&device, &queue, true);
 
         let snap = snapshot();
         let recorded = snap.gpu.iter().any(|e| e.id == "gpu.test_pass");
@@ -1092,6 +1541,59 @@ mod tests {
         assert!(
             v > 0.0 && v < 100.0,
             "expected a plausible GPU pass duration, got {v} ms"
+        );
+        // The compute path: a 100k-thread dispatch is comfortably more than
+        // one timestamp tick, so a real duration must come back for it too.
+        let sim_recorded = snap.gpu.iter().any(|e| e.id == "gpu.particles_sim");
+        let sim_ms = snap.value("gpu.particles_sim");
+        println!("measured 100k particle sim compute pass: {sim_ms:.4} ms");
+        assert!(
+            sim_recorded,
+            "the compute pass was never recorded - ComputePassTimestampWrites \
+             through compute_writes did not resolve"
+        );
+        assert!(
+            sim_ms > 0.0 && sim_ms < 100.0,
+            "expected a plausible compute pass duration, got {sim_ms} ms"
+        );
+        assert_eq!(snap.gpu_untimed_passes, 0, "two passes cannot exhaust a 64-pass ring");
+
+        // The major: UI-only frames (a page open: one small clear, no world
+        // pass) must NOT decay the world numbers. Six boundaries is enough
+        // for every UI-only batch to be harvested; before the fix each one
+        // published, and 6 UI-only frames take a value to 38 percent.
+        for _ in 0..6 {
+            timers.begin_frame(&device, &queue, false);
+            let mut enc = device.create_command_encoder(&Default::default());
+            {
+                let _pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("ui-only clear"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: timers.writes("gpu.clear"),
+                    occlusion_query_set: None,
+                });
+            }
+            queue.submit(std::iter::once(enc.finish()));
+            let _ = device.poll(wgpu::Maintain::Wait);
+        }
+        let after = snapshot();
+        assert_eq!(
+            after.value("gpu.test_pass"),
+            v,
+            "UI-only frames decayed a world pass on a real device"
+        );
+        assert_eq!(after.value("gpu.particles_sim"), sim_ms);
+        assert!(
+            !after.gpu.iter().any(|e| e.id == "gpu.clear"),
+            "a UI-only frame's own pass must not be published either"
         );
         reset_for_test();
     }

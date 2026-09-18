@@ -43,11 +43,55 @@
         id: "world_surface",
         display: "World surface",
         category: "gpu",
-        sources: ["gpu.celestial"],
+        // gpu.celestial: the opaque terrain/planet/sky pass. gpu.celestial_t:
+        // the TRANSPARENT celestial pass (thousands of alpha-blended ocean
+        // shell patches plus the water depth prepass; 42% of an ocean frame
+        // in the 2026-09-18 measurement). gpu.sky_view: the distant-sky
+        // lookup table refreshed each frame near an atmosphere.
+        sources: ["gpu.celestial", "gpu.celestial_t", "gpu.sky_view"],
         locked: true,
-        base_frac: 0.45,
+        base_frac: 0.35,
         color: "nav_sim",
-        note: "Terrain patches, planets, ocean shells, clouds and sky - one pass, one megashader.",
+        note: "Terrain patches, planets, sky and the ocean shells: the opaque and transparent celestial passes plus the sky-view table.",
+    ),
+    (
+        id: "clouds",
+        display: "Clouds",
+        category: "gpu",
+        // The cloud passes in frame order: the planet-fixed sun-light cache
+        // (cloud_light), the per-ray screen march (cloud_screen), the
+        // temporal resolve (cloud_resolve) and the composite over the scene
+        // (cloud_composite); cloud_profile / cloud_profile_calib are the far
+        // rung's calibration-table passes, which run only when it is armed.
+        sources: [
+            "gpu.cloud_light", "gpu.cloud_screen", "gpu.cloud_resolve",
+            "gpu.cloud_composite", "gpu.cloud_profile", "gpu.cloud_profile_calib",
+        ],
+        locked: false,
+        base_frac: 0.10,
+        color: "info",
+        note: "The volumetric cloud deck: sun-light cache, screen march, temporal resolve and composite.",
+    ),
+    (
+        id: "screens",
+        display: "In-world screens",
+        category: "gpu",
+        // screen_ui: every framed wall display's egui-to-texture pass (one
+        // per screen, summed). screen_sky / screen_scene / screen_transparent
+        // / screen_overlay / screen_lines: the camera wall's 10 Hz re-render
+        // of the world, every pass of it under its own key so none hides
+        // inside the live frame's numbers (the scene pass was 17 ms at
+        // 1280 x 720 before the camera got its own render size; the overlay
+        // and line passes were summed into gpu.overlay / gpu.lines until
+        // the 2026-09-18 review).
+        sources: [
+            "gpu.screen_ui", "gpu.screen_sky", "gpu.screen_scene",
+            "gpu.screen_transparent", "gpu.screen_overlay", "gpu.screen_lines",
+        ],
+        locked: false,
+        base_frac: 0.03,
+        color: "nav_tools",
+        note: "Wall displays' page renders and the camera wall's re-render of the world.",
     ),
     (
         id: "sun_shadows",
@@ -73,11 +117,13 @@
         id: "particles",
         display: "Particles",
         category: "gpu",
-        sources: ["gpu.particles", "gpu.gpu_particles"],
+        // particles_sim is the compute pass that advances the GPU pool; the
+        // other two draw the billboard and GPU pools.
+        sources: ["gpu.particles", "gpu.gpu_particles", "gpu.particles_sim"],
         locked: false,
         base_frac: 0.05,
         color: "info",
-        note: "Rain, snow, dust and sparks - the billboard and GPU-simulated pools.",
+        note: "Rain, snow, dust and sparks - the billboard and GPU-simulated pools, and the sim step that moves them.",
     ),
     (
         id: "world_lines",
@@ -125,15 +171,61 @@
         id: "cpu_render_submit",
         display: "Render submission",
         category: "cpu",
+        // cpu.stars: the live star pass's submission twin (added 2026-09-18
+        // so the Star field GPU row is measurable in the no-timestamp
+        // fallback; it read 0 there before).
         sources: [
-            "cpu.celestial", "cpu.scene", "cpu.transparent", "cpu.overlay",
-            "cpu.lines", "cpu.celestial_lines", "cpu.particles",
-            "cpu.gpu_particles", "cpu.gpu_particle_sim",
+            "cpu.stars", "cpu.celestial", "cpu.scene", "cpu.transparent",
+            "cpu.overlay", "cpu.lines", "cpu.celestial_lines", "cpu.particles",
+            "cpu.gpu_particles", "cpu.particles_sim",
         ],
         locked: true,
-        base_frac: 0.30,
+        base_frac: 0.25,
         color: "nav_sim",
         note: "Building and submitting this frame's draw calls.",
+    ),
+    (
+        id: "cpu_screens",
+        display: "In-world screens",
+        category: "cpu",
+        // The CPU side of the "screens" GPU row: each framed display's egui
+        // run + tessellation + submit, and the camera wall's re-render
+        // submission, one stage per pass (sky, scene, transparent, overlay,
+        // lines) so every gpu.screen_* id has the cpu.screen_* twin the
+        // no-timestamp fallback reads.
+        sources: [
+            "cpu.screen_ui", "cpu.screen_sky", "cpu.screen_scene",
+            "cpu.screen_transparent", "cpu.screen_overlay", "cpu.screen_lines",
+        ],
+        locked: false,
+        base_frac: 0.05,
+        color: "nav_tools",
+        note: "Running the wall displays' pages and submitting the camera wall's re-render.",
+    ),
+    (
+        id: "cpu_present_wait",
+        display: "Waiting for the display",
+        category: "cpu",
+        // Around get_current_texture (acquiring the next swapchain image)
+        // and around present(): the time the CPU spends blocked on the
+        // display, which is what tells "present wait" from "CPU-bound".
+        sources: ["cpu.present_wait"],
+        locked: true,
+        base_frac: 0.10,
+        color: "nav_dev",
+        note: "Blocked on the swapchain: vsync and the driver's frame queue. Not work; a frame that is mostly this is GPU- or display-bound.",
+    ),
+    (
+        id: "cpu_fps_cap",
+        display: "Frame-rate cap sleep",
+        category: "cpu",
+        // The deliberate sleep the Settings frame-rate cap adds at the top of
+        // each frame. Recorded so it is never mistaken for work.
+        sources: ["cpu.fps_cap_sleep"],
+        locked: true,
+        base_frac: 0.05,
+        color: "badge_verified",
+        note: "The Settings frame-rate cap sleeping off the rest of the budget. Zero when the cap is off or the frame is slower than the cap.",
     ),
     (
         id: "cpu_post",
@@ -152,7 +244,7 @@
         sources: [
             "cpu.patch_upload", "cpu.grass_upload", "cpu.water_upload",
             "cpu.weather_upload", "cpu.atmo_luts", "cpu.lights",
-            "cpu.light_tiles", "cpu.mesh_upload",
+            "cpu.light_tiles",
         ],
         locked: false,
         base_frac: 0.15,
@@ -163,9 +255,12 @@
         id: "cpu_terrain_build",
         display: "Terrain build",
         category: "cpu",
-        sources: ["cpu.patch_build", "cpu.patch_select"],
+        // cpu.patch_select and cpu.mesh_upload were listed here for months
+        // with no recorder anywhere in the engine (2026-09-18 sweep); the
+        // registry coverage test now refuses a source nothing records.
+        sources: ["cpu.patch_build"],
         locked: false,
-        base_frac: 0.20,
+        base_frac: 0.15,
         color: "nav_reality",
         note: "Meshing the ground you are walking toward. Wired from the frame loop.",
     ),
