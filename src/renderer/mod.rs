@@ -2024,6 +2024,10 @@ impl Renderer {
     /// nothing is pending, which is every frame but the one after a toggle.
     pub fn apply_pending_surface_config(&mut self) {
         if let Some(mode) = self.pending_present_mode.take() {
+            // Logged so a rig or a crash reader can see that the reconfigure
+            // ran (the runtime proof of BUG-077 had to infer it from the
+            // config save line; this line makes it direct).
+            log::info!("[Surface] present mode {:?} -> {mode:?} (applied before the frame)", self.config.present_mode);
             self.config.present_mode = mode;
             self.surface.configure(&self.device, &self.config);
         }
