@@ -987,8 +987,9 @@ mod tests {
     /// The link attaches once, AT the first mix it is given (the attach and
     /// the first "sent" value are the same thing), then holds an unchanged
     /// mix and sends a moved one; it never attaches twice. Proven able to
-    /// fail: with `attached = true` left out of the Attach arm the second
-    /// step returns Attach again.
+    /// fail (observed 2026-09-17): with `attached = true` left out of the
+    /// Attach arm the `link.attached` assertion below fires first (and the
+    /// second step would return Attach again).
     #[test]
     fn the_sound_link_attaches_once_at_the_first_mix_then_sends_only_moves() {
         let mut link = SoundLink::default();
@@ -1033,8 +1034,9 @@ mod tests {
     /// device, the attach stays PENDING (not marked done, nothing sent), so
     /// a device-less machine never records a phantom attach and a machine
     /// with a device attaches on the first tick that has both (the ignored
-    /// device test below drives that half). Proven able to fail: with the
-    /// device check moved after `sound.step` the second assertion fires.
+    /// device test below drives that half). Proven able to fail (observed
+    /// 2026-09-17): with the no-device return in `world_update` marking the
+    /// link attached, the "must stay pending" assertion fires.
     #[test]
     fn the_attach_waits_for_both_the_player_and_a_device() {
         let mut p = VideoProvider::new(DEMO);
