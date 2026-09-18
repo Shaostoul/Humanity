@@ -496,7 +496,9 @@ mod tests {
         assert_eq!(cam.kind(), "camera");
         assert_eq!(cam.surface_format(scene), scene, "the world is rendered straight into a camera surface");
         assert!(provider_for(&ScreenSource::parse("inventory")).is_none());
-        assert!(provider_for(&ScreenSource::parse("video:x.webm")).is_none(), "video is a later rung");
+        // Every other wired kind resolves too; the registry is one match.
+        assert_eq!(provider_for(&ScreenSource::parse("video:x.webm")).expect("video: has a provider").kind(), "video");
+        assert_eq!(provider_for(&ScreenSource::parse("web:https://united-humanity.us")).expect("web: has a provider").kind(), "web");
     }
 
     /// Before its first render a camera screen shows a waiting notice; a
