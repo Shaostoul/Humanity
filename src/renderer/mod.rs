@@ -777,6 +777,14 @@ pub struct Renderer {
     /// within this range of the camera discard (the real 3D tree models
     /// stand there). Mirrors the Settings tree-model distance; 0 = off.
     pub tree_card_hide_m: f32,
+    /// SHADOW-ONLY celestial objects (frame-cost arc V1, 2026-09-18): the
+    /// index range of this frame's celestial object list that the COLOUR
+    /// pass skips and the sun shadow pass still draws. The near-tree loop
+    /// appends its frustum-culled models here: a photoscan standing behind
+    /// the camera rasterises nothing in colour, but at a low sun it still
+    /// shades the ground in front of the player, so it keeps casting. Set
+    /// per frame by lib.rs, reset to empty with `tree_card_hide_m`.
+    pub celestial_colour_skip: std::ops::Range<usize>,
     /// Tree-card FAR cutoff (v0.924 vegetation LOD): the silhouette stage's
     /// outer distance in metres (the Settings slider). Cards past it discard.
     pub tree_card_far_m: f32,
@@ -1957,6 +1965,7 @@ impl Renderer {
             patch_batch_rot: Mat4::IDENTITY,
             patch_batch_material: 0,
             tree_card_hide_m: 0.0,
+            celestial_colour_skip: 0..0,
             tree_card_far_m: 1500.0,
             aerial_sigma: 0.0,
             aerial_slant_cap: 25_000.0,
@@ -4664,6 +4673,11 @@ impl Renderer {
             let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
+                // Shadow-only objects (V1): frustum-culled near-tree models
+                // that still cast into the sun map above. Their uniforms
+                // are uploaded like everyone else's (the shadow pass indexes
+                // the same list); only the colour draw is skipped.
+                if self.celestial_colour_skip.contains(&i) { continue; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 // The opaque list draws through the general render PSO,

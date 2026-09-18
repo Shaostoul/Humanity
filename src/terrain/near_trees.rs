@@ -176,6 +176,17 @@ pub const NEAR_TREE_HARVEST_SLACK: usize = 256;
 /// Pass this as `max_n`; never a bare literal, or the cap becomes a second,
 /// invisible handoff line (it was a hardcoded 600 through v0.1110, which bound
 /// before any budget above ~600 could).
+///
+/// Unchanged by the V1 frustum cull (2026-09-18) ON PURPOSE. The cull removes
+/// off-screen trees from the COLOUR pass only; the budget still buys the
+/// nearest N trees all the way round the player, so the model set does not
+/// depend on the heading and turning never makes a model pop in or out over
+/// its card. The alternative (spend the budget on on-screen trees, with a
+/// 4x harvest so the budget can fill) was built and measured the same day:
+/// at fuji-forest-ground it drew 249 on-screen models where 50 had been,
+/// cost 8 ms MORE of gpu.celestial, changed 43% of the pixels, and would
+/// re-spend the budget on every heading change. See
+/// docs/design/frame-cost-arc.md, the V1 outcome.
 #[inline]
 pub fn near_tree_harvest_cap(draw_budget: u32) -> usize {
     (draw_budget as usize).saturating_add(NEAR_TREE_HARVEST_SLACK)
@@ -270,6 +281,421 @@ impl ModelCoverage {
     /// Farthest drawn model, metres. For the 1 Hz [TreeHandoff] log only.
     pub fn covered_radius_m(&self) -> f64 {
         self.farthest_drawn_m2.sqrt()
+    }
+
+    /// The model radius this tracker was built with (Settings), metres.
+    pub fn tree_dist_m(&self) -> f64 {
+        self.tree_dist_m
+    }
+}
+
+// ── THE FRAME LOOP'S DRAW PLAN (frame-cost arc increment V1, 2026-09-18) ────
+//
+// Until V1 the near-tree loop submitted the nearest `budget` trees in range to
+// the colour pass whichever way the camera faced: at Fuji roughly four of every
+// five drawn photoscans (120-190k triangles each) stood behind or beside the
+// player. The only rejection was the range test. V1 adds a frustum test, and
+// this type exists so that test cannot reach the two things it must not touch.
+//
+// 1. THE CARD-HIDE RADIUS. `renderer.tree_card_hide_m` is a PROMISE to the
+//    terrain shader ("every tree card inside this radius has a model standing
+//    in it, discard it"), and `ModelCoverage` computes it from the nearest
+//    tree that got no model. Three earlier releases fed that arithmetic from a
+//    culled or budgeted set and each broke the promise (v0.995, v0.1107,
+//    v0.1110.1: docs/BUGS.md BUG-068). The failure has a signature: cards
+//    popping in and out as you TURN, because a cull that leaks into coverage
+//    makes the hide radius depend on the heading. So the coverage feed here
+//    never reads the frustum: every in-range tree feeds it exactly once, with
+//    exactly the verdict the un-culled loop gave it, and `hide_radius_m()` is
+//    the same number for the same tree list no matter where the camera points.
+//
+// 2. THE MODEL SET. The budget still buys the nearest N trees all the way
+//    round the player, exactly as before; the frustum only decides which of
+//    those N the COLOUR pass rasterises this frame. An off-screen tree that
+//    has a model keeps it as a SHADOW-ONLY object: it still casts into the sun
+//    map (a conifer behind you shades the ground in front of you at a low
+//    sun), it just skips the colour pass, which is where its 150k triangles
+//    cost. Two things follow. Turning never changes which trees have models,
+//    so no model can pop in or out over its card on a heading change. And the
+//    picture is identical to the un-culled loop's by construction: the culled
+//    trees contributed no colour pixels and their shadows are still cast.
+//
+//    The alternative, spending the budget on ON-SCREEN trees so more models
+//    stand in view, was built and measured the same day (a 4x harvest so the
+//    budget could fill): at fuji-forest-ground it drew 249 on-screen models
+//    where 50 had been, cost 8 ms MORE of gpu.celestial, changed 43% of the
+//    pixels, and would re-spend the budget on every heading change. It is a
+//    fidelity knob, not a perf one; the outcome block in
+//    docs/design/frame-cost-arc.md has the numbers.
+
+/// The cull sphere is centred on the tree's BASE with this multiple of the
+/// tree's height as radius. A sphere at the base of radius h contains the
+/// whole tree when the crown's half-width is under 0.71 h (the top corners of
+/// a 0.5 h-wide crown sit 1.22 h from the base); 1.25 h keeps a spreading
+/// crown that hangs into the view from being culled with its trunk off-screen.
+pub const NEAR_TREE_CULL_RADIUS_FACTOR: f64 = 1.25;
+
+/// A flat pad on top of the factor, metres: the base sits a quarter of a root
+/// flare below the drawn ground, the instance scale carries jitter, and a
+/// sapling is small enough that a proportional margin alone is centimetres.
+pub const NEAR_TREE_CULL_RADIUS_PAD_M: f64 = 2.0;
+
+/// Radius of the frustum-cull sphere for a tree of this drawn height, metres.
+/// The drawn height IS `NearTree::height_m` for every species: a photoscan is
+/// scaled by `height_m / model_height` and a procedural mesh is generated at
+/// its species height then scaled by the same ratio, so no lookup is needed.
+#[inline]
+pub fn near_tree_cull_radius_m(height_m: f32) -> f64 {
+    (height_m.max(0.0) as f64) * NEAR_TREE_CULL_RADIUS_FACTOR + NEAR_TREE_CULL_RADIUS_PAD_M
+}
+
+/// One frame's counters, for the 1 Hz `[NearTree]` log line and the tests.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NearTreeCounts {
+    /// Trees inside the model radius (the only ones the loop considers at all).
+    pub in_range: u32,
+    /// In-range trees whose cull sphere touches the view frustum.
+    pub frustum_passed: u32,
+    /// Models submitted to the COLOUR pass this frame: on-screen, in budget,
+    /// with a mesh.
+    pub drawn: u32,
+    /// Models submitted as shadow casters only: in budget, with a mesh, but
+    /// off-screen. `drawn + shadow_only == cov_models`.
+    pub shadow_only: u32,
+    /// Trees the COVERAGE arithmetic credited with a model: the budget
+    /// counter, blind to the frustum. This is what `drawn` was before V1.
+    pub cov_models: u32,
+    /// Coverage calls made (drew + uncovered). Equals `in_range` by
+    /// construction; the tests pin it so a future edit that skips the feed
+    /// for a culled tree fails loudly instead of popping cards.
+    pub cov_fed: u32,
+}
+
+/// What the plan decided about one tree BEFORE its meshes were looked up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreeSlot {
+    /// Beyond the model radius. Skipped entirely, coverage untouched, exactly
+    /// as the range test always did.
+    OutOfRange,
+    /// In range but the budget is spent: already reported uncovered, nothing
+    /// to look up.
+    Skip,
+    /// The budget has room: look the meshes up and call `resolve`. `visible`
+    /// says whether the cull sphere touches the frustum, which decides
+    /// colour-pass versus shadow-only IF the tree turns out to have a mesh.
+    Lookup { visible: bool },
+}
+
+/// What to do with a tree's meshes once they are known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreeDraw {
+    /// No mesh streamed in yet (its card stays), or the tree was not up for
+    /// a lookup at all.
+    None,
+    /// Submit to the colour pass (and, as every colour object, the sun map).
+    Colour,
+    /// Off-screen: submit as a shadow caster only.
+    ShadowOnly,
+}
+
+/// Range test, frustum test, budget and the coverage feed for one frame of
+/// the near-tree loop. Feed it the harvest's trees IN HARVEST ORDER
+/// (nearest-first), camera-relative, and read the counters and the hide
+/// radius at the end. See the block comment above for why the coverage feed
+/// and the model set never look at the frustum.
+pub struct NearTreeDrawPlan<'f> {
+    /// Camera frustum in the same camera-relative frame the trees come in.
+    /// `None` = no cull (the pre-V1 loop): every in-range tree counts as
+    /// on-screen. The walk test replays frames through this path.
+    frustum: Option<&'f FrustumPlanes>,
+    /// Model radius squared, metres: the range test.
+    td2: f64,
+    /// How many trees get models, nearest-first, all the way round.
+    budget: u32,
+    cov: ModelCoverage,
+    pub counts: NearTreeCounts,
+}
+
+impl<'f> NearTreeDrawPlan<'f> {
+    /// `cov` carries the model radius (Settings) the range test uses.
+    pub fn new(frustum: Option<&'f FrustumPlanes>, cov: ModelCoverage, budget: u32) -> Self {
+        let td = cov.tree_dist_m();
+        Self { frustum, td2: td * td, budget, cov, counts: NearTreeCounts::default() }
+    }
+
+    /// Step one for a tree at `rel_m` (base position relative to the camera,
+    /// metres, f64) of drawn height `height_m`. Returns the verdict and the
+    /// squared camera distance the caller hands back to `resolve`.
+    pub fn consider(&mut self, rel_m: DVec3, height_m: f32) -> (TreeSlot, f64) {
+        let d2 = rel_m.length_squared();
+        if d2 > self.td2 {
+            return (TreeSlot::OutOfRange, d2);
+        }
+        self.counts.in_range += 1;
+        // The frustum test is counted for every in-range tree so the 1 Hz
+        // line can say what fraction of the disc is on screen, but nothing
+        // below this line uses it for anything except colour-versus-shadow.
+        let visible = match self.frustum {
+            Some(f) => f.sphere_visible(rel_m, near_tree_cull_radius_m(height_m)),
+            None => true,
+        };
+        if visible {
+            self.counts.frustum_passed += 1;
+        }
+        // THE BUDGET DECISION, before and without the frustum. This is the
+        // pre-V1 loop's `drawn >= budget` test on the pre-V1 counter.
+        if self.counts.cov_models >= self.budget {
+            self.cov.uncovered(d2);
+            self.counts.cov_fed += 1;
+            return (TreeSlot::Skip, d2);
+        }
+        (TreeSlot::Lookup { visible }, d2)
+    }
+
+    /// Step two, once the caller knows whether the tree has any mesh to draw
+    /// (`has_mesh`). Feeds the coverage tracker with the pre-V1 verdict (drew,
+    /// or uncovered because the mesh has not streamed in yet) and says where
+    /// the meshes go.
+    pub fn resolve(&mut self, slot: TreeSlot, d2: f64, has_mesh: bool) -> TreeDraw {
+        let TreeSlot::Lookup { visible } = slot else {
+            return TreeDraw::None;
+        };
+        self.counts.cov_fed += 1;
+        if !has_mesh {
+            self.cov.uncovered(d2);
+            return TreeDraw::None;
+        }
+        self.counts.cov_models += 1;
+        self.cov.drew(d2);
+        if visible {
+            self.counts.drawn += 1;
+            TreeDraw::Colour
+        } else {
+            self.counts.shadow_only += 1;
+            TreeDraw::ShadowOnly
+        }
+    }
+
+    /// The card-hide radius, metres: `ModelCoverage`'s answer, untouched by
+    /// anything the frustum decided.
+    pub fn hide_radius_m(&self) -> f32 {
+        self.cov.hide_radius_m()
+    }
+
+    /// Farthest tree the COVERAGE credited, metres (diagnostic only).
+    pub fn covered_radius_m(&self) -> f64 {
+        self.cov.covered_radius_m()
+    }
+}
+
+#[cfg(test)]
+mod near_tree_draw_plan_tests {
+    use super::*;
+
+    /// A camera at the origin looking along `dir`, 60 degree vertical fov at
+    /// 16:9, with the celestial reverse-Z projection: the same construction
+    /// `planet_chunks::tests::frustum_extraction_and_culling` uses, and the
+    /// same matrices the frame loop builds from `Camera::celestial_uniforms`.
+    fn frustum_looking(dir: DVec3) -> FrustumPlanes {
+        let view = DMat4::look_at_rh(DVec3::ZERO, dir, DVec3::Y);
+        let proj = DMat4::perspective_rh(60f64.to_radians(), 16.0 / 9.0, 1.0e13, 1.0);
+        FrustumPlanes::from_view_proj(&(proj * view))
+    }
+
+    const H: f32 = 12.0;
+    const TREE_DIST: f64 = 400.0;
+
+    /// A synthetic stand in HARVEST ORDER (nearest-first), camera-relative,
+    /// for a camera looking down -Z. The right-hand frustum plane at this
+    /// fov/aspect passes through x = 1.026 z; a point at (82.1 + delta, 0, -80)
+    /// sits delta / 1.433 m outside it, so with a 17 m cull sphere (12 m tree:
+    /// 1.25 h + 2) the tree at delta = 20 (14 m out) is kept and the one at
+    /// delta = 30 (21 m out) is culled.
+    fn stand() -> Vec<(&'static str, DVec3)> {
+        vec![
+            ("behind-30", DVec3::new(0.0, 0.0, 30.0)),
+            ("front-50", DVec3::new(0.0, 0.0, -50.0)),
+            ("front-60", DVec3::new(5.0, 0.0, -60.0)),
+            ("beside-90", DVec3::new(90.0, 0.0, 0.0)),
+            ("front-100", DVec3::new(0.0, 0.0, -100.0)),
+            ("edge-in", DVec3::new(102.1, 0.0, -80.0)),
+            ("edge-out", DVec3::new(112.1, 0.0, -80.0)),
+            ("far-500", DVec3::new(0.0, 0.0, -500.0)),
+        ]
+    }
+
+    /// Run the whole stand through a plan; `has_mesh` says which trees have a
+    /// streamed mesh. Returns (colour-pass names, shadow-only names).
+    fn run(
+        plan: &mut NearTreeDrawPlan<'_>,
+        has_mesh: impl Fn(&str) -> bool,
+    ) -> (Vec<&'static str>, Vec<&'static str>) {
+        let mut colour = Vec::new();
+        let mut shadow = Vec::new();
+        for (name, rel) in stand() {
+            let (slot, d2) = plan.consider(rel, H);
+            if let TreeSlot::Lookup { .. } = slot {
+                match plan.resolve(slot, d2, has_mesh(name)) {
+                    TreeDraw::Colour => colour.push(name),
+                    TreeDraw::ShadowOnly => shadow.push(name),
+                    TreeDraw::None => {}
+                }
+            }
+        }
+        (colour, shadow)
+    }
+
+    /// The pre-V1 loop, written out by hand as the reference: nearest-first,
+    /// blind to the frustum, `drawn >= budget` then mesh state.
+    fn reference_coverage(budget: u32, has_mesh: impl Fn(&str) -> bool) -> ModelCoverage {
+        let mut cov = ModelCoverage::new(TREE_DIST);
+        let mut n = 0u32;
+        for (name, rel) in stand() {
+            let d2 = rel.length_squared();
+            if d2 > TREE_DIST * TREE_DIST {
+                continue;
+            }
+            if n >= budget {
+                cov.uncovered(d2);
+                continue;
+            }
+            if has_mesh(name) {
+                n += 1;
+                cov.drew(d2);
+            } else {
+                cov.uncovered(d2);
+            }
+        }
+        cov
+    }
+
+    /// The cull decisions themselves: the budget buys the three nearest
+    /// trees all the way round (behind-30, front-50, front-60); the one behind
+    /// the camera goes to the shadow pass only, the two in front draw. The
+    /// far-out edge tree and the one beside the camera are off-screen, the
+    /// crown that hangs into the view is on-screen, and none of that changes
+    /// which trees got a model.
+    #[test]
+    fn the_colour_pass_draws_only_the_on_screen_models() {
+        let f = frustum_looking(DVec3::NEG_Z);
+        let mut plan = NearTreeDrawPlan::new(Some(&f), ModelCoverage::new(TREE_DIST), 3);
+        let (colour, shadow) = run(&mut plan, |_| true);
+        assert_eq!(colour, vec!["front-50", "front-60"]);
+        assert_eq!(shadow, vec!["behind-30"], "an off-screen model still casts its shadow");
+        let c = plan.counts;
+        assert_eq!(c.in_range, 7, "far-500 is beyond the model radius");
+        assert_eq!(
+            c.frustum_passed, 4,
+            "front-50, front-60, front-100 and edge-in touch the frustum; \
+             behind-30, beside-90 and edge-out do not"
+        );
+        assert_eq!(c.cov_models, 3, "the budget bought the three NEAREST trees, heading-blind");
+        assert_eq!(c.drawn + c.shadow_only, c.cov_models);
+        assert_eq!((c.drawn, c.shadow_only), (2, 1));
+    }
+
+    /// THE PROMISE: the coverage feed sees every in-range tree with exactly
+    /// the verdict the un-culled loop gave it, so the hide radius is the
+    /// reference's number to the bit whichever way the camera faces, and the
+    /// MODEL set (colour plus shadow-only) is the same three trees for every
+    /// heading. Only the colour/shadow split moves with the heading.
+    #[test]
+    fn the_coverage_feed_sees_every_in_range_tree_regardless_of_the_cull() {
+        let all = |_: &str| true;
+        let reference = reference_coverage(3, all);
+        let mut model_sets: Vec<Vec<&str>> = Vec::new();
+        // Three headings: the stand's own, ninety degrees right (nothing the
+        // budget bought is on screen), and straight back (only behind-30 is).
+        for (label, dir) in [
+            ("looking -Z", DVec3::NEG_Z),
+            ("looking +X", DVec3::X),
+            ("looking +Z", DVec3::Z),
+        ] {
+            let f = frustum_looking(dir);
+            let mut plan = NearTreeDrawPlan::new(Some(&f), ModelCoverage::new(TREE_DIST), 3);
+            let (colour, shadow) = run(&mut plan, all);
+            let c = plan.counts;
+            assert_eq!(c.cov_fed, c.in_range, "{label}: a culled tree skipped the coverage feed");
+            assert_eq!(c.in_range, 7, "{label}");
+            assert_eq!(
+                plan.hide_radius_m().to_bits(),
+                reference.hide_radius_m().to_bits(),
+                "{label}: the hide radius moved with the heading ({} vs reference {})",
+                plan.hide_radius_m(),
+                reference.hide_radius_m()
+            );
+            assert_eq!(plan.covered_radius_m(), reference.covered_radius_m(), "{label}");
+            // The colour set really did change with the heading, so the
+            // invariance above is not vacuous.
+            match label {
+                "looking -Z" => assert_eq!(colour, vec!["front-50", "front-60"]),
+                "looking +X" => assert!(colour.is_empty(), "{label}: drew {colour:?}"),
+                _ => assert_eq!(colour, vec!["behind-30"], "{label}"),
+            }
+            let mut models = [colour, shadow].concat();
+            models.sort_unstable();
+            model_sets.push(models);
+        }
+        assert!(
+            model_sets.iter().all(|m| *m == model_sets[0]),
+            "the model set moved with the heading: {model_sets:?}"
+        );
+        assert_eq!(model_sets[0], vec!["behind-30", "front-50", "front-60"]);
+        // The reference number itself, so a regression in ModelCoverage does
+        // not hide behind two equal wrong answers: budget 3 credits behind-30,
+        // front-50 and front-60; the nearest tree it then misses is beside-90,
+        // less the 8 m handoff overlap.
+        assert!((reference.hide_radius_m() - 82.0).abs() < 1e-4, "{}", reference.hide_radius_m());
+    }
+
+    /// A culled tree whose mesh has not streamed in still pulls the hide
+    /// radius in: the promise is about every card, on-screen or not, because
+    /// the camera can turn to it before the next frame. The budget slot it
+    /// did not use goes to the next tree in harvest order, off-screen or not.
+    #[test]
+    fn a_culled_tree_with_no_mesh_still_shrinks_the_hide_radius() {
+        let missing = |name: &str| name != "behind-30";
+        let reference = reference_coverage(3, missing);
+        let f = frustum_looking(DVec3::NEG_Z);
+        let mut plan = NearTreeDrawPlan::new(Some(&f), ModelCoverage::new(TREE_DIST), 3);
+        let (colour, shadow) = run(&mut plan, missing);
+        assert_eq!(plan.hide_radius_m().to_bits(), reference.hide_radius_m().to_bits());
+        assert!((plan.hide_radius_m() - 22.0).abs() < 1e-4, "{}", plan.hide_radius_m());
+        assert_eq!(colour, vec!["front-50", "front-60"]);
+        assert_eq!(shadow, vec!["beside-90"], "the freed slot went to the next nearest tree");
+        assert_eq!(plan.counts.cov_models, 3);
+        assert_eq!(plan.counts.cov_fed, plan.counts.in_range);
+    }
+
+    /// `None` is the pre-V1 loop: no cull, every model draws in colour.
+    #[test]
+    fn no_frustum_means_no_cull() {
+        let mut plan = NearTreeDrawPlan::new(None, ModelCoverage::new(TREE_DIST), 3);
+        let (colour, shadow) = run(&mut plan, |_| true);
+        assert_eq!(colour, vec!["behind-30", "front-50", "front-60"]);
+        assert!(shadow.is_empty());
+        assert_eq!(plan.counts.frustum_passed, plan.counts.in_range);
+        assert_eq!(plan.counts.drawn, plan.counts.cov_models);
+    }
+
+    /// The cull sphere grows with the tree, so a tall crown hanging into the
+    /// view from beside the frustum is kept where a sapling at the same base
+    /// would be culled.
+    #[test]
+    fn the_cull_sphere_scales_with_the_tree_height() {
+        let f = frustum_looking(DVec3::NEG_Z);
+        let base = DVec3::new(112.1, 0.0, -80.0); // 21 m outside the right plane
+        assert!(!f.sphere_visible(base, near_tree_cull_radius_m(12.0)));
+        assert!(f.sphere_visible(base, near_tree_cull_radius_m(30.0)));
+        assert!((near_tree_cull_radius_m(12.0) - 17.0).abs() < 1e-9);
+    }
+
+    /// The harvest cap is deliberately NOT widened by the cull (see
+    /// `near_tree_harvest_cap`): the budget keeps buying the nearest N trees
+    /// all the way round, so the cap stays budget plus slack.
+    #[test]
+    fn the_harvest_cap_is_unchanged_by_the_cull() {
+        assert_eq!(near_tree_harvest_cap(260), 260 + NEAR_TREE_HARVEST_SLACK);
     }
 }
 
@@ -990,6 +1416,20 @@ mod near_tree_order_tests {
              near_tree_instances_on_drawn. A cap below the draw budget is an invisible second \
              handoff line the draw loop cannot see - use \
              terrain::near_trees::near_tree_harvest_cap(budget)."
+        );
+        // V1 (2026-09-18): the frustum cull and the coverage feed go through
+        // one type so the cull cannot reach the hide radius. A loop that
+        // grew its own `sphere_visible` call next to a bare ModelCoverage is
+        // the shape all three BUG-068 regressions had.
+        assert!(
+            src.contains("NearTreeDrawPlan::new("),
+            "src/lib.rs does not route the near-tree loop through \
+             terrain::near_trees::NearTreeDrawPlan: the frustum cull and the card-hide \
+             coverage must share the one type that keeps their budget counters apart."
+        );
+        assert!(
+            src.contains("plan.hide_radius_m()"),
+            "src/lib.rs takes tree_card_hide_m from something other than the draw plan"
         );
     }
 }

@@ -808,6 +808,105 @@ node scripts/probe-sweep.js --operator-config --only fuji-forest-ground,fuji-gra
 `silverdale-osm-ground` (floor 10, 139 near trees) is the low-density control:
 it must not get slower.
 
+#### V1 outcome (2026-09-18, worktree agent; the hypothesis is REFUTED, the increment is a null result)
+
+Built as specified, then measured; the measurement disagreed with the design
+on the one thing that mattered, so the build was reshaped once and measured
+again. Everything below is at the operator's live settings (tree_model_distance
+400, near_tree_budget 260, tree_density 0.2, clouds off, fov 90.05, 2560 x
+1387), baseline exe = the shipped v0.1315.1 build, rig = `probe-sweep.js
+--operator-config` with `HUMANITY_FRAME_COSTS=1`, GPU timestamps.
+
+**What the cull found on screen.** At `fuji-forest-ground` the harvest holds
+516 trees, all inside the 400 m model radius; the budget buys the nearest 260;
+198 of the 516 touch the frustum and 115 of the 260 budgeted models do. So
+145 of the 260 drawn models (56%) were off-screen, as the design said. At
+`fuji-grass-underfoot` (same spot, aimed 30 degrees from nadir) it is 155 on
+screen, 105 off; at `silverdale-osm-ground` 14 on, 16 off, of 30.
+
+**What removing them from the colour pass was worth: nothing measurable.**
+
+| boot | fuji-forest-ground gpu.celestial | frame | turned twin (aim +4 deg) |
+|---|---|---|---|
+| baseline, boot 1 | 75.79 ms | 91.9 | (not captured) |
+| baseline, boot 2 | 66.99 ms | 83.5 | 69.69 |
+| V1 cull, boot 1 | 67.09 ms | 83.5 | (not captured) |
+| V1 cull, boot 2 | 66.78 ms | 83.4 | 70.03 |
+
+Boot 1 of the baseline is the outlier, not the cull: the one-GPU guard checks
+`tasklist` only at launch, and the other builder's instance arrived during that
+sweep (the next sweep's guard waited 150 s for it to leave). Clean boots agree
+to 0.3 ms with 145 photoscans removed from the colour pass. `silverdale` 21.10
+vs 19.32 and `fuji-grass-underfoot` 117.83 vs 109.19 are one boot each, with
+the same boot-1 offset in the baseline column, so they carry no more
+information than the table.
+
+**Why: the whole near-tree cost is on-screen fragment work.** A sizing boot of
+the baseline exe with `tree_model_distance 0` (models off, cards only) reads
+`gpu.celestial` 13.25 ms at the forest (frame 33.3, 30 fps) and 33.28 at the
+grass vantage (frame 40.1). So the 115 on-screen models cost 53.7 ms and the
+155 on-screen models 76 ms, about 0.47 to 0.49 ms EACH, while the 145 and 105
+off-screen ones cost nothing the timestamps can see. The GPU clips them after
+the vertex stage and the vertex stage of a 150k-triangle photoscan is below
+the 0.3 ms floor. Section 3(a)'s "roughly one eighth of the sphere, so most
+of the 67.5 ms is off-screen work" was the wrong model of where a photoscan's
+milliseconds go: they go to rasterising and shading an alpha-tested crown at
+forest overdraw through `fs_main`, on screen. The 2030 technique in 3(b) is
+therefore the only rung with reach here: fewer on-screen triangles and
+fragments per tree (the LOD ladder and the impostor handoff), not fewer
+submissions.
+
+**The refill variant, built first and set aside.** The design's "spend the
+260 budget on visible trees only" needs a harvest wide enough for the visible
+subset to fill the budget (4x budget + slack, 1,296 at Fuji, since only a
+third of the disc is ever in the frustum). Measured: 249 on-screen models
+where 115 had been, `gpu.celestial` 83.54 ms (one boot, +16.5 ms against the
+clean baseline), 43% of the pixels changed (mean delta 22, against a same-exe
+boot-to-boot floor of 9 to 14), and, being heading-dependent, it re-spends
+the budget on every turn, so a model can pop in or out over its card as you
+look around: the failure signature of BUG-068 in its fail-safe direction. It
+is a fidelity knob (models reach twice as far in view for the same budget
+number), not a perf one, and the budget slider already offers that trade. It
+is not on the branch; `near_tree_harvest_cap` says why.
+
+**What the branch keeps (harmless, tested, and the counters the arc asked
+for).** `terrain::near_trees::NearTreeDrawPlan` owns the range test, the
+frustum test, the budget and the coverage feed for the frame loop, with the
+model set and `ModelCoverage` deliberately unable to see the frustum; the loop
+in `lib.rs` sends an off-screen model to a SHADOW-ONLY range of the celestial
+list (`Renderer::celestial_colour_skip`) instead of dropping it, so a conifer
+behind the player still shades the ground in front. Six unit tests pin the
+cull decisions, the bit-identical hide radius across three headings, the
+heading-independent model set, the freed-slot-goes-to-the-next-tree rule and
+the cull-sphere scaling; disabling the cull turned three of them red. The 1 Hz
+`[NearTree] harvested= in_range= frustum= drawn= shadow_only= budget=
+cov_models= hide=` line now exists (hide at full f32 precision). Merging it
+is a judgement call: it costs nothing and changes no pixel, but it also wins
+nothing until a rung exists whose cost is per submission rather than per
+fragment.
+
+**Negative proofs, as far as the rig allows.** (1) Card-hide radius: 151.9 m
+at every real capture in every boot of both arms (`151.899` to `151.933`,
+the same slow hold-altitude drift in both), and the same 151.9 through the
+turned twin in both arms (drawn went 115 to 119 with the heading, the hide
+radius did not move); the unit test pins the same invariance to the bit. (2)
+Pixels: NOT provable at this vantage by capture. Two boots of the SAME exe
+differ in 42 to 44% of pixels outside the HUD (mean channel delta 9 to 14),
+because `weather: clear` pins a 4 m/s wind and every crown and grass blade
+sways on the boot clock; there is no zero-wind showcase knob. Cross-arm pairs
+read 37 to 46% (mean 17 to 18). In every pair the sky and bare-ground blocks
+are 0.00 and the difference is foliage and its shadows; the identity of the
+model set rests on the counters (cov_models 260 and harvest 516 in both arms,
+every frame) and the tests, not on the capture. (3) The vantage's regressions
+list is unchanged by construction (same models, same cards, same hide radius,
+shadows kept) and was not re-judged by eye.
+
+**Two rig lessons.** The guard against the second GPU instance has to hold
+for the whole sweep, not just the launch; a mid-sweep arrival inflated one
+`gpu.celestial` reading by 9 ms and would have passed as a 9 ms win. And a
+vegetation vantage cannot carry a pixel-identity proof while wind is on;
+either the rig grows a wind pin or such proofs move to a treeless vantage.
+
 **Increment W1 (queued behind V1, same shape):** the water depth prepass.
 Vantage `ocean-grazing-calm` (floor 20) and `ocean-storm-low` (floor 18); cost
 key `gpu.celestial_t`, 46.5 and 48.6 ms, expected to fall to roughly the
