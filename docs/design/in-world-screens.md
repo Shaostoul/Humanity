@@ -256,10 +256,15 @@ provenance in `data/media/README.md`).
   of the display's aspect over opaque black bars (`letterbox_layout`,
   `compose_letterbox`), so a 4:3 clip on a 16:9 wall gets side bars, never
   a stretch. Equal aspects write the frame's bytes straight through, no copy.
-- **Looping.** When the player's clock reaches the clip's declared end the
-  provider calls `seek_to_start` and `play` again; the loop count is in
-  `status()`. The sound loops on kira's side: the stream is attached with a
-  loop region over its whole length (`VideoPlayer::attach_audio_looping`),
+- **Looping, only while playing.** When the player's clock reaches the
+  clip's declared end AND the clip is meant to be playing, the provider
+  calls `seek_to_start` and `play` again; the loop count is in `status()`.
+  A clip paused on its last frame stays on its last frame (the wrap is gated
+  on the wanted state in `advance`; without the gate a pause that landed at
+  the end rewound on the next tick, the paused page read "Paused at 0.0 s"
+  and `loops` counted a wrap nobody saw). The sound loops on kira's side:
+  the stream is attached with a loop region over its whole length
+  (`VideoPlayer::attach_audio_with`, `AudioAttach { looping: true, .. }`),
   because a kira stream that runs off its end is removed from the mixer and
   can no longer be resumed or seeked. The audio wraps a few milliseconds
   before the picture (the stream ends at the Opus sample count, the clock
@@ -273,6 +278,28 @@ provenance in `data/media/README.md`).
   texture, not egui, so there is no overlay to draw on it) and the last
   frame is kept in memory; play re-writes it at once, before the next frame
   is due. A click before the clip has opened is honoured when it opens.
+- **The texture is the clip's size while playing and the def's while
+  showing a notice.** `write_pixels` sizes the surface to the clip (320 x
+  180 for the demo); a notice laid out at that size and upscaled four times
+  onto a 1.2 m wall would be a blur, so before the paused or error page is
+  drawn the surface is resized back to the def's `px` (remembered from the
+  first frame, before anything resized it), and the next written frame
+  resizes it to the clip again. `resize` is a no-op when the size already
+  matches, so a paused clip does not reallocate every frame, and
+  `frame_surfaces` rebinds the scene material after either change. The
+  decision (which page, at what size, or a frame, or keep) is
+  `VideoProvider::plan_frame`, GPU-free and unit-tested; `frame` is the
+  GPU glue over it.
+- **Input while playing is dropped, not queued.** The look ray reports a
+  `PointerMoved` every frame it moves across a screen, and the core's event
+  queue is only ever drained by an egui run. A playing clip never runs egui
+  (its picture is bytes), so the backlog used to grow without bound for as
+  long as the player watched and was replayed in one run on the click that
+  paused. Now `plan_frame` drops the core's queued input every playing
+  tick (`ScreenCore::drop_pending_events`, which also forgets the pointer
+  so the next report re-announces it), and `write_pixels` drops it for any
+  provider that writes bytes. The notice paths keep their events: the run
+  that draws the notice consumes them.
 - **Sound placed at the screen.** The clip's Opus track plays through kira
   as a streaming sound (`AudioManager::play_stream`), which is a plain stereo
   stream, not an emitter in a 3D scene (the engine has no kira spatial scene
@@ -282,13 +309,36 @@ provenance in `data/media/README.md`).
   stereo pan from the screen's BEARING relative to the listener's right
   vector (centre straight ahead or behind, swung 0.7 of the way to one ear
   for a screen beside you), sent through `VideoPlayer::set_audio_mix` with a
-  60 ms tween and only when the value moved. The one-shot path pans by a
-  world-axis offset, which is fine for a third of a second of footstep and
-  wrong for a film the player turns away from, hence the bearing. Volume =
-  master x sfx x falloff, read live, so the Settings sliders govern a film
-  on the wall like any other world sound. When the engine gains a real
-  spatial scene, the stream should route to an emitter at the screen and
-  this math goes away.
+  60 ms tween and only when the value moved past `MIX_EPSILON`. The one-shot
+  path pans by a world-axis offset, which is fine for a third of a second of
+  footstep and wrong for a film the player turns away from, hence the
+  bearing. Volume = master x sfx x falloff (`compose_mix`), read live, so
+  the Settings sliders govern a film on the wall like any other world
+  sound. When the engine gains a real spatial scene, the stream should
+  route to an emitter at the screen and this math goes away.
+- **The attach order, and the mix the stream starts at.** `frame_surfaces`
+  calls `world_update` BEFORE `frame` on every tick, so on the tick whose
+  first frame opens the player the world update finds no player; the sound
+  attaches on the NEXT tick, exactly once, and later ticks only re-send a
+  mix that moved. Nothing is decided until both the player and an audio
+  device exist, so on a machine with no device the attach stays pending
+  (never marked done) rather than being skipped. The stream is attached AT
+  the mix that tick's listener position implies (`AudioAttach { volume,
+  panning }` bakes it into the sound data, so the first sample plays at
+  it): a stream attached at master volume and then tweened down to master
+  x sfx x falloff spent its first 60 ms up to 33 times too loud with the
+  sfx slider at 10 percent and a screen entering range at 35 m, a click
+  every time. The whole seam is pure and unit-tested without a device:
+  `compose_mix`, `mix_moved` (the epsilon gate) and `SoundLink::step`
+  (attach once at the first mix, then `Send` or `Hold`); `world_update`
+  only decides when to step and makes the kira calls the step names.
+- **One world update per surface.** The loop in `frame_surfaces` walks the
+  quads and relies on exactly one quad per surface, which `sync_screens`
+  guarantees by construction (one placement makes one surface and one
+  quad). A surface with several quads (a two-sided display) would need
+  that loop to dedupe by surface index or its provider would be updated
+  twice a frame; not done because the case does not exist and a per-frame
+  seen-set would be a cost paid for nothing.
 - **Removal.** Dropping the provider (the machine removed, the source
   changed) drops the player, which stops and joins the decode thread and
   stops the kira sound (`VideoPlayer::drop`), so no decoder runs for a wall
@@ -321,12 +371,26 @@ for the VP8 fixture names the codec; frames over the shipped clip arrive at
 layout keeps the frame 1:1 at the display's aspect (identity, side bars,
 top and bottom bars, degenerate sizes); the composed canvas has the frame's
 bytes at the offset over opaque black; the placement law (centre ahead,
-mirror-symmetric swing, linear fade, silent at 50 m). Proven able to fail:
-the compose and loop tests each caught a real bug while this was built
-(ghost pixels under the bars when two layouts share a canvas size; the
-pre-wrap frame stamped with the next loop number), and the pause and
-error-page tests were broken on purpose and observed failing at their named
-assertions; details in the FEATURES entry.
+mirror-symmetric swing, linear fade, silent at 50 m); the mix composition
+(each slider really in it) and the epsilon gate; the sound link attaches
+once at the first mix and never twice; the stream starts at the placed mix
+(0.03 for the reviewer's sfx-at-10-percent, 35 m case, not 1.0); the attach
+waits for both the player and a device through the real `world_update`
+with `audio: None`; a playing clip drops the queued input every tick and a
+paused one hands it to the notice run; a clip paused on its last frame does
+not rewind (loops stays 0, the position stays at the end) and wraps on the
+first playing tick; notices are planned at the def's px with the core at
+the clip's size; the shipped demo clip is byte-identical to the media
+fixture. Two ignored device tests drive the real audio path by hand: the
+provider attaches once at the composed mix and follows the listener
+(observed 2026-09-17: attached at 0.0006 with master 0.02 and sfx 0.1 at
+35 m, then 0.0012 and pan 0.85 after a step to the side), and the media
+suite's looping test (below, in [media-player.md](media-player.md)).
+Proven able to fail: the compose and loop tests each caught a real bug
+while this was built (ghost pixels under the bars when two layouts share a
+canvas size; the pre-wrap frame stamped with the next loop number), and
+the pause and error-page tests were broken on purpose and observed failing
+at their named assertions; details in the FEATURES entry.
 
 ## Dev IPC (permanent tooling)
 

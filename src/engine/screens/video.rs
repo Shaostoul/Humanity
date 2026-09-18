@@ -24,24 +24,35 @@
 //! * A CLICK on the screen (`on_button`) toggles pause. While paused the
 //!   surface shows a one-line "paused" page (the frame is bytes in a
 //!   texture, not egui, so there is no overlay to draw on it) and the last
-//!   frame is kept in memory so play resumes on it at once.
-//! * LOOPING: the clip restarts when the player reports its end; the sound
-//!   loops on kira's side (a loop region on the stream), see `advance`.
+//!   frame is kept in memory so play resumes on it at once. The notice is
+//!   laid out at the DISPLAY's pixel size (the def's `px`), the frame at
+//!   the CLIP's: the surface texture is the clip's size while playing and
+//!   the def's while showing a notice.
+//! * LOOPING: the clip restarts when the player reports its end, and only
+//!   while it is meant to be playing (a clip paused on its last frame stays
+//!   there); the sound loops on kira's side (a loop region on the stream),
+//!   see `advance`.
+//! * INPUT while playing: the picture is bytes, egui does not run, and the
+//!   look ray keeps reporting the pointer, so the core's queued input is
+//!   dropped every playing tick (`plan_frame`) rather than replayed in one
+//!   run on the click that pauses.
 //!
 //! The file is in two halves so the logic is testable on a machine with no
-//! GPU: `open_with`, `advance`, the pause toggle, `letterbox_layout`,
-//! `compose_letterbox`, `resolve_media_path` and `audio_placement` are pure
-//! or player-only and every test below drives them; `frame` and
-//! `world_update` are thin glue over them.
+//! GPU: `open_with`, `advance`, `plan_frame`, the pause toggle,
+//! `letterbox_layout`, `compose_letterbox`, `resolve_media_path`,
+//! `audio_placement`, `compose_mix`, `mix_moved` and `SoundLink::step` are
+//! pure or player-only and every test below drives them; `frame` and
+//! `world_update` are thin glue over them (the GPU calls and the kira
+//! calls respectively).
 
 use std::path::{Path, PathBuf};
 
 use glam::Vec3;
 
-use crate::gui::screen_surface::{notice, ScreenProvider, ScreenSurface, ScreenWorld};
+use crate::gui::screen_surface::{notice, ScreenCore, ScreenProvider, ScreenSurface, ScreenWorld};
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use crate::media::{VideoFrame, VideoPlayer};
+use crate::media::{AudioAttach, VideoFrame, VideoPlayer};
 
 /// Beyond this distance from the listener a screen's sound is silent. The
 /// same 50 m the one-shot spatial path (`AudioManager::play_spatial`) uses,
@@ -53,11 +64,11 @@ pub const AUDIO_MAX_DISTANCE_M: f32 = 50.0;
 pub const PAN_STRENGTH: f32 = 0.7;
 /// Volume and pan changes smaller than this are not sent to the audio
 /// thread, so a listener standing still does not restart a tween every frame.
-const MIX_EPSILON: f64 = 0.004;
+pub const MIX_EPSILON: f64 = 0.004;
 /// Tween for volume and pan updates: long enough that walking past a screen
 /// glides instead of stepping, short enough that turning the head feels
 /// immediate.
-const MIX_TWEEN_MS: u64 = 60;
+pub const MIX_TWEEN_MS: u64 = 60;
 
 /// Where a `video:<path>` points: the game DATA dir first (`data/media/x.webm`,
 /// the distributed and moddable tree), then the data dir's parent (the dev
@@ -180,6 +191,96 @@ pub fn audio_placement(screen: Vec3, listener: Vec3, right: Vec3) -> (f64, f64) 
     (falloff as f64, pan as f64)
 }
 
+/// The amplitude a screen's sound plays at: the master slider, the sfx bus
+/// slider (a film on the wall is a world sound, on the same bus as
+/// footsteps and machines, so the Settings sliders govern it) and the
+/// distance falloff from `audio_placement`, multiplied. All three are 0..1.
+/// Pure, so the composition is a unit test and not an ear test: a bus
+/// forgotten here (the sfx slider silently not governing films) fails the
+/// test instead of going unnoticed until someone turns the slider down.
+pub fn compose_mix(master: f64, sfx: f64, falloff: f64) -> f64 {
+    master * sfx * falloff
+}
+
+/// The change gate: whether `next` differs from the last mix `sent` by more
+/// than `MIX_EPSILON` on EITHER channel. Nothing sent yet always counts as
+/// moved. This is what keeps a listener standing still from restarting a
+/// 60 ms tween every frame: kira would hold the value at its target anyway,
+/// but every restart is a message to the audio thread.
+pub fn mix_moved(sent: Option<(f64, f64)>, next: (f64, f64)) -> bool {
+    match sent {
+        None => true,
+        Some((v, p)) => (v - next.0).abs() > MIX_EPSILON || (p - next.1).abs() > MIX_EPSILON,
+    }
+}
+
+/// What one world tick does to the sound, decided by `SoundLink::step`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SoundStep {
+    /// The first tick with a player and a device: attach the stream, and
+    /// start it AT this mix (not at some default level to be tweened from:
+    /// with the sfx slider at 10 percent and a screen entering range at
+    /// 35 m, a stream that started at master volume and then tweened down
+    /// spent its first 60 ms about 33 times too loud).
+    Attach { volume: f64, pan: f64 },
+    /// Attached, and the mix moved past the epsilon: send it with the tween.
+    Send { volume: f64, pan: f64 },
+    /// Attached, and the mix is where it was: nothing to send.
+    Hold,
+}
+
+/// The provider's side of the sound hookup, kept apart from the calls into
+/// kira so the ORDER of the seam is unit-tested without an audio device: one
+/// attach, at the mix the listener's position already implies; after that
+/// only the mixes that moved. `world_update` decides WHEN to step (only once
+/// the player exists and the machine has an audio device, so on a machine
+/// without one the attach stays pending, never marked done) and carries out
+/// what the step says.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SoundLink {
+    /// An attach has been tried, whatever its outcome: a failed attach is
+    /// logged once, not every frame, and is not retried.
+    pub attached: bool,
+    /// The last (volume, pan) handed to the audio thread: the attach mix,
+    /// then every `Send`.
+    pub sent: Option<(f64, f64)>,
+}
+
+impl SoundLink {
+    /// One tick's decision for the mix `(volume, pan)` the world implies now.
+    pub fn step(&mut self, volume: f64, pan: f64) -> SoundStep {
+        if !self.attached {
+            self.attached = true;
+            self.sent = Some((volume, pan));
+            return SoundStep::Attach { volume, pan };
+        }
+        if mix_moved(self.sent, (volume, pan)) {
+            self.sent = Some((volume, pan));
+            return SoundStep::Send { volume, pan };
+        }
+        SoundStep::Hold
+    }
+}
+
+/// What a framed tick draws, decided by `plan_frame` with no GPU in hand so
+/// the decision is unit-tested; `frame` is the glue that carries it out.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FrameDraw {
+    /// Run egui for a one-line notice (the error page, the paused page) at
+    /// `px`, the DISPLAY's pixel size (the def's `px`), never the clip's: a
+    /// notice laid out at the clip's 320 x 180 and upscaled four times onto
+    /// a 1.2 m wall is a blur. The surface is resized to `px` first (a no-op
+    /// when it is already there, so a paused clip does not reallocate every
+    /// frame); the next written frame resizes it to the clip again.
+    Notice { text: String, px: (u32, u32) },
+    /// Write the newest frame into the texture (letterboxed), which sizes
+    /// the texture to the clip.
+    Frame,
+    /// Nothing new this tick: the texture keeps what it has, which is
+    /// exactly what a display does between frames.
+    Keep,
+}
+
 /// The per-screen state of one `video:<path>` source.
 pub struct VideoProvider {
     /// The path as written after `video:` in the data file.
@@ -213,12 +314,9 @@ pub struct VideoProvider {
     display_px: Option<(u32, u32)>,
     /// Scratch canvas for letterboxed frames, reused frame to frame.
     canvas: Vec<u8>,
-    /// Whether the kira stream has been attached (it needs the audio
-    /// manager, which arrives through `world_update`). Also set after a
-    /// failed attach so the failure is logged once, not every frame.
-    audio_attached: bool,
-    /// The last (volume, pan) sent to the audio thread.
-    mix_sent: Option<(f64, f64)>,
+    /// The sound hookup's state: attached yet, and the last mix sent. The
+    /// attach needs the audio manager, which arrives through `world_update`.
+    sound: SoundLink,
 }
 
 impl VideoProvider {
@@ -238,8 +336,7 @@ impl VideoProvider {
             loops: 0,
             display_px: None,
             canvas: Vec::new(),
-            audio_attached: false,
-            mix_sent: None,
+            sound: SoundLink::default(),
         }
     }
 
@@ -296,9 +393,10 @@ impl VideoProvider {
         }
     }
 
-    /// Advance playback one tick: loop if the clip ended, take the frame
-    /// that is due (if any), surface a decode error. Returns true when a NEW
-    /// frame is now in `last`. GPU-free; `frame` calls this and then writes.
+    /// Advance playback one tick: loop if the clip ended AND it is meant to
+    /// be playing, take the frame that is due (if any), surface a decode
+    /// error. Returns true when a NEW frame is now in `last`. GPU-free;
+    /// `plan_frame` calls this and `frame` then writes.
     ///
     /// The wrap check runs BEFORE the poll, so a frame delivered by this
     /// call always belongs to the loop count read after it: with the order
@@ -306,21 +404,25 @@ impl VideoProvider {
     /// next loop's number (the loop test caught that). The cost is that the
     /// restart lands one tick after the clock reaches the end, which is one
     /// frame of the last picture held.
+    ///
+    /// The wrap is gated on `want_playing`: a clip paused on its last frame
+    /// stays on its last frame. Without the gate a pause that landed at the
+    /// end rewound the clip on the very next tick, `status().position_s`
+    /// jumped to 0 and `loops` counted a wrap nobody saw (the paused page
+    /// said "Paused at 0.0 s" for a clip that had just finished).
     pub fn advance(&mut self) -> bool {
         let Some(p) = self.player.as_mut() else { return false };
-        if p.at_end() {
+        if self.want_playing && p.at_end() {
             // The clock reached the declared end (and the player stopped it
-            // there). Back to the first frame; keep rolling unless the
-            // player paused it. The sound has already wrapped on kira's
-            // side (see `VideoPlayer::attach_audio_looping`); the seek
+            // there). Back to the first frame and keep rolling. The sound
+            // has already wrapped on kira's side (see
+            // `VideoPlayer::attach_audio_with`, `looping`); the seek
             // re-aligns the few milliseconds between the two ends. On a
             // starved machine the decoder can be behind the clock here and
             // the tail frames are dropped: the clock is the master.
             p.seek_to_start();
             self.loops += 1;
-            if self.want_playing {
-                p.play();
-            }
+            p.play();
         }
         let mut fresh = false;
         // `poll` is the gate: it hands out the newest frame whose pts is at
@@ -387,6 +489,40 @@ impl VideoProvider {
         }
     }
 
+    /// Everything `frame` decides, with no GPU in hand: open the player on
+    /// the first call (the core's size at that moment is the def's `px`,
+    /// nothing has resized it yet), advance playback, and say what to draw.
+    /// The bookkeeping that needs the core happens here too: on the PLAYING
+    /// path the core's queued input is dropped every tick
+    /// (`ScreenCore::drop_pending_events`), because the picture is bytes,
+    /// egui does not run, and the look ray keeps reporting the pointer.
+    /// `write_pixels` drops as well, but only on the ticks a frame is
+    /// written, and a 30 fps clip under a faster render (or a starved
+    /// decoder) has ticks with nothing to write. The notice paths keep
+    /// their events: the run that draws the notice consumes them.
+    pub fn plan_frame(&mut self, core: &mut ScreenCore) -> FrameDraw {
+        self.ensure_open(core.size());
+        self.advance();
+        // Notices lay out at the display's size, not the clip's (the
+        // surface may be at the clip's size from the last written frame).
+        let px = self.display_px.unwrap_or_else(|| core.size());
+        if self.error.is_some() {
+            return FrameDraw::Notice { text: self.error_text(), px };
+        }
+        if !self.want_playing {
+            // The page replaces the picture in the texture; the last frame
+            // goes back the moment play resumes, before any new frame is due.
+            self.last_dirty = self.last.is_some();
+            return FrameDraw::Notice { text: self.paused_text(), px };
+        }
+        core.drop_pending_events();
+        if self.last_dirty {
+            FrameDraw::Frame
+        } else {
+            FrameDraw::Keep
+        }
+    }
+
     /// Write `last` into the surface, letterboxed to the display's aspect.
     /// The aspect-matching case writes the frame's bytes straight through
     /// (no copy); the other case composes into the scratch canvas first.
@@ -413,30 +549,23 @@ impl ScreenProvider for VideoProvider {
         theme: &mut Theme,
         gui_state: &mut GuiState,
     ) {
-        self.ensure_open(surface.size());
-        self.advance();
-        if self.error.is_some() {
-            let text = self.error_text();
-            surface.run_and_render(device, queue, theme, gui_state, |core, _theme, state| {
-                core.run_with(state, |ctx, _| notice(ctx, &text))
-            });
-            return;
+        // The decision is GPU-free and tested (`plan_frame`); this is only
+        // the GPU work it asks for.
+        match self.plan_frame(&mut surface.core) {
+            FrameDraw::Notice { text, px } => {
+                // Back to the display's size: a no-op when the surface is
+                // already there (a paused clip does not reallocate every
+                // frame); the next written frame resizes to the clip again,
+                // and `frame_surfaces` rebinds the scene material to the
+                // new texture either way.
+                surface.resize(device, px.0, px.1);
+                surface.run_and_render(device, queue, theme, gui_state, |core, _theme, state| {
+                    core.run_with(state, |ctx, _| notice(ctx, &text))
+                });
+            }
+            FrameDraw::Frame => self.write_last(surface, device, queue),
+            FrameDraw::Keep => {}
         }
-        if !self.want_playing {
-            let text = self.paused_text();
-            surface.run_and_render(device, queue, theme, gui_state, |core, _theme, state| {
-                core.run_with(state, |ctx, _| notice(ctx, &text))
-            });
-            // The page replaced the picture in the texture; the last frame
-            // goes back the moment play resumes, before any new frame is due.
-            self.last_dirty = self.last.is_some();
-            return;
-        }
-        if self.last_dirty {
-            self.write_last(surface, device, queue);
-        }
-        // No new frame this tick: the texture keeps the previous one, which
-        // is exactly what a display does between frames.
     }
 
     fn kind(&self) -> &'static str {
@@ -472,34 +601,41 @@ impl ScreenProvider for VideoProvider {
         pressed
     }
 
-    /// Attach the sound once the audio manager is available, then place it:
-    /// volume from the distance, pan from the bearing, both on the sfx bus
-    /// under the master volume so the Settings sliders govern a film on the
-    /// wall like any other world sound.
+    /// Attach the sound once the player and the audio manager both exist,
+    /// then place it: volume from the distance, pan from the bearing, both
+    /// on the sfx bus under the master volume so the Settings sliders govern
+    /// a film on the wall like any other world sound.
+    ///
+    /// ORDER, load-bearing: the engine calls this BEFORE `frame` on every
+    /// tick, for every surface with a provider. So on the tick whose `frame`
+    /// opens the player this runs first and finds no player; the attach
+    /// then happens on the NEXT tick, exactly once (`SoundLink::step`), at
+    /// the mix that tick's listener position implies, and later ticks only
+    /// re-send a mix that moved. Nothing is decided until both the player
+    /// and a device exist, so on a machine with no audio device the attach
+    /// stays pending (never marked done) instead of being skipped.
     fn world_update(&mut self, world: &mut ScreenWorld<'_>) {
         let Some(p) = self.player.as_mut() else { return };
         let Some(audio) = world.audio.as_deref_mut() else { return };
-        if !self.audio_attached {
-            self.audio_attached = true;
-            if let Err(e) = p.attach_audio_looping(audio, true) {
-                log::warn!("[Screens] video {:?}: sound not attached: {e}", self.source);
-            }
-        }
-        if !p.has_audio() {
-            return;
-        }
         let (falloff, pan) = audio_placement(
             Vec3::from_array(world.screen_centre),
             Vec3::from_array(world.listener_pos),
             Vec3::from_array(world.listener_right),
         );
-        let volume = audio.master_volume() * audio.sfx_volume() * falloff;
-        let changed = self
-            .mix_sent
-            .map_or(true, |(v, pn)| (v - volume).abs() > MIX_EPSILON || (pn - pan).abs() > MIX_EPSILON);
-        if changed {
-            p.set_audio_mix(volume, pan, MIX_TWEEN_MS);
-            self.mix_sent = Some((volume, pan));
+        let volume = compose_mix(audio.master_volume(), audio.sfx_volume(), falloff);
+        match self.sound.step(volume, pan) {
+            SoundStep::Attach { volume, pan } => {
+                // The stream starts AT this mix; see `SoundStep::Attach` for
+                // why it must not start at a default and tween down.
+                let opts = AudioAttach { looping: true, volume, panning: pan };
+                if let Err(e) = p.attach_audio_with(audio, opts) {
+                    log::warn!("[Screens] video {:?}: sound not attached: {e}", self.source);
+                }
+            }
+            // A no-op on the player when there is no sound (a silent file,
+            // a failed attach), so no `has_audio` check is needed here.
+            SoundStep::Send { volume, pan } => p.set_audio_mix(volume, pan, MIX_TWEEN_MS),
+            SoundStep::Hold => {}
         }
     }
 }
@@ -688,7 +824,14 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(3));
         }
-        assert!(seen.len() >= 40, "most of the 60 frames should arrive in the first pass, got {}", seen.len());
+        // Half the clip's frames is the floor, for the same reason as the
+        // media tests' `real_time_floor`: `poll` drops older due frames by
+        // design, so a loaded machine that parks this thread for over a
+        // frame period loses frames legitimately (37 of 59 was observed
+        // under load against a fixed 40), while the defects the count is
+        // for (a decoder that never wakes, a stale generation) deliver a
+        // handful. The wrap assertions below are the real-time proof.
+        assert!(seen.len() >= 30, "frames stopped flowing: {} of the first pass's 59 arrived in 2.6 s", seen.len());
         // In pts order within a loop, and the loop counter never decreases.
         for w in seen.windows(2) {
             let ((l0, t0), (l1, t1)) = (w[0], w[1]);
@@ -807,5 +950,322 @@ mod tests {
         assert_eq!(far, 0.0, "silent beyond the max distance");
         let (here, pan_here) = audio_placement(listener, listener, right);
         assert_eq!((here, pan_here), (1.0, 0.5), "at the screen: full volume, centred");
+    }
+
+    /// The mix is master x sfx x falloff, each slider really in it: zero any
+    /// one and the film is silent, halve any one and the film halves.
+    #[test]
+    fn mix_composition_multiplies_master_sfx_and_falloff() {
+        assert_eq!(compose_mix(1.0, 1.0, 1.0), 1.0);
+        assert_eq!(compose_mix(0.0, 1.0, 1.0), 0.0, "master off silences a film");
+        assert_eq!(compose_mix(1.0, 0.0, 1.0), 0.0, "the sfx bus off silences a film");
+        assert_eq!(compose_mix(1.0, 1.0, 0.0), 0.0, "out of range is silent");
+        assert!((compose_mix(0.5, 1.0, 1.0) - 0.5).abs() < 1e-12);
+        assert!((compose_mix(1.0, 0.5, 1.0) - 0.5).abs() < 1e-12);
+        assert!((compose_mix(1.0, 1.0, 0.5) - 0.5).abs() < 1e-12);
+        // The reviewer's case: sfx at 10 percent, a screen at 35 m (falloff 0.3).
+        let (falloff, _) = audio_placement(Vec3::new(0.0, 0.0, -35.0), Vec3::ZERO, Vec3::X);
+        assert!((falloff - 0.3).abs() < 1e-6);
+        assert!((compose_mix(1.0, 0.1, falloff) - 0.03).abs() < 1e-6, "the f32 falloff carries a 1e-9 rounding");
+    }
+
+    /// The epsilon gate: nothing sent yet always moves; the same value does
+    /// not; a change under the epsilon on both channels does not; a change
+    /// over it on EITHER channel does.
+    #[test]
+    fn mix_gate_passes_the_first_value_and_then_only_moves_past_the_epsilon() {
+        assert!(mix_moved(None, (0.0, 0.5)), "the first mix always goes out");
+        assert!(!mix_moved(Some((0.3, 0.5)), (0.3, 0.5)));
+        let under = MIX_EPSILON * 0.5;
+        let over = MIX_EPSILON * 1.5;
+        assert!(!mix_moved(Some((0.3, 0.5)), (0.3 + under, 0.5 + under)), "jitter under the epsilon is held");
+        assert!(mix_moved(Some((0.3, 0.5)), (0.3 + over, 0.5)), "a volume move goes out");
+        assert!(mix_moved(Some((0.3, 0.5)), (0.3, 0.5 - over)), "a pan move goes out");
+        assert!(mix_moved(Some((0.3, 0.5)), (0.3 - over, 0.5 + over)));
+    }
+
+    /// The link attaches once, AT the first mix it is given (the attach and
+    /// the first "sent" value are the same thing), then holds an unchanged
+    /// mix and sends a moved one; it never attaches twice. Proven able to
+    /// fail: with `attached = true` left out of the Attach arm the second
+    /// step returns Attach again.
+    #[test]
+    fn the_sound_link_attaches_once_at_the_first_mix_then_sends_only_moves() {
+        let mut link = SoundLink::default();
+        assert!(!link.attached && link.sent.is_none());
+        assert_eq!(link.step(0.03, 0.85), SoundStep::Attach { volume: 0.03, pan: 0.85 });
+        assert!(link.attached);
+        assert_eq!(link.sent, Some((0.03, 0.85)), "the attach mix is the first mix sent");
+        assert_eq!(link.step(0.03, 0.85), SoundStep::Hold, "the same mix is held, never a second attach");
+        assert_eq!(link.step(0.03 + MIX_EPSILON * 0.5, 0.85), SoundStep::Hold, "jitter is held");
+        assert_eq!(link.step(0.2, 0.5), SoundStep::Send { volume: 0.2, pan: 0.5 });
+        assert_eq!(link.sent, Some((0.2, 0.5)));
+        assert_eq!(link.step(0.2, 0.5), SoundStep::Hold);
+        for _ in 0..100 {
+            assert_ne!(link.step(0.2, 0.5), SoundStep::Attach { volume: 0.2, pan: 0.5 }, "attached stays attached");
+        }
+    }
+
+    /// The audible defect: the first thing the audio thread hears must be
+    /// the composed mix, not full volume tweened down. With the sfx slider
+    /// at 10 percent and the screen 35 m off, the attach carries 0.03, about
+    /// 33 times below the 1.0 a default-level attach would have started at.
+    #[test]
+    fn the_stream_starts_at_the_placed_mix_not_at_full_volume() {
+        let (falloff, pan) = audio_placement(Vec3::new(0.0, 1.0, -35.0), Vec3::new(0.0, 1.0, 0.0), Vec3::X);
+        let volume = compose_mix(1.0, 0.1, falloff);
+        let mut link = SoundLink::default();
+        let SoundStep::Attach { volume: v0, pan: p0 } = link.step(volume, pan) else {
+            panic!("the first step is the attach");
+        };
+        assert!((v0 - 0.03).abs() < 1e-6, "attach volume {v0}");
+        assert!((1.0 / v0 - 33.3).abs() < 0.5, "a default-level start would have been {:.0}x too loud", 1.0 / v0);
+        assert!((p0 - 0.5).abs() < 1e-6, "straight ahead: centred from the first sample");
+        // And the attach options the provider builds from it carry it through.
+        let opts = AudioAttach { looping: true, volume: v0, panning: p0 };
+        assert!(opts.looping, "a screen's clip loops on kira's side");
+        assert_eq!((opts.volume, opts.panning), (v0, p0));
+    }
+
+    /// The ordering through the real `world_update`, on a machine with no
+    /// audio device (`audio: None`, which is what CI has): before the first
+    /// frame opens the player nothing is attached; after it opens, with no
+    /// device, the attach stays PENDING (not marked done, nothing sent), so
+    /// a device-less machine never records a phantom attach and a machine
+    /// with a device attaches on the first tick that has both (the ignored
+    /// device test below drives that half). Proven able to fail: with the
+    /// device check moved after `sound.step` the second assertion fires.
+    #[test]
+    fn the_attach_waits_for_both_the_player_and_a_device() {
+        let mut p = VideoProvider::new(DEMO);
+        let world = || ScreenWorld {
+            screen_centre: [0.0, 1.0, -5.0],
+            listener_pos: [0.0, 1.0, 0.0],
+            listener_right: [1.0, 0.0, 0.0],
+            audio: None,
+        };
+        // Tick 1: world_update runs before frame on every tick; no player yet.
+        p.world_update(&mut world());
+        assert_eq!(p.sound, SoundLink::default(), "nothing to attach before the player exists");
+        // The first frame opens the player (this is what `plan_frame` runs).
+        p.open_with(&data_dir(), (1280, 720));
+        assert!(p.player.is_some());
+        // Tick 2 onward, still no device: pending, never done.
+        for _ in 0..5 {
+            p.world_update(&mut world());
+        }
+        assert_eq!(p.sound, SoundLink::default(), "no device: the attach must stay pending, not be marked done");
+        assert!(!p.player.as_ref().unwrap().has_audio());
+        assert!(!p.status()["audio"].as_bool().unwrap());
+    }
+
+    /// A playing clip drops the core's queued input every tick, whether or
+    /// not a frame is written that tick; a paused clip keeps its events for
+    /// the run that draws the notice, which consumes them. The read-back is
+    /// the core's own count. Proven able to fail: with the drop removed from
+    /// `plan_frame` the count after the playing tick stays at 25.
+    #[test]
+    fn a_playing_clip_drops_the_queued_input_and_a_paused_one_hands_it_to_the_notice() {
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), core.size());
+        assert!(p.error().is_none(), "{:?}", p.error());
+
+        let sweep = |core: &mut ScreenCore| {
+            for i in 0..25 {
+                core.pointer_moved((i as f32 / 25.0, 0.4));
+            }
+        };
+        sweep(&mut core);
+        assert_eq!(core.pending_events(), 25);
+        let draw = p.plan_frame(&mut core);
+        assert!(matches!(draw, FrameDraw::Frame | FrameDraw::Keep), "playing: {draw:?}");
+        assert_eq!(core.pending_events(), 0, "a playing tick drops the backlog");
+        // A tick with nothing new to write still drops.
+        sweep(&mut core);
+        let _ = p.plan_frame(&mut core);
+        assert_eq!(core.pending_events(), 0);
+
+        // Paused: the events survive to the notice run, which drains them.
+        p.on_button((0.5, 0.5), true);
+        sweep(&mut core);
+        let draw = p.plan_frame(&mut core);
+        assert!(matches!(draw, FrameDraw::Notice { .. }), "paused: {draw:?}");
+        assert_eq!(core.pending_events(), 25, "the notice run gets the events, plan_frame does not eat them");
+        let FrameDraw::Notice { text, .. } = draw else { unreachable!() };
+        core.run_with(&mut state, |ctx, _| notice(ctx, &text));
+        assert_eq!(core.pending_events(), 0);
+    }
+
+    /// A clip paused on its last frame stays there: the loop counter does
+    /// not move and the position stays at the end, however many ticks pass;
+    /// the wrap happens on the first tick after play resumes. Proven able to
+    /// fail: without the `want_playing` gate in `advance` the first
+    /// `loops()` assertion reads 1 and the position reads under 0.1 s.
+    #[test]
+    fn pausing_on_the_last_frame_does_not_rewind() {
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), (1280, 720));
+        assert!(p.error().is_none(), "{:?}", p.error());
+        let dur = p.status()["duration_s"].as_f64().unwrap();
+        // Play through to the declared end, polling as the render loop
+        // would, but stop BEFORE the tick that would wrap.
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while Instant::now() < deadline && !p.player.as_ref().unwrap().at_end() {
+            let _ = p.player.as_mut().unwrap().poll();
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        assert!(p.player.as_ref().unwrap().at_end(), "the clip must reach its end within 4 s");
+        assert_eq!(p.loops(), 0);
+
+        // The click lands on the last frame.
+        p.on_button((0.5, 0.5), true);
+        assert!(p.is_paused());
+        for _ in 0..10 {
+            p.advance();
+        }
+        assert_eq!(p.loops(), 0, "a paused clip must not wrap");
+        let pos = p.status()["position_s"].as_f64().unwrap();
+        assert!((pos - dur).abs() < 0.02, "paused at the end, the position stays there: {pos} of {dur}");
+        assert!(p.paused_text().starts_with(&format!("Paused at {dur:.1} s")), "{}", p.paused_text());
+
+        // Play again: now it wraps, once, and rolls from the start.
+        p.on_button((0.5, 0.5), true);
+        assert!(!p.is_paused());
+        p.advance();
+        assert_eq!(p.loops(), 1, "the wrap happens on the first playing tick");
+        let pos = p.status()["position_s"].as_f64().unwrap();
+        assert!(pos < 0.1, "rolling from the start, position {pos}");
+        assert!(p.player.as_ref().unwrap().is_playing());
+        assert!(p.error().is_none());
+    }
+
+    /// The paused and error notices are laid out at the DISPLAY's pixel
+    /// size (the def's `px`), not at the clip's size the surface was
+    /// resized to by the last written frame. The core here is put at the
+    /// clip's 320 x 180, as `write_pixels` leaves it, before each notice is
+    /// planned. Proven able to fail: with `px` taken from `core.size()` in
+    /// `plan_frame` both assertions read (320, 180).
+    #[test]
+    fn notices_lay_out_at_the_display_size_not_the_clip_size() {
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 1280, 720, &theme);
+        let mut p = VideoProvider::new(DEMO);
+        p.open_with(&data_dir(), core.size());
+        // The last written frame left the surface at the clip's size.
+        core.set_size(320, 180);
+        p.on_button((0.5, 0.5), true);
+        match p.plan_frame(&mut core) {
+            FrameDraw::Notice { px, text } => {
+                assert_eq!(px, (1280, 720), "the paused page is laid out at the def's px");
+                assert!(text.starts_with("Paused"), "{text}");
+            }
+            other => panic!("paused must draw a notice, got {other:?}"),
+        }
+        // The error page too, for a clip that failed to open.
+        let mut core = ScreenCore::new("s", "video:x", 1024, 600, &theme);
+        let mut e = VideoProvider::new("media/nothing.webm");
+        e.open_with(&data_dir(), core.size());
+        core.set_size(320, 180);
+        match e.plan_frame(&mut core) {
+            FrameDraw::Notice { px, text } => {
+                assert_eq!(px, (1024, 600));
+                assert!(text.contains("not found"), "{text}");
+            }
+            other => panic!("an open error must draw a notice, got {other:?}"),
+        }
+    }
+
+    /// `data/media/README.md` promises the shipped demo clip is a
+    /// byte-identical copy of the media tests' fixture, and the screen
+    /// tests above open the demo while the media tests open the fixture:
+    /// the two suites only prove the same thing while the files match.
+    #[test]
+    fn the_demo_clip_is_the_test_fixture_byte_for_byte() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let demo = root.join("data/media/demo_colour_bar.webm");
+        let fixture = root.join("tests/fixtures/media/colour-bar-av1-opus.webm");
+        let a = std::fs::read(&demo).unwrap_or_else(|e| panic!("{}: {e}", demo.display()));
+        let b = std::fs::read(&fixture).unwrap_or_else(|e| panic!("{}: {e}", fixture.display()));
+        assert!(!a.is_empty());
+        assert!(
+            a == b,
+            "{} ({} bytes) differs from {} ({} bytes); regenerate both with scripts/make-media-fixtures.sh \
+             and copy the fixture over the demo under the same name (data/media/README.md), then update \
+             the byte count in that README",
+            demo.display(),
+            a.len(),
+            fixture.display(),
+            b.len()
+        );
+    }
+
+    /// The other half of the ordering test, on a machine with an audio
+    /// device: the real `world_update` attaches on the first tick that has
+    /// both a player and a device, AT the composed mix (master x sfx x
+    /// falloff, not full volume), the sound then really plays, an unchanged
+    /// world sends nothing more, and a moved listener sends a new mix.
+    /// Master is set very low rather than to zero so the composed value is
+    /// distinguishable from "silent" while staying inaudible (amplitude
+    /// 0.0006 of a tone whose RMS is about 0.3).
+    ///
+    /// Run it in RELEASE mode: rav1d's own debug-only `DisjointMut` borrow
+    /// checker can panic on one of rav1d's worker threads under a debug
+    /// build with several decoders running (observed once in 16 debug runs
+    /// of the suite, 2026-09-17; it aborts the whole test process). See
+    /// "Known limits" in docs/design/media-player.md. A debug run that
+    /// completes is still valid.
+    #[test]
+    #[ignore = "needs an audio output device; run: cargo test --release --features native --lib -- --ignored --nocapture engine::screens::video::tests::sound_attaches (release: rav1d's debug-only borrow checker can abort a debug run, see docs/design/media-player.md Known limits)"]
+    fn sound_attaches_once_at_the_listener_mix_when_a_device_exists() {
+        let mut audio = match crate::audio::AudioManager::try_new() {
+            Ok(a) => a,
+            Err(e) => {
+                println!("skipped: no audio device ({e})");
+                return;
+            }
+        };
+        audio.set_master_volume(0.02);
+        audio.set_sfx_volume(0.1);
+        let mut p = VideoProvider::new(DEMO);
+        // The screen 35 m straight ahead of the starting listener.
+        fn world<'a>(listener: [f32; 3], audio: &'a mut crate::audio::AudioManager) -> ScreenWorld<'a> {
+            ScreenWorld {
+                screen_centre: [0.0, 1.0, -35.0],
+                listener_pos: listener,
+                listener_right: [1.0, 0.0, 0.0],
+                audio: Some(audio),
+            }
+        }
+        // Tick 1: no player yet.
+        p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
+        assert_eq!(p.sound, SoundLink::default());
+        p.open_with(&data_dir(), (1280, 720));
+        assert!(p.error().is_none(), "{:?}", p.error());
+        // Tick 2: the attach, at the composed mix.
+        p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
+        let expected = compose_mix(0.02, 0.1, 0.3);
+        assert!(p.sound.attached);
+        let (v, pan) = p.sound.sent.expect("the attach mix was recorded");
+        assert!((v - expected).abs() < 1e-9, "attached at {v}, expected master x sfx x falloff = {expected}");
+        assert!((pan - 0.5).abs() < 1e-6);
+        assert!(p.player.as_ref().unwrap().has_audio(), "the stream really attached");
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(p.player.as_ref().unwrap().audio_state(), Some(kira::sound::PlaybackState::Playing));
+        // Ticks 3..: unchanged world, nothing new sent.
+        for _ in 0..30 {
+            p.world_update(&mut world([0.0, 1.0, 0.0], &mut audio));
+        }
+        assert_eq!(p.sound.sent, Some((v, pan)), "an unmoved listener sends nothing");
+        // The listener steps to the screen's right: the pan swings, and
+        // closer: louder.
+        p.world_update(&mut world([-20.0, 1.0, -35.0], &mut audio));
+        let (v2, pan2) = p.sound.sent.unwrap();
+        assert!(v2 > v, "closer is louder: {v2} vs {v}");
+        assert!(pan2 > 0.5, "a screen to the right pans right: {pan2}");
+        assert!(p.player.as_mut().unwrap().take_error().is_none());
+        println!("provider sound: attached at volume {v:.6} pan {pan:.3}; after the move volume {v2:.6} pan {pan2:.3}");
     }
 }

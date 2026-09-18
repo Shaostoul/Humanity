@@ -197,17 +197,28 @@ impl AudioManager {
     /// decoder (the media player's Opus track, `src/media/audio.rs`). kira
     /// pulls chunks from the decoder on its own decode thread; the returned
     /// handle reports the playback position and takes pause / resume / seek,
-    /// which is what lets the video clock follow the sound card. Volume is
-    /// master * `vol` at the moment of the call, the same snapshot rule the
-    /// one-shot paths above use.
+    /// which is what lets the video clock follow the sound card.
+    ///
+    /// `amplitude` and `panning` are ABSOLUTE and apply from the very first
+    /// sample: `amplitude` is the final gain (1.0 = as decoded, 0.0 = silent;
+    /// the caller composes master x bus x placement itself, which is why
+    /// `master_volume()` and `sfx_volume()` are readable), `panning` is
+    /// kira's 0..1 (0 hard left, 0.5 centre, 1 hard right). Unlike the
+    /// one-shot paths above, master is NOT multiplied in here: a long-lived
+    /// stream re-sends its full mix every frame through its handle, and
+    /// that value is absolute too, so the attach and the updates must agree
+    /// or the first frames play at the wrong level (they did: a stream
+    /// attached at "master" and then tweened to master x sfx x falloff spent
+    /// its first 60 ms up to 33 times too loud with sfx at 10 percent).
     pub fn play_stream<E: Send + 'static>(
         &mut self,
         data: kira::sound::streaming::StreamingSoundData<E>,
-        vol: f64,
+        amplitude: f64,
+        panning: f64,
     ) -> Result<kira::sound::streaming::StreamingSoundHandle<E>, String> {
-        let data = data.volume(kira::Volume::Amplitude(
-            self.master_volume * vol.clamp(0.0, 2.0),
-        ));
+        let data = data
+            .volume(kira::Volume::Amplitude(amplitude.clamp(0.0, 2.0)))
+            .panning(panning.clamp(0.0, 1.0));
         self.manager
             .play(data)
             .map_err(|e| format!("Stream play error: {e}"))

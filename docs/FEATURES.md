@@ -195,7 +195,7 @@ machine in release mode, RGBA conversion included: 1080p AV1 decodes at
 28 fps on one thread and 69 fps with rav1d's threads (the fixture, 320x180,
 at 1154 and 1802 fps). Design, licence audit and numbers:
 `docs/design/media-player.md`.
-- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_looping`, `set_audio_mix`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream`, `master_volume`, `sfx_volume`)
+- Native: `src/media/mod.rs` (`VideoPlayer`, clock, bounded frame queue, decode thread, `attach_audio_with` + `AudioAttach` (looping, the initial mix), `set_audio_mix`, `audio_position_s`, `audio_state`), `src/media/video.rs` (`Av1Decoder` over rav1d, YUV to RGBA), `src/media/audio.rs` (`OpusTrack`, a kira streaming `Decoder`), `src/audio/mod.rs` (`play_stream` at an absolute amplitude and pan, `master_volume`, `sfx_volume`)
 - Data: `tests/fixtures/media/*.webm` (synthetic fixtures from `scripts/make-media-fixtures.sh`)
 - Tests: `src/media/tests.rs` (demux, decode, pixels, samples, clock, seek, thread join, ignored fps benchmark)
 
@@ -235,7 +235,7 @@ shapes.
 - Native: `src/engine/screens/video.rs` (`VideoProvider`, `resolve_media_path`, `letterbox_layout`, `compose_letterbox`, `audio_placement`), `src/engine/screens.rs` (`provider_for` arm, `world_update` loop in `frame_surfaces`), `src/gui/screen_surface.rs` (`ScreenWorld`, `ScreenProvider::world_update`, `ScreenSurface::world_update`), `src/engine/ipc.rs` (provider status merge)
 - Web: none by design (the screens live inside the native 3D world).
 - Data: `data/media/demo_colour_bar.webm` + `data/media/README.md` (provenance), `data/machines/home.ron` (`wall_screen_3` in the console room, `video:media/demo_colour_bar.webm`)
-- Tests: `src/engine/screens/video.rs` (scheme, path rule, pause toggle, error pages read back from the drawn text, frames + loop over the shipped clip, letterbox layout and compose, placement law)
+- Tests: `src/engine/screens/video.rs` (scheme, path rule, pause toggle, error pages read back from the drawn text, frames + loop over the shipped clip, letterbox layout and compose, placement law; after the 2026-09-17 review: mix composition and epsilon gate, the sound link attaches once at the first mix, the stream starts at the placed mix not full volume, the attach waits for both the player and a device, a playing clip drops queued input, a clip paused on its last frame does not rewind, notices lay out at the def's px, the demo clip is byte-identical to the fixture; plus an ignored device test of the real attach), `src/gui/screen_surface.rs` (the event drop empties the queue and the next run sees none), `src/media/tests.rs` (the ignored looping-audio device test: the loop region wraps and the sound stays playing through two passes, with a one-shot control that stops)
 
 ### Reactions
 Emoji reactions on messages.

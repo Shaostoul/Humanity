@@ -388,6 +388,32 @@ impl ScreenCore {
         self.events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
     }
 
+    /// How many synthetic events are queued for the next run.
+    pub fn pending_events(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Throw away every queued event and forget the pointer, for a frame
+    /// whose picture came from BYTES rather than from a run (a playing clip
+    /// or a live stream written with `write_pixels`). Returns how many were
+    /// dropped.
+    ///
+    /// Why this exists: the look ray reports a `PointerMoved` every frame it
+    /// is on a screen and moving, and the queue is only ever drained by a
+    /// run. A playing clip never runs egui, so without this the backlog
+    /// grew without bound for as long as the player watched the film, and
+    /// the click that paused it replayed the whole backlog through egui in
+    /// one run. Forgetting the pointer as well means the next look-ray
+    /// report re-announces the position (it is deduplicated against the
+    /// remembered one), so egui's first run after the drop starts from a
+    /// fresh `PointerMoved` rather than from nothing.
+    pub fn drop_pending_events(&mut self) -> usize {
+        let n = self.events.len();
+        self.events.clear();
+        self.pointer = None;
+        n
+    }
+
     /// Whether a text field on this screen had keyboard focus at the end of
     /// the last run. lib.rs routes typed text here only while this is true,
     /// so pressing W to walk never types into a wall screen by accident.
@@ -628,11 +654,19 @@ impl ScreenSurface {
     /// 1920 x 1080 stream on a 1280 x 720 wall shows every pixel and the
     /// quad (whose physical size comes from the machine def) stretches it
     /// by the aspect difference; providers that care scale before writing.
+    ///
+    /// This frame's picture is bytes, not a run, so the core's queued input
+    /// has no page to land on: it is dropped here (`drop_pending_events`),
+    /// for every provider that writes pixels, so a backlog can never build
+    /// behind a stream or a clip. A provider whose frames arrive slower than
+    /// the render rate should also drop on the ticks it does NOT write (the
+    /// video provider does, in `plan_frame`).
     pub fn write_pixels(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, rgba: &[u8], w: u32, h: u32) {
         if w == 0 || h == 0 || rgba.len() != (w as usize) * (h as usize) * 4 {
             log::warn!("[Screens] {}: write_pixels got {} bytes for {w}x{h}; frame dropped", self.core.id, rgba.len());
             return;
         }
+        self.core.drop_pending_events();
         self.resize(device, w, h);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -947,6 +981,45 @@ mod tests {
         assert!(result.is_err(), "the panic propagates");
         let back = state.link_device_qr.as_ref().map(|(_, t)| t.id());
         assert_eq!(back, Some(main_id), "after the panic the main handle must be back in GuiState");
+    }
+
+    /// The event queue is bounded by a drop, and the drop is complete: N
+    /// distinct pointer reports queue N events; `drop_pending_events` empties
+    /// the queue and the very next run sees NO events at all (read back from
+    /// egui's input inside the run, not from the counter); and because the
+    /// pointer is forgotten too, the next report of the same position is
+    /// not deduplicated away but queued afresh, so egui learns where the
+    /// pointer is before the first click after a drop. Proven able to fail:
+    /// with the drop's `clear()` removed the count stays N and the run sees
+    /// N events.
+    #[test]
+    fn dropping_pending_events_empties_the_queue_and_the_next_run_sees_none() {
+        let mut state = GuiState::default();
+        let theme = load_theme();
+        let mut core = ScreenCore::new("s", "video:x", 320, 180, &theme);
+        let n = 25;
+        for i in 0..n {
+            // Distinct positions, as a look ray sweeping across a screen.
+            core.pointer_moved((i as f32 / n as f32, 0.5));
+        }
+        assert_eq!(core.pending_events(), n, "one event per distinct position");
+        // A repeat of the current position queues nothing (the existing dedupe).
+        core.pointer_moved(((n - 1) as f32 / n as f32, 0.5));
+        assert_eq!(core.pending_events(), n);
+
+        assert_eq!(core.drop_pending_events(), n, "the drop reports what it threw away");
+        assert_eq!(core.pending_events(), 0);
+        let mut seen = None;
+        core.run_with(&mut state, |ctx, _| seen = Some(ctx.input(|i| i.events.len())));
+        assert_eq!(seen, Some(0), "the run after a drop must receive no events");
+
+        // The pointer was forgotten: the same position is announced again.
+        core.pointer_moved(((n - 1) as f32 / n as f32, 0.5));
+        assert_eq!(core.pending_events(), 1, "after a drop the position is re-announced, not deduplicated");
+        let mut seen = None;
+        core.run_with(&mut state, |ctx, _| seen = Some(ctx.input(|i| i.events.len())));
+        assert_eq!(seen, Some(1));
+        assert_eq!(core.pending_events(), 0, "a run drains what it was given");
     }
 
     /// Keyboard routing evidence: a text field on a screen reports

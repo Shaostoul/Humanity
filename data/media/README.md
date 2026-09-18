@@ -21,4 +21,6 @@ To regenerate: run the script (needs an ffmpeg with libaom and libopus), then
 copy the fixture here under the same name. The media tests in
 `src/media/tests.rs` check the fixture's pixels and samples; the screen tests
 in `src/engine/screens/video.rs` open THIS copy, so the two must stay
-identical.
+identical. That is enforced: the test
+`the_demo_clip_is_the_test_fixture_byte_for_byte` (same file) reads both and
+fails, naming the script, if they differ.

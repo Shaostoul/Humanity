@@ -599,6 +599,16 @@ pub(crate) fn frame_surfaces(state: &mut EngineState) {
     // or walks off, so its volume and pan follow the listener every frame,
     // independent of the framing budget below. A surface with no provider
     // is skipped inside `world_update` (nothing to place).
+    //
+    // This walks the QUADS, and relies on there being exactly one quad per
+    // surface, which `sync_screens` guarantees by construction (one
+    // placement makes one surface and one quad, `surface: si`). If a surface
+    // ever gets a second quad (a two-sided display, a mirror), this loop
+    // must dedupe by surface index, or that surface's provider would get two
+    // world updates a frame and its mix would be sent twice (harmless for
+    // the epsilon gate, wasteful for the audio thread). Not deduped today
+    // because the invariant holds and a per-frame seen-set is a cost paid
+    // for a case that does not exist.
     {
         let EngineState { screens, audio, .. } = state;
         let Screens { surfaces, quads, .. } = screens;

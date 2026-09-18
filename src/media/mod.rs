@@ -144,6 +144,30 @@ pub struct VideoFrame {
     pub pts_s: f64,
 }
 
+/// How to hand the sound to kira (`VideoPlayer::attach_audio_with`).
+///
+/// `volume` and `panning` are the mix the sound STARTS at, absolute (see
+/// `AudioManager::play_stream`): `volume` is the final amplitude, 1.0 = as
+/// decoded, 0.0 = silent, master and bus already multiplied in by the
+/// caller; `panning` is kira's 0 (hard left) .. 0.5 (centre) .. 1 (hard
+/// right). The default is a one-shot, as decoded, centred, which is what
+/// a caller with no placement to apply wants (`attach_audio` fills in the
+/// master volume on top).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AudioAttach {
+    /// Loop the sound on kira's side (a stream that runs off its end
+    /// leaves the mixer for good; see `attach_audio_with`).
+    pub looping: bool,
+    pub volume: f64,
+    pub panning: f64,
+}
+
+impl Default for AudioAttach {
+    fn default() -> Self {
+        Self { looping: false, volume: 1.0, panning: 0.5 }
+    }
+}
+
 /// What `probe()` learns about a file before any decoding happens.
 #[derive(Clone, Debug)]
 pub struct MediaInfo {
@@ -593,22 +617,25 @@ impl VideoPlayer {
         &self.info
     }
 
-    /// Hand the Opus track to kira so it plays through the app's mixer. The
-    /// sound starts in the player's current state (paused unless `play()`
-    /// already ran). A file with no audio track attaches nothing and plays
-    /// silent on the wall clock. Call once; a second call replaces the sound.
+    /// Hand the Opus track to kira so it plays through the app's mixer, as a
+    /// one-shot at the manager's current master volume, centred. The sound
+    /// starts in the player's current state (paused unless `play()` already
+    /// ran). A file with no audio track attaches nothing and plays silent on
+    /// the wall clock. Call once; a second call replaces the sound.
     pub fn attach_audio(&mut self, manager: &mut crate::audio::AudioManager) -> Result<(), MediaError> {
-        self.attach_audio_looping(manager, false)
+        let volume = manager.master_volume();
+        self.attach_audio_with(manager, AudioAttach { volume, ..AudioAttach::default() })
     }
 
-    /// `attach_audio` with the choice of LOOPING the sound on kira's side.
+    /// `attach_audio` with every choice spelled out: whether the sound LOOPS
+    /// on kira's side, and the mix it starts at.
     ///
-    /// Why a caller that loops the clip needs this: a kira stream that runs
-    /// off its end enters kira's "finished" state and is removed from the
-    /// mixer, after which every `resume` and `seek_to` on its handle is a
-    /// message to nobody. So for a clip meant to repeat (a screen playing a
-    /// film on loop) the stream gets a loop region over its whole length and
-    /// never finishes. The picture side still restarts through
+    /// Why a caller that loops the clip needs `looping`: a kira stream that
+    /// runs off its end enters kira's "finished" state and is removed from
+    /// the mixer, after which every `resume` and `seek_to` on its handle is
+    /// a message to nobody. So for a clip meant to repeat (a screen playing
+    /// a film on loop) the stream gets a loop region over its whole length
+    /// and never finishes. The picture side still restarts through
     /// `seek_to_start` + `play` when the clock reaches the declared end; by
     /// then kira has already wrapped the sound to its start a few
     /// milliseconds earlier (the stream ends at the Opus sample count, the
@@ -616,10 +643,18 @@ impl VideoPlayer {
     /// `seek_to_start` re-aligns those few milliseconds. Non-looping is the
     /// one-shot case: the sound ends with the clip, and `play()` after the
     /// end is a no-op anyway.
-    pub fn attach_audio_looping(
+    ///
+    /// Why the mix is an argument and not a `set_audio_mix` call right
+    /// after: the values in `AudioAttach` are baked into the sound data, so
+    /// the very first sample plays at them. A stream attached at some
+    /// default level and then tweened to its real level plays its first
+    /// tween's worth at the wrong volume; with the sfx slider at 10 percent
+    /// that is the first 60 ms at up to 33 times the intended level, which
+    /// is audible as a click every time a screen enters range.
+    pub fn attach_audio_with(
         &mut self,
         manager: &mut crate::audio::AudioManager,
-        looping: bool,
+        opts: AudioAttach,
     ) -> Result<(), MediaError> {
         if self.info.audio_track.is_none() {
             return Ok(());
@@ -629,10 +664,10 @@ impl VideoPlayer {
         }
         let track = audio::OpusTrack::open(&self.path, &self.info)?;
         let mut data = kira::sound::streaming::StreamingSoundData::from_decoder(track);
-        if looping {
+        if opts.looping {
             data = data.loop_region(..);
         }
-        let mut handle = manager.play_stream(data, 1.0).map_err(MediaError::Audio)?;
+        let mut handle = manager.play_stream(data, opts.volume, opts.panning).map_err(MediaError::Audio)?;
         if self.clock.playing {
             handle.seek_to(self.clock.position());
         } else {
@@ -647,6 +682,24 @@ impl VideoPlayer {
     /// Whether a kira sound is attached (false for silent files and tests).
     pub fn has_audio(&self) -> bool {
         self.audio.is_some()
+    }
+
+    /// kira's OWN playback position of the attached sound, in seconds, or
+    /// `None` without one. This is the raw reading the audio-led clock
+    /// follows (`sync_clock_to_audio`), not the clock itself: unlike
+    /// `position_s()` it is not monotonic, so a looping stream shows its
+    /// wrap here as the value dropping back toward zero. Read-only; tests
+    /// use it to prove the loop region really wraps.
+    pub fn audio_position_s(&self) -> Option<f64> {
+        self.audio.as_ref().map(|h| h.position())
+    }
+
+    /// kira's state for the attached sound (`Playing`, `Paused`, `Stopped`,
+    /// or a fade in progress), or `None` without one. A non-looping stream
+    /// reads `Stopped` once it has run off its end; a looping one never
+    /// does, which is the whole point of `AudioAttach::looping`.
+    pub fn audio_state(&self) -> Option<PlaybackState> {
+        self.audio.as_ref().map(|h| h.state())
     }
 
     /// Mix the attached sound: `volume` is an amplitude factor (1.0 = as
