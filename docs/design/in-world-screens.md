@@ -256,8 +256,18 @@ While no frame has arrived the surface shows a status page through
 says "Stream offline" with the relay's reason, the viewer is dropped, and a
 new one is opened after `live::RETRY_AFTER` (15 s), so a wall comes back on
 its own when the streamer goes live again. The status page is redrawn only
-when its text changes. `status()` reports `{stream, connected, frames}`
-(frames written to the surface), merged into `debug/screen_done.json`.
+when its text changes, and **never over a live picture**: the stream runs
+slower than the game (a 20 fps stream on a 60 fps game brings a new frame
+one tick in three), and `run_and_render` clears the texture before it
+draws, so a status page drawn on a no-new-frame tick would strobe the wall.
+`live::next_display` is the per-tick decision, pure and pinned by
+`a_live_picture_stays_up_between_stream_frames_while_connected`: a new
+frame is written; no new frame with the picture up and the viewer connected
+keeps the picture untouched; anything else shows the status page. The
+picture is forgotten when the viewer is dropped and when a new one is
+started (the retry), so a reconnect shows "Connecting to" again before its
+first frame. `status()` reports `{stream, connected, frames}` (frames
+written to the surface), merged into `debug/screen_done.json`.
 
 ### The in-game camera: a camera post and a world screen
 
@@ -327,6 +337,17 @@ camera screen is a correct PNG.
   homestead sees the station and a star sky through any window; a planet
   in a camera's window is a later rung (a second temporal history keyed per
   camera).
+- The star pass uses the live frame's **daylight gate**
+  (`ipc::sky_daylight`, the v0.1059 rule: inside an atmosphere with the sun
+  more than about 6 degrees up, the stars are skipped because the sky
+  washes them out). One function decides it for the live frame, the camera
+  screens and the hi-res screenshot, so a camera looking out a window by
+  day shows no stars while the window shows none; before this the view path
+  hard-coded "night" (inherited from the screenshot, where the sky pass hid
+  the mistake) and a daytime camera rendered stars. A camera still draws no
+  sky of its own (the planet/cloud pass is what draws it, and that pass is
+  not run for a camera, above), so a daytime window on a camera is the
+  black behind the station, not blue; that is the later rung.
 
 **A camera never sees its own screen.** The camera's surface texture is
 the render target of its view, and its own display quad's material samples
@@ -359,9 +380,22 @@ on a copy of the live camera with the capture's aspect (the live camera is
 never touched; before this the path set and restored `state.camera.aspect`
 around the passes), then reads the target back to its PNG exactly as
 before; the done file contract is unchanged. The camera provider calls it
-through `EngineWorld::render_view` with `ViewPasses::SceneOnly`. Both
-resize the shared depth buffer to the target for the duration and restore
-the window size before returning.
+through `EngineWorld::render_view` with `ViewPasses::SceneOnly`, which
+returns whether it rendered (false, and the surface untouched, when the
+world is not loaded), and the provider counts a render only when it did
+(`CameraProvider::record_render`, pinned by `a_skipped_render_is_not_counted`),
+so `renders > 0` in the done file means a picture was drawn. Both views
+bind a depth buffer of their own size for the duration: the renderer keeps
+ONE spare depth texture (`Renderer::begin_view_depth` / `end_view_depth`,
+`capture::ViewDepth`) and swaps it in for the passes while the window's own
+depth buffer is parked untouched and put back before returning. A camera
+screen at steady state costs no depth allocations per render (the spare is
+kept at the camera's size); the hi-res screenshot drops the spare after its
+one render so an 8K depth buffer does not linger. Before this the path
+recreated the shared buffer at the view size and again at the window size
+on every render, twenty full-screen allocations a second for one 10 Hz
+camera. `set_depth_target_size` also no longer recreates a buffer that
+already has the requested size.
 
 **Shipped data** (`data/machines/home.ron`): `camera_post` in both home
 catalogs under "Displays"; `camera_post_1` on the open garden floor west of
@@ -374,8 +408,14 @@ pins that every `camera:` screen names a post that is actually placed.
 **Dev IPC.** `debug/screen_request.json` works on both kinds like any
 screen; the done file carries the provider's `status()` fields: a live
 screen's `stream`, `connected`, `frames`; a camera screen's `camera`,
-`renders`, `live`, `error`. A `snapshot` of a camera screen is the rendered
-view as the wall shows it.
+`renders`, `live`, and `camera_error` (the notice text, present only
+when the post could not be found). The merge (`ipc_parse::merge_provider_status`)
+skips null-valued provider fields and never lets a provider key shadow the
+IPC's own, so a successful request is never `{"ok": true, ..., "error": null}`
+next to the IPC's own failure shape `{"ok": false, "error": "..."}`; the
+provider's field is named `camera_error` for the same reason, so neither
+rule alone carries the guarantee. A `snapshot` of a camera screen is the
+rendered view as the wall shows it.
 
 ## Dev IPC (permanent tooling)
 

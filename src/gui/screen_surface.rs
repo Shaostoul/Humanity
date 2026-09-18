@@ -258,8 +258,11 @@ pub trait WorldRender {
     fn camera_pose(&self, instance_id: &str) -> Option<CameraPose>;
 
     /// Render the world as seen by `camera` into `target`, a render
-    /// attachment of `size` pixels in the scene's own format.
-    fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32));
+    /// attachment of `size` pixels in the scene's own format. Returns
+    /// whether a view was actually rendered: `false` means the engine
+    /// skipped it (the world is not loaded) and the target is untouched, so
+    /// the provider must not count it as a picture.
+    fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool;
 }
 
 /// The GPU-free half of a screen: an egui context plus the synthetic input

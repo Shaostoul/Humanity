@@ -232,6 +232,11 @@ pub struct Renderer {
     config: wgpu::SurfaceConfiguration,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+    /// The spare depth buffer for off-screen views (camera screens, the
+    /// hi-res screenshot), swapped in around `render_view_onto` so the
+    /// window's depth buffer is never recreated per view. See
+    /// `capture::ViewDepth` and `begin_view_depth` / `end_view_depth`.
+    view_depth: capture::ViewDepth,
     pipeline: Pipeline,
     /// Megashader hot-reload state (v0.924): (path, last seen mtime) of the
     /// on-disk pbr_simple.wgsl; None in stripped installs (feature dormant).
@@ -1804,6 +1809,7 @@ impl Renderer {
             config,
             depth_texture,
             depth_view,
+            view_depth: capture::ViewDepth::None,
             pipeline,
             #[cfg(feature = "native")]
             shader_hot,

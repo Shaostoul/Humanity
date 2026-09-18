@@ -996,15 +996,43 @@ pub(crate) enum ViewPasses {
     SceneOnly,
 }
 
+/// THE DAYLIGHT GATE for the star pass (v0.1059), shared by the live frame
+/// and every off-screen view (`render_view_onto`). Inside an atmosphere
+/// with the sun more than about 6 degrees up, every star is washed out by
+/// the sky drawn over it, so the 16.8 M-point star draw is pure waste, and
+/// on a view that draws NO sky over the stars (a camera screen,
+/// `ViewPasses::SceneOnly`) it is worse than waste: a camera looking out a
+/// window in daylight would show stars. Sun below that still draws the full
+/// sky, so dusk, dawn and night are untouched, and so is space (no
+/// frame-locked body = no atmosphere to hide behind). Read from the same
+/// state fields whichever caller asks, so the live frame and a camera can
+/// never disagree about whether it is day.
+pub(crate) fn sky_daylight(state: &EngineState) -> bool {
+    state
+        .frame_lock_body
+        .as_deref()
+        .and_then(|b| state.planet_defs.get(b))
+        .map(|d| {
+            let alt = state.frame_lock_anchor.length() - d.radius;
+            let up = state.frame_lock_anchor.normalize_or_zero();
+            let to_sun = (state.sun_world_pos - state.ship_world_pos).normalize_or_zero();
+            let sun_up = up.dot(to_sun);
+            alt < 120_000.0 && sun_up > 0.10
+        })
+        .unwrap_or(false)
+}
+
 /// Render ONE view of the world from `camera` into `target` at `size`
 /// pixels: the passes `passes` names, in the live frame's order, against
 /// the draw lists `lists` (this frame's, borrowed) and the same world state
-/// the live frame uses (sun, anchors, cloud clock). Shared by the hi-res
-/// screenshot (which reads the target back to a PNG) and the camera screen
-/// provider (which renders straight into a screen's surface texture). The
-/// shared depth buffer is resized to `size` for the duration and restored to
-/// the window size before returning, so the next live pass binds a matching
-/// depth buffer whatever happens in between.
+/// the live frame uses (sun, anchors, cloud clock, the daylight gate). Shared
+/// by the hi-res screenshot (which reads the target back to a PNG) and the
+/// camera screen provider (which renders straight into a screen's surface
+/// texture). The passes bind a depth buffer of `size` for the duration, the
+/// renderer's spare one (`Renderer::begin_view_depth`), and the window's own
+/// depth buffer is parked untouched and put back before returning, so the
+/// next live pass binds exactly the buffer it had, whatever happens in
+/// between, and a 10 Hz camera costs no depth allocations at steady state.
 ///
 /// `target` must be a render attachment in the scene's swapchain format
 /// (`Renderer::surface_format`): the scene pipelines were built for that
@@ -1025,8 +1053,13 @@ pub(crate) fn render_view_onto(
     passes: ViewPasses,
 ) {
     let (w, h) = size;
-    let (win_w, win_h) = state.renderer.surface_size();
-    state.renderer.set_depth_target_size(w, h);
+    // The view's own depth buffer goes in; the window's is parked, not
+    // recreated (see `Renderer::begin_view_depth`).
+    state.renderer.begin_view_depth(w, h);
+    // The same daylight the live frame computes for its star pass: a camera
+    // draws no sky over its stars, so without this a daytime window would
+    // show stars (the rung-3 reviewer's finding).
+    let daylight = sky_daylight(state);
 
     // Pass 1: sky -- galaxy glow, stars, halos, constellations -- exactly as
     // the live frame draws it (clear to black + star renderer). If the star
@@ -1058,8 +1091,8 @@ pub(crate) fn render_view_onto(
                 ..Default::default()
             });
             if let Some(ref star_r) = state.star_renderer {
-                // Menu/backdrop: always the full sky (no atmosphere in front).
-                star_r.render_pass(&mut pass, false);
+                // The live frame's daylight gate, not a hard-coded "night".
+                star_r.render_pass(&mut pass, daylight);
             }
         }
         state.renderer.queue.submit(std::iter::once(encoder.finish()));
@@ -1099,9 +1132,11 @@ pub(crate) fn render_view_onto(
     state.renderer.render_overlay_onto(camera, lists.overlay, target);
     state.renderer.draw_lines_onto(camera, lists.ring_lines, target);
 
-    // Restore the window-sized depth buffer BEFORE returning, or the next
-    // live pass would bind a mismatched one.
-    state.renderer.set_depth_target_size(win_w, win_h);
+    // Put the window's depth buffer back BEFORE returning, or the next live
+    // pass would bind a mismatched one. The view-sized buffer is kept for
+    // the camera screens (the same size again in 100 ms) and dropped after a
+    // one-off screenshot (an 8K depth buffer must not linger all session).
+    state.renderer.end_view_depth(passes == ViewPasses::SceneOnly);
 }
 
 /// Dev camera request (v0.813): see the call site in the frame loop for the
@@ -1375,15 +1410,11 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
     // The provider's own fields ride along (a stream's connection state
     // and frame count, a camera's render count), so the rig can wait for
     // "connected" or "renders > 0" on a wall the same way it waits for a
-    // page. A provider key never shadows the fixed keys above.
+    // page. A provider key never shadows the fixed keys above, and a
+    // null-valued one is left out (a success must never carry
+    // `"error": null`; see `merge_provider_status`).
     if let Some(p) = s.provider() {
-        if let Some(extra) = p.status().as_object() {
-            for (k, v) in extra {
-                if done.get(k).is_none() {
-                    done[k.as_str()] = v.clone();
-                }
-            }
-        }
+        merge_provider_status(&mut done, &p.status());
     }
     if ipc.snapshot {
         state.screens.snapshot_counter += 1;

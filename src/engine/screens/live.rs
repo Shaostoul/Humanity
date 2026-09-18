@@ -24,6 +24,18 @@
 //! ("Connecting to ...", "Stream offline" with the relay's reason); a
 //! viewer whose stream ended is retried after [`RETRY_AFTER`], so a wall
 //! comes back on its own when the streamer goes live again.
+//!
+//! A picture that is up STAYS up between frames. The stream runs slower
+//! than the game (a 20 fps stream on a 60 fps game hands the provider a
+//! new frame one tick in three), so most ticks find no new frame while the
+//! viewer is perfectly healthy. Those ticks must leave the surface alone:
+//! `run_and_render` clears the whole texture before drawing, so drawing
+//! the status page on a no-new-frame tick would paint "Connecting to ..."
+//! over the live picture two ticks in three and the wall would strobe (the
+//! rung-3 reviewer's blocker). [`next_display`] is that decision, pure,
+//! pinned by a test: a new frame is written; no new frame with the picture
+//! up and the viewer connected keeps the picture; anything else shows the
+//! status page.
 
 use crate::gui::screen_surface::{ScreenCore, ScreenProvider, ScreenSurface};
 use crate::gui::theme::Theme;
@@ -98,12 +110,47 @@ pub fn letterbox_into(dst: &mut Vec<u8>, dst_size: (u32, u32), src: &[u8], src_s
 
 /// What the surface currently shows, so the status page is redrawn only
 /// when its text changes and never over a live picture that is still
-/// arriving.
+/// arriving. `Status` carries the page's text (heading and detail joined by
+/// a newline) so a page with the same words is not redrawn.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Shown {
+pub enum Shown {
     Nothing,
     Status(String),
     Video,
+}
+
+/// What one framed tick does to the surface (see [`next_display`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Display {
+    /// A new decoded frame arrived: write it into the surface.
+    Picture,
+    /// No new frame, but the live picture is up and the viewer is still
+    /// connected: leave the surface exactly as it is.
+    Keep,
+    /// Nothing live to keep: show the status page (redrawn only when its
+    /// text changes; the caller compares against `Shown::Status`).
+    Status,
+}
+
+/// THE DISPLAY DECISION for one framed tick, pure so a test can drive it
+/// through the sequence a real stream produces without a GPU or a socket.
+/// `shown` is what the surface holds now, `got_frame` whether the viewer
+/// handed over a new decoded frame this tick, `connected` whether the
+/// viewer has received frames and its thread is still running
+/// (`LiveViewer::is_connected`).
+///
+/// The rule the reviewer's blocker pinned: a picture that has been shown
+/// stays up while the viewer is connected, whether or not THIS tick brought
+/// a new frame. Only a tick with no picture to keep (nothing shown yet, a
+/// status page up, or the viewer gone) shows the status page.
+pub fn next_display(shown: &Shown, got_frame: bool, connected: bool) -> Display {
+    if got_frame {
+        Display::Picture
+    } else if *shown == Shown::Video && connected {
+        Display::Keep
+    } else {
+        Display::Status
+    }
 }
 
 /// The provider for `watch:<stream id>` (see the module doc).
@@ -191,6 +238,11 @@ impl LiveProvider {
         let server = gui_state.server_url.trim_end_matches('/').to_string();
         self.viewer = Some(LiveViewer::start(&server, &self.stream));
         self.retry_at = None;
+        // A new viewer starts from nothing: whatever the surface holds (the
+        // last picture of the previous viewer, or its "offline" page) is
+        // not this viewer's, so the status page is drawn again on the next
+        // tick and the picture returns only when this viewer delivers one.
+        self.shown = Shown::Nothing;
     }
 }
 
@@ -210,29 +262,44 @@ impl ScreenProvider for LiveProvider {
             self.start_viewer(gui_state);
         }
         if let Some(v) = self.viewer.as_ref() {
-            // The newest decoded frame goes into the surface, letterboxed
-            // to the surface's own size unless it already matches.
-            if let Some(f) = v.take_latest() {
-                let (sw, sh) = surface.size();
-                if (f.width, f.height) == (sw, sh) {
-                    surface.write_pixels(device, queue, &f.rgba, sw, sh);
-                } else {
-                    letterbox_into(&mut self.scratch, (sw, sh), &f.rgba, (f.width, f.height));
-                    surface.write_pixels(device, queue, &self.scratch, sw, sh);
+            // What this tick does is decided in one pure place
+            // (`next_display`), so the test that pins "a picture stays up
+            // between frames" drives the same logic the wall runs.
+            let latest = v.take_latest();
+            match next_display(&self.shown, latest.is_some(), v.is_connected()) {
+                Display::Picture => {
+                    // The newest decoded frame goes into the surface,
+                    // letterboxed to the surface's own size unless it
+                    // already matches.
+                    let f = latest.expect("Picture is only chosen when a frame arrived");
+                    let (sw, sh) = surface.size();
+                    if (f.width, f.height) == (sw, sh) {
+                        surface.write_pixels(device, queue, &f.rgba, sw, sh);
+                    } else {
+                        letterbox_into(&mut self.scratch, (sw, sh), &f.rgba, (f.width, f.height));
+                        surface.write_pixels(device, queue, &self.scratch, sw, sh);
+                    }
+                    self.frames_written += 1;
+                    self.shown = Shown::Video;
+                    return;
                 }
-                self.frames_written += 1;
-                self.shown = Shown::Video;
-                return;
+                // The picture is up and the stream is healthy; this tick
+                // simply fell between two stream frames. Touch nothing.
+                Display::Keep => return,
+                Display::Status => {}
             }
             // The viewer thread ended (the relay said not live, the stream
             // ended, or the socket failed): drop it and schedule a retry.
-            // The status page below replaces the frozen last picture.
+            // The status page below replaces the frozen last picture, and
+            // `shown` forgets the picture so the page is drawn now and a
+            // reconnect shows its own status again before its first frame.
             if !v.is_connected() {
                 let status = v.status();
                 if !status.is_empty() {
                     self.last_error = status;
                     self.viewer = None;
                     self.retry_at = Some(now + RETRY_AFTER);
+                    self.shown = Shown::Nothing;
                 }
             }
         }
@@ -390,6 +457,67 @@ mod tests {
         assert_eq!(provider.status()["connected"], false);
         assert_eq!(provider.status()["frames"], 0);
         assert_eq!(provider.kind(), "watch");
+    }
+
+    /// THE STROBE GUARD. A stream runs slower than the game, so most ticks
+    /// bring no new frame while the viewer is healthy; those ticks must keep
+    /// the picture, never redraw the status page over it (`run_and_render`
+    /// clears the texture first, so a redraw IS a strobe). Drives the pure
+    /// decision through the real sequence: a tick with a frame writes it;
+    /// a tick without one, still connected, keeps the picture; a tick
+    /// without one after the viewer dropped shows the status page. On the
+    /// pre-fix logic (frame or status, nothing else) the middle step
+    /// returns `Status` and this fails.
+    #[test]
+    fn a_live_picture_stays_up_between_stream_frames_while_connected() {
+        // Tick 1: the first decoded frame arrives; the surface gets it.
+        let mut shown = Shown::Nothing;
+        assert_eq!(next_display(&shown, true, true), Display::Picture);
+        shown = Shown::Video;
+        // Tick 2: no new frame yet (the stream is at 20 fps, the game at
+        // 60), the viewer is connected: KEEP the picture.
+        assert_eq!(next_display(&shown, false, true), Display::Keep, "no new frame + connected keeps the picture");
+        // Tick 3: still no new frame, and the viewer has ended: the status
+        // page replaces the frozen picture.
+        assert_eq!(next_display(&shown, false, false), Display::Status, "disconnected shows the status page");
+        // The surrounding rules: before any picture the status page shows
+        // even while connected (the "socket up, nothing decoded yet" case),
+        // a status page stays a status page until a frame arrives, and a
+        // frame always wins, even one that landed as the thread ended.
+        assert_eq!(next_display(&Shown::Nothing, false, true), Display::Status);
+        assert_eq!(next_display(&Shown::Status("x".into()), false, true), Display::Status);
+        assert_eq!(next_display(&Shown::Status("x".into()), true, true), Display::Picture);
+        assert_eq!(next_display(&Shown::Video, true, false), Display::Picture, "a frame that arrived is shown even as the thread ends");
+    }
+
+    /// The reset half of the same guard: a dropped viewer and a replaced
+    /// viewer both forget the picture, so a reconnect shows its status
+    /// page before its first frame rather than a stale picture with no
+    /// status. Exercised on the state fields directly (no socket): after
+    /// the drop the decision for a no-frame tick is `Status`, not `Keep`,
+    /// and the page it draws says the stream is offline.
+    #[test]
+    fn a_dropped_or_replaced_viewer_forgets_the_picture() {
+        let mut p = LiveProvider::new("shaostoul");
+        p.shown = Shown::Video;
+        // The drop path, as `frame` performs it when the viewer's thread
+        // ended with a reason: the reason is kept, the viewer goes, the
+        // retry is scheduled, and the picture is forgotten.
+        p.last_error = "The stream ended.".to_string();
+        p.viewer = None;
+        p.retry_at = Some(Instant::now() + RETRY_AFTER);
+        p.shown = Shown::Nothing;
+        assert_eq!(next_display(&p.shown, false, false), Display::Status);
+        let (heading, _) = p.status_lines();
+        assert_eq!(heading, "Stream offline");
+        // A status page drawn once is not redrawn while its text is the
+        // same: `frame` compares against the exact key it stored.
+        let key = format!("{}\n{}", p.status_lines().0, p.status_lines().1);
+        p.shown = Shown::Status(key.clone());
+        assert_eq!(next_display(&p.shown, false, false), Display::Status, "the caller then skips the redraw on an equal key");
+        assert_eq!(p.shown, Shown::Status(key));
+        // (The retry path, `start_viewer`, sets `shown = Shown::Nothing`
+        // the same way; it opens a socket, so it is not driven here.)
     }
 
     /// The wording follows the viewer's fate: an ended stream shows

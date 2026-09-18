@@ -116,9 +116,13 @@ impl WorldRender for EngineWorld<'_, '_> {
         self.state.screens.camera_posts.iter().find(|(id, _)| id == instance_id).map(|(_, pose)| *pose)
     }
 
-    fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) {
+    fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool {
+        // No world, no picture: the target is left untouched and the
+        // caller is told so (a skipped render must not count as one, or
+        // `renders > 0` in the done file would promise a picture that was
+        // never drawn).
         if !self.state.world_loaded {
-            return;
+            return false;
         }
         let opaque = without_own_quads(self.lists.opaque, &self.state.screens.quads, self.surface);
         let lists = SceneDrawLists {
@@ -131,6 +135,7 @@ impl WorldRender for EngineWorld<'_, '_> {
             ring_lines: self.lists.ring_lines,
         };
         render_view_onto(self.state, camera, target, size, &lists, ViewPasses::SceneOnly);
+        true
     }
 }
 
@@ -172,6 +177,21 @@ impl CameraProvider {
         }
     }
 
+    /// Book one render attempt at a found post: `rendered` is what
+    /// `WorldRender::render_view` returned. A real render is counted and
+    /// becomes the outcome (the view replaced whatever notice was on the
+    /// texture); a skipped one (the world was not loaded) changes nothing,
+    /// so the count and the notice keep telling the truth. Pure, so the
+    /// rule is pinned by a test without a GPU.
+    fn record_render(&mut self, rendered: bool) {
+        if !rendered {
+            return;
+        }
+        self.renders += 1;
+        self.outcome = Some(Ok(()));
+        self.notice_shown = None;
+    }
+
     /// The last outcome as the rig sees it: (renders so far, live, error).
     fn report(&self) -> (u64, bool, Option<String>) {
         match &self.outcome {
@@ -209,11 +229,18 @@ impl ScreenProvider for CameraProvider {
 
     fn status(&self) -> serde_json::Value {
         let (renders, live, error) = self.report();
+        // The error field is named for THIS provider (`camera_error`), not
+        // `error`: the dev IPC's own failure schema is
+        // `{"ok": false, "error": "..."}`, and a successful request that
+        // merged a provider's `"error": null` into the done file would
+        // collide with it (the IPC merge also skips null fields, so the
+        // key is absent, not null, when there is no error; both rules
+        // guard the same collision).
         serde_json::json!({
             "camera": self.instance,
             "renders": renders,
             "live": live,
-            "error": error,
+            "camera_error": error,
         })
     }
 
@@ -238,11 +265,11 @@ impl ScreenProvider for CameraProvider {
             Some(pose) => {
                 let (w, h) = surface.size();
                 let camera = camera_from_pose(&pose, w as f32 / h.max(1) as f32);
-                world.render_view(&camera, surface.view(), (w, h));
-                self.renders += 1;
-                self.outcome = Some(Ok(()));
-                // The view replaced whatever notice was on the texture.
-                self.notice_shown = None;
+                // Counted only if the engine really rendered (it skips
+                // when the world is not loaded and leaves the texture as
+                // it was).
+                let rendered = world.render_view(&camera, surface.view(), (w, h));
+                self.record_render(rendered);
             }
         }
     }
@@ -483,13 +510,40 @@ mod tests {
         assert_eq!(p.status()["renders"], 0);
         p.outcome = Some(Err("No camera post named camera_post_9 is placed".into()));
         assert!(p.notice_text().unwrap().contains("camera_post_9"));
-        assert_eq!(p.status()["error"], "No camera post named camera_post_9 is placed");
+        assert_eq!(p.status()["camera_error"], "No camera post named camera_post_9 is placed");
+        assert!(p.status().get("error").is_none(), "the provider never emits a bare `error` key (the IPC's own failure field)");
         p.outcome = Some(Ok(()));
         p.renders = 3;
         assert!(p.notice_text().is_none(), "a rendered view is never painted over");
         assert_eq!(p.status()["live"], true);
         assert_eq!(p.status()["renders"], 3);
         assert_eq!(p.status()["camera"], "camera_post_9");
+        assert!(p.status()["camera_error"].is_null(), "no error on success");
+    }
+
+    /// `renders` counts REAL renders only. The engine's `render_view`
+    /// returns false when it skipped (the world not loaded), and a skipped
+    /// attempt leaves the count, the outcome and the notice exactly as they
+    /// were; a real one counts, becomes the outcome, and clears the notice.
+    /// So `renders > 0` in the done file means a picture was drawn.
+    #[test]
+    fn a_skipped_render_is_not_counted() {
+        let mut p = CameraProvider::new("camera_post_1");
+        p.notice_shown = Some("Camera camera_post_1: waiting for its first picture".into());
+        p.record_render(false);
+        assert_eq!(p.renders, 0, "a skipped render does not count");
+        assert!(p.outcome.is_none(), "and does not claim a picture");
+        assert!(p.notice_shown.is_some(), "and the notice on the texture is still there");
+        assert_eq!(p.status()["renders"], 0);
+        assert_eq!(p.status()["live"], false);
+        p.record_render(true);
+        assert_eq!(p.renders, 1, "a real render counts");
+        assert_eq!(p.outcome, Some(Ok(())));
+        assert!(p.notice_shown.is_none(), "the view replaced the notice");
+        assert_eq!(p.status()["live"], true);
+        p.record_render(false);
+        assert_eq!(p.renders, 1, "a later skip keeps the last picture's count and outcome");
+        assert_eq!(p.outcome, Some(Ok(())));
     }
 
     /// DATA WIRING. Both shipped catalogs offer a `camera_post` with a
