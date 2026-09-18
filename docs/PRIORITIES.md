@@ -1,6 +1,65 @@
 # HumanityOS: Priorities
 
-> **ACTIVE: THE IN-WORLD SCREENS LADDER, 2026-09-16.** Operator direction:
+> **ACTIVE: THE FRAME COST ARC, 2026-09-18.** Operator: "despite the cloud
+> layer being off the planet is tanking performance to ~12FPS. Do we have
+> diagnostics to tell us where all the performance is being spent?" Measured
+> that day at the operator's mirrored settings, clouds off, real GPU
+> timestamps, 2560 x 1387 (21 boots; design of record
+> `docs/design/frame-cost-arc.md`). The clouds are not the cost:
+>
+> - **The planet pass is per-pixel, independent of geometry.** `gpu.celestial`
+>   is 44.5 ms on the moon with SIX patches drawn, 61 ms at the 400 km limb,
+>   43 ms in the Sahara at noon; shadows, atmosphere scatter, SSAO, god rays
+>   and water FFT move it by nothing; surface-detail octaves 9 to 11 ms, patch
+>   count 17 ms only at grazing ocean views. About 12 to 15 ns per pixel where
+>   the engine's own 40-tap fullscreen pass costs 0.12.
+> - **The interior opaque pass is about 23 ns per pixel per layer** (one flat
+>   quad filling the view costs 160 ms; the console room 76 to 83 ms of
+>   `gpu.scene` plus 14 of glass); the 211-light untiled loop is only 8 ms of
+>   it; early-z works (refuted: discard, overdraw); the camera wall adds 17 ms
+>   only while in view.
+> - **Forest vantages:** near-tree photoscans 68 ms of 156 at Fuji (516 trees
+>   in range, no LOD ladder, no frustum test), cluster cards about 38, grass
+>   17 (already the right technique). **Low ocean eyes:** the water shell pass
+>   42 to 49 ms, heap-order alpha blend with depth write and no backface cull.
+>
+> **Hypothesis H1** (leading, decided by increment P1 phase A in one boot):
+> the seven PSOs are compiled from ONE 14,296-line module and four use
+> `fs_main`; every fragment of every one of them is charged the module's
+> per-invocation private storage (the cloud march's 2.9 KB
+> `var<private> g_bc_lc` and friends, reachable from `fs_main` through
+> `cloud_layer` even with clouds off). The bandwidth arithmetic fits (5.9 KB
+> per fragment implied). H2: the floor is outside the fragment shader.
+>
+> **Build order** (ms saved per unit of risk): P1 shader permutation for the
+> terrain PSOs via WGSL `override` constants (phase A: stub the three
+> branches, capture the moon, the image must be pixel-identical; phase B ships
+> only if A moved the number); V1 near-tree frustum cull with the coverage
+> arithmetic untouched (the trap that broke v0.995, v0.1107, v0.1110.1); I1
+> interior vantages, the camera re-render under its own ids, the
+> screen-emitter hoist; W1 water depth prepass plus backface cull (a look
+> call, not a silent perf win); then clustered lights, interior culling, a
+> near-tree LOD ladder. Rejected on evidence: a masked-discard variant, an
+> interior depth prepass, a G-buffer.
+>
+> **Instrumentation gaps the measurement named** (a branch is building them):
+> no `cpu.frame_total` or present-wait stage (13 to 20 ms per frame
+> unaccounted at light vantages); the screen surface pass, the camera sky
+> pass, the particle compute and the sky-view LUT untimed; the camera
+> re-render summed into `gpu.scene`; the cloud keys and `gpu.celestial_t`
+> unregistered on the Performance page; nothing splits bodies, patches and
+> grass inside `gpu.celestial`.
+>
+> **Also from this day:** the F10 sidebar took no input because the HUD
+> allocated a full-screen hover rect and egui 0.31's hit test stops at the
+> first covering rect regardless of sense (BUG-076, fixed with a headless
+> click test); Escape closes the expanded sidebar first and repeated Escape
+> presses are dropped; `debug/ui_request.json` drives the main UI for the
+> rig. **Open defects:** `vsync: false` panics at the first settings apply
+> after world entry (being characterised); Settings clamps silently rewrite
+> density and detail values so "vegetation off" is unreachable from the GUI.
+
+> **THE IN-WORLD SCREENS LADDER, 2026-09-16.** Operator direction:
 > the native app pages (the real inventory page, not the web page) as
 > touchscreens inside the 3D world; a fixed console room in the home populated
 > by those displays; live feeds and movies on displays; real websites on
