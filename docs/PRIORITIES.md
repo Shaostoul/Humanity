@@ -63,8 +63,19 @@
 > compiling only its entry, with a phase A that first measures whether folding
 > the terrain and vegetation blocks out of an interior fragment moves
 > `gpu.scene` (register pressure), so the doc claims only what was measured;
-> V1 (IN FLIGHT) near-tree frustum cull with the coverage arithmetic untouched
-> (the trap that broke v0.995, v0.1107, v0.1110.1); I1 the screen-emitter
+> V1 SHIPPED AND REFUTED (same day): the near-tree colour draws are
+> frustum-culled with the coverage arithmetic untouched (hide radius
+> bit-identical, 151.9 m in both arms, no oscillation on a heading change;
+> off-screen models kept as shadow-only casters because a conifer behind the
+> camera still shades the ground ahead), and clean boots of both arms agree
+> to 0.3 ms at Fuji with 145 of 260 photoscans removed from the colour pass:
+> the whole near-tree cost is ON-SCREEN fragment work, about 0.47 ms per
+> visible model, so the rung with reach is the LOD ladder and impostor
+> handoff, after P3's phase A says what a foliage fragment costs once the
+> terrain and vegetation blocks are folded apart (merged for the tested
+> `NearTreeDrawPlan`, the `[NearTree]` 1 Hz counters and the shadow-only
+> split the LOD rung needs; the refill variant was +16.5 ms and heading
+> dependent, set aside); I1 the screen-emitter
 > hoist plus `gpu.screen_scene` ids (the two console-room vantages
 > `console-face-6` and `console-face-3` now exist as fixtures, floor 10);
 > W1 re-scoped: the water shell is 1.4 ms after P2, so the depth prepass plus
