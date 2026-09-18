@@ -87,7 +87,7 @@ new material goes in its class's entry; a new family gets a class, an entry,
 registry rows and a classifier band; a new heavyweight branch gets its own
 switch as well and is folded off every pipeline that cannot draw it.
 
-## The honest answer
+## The honest answer (historical: the 2026-07-26 reasoning; the shipped structure is the table above)
 
 There are two different things called "a shader" here, and they have
 different rules:

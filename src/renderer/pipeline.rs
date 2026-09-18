@@ -1240,7 +1240,7 @@ impl Pipeline {
         //    the double-rate depth-only rasterisation every desktop GPU gives
         //    a pixel-shader-free draw.
         //  - "Sun Shadow Alpha Pipeline": adds `fs_shadow`, which mirrors
-        //    fs_main's cutout discards. Only cutout casters draw with it, so
+        //    the class entries' cutout discards. Only cutout casters draw with it, so
         //    the fast path above is not lost engine-wide. Splitting rather
         //    than blanket-attaching is the standard arrangement (Eisemann,
         //    Schwarz, Assarsson & Wimmer, "Real-Time Shadows" 2011, ch. 2;

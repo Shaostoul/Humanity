@@ -31,7 +31,7 @@
 //! panicked on every world entry. If you touch that layout, every site must
 //! carry every binding.
 
-use super::pipeline::{shader_class, MaterialUniforms, ShaderClass};
+use super::pipeline::MaterialUniforms;
 use super::{billboard_bake, tree_mesh, AlbedoBindGroup, Material, Renderer};
 use wgpu::util::DeviceExt;
 
@@ -53,22 +53,6 @@ use wgpu::util::DeviceExt;
 pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
 
 impl Renderer {
-    /// The pipeline CLASS a material draws with (increment P2 of the
-    /// frame-cost arc, six classes since P3): `pipeline::shader_class` of
-    /// its CPU-side type copy. A missing material index answers Surface,
-    /// which is what every draw loop skips anyway (`materials.get(..)`
-    /// returns None there). The transparent celestial list in lib.rs is
-    /// grouped by the planet layer band (`celestial_order`), not by this,
-    /// and the opaque loops walk their lists once per class present
-    /// (`Renderer::draw_opaque_objects`), so nothing sorts on the class
-    /// itself today; this is the one place outside the renderer that can
-    /// still ask.
-    pub fn material_class(&self, material: usize) -> ShaderClass {
-        self.materials
-            .get(material)
-            .map_or(ShaderClass::Surface, |m| shader_class(m.material_type))
-    }
-
     /// Register a material and return its handle (index).
     /// Uses material_type = 0.0 (default panel grid).
     pub fn add_material(

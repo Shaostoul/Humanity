@@ -564,8 +564,8 @@ so no builder types an entry; `Pipeline::opaque_for` beside
 `transparent_for` / `overlay_for`; the PSO set is Surface render,
 transparent and overlay, Terrain render, Vegetation render, Water transparent
 and overlay, Shell transparent, Cloud transparent, the two sun-shadow PSOs
-and the two terrain-batch PSOs (the Shell overlay PSO of P2 is gone,
-nothing drew with it). `build_all_pipelines` times every PSO and logs one
+and the two terrain-batch PSOs (the Shell overlay PSO of P2 became the
+Water overlay row: the water casters were the only thing that drew with it). `build_all_pipelines` times every PSO and logs one
 `[Pipelines]` line per build (boot and every hot reload) with the wall
 time, the serial sum and each PSO's own compile. The opaque draw loops
 (`Renderer::draw_opaque_objects`, shared by the live frame, the camera

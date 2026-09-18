@@ -7249,6 +7249,19 @@ mod native_app {
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
                     let mut celestial_objects: Vec<RenderObject> = Vec::new();
+                    // Per-frame defaults for the two near-tree promises the
+                    // draw loops read (P3 review, 2026-09-18): the card-hide
+                    // radius and the shadow-only index range (V1) used to be
+                    // reset only inside the chunked-planet branch below, so
+                    // the frame after that branch stopped running (leaving the
+                    // chunked altitude band, a body without chunks) kept the
+                    // LAST range, and a stale 115..260 would have skipped the
+                    // colour draw of whatever celestial objects then sat at
+                    // those indices. Reset here, unconditionally, where the
+                    // list they index is born; the chunked branch overwrites
+                    // both when it has something to say.
+                    state.renderer.tree_card_hide_m = 0.0;
+                    state.renderer.celestial_colour_skip = 0..0;
                     // Batched terrain patches are rebuilt fresh each frame by
                     // the chunked-LOD block below; clearing HERE (not there)
                     // guarantees no stale draws referencing freed arena
