@@ -2068,10 +2068,14 @@ impl Renderer {
         self.config.format
     }
 
-    /// Megashader hot-reload (v0.924, dev-aid): when pbr_simple.wgsl
-    /// changes on disk, VALIDATE the new source with naga first (a mid-edit
-    /// save logs and keeps the old pipelines - never crashes), then rebuild
-    /// the four PSOs in place. Bind group layouts are reused, so every live
+    /// Megashader hot-reload (v0.924, dev-aid): when a part under
+    /// assets/shaders/pbr/ changes on disk, VALIDATE the reassembled source
+    /// with naga first (a mid-edit save logs and keeps the old pipelines,
+    /// never crashes; so does a source from before the shader permutation,
+    /// no switch declared or used, which would otherwise compile fine and
+    /// silently hand the terrain pass the cloud march again), then rebuild
+    /// every PSO compiled from the module
+    /// in place. Bind group layouts are reused, so every live
     /// bind group stays valid and the running world is untouched. Turns the
     /// shader iteration loop from a 3+ minute rebuild-and-reboot into a
     /// few-second recompile with full world state intact. Call once per
@@ -2131,10 +2135,16 @@ impl Renderer {
                 source: wgpu::ShaderSource::Wgsl(batch_source.into()),
             });
         let format = self.config.format;
-        self.pipeline
+        // The counts come back from the rebuild itself (its slot tables),
+        // so this line reports what was installed, not a number typed here.
+        let rebuilt = self
+            .pipeline
             .recreate_pipelines(&self.device, format, &module, &batch_module);
         log::info!(
-            "[HotReload] megashader reassembled + 6 PSOs rebuilt in {:.1}s",
+            "[HotReload] megashader reassembled + {} PSOs rebuilt ({} megashader + {} cloud) in {:.1}s",
+            rebuilt.total(),
+            rebuilt.megashader,
+            rebuilt.cloud,
             t0.elapsed().as_secs_f32()
         );
     }

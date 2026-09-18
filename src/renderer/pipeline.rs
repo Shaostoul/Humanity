@@ -120,6 +120,27 @@ pub struct Pipeline {
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
+/// What one megashader hot-reload rebuilt, as COUNTED by
+/// [`Pipeline::recreate_pipelines`] from its own slot tables. The reload log
+/// line prints these so it can never again say "6 PSOs" while installing
+/// thirteen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RebuiltPipelines {
+    /// PSOs whose fragment entry is `fs_main` or `fs_shadow`: the seven
+    /// registered in `PSO_DEAD_BRANCHES`.
+    pub megashader: usize,
+    /// The cloud fullscreen PSOs (`fs_cloud_*` entries), exempt from the
+    /// registry because they never enter `fs_main`.
+    pub cloud: usize,
+}
+
+impl RebuiltPipelines {
+    /// Every PSO the reload installed.
+    pub fn total(self) -> usize {
+        self.megashader + self.cloud
+    }
+}
+
 impl Pipeline {
     /// Create the PBR-lite pipeline set from the classic shader module plus
     /// the terrain-batch variant module (same source, batch OBJECT-SOURCE).
@@ -645,19 +666,25 @@ impl Pipeline {
         )
     }
 
-    /// Rebuild the four PSOs from a NEW shader module while keeping every
-    /// bind group layout object intact (v0.924 megashader hot-reload): the
-    /// layouts are what live bind groups reference, so swapping only the
-    /// pipelines means nothing else in the renderer needs recreating.
-    /// Costs a few seconds of PSO compile - trivial next to the 3+ minute
-    /// rebuild-and-reboot it replaces.
+    /// Rebuild EVERY PSO compiled from the megashader module (the seven
+    /// registry PSOs of `build_all_pipelines` plus the six cloud fullscreen
+    /// PSOs) from a NEW module while keeping every bind group layout object
+    /// intact (v0.924 megashader hot-reload): the layouts are what live bind
+    /// groups reference, so swapping only the pipelines means nothing else
+    /// in the renderer needs recreating. Costs a few seconds of PSO compile,
+    /// trivial next to the 3+ minute rebuild-and-reboot it replaces.
+    ///
+    /// Returns how many of each it installed, COUNTED from the slot tables
+    /// below rather than typed by hand: the hot-reload log line printed "6
+    /// PSOs rebuilt" for months while thirteen were, because the number was
+    /// a literal nobody updated when the patch and cloud pipelines joined.
     pub fn recreate_pipelines(
         &mut self,
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
         batch_shader: &wgpu::ShaderModule,
-    ) {
+    ) -> RebuiltPipelines {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PBR-lite Pipeline Layout (hot-reload)"),
             bind_group_layouts: &[
@@ -688,35 +715,82 @@ impl Pipeline {
                 &pipeline_layout,
                 &patch_pipeline_layout,
             );
-        self.render_pipeline = render;
-        self.transparent_pipeline = transparent;
-        self.overlay_pipeline = overlay;
-        self.shadow_pipeline = shadow;
-        self.shadow_pipeline_alpha = shadow_alpha;
-        self.patch_render_pipeline = patch_render;
-        self.patch_shadow_pipeline = patch_shadow;
-        self.cloud_light_bake_pipeline =
-            Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
-        self.cloud_screen_pipeline =
-            Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
-        // The four far-rung pipelines (increment 4) follow the same
-        // hot-reload rule: new module, same layouts, live bind groups intact.
-        self.cloud_profile_bake_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Bake Pipeline", "fs_cloud_profile_bake",
-        );
-        self.cloud_profile_mip_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Mip Pipeline", "fs_cloud_profile_mip",
-        );
-        self.cloud_profile_calib_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Calib Pipeline", "fs_cloud_profile_calib",
-        );
-        self.cloud_profile_calib_reduce_pipeline = Self::build_cloud_profile_pipeline(
-            device,
-            shader,
-            &pipeline_layout,
-            "Cloud Profile Calib Reduce Pipeline",
-            "fs_cloud_profile_calib_reduce",
-        );
+        // Each fresh PSO is paired with the field it replaces, and the pair
+        // tables are what the returned counts are read from. The `&mut`
+        // borrows are of DISJOINT fields, which Rust allows side by side.
+        let megashader_slots = [
+            (&mut self.render_pipeline, render),
+            (&mut self.transparent_pipeline, transparent),
+            (&mut self.overlay_pipeline, overlay),
+            (&mut self.shadow_pipeline, shadow),
+            (&mut self.shadow_pipeline_alpha, shadow_alpha),
+            (&mut self.patch_render_pipeline, patch_render),
+            (&mut self.patch_shadow_pipeline, patch_shadow),
+        ];
+        let megashader = megashader_slots.len();
+        for (slot, fresh) in megashader_slots {
+            *slot = fresh;
+        }
+        // The six cloud fullscreen PSOs follow the same hot-reload rule: new
+        // module, same layouts, live bind groups intact. (They compile the
+        // megashader module too, but through fs_cloud_* entries that never
+        // enter fs_main, so they take no permutation: see the exemption
+        // note above PSO_DEAD_BRANCHES.)
+        let cloud_slots = [
+            (
+                &mut self.cloud_light_bake_pipeline,
+                Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout),
+            ),
+            (
+                &mut self.cloud_screen_pipeline,
+                Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout),
+            ),
+            (
+                &mut self.cloud_profile_bake_pipeline,
+                Self::build_cloud_profile_pipeline(
+                    device,
+                    shader,
+                    &pipeline_layout,
+                    "Cloud Profile Bake Pipeline",
+                    "fs_cloud_profile_bake",
+                ),
+            ),
+            (
+                &mut self.cloud_profile_mip_pipeline,
+                Self::build_cloud_profile_pipeline(
+                    device,
+                    shader,
+                    &pipeline_layout,
+                    "Cloud Profile Mip Pipeline",
+                    "fs_cloud_profile_mip",
+                ),
+            ),
+            (
+                &mut self.cloud_profile_calib_pipeline,
+                Self::build_cloud_profile_pipeline(
+                    device,
+                    shader,
+                    &pipeline_layout,
+                    "Cloud Profile Calib Pipeline",
+                    "fs_cloud_profile_calib",
+                ),
+            ),
+            (
+                &mut self.cloud_profile_calib_reduce_pipeline,
+                Self::build_cloud_profile_pipeline(
+                    device,
+                    shader,
+                    &pipeline_layout,
+                    "Cloud Profile Calib Reduce Pipeline",
+                    "fs_cloud_profile_calib_reduce",
+                ),
+            ),
+        ];
+        let cloud = cloud_slots.len();
+        for (slot, fresh) in cloud_slots {
+            *slot = fresh;
+        }
+        RebuiltPipelines { megashader, cloud }
     }
 
     /// One far-rung pipeline (perf increment 4): fullscreen triangle over
@@ -945,9 +1019,9 @@ impl Pipeline {
                     entry_point: Some("vs_main"),
                     buffers: &[Vertex::layout(), Vertex::instance_layout()],
                     compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &constants,
-                    ..Default::default()
-                },
+                        constants: &constants,
+                        ..Default::default()
+                    },
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: shader,
@@ -958,9 +1032,9 @@ impl Pipeline {
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                     compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &constants,
-                    ..Default::default()
-                },
+                        constants: &constants,
+                        ..Default::default()
+                    },
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -1026,9 +1100,9 @@ impl Pipeline {
                     entry_point: Some("vs_main"),
                     buffers: &[Vertex::layout(), Vertex::instance_layout()],
                     compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &constants,
-                    ..Default::default()
-                },
+                        constants: &constants,
+                        ..Default::default()
+                    },
                 },
                 fragment: if cutout {
                     Some(wgpu::FragmentState {
@@ -1036,9 +1110,9 @@ impl Pipeline {
                         entry_point: Some("fs_shadow"),
                         targets: &[],
                         compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &constants,
-                    ..Default::default()
-                },
+                            constants: &constants,
+                            ..Default::default()
+                        },
                     })
                 } else {
                     None
@@ -1134,11 +1208,24 @@ impl Pipeline {
 // DXC as `if (false && ...)` and is folded away together with everything
 // only it referenced. One authored source, no duplicated shader text.
 //
-// THIS TABLE IS THE REGISTRY. A builder asks `pso_constants(label)` for its
+// THIS TABLE IS THE REGISTRY, and its scope is exact: EVERY PSO WHOSE
+// FRAGMENT ENTRY IS `fs_main` (or `fs_shadow`, which shares the module and
+// the terrain switch set). A builder asks `pso_constants(label)` for its
 // map; an unregistered label panics at boot, so a new PSO must declare its
 // permutation here; and `permutation_tests` below pins the table against the
 // shader source, so nobody can re-enable a branch on the terrain PSOs, or
 // switch one off on a pipeline that draws through it, without a red test.
+//
+// EXEMPT, by fragment entry name: the six cloud fullscreen PSOs
+// (`fs_cloud_screen`, `fs_cloud_light_bake`, `fs_cloud_profile_bake`,
+// `fs_cloud_profile_mip`, `fs_cloud_profile_calib`,
+// `fs_cloud_profile_calib_reduce`, all built through
+// `build_cloud_fullscreen_pipeline`). They compile the same megashader
+// module, but their entries never enter fs_main (no material dispatch, so
+// no shell branch to switch off) and the cloud march is the program they
+// exist to run, so a permutation would have nothing to remove. The test
+// `every_megashader_pso_builder_asks_the_registry` lists them by name and
+// fails on any other fragment entry compiled without the registry's map.
 
 /// The three fs_main branch switches, by the exact `override` name the
 /// shader declares (05-overrides.wgsl). A pipeline-constant key is the
@@ -1161,7 +1248,9 @@ pub const TERRAIN_DEAD_BRANCHES: &[&str] = ALL_BRANCH_SWITCHES;
 
 /// (PSO label, the fs_main branches compiled OUT of it). An empty list means
 /// the pipeline keeps every branch (the shader defaults). The seven labels
-/// are exactly the PSOs `build_all_pipelines` creates from the megashader.
+/// are exactly the PSOs `build_all_pipelines` creates from the megashader
+/// with an fs_main / fs_shadow fragment entry; the six cloud fullscreen
+/// PSOs are exempt (see the banner above) and are deliberately absent.
 ///
 /// Why the classic five keep everything in this increment: the transparent
 /// variant draws the atmosphere and cloud shells, the overlay variant draws
@@ -1322,6 +1411,60 @@ mod permutation_tests {
         &src[..at]
     }
 
+    /// `src` with every `//` comment blanked to spaces, BYTE for byte, so an
+    /// offset into the result is the same offset into the original and a
+    /// function named in prose can never be mistaken for a call to it. (WGSL
+    /// and this file's builders have no string literals containing `//`.)
+    fn code_only(src: &str) -> String {
+        let mut out = String::with_capacity(src.len());
+        for line in src.split_inclusive('\n') {
+            let Some(at) = line.find("//") else {
+                out.push_str(line);
+                continue;
+            };
+            out.push_str(&line[..at]);
+            let rest = &line[at..];
+            let (body, newline) = match rest.strip_suffix("\r\n") {
+                Some(b) => (b, "\r\n"),
+                None => match rest.strip_suffix('\n') {
+                    Some(b) => (b, "\n"),
+                    None => (rest, ""),
+                },
+            };
+            // One space per BYTE (a comment may hold multi-byte glyphs).
+            out.push_str(&" ".repeat(body.len()));
+            out.push_str(newline);
+        }
+        out
+    }
+
+    /// Byte offsets of every WHOLE-WORD occurrence of `ident` in `code`: a
+    /// match with an identifier character on either side (`cloud_layer_x`,
+    /// `my_cloud_layer`) is a different name and is skipped.
+    fn identifier_sites(code: &str, ident: &str) -> Vec<usize> {
+        let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+        let bytes = code.as_bytes();
+        let mut sites = Vec::new();
+        let mut from = 0;
+        while let Some(rel) = code[from..].find(ident) {
+            let at = from + rel;
+            let end = at + ident.len();
+            let before_ok = at == 0 || !is_word(bytes[at - 1]);
+            let after_ok = end >= bytes.len() || !is_word(bytes[end]);
+            if before_ok && after_ok {
+                sites.push(at);
+            }
+            // `ident` is ASCII, so one byte past its start is a char boundary.
+            from = at + 1;
+        }
+        sites
+    }
+
+    /// 1-based line number of byte offset `at` in `text`, for messages.
+    fn line_of(text: &str, at: usize) -> usize {
+        text[..at].matches('\n').count() + 1
+    }
+
     #[test]
     fn the_megashader_declares_every_switch_defaulting_on() {
         // Both modules the boot compiles (classic + terrain-batch variant)
@@ -1344,33 +1487,70 @@ mod permutation_tests {
 
     #[test]
     fn fs_main_guards_each_shell_dispatch_with_its_switch() {
-        let main = fs_main_side();
-        // (switch, the dispatch condition it guards, the call it makes dead).
-        // The switch must be the FIRST operand of the `&&` so that a false
-        // constant makes the whole condition constant-false and the call
-        // unreachable, not merely skipped at runtime.
+        // Comment-blanked, so a function named in prose is not a use of it,
+        // and so the offsets below are offsets into the real source.
+        let main = code_only(fs_main_side());
+        // (switch, the dispatch condition it guards, the function it makes
+        // dead). The switch is written FIRST in the `&&` by convention, the
+        // one shape this test pins so every guard reads the same and can be
+        // found here; the operand order changes nothing about how a false
+        // constant folds the condition.
         let sites = [
-            (BRANCH_ATMOSPHERE, "material_type >= 13.5 && material_type < 14.5", "return atmosphere_scattering("),
-            (BRANCH_CLOUD, "material_type >= 14.5 && material_type < 15.5", "return cloud_layer("),
-            (BRANCH_OCEAN, "material_type >= 15.5 && material_type < 16.5", "return ocean_shell("),
+            (BRANCH_ATMOSPHERE, "material_type >= 13.5 && material_type < 14.5", "atmosphere_scattering"),
+            (BRANCH_CLOUD, "material_type >= 14.5 && material_type < 15.5", "cloud_layer"),
+            (BRANCH_OCEAN, "material_type >= 15.5 && material_type < 16.5", "ocean_shell"),
         ];
-        for (switch, cond, call) in sites {
+        for (switch, cond, func) in sites {
             let guard = format!("if ({switch} && {cond}) {{");
             let at = main.find(&guard).unwrap_or_else(|| {
                 panic!("fs_main no longer guards the shell dispatch with {guard:?}")
             });
             let after = &main[at + guard.len()..];
+            let call = format!("return {func}(");
             let next_line = after.lines().nth(1).unwrap_or("").trim();
             assert!(
-                next_line.starts_with(call),
+                next_line.starts_with(&call),
                 "the line after {guard:?} must be the {call:?} return, found {next_line:?}"
             );
-            // Exactly one call site in fs_main's half, so the guard covers
-            // every path into the branch.
+            // Where the guarded call's function name begins, as a byte offset
+            // into `main`.
+            let guarded_at = at
+                + guard.len()
+                + after.find(&call).expect("the call was found on the next line")
+                + "return ".len();
+
+            // The bare token, not `return cloud_layer(`: EVERY whole-word use
+            // of the function name before fs_shadow, minus its `fn`
+            // definition, must be exactly one, and that one must be the
+            // guarded dispatch. A `let c = cloud_layer(p, ff);` anywhere
+            // else in fs_main (or in a helper fs_main calls) would make the
+            // branch reachable regardless of the switch.
+            let uses: Vec<usize> = identifier_sites(&main, func)
+                .into_iter()
+                .filter(|&p| !main[..p].ends_with("fn "))
+                .collect();
+            let where_ = |p: &usize| {
+                let line = line_of(&main, *p);
+                let text = main[*p..].lines().next().unwrap_or("").trim();
+                format!("line {line}: {text}")
+            };
             assert_eq!(
-                main.matches(call).count(),
+                uses.len(),
                 1,
-                "{call:?} must be reachable from fs_main through its guard ONLY"
+                "{func} must be used in exactly ONE place before fs_shadow (the guarded \
+                 dispatch), found {}:\n  {}",
+                uses.len(),
+                uses.iter().map(where_).collect::<Vec<_>>().join("\n  ")
+            );
+            assert_eq!(
+                uses[0],
+                guarded_at,
+                "the one use of {func} must be the guarded dispatch, but it is at {}",
+                where_(&uses[0])
+            );
+            assert!(
+                main[uses[0] + func.len()..].trim_start().starts_with('('),
+                "the one use of {func} must be a call"
             );
         }
     }
@@ -1421,25 +1601,265 @@ mod permutation_tests {
         let _ = pso_constants("Some Future Pipeline");
     }
 
-    /// The builders must actually ASK the registry. Read this file's own text
-    /// and require that, between the first patch builder and the end of
-    /// `build_all_pipelines`, no compilation options are left at the default
-    /// and every builder calls `pso_constants(label)`.
+    /// Fragment entry points allowed to compile the megashader WITHOUT the
+    /// registry's map, by name. These are the six cloud fullscreen passes:
+    /// their entries never enter fs_main (no material dispatch, so there is
+    /// no shell branch to switch off), and the cloud march is the program
+    /// they exist to run, so a permutation would have nothing to remove.
+    /// Every other fragment entry compiled from the module must be wired to
+    /// `pso_constants(label)`. Add a name here ONLY for an entry that is not
+    /// fs_main and cannot reach it; the banner above PSO_DEAD_BRANCHES lists
+    /// the same six.
+    const REGISTRY_EXEMPT_FRAGMENT_ENTRIES: &[&str] = &[
+        "fs_cloud_screen",
+        "fs_cloud_light_bake",
+        "fs_cloud_profile_bake",
+        "fs_cloud_profile_mip",
+        "fs_cloud_profile_calib",
+        "fs_cloud_profile_calib_reduce",
+    ];
+
+    /// The one builder whose fragment entry is a PARAMETER rather than a
+    /// literal: `build_cloud_fullscreen_pipeline`, which every cloud PSO goes
+    /// through. Its callers supply the entry, so the test checks every
+    /// `"fs_..."` literal in the impl block against the exempt list and
+    /// forbids `"fs_main"` / `"fs_shadow"` from ever being passed as an
+    /// argument (they may appear only as a direct `entry_point: Some(...)`).
+    const PARAMETRIC_EXEMPT_BUILDER: &str = "build_cloud_fullscreen_pipeline";
+
+    /// The fragment entry a PSO descriptor names.
+    #[derive(Debug)]
+    enum Entry<'a> {
+        /// `entry_point: Some("fs_main")`.
+        Literal(&'a str),
+        /// `entry_point: Some(fs_entry)`: a variable the builder was given.
+        Ident(&'a str),
+    }
+
+    /// The fragment entry of one `create_render_pipeline` descriptor, or
+    /// None when it has no fragment stage. Relies on the vertex state
+    /// preceding the fragment state, which every descriptor in this file
+    /// does (so the first `entry_point:` after `fragment:` is the fragment's).
+    fn fragment_entry(desc: &str) -> Option<Entry<'_>> {
+        let frag = desc.find("fragment:")?;
+        let ep = desc[frag..].find("entry_point: Some(")?;
+        let arg_start = frag + ep + "entry_point: Some(".len();
+        let arg_end = arg_start + desc[arg_start..].find(')')?;
+        let arg = desc[arg_start..arg_end].trim();
+        Some(match arg.strip_prefix('"').and_then(|a| a.strip_suffix('"')) {
+            Some(literal) => Entry::Literal(literal),
+            None => Entry::Ident(arg),
+        })
+    }
+
+    /// Byte offset of the `}` that closes the `{` at `open`.
+    fn matching_brace(code: &str, open: usize) -> usize {
+        let mut depth = 0usize;
+        for (i, b) in code.bytes().enumerate().skip(open) {
+            match b {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return i;
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced braces after byte {open}");
+    }
+
+    /// The builders must actually ASK the registry, and this test must be
+    /// able to FAIL for the likeliest regression: a new builder that
+    /// compiles the megashader with default options. An adversarial review
+    /// of the first version showed it could not (it asserted one spelling
+    /// of "default", it compared counts a non-asking builder does not
+    /// perturb, and its scan started after the cloud builders). So this
+    /// version reads the WHOLE `impl Pipeline` block, finds every
+    /// `create_render_pipeline` descriptor, and judges each on its own:
+    /// every one of its `compilation_options:` sites is wired to
+    /// `&constants` from `pso_constants(label)`, OR its fragment entry is
+    /// one of the exempt cloud entries above. Proven red by adding a fifth
+    /// builder spelled `compilation_options: Default::default()` with an
+    /// fs_main fragment entry (the reviewer's mutation), then restored.
     #[test]
     fn every_megashader_pso_builder_asks_the_registry() {
         let me = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/renderer/pipeline.rs"))
             .expect("pipeline.rs readable");
-        let start = me.find("fn build_patch_render(").expect("build_patch_render");
+        // The scan window: the whole `impl Pipeline` block, cloud helpers
+        // included, up to the registry banner (which keeps this test
+        // module's own text out of it).
+        let start = me.find("\nimpl Pipeline {").expect("impl Pipeline block");
         let end = me.find("// ── SHADER PERMUTATIONS").expect("registry banner");
-        let builders = &me[start..end];
+        assert!(start < end, "the impl block must precede the registry banner");
+        let region = &me[start..end];
         assert!(
-            !builders.contains("PipelineCompilationOptions::default()"),
-            "a megashader PSO builder compiles with default options - it must take its \
-             constants from pso_constants(label) so PSO_DEAD_BRANCHES governs it"
+            !region.contains("#[cfg(test)]"),
+            "the scan window must hold builders only, never test text"
         );
-        let asks = builders.matches("let constants = pso_constants(label);").count();
-        assert_eq!(asks, 4, "expected the four builders (patch render, patch shadow, make_pbr, make_shadow) to ask the registry, found {asks}");
-        let uses = builders.matches("constants: &constants,").count();
-        assert_eq!(uses, 8, "expected 8 stage compilation sites wired to the registry map, found {uses}");
+        let code = code_only(region);
+        const OPTIONS_KEY: &str = "compilation_options:";
+        const REGISTRY_FORM: &str = "wgpu::PipelineCompilationOptions{constants:&constants,";
+
+        let mut descriptors = 0usize;
+        let mut sites_seen = 0usize;
+        let mut registry_builders: Vec<&str> = Vec::new();
+        let mut from = 0usize;
+        while let Some(rel) = code[from..].find("create_render_pipeline(") {
+            let at = from + rel;
+            descriptors += 1;
+            let open = at + code[at..].find('{').expect("a descriptor opens a brace");
+            let close = matching_brace(&code, open);
+            let desc = &code[at..=close];
+            from = close;
+
+            // The builder this descriptor belongs to: the nearest `fn` or
+            // closure (`= |`) opening before it, named for the messages.
+            let builder_start = [
+                code[..at].rfind("\n    fn "),
+                code[..at].rfind("\n    pub fn "),
+                code[..at].rfind("= |"),
+            ]
+            .into_iter()
+            .flatten()
+            .max()
+            .expect("a builder encloses every descriptor");
+            // The `fn` patterns match starting AT the newline before the
+            // signature; step past it so the line lookup lands on the
+            // signature line, not the (blanked) doc comment above it.
+            let name_from = builder_start + usize::from(code.as_bytes()[builder_start] == b'\n');
+            let line_start = code[..name_from].rfind('\n').map_or(0, |p| p + 1);
+            let builder_line = code[line_start..].lines().next().unwrap_or("");
+            let builder_name = builder_line
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .filter(|w| !w.is_empty())
+                .find(|w| !matches!(*w, "pub" | "fn" | "let" | "mut"))
+                .unwrap_or("?");
+            let builder_text = &code[builder_start..at];
+
+            // Every stage's compilation options in this descriptor.
+            let mut sites = Vec::new();
+            let mut f = 0;
+            while let Some(r) = desc[f..].find(OPTIONS_KEY) {
+                sites.push(f + r);
+                f = f + r + 1;
+            }
+            sites_seen += sites.len();
+            assert!(!sites.is_empty(), "{builder_name}: a PSO descriptor with no compilation options?");
+            // Whitespace-insensitive: the site must read
+            // `wgpu::PipelineCompilationOptions { constants: &constants, ...`
+            let registry_wired = |p: usize| -> bool {
+                let tail: String = desc[p + OPTIONS_KEY.len()..]
+                    .chars()
+                    .filter(|c| !c.is_whitespace())
+                    .take(REGISTRY_FORM.len())
+                    .collect();
+                tail == REGISTRY_FORM
+            };
+            let all_wired = sites.iter().all(|&p| registry_wired(p));
+            let entry = fragment_entry(desc);
+
+            if all_wired {
+                // `&constants` must be the registry's map for THIS label,
+                // not some other local, and the lookup must key on the PSO's
+                // own label so the registry row and the PSO cannot disagree.
+                assert!(
+                    builder_text.contains("let constants = pso_constants(label);"),
+                    "{builder_name}: wires `&constants` into its compilation options but never \
+                     asks the registry for it (expected `let constants = pso_constants(label);` \
+                     before the descriptor)"
+                );
+                assert!(
+                    desc.contains("label: Some(label),"),
+                    "{builder_name}: the registry lookup must key on the PSO's own label \
+                     (`label: Some(label),`)"
+                );
+                registry_builders.push(builder_name);
+            } else {
+                // Some stage compiles without the registry's map. Allowed
+                // ONLY for an exempt fragment entry.
+                match entry {
+                    Some(Entry::Literal(name)) => assert!(
+                        REGISTRY_EXEMPT_FRAGMENT_ENTRIES.contains(&name),
+                        "{builder_name}: compiles the megashader for fragment entry {name:?} \
+                         without asking the registry (pso_constants(label)); only these entries \
+                         are exempt: {REGISTRY_EXEMPT_FRAGMENT_ENTRIES:?}"
+                    ),
+                    Some(Entry::Ident(param)) => assert_eq!(
+                        builder_name, PARAMETRIC_EXEMPT_BUILDER,
+                        "{builder_name}: compiles the megashader without the registry's map for \
+                         a fragment entry held in a variable ({param}); only \
+                         {PARAMETRIC_EXEMPT_BUILDER} may do that, and only for the exempt cloud \
+                         entries"
+                    ),
+                    None => panic!(
+                        "{builder_name}: compiles the megashader without asking the registry and \
+                         has no fragment entry to be exempt by; wire it to pso_constants(label)"
+                    ),
+                }
+            }
+        }
+
+        // Nothing slipped past the descriptor walk.
+        assert!(descriptors >= 5, "expected at least the five known PSO descriptors, found {descriptors}");
+        assert_eq!(
+            sites_seen,
+            code.matches(OPTIONS_KEY).count(),
+            "a compilation_options site sits outside every PSO descriptor"
+        );
+        for known in ["build_patch_render", "build_patch_shadow", "make_pbr", "make_shadow"] {
+            assert!(
+                registry_builders.contains(&known),
+                "{known} no longer asks the registry (or was renamed; update this list)"
+            );
+        }
+        // Every registered label is built by some builder in the block.
+        for (label, _) in PSO_DEAD_BRANCHES {
+            assert!(
+                code.contains(&format!("\"{label}\"")),
+                "registry label {label:?} is not built by any builder in impl Pipeline"
+            );
+        }
+
+        // The parametric exempt builder takes its entry from its callers, so
+        // pin every `"fs_..."` literal in the block: each is fs_main / fs_shadow
+        // (registry) or an exempt name; fs_main / fs_shadow appear ONLY as a
+        // direct `entry_point: Some("...")`, never as an argument that could
+        // reach the exempt builder; and every exempt name is still built.
+        let mut fs_literals: Vec<(usize, &str)> = Vec::new();
+        let mut f = 0;
+        while let Some(r) = code[f..].find("\"fs_") {
+            let p = f + r + 1;
+            let e = p + code[p..].find('"').expect("an unterminated string literal?");
+            fs_literals.push((p, &code[p..e]));
+            f = e + 1;
+        }
+        for (p, lit) in &fs_literals {
+            if *lit == "fs_main" || *lit == "fs_shadow" {
+                assert!(
+                    code[..*p - 1].ends_with("entry_point: Some("),
+                    "{lit:?} (pipeline.rs line {}) may only appear as a direct \
+                     `entry_point: Some(\"{lit}\")`; passing it to a builder as an argument \
+                     would route it around the registry",
+                    line_of(&me, start + *p)
+                );
+            } else {
+                assert!(
+                    REGISTRY_EXEMPT_FRAGMENT_ENTRIES.contains(lit),
+                    "fragment entry {lit:?} (pipeline.rs line {}) compiles the megashader but is \
+                     neither registered (fs_main / fs_shadow through pso_constants) nor in the \
+                     exempt list",
+                    line_of(&me, start + *p)
+                );
+            }
+        }
+        for name in REGISTRY_EXEMPT_FRAGMENT_ENTRIES {
+            assert!(
+                fs_literals.iter().any(|(_, l)| l == name),
+                "exempt entry {name:?} is no longer built anywhere in impl Pipeline; \
+                 remove it from the exempt list"
+            );
+        }
     }
 }

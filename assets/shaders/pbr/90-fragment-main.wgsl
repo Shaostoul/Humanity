@@ -922,15 +922,20 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // through to the default panel-grid look (none exist yet).
     //
     // PERMUTATION GUARDS (P1, 05-overrides.wgsl): each dispatch is ANDed with
-    // its pipeline-overridable switch, switch FIRST, so a pipeline compiled
-    // with the switch false gets a constant-false condition and the call
-    // becomes unreachable (folded away with everything only it referenced),
-    // not merely skipped at runtime. The terrain-batch PSOs compile all
-    // three off (pipeline.rs PSO_DEAD_BRANCHES); a patch fragment that
-    // somehow carried one of these types would fall through to the default
-    // look there, which is the correct failure for a material the pipeline
-    // was never meant to draw. The shape of these three lines is pinned by
-    // pipeline.rs::permutation_tests; change them together.
+    // its pipeline-overridable switch. A pipeline compiled with the switch
+    // false gets a constant-false condition, and the compiler folds the
+    // branch away with everything only it referenced. The switch is written
+    // FIRST in each `&&` purely as the convention pipeline.rs::
+    // permutation_tests pins (one shape, so every guard reads the same and
+    // the test can find it); the operand order changes nothing about the
+    // folding. The terrain-batch PSOs compile all three off (pipeline.rs
+    // PSO_DEAD_BRANCHES); a patch fragment that somehow carried one of these
+    // types would fall through to the default look there, which is the
+    // correct failure for a material the pipeline was never meant to draw.
+    // The same test requires each of these three functions to be called
+    // from exactly ONE place before fs_shadow, this guarded line, so a
+    // second call anywhere else in fs_main is a red test, not a silent way
+    // around the switch. Change the guards and the test together.
     if (HAS_ATMOSPHERE_BRANCH && material_type >= 13.5 && material_type < 14.5) {
         return atmosphere_scattering(in.world_position, front_facing);
     }

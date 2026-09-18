@@ -366,8 +366,25 @@ exe, B1 = this change:
 | `fuji-forest-ground` | 85.33 | 69.06 | 10.9 | 12 | 9 | ground and sky black; every tree and its cast shadow differs, because the sway runs on a live clock (`sin(t * sway_hz + phase)`, `00-bindings-vertex.wgsl`) and the two captures are seconds apart |
 
 30 fps is the vsync cap (60 Hz, every second vblank). Zero panics in all
-four boots of the increment; the B1 log shows both modules booted from disk
-with the override declarations, no `REJECTED`, no unknown-override error.
+four boots of the increment, and the B1 log shows both modules booted from
+disk with the override declarations present. That the constants actually
+BOUND is evidenced by the measurement itself, not by any log line: naga
+substitutes an override only when the module declares it (a module with no
+overrides comes back unchanged), and wgpu 24 raises no error for a constant
+key the module does not declare, so a source whose switches were ignored
+would have left every branch reachable and read B0's numbers, where B1 reads
+the phase-A stub numbers. The shipped exe compiles the same embedded parts
+(`PBR_PARTS`) the disk boot read. Since the review of this increment,
+`validate_wgsl` (the gate the hot reload, the from-disk boot and the
+embedded test all pass through) also REFUSES any megashader that lacks one
+of the three `override HAS_*_BRANCH: bool = true;` declarations, naming the
+missing switch. The shape it exists for is a tree from before the
+permutation, with no switch declared and no guard using one (a stale
+checkout under `HUMANITY_SHADERS_FROM_DISK`, a `--shipped-assets` mirror
+that predates P1): naga accepts that source, wgpu binds the constants to
+nothing, and it would boot, render correctly and silently restore the 45 ms
+terrain cost. (Deleting `05-overrides.wgsl` alone is already a parse error,
+since the guards then name undefined identifiers.)
 Fuji's costs-file `frame_ms` sample read 109 against 97, but probe-sweep
 copies that file immediately after the screenshot readback (perf-drive waits
 3 s), so the GPU timestamp (down 16 ms) and the fps ring (10.9 to 12) are the
