@@ -129,11 +129,17 @@ impl SsaoPass {
         focal_px: f32,
         radius_m: f32,
         strength: f32,
-        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        timers: Option<&crate::renderer::frame_costs::GpuTimers>,
     ) {
         if strength <= 0.001 {
             return;
         }
+        // Claimed AFTER the early return (2026-09-18): a slot claimed at the
+        // call site for a pass that then skipped is still resolved and reads
+        // stale ticks as a real sample (the frozen 35 ms `gpu.godrays` the
+        // runtime gate caught). With SSAO off this would have reported a
+        // fabricated cost too.
+        let timestamp_writes = timers.and_then(|t| t.writes("gpu.ssao"));
         queue.write_buffer(
             &self.param_buffer,
             0,

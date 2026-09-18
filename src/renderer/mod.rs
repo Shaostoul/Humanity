@@ -3111,7 +3111,10 @@ impl Renderer {
             sun_dir,
             camera.aspect,
             self.godray_intensity * weather_scale.clamp(0.0, 1.0),
-            self.pass_timer("gpu.godrays"),
+            // The timers, not a claimed slot: the pass has early returns and
+            // claims its own slot only once it knows it will draw (a slot
+            // claimed here for a pass that skipped read as a frozen 35 ms).
+            self.gpu_timers.as_deref(),
         );
     }
 
@@ -3163,7 +3166,9 @@ impl Renderer {
             // shade ground far behind it (the BUG-062 aura).
             0.4,
             self.ssao_strength,
-            self.pass_timer("gpu.ssao"),
+            // The timers, not a claimed slot: the pass returns early at zero
+            // strength and claims its own slot only when it will draw.
+            self.gpu_timers.as_deref(),
         );
     }
 

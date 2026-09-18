@@ -167,8 +167,15 @@ impl GodrayPass {
         sun_dir: Vec3,
         aspect: f32,
         intensity: f32,
-        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        timers: Option<&crate::renderer::frame_costs::GpuTimers>,
     ) {
+        // The timestamp slot is claimed AFTER every early return below, never
+        // before the call (2026-09-18, the runtime gate): a slot claimed for a
+        // pass that then does not run is still resolved, so the two never-
+        // written query indices read as stale ticks and `gpu.godrays`
+        // reported a frozen 35 ms that no frame had spent. Same shape as the
+        // particle sim's fix; `pass_timer` at the call site is the wrong place
+        // for any pass with an early return.
         if intensity <= 0.001 || sun_dir.length_squared() < 0.5 {
             return;
         }
@@ -197,6 +204,9 @@ impl GodrayPass {
         if ndc_x.abs() > 2.5 || ndc_y.abs() > 2.5 {
             return;
         }
+        // Past every early return: the pass WILL run, so the slot it claims
+        // is one the GPU writes this frame.
+        let timestamp_writes = timers.and_then(|t| t.writes("gpu.godrays"));
         let sun_uv = [ndc_x * 0.5 + 0.5, 1.0 - (ndc_y * 0.5 + 0.5)];
 
         queue.write_buffer(

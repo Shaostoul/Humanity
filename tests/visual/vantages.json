@@ -642,6 +642,7 @@
         "body": "moon",
         "lat": 5,
         "lon": -150,
+        "time": 10.2,
         "altitude_km": 0.06,
         "look_offset_deg": 55
       },
