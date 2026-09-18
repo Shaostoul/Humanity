@@ -1115,3 +1115,31 @@ the honest view from inside the local deck. Found by a fresh read-only panel
 (five lenses, two refuters per candidate) whose march-lens reader reproduced
 the predicted far-hemisphere pattern offline against the on-disk capture (r
 0.66) before anything was rebuilt.
+
+## BUG-075: Clicking a section title did nothing, only its triangle toggled (fixed v0.1314.0)
+
+**Symptom:** on every page that uses `widgets::section_disclosure` (the
+inventory's Status and Equipment sections among seven callers), a click on
+the section's TITLE text showed the text-selection cursor and left the
+section as it was; only the small triangle toggled it. The runtime verifier
+saw it on the inventory wall on 2026-09-16 (a `Text` cursor over "Status",
+no change), and the first live run of `just verify-screens` hit it when it
+tried to collapse Status to bring the Home container into view.
+
+**Cause:** the widget made the whole header row clickable but drew the title
+with `ui.label`, and egui labels are selectable by default; a selectable
+label takes the press for a text-selection drag, so the row's click never
+fired when the press landed on the text. The same defect had just been fixed
+on the inventory's container header labels (rung 6 of the screens ladder),
+which is how the pattern was recognised.
+
+**Fix:** the title is `egui::Label::new(..).selectable(false)`: a section
+title is a control, not prose. Pinned by
+`gui::screen_surface::tests::a_section_title_click_collapses_it_and_brings_home_into_view_on_a_wall`,
+which clicks the Status title on a wall-sized inventory through the same
+event API the look ray uses and asserts the section's Weight card is gone;
+with the fix reverted it fails (proven 2026-09-18).
+
+**Lesson:** any egui label that sits inside a click target must be
+non-selectable, or the click target is only the part of the row that is not
+text. Check for this whenever a "row is clickable" claim is made.

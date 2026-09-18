@@ -20,37 +20,48 @@
 >    `source` string carries a scheme (`page:`, `watch:`, `camera:`,
 >    `video:`, `web:`) and a `ScreenProvider` per kind plugs into the one
 >    registry `engine::screens::provider_for`.
-> 3. **Live feed and in-game camera** (IN FLIGHT, phase 2): the MJPEG Watch
->    stream on a wall with one viewer per screen; a `camera_post` machine
->    whose pose renders the world onto a screen at 10 Hz through a
->    `render_view_onto` shared with the hires screenshot path.
+> 3. **Live feed and in-game camera** (MERGED, v0.1314): the MJPEG Watch
+>    stream on a wall with one viewer per screen (a picture, once up, is never
+>    overdrawn by the status page); a `camera_post` machine whose pose renders
+>    the world onto a screen at 10 Hz, one camera per frame, through a
+>    `render_view_onto` shared with the hires screenshot path, with a parked
+>    depth texture and the live frame's daylight rule.
 > 4. **The console room** (MERGED): room-grade zone types, `room_type` on a
 >    zone joining `data/rooms.ron`, rooms covered by a zone take the zone's
 >    id instead of `room_N`, a `console_room` zone placed in the home.
 >    Vocabulary: command deck = the mothership bridge; console room
->    (battlestation) = the home workstation. TODO once phase 2 lands: move
->    the placed screens from the common room into the console room.
-> 5. **Video** (core MERGED, integration IN FLIGHT): WebM/Matroska + AV1 +
->    Opus through pure-Rust decoders on a background thread with an audio-led
->    clock (`src/media`, `docs/design/media-player.md`, measured fps in the
->    doc); phase 2 puts a looping clip on a wall with spatial audio and
->    click-to-pause. Not done: sync between players, seek, subtitles.
-> 6. **The readable web** (core MERGED, integration IN FLIGHT): html5ever
+>    (battlestation) = the home workstation. All six screens now hang on its
+>    three doorless walls (v0.1314): inventory and the garden camera west,
+>    tasks and our own site east, the live stream and the demo clip north.
+> 5. **Video** (MERGED, v0.1314): WebM/Matroska + AV1 + Opus through
+>    pure-Rust decoders on a background thread with an audio-led clock
+>    (`src/media`, `docs/design/media-player.md`); a looping clip on a wall
+>    with its sound placed by distance and bearing, starting at the placed
+>    mix, click-to-pause, notices at the display's size. Not done: sync
+>    between players, seek, subtitles. rav1d's debug-only borrow checker
+>    aborts about one debug test run in twenty; the device tests run in
+>    release (documented in the media doc).
+> 6. **The readable web** (MERGED, v0.1314): html5ever
 >    parse, egui render, no JavaScript, no Chromium (decision brief 4),
 >    behind `readable_web` which defaults to OFF; `data/web/sites.json` is
 >    the one bookmark list both clients read and carries `embed.status` per
 >    site (`needs_review` until a human records the terms basis, url, date
->    and name) with every affiliate field null. Phase 2 puts the view on a
->    wall and adds `scripts/verify-screens.js`, the rig that proves a click
->    on the inventory wall toggles a header and a click on a web link
->    navigates, with no human at the keyboard. Test targets are our own site
->    only; nothing affiliate until the legality column says so.
+>    and name) with every affiliate field null. The view hangs on a wall
+>    (off = a notice naming the switch, never a fetch) and
+>    `scripts/verify-screens.js` (`just verify-screens`) proves with nobody
+>    at the keyboard that a click on the inventory wall collapses a container
+>    and a click on a link on our own site navigates: 12 of 12 checks green
+>    on 2026-09-18. Test targets are our own site only; nothing affiliate
+>    until the legality column says so. A placement gate on `embed.status`
+>    is the next rung on this line.
 >
 > **Gates for any screen change:** both cargo checks, the screens / surface /
 > dispatch / machines lib tests, the standalone lints, AND a boot that enters
 > the world and drives the wall through the dev IPC (static verification
-> cannot see a dark or mirrored screen). Once `verify-screens.js` lands it is
-> the named gate.
+> cannot see a dark or mirrored screen). `just verify-screens` is the named
+> gate. Known cost: the console room with all six walls live (a camera and a
+> clip among them) ran at 9 fps on rig defaults; the screens' share of that
+> frame is the next perf item on this line.
 >
 > **Deferred from this arc, on purpose:** VR controller rays; per-context
 > `thread_local` page state (a screen and the main UI showing the same page
