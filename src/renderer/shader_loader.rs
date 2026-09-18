@@ -15,8 +15,26 @@ use std::path::PathBuf;
 /// the pre-split monolith, proven by the round-trip check at split time and
 /// pinned by `assembled_parts_form_a_valid_module` below. Add a part by
 /// adding it HERE and on disk; order is the tuple order (name-sorted).
+///
+/// SHADER PERMUTATIONS (increment P1 of the frame-cost arc, 2026-09-18):
+/// one module, but NOT one program. `05-overrides.wgsl` declares WGSL
+/// `override` switches (`HAS_ATMOSPHERE_BRANCH`, `HAS_CLOUD_BRANCH`,
+/// `HAS_OCEAN_BRANCH`, all defaulting to true) that guard fs_main's three
+/// heavyweight shell dispatches, and each pipeline in
+/// `pipeline.rs::PSO_DEAD_BRANCHES` is compiled with the switches its
+/// material class needs. Naga substitutes the values before the backend
+/// sees the source, so a switched-off branch is dead code DXC folds away,
+/// together with every function and `var<private>` table only it reached.
+/// The rule for anyone adding a branch to fs_main: if it drags a big
+/// per-invocation frame into the module (a `var<private>` array, a deep
+/// march), give it a switch here and turn it off in every PSO that can
+/// never draw that material, because the backend charges that frame to
+/// EVERY fragment of every pipeline that can reach it, not to the fragments
+/// that take the branch. Measured on the terrain pass: see the P1 outcome in
+/// docs/design/frame-cost-arc.md section 1(c).
 pub const PBR_PARTS: &[(&str, &str)] = &[
     ("00-bindings-vertex.wgsl", include_str!("../../assets/shaders/pbr/00-bindings-vertex.wgsl")),
+    ("05-overrides.wgsl", include_str!("../../assets/shaders/pbr/05-overrides.wgsl")),
     ("10-lighting-patterns.wgsl", include_str!("../../assets/shaders/pbr/10-lighting-patterns.wgsl")),
     ("20-surface-detail.wgsl", include_str!("../../assets/shaders/pbr/20-surface-detail.wgsl")),
     ("30-atmosphere.wgsl", include_str!("../../assets/shaders/pbr/30-atmosphere.wgsl")),

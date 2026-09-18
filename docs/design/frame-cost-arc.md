@@ -295,6 +295,102 @@ planet pass threefold, `PRIORITIES.md:1224`); the rig freezes the clock with
 HumanityOS.exe"` before booting, because one GPU means one instance; boot only
 through the rig, never `HumanityOS.exe` by hand.
 
+#### P1 outcome (2026-09-18, worktree agent; phase A and phase B both green)
+
+**Verdict: H1.** The floor is the megashader's per-invocation frame, and the
+cloud branch alone carries it. Every number below is a GPU timestamp query at
+the operator-mirrored config, 2560 x 1387, RTX 4070, clouds off; captures,
+cost files, diff tool and heatmaps live in the 2026-09-18 session scratchpad
+(`p1-ab/`, `p1-b0-control/`, `p1-b1-permutation/`, `p1-diff.js`,
+`diff-*.png`).
+
+Phase A ran as a SAME-BOOT A/B rather than one boot per arm: the rig boots
+the shader parts from disk, so the driver (`p1-ab.js`) captured the control,
+stubbed the function bodies on disk, waited for the megashader hot-reload
+(`[HotReload] megashader reassembled`, 6.3 s), captured again, then restored
+the parts with `git checkout` and waited for the reload back. Same frozen
+clock, same streamed patches, same GPU thermal state on both sides. The moon
+cell pins its local hour (camera `time: 10.2`) because an unpinned moon lands
+wherever the preceding cells left the global clock (the first control boot
+captured it at night, gpu.celestial 45.6 ms even in the dark, which is itself
+evidence the cost is not the lit arithmetic).
+
+| cell | made unreachable | `gpu.celestial` control | stubbed | `gpu.celestial_t` control | stubbed |
+|---|---|---|---|---|---|
+| `moon-surface-200m` | `atmosphere_scattering` + `cloud_layer` + `ocean_shell` | 44.11 | 7.43 | 0.00 | 0.00 |
+| `sahara-noon-ground` | `cloud_layer` only | 31.38 | 5.43 | 10.44 | 0.19 |
+
+Against the operator baseline (run1-operator-cloudsoff): moon 44.46, so the
+control reproduces it within 1 percent. The Sahara control read 31.4 in every
+boot of this session (three boots, two harnesses) against the baseline's
+42.9: the baseline's Sahara cell followed the limb descent, this session's
+followed a warm-up park at the same coordinates, so the streamed patch set
+differed. The comparison that decides is same-boot control against stub.
+
+Pixel proof, and a correction to the contract above. "Pixel-identical" is not
+a property this rig has even for an unchanged shader: two captures 1.5 s apart
+in one boot with the clock frozen differ on 20 to 35 percent of pixels by 1 to
+3 levels (max 12 at the Sahara), and the terrain's per-frame dither flips more
+pixels at a higher frame rate (the stubbed moon at 30 fps: 85 percent at mean
+3.1). Read "pixel-identical" everywhere in this document as "inside the rig's
+same-boot repeat floor, with no spatially coherent difference". Against those
+floors: Sahara control vs stub 34 percent, mean 1.33, max 14, and the sky rows
+exactly 0.00 (the atmosphere shell was intact and is bit-identical while 50x
+cheaper); moon control vs stub 87 percent, mean 3.41, block for block the
+same as the stubbed build's own frame-to-frame floor (mean 3.14), and the two
+heatmaps carry the same speckle and the same faint patch-seam lines. Nothing
+coherent anywhere.
+
+Bonus finding: the Sahara's atmosphere shell (type 14, classic transparent
+PSO) fell 10.44 to 0.19 ms the moment the cloud branch was unreachable. The
+floor sits under EVERY PSO that compiles `fs_main`, as section 0 argued, and
+that is the next increment (below).
+
+Phase B shipped the permutation: `assets/shaders/pbr/05-overrides.wgsl`
+(three `override` switches defaulting to true), the guards at the three
+dispatch sites in `90-fragment-main.wgsl` (switch first in the `&&`), and in
+`src/renderer/pipeline.rs` the `PSO_DEAD_BRANCHES` registry plus
+`pso_constants(label)`, which the four megashader builders call: the patch
+render and patch shadow PSOs compile all three branches off, the classic five
+keep everything. `permutation_tests` (five tests) pins the declarations, the
+guard shape, the registry contents and the builder wiring against each
+other. Gate, `probe-sweep --operator-config`, B0 = pristine tree and pristine
+exe, B1 = this change:
+
+| vantage | `gpu.celestial` B0 | B1 | fps B0 | B1 | floor | pixels B0 vs B1 |
+|---|---|---|---|---|---|---|
+| `moon-surface-200m` | 45.38 | 8.31 | 19.9 | 30 | 25 | 53 percent at 1 level, max 4 |
+| `sahara-noon-ground` | 31.37 | 5.32 | 24 | 30 | 20 | 36 percent, mean 1.38, max 14, sky rows 0.00 |
+| `blue-marble-12000km` | 4.99 | 1.08 | 30 | 30 | 30 | 18 percent, mean 2.8; the pixels over 32 are star and constellation dots, the disc carries only sparse 1-level dither |
+| `limb-400km` | 63.45 | 13.25 | 10.9 | 24.1 | 25 | 26 percent, mean 1.16; 43 pixels over 32, all limb-edge stars |
+| `fuji-forest-ground` | 85.33 | 69.06 | 10.9 | 12 | 9 | ground and sky black; every tree and its cast shadow differs, because the sway runs on a live clock (`sin(t * sway_hz + phase)`, `00-bindings-vertex.wgsl`) and the two captures are seconds apart |
+
+30 fps is the vsync cap (60 Hz, every second vblank). Zero panics in all
+four boots of the increment; the B1 log shows both modules booted from disk
+with the override declarations, no `REJECTED`, no unknown-override error.
+Fuji's costs-file `frame_ms` sample read 109 against 97, but probe-sweep
+copies that file immediately after the screenshot readback (perf-drive waits
+3 s), so the GPU timestamp (down 16 ms) and the fps ring (10.9 to 12) are the
+readings to trust there.
+
+The one gate not met: the limb is at 24.1 fps against a floor of 25 (it was
+10.9 before this change, so the floor was already missed at these settings).
+Its remaining cost is `gpu.celestial_t` 26 ms, the atmosphere shell drawn
+through the classic transparent PSO, which this increment deliberately left
+with every branch on because the cloud shell draws through the same
+pipeline. Phase A proved that shell drops 50x once the cloud branch is gone.
+
+**Next increment, P2: a shell permutation of the transparent draw.** Give the
+atmosphere shell (type 14) and the water shell (type 16) a transparent PSO
+compiled with `HAS_CLOUD_BRANCH` off and route only the cloud shell (type 15)
+through the one that keeps it; the registry, the switch and the test already
+exist, so it is one more `PSO_DEAD_BRANCHES` row, one more pipeline field,
+and a draw-list split at `mod.rs:4714` onward. Cost keys that must move:
+`gpu.celestial_t` at `limb-400km` (26 ms) and `sahara-noon-ground` (10.4
+ms), toward the 0.2 ms the stub measured. Then the same for the opaque
+classic PSO once the interior draw lists prove no shell goes through it,
+which is what re-prices the console-room wall pixel in section 2.
+
 ### (d) Instrumentation this cost centre needs
 
 The celestial pass is one timestamp pair covering bodies, terrain, near trees
