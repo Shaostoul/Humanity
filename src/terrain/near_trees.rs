@@ -40,11 +40,23 @@ use super::*;
 pub const AGNOSTIC_TREE_DENSITY: f32 = 0.6;
 
 /// Slider range of the forest-density setting (`settings.rs`, `config.rs`).
-pub const TREE_DENSITY_MIN: f32 = 0.1;
+///
+/// ZERO MEANS OFF (2026-09-18). The floor used to be 0.1, which meant a player
+/// on a weak machine, or the frame-cost rig bisecting "is it the trees?",
+/// could not ask for no forest at all: a typed 0 was rewritten to 0.1 at the
+/// next boot by `AppConfig::apply` and every consumer treated 0.1 as the
+/// least it would draw. Now the legal range includes 0, `trees_in_cell`
+/// answers 0 for it, and both vegetation streams (card bake and model
+/// harvest) emit nothing. See `docs/design/frame-cost-arc.md` section 3.
+pub const TREE_DENSITY_MIN: f32 = 0.0;
 pub const TREE_DENSITY_MAX: f32 = 1.0;
 
 /// The clamp, in one place, because a clamp that differs between two callers
 /// diverges exactly like a rounding rule that differs between them.
+///
+/// A NaN (a corrupt config, or a division upstream that went wrong) lands on
+/// the FLOOR, which is "no trees": the cheapest thing to draw and the easiest
+/// thing to notice, rather than a forest at some invented density.
 #[inline]
 pub fn tree_density_clamped(d: f32) -> f32 {
     if d.is_nan() {
@@ -87,8 +99,16 @@ pub fn tree_density_clamped(d: f32) -> f32 {
 /// changed the forest on every planet at every density.
 #[inline]
 pub fn trees_in_cell(density: f32, cell_lat_rad: f64) -> u32 {
-    let per_cell =
-        (((TREES_PER_CELL as f32) * tree_density_clamped(density)).round() as u32).max(1);
+    let d = tree_density_clamped(density);
+    // ZERO IS OFF. The `.max(1)` below exists so a sliver of density (say
+    // 0.0004, which rounds to no trees per cell) still shows a tree rather
+    // than an unexplained bald cell; it must not conjure a forest out of a
+    // density the player set to nothing. Both streams route through here, so
+    // "nothing" is the same nothing for the cards and for the models.
+    if d <= 0.0 {
+        return 0;
+    }
+    let per_cell = (((TREES_PER_CELL as f32) * d).round() as u32).max(1);
     ((per_cell as f64) * cell_lat_rad.cos().max(0.0)).round() as u32
 }
 
@@ -1125,7 +1145,7 @@ mod tree_stream_agreement_tests {
     /// the broken code.
     ///
     /// The slider does not snap (`*value = min + t * (max - min)` in
-    /// `widgets::labeled_slider`), so every f32 in 0.1..=1.0 is reachable by
+    /// `widgets::labeled_slider`), so every f32 in 0.0..=1.0 is reachable by
     /// dragging, and the operator drags it.
     ///
     /// WHY A WHOLE REGION AND NOT ONE PATCH, AND WHY THIS EXACT LATITUDE.
@@ -1427,6 +1447,115 @@ mod tree_stream_agreement_tests {
         // so the slider is not permanently pinned by one old patch.
         cs.last_drawn.clear();
         assert_eq!(cs.harvest_tree_density(SETTING_NOW), SETTING_NOW);
+    }
+
+    /// ZERO MEANS NO TREES, in the one function both streams count with.
+    ///
+    /// The floor used to be 0.1 and `trees_in_cell` carried a `.max(1)` that
+    /// would have turned a density of 0 into one tree per cell anyway. Both
+    /// halves have to hold: the clamp must let 0 through (a typed 0 is not
+    /// rewritten to 0.1), and the count must answer 0 for it at every
+    /// latitude. The non-zero floor semantics are pinned too, so the fix for
+    /// "0 grows a forest" cannot become "0.0004 grows nothing".
+    #[test]
+    fn density_zero_counts_no_trees_in_any_cell() {
+        assert_eq!(tree_density_clamped(0.0), 0.0, "0 must survive the clamp");
+        assert_eq!(tree_density_clamped(-1.0), 0.0, "below 0 clamps to 0, not to 0.1");
+        assert_eq!(tree_density_clamped(f32::NAN), 0.0, "NaN lands on the floor (off)");
+        assert_eq!(tree_density_clamped(1.5), 1.0, "the ceiling still bites");
+        assert_eq!(tree_density_clamped(0.35), 0.35, "in-range values pass through");
+        // Every latitude band, equator to the polar gate: 0 in, 0 out.
+        let mut lat = 0.0_f64;
+        while lat <= 1.5 {
+            assert_eq!(trees_in_cell(0.0, lat), 0, "density 0 grew a tree at lat {lat:.2}");
+            assert_eq!(trees_in_cell(-0.5, lat), 0, "negative density grew a tree at lat {lat:.2}");
+            assert_eq!(trees_in_cell(f32::NAN, lat), 0, "NaN density grew a tree at lat {lat:.2}");
+            lat += 0.05;
+        }
+        // A sliver of density still shows at least one tree per equatorial
+        // cell: that is what the `.max(1)` floor is for, and it must not have
+        // been lost in making 0 mean 0.
+        assert!(trees_in_cell(0.0004, 0.0) >= 1, "a sliver of density must still grow a tree");
+        // And the shipped default is untouched by the change.
+        assert_eq!(
+            trees_in_cell(AGNOSTIC_TREE_DENSITY, 0.0),
+            ((TREES_PER_CELL as f32) * AGNOSTIC_TREE_DENSITY).round() as u32,
+            "the default count moved"
+        );
+    }
+
+    /// The same fact through the REAL streams on REAL ground: at the Fuji
+    /// foothills fixture the default density grows a forest in both the card
+    /// bake and the model harvest, and density 0 grows nothing in either. The
+    /// positive control is what makes the empty result mean something; a
+    /// harvest that returns nothing because the fixture is ocean would pass a
+    /// test without it.
+    #[test]
+    fn density_zero_harvests_and_bakes_no_trees_on_real_ground() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let region = patch_containing(dir_of(35.234, 138.79), TREE_MIN_DEPTH - 2);
+        let leaves = leaves_under(&region, TREE_MIN_DEPTH);
+        let cn = patch_corners(&region);
+        let center = (cn[0].normalize() + cn[1].normalize() + cn[2].normalize()).normalize();
+        let radius_m = 900.0_f64;
+
+        let harvest_at = |density: f32| {
+            near_tree_instances_at_density(
+                &def,
+                &src,
+                Some(&albedo),
+                center,
+                radius_m,
+                TREE_MIN_DEPTH,
+                density,
+                usize::MAX,
+            )
+        };
+        let cards_at = |density: f32| {
+            leaves
+                .iter()
+                .flat_map(|id| {
+                    let pm = build_patch_mesh_at_density(&def, &src, Some(&albedo), id, density);
+                    // A patch baked at 0 must also SAY it carries no cards, or
+                    // `harvest_tree_density` would keep the models at 0 for a
+                    // patch that has nothing to cover (harmless) while a patch
+                    // baked at 0.6 would fail to raise it (not harmless). The
+                    // sentinel and the real value coincide at 0 by design.
+                    if density <= 0.0 {
+                        assert_eq!(pm.tree_density, 0.0, "a patch baked at 0 stamped {}", pm.tree_density);
+                    }
+                    card_dirs(&pm)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // Positive control: the fixture IS a forest at the shipped default.
+        let models_default = harvest_at(AGNOSTIC_TREE_DENSITY);
+        let cards_default = cards_at(AGNOSTIC_TREE_DENSITY);
+        assert!(
+            models_default.len() > 50 && cards_default.len() > 200,
+            "fixture: {} models and {} cards at the default - not a forest, so an empty \
+             result at 0 would prove nothing",
+            models_default.len(),
+            cards_default.len()
+        );
+        // The claim: 0 grows nothing, in both streams, with no panic and no
+        // NaN in anything that was computed on the way.
+        let models_zero = harvest_at(0.0);
+        assert!(
+            models_zero.is_empty(),
+            "density 0 still harvested {} tree models",
+            models_zero.len()
+        );
+        let cards_zero = cards_at(0.0);
+        assert!(cards_zero.is_empty(), "density 0 still baked {} tree cards", cards_zero.len());
     }
 
     /// DENSITY IS AN ARGUMENT, AND STAYS ONE.

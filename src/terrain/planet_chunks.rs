@@ -254,27 +254,36 @@ pub const TREES_PER_CELL: u32 = 800;
 /// the ARTISTIC knob - how much grass is on the ground - and it is deliberately
 /// a separate control from `grass_detail` below, which is the PERFORMANCE knob.
 /// Conflating them is what v0.1105 fixed and this pair is what finishes it.
-/// Range 0.1..3.0: 1.0 is a real turf at LAI ~3.3, 3.0 is deep meadow.
+/// Range 0.0..3.0: 0 is NO GRASS AT ALL (2026-09-18, the floor was 0.1 and
+/// "grass off" was unreachable from Settings), 1.0 is a real turf at LAI
+/// ~3.3, 3.0 is deep meadow. The range constants live in `grass.rs`
+/// (`GRASS_COVER_MIN` / `GRASS_COVER_MAX`) beside the peak formula.
 pub static GRASS_DENSITY_BITS: std::sync::atomic::AtomicU32 =
     std::sync::atomic::AtomicU32::new(0x3F80_0000); // 1.0f32
 
 #[inline]
 pub fn grass_density() -> f32 {
     f32::from_bits(GRASS_DENSITY_BITS.load(std::sync::atomic::Ordering::Relaxed))
-        .clamp(0.1, 3.0)
+        .clamp(crate::terrain::grass::GRASS_COVER_MIN, crate::terrain::grass::GRASS_COVER_MAX)
 }
 
 /// GRASS DETAIL: blades per tiller and segments per blade. Blade WIDTH rises as
 /// count falls, so leaf area - and therefore how much grass the eye sees - is
 /// conserved across this knob by construction. Turning it down costs sharpness,
 /// never cover.
+///
+/// Range 0.0..1.0. ZERO IS THE OFF SWITCH (2026-09-18): the grass layer is
+/// not drawn at all. It is not a rung of the mesh ladder (the bottom rung is
+/// `grass_mesh::GRASS_QUALITY_MIN`); the frame loop asks
+/// `grass::grass_layer_on` and skips the harvest, so the renderer never sees
+/// an instance and never builds a mesh for it.
 pub static GRASS_DETAIL_BITS: std::sync::atomic::AtomicU32 =
     std::sync::atomic::AtomicU32::new(0x3F80_0000); // 1.0f32
 
 #[inline]
 pub fn grass_detail() -> f32 {
     f32::from_bits(GRASS_DETAIL_BITS.load(std::sync::atomic::Ordering::Relaxed))
-        .clamp(0.1, 1.0)
+        .clamp(0.0, 1.0)
 }
 /// Real-meter elevation ceiling for trees (a global treeline placeholder).
 pub const TREELINE_M: f32 = 1700.0;

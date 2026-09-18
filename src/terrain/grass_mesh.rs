@@ -49,9 +49,14 @@ pub const GRASS_SEGMENTS_MAX: usize = 3;
 pub const GRASS_SEGMENTS_MIN: usize = 2;
 /// Quality at or above which a blade keeps its third segment.
 pub const GRASS_SEGMENT_DROP_Q: f32 = 0.40;
-/// The slider's floor, mirroring `veg_density`'s own clamp. The ladder is
-/// parameterised on the SLIDER RANGE rather than on 0..1 so its bottom rung is
+/// The BOTTOM RUNG of the ladder, as a slider value. The ladder is
+/// parameterised on this range rather than on 0..1 so its bottom rung is
 /// reachable: the operator's live setting is 0.1039.
+///
+/// This is no longer the slider's floor (2026-09-18): the slider goes to 0,
+/// and 0 is not a rung, it is the OFF switch for the whole grass layer
+/// (`grass::grass_layer_on`). `grass_detail_for` floors at this rung so any
+/// caller that asks for a mesh at 0 still gets a valid, non-empty one.
 pub const GRASS_QUALITY_MIN: f32 = 0.1;
 
 /// TUSSOCK CROWN RADIUS, as a fraction of unit height: the disc over which one
@@ -162,8 +167,21 @@ impl GrassDetail {
 ///   * 1.00:                13 blades x 3 segments = 130, on 40% fewer tillers
 ///                           than the old 1.0 setting drew, so max quality is
 ///                           CHEAPER per m^2 than it used to be
+///
+/// A quality of 0 (or below, or NaN) is NOT a rung: 0 is the slider's OFF
+/// switch, honoured by `grass::grass_layer_on` in the frame loop, which skips
+/// the harvest so no instance ever reaches the renderer. THIS function floors
+/// at the bottom rung instead of answering "zero blades", so the shared GPU
+/// tiller mesh (`Renderer::ensure_grass_mesh`, keyed on this) is never built
+/// empty: a zero-size vertex buffer is exactly the kind of renderer surprise
+/// that passes every headless test and dies at boot.
 pub fn grass_detail_for(quality: f32) -> GrassDetail {
-    let q = quality.clamp(GRASS_QUALITY_MIN, 1.0);
+    // `clamp` maps NaN to NaN, so spell the NaN case out.
+    let q = if quality.is_nan() {
+        GRASS_QUALITY_MIN
+    } else {
+        quality.clamp(GRASS_QUALITY_MIN, 1.0)
+    };
     let t = (q - GRASS_QUALITY_MIN) / (1.0 - GRASS_QUALITY_MIN);
     let span = (GRASS_BLADES_MAX - GRASS_BLADES_MIN) as f32;
     let blades = (GRASS_BLADES_MIN as f32 + span * t).round() as usize;
@@ -578,6 +596,22 @@ mod tests {
             "max quality now costs {per_m2:.0} triangles per m2 of ground against the 4,050 the \
              old veg_density 1.0 drew"
         );
+    }
+
+    /// Detail 0 is the layer's OFF switch, not a rung, and the mesh function
+    /// must never hand the renderer an empty tiller for it: the shared GPU
+    /// mesh is keyed on `grass_detail_key`, and a zero-blade build would be a
+    /// zero-size vertex buffer. So 0, negative and NaN all floor to the bottom
+    /// rung, with real triangles in it.
+    #[test]
+    fn detail_zero_is_the_bottom_rung_not_an_empty_mesh() {
+        let floor = grass_detail_for(GRASS_QUALITY_MIN);
+        assert!(floor.triangles() > 0, "the bottom rung has no triangles");
+        assert_eq!(grass_detail_for(0.0), floor, "detail 0 must floor at the bottom rung");
+        assert_eq!(grass_detail_for(-1.0), floor, "negative detail must floor at the bottom rung");
+        assert_eq!(grass_detail_for(f32::NAN), floor, "NaN detail must floor at the bottom rung");
+        let (b, s) = grass_tiller_mesh_at(grass_detail_for(0.0));
+        assert!(!b.vertices.is_empty() && s.triangles > 0, "the mesh at detail 0 is empty");
     }
 
     /// The default rung must be the mesh that shipped. The whole change is
