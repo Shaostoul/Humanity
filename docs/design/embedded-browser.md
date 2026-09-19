@@ -463,13 +463,38 @@ played in a plain `<video>` element:
 
 So this is observed, not inferred.
 
-**Why: the official CEF builds are compiled without the patent-encumbered
-codecs, because distributing them requires a licence the CEF project does not
-hold.** This has been the project's stated position since 2015 and was restated
-in 2024. It is a PATENT licensing limit. It is not a law and it is not a
-platform's rule, so it is the kind of limit that could in principle be lifted,
-by building CEF from source with `proprietary_codecs=true` and
-`ffmpeg_branding=Chrome` and taking on the licensing ourselves. That is a real
+**CORRECTED 2026-09-19 by [the licensing
+research](../reference/findings/2026-09-19-video-codec-licensing.md), which
+was commissioned precisely because this section was read as a dead end. It is
+not one, and the two halves are not alike:**
+
+- **The VIDEO is solvable and costs nothing.** A browser engine may call the
+  H.264 decoder the operating system already ships and is already licensed
+  for, shipping no decoder itself. CEF's own maintainer opened an issue for
+  this in 2023 with the legal reasoning and a dated test showing it working on
+  Windows and macOS with minimal changes. Two Chromium forks already do it, so
+  it is buildable, not theoretical. Separately, the US video patents expire
+  between December 2026 and 2030, and Europe, Japan and China are already
+  clear.
+- **The AUDIO is the expensive half, which is the opposite of the usual
+  assumption.** H.264 is free under 100,000 units a year; AAC is roughly a
+  dollar per unit from the first unit, with no free tier and no cap. And the
+  same maintainer's note records that Chromium does not directly support AAC
+  decoding through the platform either, so the OS route gives picture without
+  sound as things stand.
+
+So the honest statement is not "Twitch is blocked by patents". It is: the
+picture is reachable for nothing, the sound is the open problem, and anyone
+planning this work should start from the findings document rather than from
+the paragraph below, which describes only the engine as it is distributed.
+
+**The distribution limit itself: the official CEF builds are compiled without
+the patent-encumbered codecs, because distributing them requires a licence the
+CEF project does not hold.** This has been the project's stated position since
+2015 and was restated in 2024. It is a PATENT licensing limit. It is not a law
+and it is not a platform's rule, so it is the kind of limit that could in
+principle be lifted, by building CEF from source with `proprietary_codecs=true`
+and `ffmpeg_branding=Chrome` and taking on the licensing ourselves. That is a real
 decision with real cost, not a build flag we should flip casually.
 
 What it means per platform:
