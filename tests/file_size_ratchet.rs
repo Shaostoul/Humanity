@@ -35,6 +35,55 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1320: `src/lib.rs` 18_100 -> 16_700, THE BIGGEST CLICK SINCE THE
+///   RATCHET WAS INSTALLED, and the first one where the gate had been red
+///   long enough to do real damage. lib.rs stood at 19_892 (+1_792), and
+///   because `just lints` stops at the first failure, `just verify` could not
+///   run AT ALL: `focus_optin_lint`, `account_sql_lint` and `rig_pin_lint`
+///   were being silently skipped, so the project's standard pre-push gate was
+///   effectively off. Lesson worth keeping: a red ratchet is not a local
+///   nuisance, it disables every lint behind it.
+///   FOUR extractions, all pure code motion, each its own commit so a bisect
+///   can name one:
+///     * `engine/frame_ws_poll.rs` (1_660) - the relay WebSocket message pump
+///       and the socket-died teardown. One job, one input (`&mut EngineState`),
+///       and it grows every time the protocol does.
+///     * `engine/frame_shells.rs` (1_012) - a planet's cloud deck, its
+///       atmosphere dome, and the view-dependent order the two composite in.
+///     * `engine/frame_water.rs` (549) - the sea's two quadtree shells.
+///     * `engine/frame_near_trees.rs` (459) - the near-tree harvest, the draw
+///       plan, and the card-hide promise.
+///   The three celestial ones could NOT take `&mut EngineState`: the caller
+///   holds `def` borrowed out of `state.planet_defs` for the whole body loop.
+///   They take context structs that name each borrowed field instead, which
+///   is `ensure_near_tree_models`'s rule with the fields grouped - and because
+///   the struct is named `state`, the moved bodies are byte-identical to the
+///   lines they replaced apart from a handful of `*` the compiler demands.
+///   That is what let "zero behaviour change" be checked rather than asserted.
+///   19_892 -> 16_211, so 1_400 of the 3_681 lines are banked and 489 stay as
+///   working room.
+///   THE FILE HAS NO NAMED NEXT EXTRACTION; whoever next needs room should
+///   name one rather than nibble. The obvious candidate if nothing better
+///   presents itself is the ECS-to-GuiState BRIDGE REGION (roughly 2_300 lines
+///   of "publish the world into the panels", from the `Bridge ECS/DataStore
+///   state into GuiState` banner to the auto-connect block), which reads only
+///   `state`, `dt` and `showroom` and would therefore be the easiest move on
+///   this list.
+///   Four new watch entries, at measured + ~5% rather than the usual 3%,
+///   because a brand-new file needs ordinary editing room before its first
+///   click: `frame_ws_poll` 1_800, `frame_shells` 1_300, `frame_water` 750,
+///   `frame_near_trees` 700. If `frame_ws_poll` is the first to trip, the
+///   extraction to make is BY DOMAIN - the voice/room arms, or the game-state
+///   arms, are each a coherent group of `match` arms.
+///   ONE MORE LESSON, and it cost three test failures to learn: this repo has
+///   several gates that read the frame loop's SOURCE TEXT to prove a helper is
+///   actually called (`the_frame_loop_uses_the_measured_coverage_radius`,
+///   `the_frame_loop_sources_the_density_once_for_both_streams`,
+///   `the_page_tells_the_truth_about_what_the_engine_reads`). All three read
+///   `src/lib.rs` and only `src/lib.rs`, so every extraction makes them report
+///   a wiring break that is really a file move. They now share one list,
+///   `terrain::near_trees::frame_loop_source()`. ADD ANY FILE YOU EXTRACT
+///   FROM THE FRAME LOOP TO THAT LIST in the same commit.
 /// - v0.1110: `renderer/tree_mesh.rs` 6_450 -> 6_400, and the gate WORKED
 ///   exactly as designed for the second time in seven releases. The cube fix
 ///   (golden-angle azimuths + solved per-card tilts, with its own gate) added
@@ -138,7 +187,11 @@ fn repo() -> &'static Path {
 ///   cannot quietly reabsorb it and the new file cannot quietly grow into a
 ///   second monolith.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 18_100),
+    ("src/lib.rs", 16_700),
+    ("src/engine/frame_ws_poll.rs", 1_800),
+    ("src/engine/frame_shells.rs", 1_300),
+    ("src/engine/frame_water.rs", 750),
+    ("src/engine/frame_near_trees.rs", 700),
     ("src/surface_walk.rs", 1_150),
     ("src/gui/pages/chat.rs", 8_000),
     ("src/gui/mod.rs", 7_050),
