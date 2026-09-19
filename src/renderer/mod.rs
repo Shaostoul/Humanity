@@ -74,6 +74,7 @@ pub mod floating_origin;
 pub mod hologram;
 pub mod light;
 pub mod line;
+pub mod material_bind_groups;
 pub mod materials;
 pub mod mesh;
 pub mod multi_scale;
