@@ -87,10 +87,28 @@ jobs:
               echo "WARNING: Windows SDK DXC DLLs not found; bundle will fall back to FXC (slow boot)"
             fi
           fi
-          # Copy game data and assets
+          # Copy game data and assets.
+          #
+          # MODELS AND TEXTURES SHIP (fixed 2026-09-19). They did not, and the
+          # consequence was that every downloaded build rendered the world as
+          # untextured boxes: no plant meshes in a garden, no furniture, no
+          # machine bodies. It read as "we only have one plant model" when in
+          # fact a downloaded build had none at all, and only a build run from
+          # a checkout ever looked right.
+          #
+          # On size, which is the obvious objection: the app READS all of
+          # these at runtime, and the data folder we already ship is 586 MB,
+          # most of it sky (a 241 MB star catalogue, a 100 MB galaxy image).
+          # Models are 188 MB and textures 81 MB. Withholding the meshes a
+          # player looks at while shipping the background they glance past is
+          # not a size trade, it is an oversight. If the download must shrink,
+          # the honest place to look is quality tiers and duplicated star
+          # catalogues, not the things the game is made of.
           cp -r data/ dist/HumanityOS/data/
           cp -r assets/icons/ dist/HumanityOS/assets/icons/
           cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
+          cp -r assets/models/ dist/HumanityOS/assets/models/
+          cp -r assets/textures/ dist/HumanityOS/assets/textures/
           # Remove large audio placeholders if they exist
           rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
           # Create the bundle archives (binary + data + assets) for fresh installs.
@@ -259,13 +277,18 @@ jobs:
 
       - name: Create data archive
         run: |
+          # Models and textures ship here too (fixed 2026-09-19): this archive
+          # is what a fresh install unpacks, so leaving them out gave a world
+          # of untextured boxes. See the note at the bundle copy above.
           tar czf HumanityOS-data-${{ github.ref_name }}.tar.gz \
             --exclude="data/audio/sfx/*" \
             --exclude="data/audio/music/*" \
             --exclude="data/audio/ambient/*" \
             data/ \
             assets/icons/ \
-            assets/shaders/
+            assets/shaders/ \
+            assets/models/ \
+            assets/textures/
 
       - name: Generate per-file data manifest
         run: node scripts/gen-data-manifest.js ${{ github.ref_name }}
