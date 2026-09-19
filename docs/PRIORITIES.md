@@ -15,6 +15,30 @@
 > 76,832 of 921,600 pixels between two snapshots a second apart, cache hit on
 > the second open, verify-screens 12/12.
 >
+> **ALSO SHIPPED (unreleased, on main):** a folder is a disc. The app finds
+> the disc structure on a drive or in a folder, picks the main title (largest
+> title set, menu excluded, parts in order) and converts the whole title as
+> one film; a protected disc is detected from its packet headers BEFORE any
+> conversion and answers with one plain sentence. Proven on wall_screen_5: a
+> two-part title joined into one film, a cache hit on the second open, and a
+> scrambled copy refused with the Open button still reachable.
+>
+> **THE LEGAL POSITION IS NOW WRITTEN DOWN**, at the operator's direction:
+> `docs/reference/media-stance.md` (what we do, what we will not do, a platform
+> table so nobody meets an unnamed wall, and a commitment to switch a feature
+> off publicly if anyone objects) and the Library page
+> `docs/user/rights/laws_that_limit_this_software.md` (the rule, the harm, the
+> free petition process that already exists for changing it, and the
+> one-sentence reform to ask for). The standing norm is in CLAUDE.md: name the
+> law, the patent or the platform rule where the person hits it, and say which
+> of the three it is.
+>
+> **OPEN DEFECT, small:** a `watch:` screen with no connected server builds an
+> address with no host and retries forever showing a URL parse error
+> (`src/engine/screens/live.rs`, `gui_state.server_url` empty). It should say
+> that there is no server to watch, in a sentence. Seen by the operator in the
+> console room on v0.1318.1.
+>
 > **NEXT, in order.** **Route A, our own player on open streams:** an HLS and
 > DASH client plus the operating system's licensed decoders (Media Foundation,
 > VideoToolbox), which also settles H.264 and AAC without shipping a patented
