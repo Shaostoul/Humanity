@@ -51,6 +51,40 @@ can't watch my own movies on my own free open source software."
   anything served to us by somebody else's service, whatever their terms of
   business with us.
 
+## What each platform can actually do
+
+Say this plainly so nobody meets a wall we did not warn them about. Most of
+this is not about law at all. It is about what the machine physically has and
+what its owner permits an app to touch.
+
+| Where you are | Video files | A disc in the drive | A protected disc |
+|---|---|---|---|
+| Windows, macOS, Linux (the downloaded app) | Yes, any file, converted once if needed | Yes, when the disc can be read as files | Only if your own machine already carries that capability |
+| iPhone, iPad, Android (the installed web app) | See below | No | No |
+| Game consoles | No build exists | No | No |
+
+**The downloaded app** is where the 3D world and its in-world screens live.
+Everything on this page describes that app.
+
+**Phones and tablets** run HumanityOS as an installed web app: the pages, not
+the world. There is no 3D room to hang a screen in, so the question of playing
+a film on an in-world display does not arise there yet. What a browser can
+play, it plays. A browser cannot reach an optical drive, cannot run ffmpeg and
+cannot load a system library, so the conversion and disc features are desktop
+features and will stay that way until there is a native mobile build. When
+there is one, a phone still has no disc drive.
+
+**Consoles.** We do not build for Xbox or PlayStation, and we do not promise
+to. If we ever did, a disc in the tray would still be unavailable to us: those
+machines play their own discs through their own certified player and expose no
+optical drive to a third-party app. That is the platform holder's rule, not
+ours and not a law.
+
+**Nothing here is withheld from you as a punishment or an upsell.** Where a
+capability is missing it is missing because the hardware lacks it, the
+platform forbids it, or we have said above that we will not build it. The app
+says which one on the screen, in a sentence, at the moment you hit it.
+
 ## Why the line sits there
 
 Copyright law in most places says you may watch what you bought. A separate
