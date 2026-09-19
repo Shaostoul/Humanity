@@ -30,6 +30,9 @@ pub mod frame_ws_poll;
 /// The planet's two water shells (coarse backstop + displaced wave surface),
 /// built and pushed once per frame (extracted from lib.rs, v0.1320).
 pub mod frame_water;
+/// Near-field 3D trees: the gated harvest, the per-tree draw plan, and the
+/// card-hide promise the far LOD depends on (extracted from lib.rs, v0.1320).
+pub mod frame_near_trees;
 pub mod region_meshes;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).

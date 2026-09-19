@@ -4656,17 +4656,42 @@ mod veg_lod_range_tests {
     /// fails because the page is now lying the other way. That two-sided check
     /// is the point: a one-sided one would let the notice outlive its reason,
     /// which is how "known issue" comments become folklore.
+    /// The files that together ARE the vegetation side of the frame loop.
+    ///
+    /// This used to be just `src/lib.rs` plus the grass layer, and that was
+    /// fine only while every vegetation read still lived in the frame loop's
+    /// one giant function. v0.1320 moved the near-tree block out to
+    /// `engine/frame_near_trees.rs` under the file-size ratchet, and a
+    /// scan that still looked only at lib.rs would have concluded the engine
+    /// had STOPPED reading `near_tree_budget` -- a gate reporting a wiring
+    /// break that was really a file move. Any future extraction of a
+    /// vegetation read has to be added here for the same reason.
+    const ENGINE_SOURCES: &[&str] = &[
+        "src/lib.rs",
+        "src/terrain/grass.rs",
+        "src/engine/frame_near_trees.rs",
+    ];
+
+    /// Concatenate `ENGINE_SOURCES` so a "does the engine read this?" scan
+    /// looks at all of them.
+    fn engine_source() -> String {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        ENGINE_SOURCES
+            .iter()
+            .map(|rel| {
+                std::fs::read_to_string(root.join(rel))
+                    .unwrap_or_else(|e| panic!("read {rel}: {e}"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     #[test]
     fn the_page_tells_the_truth_about_what_the_engine_reads() {
-        let lib = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"),
-        )
-        .expect("read src/lib.rs");
-        let grass_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
-        )
-        .expect("read src/terrain/grass.rs");
-        let engine = format!("{lib}\n{grass_src}");
+        let engine = engine_source();
+        // The clamp checks below want the same text: the ceilings moved with
+        // the code that applies them.
+        let lib = &engine;
 
         // 1. Every setting on the "not connected" list must really be absent
         //    from the engine, and every setting NOT on it must really be there.
@@ -4698,7 +4723,7 @@ mod veg_lod_range_tests {
         ] {
             assert!(
                 lib.contains(&format!("crate::config::{konst}")),
-                "src/lib.rs no longer clamps {field} against config::{konst}.                  If it went back to a literal, the control's ceiling and the                  renderer's can drift apart again - which is exactly how the                  300-400 m band of this slider was unreachable for releases                  without anyone noticing."
+                "the engine ({}) no longer clamps {field} against config::{konst}.                  If it went back to a literal, the control's ceiling and the                  renderer's can drift apart again - which is exactly how the                  300-400 m band of this slider was unreachable for releases                  without anyone noticing.", ENGINE_SOURCES.join(", ")
             );
         }
     }
