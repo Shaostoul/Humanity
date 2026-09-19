@@ -1,5 +1,37 @@
 # HumanityOS: Priorities
 
+> **WATCHING THINGS IN THE WORLD, 2026-09-18.** Operator, in the console
+> room: "can we actually play a video on the red line monitor ... or should we
+> play a video that's stored on my PC?", then, on the platforms: watching
+> YouTube, Twitch and Rumble on the in-world monitors "is what we want".
+>
+> **SHIPPED (v0.1318.0):** the video screen picks its own file. A control
+> strip (Open, Play/Pause, name, time) that hides over a playing film, the
+> in-app picker on the screen itself starting in Videos, the choice remembered
+> per screen in `AppConfig::screen_media`, and one-time conversion with the
+> machine's ffmpeg for anything the player refuses (cache keyed by path, size
+> and date; percentage on screen; an honest message naming the fix). Proven on
+> `wall_screen_5`: an H.264 + AAC MP4 converted, played with audio, moved
+> 76,832 of 921,600 pixels between two snapshots a second apart, cache hit on
+> the second open, verify-screens 12/12.
+>
+> **NEXT, in order.** **Route A, our own player on open streams:** an HLS and
+> DASH client plus the operating system's licensed decoders (Media Foundation,
+> VideoToolbox), which also settles H.264 and AAC without shipping a patented
+> decoder, and an Owncast instance on the VPS so anyone can stream to
+> united-humanity.us from OBS and be watched on the monitors with no third
+> party involved. Mission-aligned and unblocked. **Route B2, the embedded
+> browser:** Chromium rendered OFFSCREEN onto a screen surface through a
+> SEPARATE opt-in host process (the default build never needs the Chromium
+> SDK; the runtime is an opt-in, hash-verified download; our own watch page
+> hosts each platform's OFFICIAL embed with their ads untouched; per-platform
+> `embed.status` in `data/web/sites.json` is the legality record). The spike
+> was dispatched and died in its reading stage with nothing written, so it
+> starts fresh. **Refused as policy:** stream extraction the yt-dlp way (it
+> breaks the platforms' terms, strips the ads that make embedding permitted,
+> and invites a takedown against the repository that hosts our releases).
+> B1 (a docked WebView2 panel) is dropped: it cannot project onto a 3D surface.
+
 > **ACTIVE: THE FRAME COST ARC, 2026-09-18.** Operator: "despite the cloud
 > layer being off the planet is tanking performance to ~12FPS. Do we have
 > diagnostics to tell us where all the performance is being spent?" Measured
