@@ -109,6 +109,30 @@ impl RoomTypeRegistry {
         self.actions.get(action_id).map(|d| d.label.clone()).unwrap_or_else(|| action_id.to_string())
     }
 
+    /// The PAGE each of a room's actions opens ("appearance", "wardrobe", "inventory", ...),
+    /// in the order the room lists them, skipping actions the catalog gives no page.
+    ///
+    /// `function_for` returns human LABELS, and a label is written to be read, not matched:
+    /// "Change Outfit" can be reworded tomorrow without anyone thinking of the code that
+    /// compared against it. The page is the action's semantic identity. Code that asks "is
+    /// this the room where you change your look" should ask THIS, which is why it exists.
+    ///
+    /// Learned the hard way on 2026-09-19: the walk-up that opens the look editor was
+    /// rewritten to read a room's actions instead of matching a hardcoded room id, and it
+    /// compared the raw action ids against a list that held labels, so it went on doing
+    /// nothing. The capture sweep found it, because the character podium ended up in the
+    /// greenhouse instead of the dressing room.
+    pub fn action_pages(&self, room: &RoomInfo) -> Vec<String> {
+        let key = room.type_key();
+        let Some(def) = self.types.get(key) else { return Vec::new() };
+        def.actions
+            .iter()
+            .filter_map(|a| self.actions.get(a))
+            .filter(|d| !d.page.is_empty())
+            .map(|d| d.page.clone())
+            .collect()
+    }
+
     /// Look up a room TYPE by its rooms.ron key. None also logs a warning: a `Zone::room_type`
     /// that matches no entry is a typo in the data, and a silent blank would hide it.
     pub fn lookup_type(&self, room_type: &str) -> Option<&RoomTypeDef> {
@@ -239,5 +263,56 @@ mod tests {
         // A legacy fibonacci id is itself the key (unchanged behaviour).
         let f = reg.function_for(&room("kitchen", None, ""));
         assert_eq!(f.display_name, "Kitchen");
+    }
+
+    /// THE CHARACTER STATIONS EXIST AND ARE EXACTLY ONE ROOM EACH (2026-09-19).
+    ///
+    /// Two things in the engine ask "which room changes your look": the walk-up that opens the
+    /// showroom (`src/lib.rs`) and the podium the character avatar stands on
+    /// (`src/engine/world_load.rs`). Both resolve it by ASKING THE DATA rather than by matching
+    /// a room id, which is what makes any authored home get the stations for free, and which is
+    /// exactly why it needs a test: an answer of "no room does that" is silent, and the feature
+    /// simply does nothing. It had already been dead once for that reason.
+    ///
+    /// PROVEN RED: remove `customize_appearance` from the bedroom in data/rooms.ron, or reword
+    /// an action's `page` in data/rooms/room_actions.ron, and this fails naming the page.
+    #[test]
+    fn the_shipped_home_has_one_appearance_room_and_one_wardrobe_room() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let reg = RoomTypeRegistry::load(&root.join("data"));
+        let ship = crate::ship::ship_structure::ShipStructure::load(
+            &root.join("data").join("blueprints").join("ship_structure.ron"),
+        )
+        .expect("ship_structure.ron parses");
+        let rooms = ship.zones[ship.home_zone_index()].body.detect_rooms();
+        let opening = |page: &str| -> Vec<&str> {
+            rooms
+                .iter()
+                .filter(|r| reg.action_pages(r).iter().any(|p| p == page))
+                .map(|r| r.id.as_str())
+                .collect()
+        };
+        for page in ["appearance", "wardrobe"] {
+            let found = opening(page);
+            assert_eq!(
+                found.len(),
+                1,
+                "exactly one room in the home should open the '{page}' station, found {found:?}"
+            );
+        }
+        assert_ne!(
+            opening("appearance")[0],
+            opening("wardrobe")[0],
+            "the mirror and the wardrobe are different rooms, so one walk-up cannot shadow the other"
+        );
+        // And the pages themselves are real action pages, not typos this test would accept.
+        assert!(
+            reg.actions.values().any(|a| a.page == "appearance"),
+            "data/rooms/room_actions.ron still has an action that opens the appearance editor"
+        );
+        assert!(
+            reg.actions.values().any(|a| a.page == "wardrobe"),
+            "data/rooms/room_actions.ron still has an action that opens the wardrobe"
+        );
     }
 }

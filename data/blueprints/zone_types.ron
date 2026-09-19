@@ -142,6 +142,13 @@
         default_size: (4.0, 3.0, 4.0),
     ),
     (
+        id: "room_dressing",
+        label: "Dressing room",
+        color: (0.62, 0.55, 0.78),
+        purpose: "A walk-through wardrobe between the bedroom and the wet cells; where you change.",
+        default_size: (3.0, 3.0, 4.0),
+    ),
+    (
         id: "room_bathroom",
         label: "Bathroom",
         color: (0.45, 0.80, 0.85),

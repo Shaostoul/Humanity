@@ -1604,7 +1604,12 @@ pub struct RoomBounds {
     /// is FOR. Display name, purpose text, the in-room action labels, and access class.
     pub display_name: String,
     pub purpose: String,
+    /// Human LABELS for the in-room actions ("Change Outfit"), for showing to a person.
     pub actions: Vec<String>,
+    /// The PAGE each of those actions opens ("wardrobe", "appearance", "inventory"), which
+    /// is what code matches on. A label is written to be read and can be reworded; the page
+    /// is the action's identity. See `RoomTypeRegistry::action_pages` for why this is split.
+    pub action_pages: Vec<String>,
     pub access: String,
 }
 

@@ -75,6 +75,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // HomesteadMeshes, so the render path is identical.
     let blueprints_dir = state.data_dir.join("blueprints");
     let ship_file_existed = blueprints_dir.join("ship_structure.ron").exists();
+    // The home zone's authored spawn point (x, z), if it declares one. Used
+    // below to decide where the player stands on world entry.
+    let mut authored_spawn: Option<(f32, f32)> = None;
     let (homestead, room_info) =
         if let Some(ship) = ShipStructure::load_or_adopt(&blueprints_dir) {
             let meshes = ship.generate_meshes();
@@ -84,6 +87,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
             state.gui_state.construction_zone = home_idx;
             if let Some(sp) = ship.zones[home_idx].body.spawn {
                 state.gui_state.build_char_pos = Some(sp);
+                authored_spawn = Some(sp);
             }
             state.gui_state.ship_structure = Some(ship);
             (meshes, info)
@@ -152,8 +156,20 @@ pub(crate) fn load_world(state: &mut EngineState) {
         .find(|r| r.is_spawn_room);
     state.hologram_room_center = hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5));
 
-    // Camera spawn position
-    if let Some(spawn) = spawn_room {
+    // Camera spawn position. The AUTHORED point wins (2026-09-19): the home
+    // body carries a `spawn: Some((x, z))` that the build-mode avatar gizmo
+    // sets, and it is the home's own statement of where a person arrives. The
+    // fallback below picks the LARGEST room, which was fine while the acre was
+    // one open hall with a house in the corner, and became wrong the moment it
+    // was partitioned: the biggest room is now the greenhouse, so the player
+    // would wake up among the beds instead of at their own front door. Facing
+    // west (yaw -PI/2) because the door is in the east wall and the house is
+    // inland of it.
+    if let Some((sx, sz)) = authored_spawn {
+        state.camera.position = Vec3::new(sx, 1.7, sz);
+        state.camera.pitch = -0.05;
+        state.camera.yaw = -std::f32::consts::FRAC_PI_2;
+    } else if let Some(spawn) = spawn_room {
         state.camera.position = Vec3::new(spawn.center.x, 1.7, spawn.center.z + spawn.dimensions.z * 0.35);
         state.camera.pitch = -0.2;
         state.camera.yaw = std::f32::consts::PI;
@@ -232,6 +248,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                         display_name: f.display_name,
                         purpose: f.purpose,
                         actions: f.actions,
+                        action_pages: room_types.action_pages(r),
                         access: f.access,
                     }
                 })
@@ -1048,16 +1065,42 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // last thing added to placeholder_objects, so `avatar_obj_start` marks where it
     // begins (the showroom renders + rebuilds only this range).
     // Place the avatar + showroom assets at the "respawner" room (legacy
-    // fibonacci layout) OR, when that room id does not exist, the spawn room
+    // fibonacci layout) OR, when that room id does not exist, the room that
+    // data/rooms.ron says is the appearance station, OR the spawn room
     // (v0.706 fix). The default HomeStructure home emits room ids "home" /
     // "room_N" with `is_spawn_room` set on the largest room, never
     // "respawner" — so this whole block used to be skipped on EVERY path,
     // leaving avatar_base at Vec3::ZERO. That made a fresh boot look empty
     // (no avatar body) and made the Play/Characters showroom orbit an empty
     // point. Falling back to the spawn room fixes both.
+    //
+    // The middle step was added 2026-09-19. The avatar is DRAWN in the world,
+    // not only in the showroom, so with the acre partitioned the spawn-room
+    // fallback (the largest room) would have stood a blockman on a podium in
+    // the middle of the greenhouse. A figure on a podium is a dress form, so
+    // it belongs in the room where clothes are changed, and failing that where
+    // appearance is edited. Both are read from the room's ACTIONS in
+    // data/rooms.ron rather than from a room id, so any authored home puts it
+    // in the right place by naming a room type.
+    let appearance_room = {
+        let reg = crate::ship::room_types::RoomTypeRegistry::load(&state.data_dir);
+        let opens = |r: &crate::ship::fibonacci::RoomInfo, page: &str| {
+            reg.action_pages(r).iter().any(|p| p == page)
+        };
+        room_info
+            .iter()
+            .find(|r| opens(r, "wardrobe"))
+            .or_else(|| room_info.iter().find(|r| opens(r, "appearance")))
+            .map(|r| r.id.clone())
+    };
     if let Some(r) = room_info
         .iter()
         .find(|r| r.id == "respawner")
+        .or_else(|| {
+            appearance_room
+                .as_deref()
+                .and_then(|id| room_info.iter().find(|r| r.id == id))
+        })
         .or_else(|| room_info.iter().find(|r| r.is_spawn_room))
     {
         let floor = r.center.y - r.dimensions.y * 0.5;

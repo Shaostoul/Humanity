@@ -2613,29 +2613,70 @@ mod tests {
         }
     }
 
-    /// The shipped home's walls really enclose the console-room annex, and the zone join names it:
-    /// `detect_rooms` on the real ship_structure.ron yields a room with the zone's id + room_type,
-    /// the kitchen likewise, and the open greenhouse bay (no zone covers its centre) stays room_N.
+    /// The shipped home's walls really enclose the rooms its zones name, and the join lands:
+    /// `detect_rooms` on the real ship_structure.ron yields one room per authored room zone, each
+    /// carrying that zone's id and room_type, each sitting inside the rect the zone declares.
+    ///
+    /// The console room and the kitchen are checked by name because other things point at them
+    /// (the screens rig parks in the console room; the kitchen is the cooking station). Their
+    /// COORDINATES come from the authored zone rather than being written here again, so moving a
+    /// room in the data file is a data change, not a code change. What this test is really for is
+    /// the failure where a wall stops short and two rooms merge into one: that shows up as a
+    /// missing id, a centre outside its rect, or a footprint much larger than the zone.
+    ///
+    /// Since the 2026-09-19 redesign every flood-filled room in the acre is covered by a zone, so
+    /// the anonymous `room_N` fallback should no longer appear at all. That is asserted here
+    /// because losing it silently would mean a room stopped being named, which is exactly the
+    /// regression this test exists to catch.
     #[test]
-    fn the_shipped_home_detects_a_console_room_named_by_its_zone() {
+    fn the_shipped_home_detects_every_room_its_zones_name() {
         let h = shipped_home_body();
         let rooms = h.detect_rooms();
-        let cr = rooms.iter().find(|r| r.id == "console-room").unwrap_or_else(|| {
-            panic!("no console-room among {:?}", rooms.iter().map(|r| r.id.as_str()).collect::<Vec<_>>())
-        });
+        let ids: Vec<&str> = rooms.iter().map(|r| r.id.as_str()).collect();
+
+        // Only zones that sit INSIDE the acre are room zones; the mothership's macro districts
+        // (res-1, hangar-1, ...) live outside the 55 x 89 body and name no room.
+        let room_zones: Vec<&Zone> = h
+            .zones
+            .iter()
+            .filter(|z| z.origin.0 >= 0.0 && z.origin.2 >= 0.0 && z.origin.0 + z.size.0 <= h.width && z.origin.2 + z.size.2 <= h.depth)
+            .collect();
+        assert!(room_zones.len() >= 20, "the acre is partitioned into rooms, got {}", room_zones.len());
+
+        for z in &room_zones {
+            let r = rooms
+                .iter()
+                .find(|r| r.id == z.id)
+                .unwrap_or_else(|| panic!("zone '{}' names no room; rooms are {ids:?}", z.id));
+            assert_eq!(r.room_type.as_deref(), z.room_type.as_deref(), "room '{}' takes its zone's room type", z.id);
+            assert!(
+                r.center.x > z.origin.0 && r.center.x < z.origin.0 + z.size.0
+                    && r.center.z > z.origin.2 && r.center.z < z.origin.2 + z.size.2,
+                "room '{}' centre {:?} is outside its zone rect", z.id, r.center
+            );
+            // The flood-filled cell is the zone minus its wall thickness, never a merged pair of
+            // rooms: allow half a metre of slack for the 0.5 m rasterisation grid.
+            assert!(
+                r.dimensions.x <= z.size.0 + 0.5 && r.dimensions.z <= z.size.2 + 0.5,
+                "room '{}' footprint {:?} is bigger than its zone {:?}: a wall probably does not close",
+                z.id, r.dimensions, z.size
+            );
+        }
+
+        let cr = rooms.iter().find(|r| r.id == "console-room").expect("the console room is detected");
         assert_eq!(cr.room_type.as_deref(), Some("console_room"));
-        // The detected room's centre lies inside the authored rect x 47.5..51.0, z 44.0..47.0.
-        assert!(cr.center.x > 47.5 && cr.center.x < 51.0 && cr.center.z > 44.0 && cr.center.z < 47.0, "{:?}", cr.center);
-        // It is a small cell, not the bay: the flood-filled footprint is about 3.5 x 3 m.
-        assert!(cr.dimensions.x < 4.0 && cr.dimensions.z < 3.5, "console room footprint {:?}", cr.dimensions);
         let kitchen = rooms.iter().find(|r| r.id == "room-kitchen").expect("the kitchen zone names its room");
         assert_eq!(kitchen.room_type.as_deref(), Some("kitchen"));
-        assert!(rooms.iter().any(|r| r.id.starts_with("room_")), "the open bay keeps an anonymous room_N id");
-        let mut ids: Vec<&str> = rooms.iter().map(|r| r.id.as_str()).collect();
-        let n = ids.len();
-        ids.sort();
-        ids.dedup();
-        assert_eq!(ids.len(), n, "room ids stay unique after the zone join");
+        assert!(
+            !rooms.iter().any(|r| r.id.starts_with("room_")),
+            "every room in the acre is named by a zone, but these are anonymous: {:?}",
+            rooms.iter().filter(|r| r.id.starts_with("room_")).map(|r| r.id.as_str()).collect::<Vec<_>>()
+        );
+        let mut sorted = ids.clone();
+        let n = sorted.len();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), n, "room ids stay unique after the zone join");
     }
 
     /// A zone's `room_type` round-trips through the editor's save format, and a zone WITHOUT one

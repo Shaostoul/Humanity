@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // verify-live-screen: the gate for a `watch:` screen on an in-world wall.
 //
-// The operator photographed wall_screen_4 in the console room reading
+// The operator photographed wall_screen_4 (the great room television since
+// the 2026-09-19 home redesign; it was in the console room then) reading
 // "Could not connect: URL error: No host name in the URL Trying again
 // shortly." and asked whether the live feature could be pointed at an actual
 // stream and tested. Two things had to exist for that to be answerable, and
@@ -693,7 +694,7 @@ async function main() {
 
     // A viewport capture for the human reading the evidence folder.
     clearDone("screenshot_done.json");
-    req("screenshot_request.json", { note: "verify-live-screen console room" });
+    req("screenshot_request.json", { note: "verify-live-screen live wall" });
     const shot = await waitFile("screenshot_done.json", 30000);
     if (shot && shot.ok && shot.path) {
       const src = path.isAbsolute(shot.path) ? shot.path : path.join(RIG, shot.path);

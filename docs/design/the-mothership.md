@@ -141,6 +141,15 @@ first redesign is single floor. What a second storey needs is small and known,
 and it is the same set of fixes the construction editor needs, which is another
 reason the tool is upstream of everything here.
 
+**That redesign is done.** [player-home.md](player-home.md), 2026-09-19: the
+whole 55 by 89 m acre is partitioned into twenty-three rooms instead of one
+corner plus an open hall, every screen sits in the room where a person would use
+it, and the neighbours already inherit the shell because
+`HomeStructure::tile_home_clones` stamps the player's own walls into every
+residential slot. What that reference does NOT carry is the lights and the
+furniture, so a neighbour's quarters is still a correct empty floor plan; the
+note says what closing that would take.
+
 ## Explicitly deferred
 
 Named by the operator as wanted but too large while core features are missing:

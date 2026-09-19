@@ -6,6 +6,13 @@
 > north star + the staged plan. Status as of v0.518.x: the architecture below is the target;
 > the build is staged (see "Staged plan").
 
+> **Two corrections, 2026-09-19.** There IS an in-app way to place a machine now
+> (`src/gui/pages/construction.rs`), so the table's "NO" below is stale. And
+> `MachineInstance.room` no longer points at a `homestead_layout.ron` room id: the
+> live home is a ShipStructure zone, positions are absolute world x/z, and `room`
+> carries the ZONE id of the room the machine stands in. The current home and the
+> reasoning behind it: [player-home.md](player-home.md).
+
 ## The problem (today)
 
 A "home" is **three disconnected data models**, only one of which a player can edit:

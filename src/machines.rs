@@ -1773,6 +1773,76 @@ mod tests {
         }
     }
 
+    /// EVERY machine stands in the room it claims (2026-09-19, the home redesign).
+    ///
+    /// In zone mode an instance's `offset` x/z is an ABSOLUTE world position that the
+    /// renderer merely CLAMPS into its zone, so a machine with the wrong coordinates does
+    /// not fail loudly: it slides to the edge of the acre and sits there. `room` now
+    /// carries the zone id of the room it belongs to, which makes the intent checkable, and
+    /// this is the check. It is what turns "I measured every placement carefully" into
+    /// "the build fails if I did not".
+    ///
+    /// PROVEN RED: move any instance's x or z outside its room's rect and this names the
+    /// machine, where it is, and the rect it should be in.
+    #[test]
+    fn every_placed_machine_stands_inside_the_room_it_names() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let ship = crate::ship::ship_structure::ShipStructure::load(
+            &root.join("data").join("blueprints").join("ship_structure.ron"),
+        )
+        .expect("ship_structure.ron parses");
+        let home_zone = &ship.zones[ship.home_zone_index()];
+        // Only the sub-zones INSIDE the acre are rooms; the mothership's macro districts
+        // (res-1, hangar-1, ...) sit outside the 55 x 89 body and name no machine.
+        let rooms: std::collections::HashMap<&str, &crate::ship::home_structure::Zone> = home_zone
+            .body
+            .zones
+            .iter()
+            .filter(|z| {
+                z.origin.0 >= 0.0
+                    && z.origin.2 >= 0.0
+                    && z.origin.0 + z.size.0 <= home_zone.body.width
+                    && z.origin.2 + z.size.2 <= home_zone.body.depth
+            })
+            .map(|z| (z.id.as_str(), z))
+            .collect();
+        assert!(rooms.len() >= 20, "the acre is partitioned into rooms, got {}", rooms.len());
+
+        for file in ["home.ron", "home_solo.ron"] {
+            let home = MachineHome::load(&root.join("data").join("machines").join(file))
+                .unwrap_or_else(|| panic!("{file} parses"));
+            let mut checked = 0usize;
+            for inst in home.all_instances() {
+                if inst.zone != "home" {
+                    continue; // another zone's machine (the Commons), not this acre's
+                }
+                let Some(z) = rooms.get(inst.room.as_str()) else {
+                    panic!(
+                        "{file}: machine '{}' names room '{}', which is not a room zone in ship_structure.ron",
+                        inst.id, inst.room
+                    );
+                };
+                let (x, zz) = (inst.offset.0, inst.offset.2);
+                assert!(
+                    x >= z.origin.0
+                        && x <= z.origin.0 + z.size.0
+                        && zz >= z.origin.2
+                        && zz <= z.origin.2 + z.size.2,
+                    "{file}: machine '{}' ({}) at ({x}, {zz}) is outside '{}' [{}..{}] x [{}..{}]",
+                    inst.id,
+                    inst.machine,
+                    inst.room,
+                    z.origin.0,
+                    z.origin.0 + z.size.0,
+                    z.origin.2,
+                    z.origin.2 + z.size.2
+                );
+                checked += 1;
+            }
+            assert!(checked > 30, "{file}: expected a furnished home, only checked {checked} machines");
+        }
+    }
+
     /// save() round-trips: the seed home.ron, saved + reloaded, preserves catalog +
     /// instances + arrays + connections. This is what makes the construction editor's
     /// machine save (and the AI's edits) safe + loadable.
