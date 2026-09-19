@@ -1,0 +1,30 @@
+# The frame sink: the GAME's half of the spike, without the game.
+#
+# It stands where the engine would stand. It picks frames out of the shared
+# memory the browser host publishes into, and it puts them into a wgpu texture
+# exactly as `ScreenSurface::write_pixels` does. Its job is to say what that
+# costs, in milliseconds, so the answer can be compared against the frame
+# budget in docs/design/frame-cost-arc.md.
+#
+# Standalone, like the probe: not a workspace member, not referenced by the
+# engine, invisible to `cargo check` at the repository root.
+[package]
+name = "frame-sink"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# THE SAME wgpu MAJOR THE ENGINE USES. If this drifts from the engine's
+# version the upload number stops being comparable, which is the whole point.
+wgpu = "24"
+pollster = "0.4"
+windows-sys = { version = "0.60", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Memory",
+    "Win32_System_Performance",
+] }
+
+[profile.release]
+opt-level = 3

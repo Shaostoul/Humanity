@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<!--
+  The local animated page the frame-rate measurement uses.
+
+  It exists so the rate we measure is the BROWSER's rate and not the network's.
+  Everything it draws changes every single frame, which matters: Chromium only
+  hands over a frame when something changed, so a still page would report a
+  frame rate of nearly zero and tell us nothing.
+
+  It also puts its own measured animation rate in the page title, which the
+  probe records. That gives two independent numbers for the same thing: what
+  the page thinks it is drawing, and what the embedding actually received.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>anim</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0b0f14; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  function fit() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  let frame = 0;
+  let lastTitle = performance.now();
+  let framesSinceTitle = 0;
+
+  function draw(now) {
+    frame += 1;
+    framesSinceTitle += 1;
+    const w = canvas.width, h = canvas.height;
+
+    // A diagonal stripe field that slides one pixel per frame. Because the
+    // stripes are only a few pixels wide, nearly every pixel in the image
+    // takes a different value from one frame to the next, which is what makes
+    // this a fair test of a full-frame pipeline rather than a dirty-rectangle
+    // one.
+    const off = frame % 24;
+    for (let x = -24; x < w + 24; x += 24) {
+      ctx.fillStyle = '#12202c';
+      ctx.fillRect(x + off, 0, 12, h);
+      ctx.fillStyle = '#0b0f14';
+      ctx.fillRect(x + off + 12, 0, 12, h);
+    }
+
+    // A bar sweeping left to right, so a human looking at two screenshots can
+    // see at a glance whether the picture moved.
+    const t = (frame % 180) / 180;
+    ctx.fillStyle = '#4fc3f7';
+    ctx.fillRect(t * (w - 80), h * 0.12, 80, h * 0.10);
+
+    // A disc orbiting the middle.
+    const a = frame * 0.05;
+    ctx.beginPath();
+    ctx.arc(w / 2 + Math.cos(a) * h * 0.28, h / 2 + Math.sin(a) * h * 0.28, h * 0.05, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffb74d';
+    ctx.fill();
+
+    // The frame number, large enough to read in a screenshot.
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold ' + Math.round(h * 0.16) + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(frame), w / 2, h / 2);
+
+    // The page's own idea of its animation rate, published in the title so
+    // the host process can read it without any cooperation from the page.
+    if (now - lastTitle >= 1000) {
+      const rate = (framesSinceTitle * 1000 / (now - lastTitle)).toFixed(1);
+      document.title = 'anim frame=' + frame + ' pagefps=' + rate;
+      lastTitle = now;
+      framesSinceTitle = 0;
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

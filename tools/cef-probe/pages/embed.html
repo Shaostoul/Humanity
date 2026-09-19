@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<!--
+  One page that hosts a platform's OWN embedded player, the way the real watch
+  page would. Which platform it hosts is chosen by the query string, so the
+  same file serves every test and there is nothing per-platform to keep in
+  step.
+
+    embed.html?platform=youtube&id=<video id>
+    embed.html?platform=twitch&channel=<channel>&parent=<host>
+    embed.html?platform=rumble&id=<embed id>
+    embed.html?platform=iframe&src=<url encoded>
+
+  Nothing here extracts a stream, strips an advert or works around a platform
+  rule. It is the published embed, loaded as published, which is the condition
+  under which every one of these platforms permits embedding at all. See
+  docs/reference/media-stance.md.
+
+  Everything the page learns it prints with console.log, because the host
+  process records the browser console and that is how the result gets out of
+  the page without any special channel. The page title carries a one-line
+  summary for the same reason.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>embed pending</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+  #host, iframe { width: 100vw; height: 100vh; border: 0; display: block; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const platform = q.get('platform') || 'iframe';
+  const host = document.getElementById('host');
+
+  function say(msg) {
+    console.log('[embed] ' + msg);
+  }
+  function title(t) {
+    document.title = 'embed ' + platform + ' ' + t;
+  }
+
+  say('page origin is ' + location.origin + ' at ' + location.href);
+  title('loading');
+
+  // Anything the browser itself refuses (a frame-ancestors rule, a mixed
+  // content block) lands in the console, which the host records, so a refusal
+  // needs no special handling here to be visible.
+  window.addEventListener('error', function (e) {
+    say('window error: ' + (e && e.message));
+  });
+
+  function plainIframe(src) {
+    const f = document.createElement('iframe');
+    f.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; fullscreen');
+    f.setAttribute('allowfullscreen', 'true');
+    f.src = src;
+    f.addEventListener('load', function () {
+      say('iframe load event fired for ' + src);
+      title('iframe-loaded');
+    });
+    host.appendChild(f);
+    say('iframe src set to ' + src);
+  }
+
+  if (platform === 'youtube') {
+    // YouTube's own player, with its player API switched on so the page can
+    // report whether it really started playing rather than merely appearing.
+    const id = q.get('id') || 'jNQXAC9IVRw';
+    const div = document.createElement('div');
+    div.id = 'ytplayer';
+    host.appendChild(div);
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.onerror = function () { say('FAILED to load the YouTube iframe API script'); title('api-script-failed'); };
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = function () {
+      say('YouTube iframe API ready');
+      new YT.Player('ytplayer', {
+        width: '100%', height: '100%', videoId: id,
+        // `loop` needs `playlist` set to the same video: that is YouTube's
+        // documented way to repeat a single video, and it keeps a short clip
+        // playing for the whole of a long measurement.
+        playerVars: { autoplay: 1, mute: 1, playsinline: 1, loop: 1, playlist: id },
+        events: {
+          onReady: function (e) { say('YT onReady'); title('ready'); e.target.playVideo(); },
+          onStateChange: function (e) {
+            // 1 is playing, 2 paused, 3 buffering, 0 ended, -1 unstarted.
+            say('YT state ' + e.data);
+            if (e.data === 1) title('PLAYING');
+          },
+          onError: function (e) { say('YT ERROR code ' + e.data); title('error-' + e.data); }
+        }
+      });
+    };
+
+  } else if (platform === 'twitch') {
+    // Twitch requires the embedding page's own host name in `parent`. That is
+    // the whole question this test exists to settle, so the value is passed in
+    // rather than guessed.
+    const channel = q.get('channel') || 'twitch';
+    const parent = q.get('parent') || location.hostname || 'localhost';
+    say('twitch parent parameter is ' + parent);
+    const tag = document.createElement('script');
+    tag.src = 'https://player.twitch.tv/js/embed/v1.js';
+    tag.onerror = function () { say('FAILED to load the Twitch embed script'); title('api-script-failed'); };
+    tag.onload = function () {
+      say('Twitch embed script loaded');
+      try {
+        const player = new Twitch.Player('host', {
+          channel: channel, parent: [parent], muted: true, autoplay: true,
+          width: '100%', height: '100%'
+        });
+        player.addEventListener(Twitch.Player.READY, function () { say('Twitch READY'); title('ready'); });
+        player.addEventListener(Twitch.Player.PLAYING, function () { say('Twitch PLAYING'); title('PLAYING'); });
+        player.addEventListener(Twitch.Player.OFFLINE, function () { say('Twitch OFFLINE (channel is not live)'); title('offline'); });
+        player.addEventListener(Twitch.Player.ONLINE, function () { say('Twitch ONLINE'); });
+        player.addEventListener(Twitch.Player.ENDED, function () { say('Twitch ENDED'); });
+      } catch (err) {
+        say('Twitch player threw: ' + err);
+        title('threw');
+      }
+    };
+    document.head.appendChild(tag);
+
+  } else if (platform === 'rumble') {
+    const id = q.get('id') || '';
+    if (!id) { say('no rumble embed id given'); title('no-id'); }
+    else plainIframe('https://rumble.com/embed/' + id + '/?pub=4&autoplay=2');
+
+  } else {
+    const src = q.get('src');
+    if (!src) { say('no src given'); title('no-src'); }
+    else plainIframe(src);
+  }
+})();
+</script>
+</body>
+</html>
