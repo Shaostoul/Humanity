@@ -159,6 +159,28 @@ impl Storage {
                     // so it stays auditable.
                     None => Some(parent_id),
                     Some(owner) if owner == proposer_did => Some(parent_id),
+                    // THE SCHEDULER PATH (v0.1320). The one other identity that
+                    // may link a successor is THIS SERVER, and only when it is
+                    // doing the narrow job it was built for: opening the review
+                    // a decision's own author asked for, asking the same
+                    // question.
+                    //
+                    // This is the "constrained scheduler" the comment above
+                    // anticipated, and it arrives with its own authorization
+                    // path rather than by loosening the rule for everybody.
+                    // Every condition in `server_may_open_review` is checked
+                    // against data the server cannot rewrite after the fact:
+                    // the predecessor's signed payload and its immutable index
+                    // row. A server that reworded the question, or opened a
+                    // review nobody scheduled, gets its pointer dropped exactly
+                    // like a stranger's.
+                    Some(_) if self.server_may_open_review(&proposer_did, &parent_id, object) => {
+                        log::info!(
+                            "governance: opening scheduled review of {parent_id}, \
+                             signed by this server, question copied verbatim"
+                        );
+                        Some(parent_id)
+                    }
                     Some(owner) => {
                         log::warn!(
                             "governance: refusing supersedes {parent_id} from {proposer_did}, \
@@ -193,6 +215,89 @@ impl Storage {
             )?;
             Ok(rows > 0)
         })
+    }
+
+    /// May this server link `object` as the scheduled review of `parent_id`?
+    ///
+    /// Three conditions, all of them checked against things the server cannot
+    /// quietly rewrite. If any fails, the pointer is dropped and the submission
+    /// is kept as an ordinary unlinked proposal.
+    ///
+    /// 1. **The author really is this server.** A signature proves the bytes
+    ///    came from the holder of this server's key. Nobody else's key passes.
+    /// 2. **The review was actually due.** The predecessor's own author set a
+    ///    `review_after` date, that date has arrived, and the original vote has
+    ///    closed. The server cannot invent a review for a decision nobody asked
+    ///    to revisit, nor reopen a vote that is still running.
+    /// 3. **The question is copied, not written.** The successor's question
+    ///    bytes must equal the predecessor's exactly. This is the safeguard
+    ///    that matters most: it is what stops a compromised or buggy server
+    ///    changing what people are voting on while keeping the chain's
+    ///    authority. See `crate::relay::governance_revotes` for what counts as
+    ///    the question and what counts as machine metadata.
+    ///
+    /// Note this deliberately does NOT extend to a peer server's scheduler. A
+    /// federated auto-review signed by some other server's key is stored
+    /// unlinked, because this server cannot judge whether that peer was
+    /// entitled to move this chain. Cross-server review is its own design.
+    fn server_may_open_review(
+        &self,
+        proposer_did: &str,
+        parent_id: &str,
+        object: &Object,
+    ) -> bool {
+        use crate::relay::governance_revotes::question_bytes;
+
+        // 1. The author is this server.
+        match self.server_did() {
+            Ok(did) if did == proposer_did => {}
+            _ => return false,
+        }
+
+        // 2. The predecessor asked to be reviewed, and the review is due.
+        let now = super::now_millis() as i64;
+        let due: Option<(Option<i64>, i64)> = self
+            .with_conn(|conn| {
+                conn.query_row(
+                    "SELECT review_after, closes_at FROM proposals
+                      WHERE proposal_object_id = ?1",
+                    params![parent_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()
+            })
+            .unwrap_or(None);
+        let scheduled = match due {
+            Some((Some(review_after), closes_at)) => review_after <= now && closes_at <= now,
+            _ => false,
+        };
+        if !scheduled {
+            log::warn!(
+                "governance: refusing server-signed review of {parent_id}: \
+                 no review was due for it"
+            );
+            return false;
+        }
+
+        // 3. The question is the predecessor's, byte for byte.
+        let parent_payload = match self.get_signed_object(parent_id) {
+            Ok(Some(record)) => record.payload,
+            _ => return false,
+        };
+        match (question_bytes(&parent_payload), question_bytes(&object.payload)) {
+            (Ok(parent_question), Ok(successor_question)) => {
+                if parent_question == successor_question {
+                    true
+                } else {
+                    log::warn!(
+                        "governance: refusing server-signed review of {parent_id}: \
+                         the question does not match the decision being reviewed"
+                    );
+                    false
+                }
+            }
+            _ => false,
+        }
     }
 
     /// Walk a supersession chain to the decision that currently stands.

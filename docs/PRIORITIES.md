@@ -3622,7 +3622,11 @@
 
 ## Active focus
 
-> **>>> TIER 0: SCHEDULED RE-VOTES (operator design, 2026-08-25). SPEC, NOT BUILT.**
+> **>>> TIER 0: SCHEDULED RE-VOTES (operator design, 2026-08-25). STEPS 1-3 BUILT.**
+>
+> **The design now lives in `docs/design/scheduled-revotes.md`**, including the
+> signing decision and the copy-the-question safeguard. What follows is the
+> tactical status; read the design doc before touching the code.
 >
 > Operator: "I like the votes having the option to be final and being open to
 > revision at a later time. Like maybe once a year we can revote on certain
@@ -3667,19 +3671,54 @@
 >    second request. Verified against the LIVE migrated database: the proposals
 >    endpoint returns `[]` rather than a 500, which is what proves the new
 >    columns exist on the pre-existing table.
-> 3. **NEXT: a scheduler that opens the successor proposal when a review date
->    arrives.** `proposals_due_for_review(now)` is the query it needs and is
->    already idempotent: a `NOT EXISTS` clause means once a successor exists the
->    old proposal stops coming back, so a scheduler that runs twice does not
->    open two re-votes. What is missing is the thing that calls it on a timer
->    and builds the successor object. Note the successor must be a properly
->    signed `proposal_v1`, and the relay holds no user key, so the honest
->    question to settle first is WHO signs an automatically-opened re-vote: the
->    server's own identity, the original proposer, or nobody until a human
->    confirms it. That is a design call, not a coding one.
-> 4. UI on both clients: show the standing answer, the history, and the next
->    review date. Native first per the Rust-first rule, then web mirrors.
-> 5. Petition threshold for early reopening.
+> 3. ~~A scheduler that opens the successor proposal when a review date
+>    arrives.~~ **DONE v0.1320.0.** `src/relay/governance_revotes.rs`:
+>    `open_due_revotes` is the scheduler, `scheduled_revote_loop` is the hourly
+>    timer (spawned in `run_relay` beside the backup/retention sweep).
+>
+>    **WHO SIGNS: the server, with its own identity.** Operator's call: "Makes
+>    sense for the server to sign. We want to avoid forged signatures." A
+>    signature here is AUTHORSHIP and integrity, not endorsement; signing as the
+>    original proposer would forge their authorship, and that person may have
+>    changed their mind, left, or died. Their vote stays immutable and theirs.
+>
+>    **THE SAFEGUARD: the server may NOT write the question.** The successor
+>    carries the predecessor's question copied verbatim, byte for byte
+>    (`proposal_type`, `scope`, `title`, `body`, and any field added later). The
+>    server authors only the new window and four clearly-named `auto_opened_*`
+>    fields. Enforced twice: the builder copies rather than composes, and
+>    `index_proposal` REFUSES the `supersedes` link when the question bytes
+>    differ, when no review was due, or when the author is not this server. A
+>    refused successor is still stored, it just never joins the chain. Proven
+>    red on purpose: rewording one character of the copied title fails the
+>    byte-equality test AND makes the relay refuse the link; removing the
+>    relay-side question check lets the reworded successor link, which is what
+>    makes that check load-bearing rather than decorative. Both restored.
+>
+>    Opening a re-vote does NOT move the standing answer: that stays the last
+>    closed, carried decision until the new vote closes and carries
+>    (`opening_a_revote_does_not_change_the_standing_answer`). Idempotence proven
+>    by running the sweep twice and asserting exactly one successor. A failed
+>    attempt takes a 24h cooldown rather than opening a near-duplicate every hour.
+>    The chain endpoint now returns `question_digest` per link plus a
+>    `same_question` flag; a client verifies the copy itself from the signed
+>    objects (recipe in the design doc) rather than trusting the server.
+> 4. **NEXT: UI on both clients** -- show the standing answer, the history, and
+>    the next review date. Native first per the Rust-first rule, then web
+>    mirrors. `GET /api/v2/proposals/{id}/chain` already returns everything the
+>    UI needs, including whether a link was machine-opened and the note saying
+>    so.
+> 5. Petition threshold for early reopening. Deliberately untouched by step 3.
+>    Both paths end in a successor carrying `supersedes` and both must pass
+>    `index_proposal`; a petition is a THIRD entitlement and needs its own
+>    authorization path (verifiable signatures counted against a threshold at
+>    the same chokepoint). It must not arrive by loosening either existing rule,
+>    and the copy-the-question safeguard applies to it just as strongly.
+> 6. Per-type thresholds inside `standing_decision`. It applies the universal
+>    minimum today (simple majority of decisive weight, at least one vote); the
+>    richer quorum/pass rules in `data/governance/proposal_types.ron` are read
+>    only in the API layer, so a successor clearing a simple majority but not its
+>    type's supermajority currently takes over.
 >
 > ~~**Blocked-ish dependency worth knowing:** casting a vote is NATIVE ONLY
 > today. Web's vote button is a stub because it needs canonical-CBOR signing in
