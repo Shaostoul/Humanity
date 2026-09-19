@@ -306,9 +306,7 @@ bars, not a squeeze. A frame that already matches the surface is written
 directly.
 
 While no frame has arrived the surface shows a status page through
-`run_and_render` ("Connecting to shaostoul"); when the viewer's thread ends
-(the relay said "not live", the stream ended, the socket failed) the page
-says "Stream offline" with the relay's reason, the viewer is dropped, and a
+`run_and_render`; when the viewer's thread ends the viewer is dropped and a
 new one is opened after `live::RETRY_AFTER` (15 s), so a wall comes back on
 its own when the streamer goes live again. The status page is redrawn only
 when its text changes, and **never over a live picture**: the stream runs
@@ -321,8 +319,55 @@ frame is written; no new frame with the picture up and the viewer connected
 keeps the picture untouched; anything else shows the status page. The
 picture is forgotten when the viewer is dropped and when a new one is
 started (the retry), so a reconnect shows "Connecting to" again before its
-first frame. `status()` reports `{stream, connected, frames}` (frames
-written to the surface), merged into `debug/screen_done.json`.
+first frame. `status()` reports `{stream, connected, frames, heading,
+detail, may_connect}`, merged into `debug/screen_done.json`: a rig can read
+what the wall SAYS without reading its pixels.
+
+#### What the wall says when it cannot show a stream
+
+`live::live_status(server, stream_id, last_error)` is that decision, pure,
+and it answers two things at once: the words, and whether to connect at
+all. It exists because of a wall the operator photographed in the console
+room on 2026-09-18, reading:
+
+> Could not connect: URL error: No host name in the URL Trying again shortly.
+
+Nobody was signed in, so `GuiState::server_url` was empty, so the composed
+address was `/ws/live/sub/shaostoul`, which has no host name. The screen
+retried that address forever. A URL with no host can never work, so the
+answer is not a better error message, it is not building the URL:
+
+| what is true | the wall says | connects |
+|---|---|---|
+| no server set | "No server set" plus where to set one (the Server field in Chat's connection panel) | **no** |
+| a server, nothing wrong yet | "Connecting to `<stream>`" | yes |
+| the relay says nobody is publishing that name | "Stream offline" / No one is streaming as "`<stream>`" right now. Trying again shortly. | yes |
+| the publisher stopped | "Stream offline" / The stream ended. Trying again shortly. | yes |
+| the stream is at its viewer ceiling | "Stream full" plus the reason | yes |
+| the socket failed | "Cannot reach the server" plus the reason the viewer reported | yes |
+
+The case is decided on `net::live_viewer::EndReason`, a small enum the
+viewer thread stores beside its human sentence, never by matching on the
+English: a reworded sentence would otherwise silently change which wall a
+screen thinks it is standing at. This follows the project norm in CLAUDE.md
+("Saying what we will not build, and why"): a wall a person hits names its
+reason.
+
+Two things the rig found while proving this (2026-09-18):
+
+- **A stopped publisher left its viewers hanging.** Every viewer holds its
+  own `Arc<LiveStream>`, so dropping the publisher's copy never closed the
+  broadcast channel, and a viewer parked on `rx.recv()` waited forever: the
+  wall sat on the last frame, still reporting itself connected. The
+  publisher's teardown now broadcasts a zero-length sentinel frame
+  (`relay::live::END_OF_STREAM`, unambiguous because a real frame is at
+  least a 9-byte header) and `viewer_loop` closes on it. Pinned by
+  `a_viewer_is_closed_when_the_publisher_stops`.
+- **A memoized status page could not be searched.** The page is only
+  redrawn when its words change, and the dev IPC's `find` reads the shapes
+  of a run, so `find` reported that plainly readable words were not there.
+  The provider now runs when `core.find_pending()`, the same rule the video
+  screen already followed.
 
 ### The in-game camera: a camera post and a world screen
 
@@ -883,6 +928,81 @@ scrollbar-like column while the child row is still found after the click,
 and must fail on exactly `inventory_toggled` and `inventory_changed`. That
 is how the verdict logic itself is proven able to fail. Both modes print
 "DRY VERDICT (nothing was booted)".
+
+### The live-screen rig, and the test publisher it needs
+
+`scripts/verify-live-screen.js` is the same shape of gate for the `watch:`
+screen. It could not exist before, for a plain reason: there is no
+third-party stream this feature can watch. It watches OUR OWN relay, so
+until somebody goes live from Studio there is nothing on the wall and "does
+it work" is unanswerable. The rig supplies the missing half.
+
+**`scripts/live-publish.js`** is a publisher with no game attached. It
+derives a throwaway Dilithium3 identity through the repo's own chain (the
+vendored noble bundle the chat client ships, whose ML-DSA-65 keygen is
+pinned to the Rust side by `scripts/pq-kat.mjs`), and:
+
+1. with `--register`, claims a name over the ordinary chat socket using the
+   two-phase identify challenge every client uses (`identify` then
+   `identify_challenge{nonce}` then `identify_response{sig_b64}` over
+   `hum/identify/v1\n<nonce>\n<pubkey>`). This is needed because the relay
+   resolves a stream id from the publisher's REGISTERED NAME, so an
+   unregistered key gets `unauthorized` at the publisher socket. No
+   authentication was added or bypassed to make this work;
+2. sends the auth frame `{key, timestamp, sig, title, chat}` on
+   `/ws/live/pub`, where `sig` is hex of Dilithium3 over
+   `live_publish\n<timestamp>` (`relay::live::authenticate`);
+3. pushes `[1 byte tag 1][8 bytes PTS micros BE][JPEG]` at a chosen size,
+   rate and duration. The pattern is a sliding diagonal stripe field, a
+   sweeping bar, an orbiting disc and the frame number in readable digits,
+   so a wall that is live changes nearly every pixel every frame and a
+   human glancing at it can see the count advance. JPEG encoding is
+   `sharp`, already this repo's one devDependency.
+
+It **refuses any server that is not loopback** unless given
+`--allow-remote`. united-humanity.us is the operator's live service; its
+streaming switch and its stream names are the operator's decision, not a
+test script's.
+
+The rig then, in one boot: starts a relay of its own
+(`HumanityOS.exe --headless`, a spare port, a database it deleted first, its
+own working directory so it cannot write into the repository's `data/`),
+publishes as `shaostoul` (the name `wall_screen_4`'s source already points
+at, so no data file is edited), points the game at THAT relay through the
+autopilot's `server_url`, parks in front of the wall, and checks eleven
+things:
+
+- the relay answered `/health` and `/api/live` listed the stream;
+- the screen reports `connected` with frames written;
+- **the picture moves**: two snapshots a second apart, against a STATIC
+  screen measured over the same second as the floor. The live wall must
+  change at least a tenth of its pixels and more than ten times what the
+  static one did. Measured 2026-09-18: 99.4% of 921600 pixels against 0.00%;
+- with the publisher stopped, the wall says "Stream offline" naming this
+  stream, with no parse error in the words, and the heading is really drawn
+  (a `find`, not a pixel guess);
+- with the server cleared, the wall says "No server set" and reports
+  `may_connect: false`, **and no socket was opened**: the screen logs one
+  line per socket it opens, and the rig reads the tail of run.log written
+  after the server was cleared, where that line must appear zero times.
+  Reading a tail is the point, so the sockets the run legitimately opened
+  earlier cannot mask the one it must not open now;
+- zero PANIC lines.
+
+Evidence lands in `.probe-rig/live-screen/runs/<stamp>/` (the live pair, the
+control pair, a PNG of each message page, a viewport capture, the relay's
+own log, the manifest). `--dry-verdict <manifest.json>` re-judges one
+without booting. Exit 0 passed, 1 refused, 2 failed.
+
+**The server-wide streaming switch does not gate this path.** Server
+Settings' video-streaming toggle (`video_streaming_enabled`) is read by
+`handle_stream_start`, the CHAT announcement that someone went live, and
+alongside the per-role `can_stream`. The binary fanout at `/ws/live/pub`
+never reads it; what gates that route is the `live_video` feature switch in
+`data/server-config.json`, which defaults to on. So a fresh self-hosted
+relay accepts a publisher with the Server Settings toggle still off, and
+turning it on is about the chat announcement, not about whether frames
+flow.
 
 ## Performance budget
 

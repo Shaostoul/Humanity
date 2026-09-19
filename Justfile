@@ -438,6 +438,30 @@ verify-runtime *ARGS:
 verify-screens *ARGS:
     node scripts/verify-screens.js {{ARGS}}
 
+# The `watch:` wall screen, end to end, against a relay this rig starts itself.
+# There is no third-party stream this feature can watch (it watches our own
+# relay), so the rig publishes one: a local headless relay on a spare port with
+# a fresh database, scripts/live-publish.js pushing a moving test pattern, the
+# game pointed at THAT relay. Proves the picture moves (two snapshots a second
+# apart, against a static screen over the same second), then that a stopped
+# stream says so, then that a session with NO SERVER says so and opens no
+# socket at all (read out of run.log, not taken on trust). Never touches
+# united-humanity.us. Refuses while ANY HumanityOS.exe is running (one GPU) or
+# the exe is stale. Exit 0 pass / 1 refused / 2 failed; evidence under
+# .probe-rig/live-screen/runs/<stamp>/.
+#   just verify-live-screen --dry-verdict <manifest.json>   re-judge without booting
+verify-live-screen *ARGS:
+    node scripts/verify-live-screen.js {{ARGS}}
+
+# Publish a test pattern to a LOCAL relay by hand, to watch a wall screen play
+# something while you work on it. Start a relay first, e.g.
+#   PORT=3399 DATABASE_PATH=.probe-rig/live-screen/relay/relay.db \
+#       target/release/HumanityOS.exe --headless
+# then point the app at http://127.0.0.1:3399 and run this. It refuses any
+# server that is not loopback unless given --allow-remote.
+live-publish *ARGS:
+    node scripts/live-publish.js {{ARGS}}
+
 # The std-only file-scanner lints, twelve of them now: no em dashes, theme
 # tokens, theme-editor coverage, tofu glyphs, engine wiring, the page registry,
 # page parity, settings persistence, the monolith size ratchet, the focus opt-in
