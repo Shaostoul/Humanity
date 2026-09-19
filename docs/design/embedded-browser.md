@@ -182,10 +182,16 @@ own arithmetic puts them at for frame 150. So: real pixels, correct colours
 Chromium delivers **BGRA**. The engine's screen textures are RGBA
 (`SURFACE_FORMAT` is `Rgba8UnormSrgb`), so something has to swap the red and
 blue byte of every pixel. That swap was measured at **0.56 to 0.74 ms per
-frame** and it is **entirely avoidable**: `ScreenProvider::surface_format`
-already lets a provider choose its own texture format, so a browser provider
-can ask for `Bgra8UnormSrgb` and write Chromium's bytes in with no conversion
-at all. Recorded here so the next increment does not pay it by accident.
+frame** and it is **avoidable**: `ScreenProvider::surface_format` already lets
+a provider choose its own texture format, so a browser provider can ask for
+`Bgra8UnormSrgb` and write Chromium's bytes in untouched.
+
+That is a claim about code, so it was checked rather than asserted. The sink
+creates a `Bgra8UnormSrgb` texture with the same usages a screen surface has
+(sampled by the scene, a render target, written into), takes a view of it
+because the scene binds screens by view, and puts frames through it. It works,
+and the upload costs the same as the RGBA one. So the swizzle is a cost the
+next increment can simply decline to pay.
 
 ## 3. Rate and cost of the source
 
@@ -283,6 +289,7 @@ the control:
 | Machine state (memcpy control) | 1 screen | 2 screens | 3 screens |
 |---|---|---|---|
 | quiet (30.9 GB/s) | **+0.261 ms** | +0.636 ms | +1.174 ms |
+| quiet (26.1 GB/s) | +0.312 ms | +0.646 ms | +1.154 ms |
 | middling (11.0 GB/s) | +0.627 ms | +1.341 ms | +1.955 ms |
 | busy, three other builds running (7.6 GB/s) | +0.570 ms | +1.136 ms | +2.569 ms |
 

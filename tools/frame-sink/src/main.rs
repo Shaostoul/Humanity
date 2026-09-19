@@ -472,6 +472,58 @@ fn run_gpu_measurement(args: &Args) {
         );
     }
     mapped.unmap();
+
+    // (7) Can the swizzle be skipped entirely? Chromium hands over BGRA and
+    // the engine's screen textures are RGBA, so today somebody pays to swap
+    // red and blue on every pixel. `ScreenProvider::surface_format` lets a
+    // provider pick its own format, so in principle a browser screen can be
+    // a BGRA texture and the bytes go in untouched.
+    //
+    // "In principle" is not a measurement. This creates that texture with the
+    // SAME usages a screen surface has (a colour target the scene samples and
+    // pixels can be written into) and puts a frame through it. If the format
+    // were unsupported as a render target on this adapter, or the upload were
+    // slower, it would show here rather than in the next increment.
+    let bgra = gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("screen surface, BGRA (the no-swizzle option)"),
+        size: wgpu::Extent3d { width: WIDTH, height: HEIGHT, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Bgra8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    // A view as well: the scene binds screens by view, so a format that can be
+    // made but not viewed would still be useless.
+    let _view = bgra.create_view(&wgpu::TextureViewDescriptor::default());
+    let t = Instant::now();
+    for _ in 0..iters {
+        gpu.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &bgra,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &frame,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * WIDTH),
+                rows_per_image: Some(HEIGHT),
+            },
+            wgpu::Extent3d { width: WIDTH, height: HEIGHT, depth_or_array_layers: 1 },
+        );
+    }
+    gpu.queue.submit([]);
+    let _ = gpu.device.poll(wgpu::Maintain::Wait);
+    println!(
+        "BGRA screen texture    created, viewable, {:.4} ms per write_texture - the swizzle is skippable",
+        t.elapsed().as_nanos() as f64 / iters as f64 / 1e6
+    );
 }
 
 // ---------------------------------------------------------------------------
