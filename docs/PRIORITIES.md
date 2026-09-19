@@ -1,5 +1,16 @@
 # HumanityOS: Priorities
 
+> **PLAY WAS BROKEN AND IS FIXED, 2026-09-19 (v0.1323.0, BUG-078).** Operator:
+> "I tried to log into the game but instead of loading the game world it threw
+> me into the profile page. I can't seem to get into game." The bedroom's new
+> standing mirror is a screen showing `profile`, in-world screens draw real
+> pages against the same `GuiState` as the main UI, and `profile::draw` opened
+> by writing `active_page`. So entering the world drew the mirror and the
+> mirror navigated the app back out. A page draw may not steer the app now, and
+> a gate walks the shipped home and fails if any screen navigates. Verified on
+> the shipped exe: Play lands in the world, 0 panics. Nothing else is blocked
+> by it; the video and platform work below is unchanged.
+
 > **WATCHING THINGS IN THE WORLD, 2026-09-18.** Operator, in the console
 > room: "can we actually play a video on the red line monitor ... or should we
 > play a video that's stored on my PC?", then, on the platforms: watching

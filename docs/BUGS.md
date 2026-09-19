@@ -1227,3 +1227,50 @@ reaches the world with zero panics.
 **Lesson:** never reconfigure the surface from inside the frame arm. Window
 resize already runs from `WindowEvent::Resized`, outside it, which is why
 resizing never crashed.
+
+## BUG-078: pressing Play threw the player onto the Profile page instead of into the world (fixed v0.1323.0)
+
+**Symptom:** the operator, 2026-09-19: "I tried to log into the game but
+instead of loading the game world it threw me into the profile page. I can't
+seem to get into game." Play was unusable for the whole life of v0.1322.0 and
+v0.1322.1. Reproduced exactly with the dev IPC: boot, click Play at (42, 18),
+read back `active_page`. v0.1321.1 returns `None` with `world_loaded: true`
+(in the world); v0.1322.1 returns `Real` (the page titled Profile).
+
+**Cause:** v0.1322.0's home redesign put a standing mirror in the bedroom, and
+that mirror is a screen. It declares `source: "profile"`, which is exactly the
+pattern the home is arranged by: the page shown where a person would go to use
+it. In-world wall screens draw real pages through
+`gui::dispatch::draw_tool_page`, the same dispatch the main UI uses, against
+the same `GuiState` (the screen surface swaps the texture handles, not the
+navigation state). And `pages::profile::draw` opened by writing
+`state.active_page = GuiPage::Real`, which was its way of aliasing the Profile
+page id onto the canonical editor.
+
+So Play loaded the world, the world drew the mirror among the nearest screens
+in range, the mirror set the app's page, and the player was back out of the
+world before seeing a frame of it. The world stayed loaded and ticking behind
+the page, which is why the run log of a failed attempt is indistinguishable
+from a normal session: NPCs moving, position updates, a clean save on exit.
+
+**Fix:** a page draw may not steer the app. `profile::draw` now only draws.
+The alias is resolved once, in the main UI's own egui frame in `src/lib.rs`,
+immediately before the nav bar, where which page the app is on is that code's
+business and nothing rendering on a wall can reach it.
+
+**Gate:** `no_page_drawn_on_a_wall_screen_changes_the_app_page`
+(`src/gui/screen_surface.rs`) loads `data/machines/home.ron`, takes every
+screen the catalog and its instances declare, and for each one that resolves
+to a page draws it on a `ScreenCore` and asserts `active_page` is untouched.
+It walks the shipped home rather than a hand-kept list, so a screen added
+later is covered without anyone remembering the test exists, and it refuses to
+pass quietly if the home stops declaring page screens or if the mirror is not
+among the ones it checked. Proven red by restoring the old line: it fails
+naming `standing_mirror`.
+
+**Lesson:** the moment a rendering surface can show a real page, every page
+draw becomes a shared function with two callers, and anything it writes to
+global state is written on behalf of both. Nothing static could see this:
+the page rendered correctly, the world loaded correctly, the only symptom was
+that the game would not start. What found it was driving the real build and
+reading one value back.
