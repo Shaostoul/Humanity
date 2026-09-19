@@ -231,6 +231,22 @@ There is no `wall_screen_8`; the number was skipped rather than shuffling the
 others, because `1`, `2` and `6` are named by `scripts/verify-screens.js` and
 renaming them would quietly shrink that gate.
 
+**How big each one is, and why that changed (v0.1324).** A wall screen is
+1.8 by 1.05 m and a desk monitor 0.9 by 0.54 m, up from 1.2 by 0.7 and 0.6 by
+0.36. The operator, looking at the study: "Can we make the TVs larger? The one
+in the library is tiny and kinda on the floor. It's hard to read and access."
+
+The pixel size did NOT change with them, and that is the point. A screen draws
+its page at one egui point per pixel, so 1280 by 720 on a bigger panel means
+bigger text on the wall, not more of it. Raising the resolution instead would
+have made the page harder to read, not easier. A wall screen based at 1.2 m now
+reaches 2.25 m, still clear of the 3 m ceiling, and its centre lands at 1.72 m,
+which is eye height for a standing player.
+
+Part of "tiny and kinda on the floor" was not the screen at all: the study desk
+it stands on was being drawn at half size, so a correctly-placed monitor floated
+over a doll's-house desk. See the model-scale entry in the known gaps below.
+
 **Rooms deliberately left without a screen:** the bathroom, the wet room, the
 dressing room, the pantry, the plant room, the service way, the vehicle bay, the
 fields and the barn. A bedroom has one only because it is a mirror. The
@@ -292,12 +308,10 @@ and the third that does not fails for reasons that are not the plan.**
    material detail, so a room's character comes entirely from its shape.
 2. **Fifty-five of seventy-one machine types have no model.** A kitchen whose
    stove, oven and sink are three grey boxes cannot read as a kitchen no matter
-   where they stand. And the sixteen that DO have one draw at the model file's
-   own size rather than the size the catalog declares: `pantry_cabinet` says
-   2.0 by 2.0 by 0.6 m and renders as a roughly 0.8 m kitchen unit. Every piece
-   of modelled furniture in the home is therefore smaller than the footprint its
-   own data claims, which is a large part of why rooms read emptier than they
-   measure.
+   where they stand. The sixteen that DO have one are now drawn at the size
+   their data declares (v0.1324); until then they were drawn at whatever scale
+   the model file happened to be authored at, which for this pack is about half,
+   so the whole house was furnished like a doll's house.
 3. **The service runs cross the living rooms.** Power and water are drawn as
    coloured cylinders at ceiling height between the machines they connect, with
    a bracket every couple of metres, and a central plant room feeding a house
@@ -375,13 +389,37 @@ Four things, in the order they cost the design something.
    over the same grid would give the engine a room graph for almost nothing, and
    NPC pathing will want it anyway.
 
-4. **A machine's declared SIZE does not scale its model.** The `size` field
-   drives the primitive fallback, the screen quad and the click box; the glTF
-   loader ignores it, so a `pantry_cabinet` declared 2 m wide draws at whatever
-   size its model file was authored, about 0.8 m. The fix is one multiply where
-   the mesh is parsed in `src/engine/home_meshes.rs`, against the model's own
-   bounds. The reason not to do it blind is that it resizes all fifteen existing
-   models at once and wants a look before and after.
+4. **A machine's declared SIZE now scales its model (FIXED, v0.1324).** It used
+   to drive only the primitive fallback, the screen quad and the click box, so a
+   model was drawn at whatever scale it was authored at. This pack is authored at
+   about half real scale: a chair 0.46 m tall, a bookcase 0.88 m, a desk 0.38 m,
+   beside a player whose eyes are at 1.7 m. The operator, walking into his own
+   bedroom: "Seems like either all the furniture is small or I'm just really
+   big."
+
+   The mesh is now scaled UNIFORMLY at parse time so its height matches the
+   declared height (`GltfCpuMesh::scale_to_height`, used by
+   `AssetManager::parse_gltf_mesh_textured_fit_height`, called from
+   `src/engine/home_meshes.rs`). Height, because that is the dimension a person
+   reads scale from and it does not care which way round the model was authored
+   (the double bed's long axis disagrees with the `size` beside it). Uniform,
+   because a per-axis stretch to the declared box would visibly distort every
+   piece. About the origin, because these models stand on y = 0 and should stay
+   on the floor.
+
+   The look that this entry asked for found four declared sizes that were simply
+   wrong, and they showed up as outliers the moment the fit was applied: every
+   other piece wanted a factor between 1.6 and 2.35, while `side_table` wanted
+   3.26, `shelf` 4.50 and `pantry_cabinet` 4.44. All three had been given the
+   size of the thing they are NAMED after rather than the thing their model IS:
+   a coffee table asked to be 0.75 m tall, a low bookcase asked to be 1.8 m, a
+   base cabinet asked to be 2 m. `tool_rack` was the fourth, declared 1.5 m wide
+   and 1.0 m tall for a narrow standing rack. All four now carry the real-world
+   size of what their model actually is, and the whole catalog sits in one band.
+
+   Gated by `every_modelled_machine_in_the_home_is_drawn_at_its_declared_height`
+   (`src/assets/mod.rs`), which walks the shipped home and also refuses to pass
+   if every model were already correct, since the fit would then prove nothing.
 
 5. **Furniture has no collision.** Machines are drawn and clicked but not
    collided with, so a wardrobe placed half inside a wall looks wrong and plays

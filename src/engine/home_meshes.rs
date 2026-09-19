@@ -580,7 +580,10 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
             .and_then(|m| {
                 state
                     .asset_manager
-                    .parse_gltf_mesh_textured(&state.renderer.device, m)
+                    // Fitted to the def SIZE height (v0.1324): the pack is authored at
+                    // about half real scale, so an unfitted model put a 0.46 m chair
+                    // next to a player whose eyes are at 1.7 m.
+                    .parse_gltf_mesh_textured_fit_height(&state.renderer.device, m, p.size.1)
                     .map_err(|e| {
                         log::warn!("machine {} model '{m}' failed: {e}; primitive fallback", p.id)
                     })

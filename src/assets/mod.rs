@@ -31,6 +31,72 @@ pub struct GltfCpuMesh {
     pub indices: Vec<u32>,
 }
 
+#[cfg(feature = "native")]
+impl GltfCpuMesh {
+    /// The model's height in metres AS AUTHORED: the Y extent of its vertex
+    /// bounding box. Returns 0.0 for an empty mesh.
+    pub fn authored_height(&self) -> f32 {
+        let mut lo = f32::INFINITY;
+        let mut hi = f32::NEG_INFINITY;
+        for v in &self.vertices {
+            lo = lo.min(v.position[1]);
+            hi = hi.max(v.position[1]);
+        }
+        if lo.is_finite() && hi.is_finite() {
+            (hi - lo).max(0.0)
+        } else {
+            0.0
+        }
+    }
+
+    /// Scale every vertex UNIFORMLY about the model's own origin so the mesh
+    /// stands `target_height` metres tall. Returns the factor applied.
+    ///
+    /// Why height, and why uniform. A machine's `size` in `data/machines/*.ron`
+    /// is its real-world size, and until this existed it was only used to build
+    /// the PRIMITIVE fallback box: a model, when one was declared, was drawn at
+    /// whatever scale it was authored at. The furniture the home ships with is
+    /// authored at roughly half real scale (a chair 0.46 m tall, a bookcase
+    /// 0.88 m, a desk 0.38 m), so a player whose eyes are at 1.7 m walked
+    /// through a doll's house. The operator, seeing it: "Seems like either all
+    /// the furniture is small or I'm just really big."
+    ///
+    /// Height is the dimension a person reads scale from, and it does not care
+    /// which way round the model was authored, so it survives a model whose
+    /// long axis disagrees with the `size` written beside it (the double bed is
+    /// exactly that). Uniform keeps the model's own proportions, which a
+    /// per-axis stretch to the declared box would visibly destroy. Because the
+    /// pack is internally consistent and the declared sizes were written from
+    /// real furniture, fitting the height lands almost every piece on its
+    /// declared footprint as well.
+    ///
+    /// Scaling about the ORIGIN and not the centre is deliberate: these models
+    /// are authored with their base on y = 0, so the origin is the floor the
+    /// piece stands on and it stays there.
+    ///
+    /// A no-op returning 1.0 when either height is not a positive, finite
+    /// number, so a missing or nonsense `size` leaves the model as authored
+    /// rather than collapsing it to a point.
+    pub fn scale_to_height(&mut self, target_height: f32) -> f32 {
+        let authored = self.authored_height();
+        if !(target_height.is_finite() && target_height > 0.0) || authored <= 1e-6 {
+            return 1.0;
+        }
+        let s = target_height / authored;
+        if !s.is_finite() || (s - 1.0).abs() < 1e-4 {
+            return 1.0;
+        }
+        for v in &mut self.vertices {
+            v.position[0] *= s;
+            v.position[1] *= s;
+            v.position[2] *= s;
+        }
+        // Normals are unchanged: a uniform scale does not rotate them, and
+        // they were already unit length.
+        s
+    }
+}
+
 /// Central asset manager: loads data files, caches parsed results, supports hot-reload.
 pub struct AssetManager {
     /// Root data directory (e.g., `HumanityOS/content/data/`).
@@ -248,6 +314,25 @@ impl AssetManager {
         relative_path: &str,
     ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
         let (cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
+        let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
+        Ok((mesh, texture))
+    }
+
+    /// As [`parse_gltf_mesh_textured`](Self::parse_gltf_mesh_textured), but
+    /// the geometry is first scaled uniformly to stand `target_height` metres
+    /// tall (see [`GltfCpuMesh::scale_to_height`]). This is what the home's
+    /// machines use, so a model is drawn at the real-world size its `size`
+    /// in `data/machines/*.ron` declares instead of at whatever scale it
+    /// happened to be authored at.
+    #[cfg(feature = "native")]
+    pub fn parse_gltf_mesh_textured_fit_height(
+        &self,
+        device: &wgpu::Device,
+        relative_path: &str,
+        target_height: f32,
+    ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
+        let (mut cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
+        cpu.scale_to_height(target_height);
         let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
         Ok((mesh, texture))
     }
@@ -799,6 +884,112 @@ mod gltf_texture_tests {
             rgba.len(),
             (width * height * 4) as usize,
             "rgba byte length != w*h*4"
+        );
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod model_scale_tests {
+    use super::*;
+    use crate::renderer::mesh::Vertex;
+
+    fn mesh_of_height(h: f32) -> GltfCpuMesh {
+        // A unit-square column standing on y = 0, like the furniture pack.
+        let v = |x: f32, y: f32, z: f32| Vertex {
+            position: [x, y, z],
+            normal: [0.0, 1.0, 0.0],
+            uv: [0.0, 0.0],
+        };
+        GltfCpuMesh {
+            vertices: vec![v(-0.5, 0.0, -0.5), v(0.5, 0.0, 0.5), v(0.5, h, 0.5)],
+            indices: vec![0, 1, 2],
+        }
+    }
+
+    #[test]
+    fn the_authored_height_is_the_y_extent() {
+        assert!((mesh_of_height(0.46).authored_height() - 0.46).abs() < 1e-6);
+        let empty = GltfCpuMesh { vertices: vec![], indices: vec![] };
+        assert_eq!(empty.authored_height(), 0.0, "an empty mesh has no height, not an infinite one");
+    }
+
+    #[test]
+    fn fitting_the_height_scales_uniformly_and_keeps_the_base_on_the_floor() {
+        let mut m = mesh_of_height(0.46);
+        let s = m.scale_to_height(0.90);
+        assert!((s - 0.90 / 0.46).abs() < 1e-5, "factor {s}");
+        assert!((m.authored_height() - 0.90).abs() < 1e-5, "the chair now stands 0.9 m");
+        // Uniform: the footprint grew by the same factor, and nothing sank
+        // through the floor.
+        let lowest = m.vertices.iter().fold(f32::INFINITY, |a, v| a.min(v.position[1]));
+        assert!(lowest.abs() < 1e-6, "base left the floor: {lowest}");
+        let widest = m.vertices.iter().fold(0.0f32, |a, v| a.max(v.position[0].abs()));
+        assert!((widest - 0.5 * s).abs() < 1e-5, "x was not scaled with y: {widest}");
+    }
+
+    #[test]
+    fn a_nonsense_target_leaves_the_model_exactly_as_authored() {
+        for bad in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+            let mut m = mesh_of_height(0.46);
+            assert_eq!(m.scale_to_height(bad), 1.0, "target {bad} should be refused");
+            assert!((m.authored_height() - 0.46).abs() < 1e-6, "target {bad} changed the mesh");
+        }
+        // A flat model (a rug is nearly one) must not be blown up by a
+        // division by almost nothing.
+        let mut flat = GltfCpuMesh { vertices: vec![], indices: vec![] };
+        assert_eq!(flat.scale_to_height(2.0), 1.0);
+    }
+
+    /// EVERY MODELLED MACHINE IN THE SHIPPED HOME IS DRAWN AT THE SIZE ITS
+    /// DATA DECLARES.
+    ///
+    /// The operator, 2026-09-19, standing in his own bedroom: "Seems like
+    /// either all the furniture is small or I'm just really big." He was
+    /// right. `size` in data/machines/*.ron only ever built the PRIMITIVE
+    /// fallback box; a machine that declared a model got that model at
+    /// whatever scale it was authored at, and this pack is authored at about
+    /// half real scale. A chair rendered 0.46 m tall, a bookcase 0.88 m and a
+    /// desk 0.38 m, next to a player whose eyes are at 1.7 m.
+    ///
+    /// The second assertion is the one that keeps this honest: if every model
+    /// were already the right height the fit would be a no-op and this test
+    /// would pass while proving nothing, so it requires that at least one
+    /// model really was badly wrong as authored.
+    #[test]
+    fn every_modelled_machine_in_the_home_is_drawn_at_its_declared_height() {
+        let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let home = crate::machines::MachineHome::load(&repo_root.join("data/machines/home.ron"))
+            .expect("the shipped home loads");
+        let manager = AssetManager::new(repo_root.join("data"));
+
+        let mut checked = 0usize;
+        let mut worst: (f32, String) = (0.0, String::new());
+        for (id, def) in home.catalog.iter() {
+            let Some(model) = def.model.as_deref() else { continue };
+            let target = def.size.1;
+            let (mut cpu, _tex) = manager
+                .parse_gltf_mesh_with_texture(model)
+                .unwrap_or_else(|e| panic!("machine {id}: model {model} did not load: {e}"));
+            let authored = cpu.authored_height();
+            cpu.scale_to_height(target);
+            let drawn = cpu.authored_height();
+            assert!(
+                (drawn - target).abs() <= target * 0.01,
+                "machine {id} declares {target} m tall but would be drawn {drawn} m"
+            );
+            let err = if target > 0.0 { (authored - target).abs() / target } else { 0.0 };
+            if err > worst.0 {
+                worst = (err, format!("{id} ({model}): authored {authored} m, declared {target} m"));
+            }
+            checked += 1;
+        }
+
+        assert!(checked >= 10, "only {checked} modelled machines found; this gate is checking almost nothing");
+        assert!(
+            worst.0 > 0.25,
+            "every model was already within 25 percent of its declared height, so fitting is a \
+             no-op and this test proves nothing. Worst seen: {}",
+            worst.1
         );
     }
 }

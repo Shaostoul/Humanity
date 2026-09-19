@@ -1021,7 +1021,7 @@
         ),
         "side_table": (
             shape: "box",
-            size: (1.50, 0.75, 0.80),
+            size: (1.32, 0.46, 0.80),
             color: (0.52, 0.38, 0.24),
             label: "Side table",
             category: "Furniture",
@@ -1084,7 +1084,7 @@
         ),
         "desk_monitor": (
             shape: "box",
-            size: (0.6, 0.36, 0.04),
+            size: (0.9, 0.54, 0.05),
             color: (0.08, 0.08, 0.1),
             label: "Desk monitor",
             category: "Displays",
@@ -1112,7 +1112,7 @@
         ),
         "shelf": (
             shape: "box",
-            size: (1.00, 1.80, 0.30),
+            size: (0.90, 0.90, 0.56),
             color: (0.52, 0.38, 0.24),
             label: "Shelf unit",
             category: "Furniture",
@@ -1133,7 +1133,7 @@
         ),
         "pantry_cabinet": (
             shape: "box",
-            size: (2.00, 2.00, 0.60),
+            size: (0.86, 0.90, 0.90),
             color: (0.52, 0.38, 0.24),
             label: "Pantry cabinet",
             category: "Furniture",
@@ -1196,7 +1196,7 @@
         ),
         "tool_rack": (
             shape: "box",
-            size: (1.50, 1.00, 0.20),
+            size: (0.60, 1.70, 0.60),
             color: (0.40, 0.40, 0.42),
             label: "Tool rack",
             category: "Furniture",
@@ -1790,7 +1790,7 @@
         ),
         "wall_screen": (
             shape: "box",
-            size: (1.2, 0.7, 0.05),
+            size: (1.8, 1.05, 0.06),
             color: (0.08, 0.08, 0.1),
             label: "Wall screen",
             category: "Displays",
@@ -1812,7 +1812,7 @@
                 source: "inventory",
                 px: (1280, 720),
                 face: "front",
-                bezel_m: 0.02,
+                bezel_m: 0.03,
                 brightness: 1.2,
             )),
         ),
