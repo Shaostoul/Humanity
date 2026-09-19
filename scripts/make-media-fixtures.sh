@@ -53,4 +53,66 @@ ffmpeg -hide_banner -loglevel error -y \
   -c:a aac -b:a 64k -movflags +faststart -t 2 \
   "$OUT/moving-box-h264-aac.mp4"
 
-ls -l "$OUT"
+# 4. The VIDEO_TS fixture (2026-09-18): a whole unencrypted video disc, the
+#    kind a person burns themselves, so the disc path is tested with no disc
+#    in the drive. Shape a real disc has:
+#
+#      VTS_01_0.VOB  the title set's MENU   (never played as the film)
+#      VTS_01_1.VOB  the main title, part 1 |  one continuous program stream
+#      VTS_01_2.VOB  the main title, part 2 |  split at a 2048 byte pack
+#      VTS_02_1.VOB  a second, shorter title set (an extra, a trailer)
+#
+#    The main title is made as ONE MPEG-2 program stream and then SPLIT ON A
+#    PACK BOUNDARY, which is exactly what a DVD author does at the 1 GB VOB
+#    limit: the timestamps run on across the cut, so the two parts really do
+#    convert as one film. (Two separately encoded files would each restart at
+#    zero and ffmpeg would drop the second, which would make the test pass
+#    for the wrong reason.) A cyan 48 px square slides and bobs so two
+#    snapshots a second apart must differ; a 440 Hz tone rides along.
+#    MPEG-2 video and AC-3 audio are what a video disc carries; both are
+#    read by the machine's own ffmpeg and converted once, exactly like the
+#    MP4 above. Whole tree: about 65 KB.
+DVD="$OUT/VIDEO_TS"
+mkdir -p "$DVD"
+TMP_TITLE="$OUT/.disc-title.tmp"
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "color=c=0x102030:s=320x180:r=30:d=2[bg];color=c=0x00c0ff:s=48x48:r=30:d=2[box];[bg][box]overlay=x='mod(t*130\,272)':y='abs(60*sin(t*2.5))':shortest=1" \
+  -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=2" \
+  -ac 2 -c:v mpeg2video -b:v 300k -g 15 -pix_fmt yuv420p \
+  -c:a ac3 -b:a 96k -t 2 -f vob "$TMP_TITLE"
+node -e '
+  const fs = require("fs");
+  const [src, a, b] = process.argv.slice(1);
+  const buf = fs.readFileSync(src);
+  // Every pack of a VOB is 2048 bytes and starts with the pack start code
+  // 00 00 01 BA. Refuse to split anywhere else: a cut inside a pack would
+  // make a fixture no player could read, and the test would then be proving
+  // nothing about our own code.
+  for (let o = 0; o < buf.length; o += 2048) {
+    if (buf.readUInt32BE(o) !== 0x1ba) throw new Error(`not a pack at byte ${o}`);
+  }
+  const half = Math.floor(buf.length / 2 / 2048) * 2048;
+  if (half === 0 || half === buf.length) throw new Error("too short to split");
+  fs.writeFileSync(a, buf.subarray(0, half));
+  fs.writeFileSync(b, buf.subarray(half));
+' "$TMP_TITLE" "$DVD/VTS_01_1.VOB" "$DVD/VTS_01_2.VOB"
+rm -f "$TMP_TITLE"
+
+# The title set's menu, which the main-title chooser must IGNORE: a still
+# green field, deliberately different from the film so a snapshot that shows
+# it is unmistakable.
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "color=c=0x104020:s=320x180:r=30:d=0.4" \
+  -f lavfi -i "sine=frequency=220:sample_rate=48000:duration=0.4" \
+  -ac 2 -c:v mpeg2video -b:v 150k -g 15 -pix_fmt yuv420p \
+  -c:a ac3 -b:a 96k -t 0.4 -f vob "$DVD/VTS_01_0.VOB"
+
+# A second title set, shorter than the first, so "pick the biggest title
+# set" has something to be right about.
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "color=c=0x402010:s=320x180:r=30:d=0.4" \
+  -f lavfi -i "sine=frequency=660:sample_rate=48000:duration=0.4" \
+  -ac 2 -c:v mpeg2video -b:v 150k -g 15 -pix_fmt yuv420p \
+  -c:a ac3 -b:a 96k -t 0.4 -f vob "$DVD/VTS_02_1.VOB"
+
+ls -l "$OUT" "$DVD"

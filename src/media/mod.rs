@@ -43,6 +43,8 @@
 //! stepping it back.
 
 pub mod audio;
+/// Video discs: choosing a disc's main title and converting it (2026-09-18).
+pub mod dvd;
 pub mod transcode;
 pub mod video;
 

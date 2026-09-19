@@ -89,6 +89,36 @@ line in `docs/history/audio-engine.md`.
   fast enough), and the player only ever sees the one format. One decoder
   pair in the exe, no codec sprawl, no patent exposure.
 
+### Video discs: what plays and what does not (2026-09-18)
+
+The operator asked whether a DVD in the PC's drive can play on an in-game
+display. The answer has two halves, and the line between them is not
+negotiable.
+
+**A disc we can read as files, we play.** A disc the operator burned
+themselves, a camcorder disc, a data disc with video files on it, an
+unprotected video disc: the `.VOB` files in its `VIDEO_TS` folder are
+ordinary MPEG-2 program streams. MPEG-2 video and AC-3 audio are not in the
+excluded list above and do not need to be: their patents expired around 2017
+and 2018, and in any case nothing new ships in our exe for them, because the
+machine's own ffmpeg reads the stream and the existing transcode-on-ingest
+path converts it once into the one format the player decodes. A disc is
+simply another thing ffmpeg can read.
+
+**A copy-protected commercial disc, we do not touch.** Those discs are
+encrypted, and HumanityOS does not break disc protection. There is no
+circumvention in this codebase, no optional component that would add one,
+and no instruction anywhere that points at one. When a disc turns out to be
+protected the screen says so plainly, in one sentence that names what the
+app does rather than what someone else could do, and stops.
+
+The code is `src/media/dvd.rs`, and the whole of it is: find the `VIDEO_TS`
+folder, choose the main title (the biggest title set, its `_0` menu
+excluded, its parts in order), look at the first part's packet headers, and
+either hand the chain of parts to ffmpeg as one film or show the honest
+message. See "Video sources" in
+[in-world-screens.md](in-world-screens.md) for what the player sees.
+
 ### AV1 decoder candidates, for the record
 
 | Candidate | Verdict |
@@ -266,7 +296,7 @@ the real architecture: the same math, later on the GPU).
 
 `ffmpeg -version` on the dev machine reports the gyan.dev 2025-01-22 full
 build with libaom, libopus, libvpx and libvorbis, so the fixtures were made
-with it. `scripts/make-media-fixtures.sh` regenerates both files under
+with it. `scripts/make-media-fixtures.sh` regenerates everything under
 `tests/fixtures/media/` from SYNTHETIC lavfi sources; nothing was recorded
 and nothing downloaded, so the files carry no third-party rights:
 
@@ -278,6 +308,22 @@ and nothing downloaded, so the files carry no third-party rights:
   the first attempt produced a bar that never moved.
 - `unsupported-vp8-vorbis.webm` (4,692 bytes): 0.2 s of 64x36 VP8 plus mono
   Vorbis, so the refusal path has a real file to refuse.
+- `moving-box-h264-aac.mp4` (22,798 bytes): 2 s of 320x180 H.264 plus AAC,
+  the format a phone writes, so transcode-on-ingest has a real file to
+  convert.
+- `VIDEO_TS/` (69,632 bytes for the tree): a whole unencrypted video disc,
+  so the disc path is tested with no disc in the drive.
+  `VTS_01_1.VOB` and `VTS_01_2.VOB` are ONE 2 s MPEG-2 program stream
+  (300 kbit/s video, AC-3 audio, a cyan square sliding and bobbing) cut in
+  half at a 2048 byte pack boundary, which is exactly what a disc author
+  does at the VOB size limit: the timestamps run on across the cut, so the
+  two parts really do convert as one film and a test that only got the
+  first part fails on the duration. `VTS_01_0.VOB` is the title set's menu
+  (a still green field) and `VTS_02_1.VOB` a smaller second title set, so
+  "ignore the menu, pick the biggest set" has something to be right about.
+  The protected-disc case needs no fixture of its own: the test marks a
+  copy of the first part's packet headers as scrambled, which is how an
+  encrypted disc declares itself, and checks the refusal.
 
 An observation, not a defect: ffmpeg and ffprobe print
 `Error parsing Opus packet header` once when they read their own Opus WebM

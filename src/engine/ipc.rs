@@ -1470,7 +1470,9 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// ```
 ///
 /// `video_open` hands the path to a video screen's provider exactly as its
-/// own Open button would (probe, cache, convert with ffmpeg); `status` is
+/// own Open button would (probe, cache, convert with ffmpeg). A FOLDER is
+/// taken as a video disc (or the drive holding one): its main title is
+/// chosen and converted as one film, `src/media/dvd.rs`. `status` is
 /// a `snapshot` without the PNG, for polling the provider's fields (a
 /// conversion's `media.transcoding_pct`).
 ///

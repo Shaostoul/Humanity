@@ -530,6 +530,54 @@ widget the chat attach button uses, filtered to the video extensions in
 `data/media/ingest.json`. The chosen file is remembered per screen in
 `AppConfig::screen_media`; the data file's source is the default.
 
+**A video disc in the drive (2026-09-18).** The operator asked: "Can I play
+a DVD that's in my PC on an in-game display?" A disc we can read as files,
+we play. Put a disc in, press Open on the screen, and the disc shows up in
+the picker's quick row as "Disc (F:)"; opening it shows a **Play disc**
+button, because a film on a disc is a folder of numbered files nobody
+should have to understand. The button hands the FOLDER to the same open
+path everything else takes; `src/media/dvd.rs` then finds the `VIDEO_TS`
+folder (the drive root or the folder itself, either is accepted), picks the
+main title (the biggest title set, with its `_0` menu left out, parts in
+order), and hands the whole title to ffmpeg as one film through its
+`concat:` protocol, so a two-part title plays as one film and not as its
+first half. From there it is an ordinary converted clip in the media cache:
+the second time the same disc is opened there is no ffmpeg run at all.
+
+A **copy-protected commercial disc does not play, and never will**. Those
+discs are encrypted, and HumanityOS does not break disc protection: there
+is no circumvention in the codebase and none is suggested anywhere. Before
+converting, the disc's first title file is read and its packet headers are
+checked; a disc that marks its packets as scrambled, or whose files cannot
+be read at all, gets one plain sentence on the screen saying the disc is
+copy protected, that this app does not break disc protection, and that a
+disc you burned yourself or any unprotected disc plays here. A conversion
+that fails later on a disc gets the same sentence appended, so the screen
+never shows a bare decoder error. What DOES play: a disc you burned, a
+camcorder disc, a data disc with ordinary video files on it (pick the files
+one at a time), an unprotected video disc. A disc IMAGE (`.iso`) is
+refused with what to do instead: an image is a filesystem in a file, not a
+video stream. Menus, several camera angles, seamless branching and
+subtitles are not followed; the main title plays, beginning to end.
+
+Proven on the real screen (2026-09-18, the verify-screens rig kept open,
+`verify-screens` itself 12/12 with 0 panics): `wall_screen_5` pointed at
+the synthetic `VIDEO_TS` fixture through the dev IPC's `video_open`
+reported `media.disc: true` and `convert_why: "is a video disc: title 1 in
+2 part(s), MPEG-2 video"`, converted, and played a film of **2.024 s**,
+which is BOTH parts (one part alone is a second, so the chain really was
+joined); two snapshots a second apart differed by **104,218 of 921,600
+pixels** with the clock moving 0.80 s to 1.99 s. Opening the same disc
+again was a cache hit with `transcodes` still 1. A copy of the same disc
+with its packet headers marked scrambled drew the refusal on the wall,
+with `transcodes` still 1 (nothing was converted) and the Open button
+still there. What a REAL disc in the operator's drive would still prove,
+and this cannot: that a pressed disc's `VIDEO_TS` lists and reads the way
+a folder on a hard disk does, that a title spread over four or five
+1 GB parts converts in reasonable time, and that a genuinely CSS-encrypted
+disc trips the same refusal (its packets are marked the same way, but only
+a real one proves it).
+
 **Anything ffmpeg can read.** The player itself decodes only WebM AV1 +
 Opus (the codec policy: no patented decoders are shipped). A chosen file it
 refuses is converted once by the machine's ffmpeg into the media cache and
