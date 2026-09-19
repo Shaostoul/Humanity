@@ -1435,6 +1435,11 @@ mod tests {
     /// unbootable releases in v0.1029-v0.1038. Ignored by default because it
     /// needs a GPU adapter (a brief device use, not a booted instance):
     ///   cargo test --features native --lib gpu_timestamps -- --ignored --nocapture
+    ///
+    /// Native-only: `pollster` is a native-feature dependency, and a headless
+    /// relay has no business asking for a GPU adapter. Every OTHER test in this
+    /// module is pure bookkeeping and still runs in the relay build.
+    #[cfg(feature = "native")]
     #[test]
     #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
     fn gpu_timestamps_resolve_a_real_pass_duration() {
