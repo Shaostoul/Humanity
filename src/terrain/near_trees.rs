@@ -488,6 +488,39 @@ impl<'f> NearTreeDrawPlan<'f> {
     }
 }
 
+/// The source files that TOGETHER are the native frame loop, for the several
+/// gates in this crate that prove a helper is actually CALLED by reading the
+/// engine's own text.
+///
+/// It used to be enough to read `src/lib.rs`, because the frame loop was one
+/// function in one file. Under the file-size ratchet that is no longer true:
+/// v0.1320 moved the near-tree block, the water shells and the planet shells
+/// into `src/engine/frame_*.rs`, and a scan that still looked only at lib.rs
+/// reported the near-tree wiring as MISSING when all that had happened was a
+/// file move. A gate that fires on a refactor it should not care about is a
+/// gate people learn to ignore.
+///
+/// Anything extracted out of the frame loop in future belongs on this list.
+/// It reads the files at test time, so there is no compile-time dependency on
+/// the native-only modules it names.
+#[cfg(test)]
+pub(crate) fn frame_loop_source() -> String {
+    const FILES: &[&str] = &[
+        "src/lib.rs",
+        "src/engine/frame_near_trees.rs",
+        "src/engine/frame_water.rs",
+        "src/engine/frame_shells.rs",
+    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    FILES
+        .iter()
+        .map(|rel| {
+            std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod near_tree_draw_plan_tests {
     use super::*;
@@ -1389,10 +1422,8 @@ mod near_tree_order_tests {
         const PENDING: &str = "PENDING WIRING REQUEST (near-tree LOD handoff). This is not a \
              regression you caused: the fix lives in terrain::near_trees and the five-hunk \
              src/lib.rs edit that calls it has not been applied yet. ";
-        let src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs"),
-        )
-        .expect("lib.rs reads");
+        // The frame loop is several files now: see frame_loop_source.
+        let src = super::frame_loop_source();
         assert!(
             src.contains("ModelCoverage::new("),
             "{PENDING}src/lib.rs does not build a terrain::near_trees::ModelCoverage. The \
@@ -2101,10 +2132,8 @@ mod tree_stream_agreement_tests {
         const PENDING: &str = "PENDING WIRING REQUEST (tree density as an argument). Not a \
              regression you caused: the fix lives in terrain::{near_trees,planet_chunks} and \
              the four-hunk src/lib.rs edit that calls it has not been applied yet. ";
-        let src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs"),
-        )
-        .expect("lib.rs reads");
+        // The frame loop is several files now: see frame_loop_source.
+        let src = super::frame_loop_source();
         assert!(
             src.contains("harvest_tree_density("),
             "{PENDING}src/lib.rs does not ask ChunkState::harvest_tree_density what density the \

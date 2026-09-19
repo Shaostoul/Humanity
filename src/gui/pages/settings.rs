@@ -4644,6 +4644,24 @@ mod veg_lod_range_tests {
         }
     }
 
+    /// The engine text a "does the renderer actually read this?" scan has to
+    /// look at: the whole frame loop (which is several files since the v0.1320
+    /// extractions -- `planet_chunks::near_trees::frame_loop_source` owns that
+    /// list) plus the grass layer, which does its own reads.
+    ///
+    /// Before v0.1320 this was just `src/lib.rs` and grass.rs, and that was
+    /// fine only while every vegetation read still lived in one function.
+    /// Moving the near-tree block into its own file made the scan conclude the
+    /// engine had STOPPED reading `near_tree_budget`: a gate reporting a wiring
+    /// break that was really a file move.
+    fn engine_source() -> String {
+        let grass = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
+        )
+        .expect("read src/terrain/grass.rs");
+        format!("{}\n{grass}", crate::terrain::planet_chunks::frame_loop_source())
+    }
+
     /// The page makes three claims about the ENGINE, and all three are the
     /// kind that rot silently:
     ///
@@ -4651,22 +4669,18 @@ mod veg_lod_range_tests {
     /// 2. that `tree_model_distance` is clamped at 400 m before use;
     /// 3. that `veg_tree_card_m` is clamped at 3000 m before use.
     ///
-    /// Each is checked against the actual text of `src/lib.rs`, in BOTH
-    /// directions. Wire a setting up and forget to delete its warning, and this
-    /// fails because the page is now lying the other way. That two-sided check
-    /// is the point: a one-sided one would let the notice outlive its reason,
-    /// which is how "known issue" comments become folklore.
+    /// Each is checked against the actual text of the engine (see
+    /// `engine_source`), in BOTH directions. Wire a setting up and forget to
+    /// delete its warning, and this fails because the page is now lying the
+    /// other way. That two-sided check is the point: a one-sided one would let
+    /// the notice outlive its reason, which is how "known issue" comments
+    /// become folklore.
     #[test]
     fn the_page_tells_the_truth_about_what_the_engine_reads() {
-        let lib = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"),
-        )
-        .expect("read src/lib.rs");
-        let grass_src = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
-        )
-        .expect("read src/terrain/grass.rs");
-        let engine = format!("{lib}\n{grass_src}");
+        let engine = engine_source();
+        // The clamp checks below want the same text: the ceilings moved with
+        // the code that applies them.
+        let lib = &engine;
 
         // 1. Every setting on the "not connected" list must really be absent
         //    from the engine, and every setting NOT on it must really be there.
@@ -4698,7 +4712,7 @@ mod veg_lod_range_tests {
         ] {
             assert!(
                 lib.contains(&format!("crate::config::{konst}")),
-                "src/lib.rs no longer clamps {field} against config::{konst}.                  If it went back to a literal, the control's ceiling and the                  renderer's can drift apart again - which is exactly how the                  300-400 m band of this slider was unreachable for releases                  without anyone noticing."
+                "the engine (the frame loop plus src/terrain/grass.rs) no longer clamps {field}                  against config::{konst}. If it went back to a literal, the control's                  ceiling and the renderer's can drift apart again - which is exactly                  how the 300-400 m band of this slider was unreachable for releases                  without anyone noticing."
             );
         }
     }
@@ -4718,15 +4732,15 @@ mod veg_lod_range_tests {
     /// in - the page then reports "not measured yet" rather than lying.
     #[test]
     fn the_measured_card_reach_is_wired_at_both_ends_or_neither() {
-        let lib = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs"),
-        )
-        .expect("read src/lib.rs");
+        // The whole frame loop, not just lib.rs: the two halves of this wiring
+        // could easily end up in different files (see engine_source), and a
+        // one-file scan would then report a half-wiring that is really a move.
+        let lib = engine_source();
         let publishes = lib.contains("far_trees::publish_card_reach_m");
         let clamps = lib.contains("far_trees::effective_card_far_m");
         assert_eq!(
             publishes, clamps,
-            "src/lib.rs {} the measured tree-card reach but {} it. Both halves \
+            "the frame loop {} the measured tree-card reach but {} it. Both halves \
              or neither: the Settings row shows what the clamp is supposed to \
              apply, so a one-sided wiring makes the page describe a cutoff the \
              renderer is not using.",
