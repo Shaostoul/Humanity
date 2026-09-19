@@ -1,0 +1,43 @@
+# The CEF probe: a STANDALONE crate, deliberately outside the engine's
+# Cargo.toml so nothing here can reach the shipping build. It is not a
+# workspace member, nothing in src/ references it, and `cargo check` at the
+# repository root never looks at it. It exists only to answer the spike's
+# question with numbers.
+#
+# Build it with CEF_PATH pointing at an exported CEF binary distribution, and
+# with CMake and Ninja on PATH (the binding compiles CEF's own C++ wrapper):
+#   CEF_PATH=C:/Users/Shaos/AppData/Local/cef-sdk/cef cargo build --release
+# See docs/design/embedded-browser.md for how that directory is produced.
+[package]
+name = "cef-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# The Rust bindings under test (tauri-apps/cef-rs). `default-features = false`
+# drops two things a measurement does not need: the Windows sandbox (which
+# wants a separate static library built against a matching MSVC runtime) and
+# the app-bundling helper binary.
+cef = { version = "152.3.0", default-features = false }
+# Writing the proof-of-pixels PNG. A small, dependency-light encoder.
+png = "0.17"
+# Process timing and memory for the whole host process tree, the shared
+# monotonic clock both processes read, and the file-mapping calls the
+# shared-memory pipe is built on.
+windows-sys = { version = "0.60", features = [
+    "Win32_Foundation",
+    # CreateFileMappingW takes a SECURITY_ATTRIBUTES pointer, so windows-sys
+    # puts it behind the security feature as well as the memory one.
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Memory",
+    "Win32_System_Performance",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Diagnostics_ToolHelp",
+] }
+
+[profile.release]
+# The same shape as the engine's release profile, so the numbers compare.
+opt-level = 3

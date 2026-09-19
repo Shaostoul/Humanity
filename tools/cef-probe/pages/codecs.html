@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!--
+  Which video codecs can this browser build actually decode?
+
+  This matters more than it sounds. The official Chromium Embedded Framework
+  builds are compiled without the patent-encumbered codecs, because shipping
+  them requires a licence the CEF project does not hold. Chromium's own open
+  set (VP8, VP9, AV1, Opus, Vorbis) is present; H.264 and AAC are not.
+
+  Which platforms that rules out is not a matter of opinion: YouTube serves
+  VP9 and Opus, while Twitch's baseline is H.264 with AAC. So this page is the
+  cheapest possible test of whether a given platform can ever play here, and
+  it needs no network and no platform account.
+
+  It reports through the page title and the console, which is how the host
+  process reads results out of a page.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>codecs</title>
+<style>
+  body { background:#0b0f14; color:#dfe7ee; font:16px system-ui, sans-serif; margin:0; padding:24px; }
+  table { border-collapse: collapse; }
+  td { padding: 3px 14px 3px 0; }
+  .yes { color:#8bc34a; } .no { color:#ef5350; } .maybe { color:#ffb74d; }
+</style>
+</head>
+<body>
+<h2>Codec support in this build</h2>
+<table id="t"></table>
+<script>
+(function () {
+  const v = document.createElement('video');
+  const CASES = [
+    ['H.264 (avc1) in MP4',        'video/mp4; codecs="avc1.42E01E"'],
+    ['H.264 high profile',         'video/mp4; codecs="avc1.640028"'],
+    ['AAC audio in MP4',           'audio/mp4; codecs="mp4a.40.2"'],
+    ['HEVC (h265)',                'video/mp4; codecs="hev1.1.6.L93.B0"'],
+    ['VP8 in WebM',                'video/webm; codecs="vp8"'],
+    ['VP9 in WebM',                'video/webm; codecs="vp9"'],
+    ['AV1 in MP4',                 'video/mp4; codecs="av01.0.05M.08"'],
+    ['Opus audio in WebM',         'audio/webm; codecs="opus"'],
+    ['Vorbis audio in WebM',       'audio/webm; codecs="vorbis"'],
+    ['MP3 audio',                  'audio/mpeg'],
+    ['FLAC audio',                 'audio/flac'],
+    ['MPEG-TS with H.264 (HLS)',   'video/mp2t; codecs="avc1.42E01E,mp4a.40.2"'],
+  ];
+  const rows = [];
+  const t = document.getElementById('t');
+  for (const [label, type] of CASES) {
+    const el = v.canPlayType(type);                     // "", "maybe", "probably"
+    const ms = (window.MediaSource && MediaSource.isTypeSupported)
+      ? MediaSource.isTypeSupported(type) : null;       // what a streaming player asks
+    const verdict = el === '' ? 'no' : el;
+    rows.push(label + ': element=' + (el || 'no') + ' mediaSource=' + ms);
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + label + '</td>' +
+      '<td class="' + (el === '' ? 'no' : el === 'probably' ? 'yes' : 'maybe') + '">' + (el || 'NO') + '</td>' +
+      '<td class="' + (ms ? 'yes' : 'no') + '">MSE ' + (ms === null ? 'n/a' : ms) + '</td>';
+    t.appendChild(tr);
+    console.log('[codec] ' + label + ' | element="' + el + '" | MediaSource=' + ms);
+  }
+  const h264 = v.canPlayType('video/mp4; codecs="avc1.42E01E"') !== '';
+  document.title = 'codecs h264=' + h264 + ' vp9=' + (v.canPlayType('video/webm; codecs="vp9"') !== '')
+    + ' av1=' + (v.canPlayType('video/mp4; codecs="av01.0.05M.08"') !== '');
+  console.log('[codec] SUMMARY ' + document.title);
+})();
+</script>
+</body>
+</html>

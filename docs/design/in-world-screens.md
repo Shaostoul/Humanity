@@ -1059,6 +1059,15 @@ Each is a separate increment on the same surface:
   The monitor surface did not change; the thing drawn into it did, exactly
   as planned. Still wanted on top of it: a VR-controller ray, and
   distance-based suspend of a wall's fetches.
+- **A real browser engine on a screen:** MEASURED, not built.
+  [embedded-browser.md](embedded-browser.md) is a spike that ran Chromium
+  offscreen at 1280 x 720 in a separate process and costed the whole route.
+  One such screen costs the frame 0.064 ms of GPU and about 0.26 ms of CPU,
+  which is cheaper than a page screen, so the frame budget is not the
+  obstacle. The obstacles are that the official builds ship without H.264, so
+  Twitch video cannot decode, and that paid streaming services need a signed
+  Widevine path only Google grants. YouTube and Rumble play. Nothing from that
+  spike is wired in; it is two standalone crates under `tools/`.
 - **A placement gate on the sites database:** `embed.status` is recorded
   and shown (the Browser page's site cards) but not enforced when a `web:`
   source is placed on a screen. The gate (a `forbidden` site is never

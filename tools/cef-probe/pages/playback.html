@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!--
+  Try to actually PLAY one H.264 clip and one VP9 clip, side by side, and say
+  what happened. The codecs page asks the browser what it thinks it can decode;
+  this one puts it to the test, because "the browser said no" and "the video
+  did not play" are different claims and the second is the one that matters.
+
+  The two clips are generated locally by ffmpeg (see the reproduce section of
+  docs/design/embedded-browser.md), so this needs no network and no platform.
+
+  ?which=h264 or ?which=vp9. Reports through the title and the console.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>playback pending</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; }
+  video { width:100vw; height:100vh; object-fit:contain; display:block; }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  const which = new URLSearchParams(location.search).get('which') || 'h264';
+  const src = which === 'vp9' ? 'vp9.webm' : 'h264.mp4';
+  const v = document.createElement('video');
+  v.src = src;
+  v.muted = true;
+  v.loop = true;
+  v.autoplay = true;
+  document.body.appendChild(v);
+
+  const say = (m) => console.log('[play] ' + m);
+  say('trying ' + src);
+
+  v.addEventListener('error', function () {
+    const e = v.error;
+    say('ERROR code=' + (e && e.code) + ' message=' + JSON.stringify(e && e.message));
+    document.title = 'playback ' + which + ' FAILED code' + (e && e.code);
+  });
+  v.addEventListener('playing', function () {
+    say('playing');
+    document.title = 'playback ' + which + ' PLAYING';
+  });
+  // A heartbeat: currentTime advancing is the only proof that frames are
+  // really being decoded rather than the element merely claiming to play.
+  setInterval(function () {
+    if (v.currentTime > 0.3) {
+      document.title = 'playback ' + which + ' PLAYING t=' + v.currentTime.toFixed(1);
+    }
+  }, 500);
+  v.play().catch(function (err) { say('play() rejected: ' + err); });
+})();
+</script>
+</body>
+</html>

@@ -105,3 +105,13 @@ lintrun/
 /.probe-rig/
 devlog-drafts/
 node.env
+
+# Standalone measurement crates under tools/ keep their own build output.
+# They are not part of the engine build and nothing in src/ references them.
+# The Chromium Embedded Framework distribution they link against is a ~164 MB
+# download and lives OUTSIDE the repository entirely
+# (%LOCALAPPDATA%\cef-sdk); see docs/design/embedded-browser.md.
+/tools/*/target/
+# The two generated codec-test clips (ffmpeg test patterns, see that doc).
+/tools/cef-probe/pages/h264.mp4
+/tools/cef-probe/pages/vp9.webm
