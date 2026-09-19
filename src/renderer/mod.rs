@@ -1,7 +1,29 @@
-//! Renderer — wgpu device/surface setup and render loop.
+//! Renderer — the `Renderer` struct, its construction, and its registries.
 //!
 //! Configuration loaded from `config/renderer.toml`.
 //! Supports both native (winit window) and WASM (canvas) targets.
+//!
+//! THE PASSES NO LONGER LIVE HERE (v0.1319, the file-size ratchet: this file
+//! had reached 5,652 lines against a 3,883 budget). What is left is the state
+//! and the things that fill it: the struct itself, `init` (which builds every
+//! GPU resource it holds), and the registries and per-frame setters - meshes,
+//! the terrain patch arena, grass instances, lights, the live weather map,
+//! the atmosphere LUTs. Each pass moved to a sibling file whose own header
+//! says what it does and why it is a cluster:
+//!
+//!   * `celestial.rs`    - the far world: planets, terrain patches, the sun
+//!                         shadow map, the shells, the cloud march.
+//!   * `scene_draw.rs`   - the near world: the opaque, transparent and
+//!                         overlay draw loops, god rays, SSAO.
+//!   * `overlay_draw.rs` - post-passes over a finished frame: orbit lines
+//!                         and particle billboards, CPU and GPU.
+//!   * `surface.rs`      - the swapchain and render-target lifecycle.
+//!   * `materials.rs`    - the material registry (v0.1093).
+//!   * `capture.rs`      - pixels back off the GPU and onto disk (v0.1108).
+//!
+//! They are all `impl Renderer` blocks in child modules, so every call site
+//! in the crate is unchanged: an inherent method resolves by receiver type,
+//! not by module path.
 
 pub mod atmosphere;
 pub mod billboard_bake;
