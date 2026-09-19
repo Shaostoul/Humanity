@@ -96,7 +96,7 @@ try {
   const rd = j.recent_decisions;
   if (Array.isArray(rd) && rd.length) {
     const last = rd[rd.length - 1];
-    lastDecision = `${last.at || '?'}: ${String(last.decision || '').slice(0, 360)}${(last.decision || '').length > 360 ? '...' : ''}`;
+    lastDecision = `${last.at || last.date || '?'}: ${String(last.decision || '').slice(0, 360)}${(last.decision || '').length > 360 ? '...' : ''}`;
   }
 } catch { /* journal unreadable */ }
 
