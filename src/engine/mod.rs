@@ -27,6 +27,9 @@ pub mod near_tree_models;
 /// One frame's relay WebSocket message pump: every `type` the relay can send,
 /// plus the socket-died teardown (extracted from lib.rs, v0.1320).
 pub mod frame_ws_poll;
+/// The planet's two water shells (coarse backstop + displaced wave surface),
+/// built and pushed once per frame (extracted from lib.rs, v0.1320).
+pub mod frame_water;
 pub mod region_meshes;
 /// Background relay connections: dial + keep-alive + compact router for
 /// every saved server that is not the active one (multi-connection).
