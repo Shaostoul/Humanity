@@ -92,7 +92,15 @@ pub fn quick_roots() -> Vec<(String, PathBuf)> {
         .ok()
         .map(PathBuf::from);
     if let Some(h) = home {
-        for (label, sub) in [("Home", ""), ("Downloads", "Downloads"), ("Documents", "Documents"), ("Desktop", "Desktop")] {
+        for (label, sub) in [
+            ("Home", ""),
+            ("Downloads", "Downloads"),
+            ("Documents", "Documents"),
+            ("Desktop", "Desktop"),
+            // Where a person's own films live; the in-world video screens'
+            // Open picker starts here (2026-09-18).
+            ("Videos", "Videos"),
+        ] {
             let p = if sub.is_empty() { h.clone() } else { h.join(sub) };
             if p.is_dir() {
                 roots.push((label.to_string(), p));
@@ -125,6 +133,13 @@ pub struct FilePickerState {
     /// database location). The confirm button picks the CURRENT DIRECTORY
     /// instead of a selected file, so nobody types a path by hand.
     pub dir_mode: bool,
+    /// The verb on the confirm button ("Attach", "Open", "Use"); the file
+    /// name follows it. The chat attach picker's "Attach" is the default.
+    pub pick_verb: String,
+    /// Extra quick-access roots shown after the standard ones, as (label,
+    /// path): a video screen adds the game's media folder, for example.
+    /// Only existing directories are shown.
+    pub extra_roots: Vec<(String, PathBuf)>,
 }
 
 impl FilePickerState {
@@ -141,7 +156,29 @@ impl FilePickerState {
             allowed_exts: allowed_exts.iter().map(|s| s.to_string()).collect(),
             max_size,
             dir_mode: false,
+            pick_verb: "Attach".to_string(),
+            extra_roots: Vec::new(),
         }
+    }
+
+    /// Start in `dir` when it exists (else keep the default start).
+    pub fn starting_in(mut self, dir: Option<PathBuf>) -> Self {
+        if let Some(d) = dir.filter(|d| d.is_dir()) {
+            self.current_dir = d;
+        }
+        self
+    }
+
+    /// The verb on the confirm button.
+    pub fn with_pick_verb(mut self, verb: &str) -> Self {
+        self.pick_verb = verb.to_string();
+        self
+    }
+
+    /// Add a quick-access root (shown only when the directory exists).
+    pub fn with_extra_root(mut self, label: &str, dir: PathBuf) -> Self {
+        self.extra_roots.push((label.to_string(), dir));
+        self
     }
 
     /// A picker that chooses a FOLDER (navigate in, confirm the current
@@ -188,7 +225,9 @@ pub fn file_picker_modal(
         .show(ctx, |ui| {
             // Quick roots row.
             ui.horizontal_wrapped(|ui| {
-                for (label, path) in quick_roots() {
+                let extra: Vec<(String, PathBuf)> =
+                    state.extra_roots.iter().filter(|(_, p)| p.is_dir()).cloned().collect();
+                for (label, path) in quick_roots().into_iter().chain(extra) {
                     if widgets::Button::secondary(&label).show(ui, theme) {
                         state.current_dir = path;
                         state.selected = None;
@@ -289,8 +328,8 @@ pub fn file_picker_modal(
                         state
                             .selected
                             .as_ref()
-                            .map(|s| format!("Attach {}", s.name))
-                            .unwrap_or_else(|| "Attach".to_string()),
+                            .map(|s| format!("{} {}", state.pick_verb, s.name))
+                            .unwrap_or_else(|| state.pick_verb.clone()),
                         state.selected.is_some(),
                     )
                 };

@@ -506,13 +506,39 @@ budget. A provider with nothing to place leaves the default no-op.
 
 ## Video sources (rung 5, integration)
 
-`video:<path>` plays a WebM clip through the purpose-built player
+`video:<path>` plays a clip through the purpose-built player
 ([media-player.md](media-player.md)) on the screen, on loop, with its sound
-placed at the screen; a click on the screen toggles pause. The operator's
-words: "movies on displays". Provider: `src/engine/screens/video.rs`
-(`VideoProvider`). Shipped: `wall_screen_5` on home.ron's console room north wall plays
+placed at the screen; a click on the picture toggles pause. The operator's
+words: "movies on displays", then, looking at the console room, "should we
+play a video that's stored on my PC?". Provider:
+`src/engine/screens/video.rs` (`VideoProvider`). Shipped: `wall_screen_5`
+on home.ron's console room north wall starts on
 `data/media/demo_colour_bar.webm` (the synthetic 2 s colour-bar clip;
-provenance in `data/media/README.md`).
+provenance in `data/media/README.md`) and the player can point it at any
+video on the machine from inside the game.
+
+**The control strip and the picker (2026-09-18).** The screen draws through
+egui over its own frame texture, so one draw path serves every state: the
+picture fitted into the display's rectangle with black bars, a strip over
+its bottom edge (Open, Play/Pause, the file name, the time), the file picker
+as a window on the screen, and the notices. The strip shows while the screen
+is being looked at, while paused, while a conversion runs, while the picker
+is open and while there is nothing to show; it hides over a playing film,
+and a hidden strip with no new frame draws nothing at all, so a playing film
+costs one texture upload per decoded frame. Open raises the same file picker
+widget the chat attach button uses, filtered to the video extensions in
+`data/media/ingest.json`. The chosen file is remembered per screen in
+`AppConfig::screen_media`; the data file's source is the default.
+
+**Anything ffmpeg can read.** The player itself decodes only WebM AV1 +
+Opus (the codec policy: no patented decoders are shipped). A chosen file it
+refuses is converted once by the machine's ffmpeg into the media cache and
+the converted copy plays, with the percentage on screen and an honest
+message naming the fix when ffmpeg or an encoder is missing. Proven on the
+real screen: an H.264 + AAC MP4 fixture handed to `wall_screen_5` through
+the dev IPC converted, played (76,832 of 921,600 pixels changed between two
+snapshots a second apart), and opened again from the cache with no second
+ffmpeg run.
 
 - **Path rule.** The path after `video:` is resolved against the game DATA
   dir first (`data/media/x.webm`, the distributed and moddable tree), then

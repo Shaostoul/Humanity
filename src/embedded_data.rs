@@ -63,6 +63,11 @@ pub const PLANET_PLUTO_RON: &str = include_str!("../data/planets/pluto.ron");
 /// Resources + status for the in-world planet-info tooltip (v0.856). Embedded so a
 /// distributed exe without the data/ folder still shows the curated table.
 pub const PLANET_TOOLTIPS_JSON: &str = include_str!("../data/planets/tooltips.json");
+/// Media ingest rules for the in-world video screens (the picker's video
+/// extensions and where to look for ffmpeg, docs/design/media-player.md).
+/// Embedded so an exe shipped without its data/ folder still finds ffmpeg
+/// at the common install spots.
+pub const MEDIA_INGEST_JSON: &str = include_str!("../data/media/ingest.json");
 
 // ── Solar system body definitions (RON) ─────────────────────────────
 pub const SOLAR_BODY_EARTH_RON: &str = include_str!("../data/solar_system/earth.ron");
@@ -188,6 +193,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "star_systems/index.json" => Some(STAR_SYSTEMS_INDEX_JSON),
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
         "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
+        "media/ingest.json" => Some(MEDIA_INGEST_JSON),
         "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),

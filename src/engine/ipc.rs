@@ -1462,11 +1462,17 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
 /// `debug/screen_request.json`:
 ///
 /// ```json
-/// {"screen": "wall_screen_1", "action": "hover|click|scroll|text|snapshot|find|link|wait_ready",
+/// {"screen": "wall_screen_1", "action": "hover|click|scroll|text|snapshot|find|link|wait_ready|status",
 ///  "uv": [0.5, 0.2], "dy": 0, "text": "", "index": 0}
 /// {"screen": "wall_screen_1", "find": {"text": "Home"}}
 /// {"screen": "wall_screen_3", "link": {"index": 0}}
+/// {"screen": "wall_screen_5", "video_open": "C:/Users/me/Videos/holiday.mp4"}
 /// ```
+///
+/// `video_open` hands the path to a video screen's provider exactly as its
+/// own Open button would (probe, cache, convert with ffmpeg); `status` is
+/// a `snapshot` without the PNG, for polling the provider's fields (a
+/// conversion's `media.transcoding_pct`).
 ///
 /// and the engine performs that synthetic event on the named surface THROUGH
 /// THE SAME EVENT API the look ray uses (`ScreenCore::pointer_moved`,
@@ -1546,11 +1552,25 @@ pub(crate) fn poll_screen_request(state: &mut EngineState) {
         action = "link".to_string();
         link_index = l.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
     }
+    // {"video_open": "<absolute path>"}: open a file on a video screen
+    // exactly as its Open button would (conversion included); the path
+    // rides in the text payload. `status` is a bare read of the provider's
+    // fields (a `snapshot` without the PNG), for polling a conversion.
+    if let Some(p) = v.get("video_open").and_then(|p| p.as_str()) {
+        action = "video_open".to_string();
+        text = p.to_string();
+    }
     if !matches!(
         action.as_str(),
-        "hover" | "click" | "scroll" | "text" | "snapshot" | "find" | "link" | "wait_ready"
+        "hover" | "click" | "scroll" | "text" | "snapshot" | "find" | "link" | "wait_ready" | "video_open" | "status"
     ) {
-        fail(format!("unknown action {action:?} (hover|click|scroll|text|snapshot|find|link|wait_ready)"));
+        fail(format!(
+            "unknown action {action:?} (hover|click|scroll|text|snapshot|find|link|wait_ready|video_open|status)"
+        ));
+        return;
+    }
+    if action == "video_open" && text.trim().is_empty() {
+        fail("video_open needs a file path".to_string());
         return;
     }
     if action == "find" && text.trim().is_empty() {
@@ -1645,7 +1665,20 @@ pub(crate) fn advance_screen_request(state: &mut EngineState) {
                     ipc.stage = IpcStage::Waiting;
                     return;
                 }
-                _ => {} // snapshot: nothing to queue, just draw and read back
+                "video_open" => {
+                    // The provider's own open path: probe, cache, convert
+                    // (`ScreenProvider::open_media`); a screen that plays
+                    // no media says so instead of swallowing the request.
+                    let taken = s.provider_mut().map_or(false, |p| p.open_media(std::path::Path::new(&text)));
+                    if !taken {
+                        refused = Some(format!(
+                            "video_open: screen {:?} ({}) plays no media; only a video: screen does",
+                            s.core.id,
+                            s.core.source.kind()
+                        ));
+                    }
+                }
+                _ => {} // snapshot / status: nothing to queue, just draw and report
             }
             ipc.stage = IpcStage::Complete;
         }

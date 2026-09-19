@@ -363,13 +363,32 @@ the no-toolchain build is worth keeping simple.
 
 - **Display integration: DONE** for in-world screens (`video:<path>` in
   `data/machines/home.ron`, provider `src/engine/screens/video.rs`; the
-  frames go through `ScreenSurface::write_pixels`, letterboxed, the sound
-  is placed at the screen, a click pauses, the clip loops). Still to come on
-  that side: a file picker or the storage browser feeding `VideoPlayer::open`
-  (today the source is the data file's string), synchronised playback
-  between players (needs the relay clock), a seek bar, subtitles, and true
-  3D spatial audio once the engine has a kira spatial scene (today the
-  stream's volume and pan are set per frame from distance and bearing).
+  frame is a GPU texture drawn by egui into the display's rectangle, the
+  sound is placed at the screen, a click pauses, the clip loops).
+- **Choosing a file: DONE (2026-09-18).** The operator, in the console room:
+  "should we play a video that's stored on my PC?" The screen carries a
+  control strip (Open, Play/Pause, the name, the time) that shows while the
+  screen is looked at, paused or idle and hides over a playing film, and
+  Open raises the in-app file picker on the screen itself, filtered to the
+  video extensions in `data/media/ingest.json` and starting in the Videos
+  folder. The choice is remembered PER SCREEN in `AppConfig::screen_media`
+  (keyed by the placed instance id), so a data file's `video:` source is
+  only the default and the remembered file wins on the next boot.
+- **Transcode on ingest: DONE (2026-09-18).** A chosen file the player
+  refuses is converted ONCE by the machine's ffmpeg into
+  `<data dir>/media/cache/<blake3 of path, size and date>.webm` and the
+  converted copy plays; the source is never touched. ffmpeg is looked for at
+  the Settings > Media path, then `PATH`, then the per-platform list in
+  `data/media/ingest.json`. The percentage shows on the screen while it
+  runs; a cache hit skips ffmpeg entirely; no ffmpeg, a missing encoder or an
+  unreadable file is an on-screen message naming the fix, never a panic and
+  never a silent black screen. The command line is pinned by
+  `transcode_args`, so a later edit cannot quietly change the quality or
+  drop the audio. Implementation: `src/media/transcode.rs`.
+  Still to come on that side: synchronised playback between players (needs
+  the relay clock), a seek bar, subtitles, and true 3D spatial audio once the
+  engine has a kira spatial scene (today the stream's volume and pan are set
+  per frame from distance and bearing).
 - **Loop-point audio alignment.** A looping stream wraps at the Opus sample
   count while the clock wraps at the container duration, a few milliseconds
   later; `seek_to_start` re-seeks the sound to 0, replaying those
@@ -386,7 +405,7 @@ the no-toolchain build is worth keeping simple.
   `BufReader<File>`. Playing a WebM as it downloads means a reader that
   blocks on the not-yet-arrived range, which is a transport question for the
   storage rungs.
-- **Transcode on ingest.** The plan for every other format; not started.
+- **Transcode on ingest: DONE**, see the display-integration entry above.
 - **GPU colour conversion.** The CPU converter is correct and measured; the
   shader version belongs with the surface.
 - **More than two audio channels** (Opus multistream), **HDR tone mapping**.

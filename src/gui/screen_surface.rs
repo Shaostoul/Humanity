@@ -269,6 +269,14 @@ pub trait ScreenProvider: Send {
     fn link_rects(&self) -> Vec<egui::Rect> {
         Vec::new()
     }
+
+    /// Open a media file on this screen, exactly as the screen's own Open
+    /// button would (the dev IPC's `video_open` verb drives it). Returns
+    /// false when this kind of screen plays no media (a page, a camera), so
+    /// the IPC can say so instead of silently doing nothing.
+    fn open_media(&mut self, _path: &std::path::Path) -> bool {
+        false
+    }
 }
 
 /// A world screen's scheduling state (see `ScreenProvider::world_render`).
@@ -606,6 +614,23 @@ impl ScreenCore {
         self.events.len()
     }
 
+    /// Where the pointer is on this screen as a (u, v) pair in 0..1, or
+    /// `None` when it is not on the screen. A provider that shows controls
+    /// only while the screen is looked at reads this before it decides
+    /// whether to run egui this tick (the video control strip).
+    pub fn pointer_uv(&self) -> Option<(f32, f32)> {
+        let p = self.pointer?;
+        let (w, h) = (self.size.0.max(1) as f32, self.size.1.max(1) as f32);
+        Some((p.x / w, p.y / h))
+    }
+
+    /// Whether a dev-IPC `find` is waiting for a run to answer it. A
+    /// provider that skips egui runs while nothing changed (a playing clip)
+    /// runs one when this is set, or the lookup would report nothing.
+    pub fn find_pending(&self) -> bool {
+        self.find_query.is_some()
+    }
+
     /// Throw away every queued event and forget the pointer, for a frame
     /// whose picture came from BYTES rather than from a run (a playing clip
     /// or a live stream written with `write_pixels`). Returns how many were
@@ -899,6 +924,30 @@ impl ScreenSurface {
 
     pub fn provider(&self) -> Option<&dyn ScreenProvider> {
         self.provider.as_deref()
+    }
+
+    /// The provider, mutably: for the dev IPC's `video_open`, which hands a
+    /// path to the provider outside a frame.
+    /// The stored provider is a ` + 'static` box, and a mutable reference
+    /// cannot shorten the trait object's lifetime (mutable references are
+    /// invariant), so the bound is spelled out rather than elided.
+    pub fn provider_mut(&mut self) -> Option<&mut (dyn ScreenProvider + 'static)> {
+        self.provider.as_deref_mut()
+    }
+
+    /// Register a wgpu texture (format `SURFACE_FORMAT`) with this
+    /// surface's egui renderer so the provider's egui content can draw it
+    /// with `egui::Image` or `Painter::image`: the video provider keeps its
+    /// decoded frame in its own texture and composes it with its control
+    /// strip this way, the GPU doing the scaling. Linear filtering.
+    pub fn register_native_texture(&mut self, device: &wgpu::Device, view: &wgpu::TextureView) -> egui::TextureId {
+        self.renderer.register_native_texture(device, view, wgpu::FilterMode::Linear)
+    }
+
+    /// Point an id from `register_native_texture` at a new texture (the
+    /// clip changed size, so the frame texture was reallocated).
+    pub fn update_native_texture(&mut self, device: &wgpu::Device, view: &wgpu::TextureView, id: egui::TextureId) {
+        self.renderer.update_egui_texture_from_wgpu_texture(device, view, wgpu::FilterMode::Linear, id);
     }
 
     /// The provider's world-screen scheduling state, `None` for a page or a

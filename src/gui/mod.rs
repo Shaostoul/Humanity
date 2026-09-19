@@ -4069,6 +4069,9 @@ pub struct GuiState {
     /// Open file-attach picker modal (v0.708, in-app file browser).
     /// Some = the chat attach picker is open.
     pub chat_attach_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
+    /// Settings > Media: the in-app picker for the ffmpeg executable
+    /// (2026-09-18). Some = the picker is open.
+    pub ffmpeg_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
 
     // ── Donation address config ──
 
@@ -5630,6 +5633,7 @@ impl Default for GuiState {
             call_outgoing_deadline: None,
             call_muted: false,
             chat_attach_picker: None,
+            ffmpeg_picker: None,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
@@ -7443,6 +7447,10 @@ pub enum SettingsCategory {
     Gameplay,
     Controls,
     Privacy,
+    /// Video on in-world screens: where ffmpeg is for converting a chosen
+    /// file (2026-09-18). Named in the screen's own error text ("set its
+    /// path in Settings > Media"), so the section must exist by this name.
+    Media,
     Data,
     Updates,
     Credits,
@@ -7623,6 +7631,14 @@ pub struct SettingsState {
     /// card fetches the page (one HTTPS GET for the URL, plus its images)
     /// and draws it in the in-app web view; off, cards open the OS browser.
     pub readable_web: bool,
+    /// The video file each in-world screen plays, keyed by the placed
+    /// instance id, chosen with the screen's Open button (2026-09-18).
+    /// Persisted in AppConfig; the data file's `video:` source is only the
+    /// default, a remembered file wins on boot.
+    pub screen_media: std::collections::BTreeMap<String, std::path::PathBuf>,
+    /// Settings > Media: where ffmpeg is (a file or the folder holding it),
+    /// for converting a chosen video into WebM AV1 + Opus. Empty = auto.
+    pub ffmpeg_path: String,
     /// Planet close-range surface detail (v0.816): animated ocean waves
     /// (moving sun sparkle, Fresnel sky mirror) + land micro-texture under
     /// the photo albedo, on planets with baked per-pixel imagery (Earth).
@@ -7781,6 +7797,8 @@ impl Default for SettingsState {
             // at every altitude. The Settings toggle turns it back on.
             live_weather: false,
             readable_web: false,
+            screen_media: std::collections::BTreeMap::new(),
+            ffmpeg_path: String::new(),
             track_station: true,
             planet_surface_detail: true,
             water_fft: false,
