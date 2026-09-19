@@ -3622,6 +3622,43 @@
 
 ## Active focus
 
+> **THREE GATES WERE SILENTLY OFF, 2026-09-19.** Found while clearing the
+> file-size ratchet at the operator's request. Two are fixed, one is open.
+>
+> 1. **The size ratchet (FIXED for the four biggest).** A red entry makes
+>    `just lints` abort at the FIRST failure, so every lint behind it never
+>    ran: `focus_optin_lint`, `account_sql_lint` and the new
+>    `rig_pin_lint` were being skipped entirely, which means `just verify`
+>    was not a gate at all. Cleared by pure code motion, each proven by
+>    accounting rather than asserted: `src/lib.rs` 19,892 to 16,211,
+>    `src/renderer/mod.rs` 5,652 to 2,742, `src/gui/pages/chat.rs` 9,053 to
+>    4,616, `src/gui/mod.rs` 7,915 to 4,660. Six small files remain (in
+>    flight): msg_handlers +136, api +280, materials +103, capture +67,
+>    grass +60, planet_chunks +58. **The gate stays off until all six pass.**
+> 2. **The relay test target (IN FLIGHT).** `cargo test --features relay
+>    --no-default-features --lib` has not COMPILED for some time, about
+>    twenty errors from test code calling native-only helpers ungated, and
+>    `just verify` only runs the native target so nobody noticed. The build
+>    CI deploys and the live server runs has had no test battery at all. One
+>    piece needs judgement rather than a reflex gate: the relay's own DM
+>    tests reach into a native module, and gating them behind `native` would
+>    mean the relay never tests the path it actually serves.
+> 3. **The page snapshots (OPEN, nobody owns it).** All 55 checked-in PNGs
+>    under `tests/snapshots/` are STALE relative to main, including pages the
+>    GUI extraction never touched. Proven by control rather than assumed: the
+>    base `src/gui` was restored into a worktree, five pages re-rendered, and
+>    they came out byte-identical to what the extracted code produces, while
+>    both differ from what is committed. So the snapshot check cannot catch a
+>    real change today. Regenerating them blind would bake in whatever drifted;
+>    the honest fix is to regenerate and LOOK at a sample, page by page, before
+>    committing new baselines. Nobody has done that, and until somebody does,
+>    do not treat a snapshot diff as evidence of anything.
+>
+> **The lesson, for the next person who finds a red check:** in this repo a
+> failing gate is rarely just its own failure. It is usually hiding the gates
+> behind it.
+
+
 > **>>> TIER 0: SCHEDULED RE-VOTES (operator design, 2026-08-25). STEPS 1-3 BUILT.**
 >
 > **The design now lives in `docs/design/scheduled-revotes.md`**, including the
