@@ -35,6 +35,46 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1319: `renderer/mod.rs` 3_883 -> 2_800, the biggest single click this
+///   list has taken. The file had reached 5,652 lines (+1_769 over budget) and
+///   was the second-worst of ELEVEN red entries, which mattered more than the
+///   number says: `just lints` aborts at the first failure, so with this one
+///   red the later lints in `just verify` never ran at all.
+///   FOUR clusters came out, each its own commit, each proven to be pure
+///   motion by accounting every removed line against the file it landed in:
+///     * `renderer/celestial.rs` (1_887) - `render_celestial_onto` and the
+///       `run_cloud_composite` it is the only caller of. 1_816 lines removed,
+///       1_816 accounted for, not one signature changed. It stayed ONE piece
+///       because the pass is a single ordered sequence whose steps depend on
+///       each other; splitting it would have made this a refactor.
+///     * `renderer/scene_draw.rs` (627) - the near-world draw loops, from
+///       `upload_object_uniforms` through the opaque, transparent and overlay
+///       lists to god rays and SSAO, plus the whole-frame wrappers.
+///     * `renderer/overlay_draw.rs` (390) - the post-passes: orbit lines
+///       (both far planes) and particle billboards, CPU and GPU.
+///     * `renderer/surface.rs` (260) - the swapchain and render-target
+///       lifecycle, including BUG-077's deferred present-mode change and its
+///       two pure helpers with their unit tests.
+///   The whole privacy delta of the move is FOUR `pub(super)`s
+///   (`create_scene_texture`, `create_depth_texture`,
+///   `upload_object_uniforms`, `draw_opaque_objects`), each of which was
+///   private only because its caller used to sit in the same file; every one
+///   is commented as such. The three big files take `use super::*` the way
+///   `tree_species.rs` does - a child module sees its parent's private items
+///   AND its private `use` bindings - so no `Renderer` FIELD was widened at
+///   all. No re-export shim was needed for any method (inherent methods
+///   resolve by receiver type, not module path); the only `pub use` is for the
+///   two free VSync helpers, so `renderer::vsync_present_mode` still resolves.
+///   5_652 -> 2_720, so 1_083 lines are banked and 80 stay as working room.
+///   The four new files join the watch list at more than measured+3%, for the
+///   reason the v0.1093 note gives: 3% of a 260-line file is 8 lines, which
+///   would fire on the first honest addition.
+///   WHAT IS LEFT IN mod.rs is now one coherent thing - the `Renderer` struct,
+///   its ~1,030-line `init`, and the registries and per-frame setters
+///   (meshes, patch arena, grass, lights, weather map, atmosphere LUTs). The
+///   next increment that wants room should extract `init` itself into
+///   `renderer/init.rs`; it is a single function with one job (build every
+///   GPU resource the struct holds) and it is over a third of what remains.
 /// - v0.1110: `renderer/tree_mesh.rs` 6_450 -> 6_400, and the gate WORKED
 ///   exactly as designed for the second time in seven releases. The cube fix
 ///   (golden-angle azimuths + solved per-card tilts, with its own gate) added
@@ -150,7 +190,11 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/terrain/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 4_200),
-    ("src/renderer/mod.rs", 3_883),
+    ("src/renderer/mod.rs", 2_800),
+    ("src/renderer/celestial.rs", 1_950),
+    ("src/renderer/scene_draw.rs", 750),
+    ("src/renderer/overlay_draw.rs", 550),
+    ("src/renderer/surface.rs", 500),
     ("src/renderer/materials.rs", 500),
     ("src/renderer/capture.rs", 300),
     ("src/renderer/shadow_cutout.rs", 250),
