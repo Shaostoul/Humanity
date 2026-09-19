@@ -185,7 +185,8 @@ catch the bug via a revert-and-retest.
 
 ### Video Player Core (native, in-world screens rung 5, 2026-09-16)
 A purpose-built player core, no VLC and no ffmpeg at runtime: opens a
-WebM/Matroska file, decodes AV1 video to RGBA frames and Opus audio to PCM
+WebM/Matroska file (any other format is converted once by the machine's
+ffmpeg on ingest, 2026-09-18), decodes AV1 video to RGBA frames and Opus audio to PCM
 on background threads, keeps a monotonic audio-led playback clock, and offers
 play / pause / seek-to-start / poll-the-due-frame. Refuses any other codec by
 name (H.264, H.265, AAC, VP8/VP9 and Vorbis are not decoded; other formats
