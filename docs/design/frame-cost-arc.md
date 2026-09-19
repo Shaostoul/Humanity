@@ -145,6 +145,12 @@ under H2, because increment 1 decides between them in one boot.
 pass at `mod.rs:4523` labelled "Celestial Pass", timed as `gpu.celestial` at
 `mod.rs:4526`, which draws, in order:
 
+> Where it lives now: the whole pass moved verbatim to
+> `src/renderer/celestial.rs` in v0.1319, under the file-size ratchet. The
+> `mod.rs` line numbers in this section are from the file as it stood when the
+> measurement was taken and are kept as the record of that reading; grep the
+> function name rather than the line.
+
 1. the classic opaque list (bodies, near-tree models, props) one
    `draw_indexed` each, `mod.rs:4570` to `4595`, material binds skipped when
    unchanged;
@@ -688,7 +694,9 @@ no row whose `sources` lists `gpu.celestial_t` or the four cloud keys, so
 
 ### (a) Mechanism as read, and two suspects refuted
 
-`Renderer::render_scene_onto` (`src/renderer/mod.rs:2771`) opens one pass timed
+`Renderer::render_scene_onto` (`src/renderer/mod.rs:2771`, moved verbatim to
+`src/renderer/scene_draw.rs` in v0.1319 - the line numbers here are from the
+file as it stood at the measurement) opens one pass timed
 `gpu.scene` (2793) and iterates `objects` in list order (2823 to 2855):
 dynamic-offset bind, vertex buffer, index buffer, `draw_indexed`, material
 binds skipped when unchanged. There is no sort and no culling of any kind at
