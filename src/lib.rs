@@ -2649,14 +2649,20 @@ mod native_app {
                                 // neither string ever matched and the whole path was dead: there
                                 // was no way to reach the look editor from inside the world.
                                 //
-                                // It now reads the room's ACTIONS, which are joined from
-                                // data/rooms.ron at load. A room whose type offers
-                                // `customize_appearance` is a mirror (the bedroom's standing
-                                // mirror); one that offers `change_outfit` is a wardrobe (the
-                                // dressing room). Any home anyone authors gets the same stations
-                                // for free by naming a room type, with no code change here.
+                                // It now reads the PAGE each of the room's actions opens, joined
+                                // from data/rooms.ron + data/rooms/room_actions.ron at load. A
+                                // room with an action that opens "appearance" is a mirror (the
+                                // bedroom's standing mirror); one that opens "wardrobe" is a
+                                // wardrobe (the dressing room). Any home anyone authors gets the
+                                // same stations for free by naming a room type, no code change.
+                                //
+                                // The page and not the label: `RoomBounds::actions` holds human
+                                // labels ("Change Outfit"), which exist to be read and can be
+                                // reworded, and the first attempt at this compared against the
+                                // raw action ids, so it matched nothing and stayed just as dead
+                                // as the room-id version it replaced.
                                 let p = state.camera.position;
-                                let actions = state
+                                let pages = state
                                     .gui_state
                                     .room_bounds
                                     .iter()
@@ -2665,12 +2671,12 @@ mod native_app {
                                             && p.y >= r.min.y && p.y <= r.max.y
                                             && p.z >= r.min.z && p.z <= r.max.z
                                     })
-                                    .map(|r| r.actions.clone())
+                                    .map(|r| r.action_pages.clone())
                                     .unwrap_or_default();
-                                let has = |a: &str| actions.iter().any(|x| x == a);
-                                if has("customize_appearance") {
+                                let opens = |page: &str| pages.iter().any(|x| x == page);
+                                if opens("appearance") {
                                     open_showroom(state, 1);
-                                } else if has("change_outfit") {
+                                } else if opens("wardrobe") {
                                     open_showroom(state, 2);
                                 }
                             }

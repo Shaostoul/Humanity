@@ -2088,14 +2088,6 @@
             zone: "home",
         ),
         (
-            id: "tool_rack_3",
-            machine: "tool_rack",
-            room: "room-entry",
-            offset: (52.6, 0.0, 38.4),
-            rotation: 180.0,
-            zone: "home",
-        ),
-        (
             id: "wall_screen_1",
             machine: "wall_screen",
             room: "room-entry",
@@ -2150,6 +2142,14 @@
             room: "room-hall",
             offset: (42.2, 0.0, 39.4),
             rotation: 180.0,
+            zone: "home",
+        ),
+        (
+            id: "tool_rack_3",
+            machine: "tool_rack",
+            room: "room-hall",
+            offset: (49.5, 0.0, 42.6),
+            rotation: 0.0,
             zone: "home",
         ),
         (
@@ -2310,7 +2310,7 @@
             id: "shelf_6",
             machine: "shelf",
             room: "room-bedroom",
-            offset: (41.8, 0.0, 37.0),
+            offset: (41.75, 0.0, 37.0),
             rotation: 90.0,
             zone: "home",
         ),
@@ -2431,14 +2431,6 @@
             machine: "washer",
             room: "room-wetroom",
             offset: (49.5, 0.0, 34.6),
-            rotation: 90.0,
-            zone: "home",
-        ),
-        (
-            id: "bath_sink_2",
-            machine: "bath_sink",
-            room: "room-wetroom",
-            offset: (49.6, 0.0, 35.8),
             rotation: 90.0,
             zone: "home",
         ),
@@ -2771,7 +2763,7 @@
             id: "chair_11",
             machine: "chair",
             room: "room-court",
-            offset: (51.5, 0.0, 26.0),
+            offset: (50.9, 0.0, 26.0),
             rotation: 90.0,
             zone: "home",
         ),
@@ -2779,7 +2771,7 @@
             id: "chair_12",
             machine: "chair",
             room: "room-court",
-            offset: (53.4, 0.0, 26.0),
+            offset: (53.9, 0.0, 26.0),
             rotation: 270.0,
             zone: "home",
         ),
@@ -3741,6 +3733,22 @@
         (
             from: "uplink_1",
             to: "server_1",
+            kind: "data",
+            spec: Some("eth_cat6"),
+        ),
+        // The study's router sits between the uplink and the server, and is on the
+        // same battery bus as the rest of the desk. A powered machine with no cable
+        // is an isolated load and the buildability report says so, which is how this
+        // was caught: the router was placed before it was wired.
+        (
+            from: "battery_8",
+            to: "router_1",
+            kind: "power",
+            spec: None,
+        ),
+        (
+            from: "uplink_1",
+            to: "router_1",
             kind: "data",
             spec: Some("eth_cat6"),
         ),

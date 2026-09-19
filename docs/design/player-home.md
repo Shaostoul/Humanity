@@ -23,7 +23,7 @@ already the operator's "1 acre or whatever it is for that specific ship design",
 so the shell was never the problem.
 
 What was wrong was the inside. Before this pass the acre held 19 interior walls,
-all crowded into a 16 by 20 m corner, partitioning 330 m2. The other **4,565
+all crowded into a 16 by 23 m corner, partitioning about 330 m2. The other **4,565
 square metres, 93 percent of the home, was one continuous open hall**, and the
 machines standing in it were arranged in straight demo rows: seventeen crafting
 stations in three lines on open floor, the whole power and water plant in a grid
@@ -148,7 +148,7 @@ climate: the **Mushroom room**, dark by design, and the **Aquaponics** room with
 the fish tanks.
 
 **At the far end**, past a wide opening, the **Fields** and the **Barn** with the
-silo. This is the longest walk in the home, about 50 m from the front door, and
+silo. This is the longest walk in the home, roughly 70 m of corridor and room from the front door, and
 it is deliberately the thing you visit least. A teleporter pad at each end (the
 vehicle bay and the fields) makes the trip instant when you are carrying a
 harvest.
@@ -186,6 +186,13 @@ That last sentence is the part worth keeping. **The sequence was used where it
 helped and abandoned where it did not.** A layout that reads well to a person
 standing in it beats a layout with an elegant derivation, and every room here was
 sized by asking what goes in it first.
+
+**One rule decides every door.** Up to 1.2 m it is a hinged leaf that swings;
+wider than that it is a pocket door that slides into the wall, 2.4 m tall
+instead of 2.1, and its approach distance grows with its width so it is already
+open when you reach it. That is why the great room's 4 m opening onto the hall,
+the kitchen pass, the greenhouse slider and the vehicle bay's roller all behave
+like the openings they are, rather than like a 4 m panel on a hinge.
 
 **Material is doing as much work as proportion.** The wall material ids
 (1 steel, 2 concrete, 3 oak, 4 tempered glass, 8 white HDPE) are chosen per wall
@@ -242,6 +249,105 @@ offering `change_outfit` is a wardrobe. The bedroom has the first, the dressing
 room has the second, and any home anyone authors gets both for free by naming a
 room type.
 
+## The captures, and an honest verdict on each
+
+`node scripts/photograph-home.js` boots the release build, enters the world and
+stands in every room. The evidence folder is
+`.probe-rig/home-photos/runs/<stamp>/`, one PNG per vantage plus a manifest
+naming the pose each was taken from. 29 of 29 captured, zero panics.
+
+The screens gate runs against the same build:
+`node scripts/verify-screens.js` parks in the console room and passes 12 of 12,
+which proves the wall inventory is still clickable, the web wall still
+navigates, and the task board still draws, from their new rooms.
+
+The question the brief asks is whether it looks like somewhere a person lives.
+Room by room, and not flattering it:
+
+| Capture | Verdict |
+|---|---|
+| **Overview** | The acre reads. From above you can name every space without being told, which is the thing that was not true before. |
+| **Entry** | Good. A narrow bright vestibule, then the hall opens through a framed aperture. The compression and release works. |
+| **Hall** | Good as a route, thin as a room. The light strip runs its length, three doors on one side and the great room's wide opening on the other, and you can see the workshop door at the far end. |
+| **Great room** | The glass wall onto the greenhouse is the best thing in the plan. The room itself is too big for what is in it: a seating group at one end, a dining set at the other, and bare floor between. |
+| **Kitchen** | Good. The garden beyond the glass is right there, and the galley run reads. The appliances are featureless dark boxes. |
+| **Console room** | The best room in the home. Three metres wide, the web screen over the desk on one side and the garden camera opposite, the greenhouse glowing at the far end. It is a place to sit, which is what it was not before. |
+| **Bedroom** | Weak. Eight metres square is a real bedroom size, but with one bed, two nightstands and a rug in it the room reads empty, and the service runs cross its ceiling. |
+| **Bedroom mirror** | The concept works: a full-height panel showing the Profile page, and walking up to it opens the look editor. The page is laid out for a wide screen, so in portrait it fills the top third and the rest is black. |
+| **Dressing room** | Good. Three wardrobes down one side, shelves down the other, and the bedroom visible through the open door. It reads as exactly what it is. |
+| **Bathroom, wet room** | Utilitarian and fine. The pipe drops to each fixture read correctly HERE, which is the one place they help. |
+| **Study** | Good. Book-lined, a monitor on the desk showing the Library, a window onto the court. |
+| **Orchard court** | The window from the court into the lit bedroom is the nicest detail in the home. The planters read as empty boxes, because nothing is planted in them. |
+| **Workshop** | Was the weakest: the first sweep came back mostly black. The lighting is roughly doubled now and the benches, racks and the clip screen all read. The service runs still dominate the frame. |
+| **Forge, plant room** | Legible, industrial, correct. |
+| **Greenhouse** | Strong. Walking down the tower avenue with plants growing on both sides is the most convincing thing in the acre. |
+| **Vehicle bay, service way, power terrace** | A big apron with a drone pad, a loading dock, a transit platform and a solar array around the edges. An apron is supposed to be mostly floor, so this is the intended emptiness, but it is at the limit of it. |
+| **Mushroom room, aquaponics** | The mushroom room works: eight racks in a dark cell. The aquaponics room does not: two fish tanks in 120 square metres. |
+| **Fields, barn** | Nearly empty, and not intentionally. Four plots and a silo in 1,120 square metres is a lot of floor for very little. |
+
+**The honest summary: about two thirds of it reads as somewhere a person lives,
+and the third that does not fails for reasons that are not the plan.**
+
+1. **Nothing is textured.** Walls are flat colour with no trim, skirting or
+   material detail, so a room's character comes entirely from its shape.
+2. **Fifty-five of seventy-one machine types have no model.** A kitchen whose
+   stove, oven and sink are three grey boxes cannot read as a kitchen no matter
+   where they stand. And the sixteen that DO have one draw at the model file's
+   own size rather than the size the catalog declares: `pantry_cabinet` says
+   2.0 by 2.0 by 0.6 m and renders as a roughly 0.8 m kitchen unit. Every piece
+   of modelled furniture in the home is therefore smaller than the footprint its
+   own data claims, which is a large part of why rooms read emptier than they
+   measure.
+3. **The service runs cross the living rooms.** Power and water are drawn as
+   coloured cylinders at ceiling height between the machines they connect, with
+   a bracket every couple of metres, and a central plant room feeding a house
+   means long runs. In the bathroom that reads as plumbing; across a bedroom
+   ceiling it reads as a building site. They can be switched off today (the
+   construction editor's "Pipe" visibility filter), and the real fix is either
+   routing them through the conduit NODE GRAPH that already exists in the data
+   and is empty, or a per-room ceiling to hide them above, which is the same
+   change a second storey needs.
+4. **The rooms are sized for a furniture set that does not exist yet.** An 8 m
+   bedroom and a 10 m great room are ordinary real sizes. They look empty
+   because fifteen furniture models is not a house's worth of things.
+
+That last one is a deliberate choice rather than an oversight. Shrinking the
+rooms until today's fifteen models fill them would make the captures look better
+now and produce a cramped home later, and the project's standing rule is to build
+the version a 2030 release would ship and fix the fidelity underneath it.
+
+**One room is genuinely mis-sized and it is the aquaponics room.** Two fish tanks
+do not fill 120 square metres, and unlike the bedroom there is no furniture
+coming to fill it. The machine SET is frozen by the `loops` block at the bottom
+of `home.ron`, which states counts in prose ("2 aquaponic fish tanks", "26
+towers", "8 solar panels"), so adding a third tank makes that text a lie. The
+right order is to revise the loop sizing first and the room second. The fields
+are the same shape of problem with a better excuse: four plot machines are a
+TOKEN for a field rather than the field itself, and a field is supposed to be
+big.
+
+## Where you wake up, and the doll in the dressing room
+
+Two things followed from partitioning the acre that were not obvious until it
+was partitioned.
+
+**World entry used to put the player in the largest room.** That was a sane
+fallback while the acre was one open hall with a house in the corner. The moment
+it became twenty-three rooms the largest one was the greenhouse, so a player
+would have woken among the beds instead of at their own front door. The home
+body already carries a `spawn: Some((x, z))` that the build-mode avatar gizmo
+sets, and it was being read for build mode only. World entry now prefers it, and
+this home's spawn is just inside the front door facing west down the hall, which
+is the first thing the design wants you to see. The largest-room fallback is
+still there for a home that declares nothing.
+
+**The character-select avatar is drawn in the world, not only in the showroom.**
+It stands on a podium at the spawn room, which would have put a blockman among
+the tower rows. A figure on a podium is a dress form, so it now goes to the room
+whose type offers `change_outfit`, which is the dressing room, falling back to
+the appearance room and then to the spawn room. Same rule as the walk-up: the
+room's data decides, not a hardcoded id.
+
 ## What the data could not express
 
 Four things, in the order they cost the design something.
@@ -269,14 +375,22 @@ Four things, in the order they cost the design something.
    over the same grid would give the engine a room graph for almost nothing, and
    NPC pathing will want it anyway.
 
-4. **Furniture has no collision and no footprint.** Machines are drawn and
-   clicked but not collided with, so a wardrobe placed half inside a wall looks
-   wrong and plays fine. Every placement in this pass was checked by arithmetic
-   in a throwaway script rather than by the engine. A `footprint` on the machine
-   def plus an overlap check in `just validate-data` would turn "I measured
-   carefully" into "the build fails if I did not".
+4. **A machine's declared SIZE does not scale its model.** The `size` field
+   drives the primitive fallback, the screen quad and the click box; the glTF
+   loader ignores it, so a `pantry_cabinet` declared 2 m wide draws at whatever
+   size its model file was authored, about 0.8 m. The fix is one multiply where
+   the mesh is parsed in `src/engine/home_meshes.rs`, against the model's own
+   bounds. The reason not to do it blind is that it resizes all fifteen existing
+   models at once and wants a look before and after.
 
-None of the four changed the design. The first one constrained it: the greenhouse
+5. **Furniture has no collision.** Machines are drawn and clicked but not
+   collided with, so a wardrobe placed half inside a wall looks wrong and plays
+   fine. Every placement in this pass was checked by arithmetic in a throwaway
+   script; that check is now a real test
+   (`every_placed_machine_stands_inside_the_room_it_names`), but it proves the
+   machine is in the right ROOM, not that it clears the furniture beside it.
+
+None of the five changed the design. The first one constrained it: the greenhouse
 and the vehicle bay would both be taller if they could be.
 
 ## What a second storey needs
@@ -353,5 +467,9 @@ missing is that the reference carries only the bones.
 | `data/machines/home_solo.ron` | The one-person variant retargeted onto the same rooms, with three screens and the mirror. |
 | `data/rooms.ron` | New room types `dressing`, `hall`, `entry`; the appearance station moved from the wet room to the bedroom. |
 | `data/blueprints/zone_types.ron` | New zone type `room_dressing`. |
-| `src/lib.rs` | The character-station walk-up reads room actions instead of matching two hardcoded room ids, which were never going to match. |
+| `src/lib.rs` | The character-station walk-up reads what a room's actions OPEN instead of matching two hardcoded room ids, which were never going to match. |
+| `src/ship/room_types.rs`, `src/gui/state_types.rs`, `src/engine/home_meshes.rs` | `RoomTypeRegistry::action_pages` and `RoomBounds::action_pages`: the semantic half of a room's actions, separate from the labels, plus the test that the home has exactly one appearance room and one wardrobe room. |
+| `src/machines.rs` | The test that every placed machine really stands inside the room it names, in both home files. |
+| `src/engine/world_load.rs` | World entry prefers the home's authored spawn point over the largest room; the character-select avatar goes to the room that changes clothes. |
 | `src/ship/home_structure.rs` | The shipped-home test now derives its bounds from the authored zones and checks every room, rather than pinning one room's coordinates. |
+| `scripts/photograph-home.js`, `scripts/home-vantages.json` | The rig that took the pictures below. It boots the release build, enters the world, stands at each authored pose and captures the viewport. `node scripts/photograph-home.js`, or `--only 05-great-room` for one. |

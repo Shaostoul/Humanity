@@ -281,6 +281,7 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
                 display_name: f.display_name,
                 purpose: f.purpose,
                 actions: f.actions,
+                action_pages: room_types.action_pages(r),
                 access: f.access,
             }
         })

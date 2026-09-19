@@ -175,10 +175,11 @@ about Y like the body. Rotation 180 faces +Z, rotation 90 faces -X. "left"
 and "right" are the viewer's left and right when facing the front; "top" is
 read by a viewer standing at the front looking down.
 
-Shipped: `wall_screen` and `desk_monitor` in both `home.ron` and
-`home_solo.ron` under the new "Displays" palette category, and two placed
-`wall_screen` instances in home.ron's common room (`wall_screen_1` inventory
-on the south wall, `wall_screen_2` tasks on the east wall). Placing a screen
+Shipped: `wall_screen`, `desk_monitor` and `standing_mirror` in both
+`home.ron` and `home_solo.ron`, under the "Displays" and "Furniture" palette
+categories. The 2026-09-19 home redesign spread the placed screens across the
+rooms that use them rather than hanging a wall of them in one booth; the table
+of what is where and why is in [player-home.md](player-home.md). Placing a screen
 in the construction editor works like any other machine; the page comes from
 the def until the instance's `screen_source` is set in the file.
 
@@ -266,9 +267,10 @@ and `links` lists the hrefs drawn last frame (first 32, in `link` index
 order) so a rig can choose a link by where it goes; the screens gate only
 follows links that stay on our own site.
 
-Shipped placement: `wall_screen_6` in `home.ron`, on the console room's
-east wall (x = 51, z centre 45.5, facing west into the room), source
-`web:https://united-humanity.us`.
+Shipped placement: `wall_screen_6` in `home.ron`, in the console room above
+the desk on its east wall, source `web:https://united-humanity.us`. This is the
+screen `scripts/verify-screens.js` parks in front of, so its id and its source
+are load-bearing: renaming either quietly shrinks that gate.
 
 ## Live and camera sources (rung 3)
 
@@ -523,9 +525,8 @@ already has the requested size.
 **Shipped data** (`data/machines/home.ron`): `camera_post` in both home
 catalogs under "Displays"; `camera_post_1` on the open garden floor west of
 the variety-tower grid, looking east down the tower rows and a little down;
-in the console room (x 47.5..51, z 44..47) `wall_screen_3` on the west wall
-showing `camera:camera_post_1` and `wall_screen_4` on the north wall showing
-`watch:shaostoul`. `shipped_homes_place_a_camera_post_and_the_console_screens_name_it`
+`wall_screen_3` in the console room shows `camera:camera_post_1`, and
+`wall_screen_4` is the great room's television showing `watch:shaostoul`. `shipped_homes_place_a_camera_post_and_the_console_screens_name_it`
 pins that every `camera:` screen names a post that is actually placed.
 
 **Dev IPC.** `debug/screen_request.json` works on both kinds like any
@@ -557,7 +558,7 @@ placed at the screen; a click on the picture toggles pause. The operator's
 words: "movies on displays", then, looking at the console room, "should we
 play a video that's stored on my PC?". Provider:
 `src/engine/screens/video.rs` (`VideoProvider`). Shipped: `wall_screen_5`
-on home.ron's console room north wall starts on
+over the workshop benches starts on
 `data/media/demo_colour_bar.webm` (the synthetic 2 s colour-bar clip;
 provenance in `data/media/README.md`) and the player can point it at any
 video on the machine from inside the game.

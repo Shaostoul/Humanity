@@ -213,14 +213,39 @@ async function main() {
     // The home's machines and walls are built a few frames after world entry.
     await sleep(6000);
 
+    // THE HOME IS IN ORBIT AND THE CAMERA IS NOT GLUED TO IT. The showcase
+    // `cam` verb teleports the player BODY, which then sits at a fixed point
+    // while the station flies on: measured 2026-09-19, a camera left alone for
+    // six seconds had drifted out through the roof and was looking back down at
+    // the acre from sixty metres away. Setting the game hour is worse again,
+    // because the station's position is propagated from the clock, so a
+    // twelve-hour jump moves the whole home most of the way to the moon and
+    // every picture comes back as empty space with a speck of homestead in it.
+    //
+    // So: no clock changes at all, and before every pose the camera is re-glued
+    // to the station with a plain `camera_request`, which re-syncs the world
+    // origin to the station's current position. Then the pose, then the capture,
+    // promptly. The lighting in a picture is therefore whatever the world clock
+    // happens to say; that is the honest cost of not touching it.
     for (const v of vantages) {
+      clearDone("camera_done.json");
+      req("camera_request.json", { station: "home" });
+      const glue = await waitFile("camera_done.json", 20000);
+      if (!glue || glue.ok !== true) {
+        log(`FAIL ${v.id}: could not re-glue to the station: ${JSON.stringify(glue)}`);
+        manifest.shots.push({ id: v.id, room: v.room, ok: false });
+        failed++;
+        save();
+        continue;
+      }
       const pose = `${v.pos[0]},${v.pos[1]},${v.pos[2]},${v.yaw},${v.pitch}`;
-      req("showcase_request.json", { cam: pose, time: String(v.time ?? 11), time_scale: "0" });
-      // Two seconds is enough for the teleport, the machine meshes in the new
-      // room and the lighting to settle. The FIRST capture after a boot is a
-      // different state from every later one (the rigs have been bitten by
-      // this), so the first vantage is captured twice and the first is thrown.
-      await sleep(2200);
+      req("showcase_request.json", { cam: pose });
+      // Long enough for the teleport, the machine meshes in the new room and
+      // the lighting to settle; short enough that the drift above is under a
+      // metre. The FIRST capture after a boot is a different state from every
+      // later one (the rigs have been bitten by this), so the first vantage is
+      // captured twice and the first is thrown.
+      await sleep(1300);
       const shots = v === vantages[0] ? 2 : 1;
       let out = null;
       for (let i = 0; i < shots; i++) {
