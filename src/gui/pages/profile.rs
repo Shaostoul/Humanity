@@ -13,7 +13,7 @@
 //! [`draw`].
 
 use egui::{Color32, RichText, Rounding, Stroke, Vec2};
-use crate::gui::{GuiPage, GuiState, ProfileSection};
+use crate::gui::{GuiState, ProfileSection};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -21,14 +21,25 @@ use crate::gui::widgets;
 // nav_legacy_red / accent / success) so the theme editor can restyle them.
 
 /// `GuiPage::Profile` is an ALIAS for the canonical editor, not a second one.
-/// Two page-level editors over one set of fields is a drift generator, so every
-/// caller that still asks for `GuiPage::Profile` (onboarding's "profile" step,
-/// any older nav push) is forwarded to the Real page with the profile section it
-/// last had open already selected. Forwarding happens in-frame, so there is no
-/// blank frame between the two pages.
+/// Two page-level editors over one set of fields is a drift generator, so a
+/// caller that asks for `GuiPage::Profile` (onboarding's "profile" step, an
+/// older nav push, a wall screen whose source is `profile`) gets the Real page
+/// with the profile section it last had open already selected.
+///
+/// **It draws. It does NOT navigate.** This used to set
+/// `state.active_page = GuiPage::Real` right here, which was harmless while
+/// the only caller was the main UI and became a trap the moment a wall screen
+/// could show a page. The bedroom's standing mirror declares `source:
+/// "profile"`, screens draw through this same dispatch against this same
+/// `GuiState`, so entering the world drew the mirror, the mirror set the app's
+/// page, and the player was thrown straight back out of the world onto the
+/// Profile page every time they pressed Play (v0.1322.1, reported by the
+/// operator, who could not get into the game at all). A page draw may not
+/// steer the app. The nav-alias normalisation now happens once, in the main
+/// UI's own frame in `lib.rs`, where which page the app is on is that code's
+/// business and no screen can reach it.
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     state.active_real_section = section_id(state.profile_section).to_string();
-    state.active_page = GuiPage::Real;
     super::real::draw(ctx, theme, state);
 }
 

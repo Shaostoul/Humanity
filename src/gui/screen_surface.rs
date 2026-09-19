@@ -1688,4 +1688,88 @@ mod tests {
         core.run_with(&mut state, |c, s| draw(c, s, &mut text));
         assert_eq!(text, "hi", "typed text reaches the focused field");
     }
+
+    /// A PAGE DRAWN ON A WALL SCREEN MAY NOT STEER THE APP.
+    ///
+    /// The incident (v0.1322.0 and v0.1322.1; the operator: "I tried to log
+    /// into the game but instead of loading the game world it threw me into the
+    /// profile page. I can't seem to get into game"). The redesigned home put a
+    /// standing mirror in the bedroom, and its screen declares
+    /// `source: "profile"`. Screens draw through `gui::dispatch::draw_tool_page`
+    /// against the VERY SAME `GuiState` the main UI uses, and `profile::draw`
+    /// wrote `active_page = GuiPage::Real` as its way of aliasing itself onto the
+    /// Real page. So the moment the world drew, the mirror navigated the whole
+    /// application out of the world and onto the Profile page. Play was unusable
+    /// for two releases, and nothing in the build said a word: the page rendered
+    /// correctly, the world loaded correctly, and the only symptom was that the
+    /// game would not start.
+    ///
+    /// This walks the SHIPPED home rather than a hand-written list, so a screen
+    /// anyone adds later is covered without anyone remembering this test exists.
+    ///
+    /// PROVEN RED: put `state.active_page = GuiPage::Real;` back at the top of
+    /// `pages::profile::draw` and this fails, naming `standing_mirror`.
+    #[test]
+    fn no_page_drawn_on_a_wall_screen_changes_the_app_page() {
+        let home = crate::machines::MachineHome::load(std::path::Path::new(
+            "data/machines/home.ron",
+        ))
+        .expect("the shipped home loads");
+
+        // Every screen the home declares, paired with the id that will name it
+        // in a failure: the catalog's default source, and each instance's
+        // override of it.
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for (id, def) in home.catalog.iter() {
+            if let Some(s) = def.screen.as_ref() {
+                sources.push((id.clone(), s.source.clone()));
+            }
+        }
+        for inst in home.instances.iter() {
+            if let Some(src) = inst.screen_source.as_ref() {
+                sources.push((inst.id.clone(), src.clone()));
+            }
+        }
+
+        let mut theme = load_theme();
+        let mut checked: Vec<String> = Vec::new();
+        for (owner, src) in sources {
+            let page = match ScreenSource::parse(&src) {
+                ScreenSource::Page(p) => p,
+                // A stream, a camera, a clip, the web reader: drawn by a
+                // provider, not by the page dispatch, so not this test's ground.
+                _ => continue,
+            };
+            let mut state = inventory_state();
+            // GuiPage::None is the value that means "the player is in the world",
+            // which is exactly when wall screens draw.
+            state.active_page = GuiPage::None;
+            let mut core = ScreenCore::new(&owner, &src, 640, 480, &theme);
+            // The same number of runs the real frame path does.
+            for _ in 0..core.runs_this_frame() {
+                core.run(&mut theme, &mut state);
+            }
+            assert_eq!(
+                state.active_page,
+                GuiPage::None,
+                "the {owner} screen (source {src:?}, page {page:?}) navigated the app \
+                 while merely drawing itself. A page drawn on a wall must not write \
+                 active_page: the player is standing in the world looking at it."
+            );
+            checked.push(owner);
+        }
+
+        // A gate that checks nothing passes, so say out loud what was covered.
+        assert!(
+            checked.len() >= 8,
+            "only {} page screens found in the shipped home ({checked:?}); this test \
+             would be passing by checking almost nothing",
+            checked.len()
+        );
+        assert!(
+            checked.iter().any(|id| id == "standing_mirror"),
+            "the bedroom's standing mirror is the screen this test exists for, and it \
+             was not among the ones checked: {checked:?}"
+        );
+    }
 }

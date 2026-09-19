@@ -14995,6 +14995,22 @@ mod native_app {
                             // Run egui frame
                             let raw_input = state.egui_state.take_egui_input(&state.window);
                             let full_output = state.egui_ctx.run(raw_input, |ctx| {
+                                // `GuiPage::Profile` is an ALIAS for the Real page. Normalise
+                                // it HERE, inside the app's own frame, so the nav bar
+                                // highlights the tab the person is actually looking at.
+                                //
+                                // This used to live inside `profile::draw`, which reads as the
+                                // natural home for it right up until something OTHER than the
+                                // main UI draws that page. In-world wall screens draw pages
+                                // through the same dispatch against this same GuiState, and the
+                                // bedroom's standing mirror is `source: "profile"` -- so from
+                                // v0.1322.0 every attempt to enter the world drew the mirror,
+                                // the mirror set `active_page`, and the player was thrown back
+                                // out onto the Profile page. Play was unusable. A page draw may
+                                // not steer the app; this line is the one place that may.
+                                if state.gui_state.active_page == GuiPage::Profile {
+                                    state.gui_state.active_page = GuiPage::Real;
+                                }
                                 // Show RGB nav bar on all pages except None and MainMenu
                                 match state.gui_state.active_page {
                                     GuiPage::None | GuiPage::MainMenu => {}
