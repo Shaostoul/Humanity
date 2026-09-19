@@ -446,11 +446,63 @@ pub fn bake_albedo_rgba(
     hm: &super::planet_heightmap::PlanetHeightmap,
     al: &PlanetAlbedo,
 ) -> Vec<u8> {
+    let (w, h) = (al.width(), al.height());
+    let row_bytes = w as usize * 4;
+    // Preallocated and filled in place rather than pushed, because the rows
+    // are about to be written by several threads at once and each one needs
+    // to know exactly where its bytes go.
+    let mut out = vec![0u8; row_bytes * h as usize];
+    // A degenerate grid has no rows to split, and `chunks_mut(0)` panics.
+    // The loop this replaced simply did nothing and returned an empty
+    // buffer, so this keeps that behaviour rather than inventing a crash.
+    if row_bytes == 0 || h == 0 {
+        return out;
+    }
+
+    // BOOT COST (v0.1322). This bake is a quarter of the world-load phase:
+    // measured 2026-09-19 on the boot rig, Earth's 4096x2048 grid took
+    // 1227 ms, the Moon's 966, Mars's 993 and Pluto's 2048x1024 230 -- 3.4 s
+    // of a 16.8 s boot, all of it on one core while eleven sat idle. Every
+    // output texel depends only on its own (x, y) and on inputs that are
+    // read-only for the whole bake, so the rows are independent and the work
+    // splits by row band with no coordination at all. Same bytes out, which
+    // `parallel_bake_matches_a_single_band_bake` proves by comparing a
+    // multi-band bake against a one-band one on a non-uniform test grid.
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(1, h.max(1) as usize);
+    // Ceiling division, so `threads` bands cover every row and only the last
+    // band is short.
+    let rows_per_band = (h as usize).div_ceil(threads);
+    std::thread::scope(|s| {
+        for (band, chunk) in out.chunks_mut(rows_per_band * row_bytes).enumerate() {
+            let y0 = (band * rows_per_band) as u32;
+            s.spawn(move || bake_albedo_rows(def, hm, al, y0, chunk));
+        }
+    });
+    out
+}
+
+/// One horizontal band of [`bake_albedo_rgba`]: fills `dst` (whole rows,
+/// tightly packed RGBA) with the texels of rows `y0 ..` of the output image.
+///
+/// Split out of the loop it came from so the threaded bake and a plain serial
+/// bake run the SAME code: the only difference between them is how many bands
+/// the image is cut into, which is exactly what the test varies.
+fn bake_albedo_rows(
+    def: &PlanetDef,
+    hm: &super::planet_heightmap::PlanetHeightmap,
+    al: &PlanetAlbedo,
+    y0: u32,
+    dst: &mut [u8],
+) {
     use super::planet_albedo::linear_to_srgb_byte;
     let (w, h) = (al.width(), al.height());
     let range_m = hm.max_meters() - hm.min_meters();
-    let mut out = Vec::with_capacity(w as usize * h as usize * 4);
-    for y in 0..h {
+    let rows = dst.len() / (w as usize * 4);
+    for row in 0..rows as u32 {
+        let y = y0 + row;
         // Texel-center geography, identical to the grids' cell-centered
         // registration (planet_heightmap module doc): row 0 is the
         // northernmost row, column 0 the westernmost column.
@@ -465,13 +517,13 @@ pub fn bake_albedo_rgba(
             let elevation = ((hm.sample_meters_latlon(lat, lon) - hm.min_meters()) / range_m)
                 .clamp(0.0, 1.0);
             let graded = grade_albedo(def, raw, elevation, abs_sin_lat);
-            out.push(linear_to_srgb_byte(graded[0]));
-            out.push(linear_to_srgb_byte(graded[1]));
-            out.push(linear_to_srgb_byte(graded[2]));
-            out.push(255);
+            let o = (row as usize * w as usize + x as usize) * 4;
+            dst[o] = linear_to_srgb_byte(graded[0]);
+            dst[o + 1] = linear_to_srgb_byte(graded[1]);
+            dst[o + 2] = linear_to_srgb_byte(graded[2]);
+            dst[o + 3] = 255;
         }
     }
-    out
 }
 
 /// Floor of the slope-shading multiplier: a perfectly vertical cliff face
@@ -1154,6 +1206,68 @@ mod tests {
         // The grid must actually have exercised all three grading regimes,
         // or this test silently degrades to checking one code path.
         assert!(saw_ocean_floor && saw_land_gain && saw_sea_ice);
+    }
+
+    /// The bake runs on as many threads as the machine has cores (v0.1322,
+    /// a 3.4 s boot cost), cutting the image into horizontal bands. Cutting
+    /// it differently must not change a single byte.
+    ///
+    /// The guard is a comparison rather than a golden file: the real bake
+    /// (however many bands `available_parallelism` chose) against the same
+    /// image produced as ONE band, which is the pre-parallel code path
+    /// exactly. Proven able to fail by writing `y0 + row + 1` into
+    /// `bake_albedo_rows`, which moves every band but the first and makes
+    /// this red while the per-texel grading test above stays green (that one
+    /// only ever bakes 8 rows and can be baked in one band on a small
+    /// machine).
+    #[test]
+    fn parallel_bake_matches_a_single_band_bake() {
+        let mut def = water_world(11);
+        def.sea_level = 0.5;
+        // Tall enough that any plausible core count splits it into several
+        // bands, and 61 rows is deliberately not a multiple of anything, so
+        // the last band is short and the ceiling division is exercised.
+        let (w, h) = (16u32, 61u32);
+        let mut meters = Vec::new();
+        for row in 0..h {
+            for col in 0..w {
+                // A value that varies with BOTH axes: a band that read the
+                // wrong rows would otherwise still match.
+                meters.push(-900.0 + (row * 29 + col * 7) as f32 % 1800.0);
+            }
+        }
+        let hm = synth_heightmap(w, h, -1000.0, 1000.0, &meters);
+        use crate::terrain::planet_albedo::{PlanetAlbedo, ALBEDO_MAGIC};
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(ALBEDO_MAGIC);
+        bytes.extend_from_slice(&w.to_le_bytes());
+        bytes.extend_from_slice(&h.to_le_bytes());
+        for y in 0..h {
+            for x in 0..w {
+                bytes.extend_from_slice(&[
+                    (x * 13 % 256) as u8,
+                    (y * 3 % 256) as u8,
+                    ((x + y) * 5 % 256) as u8,
+                ]);
+            }
+        }
+        let al = PlanetAlbedo::from_bytes(&bytes).expect("synthetic albedo parses");
+
+        let parallel = bake_albedo_rgba(&def, &hm, &al);
+        let mut serial = vec![0u8; (w * h * 4) as usize];
+        bake_albedo_rows(&def, &hm, &al, 0, &mut serial);
+        assert_eq!(parallel.len(), serial.len(), "bake produced the wrong size");
+        assert!(
+            parallel == serial,
+            "the banded bake disagrees with a single-band bake: first difference at byte {:?}",
+            parallel.iter().zip(&serial).position(|(a, b)| a != b)
+        );
+        // And the image is not accidentally uniform, which would make the
+        // comparison above pass no matter how the bands were cut.
+        assert!(
+            serial.chunks(4).any(|p| p[..3] != serial[..3]),
+            "the test grid must vary across the image"
+        );
     }
 
     /// Interior texels of a bilinear-sampled cell-centered grid: the bake's

@@ -614,6 +614,42 @@ already baked (the three Surface states, the two Water states); a
 pipeline cache or a per-entry DXIL cache would take that back and is the
 next step if boot time matters before launch.
 
+> **Correction, 2026-09-19 (the boot pass).** The pipeline cache named above
+> is not available on this platform and the boot cost was not where this
+> paragraph looked. Two findings, both measured on `scripts/boot-timing.js`
+> (new: boots the release exe into the world and collects every `[BootPhase]`
+> line over repeated runs on a machine-guarded quiet machine).
+>
+> **wgpu 24 has no DX12 pipeline cache.** Only the Vulkan adapter advertises
+> `Features::PIPELINE_CACHE`; `wgpu-hal`'s DX12 `create_pipeline_cache`
+> returns a stub that stores nothing and it does not implement
+> `pipeline_cache_get_data` at all, so the trait default returns `None`.
+> Windows runs `Backends::DX12`. The adapter now states this in every run log
+> (`[Pipelines] adapter offers a persistent pipeline cache: false`) so the
+> question is answerable without re-reading `wgpu-hal`, and so the day it
+> becomes true somebody notices.
+>
+> **The real boot cost was serial work, not repeated work.** Baseline median
+> 16.8 s to playable: `pipeline_new` 8.9 s, `planet_defs_bake` 3.9 s,
+> `adapter_request` 2.2 s. Of the 8.9 s only 4.3 s was the parallel scope
+> this section measured; the other 4.4 s was the SIX cloud fullscreen PSOs
+> compiling one at a time on the main thread after the scope closed, which
+> the `[Pipelines]` line never counted because it only counted the thirteen.
+> They now spawn in the same scope (all nineteen, at boot and at hot reload),
+> so the build is bounded by its longest single compile rather than a sum.
+> The per-planet albedo bake was likewise one planet at a time and is now
+> split into row bands. And `adapter_request` was 1.8 s of self-inflicted CPU
+> contention: the cloud-noise bake's twelve threads were started before the
+> instance existed and ran straight through the driver's adapter enumeration,
+> which is latency-bound; starting them immediately after the adapter returns
+> instead took it from 2173 ms to 345 ms.
+>
+> Boot 16.8 s to about 8.6 s, with the spread across runs narrowing from
+> 2.3 s to under 0.3 s. The five duplicate entry bakes this paragraph
+> identified are still duplicated; they are now hidden underneath the cloud
+> transparent PSO's own 4.3 s, which is the new floor and the only thing
+> worth attacking next.
+
 **Gate, `probe-sweep --operator-config`, the nine vantages in one boot per
 arm, same file order in both.** B0 = the P2 build (the exe from the P2
 worktree, byte-identical to what main shipped, run from a scratch checkout

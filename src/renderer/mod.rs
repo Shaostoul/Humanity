@@ -892,58 +892,20 @@ impl Renderer {
         let width = size.width.max(1);
         let height = size.height.max(1);
 
-        // Cloud-noise generation starts NOW on a background thread so the
-        // 384^3 + 256^3 volume bake overlaps adapter/device/shader-compile
-        // time; init() recv()s only the unfinished remainder (v0.872).
+        // Cloud-noise generation runs on a background thread so the 384^3 +
+        // 256^3 volume bake overlaps device/shader-compile time; init()
+        // recv()s only the unfinished remainder (v0.872). The MIP CHAINS are
+        // built on the same thread as of v0.1188 (they used to run inline in
+        // init(), fine at 192^3 but ~1.5 s of boot-path stall at 384^3, and
+        // it is the same pure-CPU work), so the channel carries finished
+        // chains and the upload side does nothing but write_texture.
+        // Ground-texture CPU bake rides along with it (v0.1133): ~1 s of PNG
+        // decode + mip-chain building, the same pure-CPU shape.
         //
-        // The MIP CHAINS are built here too as of v0.1188. They used to run
-        // inline in init(), which was fine at 192^3 (~180 ms) but is ~1.5 s
-        // of pure boot-path stall at 384^3 - and it is the same pure-CPU
-        // work as the bake, so it belongs in the same overlapped thread.
-        // The channel therefore carries finished chains, and the upload
-        // side does nothing but write_texture.
-        let cloud_rx = {
-            let (tx, rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let threads =
-                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-                let t0 = std::time::Instant::now();
-                let shape = cloud_noise::generate_shape(threads);
-                let detail = cloud_noise::generate_detail(threads);
-                let t_gen = t0.elapsed().as_secs_f32() * 1000.0;
-                let shape = cloud_noise::mip_chain(shape, cloud_noise::SHAPE_SIZE);
-                let detail = cloud_noise::mip_chain(detail, cloud_noise::DETAIL_SIZE);
-                log::info!(
-                    "Cloud noise volumes generated in background: {:.0} ms bake + {:.0} ms mips \
-                     ({} threads, {}^3 + {}^3, {:.0} MiB)",
-                    t_gen,
-                    t0.elapsed().as_secs_f32() * 1000.0 - t_gen,
-                    threads,
-                    cloud_noise::SHAPE_SIZE,
-                    cloud_noise::DETAIL_SIZE,
-                    (shape.iter().map(|l| l.len()).sum::<usize>()
-                        + detail.iter().map(|l| l.len()).sum::<usize>())
-                        as f32
-                        / (1024.0 * 1024.0),
-                );
-                let _ = tx.send((shape, detail));
-            });
-            Some(rx)
-        };
-
-        // Ground-texture CPU bake starts NOW too (same overlap trick,
-        // v0.1133): the ~1 s of PNG decode + mip-chain building runs while
-        // the adapter request and DXC shader compile (~5 s combined) hold
-        // the boot path. init() recv()s the finished bake and does only the
-        // fast GPU upload at the same point in the sequence as before -- no
-        // bind-group or ordering change, just no more blocking bake.
-        let ground_rx = {
-            let (tx, rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let _ = tx.send(ground_textures::bake_all());
-            });
-            Some(rx)
-        };
+        // BOTH now start INSIDE init(), the moment the adapter request
+        // returns, rather than here (v0.1322). See the note at that spawn
+        // site: the adapter request is the one phase of the boot these
+        // threads must not be running during.
 
         // DX12-only on Windows. wgpu unconditionally compiles Vulkan support
         // (hardcoded in wgpu's Cargo.toml for wgpu-core). Even with Backends::DX12,
@@ -1004,7 +966,7 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
-        Self::init(instance, surface, width, height, cloud_rx, ground_rx).await
+        Self::init(instance, surface, width, height, true).await
     }
 
     /// Create a new renderer attached to a WASM canvas element.
@@ -1022,19 +984,20 @@ impl Renderer {
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
             .expect("Failed to create surface from canvas");
 
-        Self::init(instance, surface, width, height, None, None).await
+        Self::init(instance, surface, width, height, false).await
     }
 
     /// Shared initialization: adapter, device, pipeline, depth buffer.
-    /// `cloud_rx`: pre-spawned cloud-noise generation (native path) so the
-    /// volume bake overlaps device/shader init; None generates inline (wasm).
+    /// `background_bakes`: true on native, where the cloud-noise volumes and
+    /// the ground textures are baked on background threads that overlap the
+    /// device request and the shader compiles. False on wasm, which has no
+    /// threads and generates both inline where they are needed.
     async fn init(
         instance: wgpu::Instance,
         surface: wgpu::Surface<'static>,
         width: u32,
         height: u32,
-        cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<Vec<u8>>, Vec<Vec<u8>>)>>,
-        ground_rx: Option<std::sync::mpsc::Receiver<ground_textures::BakedGround>>,
+        background_bakes: bool,
     ) -> Self {
         // [BootPhase] sub-spans: renderer_init is the single largest boot
         // phase (6.7 s measured 2026-08-14); these marks attribute it so
@@ -1050,6 +1013,57 @@ impl Renderer {
             .await
             .expect("No suitable GPU adapter found");
         log::info!("[BootPhase] adapter_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+
+        // ── The background bakes start HERE, and not one line earlier ──
+        // They used to spawn in `new_native`, before the instance existed,
+        // on the reasoning that more overlap is better. It is not: the next
+        // thing the boot thread does is ask the driver for an adapter, which
+        // is LATENCY-bound work (DXGI enumeration, a D3D12 device per adapter
+        // to query capabilities) that a saturated CPU stretches badly.
+        // Measured 2026-09-19 on the boot rig by delaying the two bakes past
+        // the adapter and changing nothing else: adapter_request 2173 ms ->
+        // 345 ms. Nearly two seconds of "the driver is slow" was this
+        // process's own twelve noise-bake threads. Everything AFTER the
+        // adapter is throughput-bound and shares the machine happily (device
+        // + shader modules + 19 PSO compiles run about 5 s, the bake needs
+        // about 4, and the upload still reports "waited 0 ms"). If you move
+        // these again, re-read `[BootPhase] adapter_request`: that is the
+        // number that says whether you were right.
+        let (cloud_rx, ground_rx) = if background_bakes {
+            let (tx, cloud_rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let threads =
+                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+                let t0 = std::time::Instant::now();
+                let shape = cloud_noise::generate_shape(threads);
+                let detail = cloud_noise::generate_detail(threads);
+                let t_gen = t0.elapsed().as_secs_f32() * 1000.0;
+                let shape = cloud_noise::mip_chain(shape, cloud_noise::SHAPE_SIZE);
+                let detail = cloud_noise::mip_chain(detail, cloud_noise::DETAIL_SIZE);
+                log::info!(
+                    "Cloud noise volumes generated in background: {:.0} ms bake + {:.0} ms mips \
+                     ({} threads, {}^3 + {}^3, {:.0} MiB)",
+                    t_gen,
+                    t0.elapsed().as_secs_f32() * 1000.0 - t_gen,
+                    threads,
+                    cloud_noise::SHAPE_SIZE,
+                    cloud_noise::DETAIL_SIZE,
+                    (shape.iter().map(|l| l.len()).sum::<usize>()
+                        + detail.iter().map(|l| l.len()).sum::<usize>())
+                        as f32
+                        / (1024.0 * 1024.0),
+                );
+                let _ = tx.send((shape, detail));
+            });
+            let (tx, ground_rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(ground_textures::bake_all());
+            });
+            (Some(cloud_rx), Some(ground_rx))
+        } else {
+            (None, None)
+        };
+
         let t_phase = std::time::Instant::now();
 
         // v0.784.2 BOOT FIX: the uncapped-lights storage buffer (v0.782) needs
@@ -1089,6 +1103,19 @@ impl Renderer {
         // it the Performance page falls back to CPU-side pass timing.
         let granted_indirect = adapter.features()
             & (indirect_features | wgpu::Features::TIMESTAMP_QUERY);
+        // Can this backend hand us a compiled-pipeline blob to keep between
+        // boots? That is the standard answer to a slow PSO build, and it is
+        // the first thing anyone looking at the `[Pipelines]` line will
+        // reach for, so the run log says outright whether it is even on
+        // offer. In wgpu 24 only the VULKAN backend advertises
+        // `PIPELINE_CACHE`; the DX12 backend's `create_pipeline_cache` is a
+        // stub that stores nothing and returns no data, and Windows runs
+        // DX12 here. Logged rather than silently skipped so this stops being
+        // re-investigated, and so the day it flips to true somebody sees it.
+        log::info!(
+            "[Pipelines] adapter offers a persistent pipeline cache: {}",
+            adapter.features().contains(wgpu::Features::PIPELINE_CACHE)
+        );
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {

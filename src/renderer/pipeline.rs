@@ -567,6 +567,15 @@ impl Pipeline {
             shadow_alpha: shadow_pipeline_alpha,
             patch_render: patch_render_pipeline,
             patch_shadow: patch_shadow_pipeline,
+            // The six cloud fullscreen PSOs come out of the SAME parallel
+            // build as everything above (v0.1322). They used to be compiled
+            // serially right here, which was 4.4 s of every boot.
+            cloud_light_bake: cloud_light_bake_pipeline,
+            cloud_screen: cloud_screen_pipeline,
+            cloud_profile_bake: cloud_profile_bake_pipeline,
+            cloud_profile_mip: cloud_profile_mip_pipeline,
+            cloud_profile_calib: cloud_profile_calib_pipeline,
+            cloud_profile_calib_reduce: cloud_profile_calib_reduce_pipeline,
         } = Self::build_all_pipelines(
             device,
             surface_format,
@@ -574,26 +583,6 @@ impl Pipeline {
             batch_shader,
             &pipeline_layout,
             &patch_pipeline_layout,
-        );
-        let cloud_light_bake_pipeline =
-            Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout);
-        let cloud_screen_pipeline =
-            Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout);
-        let cloud_profile_bake_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Bake Pipeline", "fs_cloud_profile_bake",
-        );
-        let cloud_profile_mip_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Mip Pipeline", "fs_cloud_profile_mip",
-        );
-        let cloud_profile_calib_pipeline = Self::build_cloud_profile_pipeline(
-            device, shader, &pipeline_layout, "Cloud Profile Calib Pipeline", "fs_cloud_profile_calib",
-        );
-        let cloud_profile_calib_reduce_pipeline = Self::build_cloud_profile_pipeline(
-            device,
-            shader,
-            &pipeline_layout,
-            "Cloud Profile Calib Reduce Pipeline",
-            "fs_cloud_profile_calib_reduce",
         );
 
         Self {
@@ -804,67 +793,26 @@ impl Pipeline {
         // module, same layouts, live bind groups intact. (They compile the
         // megashader module too, but through fs_cloud_* entries that are no
         // class entry and reach no material dispatch, so they take no
-        // permutation: see the exemption note above PSO_REGISTRY.) Timed as
-        // one block, the way the class PSOs are timed one by one.
-        let t_cloud = std::time::Instant::now();
+        // permutation: see the exemption note above PSO_REGISTRY.) They come
+        // out of the same parallel build as the thirteen above since
+        // v0.1322, so a reload no longer waits out six serial compiles after
+        // the scope has already closed; the single `[Pipelines]` line covers
+        // all nineteen.
         let cloud_slots = [
-            (
-                &mut self.cloud_light_bake_pipeline,
-                Self::build_cloud_light_bake_pipeline(device, shader, &pipeline_layout),
-            ),
-            (
-                &mut self.cloud_screen_pipeline,
-                Self::build_cloud_screen_pipeline(device, shader, &pipeline_layout),
-            ),
-            (
-                &mut self.cloud_profile_bake_pipeline,
-                Self::build_cloud_profile_pipeline(
-                    device,
-                    shader,
-                    &pipeline_layout,
-                    "Cloud Profile Bake Pipeline",
-                    "fs_cloud_profile_bake",
-                ),
-            ),
-            (
-                &mut self.cloud_profile_mip_pipeline,
-                Self::build_cloud_profile_pipeline(
-                    device,
-                    shader,
-                    &pipeline_layout,
-                    "Cloud Profile Mip Pipeline",
-                    "fs_cloud_profile_mip",
-                ),
-            ),
-            (
-                &mut self.cloud_profile_calib_pipeline,
-                Self::build_cloud_profile_pipeline(
-                    device,
-                    shader,
-                    &pipeline_layout,
-                    "Cloud Profile Calib Pipeline",
-                    "fs_cloud_profile_calib",
-                ),
-            ),
+            (&mut self.cloud_light_bake_pipeline, fresh.cloud_light_bake),
+            (&mut self.cloud_screen_pipeline, fresh.cloud_screen),
+            (&mut self.cloud_profile_bake_pipeline, fresh.cloud_profile_bake),
+            (&mut self.cloud_profile_mip_pipeline, fresh.cloud_profile_mip),
+            (&mut self.cloud_profile_calib_pipeline, fresh.cloud_profile_calib),
             (
                 &mut self.cloud_profile_calib_reduce_pipeline,
-                Self::build_cloud_profile_pipeline(
-                    device,
-                    shader,
-                    &pipeline_layout,
-                    "Cloud Profile Calib Reduce Pipeline",
-                    "fs_cloud_profile_calib_reduce",
-                ),
+                fresh.cloud_profile_calib_reduce,
             ),
         ];
         let cloud = cloud_slots.len();
         for (slot, fresh) in cloud_slots {
             *slot = fresh;
         }
-        log::info!(
-            "[Pipelines] {cloud} cloud fullscreen PSOs recompiled in {:.1}s (serial)",
-            t_cloud.elapsed().as_secs_f32()
-        );
         RebuiltPipelines { megashader, cloud }
     }
 
@@ -1123,7 +1071,7 @@ impl Pipeline {
         })
     }
 
-    /// ALL THIRTEEN PSO compiles shared by `new` and hot-reload's
+    /// ALL NINETEEN PSO compiles shared by `new` and hot-reload's
     /// `recreate_pipelines`, in ONE thread scope (v0.1142). Measured
     /// 2026-08-15: `Pipeline::new` was 3.9 s of the 4.1 s
     /// shaders_and_pipelines boot span, because only the three PBR variants
@@ -1138,6 +1086,18 @@ impl Pipeline {
     /// what the old whole-fs_main bake was; the per-PSO wall times are
     /// logged after every build so the cost of the split is a reading, not
     /// a guess (the P2 reload took 11.3 s for ten PSOs).
+    ///
+    /// The SAME mistake was still here for the six cloud fullscreen PSOs
+    /// until v0.1322: they compiled one after another on the caller's thread
+    /// right after this scope closed, and nothing but their position in the
+    /// file made them serial. Measured on the 2026-09-19 boot rig
+    /// (i7-8700K, RTX 4070, DXC, 4 boots): the scope finished its thirteen
+    /// in 4.3 s wall, and then `Pipeline::new` spent a further 4.4 s on
+    /// those six. That was 26 percent of a 16.8 s boot, spent on work the
+    /// machine had eleven idle cores for. They are spawned here now. The
+    /// bound on this function is the longest SINGLE compile, which is and
+    /// was the cloud transparent PSO at about 4.3 s, so the six ride along
+    /// underneath it almost for free.
     fn build_all_pipelines(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -1336,6 +1296,53 @@ impl Pipeline {
             let cloud_transparent = s.spawn(|| {
                 timed("PBR-lite Cloud Transparent Pipeline", |l| pbr(l, transparent_state))
             });
+            // The six cloud FULLSCREEN PSOs (v0.1322). They used to compile
+            // one after another on the main thread AFTER this scope closed,
+            // which cost a measured 4.4 s of every boot -- half as much again
+            // as the thirteen parallel ones put together took in wall time.
+            // Nothing made them serial except where the code sat: they share
+            // the module and the layout with everything above, take no
+            // permutation, and depend on none of the others. So they spawn
+            // here, and the whole build is bounded by its slowest single
+            // compile instead of by a sum.
+            let cloud_light_bake = s.spawn(|| {
+                timed("Cloud Light Bake Pipeline", |_| {
+                    Self::build_cloud_light_bake_pipeline(device, shader, pipeline_layout)
+                })
+            });
+            let cloud_screen = s.spawn(|| {
+                timed("Cloud Screen Temporal Pipeline", |_| {
+                    Self::build_cloud_screen_pipeline(device, shader, pipeline_layout)
+                })
+            });
+            let cloud_profile_bake = s.spawn(|| {
+                timed("Cloud Profile Bake Pipeline", |l| {
+                    Self::build_cloud_profile_pipeline(
+                        device, shader, pipeline_layout, l, "fs_cloud_profile_bake",
+                    )
+                })
+            });
+            let cloud_profile_mip = s.spawn(|| {
+                timed("Cloud Profile Mip Pipeline", |l| {
+                    Self::build_cloud_profile_pipeline(
+                        device, shader, pipeline_layout, l, "fs_cloud_profile_mip",
+                    )
+                })
+            });
+            let cloud_profile_calib = s.spawn(|| {
+                timed("Cloud Profile Calib Pipeline", |l| {
+                    Self::build_cloud_profile_pipeline(
+                        device, shader, pipeline_layout, l, "fs_cloud_profile_calib",
+                    )
+                })
+            });
+            let cloud_profile_calib_reduce = s.spawn(|| {
+                timed("Cloud Profile Calib Reduce Pipeline", |l| {
+                    Self::build_cloud_profile_pipeline(
+                        device, shader, pipeline_layout, l, "fs_cloud_profile_calib_reduce",
+                    )
+                })
+            });
             let shadow = s.spawn(|| timed("Sun Shadow Pipeline", |l| make_shadow(l)));
             let shadow_alpha = s.spawn(|| timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
             let patch_render = s.spawn(|| {
@@ -1343,8 +1350,9 @@ impl Pipeline {
                     Self::build_patch_render(device, surface_format, batch_shader, patch_pipeline_layout)
                 })
             });
-            // The thirteenth compiles on this thread while the twelve
-            // workers run.
+            // The nineteenth compiles on THIS thread while the eighteen
+            // workers run: the calling thread would otherwise sit in join()
+            // doing nothing.
             let patch_shadow = timed("Patch Batch Shadow Pipeline", |_| {
                 Self::build_patch_shadow(device, batch_shader, patch_pipeline_layout)
             });
@@ -1360,6 +1368,13 @@ impl Pipeline {
             let water_overlay = join(water_overlay, "water overlay");
             let shell_transparent = join(shell_transparent, "shell transparent");
             let cloud_transparent = join(cloud_transparent, "cloud transparent");
+            let cloud_light_bake = join(cloud_light_bake, "cloud light bake");
+            let cloud_screen = join(cloud_screen, "cloud screen");
+            let cloud_profile_bake = join(cloud_profile_bake, "cloud profile bake");
+            let cloud_profile_mip = join(cloud_profile_mip, "cloud profile mip");
+            let cloud_profile_calib = join(cloud_profile_calib, "cloud profile calib");
+            let cloud_profile_calib_reduce =
+                join(cloud_profile_calib_reduce, "cloud profile calib reduce");
             let shadow = join(shadow, "sun shadow");
             let shadow_alpha = join(shadow_alpha, "sun shadow alpha");
             let patch_render = join(patch_render, "patch render");
@@ -1377,6 +1392,12 @@ impl Pipeline {
                 shadow_alpha.1,
                 patch_render.1,
                 patch_shadow.1,
+                cloud_light_bake.1,
+                cloud_screen.1,
+                cloud_profile_bake.1,
+                cloud_profile_mip.1,
+                cloud_profile_calib.1,
+                cloud_profile_calib_reduce.1,
             ];
             let psos = MegashaderPsos {
                 surface_render: surface_render.0,
@@ -1392,6 +1413,12 @@ impl Pipeline {
                 shadow_alpha: shadow_alpha.0,
                 patch_render: patch_render.0,
                 patch_shadow: patch_shadow.0,
+                cloud_light_bake: cloud_light_bake.0,
+                cloud_screen: cloud_screen.0,
+                cloud_profile_bake: cloud_profile_bake.0,
+                cloud_profile_mip: cloud_profile_mip.0,
+                cloud_profile_calib: cloud_profile_calib.0,
+                cloud_profile_calib_reduce: cloud_profile_calib_reduce.0,
             };
             (psos, timings)
         });
@@ -1403,7 +1430,7 @@ impl Pipeline {
             .map(|(label, s)| format!("{} {s:.2}s", short_pso_label(label)))
             .collect();
         log::info!(
-            "[Pipelines] {} megashader PSOs compiled in {:.1}s wall ({:.1}s serial sum): {}",
+            "[Pipelines] {} PSOs compiled in {:.1}s wall ({:.1}s serial sum): {}",
             timings.len(),
             t_all.elapsed().as_secs_f32(),
             sum,
@@ -1437,11 +1464,18 @@ fn short_pso_label(label: &str) -> &str {
 }
 
 /// Every PSO `build_all_pipelines` compiles from the megashader, by name.
-/// A named struct rather than a thirteen-element tuple so `new` and
+/// A named struct rather than a nineteen-element tuple so `new` and
 /// `recreate_pipelines` cannot pair a fresh PSO with the wrong slot: a tuple
-/// of thirteen identical types would let the water overlay land in the
+/// of nineteen identical types would let the water overlay land in the
 /// surface overlay's field with no error anywhere, and the sea would then
 /// draw through a pipeline whose entry has no ocean code.
+///
+/// The first thirteen are the registry's class PSOs; the last six are the
+/// cloud fullscreen PSOs, which are registry-EXEMPT (their `fs_cloud_*`
+/// entries are no class entry) but are compiled from the same module in the
+/// same parallel scope, because a PSO compile is a PSO compile and the
+/// scheduler does not care which list a label came from. See the boot-cost
+/// note on `build_all_pipelines` for why they stopped being serial.
 struct MegashaderPsos {
     surface_render: wgpu::RenderPipeline,
     surface_transparent: wgpu::RenderPipeline,
@@ -1456,6 +1490,12 @@ struct MegashaderPsos {
     shadow_alpha: wgpu::RenderPipeline,
     patch_render: wgpu::RenderPipeline,
     patch_shadow: wgpu::RenderPipeline,
+    cloud_light_bake: wgpu::RenderPipeline,
+    cloud_screen: wgpu::RenderPipeline,
+    cloud_profile_bake: wgpu::RenderPipeline,
+    cloud_profile_mip: wgpu::RenderPipeline,
+    cloud_profile_calib: wgpu::RenderPipeline,
+    cloud_profile_calib_reduce: wgpu::RenderPipeline,
 }
 
 // ── SHADER PERMUTATIONS (increment P1 of the frame-cost arc,
