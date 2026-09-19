@@ -64,9 +64,10 @@ fn repo() -> &'static Path {
 ///     * `gui/state_types.rs` (1_791) - the value types pages are drawn from
 ///       (item slot, task, listing, chat message, channel, studio scene, ...)
 ///       plus their `from_relay_json` mappers.
-///   THE PRIVACY DELTA of the whole click is fifteen `pub(super)`s in the chat
-///   children, each commented where it is declared as private-only-because-its-
-///   caller-stayed. The two `gui/` children needed ZERO: every item in them was
+///   THE PRIVACY DELTA of the whole click is sixteen `pub(super)`s in the chat
+///   children (5 + 1 + 2 + 8, in the order the files are listed above), each
+///   commented where it is declared as private-only-because-its-caller-stayed.
+///   The two `gui/` children needed ZERO: every item in them was
 ///   already `pub`, so `pub use loaders::*` / `pub use state_types::*` keeps
 ///   every `crate::gui::NAME` spelling in the crate resolving untouched. All six
 ///   children take `use super::*` the way `tree_species.rs` does. A glob
