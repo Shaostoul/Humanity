@@ -1089,6 +1089,19 @@ impl Renderer {
         // it the Performance page falls back to CPU-side pass timing.
         let granted_indirect = adapter.features()
             & (indirect_features | wgpu::Features::TIMESTAMP_QUERY);
+        // Can this backend hand us a compiled-pipeline blob to keep between
+        // boots? That is the standard answer to a slow PSO build, and it is
+        // the first thing anyone looking at the `[Pipelines]` line will
+        // reach for, so the run log says outright whether it is even on
+        // offer. In wgpu 24 only the VULKAN backend advertises
+        // `PIPELINE_CACHE`; the DX12 backend's `create_pipeline_cache` is a
+        // stub that stores nothing and returns no data, and Windows runs
+        // DX12 here. Logged rather than silently skipped so this stops being
+        // re-investigated, and so the day it flips to true somebody sees it.
+        log::info!(
+            "[Pipelines] adapter offers a persistent pipeline cache: {}",
+            adapter.features().contains(wgpu::Features::PIPELINE_CACHE)
+        );
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
