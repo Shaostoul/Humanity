@@ -216,10 +216,38 @@ const SNIFF_BYTES: usize = 256 * 1024;
 
 /// Look at the start of a title's first file and say whether it is
 /// something we can hand to ffmpeg.
+/// The Windows error for a sector the drive refuses to hand over because it
+/// is encrypted (`STG_E_STATUS_COPY_PROTECTION_FAILURE`). The operating
+/// system has already decided the question here, so we take its word rather
+/// than reading packets that will never arrive.
+///
+/// Matched by CODE and not by the message text, because the text is
+/// translated into the reader's own language and a match on English words
+/// would quietly stop working on most of the world's machines. Proven
+/// against a real pressed disc on 2026-09-18: a commercial film in F: gave
+/// exactly this code on its first title part.
+#[cfg(target_os = "windows")]
+const COPY_PROTECTION_FAILURE: i32 = -2147286263;
+
+/// Does this read error mean the disc is protected, rather than dirty or
+/// broken? Only when the operating system says so in as many words.
+fn is_copy_protection_error(e: &std::io::Error) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        e.raw_os_error() == Some(COPY_PROTECTION_FAILURE)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = e;
+        false
+    }
+}
+
 pub fn disc_read(first_part: &Path) -> DiscRead {
     use std::io::Read;
     let mut file = match std::fs::File::open(first_part) {
         Ok(f) => f,
+        Err(e) if is_copy_protection_error(&e) => return DiscRead::CopyProtected,
         Err(e) => return DiscRead::Unreadable(e.to_string()),
     };
     let mut buf = vec![0u8; SNIFF_BYTES];
@@ -236,6 +264,7 @@ pub fn disc_read(first_part: &Path) -> DiscRead {
                     break;
                 }
             }
+            Err(e) if is_copy_protection_error(&e) => return DiscRead::CopyProtected,
             Err(e) => return DiscRead::Unreadable(e.to_string()),
         }
     }
@@ -364,19 +393,57 @@ pub fn disc_name(chosen: &Path) -> String {
         .unwrap_or_else(|| chosen.display().to_string())
 }
 
-/// The disc drives on this machine that currently HOLD a disc, as
-/// `(label, path)` for a file picker's quick-access row. Empty when there
-/// is no drive or no disc in it, so the row simply does not offer one.
+/// What kind of drive a browsable root is, so a picker can label it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriveKind {
+    /// An internal hard disk or SSD.
+    Fixed,
+    /// A USB stick, memory card or external drive.
+    Removable,
+    /// A CD, DVD or Blu-ray drive with a disc in it.
+    Disc,
+}
+
+/// How a drive button reads. The volume's own name when it has one, so a
+/// person sees the drive they named rather than a bare letter, with the
+/// letter kept in brackets because that is how Windows itself talks about
+/// drives and how a path is written.
+pub fn drive_label(kind: DriveKind, letter: char, volume_name: Option<&str>) -> String {
+    let named = volume_name.map(|v| v.trim()).filter(|v| !v.is_empty());
+    match (kind, named) {
+        (DriveKind::Disc, Some(v)) => format!("{v} ({letter}:)"),
+        (DriveKind::Disc, None) => format!("Disc ({letter}:)"),
+        (DriveKind::Removable, Some(v)) => format!("{v} ({letter}:)"),
+        (DriveKind::Removable, None) => format!("Removable ({letter}:)"),
+        (DriveKind::Fixed, Some(v)) => format!("{v} ({letter}:)"),
+        (DriveKind::Fixed, None) => format!("Drive ({letter}:)"),
+    }
+}
+
+/// Every drive on this machine a person could browse, as
+/// `(label, path, kind)` for a file picker's quick-access row.
 ///
-/// Windows: ask which drive letters exist, keep the ones the system calls a
-/// disc drive, and keep those only while their root reads as a directory,
-/// which is false for an empty drive. Everywhere else: nothing yet (Linux
-/// and macOS mount a disc under `/media`, `/run/media` or `/Volumes` with
-/// no fixed name, so the person reaches it through the ordinary folders).
-pub fn disc_roots() -> Vec<(String, PathBuf)> {
+/// The operator hit exactly why this exists (2026-09-18): his films live on
+/// E:, the picker offered only the folders under his home directory plus the
+/// disc drive, and there was no way to reach another drive at all, because
+/// the picker has no place to type a path. A person with more than one drive
+/// is normal, not an edge case.
+///
+/// Windows: ask which drive letters exist, ask what kind each one is, and
+/// keep it only while its root reads as a directory, which is false for an
+/// empty card reader or an optical drive with no disc. NETWORK drives are
+/// deliberately left out: a share whose server has gone away can block for
+/// seconds on the very call that asks about it, and this runs behind a
+/// picker that redraws every frame. That is a known gap, and the honest fix
+/// is somewhere to type a path, not a risky probe.
+///
+/// Everywhere else: nothing yet. Linux and macOS mount a volume under
+/// `/media`, `/run/media` or `/Volumes` with no fixed name, so a person
+/// reaches it through the ordinary folders.
+pub fn drive_roots() -> Vec<(String, PathBuf, DriveKind)> {
     #[cfg(target_os = "windows")]
     {
-        windows_disc_roots()
+        windows_drive_roots()
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -384,11 +451,24 @@ pub fn disc_roots() -> Vec<(String, PathBuf)> {
     }
 }
 
-/// The Windows side of `disc_roots`. Raw FFI so this adds no dependency,
+/// The disc drives that currently HOLD a disc, for callers that want only
+/// those. Empty when there is no drive or no disc in it.
+pub fn disc_roots() -> Vec<(String, PathBuf)> {
+    drive_roots()
+        .into_iter()
+        .filter(|(_, _, kind)| *kind == DriveKind::Disc)
+        .map(|(label, path, _)| (label, path))
+        .collect()
+}
+
+/// The Windows side of `drive_roots`. Raw FFI so this adds no dependency,
 /// the same way `src/engine/launch_focus.rs` asks for its parent process.
 #[cfg(target_os = "windows")]
-fn windows_disc_roots() -> Vec<(String, PathBuf)> {
-    /// `GetDriveTypeW`'s answer for a CD, DVD or Blu-ray drive.
+fn windows_drive_roots() -> Vec<(String, PathBuf, DriveKind)> {
+    /// `GetDriveTypeW`'s answers. 1 means the letter exists but holds
+    /// nothing, 4 is a network share (see the note in `drive_roots`).
+    const DRIVE_REMOVABLE: u32 = 2;
+    const DRIVE_FIXED: u32 = 3;
     const DRIVE_CDROM: u32 = 5;
 
     #[link(name = "kernel32")]
@@ -396,6 +476,46 @@ fn windows_disc_roots() -> Vec<(String, PathBuf)> {
         /// One bit per drive letter, bit 0 = A:.
         fn GetLogicalDrives() -> u32;
         fn GetDriveTypeW(root: *const u16) -> u32;
+        /// Fills the volume-name buffer; everything else is optional and
+        /// passed as null here because only the name is wanted.
+        fn GetVolumeInformationW(
+            root: *const u16,
+            volume_name: *mut u16,
+            volume_name_size: u32,
+            serial: *mut u32,
+            max_component_len: *mut u32,
+            flags: *mut u32,
+            fs_name: *mut u16,
+            fs_name_size: u32,
+        ) -> i32;
+    }
+
+    /// The name a person gave the drive, when it has one. A drive that
+    /// refuses the question simply has no name, which is not an error.
+    fn volume_name(wide_root: &[u16]) -> Option<String> {
+        let mut buf = [0u16; 64];
+        let ok = unsafe {
+            GetVolumeInformationW(
+                wide_root.as_ptr(),
+                buf.as_mut_ptr(),
+                buf.len() as u32,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        if ok == 0 {
+            return None;
+        }
+        let end = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
+        let name = String::from_utf16_lossy(&buf[..end]);
+        if name.trim().is_empty() {
+            None
+        } else {
+            Some(name)
+        }
     }
 
     let mask = unsafe { GetLogicalDrives() };
@@ -408,14 +528,17 @@ fn windows_disc_roots() -> Vec<(String, PathBuf)> {
         let root = format!("{letter}:\\");
         // A UTF-16 string ending in a zero, which is what the API wants.
         let wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
-        if unsafe { GetDriveTypeW(wide.as_ptr()) } != DRIVE_CDROM {
-            continue;
-        }
+        let kind = match unsafe { GetDriveTypeW(wide.as_ptr()) } {
+            DRIVE_FIXED => DriveKind::Fixed,
+            DRIVE_REMOVABLE => DriveKind::Removable,
+            DRIVE_CDROM => DriveKind::Disc,
+            _ => continue,
+        };
         let path = PathBuf::from(&root);
         // An empty drive's root is not a readable directory, so this is
-        // also the "is there a disc in it" question.
+        // also the "is there a disc or a card in it" question.
         if path.is_dir() {
-            out.push((format!("Disc ({letter}:)"), path));
+            out.push((drive_label(kind, letter, volume_name(&wide).as_deref()), path, kind));
         }
     }
     out
@@ -424,6 +547,26 @@ fn windows_disc_roots() -> Vec<(String, PathBuf)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A drive button reads as the drive's own name when it has one, and
+    /// falls back to what kind of drive it is. The letter is always in
+    /// brackets, because that is how a path is written and how Windows
+    /// talks about drives.
+    #[test]
+    fn a_drive_button_prefers_the_name_its_owner_gave_it() {
+        assert_eq!(drive_label(DriveKind::Fixed, 'E', Some("Movies")), "Movies (E:)");
+        assert_eq!(drive_label(DriveKind::Fixed, 'D', None), "Drive (D:)");
+        assert_eq!(drive_label(DriveKind::Removable, 'G', Some("BACKUP")), "BACKUP (G:)");
+        assert_eq!(drive_label(DriveKind::Removable, 'G', None), "Removable (G:)");
+        assert_eq!(drive_label(DriveKind::Disc, 'F', None), "Disc (F:)");
+        // A volume name that is only spaces is no name at all.
+        assert_eq!(drive_label(DriveKind::Fixed, 'E', Some("   ")), "Drive (E:)");
+        // Every label carries its letter, which is what the picker's own
+        // test asserts about the row.
+        for kind in [DriveKind::Fixed, DriveKind::Removable, DriveKind::Disc] {
+            assert!(drive_label(kind, 'X', None).contains("(X:)"));
+        }
+    }
 
     fn listing(items: &[(&str, u64)]) -> Vec<(String, u64)> {
         items.iter().map(|(n, s)| (n.to_string(), *s)).collect()
@@ -671,14 +814,93 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
     }
 
-    /// Asking the machine for its disc drives must never panic and must
-    /// never offer a path that is not there. On a machine with an empty
-    /// drive (the usual case here) the answer is simply empty.
+    /// Asking the machine for its drives must never panic and must never
+    /// offer a path that is not there. On a machine with an empty optical
+    /// drive the disc answer is simply empty.
+    ///
+    /// The label is NOT asserted to start with "Disc": a disc carries a
+    /// volume name and we show it, so the button reads as the disc's own
+    /// title rather than the word Disc, which is more use to a person with
+    /// several of them. The shape that must hold is the drive letter in
+    /// brackets, which is how a path is written.
     #[test]
     fn disc_roots_are_real_directories_or_nothing() {
         for (label, path) in disc_roots() {
             assert!(path.is_dir(), "{label} -> {}", path.display());
-            assert!(label.starts_with("Disc ("), "{label}");
+            assert!(label.contains("(") && label.contains(":)"), "a disc names its letter: {label}");
         }
+    }
+
+    /// Point this at a REAL disc and see what the app would do with it,
+    /// which is the one thing the disc work could not check without one in
+    /// the drive. Ignored by default because it needs a disc. Run it with
+    /// the drive named in the environment variable HUMANITY_DISC_DRIVE, for
+    /// example F: followed by a backslash, and pass --ignored --nocapture so
+    /// the test runs and prints.
+    ///
+    /// It only READS and reports; it converts nothing. A commercial disc is
+    /// expected to be refused, and the point is to see the refusal come from
+    /// the intended check rather than from an unrelated error.
+    #[test]
+    #[ignore]
+    fn probe_a_real_disc() {
+        let Ok(drive) = std::env::var("HUMANITY_DISC_DRIVE") else {
+            println!("set HUMANITY_DISC_DRIVE to a drive with a disc in it");
+            return;
+        };
+        let root = PathBuf::from(&drive);
+        println!("drive: {}", root.display());
+        let Some(video_ts) = find_video_ts(&root) else {
+            println!("no {VIDEO_TS} folder found: not a video disc");
+            return;
+        };
+        println!("video folder: {}", video_ts.display());
+        let mut listing: Vec<(String, u64)> = Vec::new();
+        for entry in std::fs::read_dir(&video_ts).expect("the disc lists").flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            listing.push((name, size));
+        }
+        listing.sort();
+        println!("{} files", listing.len());
+        match main_title(&listing) {
+            Ok(title) => {
+                println!(
+                    "main title: set {}, {} part(s), {:.2} GB",
+                    title.title_set,
+                    title.parts.len(),
+                    title.total_bytes as f64 / 1_073_741_824.0
+                );
+                let first = video_ts.join(&title.parts[0]);
+                match disc_read(&first) {
+                    DiscRead::Playable => {
+                        println!("READABLE: this disc would be converted and played")
+                    }
+                    DiscRead::CopyProtected => {
+                        println!("REFUSED as copy protected, and the screen would say:");
+                        println!("  {PROTECTED_MESSAGE}");
+                    }
+                    DiscRead::Unreadable(why) => {
+                        println!("REFUSED as unreadable, and the screen would say:");
+                        println!("  {}", unreadable_message(&why));
+                    }
+                }
+            }
+            Err(why) => println!("no playable title found: {why}"),
+        }
+    }
+
+    /// Every drive the machine reports is somewhere a person can actually
+    /// browse to, whatever kind it is, and the disc list is exactly the
+    /// disc-kind subset of it.
+    #[test]
+    fn every_drive_offered_is_a_real_place() {
+        let all = drive_roots();
+        for (label, path, _kind) in &all {
+            assert!(path.is_dir(), "{label} -> {}", path.display());
+            assert!(label.contains("(") && label.contains(":)"), "a drive names its letter: {label}");
+        }
+        let discs: Vec<_> = all.iter().filter(|(_, _, k)| *k == DriveKind::Disc).map(|(l, p, _)| (l.clone(), p.clone())).collect();
+        assert_eq!(discs, disc_roots(), "disc_roots is the disc-kind subset of drive_roots");
     }
 }

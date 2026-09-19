@@ -90,9 +90,11 @@ pub fn human_size(bytes: u64) -> String {
 /// picker is open still appears on its own.
 const DISC_ROOT_REFRESH: std::time::Duration = std::time::Duration::from_secs(2);
 
-/// The disc drives holding a disc right now, cached for `DISC_ROOT_REFRESH`.
-/// The list itself comes from `media::dvd::disc_roots`.
-fn disc_roots_cached() -> Vec<(String, PathBuf)> {
+/// Every drive a person can browse right now, cached for
+/// `DISC_ROOT_REFRESH`. The list itself comes from
+/// `media::dvd::drive_roots`: internal drives, USB sticks and memory cards,
+/// and an optical drive while it holds a disc.
+fn drive_roots_cached() -> Vec<(String, PathBuf)> {
     use std::sync::{Mutex, OnceLock};
     static CACHE: OnceLock<Mutex<Option<(std::time::Instant, Vec<(String, PathBuf)>)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
@@ -102,7 +104,8 @@ fn disc_roots_cached() -> Vec<(String, PathBuf)> {
             return roots.clone();
         }
     }
-    let roots = crate::media::dvd::disc_roots();
+    let roots: Vec<(String, PathBuf)> =
+        crate::media::dvd::drive_roots().into_iter().map(|(label, path, _)| (label, path)).collect();
     *guard = Some((std::time::Instant::now(), roots.clone()));
     roots
 }
@@ -140,10 +143,13 @@ pub fn quick_roots() -> Vec<(String, PathBuf)> {
     if exe.is_dir() {
         roots.push(("App folder".to_string(), exe));
     }
-    // A disc in the drive, so a picker can reach a removable drive without
-    // anyone typing a drive letter (2026-09-18, the video-disc work). No
-    // disc, no button: the row simply does not offer one.
-    roots.extend(disc_roots_cached());
+    // Every drive on the machine, so a picker can reach one without anyone
+    // typing a drive letter, which this picker has nowhere to do
+    // (2026-09-18). The operator hit this the moment the video screens
+    // shipped: his films live on E: and nothing in the row could reach it.
+    // A drive with nothing in it, an empty card reader or an optical drive
+    // with no disc, is simply not offered.
+    roots.extend(drive_roots_cached());
     roots
 }
 
@@ -518,15 +524,30 @@ mod tests {
         assert_eq!(folder_offer(&faker, &markers), None);
     }
 
-    /// The quick row never offers a path that is not there, disc drives
+    /// The quick row never offers a path that is not there, drives
     /// included, and asking twice inside the cache window gives the same
     /// answer without asking the machine again.
+    ///
+    /// The row must also be able to REACH a whole drive, which is the thing
+    /// it could not do until 2026-09-18: on a machine with more than one
+    /// drive letter there is no other way in, because this picker has
+    /// nowhere to type a path. A single-drive machine (and any machine that
+    /// is not Windows) legitimately offers none, so the assertion is on the
+    /// shape of what a drive button is, not on there being one.
     #[test]
     fn quick_roots_are_all_real_directories() {
         for (label, path) in quick_roots() {
             assert!(path.is_dir(), "{label} -> {}", path.display());
         }
-        assert_eq!(disc_roots_cached(), disc_roots_cached(), "the cached answer is stable");
+        for (label, path) in drive_roots_cached() {
+            assert!(path.is_dir(), "a drive button must point somewhere real: {label}");
+            assert!(label.contains('('), "a drive button names its letter in brackets: {label}");
+            assert!(
+                quick_roots().iter().any(|(l, p)| l == &label && p == &path),
+                "a drive the machine has must appear in the row: {label}"
+            );
+        }
+        assert_eq!(drive_roots_cached(), drive_roots_cached(), "the cached answer is stable");
     }
 
     #[test]
