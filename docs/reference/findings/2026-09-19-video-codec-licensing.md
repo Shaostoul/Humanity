@@ -503,7 +503,7 @@ user's operating system, move to France, or do without.
 - `https://hydrogenaudio.org/index.php/topic,118084.0.html` ("AAC-LC patent expiry?"), HTTP 403. This is the forum thread the Debian article both relies on and doubts, so reading it directly would materially sharpen Finding 2's AAC half.
 - `https://src.fedoraproject.org/rpms/fdk-aac-free/raw/rawhide/f/fdk-aac-free.spec`, blocked by anti-scraping. Fedora's own words on what `fdk-aac-free` strips and why are quoted here only at second hand, through the Debian article.
 - `https://www.tomshardware.com/...h264-streaming-license-fees...`, paywalled. Read via the Yahoo Finance syndication of the same article.
-- `https://via-la.com/wp-content/uploads/2025/09/avcweb.pdf` ("AVC Patent Portfolio License Briefing"), downloaded but its text streams would not extract. The same figures were taken from Via LA's HTML pages instead, so nothing is missing, but the authoritative PDF has not been read directly.
+- `https://via-la.com/wp-content/uploads/2025/09/avcweb.pdf` ("AVC Patent Portfolio License Briefing"), downloaded but not readable. Inflating its streams yields 735 KB of content from which only punctuation, digits and a handful of loose words recover: the text is held in subset-font hex strings, so it needs a PDF tool that resolves font CMaps, not string-matching. The same figures were taken from Via LA's own HTML pages, so no figure in Finding 4 is missing, but **the authoritative document behind them has not been read directly** and this is the single largest hole in Finding 4.
 - `https://meta.wikimedia.org/wiki/Have_the_patents_for_AAC_expired_yet%3F`, 404. No such companion page exists for AAC, which is part of why AAC's status is so much murkier than H.264's.
 
 ---
