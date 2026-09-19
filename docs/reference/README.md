@@ -10,6 +10,10 @@ object model and the farming data contracts. The specs describe designed contrac
 
 - `ECOSYSTEM_RELEASE_CHECKLIST.md`, tick-list checklist for every feature/fix release (companion to the procedures in `docs/SOP.md` and `docs/INCIDENT-PLAYBOOK.md`)
 
+## Dated research findings
+
+- [`findings/`](findings/README.md), dated research notes on legal, regulatory and licensing questions. One file per question, written the day the research was done and never quietly rewritten, so a later reader can tell whether the world changed or we were wrong. Read `findings/README.md` before adding one.
+
 ## Federation object model (protocol specs)
 
 Canonical CBOR signed objects, replicated across federated servers. See
