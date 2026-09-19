@@ -35,6 +35,76 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-09-19: THE TWO GUI FILES. `gui/pages/chat.rs` 8_000 -> 4_750 and
+///   `gui/mod.rs` 7_050 -> 4_800, together the largest click this list has
+///   taken. Both were red (9_053, +1_053; 7_915, +865) and, for the third
+///   session running, that meant `just verify` could not run AT ALL: `just
+///   lints` aborts at the first failure, so everything behind the ratchet was
+///   being silently skipped. Six clusters came out, each its own commit, each
+///   proven to be pure motion by accounting every removed line against the file
+///   it landed in.
+///   OUT OF `chat.rs` (9_053 -> 4_616), into `pages/chat/`, which is the plain
+///   2018 directory form: `chat.rs` stays the page and its children live beside
+///   it, so the ratchet path is unchanged and nothing outside the page moved.
+///     * `left_panel.rs` (2_003) - the whole left rail: connect box, scratchpad,
+///       DMs, Groups, Commons, Servers and the expanded server's channel list.
+///       One cluster because picking a row in ANY of those sections is the
+///       page's one way of setting `chat_active_channel`.
+///     * `modals.rs` (1_470) - the eleven overlays. One cluster by SHAPE, not
+///       subject: each appears on a `show_*` flag, takes the pointer, does one
+///       job and closes itself, and `draw` calls them in a single block.
+///     * `p2p_groups.rs` (721) - everything done TO a group that is not drawing
+///       it (list, load, decrypt, post, invite, leave, disband, peer objects).
+///       Drawing a group is ordinary chat drawing and stayed.
+///     * `right_panel.rs` (466) - Friends, Members, and the live strip: the same
+///       thing drawn twice, both through one `draw_user_row`.
+///   OUT OF `gui/mod.rs` (7_915 -> 4_660):
+///     * `gui/loaders.rs` (1_566) - every `data/` file the GUI reads and the
+///       shapes it reads them into. One job, one input, one failure mode.
+///     * `gui/state_types.rs` (1_791) - the value types pages are drawn from
+///       (item slot, task, listing, chat message, channel, studio scene, ...)
+///       plus their `from_relay_json` mappers.
+///   THE PRIVACY DELTA of the whole click is sixteen `pub(super)`s in the chat
+///   children (5 + 1 + 2 + 8, in the order the files are listed above), each
+///   commented where it is declared as private-only-because-its-caller-stayed.
+///   The two `gui/` children needed ZERO: every item in them was
+///   already `pub`, so `pub use loaders::*` / `pub use state_types::*` keeps
+///   every `crate::gui::NAME` spelling in the crate resolving untouched. All six
+///   children take `use super::*` the way `tree_species.rs` does. A glob
+///   re-export in the parent plus a glob import in the child is a CYCLE and it
+///   resolves fine, because the names collide on the same item.
+///   THREE SCANS HAD TO FOLLOW THE CODE, which is the v0.1320 lesson repeating:
+///   `page_parity_lint`'s three native lists gained `src/gui/loaders.rs`
+///   (Library's only native mention of `library/index.json` was `load_library`,
+///   so the move broke it honestly); `theme_token_lint` lost its
+///   `src/gui/mod.rs` entry because the file's last unexempted literal moved out
+///   and its `theme-exempt` note, which had been sitting one line ABOVE the
+///   literal and exempting nothing, moved onto the literal's own line; and
+///   `page_registry_lint` reads the `GuiPage` enum out of `src/gui/mod.rs` by
+///   hand, which is WHY that enum and its three config-string helpers were left
+///   behind rather than travelling with the other value types.
+///   ONE THING COULD NOT MOVE: `default_water_clarity`, `default_precip_density`
+///   and `default_fog_density` sit inside the loaders run but are serde
+///   `default = "..."` targets for `SettingsState`. A serde default resolves as
+///   a path in the scope of the struct that names it, so moving them meant
+///   rewriting attributes, which is a change and not a motion. They stay, with a
+///   comment saying so.
+///   THE NAMED NEXT EXTRACTION for each file, so the next author does not have
+///   to go looking:
+///     - `chat.rs`: `draw_center_panel` (1_610 lines, over a third of what is
+///       left) into `chat/center_panel.rs` - the channel header, the message
+///       feed and the composer. `draw_ingame_chat` (471) is the same surface
+///       drawn for the in-world monitor and could go with it or after it.
+///     - `gui/mod.rs`: `GuiState` (2_305), `impl GuiState` and
+///       `impl Default for GuiState` (910) into `gui/state.rs` - half of what
+///       is left, and one thing. MIND THE GATE: `src/engine/input.rs` scans
+///       `src/gui/mod.rs`'s SOURCE TEXT for every `cloud_dev_*` field and
+///       asserts it finds more than 40, so that scan must be pointed at the new
+///       file in the SAME commit or it reports a wiring break that is really a
+///       file move.
+///   Eight watch entries added, at measured plus roughly 5% (more for the small
+///   ones, for the v0.1093 reason: 3% of a 466-line file is 14 lines, which
+///   would fire on the first honest addition).
 /// - v0.1319: `renderer/mod.rs` 3_883 -> 2_800, the biggest single click this
 ///   list has taken. The file had reached 5,652 lines (+1_769 over budget) and
 ///   was the second-worst of ELEVEN red entries, which mattered more than the
@@ -233,8 +303,14 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_water.rs", 750),
     ("src/engine/frame_near_trees.rs", 700),
     ("src/surface_walk.rs", 1_150),
-    ("src/gui/pages/chat.rs", 8_000),
-    ("src/gui/mod.rs", 7_050),
+    ("src/gui/pages/chat.rs", 4_750),
+    ("src/gui/pages/chat/left_panel.rs", 2_100),
+    ("src/gui/pages/chat/modals.rs", 1_550),
+    ("src/gui/pages/chat/p2p_groups.rs", 800),
+    ("src/gui/pages/chat/right_panel.rs", 600),
+    ("src/gui/mod.rs", 4_800),
+    ("src/gui/state_types.rs", 1_880),
+    ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_500),
     ("src/relay/handlers/msg_handlers.rs", 4_800),
     ("src/terrain/planet_chunks.rs", 4_820),

@@ -33,7 +33,10 @@ struct ParityPair {
     /// Page name, for failure messages.
     page: &'static str,
     /// Native sources that must mention `data_file`. Any one of them counts:
-    /// the loader often lives in gui/mod.rs while the renderer is the page.
+    /// the loader often lives with the other data-file loaders while the
+    /// renderer is the page. Those loaders moved out of `gui/mod.rs` into
+    /// `gui/loaders.rs` under the file-size ratchet, so both paths are listed
+    /// below; the list follows the code rather than pinning it in place.
     native: &'static [&'static str],
     /// Web sources that must mention `data_file`.
     web: &'static [&'static str],
@@ -46,7 +49,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
     // Merged from three divergent files into one on 2026-07-30.
     ParityPair {
         page: "Tools",
-        native: &["src/gui/mod.rs", "src/gui/pages/tools.rs"],
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/tools.rs"],
         web: &["web/pages/tools-app.js"],
         data_file: "external/catalog.json",
     },
@@ -54,7 +57,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
     // fetches the markdown the manifest lists from the same directory.
     ParityPair {
         page: "Library",
-        native: &["src/gui/mod.rs", "src/gui/pages/library.rs"],
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/library.rs"],
         web: &["web/pages/library-app.js"],
         data_file: "library/index.json",
     },
@@ -64,7 +67,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
     // also records each site's embed-legality decision.
     ParityPair {
         page: "Browser",
-        native: &["src/gui/mod.rs", "src/gui/pages/browser.rs"],
+        native: &["src/gui/loaders.rs", "src/gui/mod.rs", "src/gui/pages/browser.rs"],
         web: &["web/pages/web.html"],
         data_file: "web/sites.json",
     },

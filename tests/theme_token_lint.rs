@@ -48,9 +48,15 @@ use std::path::{Path, PathBuf};
 const LEGACY_OFFENDERS: &[&str] = &[
     // (src/debug.rs removed 2026-07-16: it is outside SCAN_DIRS so this entry was
     // inert; its F12-console literals are now theme-exempt annotated in place anyway.)
-    // Inline avatar placeholder colors derived from name hash. Could move
-    // to a palette in theme.ron. Medium priority.
-    "src/gui/mod.rs",
+    // gui/mod.rs migrated 2026-09-19 and REMOVED from this list. Its last
+    // unexempted literal was the fallback guild colour in
+    // `GuiGuild::from_relay_json`, whose `theme-exempt` note sat on the line
+    // ABOVE the literal and so never exempted anything; only the allowlist was
+    // hiding it. The value types moved to `src/gui/state_types.rs` under the
+    // file-size ratchet, which is NOT allowlisted, so the note moved onto the
+    // literal's own line where it belongs. Everything still in gui/mod.rs (the
+    // two colour-picker seed values in `Default for GuiState`) was already
+    // inline-exempt.
     // Voice-meter state colors + status dots — semantic transient state
     // visualization. Roadmap calls these "mostly legitimate". Audit then
     // either annotate `theme-exempt` or move the palette to theme.ron.
