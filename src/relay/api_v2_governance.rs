@@ -93,6 +93,20 @@ pub async fn get_proposal(
 ///
 /// A proposal that has never been revisited returns a one-element chain, which
 /// is the honest answer rather than an error.
+///
+/// Each link also carries `question_digest`, plus `auto_opened` and
+/// `auto_opened_note` when the server opened that link itself. A chain whose
+/// links all share one `question_digest` is a chain where the same question was
+/// asked every time, which is exactly what an automatically-opened re-vote must
+/// not be able to change.
+///
+/// **That digest is a convenience, not the authority.** A client that does not
+/// want to take this server's word for it fetches each link from
+/// `GET /api/v2/objects/{id}`, verifies the Dilithium signature itself, strips
+/// the scheduling and machine fields listed in
+/// `governance_revotes::SCHEDULE_AND_MACHINE_FIELDS`, re-encodes the rest as
+/// canonical CBOR and compares the bytes. That is the same computation this
+/// endpoint runs, over objects the server cannot forge.
 pub async fn proposal_chain(
     State(state): State<Arc<RelayState>>,
     Path(id): Path<String>,
@@ -112,12 +126,44 @@ pub async fn proposal_chain(
             let standing = chain
                 .first()
                 .and_then(|p| state.db.standing_decision(&p.proposal_object_id).ok().flatten());
+
+            // Enrich each link with what the question IS and who opened it.
+            // Read straight off the stored signed object, so it reflects the
+            // bytes the author signed rather than anything re-derived.
+            use crate::relay::governance_revotes as revotes;
+            let mut links: Vec<serde_json::Value> = Vec::with_capacity(chain.len());
+            let mut digests: Vec<Option<String>> = Vec::with_capacity(chain.len());
+            for p in &chain {
+                let mut link = serde_json::to_value(p).unwrap_or_default();
+                let mut digest = None;
+                if let Ok(Some(obj)) = state.db.get_signed_object(&p.proposal_object_id) {
+                    digest = revotes::question_digest(&obj.payload);
+                    link["question_digest"] = serde_json::json!(digest);
+                    if revotes::is_auto_opened(&obj.payload) {
+                        link["auto_opened"] = serde_json::json!(true);
+                        link["auto_opened_note"] =
+                            serde_json::json!(revotes::auto_opened_note(&obj.payload));
+                    }
+                }
+                digests.push(digest);
+                links.push(link);
+            }
+            // True only when every link asks the identical question. A client
+            // can show "the same question, asked N times" on the strength of
+            // it, or recompute it from the signed objects to be sure. An
+            // unreadable link (digest None) makes this false rather than
+            // vacuously true.
+            let same_question = digests
+                .first()
+                .map(|first| first.is_some() && digests.iter().all(|d| d == first))
+                .unwrap_or(false);
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "standing": standing,
-                    "revisions": chain.len(),
-                    "chain": chain,
+                    "revisions": links.len(),
+                    "same_question": same_question,
+                    "chain": links,
                 })),
             )
                 .into_response()

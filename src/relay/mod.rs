@@ -12,6 +12,10 @@ pub mod api_v2_announce;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_governance;
+/// Scheduled re-votes: the timer that opens a successor proposal when a
+/// decision's review date arrives, signed by the server, carrying the
+/// predecessor's question copied verbatim. See `docs/design/scheduled-revotes.md`.
+pub mod governance_revotes;
 pub mod api_v2_liveness;
 pub mod api_v2_objects;
 pub mod api_v2_recovery;
@@ -783,6 +787,16 @@ pub async fn run_relay() {
                 }
             }
         });
+    }
+
+    // Scheduled re-votes (v0.1320): once an hour, look for decisions whose
+    // review date has arrived and open the re-vote their own author asked for.
+    // Same shape as the other periodic work below: spawned once at boot, sleeps
+    // between passes. Cheap when nothing is due (one indexed query), and it does
+    // nothing at all on a server whose proposals never named a review date.
+    {
+        let revote_state = state.clone();
+        tokio::spawn(governance_revotes::scheduled_revote_loop(revote_state));
     }
 
     // Automated SQLite backup every 6 hours, keeping last 5 backups.
