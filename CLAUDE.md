@@ -322,6 +322,37 @@ and quoted text (a statute, a constitution, a licence, someone's own words) is
 reproduced EXACTLY, punctuation included. See the memory file
 `feedback_em_dashes_and_doc_clarity` and `tests/emdash_lint.rs`.
 
+**RESEARCH A LEGAL QUESTION, THEN WRITE IT DOWN AND DATE IT (operator,
+2026-09-19).** Verbatim: "If there's something legal or similar then we should
+research it and create a document of what we find, whether it's ok or not. That
+way when we inevitably have to discuss the subject again we can see where we
+found the information and what we found. We should also date our findings as to
+clearly identify the last time we looked. That way if something changes and
+we're approached we can see the date we researched and compare it to the date
+that the change occurred."
+
+So: never answer a licensing, patent, terms-of-service or similar question from
+memory or from a design doc's summary of it. Go to the primary sources, and
+write `docs/reference/findings/<YYYY-MM-DD>-<topic>.md` carrying the question,
+the date of the research stated prominently, the short answer, then each finding
+with **its source link, that source's own date, and a QUOTATION of the words
+that carry the meaning** rather than a paraphrase. Say what is still unknown.
+Say plainly that it is a reading of public sources and not legal advice.
+`docs/reference/findings/README.md` holds the practice.
+
+The date is the point. A finding that was true in 2026 and a rule that changed
+in 2027 are not the same as being wrong, and only a dated document can tell them
+apart if anyone ever asks. **A NEGATIVE finding is worth as much as a positive
+one:** write down what is NOT allowed, so the next session stops arguing with a
+settled answer instead of re-deriving it.
+
+Second-order rule, learned the hard way on 2026-09-19: **a design document's
+conclusion is not a source.** The codec policy in `docs/design/media-player.md`
+was quoted back at the operator as though it settled whether the project could
+ever play Twitch, when it was one agent's reasoning that he had never been asked
+to weigh. Cite the pool, the licence or the statute, not our own summary of it,
+and never attribute a decision to the operator that he did not make.
+
 ## AI Participation
 
 AI agents are first-class citizens of HumanityOS. See `docs/ai/onboarding.md` for the full onboarding guide and `data/ai/onboarding.json` for the structured onboarding flow. Key rules:
