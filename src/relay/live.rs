@@ -332,18 +332,40 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
 
     // --- Phase 4: teardown. Only remove the entry if it is still OURS (a
     // reconnect may have replaced us, and we must not evict the new publisher).
-    let mut streams = state.live.streams.write().await;
-    if let Some(cur) = streams.get(&id) {
-        if Arc::ptr_eq(cur, &stream) {
-            streams.remove(&id);
-            info!(
-                "live: '{id}' ended after {}s, {} frames",
-                stream.started.elapsed().as_secs(),
-                stream.frames.load(Ordering::Relaxed)
-            );
+    {
+        let mut streams = state.live.streams.write().await;
+        if let Some(cur) = streams.get(&id) {
+            if Arc::ptr_eq(cur, &stream) {
+                streams.remove(&id);
+                info!(
+                    "live: '{id}' ended after {}s, {} frames",
+                    stream.started.elapsed().as_secs(),
+                    stream.frames.load(Ordering::Relaxed)
+                );
+            }
         }
     }
+
+    // TELL THE VIEWERS. Dropping the last `broadcast::Sender` would normally
+    // wake them with `RecvError::Closed`, but every viewer holds its own
+    // `Arc<LiveStream>` for as long as it is watching, so the sender outlives
+    // this function and a viewer parked on `rx.recv()` would wait forever:
+    // the socket stays open with nothing on it, and a wall screen sits on the
+    // publisher's last frame indefinitely (found by the live-screen rig,
+    // 2026-09-18). So say so explicitly. An EMPTY frame is unambiguous as the
+    // sentinel: a real frame is at least a 9-byte header, and the pump loop
+    // above drops anything shorter, so nothing else can ever produce one.
+    //
+    // This runs whether or not the entry was still ours: if a reconnect
+    // replaced us, THIS stream object is dead too, and its viewers need to
+    // reconnect to reach the new one.
+    let _ = stream.tx.send(END_OF_STREAM.into());
 }
+
+/// The zero-length frame a publisher's teardown broadcasts so viewers stop
+/// waiting (see the end of [`publisher_loop`] and the `Ok(frame)` arm of
+/// [`viewer_loop`]).
+const END_OF_STREAM: &[u8] = &[];
 
 async fn viewer_loop(mut socket: WebSocket, state: Arc<RelayState>, id: String) {
     let id = id.to_lowercase();
@@ -385,6 +407,14 @@ async fn viewer_loop(mut socket: WebSocket, state: Arc<RelayState>, id: String) 
     while ok {
         match rx.recv().await {
             Ok(frame) => {
+                // The publisher's teardown sentinel (see `END_OF_STREAM`):
+                // the stream is over, so close rather than hold a socket
+                // that will never carry another frame. The client reads the
+                // close as "the stream ended" and, if it is a wall screen,
+                // retries later and is told "not live".
+                if frame.is_empty() {
+                    break;
+                }
                 if socket.send(Message::Binary(frame.to_vec().into())).await.is_err() {
                     break;
                 }
@@ -563,6 +593,118 @@ mod tests {
             primed.into_data().to_vec(),
             frame,
             "the late viewer must receive the CACHED keyframe"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// WHEN THE PUBLISHER STOPS, THE VIEWERS ARE TOLD. Found by the
+    /// live-screen rig (2026-09-18): a wall screen sat on the last frame of a
+    /// stopped stream forever, still reporting itself connected, because
+    /// every viewer holds its own `Arc<LiveStream>`, so dropping the
+    /// publisher's copy never closes the broadcast channel and a viewer
+    /// parked on `rx.recv()` never wakes. The teardown now broadcasts an
+    /// empty sentinel frame and viewers close on it.
+    ///
+    /// Red proof: delete the `stream.tx.send(END_OF_STREAM...)` line at the
+    /// end of `publisher_loop` (or the `frame.is_empty()` arm in
+    /// `viewer_loop`) and the viewer's `next()` below waits out its timeout
+    /// with the socket still open.
+    #[tokio::test]
+    async fn a_viewer_is_closed_when_the_publisher_stops() {
+        use axum::routing::get;
+        use futures::{SinkExt, StreamExt};
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path =
+            std::env::temp_dir().join(format!("hum_live_end_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+
+        let seed = [11u8; 32];
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let pubkey = hex::encode(dil.public_key());
+        db.register_name("streamer", &pubkey).expect("register name");
+
+        let state = Arc::new(RelayState::new(db));
+        let app = axum::Router::new()
+            .route("/ws/live/pub", get(pub_handler))
+            .route("/ws/live/sub/{stream}", get(sub_handler))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        // Publisher up, one keyframe out.
+        let (mut pubsock, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/pub"))
+                .await
+                .expect("publisher connects");
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+        pubsock
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                serde_json::json!({ "key": pubkey, "timestamp": ts, "sig": sig, "title": "" })
+                    .to_string()
+                    .into(),
+            ))
+            .await
+            .unwrap();
+        let reply = pubsock.next().await.unwrap().unwrap().into_text().unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&reply).unwrap()["ok"],
+            true
+        );
+
+        let (mut viewer, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/sub/streamer"))
+                .await
+                .expect("viewer connects");
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let mut frame = vec![1u8];
+        frame.extend_from_slice(&1u64.to_be_bytes());
+        frame.extend_from_slice(b"jpeg");
+        pubsock
+            .send(tokio_tungstenite::tungstenite::Message::Binary(frame.into()))
+            .await
+            .unwrap();
+        let got = tokio::time::timeout(Duration::from_secs(3), viewer.next())
+            .await
+            .expect("the viewer gets the frame")
+            .unwrap()
+            .unwrap();
+        assert!(got.is_binary());
+
+        // The publisher goes away.
+        pubsock.close(None).await.unwrap();
+
+        // The viewer's socket must END. Anything still arriving is drained
+        // until the stream closes; waiting out this timeout IS the bug.
+        let ended = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                match viewer.next().await {
+                    None => return true,
+                    Some(Err(_)) => return true,
+                    Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) => return true,
+                    // The sentinel must never reach a client as a frame.
+                    Some(Ok(m)) if m.is_binary() => {
+                        assert!(!m.into_data().is_empty(), "the end sentinel must not be forwarded as a frame");
+                    }
+                    Some(Ok(_)) => {}
+                }
+            }
+        })
+        .await;
+        assert_eq!(
+            ended,
+            Ok(true),
+            "a viewer must be closed when its publisher stops, not left waiting on a dead stream"
         );
 
         let _ = std::fs::remove_file(&path);

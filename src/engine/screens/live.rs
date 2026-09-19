@@ -20,10 +20,20 @@
 //! pixel size ([`letterbox_into`]): the surface never changes size, so the
 //! wall's quad never stretches the picture (a 16:9 stream on a 16:10 desk
 //! monitor gets black bars, not a squeeze). While no frame has arrived, or
-//! after the stream ended, a status page names the stream and its state
-//! ("Connecting to ...", "Stream offline" with the relay's reason); a
+//! after the stream ended, a status page names the stream and its state; a
 //! viewer whose stream ended is retried after [`RETRY_AFTER`], so a wall
 //! comes back on its own when the streamer goes live again.
+//!
+//! WHAT THE STATUS PAGE SAYS is [`live_status`], pure over (server, stream
+//! id, last error), and it answers two things at once: the words, and
+//! whether to connect. The second matters because of a real wall the
+//! operator hit (2026-09-18, photographed in the console room): with nobody
+//! signed in, `GuiState::server_url` is empty, so the composed address is
+//! `/ws/live/sub/<id>`, which has NO HOST NAME. The screen showed
+//! "Could not connect: URL error: No host name in the URL Trying again
+//! shortly." and retried that forever. A URL with no host cannot ever work,
+//! so now it is not built at all: the screen says no server is set and
+//! where to set one, and opens no socket.
 //!
 //! A picture that is up STAYS up between frames. The stream runs slower
 //! than the game (a 20 fps stream on a 60 fps game hands the provider a
@@ -40,7 +50,7 @@
 use crate::gui::screen_surface::{ScreenCore, ScreenProvider, ScreenSurface};
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use crate::net::live_viewer::LiveViewer;
+use crate::net::live_viewer::{EndReason, LiveViewer};
 use std::time::{Duration, Instant};
 
 /// How long a screen waits after its stream ended (or never connected)
@@ -153,6 +163,130 @@ pub fn next_display(shown: &Shown, got_frame: bool, connected: bool) -> Display 
     }
 }
 
+/// The last thing that went wrong on this screen: WHY the viewer's thread
+/// ended, plus the sentence the viewer wrote for a human. `Default` (reason
+/// `None`, empty text) means "nothing has gone wrong yet".
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LastError {
+    pub reason: EndReason,
+    pub text: String,
+}
+
+/// What a live screen says, and whether it may open a socket at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveStatus {
+    /// The big line.
+    pub heading: String,
+    /// The small line under it.
+    pub detail: String,
+    /// Whether the screen should (re)connect. False ONLY when there is no
+    /// server to connect to, because a URL with no host name cannot ever
+    /// work: retrying it just repeats the same parse error forever, which is
+    /// exactly the wall the operator photographed.
+    pub connect: bool,
+}
+
+/// Whether a configured server string can name a host at all.
+///
+/// The composed viewer URL is `<server>/ws/live/sub/<id>` (see
+/// `net::live_viewer::LiveViewer::start`), so an empty server composes
+/// `/ws/live/sub/<id>`, which has no host name and cannot be parsed, let
+/// alone connected to.
+///
+/// This is deliberately a HOST check and not a URL parse: a string that
+/// names a host but gets the scheme wrong ("localhost:3210") is a typo the
+/// person can see in the error the connection gives back, while a string
+/// with no host at all can only ever produce the same meaningless parse
+/// error however many times it is retried.
+pub fn server_has_host(server: &str) -> bool {
+    let s = server.trim();
+    let after_scheme = match s.split_once("://") {
+        // "://host" with no scheme in front of it is not an address either.
+        Some((scheme, _)) if scheme.trim().is_empty() => return false,
+        Some((_, rest)) => rest,
+        None => s,
+    };
+    // The host is everything before the first path separator.
+    !after_scheme.split('/').next().unwrap_or("").trim().is_empty()
+}
+
+/// THE MESSAGE DECISION, pure over (server, stream id, last error).
+///
+/// A wall that cannot show a stream must say WHICH wall it is standing at,
+/// because those walls need different things from the person reading them
+/// (the project norm: "a wall a person hits must name its reason",
+/// CLAUDE.md). Three of them:
+///
+/// 1. **No server set.** Nothing to connect to, so nothing is attempted.
+///    The screen names where the server is set instead of retrying an
+///    address that cannot work.
+/// 2. **Nothing live under that name.** The relay answered; the name is
+///    simply not broadcasting. Polite, and it keeps retrying.
+/// 3. **A real connection or protocol failure.** The reason as the viewer
+///    reported it, and it keeps retrying.
+///
+/// Before the first failure (case 0) the screen is simply connecting.
+pub fn live_status(server: &str, stream: &str, last: &LastError) -> LiveStatus {
+    // Case 1: no server. This is checked FIRST because it is the only case
+    // where the answer is "do not even try".
+    if !server_has_host(server) {
+        return LiveStatus {
+            heading: "No server set".to_string(),
+            detail: format!(
+                "This screen would show the stream published as \"{stream}\", \
+                 but no server is set to look on. Open Chat and put a server \
+                 address in the Server field of the connection panel."
+            ),
+            connect: false,
+        };
+    }
+    // The viewer's own sentence, when it wrote one; otherwise a default so a
+    // fault is never described by an empty string.
+    let words = |fallback: &str| -> String {
+        if last.text.trim().is_empty() {
+            fallback.to_string()
+        } else {
+            last.text.trim().to_string()
+        }
+    };
+    match last.reason {
+        // Case 0: no fault yet. A viewer is on its way, or about to be.
+        EndReason::None => LiveStatus {
+            heading: format!("Connecting to {stream}"),
+            detail: "This screen shows the live stream published under that name.".to_string(),
+            connect: true,
+        },
+        // Case 2: the relay answered, and nobody is publishing that name.
+        EndReason::NotLive => LiveStatus {
+            heading: "Stream offline".to_string(),
+            detail: format!("No one is streaming as \"{stream}\" right now. Trying again shortly."),
+            connect: true,
+        },
+        // Case 2, the other way in: the publisher was there and stopped.
+        EndReason::Ended => LiveStatus {
+            heading: "Stream offline".to_string(),
+            detail: format!("{} Trying again shortly.", words("The stream ended.")),
+            connect: true,
+        },
+        // Case 3a: the relay is fine, the stream is simply full.
+        EndReason::AtCapacity => LiveStatus {
+            heading: "Stream full".to_string(),
+            detail: format!(
+                "{} Trying again shortly.",
+                words("This stream is at viewer capacity.")
+            ),
+            connect: true,
+        },
+        // Case 3b: the socket itself. The reason is the useful part, so it
+        // leads; the heading says which layer failed.
+        EndReason::Connection => LiveStatus {
+            heading: "Cannot reach the server".to_string(),
+            detail: format!("{} Trying again shortly.", words("The connection failed.")),
+            connect: true,
+        },
+    }
+}
+
 /// The provider for `watch:<stream id>` (see the module doc).
 pub struct LiveProvider {
     stream: String,
@@ -161,13 +295,17 @@ pub struct LiveProvider {
     viewer: Option<LiveViewer>,
     /// When to open the next viewer after the last one ended.
     retry_at: Option<Instant>,
-    /// The relay's reason the last viewer ended ("This stream is not live
-    /// right now.", "The stream ended.", a connection error), shown on the
-    /// status page until a new viewer connects.
-    last_error: String,
+    /// Why the last viewer ended, and the sentence it wrote, shown on the
+    /// status page until a new viewer connects. See [`live_status`].
+    last_error: LastError,
     /// Frames written into the surface so far.
     frames_written: u64,
     shown: Shown,
+    /// The message this screen last decided on, mirrored into `status()` so
+    /// a rig (or the operator's own `debug/screen_request.json`) can read
+    /// what the wall SAYS without reading its pixels. `None` before the
+    /// first framed tick.
+    message: Option<LiveStatus>,
     /// The letterbox buffer, reused across frames.
     scratch: Vec<u8>,
 }
@@ -178,9 +316,10 @@ impl LiveProvider {
             stream: stream.to_string(),
             viewer: None,
             retry_at: None,
-            last_error: String::new(),
+            last_error: LastError::default(),
             frames_written: 0,
             shown: Shown::Nothing,
+            message: None,
             scratch: Vec::new(),
         }
     }
@@ -190,27 +329,22 @@ impl LiveProvider {
         self.viewer.as_ref().map_or(false, |v| v.is_connected())
     }
 
-    /// The status page's two lines for the current state: the heading and
-    /// the detail. Pure, so the wording is pinned by a test.
-    pub fn status_lines(&self) -> (String, String) {
-        match (&self.viewer, self.last_error.is_empty()) {
-            // Waiting for the first frame of a viewer that has not reported
-            // a problem (or has not been started yet).
-            (Some(_), true) | (None, true) => (
-                format!("Connecting to {}", self.stream),
-                "This screen shows the live stream published under that name.".to_string(),
-            ),
-            // The last viewer ended; a new one is opened after the retry
-            // pause.
-            (None, false) => ("Stream offline".to_string(), format!("{} Trying again shortly.", self.last_error)),
-            // A viewer is up but the previous one ended: connecting again.
-            (Some(_), false) => (format!("Connecting to {}", self.stream), self.last_error.clone()),
-        }
+    /// This screen's message and connect decision for the configured server.
+    /// A thin wrapper over the pure [`live_status`] so the provider keeps one
+    /// way of asking.
+    pub fn status_for(&self, server: &str) -> LiveStatus {
+        live_status(server, &self.stream, &self.last_error)
     }
 
     /// Draw the status page through `core` (GPU-free: the surface's
     /// `run_and_render` wraps this, and the headless test calls it
     /// directly). Two centred lines on the theme's panel.
+    ///
+    /// Read from across a room, so: the heading takes the theme's PRIMARY
+    /// text colour rather than egui's default (which came out nearly black
+    /// on the dark panel, proven by the rig's own evidence PNGs), and the
+    /// detail is held to a column instead of running the full width of a
+    /// 1280 px wall, where a sentence becomes one thin line of small text.
     pub fn draw_status_page(
         core: &mut ScreenCore,
         theme: &Theme,
@@ -223,9 +357,27 @@ impl LiveProvider {
                 ui.centered_and_justified(|ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(ui.available_height() * 0.4);
-                        ui.label(egui::RichText::new(heading).size(theme.font_size_heading).strong());
+                        ui.label(
+                            egui::RichText::new(heading)
+                                .size(theme.font_size_heading)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
                         ui.add_space(theme.panel_margin);
-                        ui.label(egui::RichText::new(detail).size(theme.font_size_body).color(theme.text_muted()));
+                        // Roughly two thirds of the wall, so the sentence
+                        // wraps into a readable block near the middle.
+                        let column = ui.available_width() * 0.66;
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(column, ui.available_height()),
+                            egui::Layout::top_down(egui::Align::Center),
+                            |ui| {
+                                ui.label(
+                                    egui::RichText::new(detail)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_secondary()),
+                                );
+                            },
+                        );
                     });
                 });
             });
@@ -233,9 +385,13 @@ impl LiveProvider {
     }
 
     /// Open this screen's viewer against the configured server, the way
-    /// the Watch page does (`pages::watch::start_watching`).
+    /// the Watch page does (`pages::watch::start_watching`). Only ever
+    /// called when [`live_status`] said `connect`.
     fn start_viewer(&mut self, gui_state: &GuiState) {
         let server = gui_state.server_url.trim_end_matches('/').to_string();
+        // One line per socket opened: the rig reads this to prove a screen
+        // with no server opened NONE.
+        log::info!("[Screens] watch:{}: opening a viewer on {server}", self.stream);
         self.viewer = Some(LiveViewer::start(&server, &self.stream));
         self.retry_at = None;
         // A new viewer starts from nothing: whatever the surface holds (the
@@ -256,9 +412,24 @@ impl ScreenProvider for LiveProvider {
         gui_state: &mut GuiState,
     ) {
         let now = Instant::now();
-        // Open the viewer on the first framed tick, and again after the
-        // retry pause once a previous one ended.
-        if self.viewer.is_none() && self.retry_at.map_or(true, |t| now >= t) {
+        // WHAT THIS SCREEN SAYS AND WHETHER IT MAY CONNECT, decided in one
+        // pure place over the configured server, the stream id and the last
+        // fault. With no server the answer is "do not connect at all": the
+        // composed address would have no host name, and retrying it forever
+        // is what put a parse error on the operator's wall.
+        let status = self.status_for(&gui_state.server_url);
+        self.message = Some(status.clone());
+        if !status.connect {
+            // The server went away (or was never set). Drop any viewer we
+            // hold so its thread stops, and forget the picture so the page
+            // below replaces it.
+            if self.viewer.take().is_some() {
+                self.shown = Shown::Nothing;
+            }
+            self.retry_at = None;
+        } else if self.viewer.is_none() && self.retry_at.map_or(true, |t| now >= t) {
+            // Open the viewer on the first framed tick, and again after the
+            // retry pause once a previous one ended.
             self.start_viewer(gui_state);
         }
         if let Some(v) = self.viewer.as_ref() {
@@ -294,9 +465,9 @@ impl ScreenProvider for LiveProvider {
             // `shown` forgets the picture so the page is drawn now and a
             // reconnect shows its own status again before its first frame.
             if !v.is_connected() {
-                let status = v.status();
-                if !status.is_empty() {
-                    self.last_error = status;
+                let words = v.status();
+                if !words.is_empty() {
+                    self.last_error = LastError { reason: v.end_reason(), text: words };
                     self.viewer = None;
                     self.retry_at = Some(now + RETRY_AFTER);
                     self.shown = Shown::Nothing;
@@ -304,14 +475,29 @@ impl ScreenProvider for LiveProvider {
             }
         }
         // Nothing live on the surface: the status page, redrawn only when
-        // its text changes.
-        let (heading, detail) = self.status_lines();
-        let key = format!("{heading}\n{detail}");
-        if self.shown == Shown::Status(key.clone()) {
+        // its text changes. Re-decided here because the leg above may have
+        // just recorded a fault, and the page must describe THIS tick.
+        let status = self.status_for(&gui_state.server_url);
+        self.message = Some(status.clone());
+        let key = format!("{}\n{}", status.heading, status.detail);
+        let same_words = self.shown == Shown::Status(key.clone());
+        // A page whose words have not changed is not redrawn (the redraw
+        // clears the texture first, so redrawing for nothing is a flicker).
+        // The ONE exception is a dev-IPC `find` waiting for an answer: the
+        // lookup reads the shapes of a run, so with no run it would report
+        // that the words a person can plainly read are not there. The same
+        // rule the video screen follows (`video.rs`, `core.find_pending()`).
+        if same_words && !surface.core.find_pending() {
             return;
         }
+        // One line per CHANGE of message (not per frame, and not for a
+        // find's redraw), so the log reads as the history of what the wall
+        // said.
+        if !same_words {
+            log::info!("[Screens] watch:{}: {} ({})", self.stream, status.heading, status.detail);
+        }
         surface.run_and_render(device, queue, theme, gui_state, |core, theme, state| {
-            Self::draw_status_page(core, theme, state, &heading, &detail)
+            Self::draw_status_page(core, theme, state, &status.heading, &status.detail)
         });
         self.shown = Shown::Status(key);
     }
@@ -325,6 +511,12 @@ impl ScreenProvider for LiveProvider {
             "stream": self.stream,
             "connected": self.is_connected(),
             "frames": self.frames_written,
+            // What the wall says right now, and whether it is allowed to
+            // open a socket at all. Reading these is how a rig proves the
+            // no-server screen NEVER tried to connect.
+            "heading": self.message.as_ref().map(|m| m.heading.clone()),
+            "detail": self.message.as_ref().map(|m| m.detail.clone()),
+            "may_connect": self.message.as_ref().map(|m| m.connect),
         })
     }
 }
@@ -439,11 +631,11 @@ mod tests {
         let provider = LiveProvider::new("shaostoul");
         assert!(provider.viewer.is_none(), "no viewer is started by construction (no network in a test)");
         assert!(!provider.is_connected());
-        let (heading, detail) = provider.status_lines();
-        assert_eq!(heading, "Connecting to shaostoul");
-        assert!(detail.contains("live stream"), "{detail}");
+        let msg = provider.status_for("https://united-humanity.us");
+        assert_eq!(msg.heading, "Connecting to shaostoul");
+        assert!(msg.detail.contains("live stream"), "{}", msg.detail);
         let mut core = ScreenCore::new("wall", "watch:shaostoul", 640, 360, &theme);
-        let out = LiveProvider::draw_status_page(&mut core, &theme, &mut state, &heading, &detail);
+        let out = LiveProvider::draw_status_page(&mut core, &theme, &mut state, &msg.heading, &msg.detail);
         assert!(!out.shapes.is_empty(), "the status page draws something");
         let mut texts = Vec::new();
         for s in &out.shapes {
@@ -503,16 +695,16 @@ mod tests {
         // The drop path, as `frame` performs it when the viewer's thread
         // ended with a reason: the reason is kept, the viewer goes, the
         // retry is scheduled, and the picture is forgotten.
-        p.last_error = "The stream ended.".to_string();
+        p.last_error = LastError { reason: EndReason::Ended, text: "The stream ended.".to_string() };
         p.viewer = None;
         p.retry_at = Some(Instant::now() + RETRY_AFTER);
         p.shown = Shown::Nothing;
         assert_eq!(next_display(&p.shown, false, false), Display::Status);
-        let (heading, _) = p.status_lines();
-        assert_eq!(heading, "Stream offline");
+        let msg = p.status_for(SERVER);
+        assert_eq!(msg.heading, "Stream offline");
         // A status page drawn once is not redrawn while its text is the
         // same: `frame` compares against the exact key it stored.
-        let key = format!("{}\n{}", p.status_lines().0, p.status_lines().1);
+        let key = format!("{}\n{}", msg.heading, msg.detail);
         p.shown = Shown::Status(key.clone());
         assert_eq!(next_display(&p.shown, false, false), Display::Status, "the caller then skips the redraw on an equal key");
         assert_eq!(p.shown, Shown::Status(key));
@@ -520,17 +712,97 @@ mod tests {
         // the same way; it opens a socket, so it is not driven here.)
     }
 
-    /// The wording follows the viewer's fate: an ended stream shows
-    /// "Stream offline" with the relay's reason, and the retry pause is
-    /// scheduled.
+    /// A server address the screen can actually use. Any non-empty host will
+    /// do: nothing in these tests opens a socket.
+    const SERVER: &str = "https://united-humanity.us";
+
+    /// THE THREE WALLS, each named on the screen it belongs to. This is the
+    /// defect the operator photographed (a `watch:` screen reading "Could
+    /// not connect: URL error: No host name in the URL Trying again
+    /// shortly.") and the two honest answers it should have given instead.
+    ///
+    /// Red proof: point case 1 at a server (`live_status(SERVER, ...)`) and
+    /// the no-server assertions fail; make case 1 return `connect: true` and
+    /// the "nothing is attempted" assertion fails.
     #[test]
-    fn status_lines_report_an_ended_stream() {
-        let mut p = LiveProvider::new("shaostoul");
-        p.last_error = "This stream is not live right now.".to_string();
-        p.retry_at = Some(Instant::now() + RETRY_AFTER);
-        let (heading, detail) = p.status_lines();
-        assert_eq!(heading, "Stream offline");
-        assert!(detail.starts_with("This stream is not live right now."), "{detail}");
-        assert!(detail.contains("again"), "{detail}");
+    fn each_wall_a_live_screen_hits_names_its_own_reason() {
+        // ── Case 1: no server known. Nothing to connect to, so nothing is
+        // attempted, and the screen says where a server is set.
+        for empty in ["", "   ", "/", "https://", "  https://  "] {
+            let s = live_status(empty, "shaostoul", &LastError::default());
+            assert!(!s.connect, "a server string of {empty:?} cannot name a host, so nothing may be attempted");
+            assert_eq!(s.heading, "No server set");
+            assert!(s.detail.contains("shaostoul"), "the screen still names its stream: {}", s.detail);
+            assert!(s.detail.contains("Server field"), "it says WHERE to set one: {}", s.detail);
+            // The old parse error must not survive anywhere in the words.
+            assert!(!s.detail.contains("host name"), "no parse error on the wall: {}", s.detail);
+        }
+        // A real address is a host, with or without a trailing slash or the
+        // chat socket's own suffix.
+        for good in ["https://united-humanity.us", "https://united-humanity.us/", "http://127.0.0.1:3210", "wss://example.org/ws"] {
+            assert!(server_has_host(good), "{good} names a host");
+            assert!(live_status(good, "shaostoul", &LastError::default()).connect);
+        }
+
+        // ── Case 0: a server, no fault yet. Connecting.
+        let s = live_status(SERVER, "shaostoul", &LastError::default());
+        assert_eq!(s.heading, "Connecting to shaostoul");
+        assert!(s.connect);
+
+        // ── Case 2: the relay answered, and nobody is streaming that name.
+        // Polite, names the stream, keeps the retry.
+        let not_live = LastError { reason: EndReason::NotLive, text: "This stream is not live right now.".into() };
+        let s = live_status(SERVER, "shaostoul", &not_live);
+        assert_eq!(s.heading, "Stream offline");
+        assert!(s.detail.starts_with("No one is streaming as \"shaostoul\""), "{}", s.detail);
+        assert!(s.detail.contains("Trying again shortly."), "{}", s.detail);
+        assert!(s.connect, "a name that is not live now may be live in a minute");
+
+        // ── Case 3: a real connection or protocol failure keeps the reason.
+        let broke = LastError { reason: EndReason::Connection, text: "Stream error: connection reset".into() };
+        let s = live_status(SERVER, "shaostoul", &broke);
+        assert_eq!(s.heading, "Cannot reach the server");
+        assert!(s.detail.starts_with("Stream error: connection reset"), "the reason leads: {}", s.detail);
+        assert!(s.detail.contains("Trying again shortly."), "{}", s.detail);
+        assert!(s.connect);
+
+        // The two remaining fates, for completeness: a publisher who stopped
+        // and a stream at its viewer ceiling.
+        let ended = LastError { reason: EndReason::Ended, text: "The stream ended.".into() };
+        let s = live_status(SERVER, "shaostoul", &ended);
+        assert_eq!(s.heading, "Stream offline");
+        assert!(s.detail.starts_with("The stream ended."), "{}", s.detail);
+        let full = LastError { reason: EndReason::AtCapacity, text: "This stream is at viewer capacity.".into() };
+        let s = live_status(SERVER, "shaostoul", &full);
+        assert_eq!(s.heading, "Stream full");
+        assert!(s.detail.contains("viewer capacity"), "{}", s.detail);
+
+        // A fault with no sentence (the viewer died before writing one) is
+        // still described, never with an empty line.
+        for reason in [EndReason::Ended, EndReason::AtCapacity, EndReason::Connection] {
+            let s = live_status(SERVER, "shaostoul", &LastError { reason, text: String::new() });
+            assert!(s.detail.len() > "Trying again shortly.".len(), "{reason:?} says something: {}", s.detail);
+        }
+    }
+
+    /// The no-server page DRAWS, through the same `ScreenCore` path the wall
+    /// uses, and the words a person would read are the new ones.
+    #[test]
+    fn the_no_server_page_draws_its_own_words() {
+        let theme = load_theme();
+        let mut state = GuiState::default();
+        let p = LiveProvider::new("shaostoul");
+        let msg = p.status_for("");
+        assert!(!msg.connect);
+        let mut core = ScreenCore::new("wall", "watch:shaostoul", 640, 360, &theme);
+        let out = LiveProvider::draw_status_page(&mut core, &theme, &mut state, &msg.heading, &msg.detail);
+        let mut texts = Vec::new();
+        for s in &out.shapes {
+            if let egui::Shape::Text(t) = &s.shape {
+                texts.push(t.galley.text().to_string());
+            }
+        }
+        assert!(texts.iter().any(|t| t.contains("No server set")), "the heading is drawn: {texts:?}");
+        assert!(texts.iter().any(|t| t.contains("Server field")), "the detail is drawn: {texts:?}");
     }
 }

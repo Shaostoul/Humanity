@@ -18,7 +18,7 @@
 //! rate, so an older undrawn frame is simply overwritten. Same drop-to-present
 //! philosophy as the publisher.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -30,6 +30,56 @@ pub struct DecodedFrame {
     pub rgba: Vec<u8>,
 }
 
+/// WHY a viewer's thread ended, as data rather than as English.
+///
+/// `status` below carries a sentence for a human, and that sentence is the
+/// only thing a caller used to have. But a wall screen says something
+/// different for "nobody is streaming under that name" than for "the socket
+/// failed", and branching on the wording means a reworded sentence silently
+/// changes what a screen decides. So the reason travels beside the words.
+///
+/// Stored as a `u8` in an atomic (there is no `AtomicEnum`); `from_u8` is the
+/// only way back, and an unknown value reads as `Connection` rather than
+/// pretending nothing went wrong.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum EndReason {
+    /// Still running, or it ended without recording a reason.
+    #[default]
+    None,
+    /// The relay answered "not live": nobody is publishing under that name.
+    NotLive,
+    /// The relay answered "at capacity": the stream is at its viewer ceiling.
+    AtCapacity,
+    /// The publisher stopped and the socket closed cleanly.
+    Ended,
+    /// The socket could not be opened, or it failed mid-stream.
+    Connection,
+}
+
+impl EndReason {
+    fn as_u8(self) -> u8 {
+        match self {
+            EndReason::None => 0,
+            EndReason::NotLive => 1,
+            EndReason::AtCapacity => 2,
+            EndReason::Ended => 3,
+            EndReason::Connection => 4,
+        }
+    }
+
+    fn from_u8(v: u8) -> Self {
+        match v {
+            0 => EndReason::None,
+            1 => EndReason::NotLive,
+            2 => EndReason::AtCapacity,
+            3 => EndReason::Ended,
+            // Anything else can only be a bug on the storing side; treat it as
+            // a fault rather than as health.
+            _ => EndReason::Connection,
+        }
+    }
+}
+
 /// Shared viewer state, read by the UI each frame without blocking the network.
 #[derive(Default)]
 pub struct ViewerShared {
@@ -39,6 +89,9 @@ pub struct ViewerShared {
     pub latest: Mutex<Option<DecodedFrame>>,
     /// Non-empty if the stream is unavailable or ended.
     pub status: Mutex<String>,
+    /// The machine-readable twin of `status` (see [`EndReason`]). Written in
+    /// the same place, and only there.
+    pub ended: AtomicU8,
 }
 
 /// A running viewer. Dropping it stops the network thread and frees the socket.
@@ -89,6 +142,12 @@ impl LiveViewer {
         self.shared.status.lock().map(|s| s.clone()).unwrap_or_default()
     }
 
+    /// Why this viewer's thread ended, for a caller that must say something
+    /// different per case rather than echo [`LiveViewer::status`].
+    pub fn end_reason(&self) -> EndReason {
+        EndReason::from_u8(self.shared.ended.load(Ordering::Relaxed))
+    }
+
     pub fn frames(&self) -> u64 {
         self.shared.frames.load(Ordering::Relaxed)
     }
@@ -109,6 +168,7 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
         Ok((s, _)) => s,
         Err(e) => {
             *shared.status.lock().unwrap() = format!("Could not connect: {e}");
+            shared.ended.store(EndReason::Connection.as_u8(), Ordering::Relaxed);
             return;
         }
     };
@@ -141,7 +201,10 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
                     let (w, h) = (rgba.width(), rgba.height());
                     shared.connected.store(true, Ordering::Relaxed);
                     shared.frames.fetch_add(1, Ordering::Relaxed);
+                    // A picture arriving clears both halves of the fault: the
+                    // words and the reason must never disagree.
                     *shared.status.lock().unwrap() = String::new();
+                    shared.ended.store(EndReason::None.as_u8(), Ordering::Relaxed);
                     *shared.latest.lock().unwrap() =
                         Some(DecodedFrame { width: w, height: h, rgba: rgba.into_raw() });
                 }
@@ -151,11 +214,17 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
                     if v.get("ok").and_then(|o| o.as_bool()) == Some(false) {
                         let err = v.get("error").and_then(|e| e.as_str()).unwrap_or("unavailable");
-                        *shared.status.lock().unwrap() = match err {
-                            "not live" => "This stream is not live right now.".to_string(),
-                            "at capacity" => "This stream is at viewer capacity.".to_string(),
-                            other => other.to_string(),
+                        // The relay's error CODE is the reason; the sentence
+                        // beside it is only for a human to read.
+                        let (reason, words) = match err {
+                            "not live" => (EndReason::NotLive, "This stream is not live right now.".to_string()),
+                            "at capacity" => (EndReason::AtCapacity, "This stream is at viewer capacity.".to_string()),
+                            // An answer we do not have a case for is a
+                            // protocol fault, not a healthy "nothing here".
+                            other => (EndReason::Connection, other.to_string()),
                         };
+                        *shared.status.lock().unwrap() = words;
+                        shared.ended.store(reason.as_u8(), Ordering::Relaxed);
                         break;
                     }
                 }
@@ -163,6 +232,7 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
             Ok(tungstenite::Message::Close(_)) => {
                 if shared.status.lock().unwrap().is_empty() {
                     *shared.status.lock().unwrap() = "The stream ended.".to_string();
+                    shared.ended.store(EndReason::Ended.as_u8(), Ordering::Relaxed);
                 }
                 break;
             }
@@ -177,6 +247,7 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
             Err(e) => {
                 if shared.status.lock().unwrap().is_empty() {
                     *shared.status.lock().unwrap() = format!("Stream error: {e}");
+                    shared.ended.store(EndReason::Connection.as_u8(), Ordering::Relaxed);
                 }
                 break;
             }
