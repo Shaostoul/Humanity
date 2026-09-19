@@ -565,6 +565,10 @@ pub struct VideoProvider {
     cache_hit: bool,
     /// How many conversions this provider started.
     transcodes: u64,
+    /// The thing being opened is a DISC (a folder, `src/media/dvd.rs`), not
+    /// a single file. Kept so a conversion that fails later still gets the
+    /// plain answer about copy protection instead of a decoder error.
+    disc_source: bool,
 }
 
 impl VideoProvider {
@@ -599,6 +603,7 @@ impl VideoProvider {
             last_notice: None,
             cache_hit: false,
             transcodes: 0,
+            disc_source: false,
         }
     }
 
@@ -672,6 +677,10 @@ impl VideoProvider {
         self.cache_hit = false;
         self.sound = SoundLink::default();
         self.open_attempted = true;
+        // A folder means a DISC (or the drive holding one): `begin_ingest`
+        // sends it to the disc path itself, and this flag is only so that a
+        // failure LATER is answered in disc terms.
+        self.disc_source = src.is_dir();
         let cache = self.cache_dir();
         match transcode::begin_ingest(&src, &self.ffmpeg_setting, &cache) {
             Ingest::Direct(p) => self.open_player(p),
@@ -771,7 +780,17 @@ impl VideoProvider {
                 match result {
                     Ok(dst) => self.open_player(dst),
                     Err(e) => {
-                        let msg = format!("{} could not be converted: {e}", self.current_name());
+                        let mut msg = format!("{} could not be converted: {e}", self.current_name());
+                        // A disc that gets this far and still fails is most
+                        // often a copy-protected one whose header flags did
+                        // not say so. Say it plainly rather than leaving a
+                        // decoder error nobody can act on (the line names
+                        // no tool and offers no way around the protection:
+                        // src/media/dvd.rs).
+                        if self.disc_source {
+                            msg.push('\n');
+                            msg.push_str(crate::media::dvd::PROTECTED_HINT);
+                        }
                         log::warn!("[Screens] video: {msg}");
                         self.error = Some(msg);
                     }
@@ -847,6 +866,11 @@ impl VideoProvider {
     /// the current choice, else the Videos folder (the picker's own
     /// default is the home folder), with the game's media folder as an
     /// extra quick root.
+    ///
+    /// A disc in the drive appears in the quick row on its own
+    /// (`quick_roots`), and opening the disc shows a "Play disc" button,
+    /// because a film on a disc is a folder of numbered files nobody
+    /// should have to understand (`folder_offer`, `src/media/dvd.rs`).
     pub fn show_picker(&mut self) {
         let rules = transcode::ingest_rules();
         let exts: Vec<&str> = rules.video_extensions.iter().map(|s| s.as_str()).collect();
@@ -859,7 +883,11 @@ impl VideoProvider {
             .or_else(|| home.map(|h| h.join("Videos")).filter(|d| d.is_dir()));
         let media_dir = crate::data_dir().join("media");
         self.picker = Some(
-            FilePickerState::new(&exts, 0).starting_in(start).with_pick_verb("Open").with_extra_root("Game media", media_dir),
+            FilePickerState::new(&exts, 0)
+                .starting_in(start)
+                .with_pick_verb("Open")
+                .with_extra_root("Game media", media_dir)
+                .with_folder_marker(crate::media::dvd::VIDEO_TS, "Play disc"),
         );
     }
 
@@ -1133,6 +1161,12 @@ impl ScreenProvider for VideoProvider {
         }
         media.insert("cache_hit".into(), serde_json::json!(self.cache_hit));
         media.insert("transcodes".into(), serde_json::json!(self.transcodes));
+        media.insert("disc".into(), serde_json::json!(self.disc_source));
+        // Why a conversion was needed, in the same words the screen shows:
+        // a rig reading this can tell the disc path from the file path.
+        if let Some(w) = &self.convert_why {
+            media.insert("convert_why".into(), serde_json::json!(w));
+        }
         if let Some(e) = &self.error {
             media.insert("error".into(), serde_json::json!(e));
         }
@@ -2008,6 +2042,101 @@ mod tests {
         assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(resolved));
         drop(p);
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    /// A DISC on the screen, when ffmpeg exists: handing the provider the
+    /// FOLDER (which is what the picker's "Play disc" button and the dev
+    /// IPC hand it) takes the disc road, converts the fixture disc's
+    /// two-part main title as one film, and plays it. The status says it
+    /// was a disc, so a rig can tell this path from the single-file one.
+    /// Skipped (printed) without ffmpeg.
+    #[test]
+    fn open_path_plays_a_whole_video_disc_from_its_folder() {
+        if transcode::find_ffmpeg("").is_none() {
+            println!("skipped: no ffmpeg on this machine");
+            return;
+        }
+        let cache = scratch("disc");
+        // The folder ABOVE VIDEO_TS, which is what a disc drive looks like.
+        let disc = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("media");
+        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.clone());
+        p.display_px = Some((1280, 720));
+        p.open_path(&disc);
+        assert!(p.error.is_none(), "{:?}", p.error);
+        assert!(p.job.is_some(), "a disc needs a conversion");
+        let s = p.status();
+        assert!(s["media"]["disc"].as_bool().unwrap(), "the status names the disc road: {s}");
+        assert!(s["media"]["convert_why"].as_str().unwrap().contains("video disc"), "{s}");
+        assert!(p.notice_text().unwrap().contains("video disc"), "{:?}", p.notice_text());
+
+        let deadline = Instant::now() + Duration::from_secs(180);
+        while Instant::now() < deadline && p.player.is_none() && p.error.is_none() {
+            p.advance();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(p.error.is_none(), "{:?}", p.error);
+        assert!(p.player.is_some(), "the disc must open within 180 s");
+        assert_eq!(p.load_state(), LoadState::Ready);
+        // Both parts, as one film: one part alone is a second.
+        assert!(p.player.as_ref().unwrap().duration_s() > 1.5, "{}", p.player.as_ref().unwrap().duration_s());
+        let mut frames = 0;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < deadline && frames < 5 {
+            if p.advance() {
+                assert_eq!((p.last_frame().unwrap().width, p.last_frame().unwrap().height), (320, 180));
+                frames += 1;
+            }
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        assert!(frames >= 5, "frames from the converted disc: {frames}");
+        drop(p);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    /// A folder that is not a disc, and a disc that is copy protected, are
+    /// both answered in words on the screen, never as a black picture. The
+    /// protected one is simulated here by marking a copy of the fixture's
+    /// packets as scrambled (the failure path, not a way around anything;
+    /// `src/media/dvd.rs`).
+    #[test]
+    fn a_folder_that_is_not_a_disc_and_a_protected_disc_are_answered_in_words() {
+        let d = scratch("notdisc");
+        std::fs::write(d.join("readme.txt"), b"x").unwrap();
+        let mut p = VideoProvider::new(DEMO).with_cache_dir(d.join("cache"));
+        p.display_px = Some((1280, 720));
+        p.open_path(&d);
+        let err = p.error().expect("a folder with no disc in it cannot play").to_string();
+        assert!(err.contains("not a video disc"), "{err}");
+        assert_eq!(p.load_state(), LoadState::Error(err.clone()));
+        assert!(p.notice_text().unwrap().contains("cannot play"), "the screen shows it");
+
+        // A protected disc: the same fixture bytes with every packet header
+        // marked scrambled, which is how an encrypted disc declares itself.
+        let protected = scratch("protecteddisc");
+        let video_ts = protected.join(crate::media::dvd::VIDEO_TS);
+        std::fs::create_dir_all(&video_ts).unwrap();
+        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/media/VIDEO_TS/VTS_01_1.VOB");
+        let mut bytes = std::fs::read(&src).unwrap();
+        let mut i = 0usize;
+        while i + 9 <= bytes.len() {
+            let start = bytes[i] == 0 && bytes[i + 1] == 0 && bytes[i + 2] == 1;
+            let id = bytes[i + 3];
+            if start && (id == 0xBD || (0xC0..=0xEF).contains(&id)) && (bytes[i + 6] & 0xC0) == 0x80 {
+                bytes[i + 6] |= 0x10;
+            }
+            i += 1;
+        }
+        std::fs::write(video_ts.join("VTS_01_1.VOB"), &bytes).unwrap();
+        let mut q = VideoProvider::new(DEMO).with_cache_dir(protected.join("cache"));
+        q.display_px = Some((1280, 720));
+        q.open_path(&protected);
+        let err = q.error().expect("a protected disc cannot play").to_string();
+        assert_eq!(err, crate::media::dvd::PROTECTED_MESSAGE);
+        assert!(q.job.is_none(), "nothing is converted");
+        assert!(q.notice_text().unwrap().contains("does not break disc protection"), "{:?}", q.notice_text());
+        let _ = std::fs::remove_dir_all(&d);
+        let _ = std::fs::remove_dir_all(&protected);
     }
 
     /// A remembered choice in the config wins over the data file's source:

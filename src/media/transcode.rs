@@ -303,20 +303,47 @@ pub fn transcode_args(src: &Path, dst: &Path, encoder: Av1Encoder) -> Vec<OsStri
 /// the file changes the key; moving it changes the key (a different path
 /// is a different file to the player); an untouched file keeps it.
 pub fn cache_key(src: &Path) -> std::io::Result<String> {
-    let meta = std::fs::metadata(src)?;
-    let mtime = meta
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+    cache_key_parts(std::slice::from_ref(&src.to_path_buf()))
+}
+
+/// The same key for a film that arrives as SEVERAL files converted as one
+/// (a disc's title, `src/media/dvd.rs`): every part's path, size and
+/// modification time, in order, into one hash. A single part gives exactly
+/// the same digest as `cache_key`, so nothing about the one-file case
+/// changed when this was added.
+pub fn cache_key_parts(parts: &[PathBuf]) -> std::io::Result<String> {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(src.to_string_lossy().as_bytes());
-    hasher.update(b"\n");
-    hasher.update(meta.len().to_string().as_bytes());
-    hasher.update(b"\n");
-    hasher.update(mtime.to_string().as_bytes());
+    for src in parts {
+        let meta = std::fs::metadata(src)?;
+        let mtime = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        hasher.update(src.to_string_lossy().as_bytes());
+        hasher.update(b"\n");
+        hasher.update(meta.len().to_string().as_bytes());
+        hasher.update(b"\n");
+        hasher.update(mtime.to_string().as_bytes());
+    }
     Ok(hasher.finalize().to_hex().to_string())
+}
+
+/// ONE ffmpeg input for a chain of files that are one continuous stream cut
+/// at file boundaries (a disc title's `VTS_01_1.VOB`, `VTS_01_2.VOB`, ...).
+///
+/// ffmpeg's `concat:` protocol joins the BYTES of the listed files before
+/// anything reads them, which is exactly right here and exactly wrong for
+/// most formats: it works because an MPEG program stream is a chain of
+/// self-describing packets and a disc's parts were cut out of one such
+/// chain. The separator is `|`; a Windows drive letter's colon is not a
+/// separator, so `concat:F:\a.VOB|F:\b.VOB` means what it looks like. The
+/// arguments reach ffmpeg directly, never through a shell, so nothing here
+/// needs quoting.
+pub fn concat_input(parts: &[PathBuf]) -> PathBuf {
+    let joined: Vec<String> = parts.iter().map(|p| p.display().to_string()).collect();
+    PathBuf::from(format!("concat:{}", joined.join("|")))
 }
 
 /// The media cache: `<HumanityOS data dir>/media/cache/`, beside
@@ -331,6 +358,11 @@ pub fn cache_dir() -> PathBuf {
 /// Where the converted copy of `src` goes inside `cache_dir`.
 pub fn cache_path_in(cache_dir: &Path, src: &Path) -> std::io::Result<PathBuf> {
     Ok(cache_dir.join(format!("{}.webm", cache_key(src)?)))
+}
+
+/// Where the converted copy of a multi-part film goes (a disc's title).
+pub fn cache_path_in_parts(cache_dir: &Path, parts: &[PathBuf]) -> std::io::Result<PathBuf> {
+    Ok(cache_dir.join(format!("{}.webm", cache_key_parts(parts)?)))
 }
 
 /// `Duration: 00:00:02.00, start: ...` from ffmpeg's stream summary on
@@ -581,6 +613,12 @@ fn run_job(inner: Arc<Mutex<JobInner>>, ffmpeg: PathBuf, encoder: Av1Encoder, sr
     }
 }
 
+/// Does this path end in `.<ext>`? Case-insensitive, and false for a path
+/// with no extension at all.
+pub fn has_extension(path: &Path, ext: &str) -> bool {
+    path.extension().map(|e| e.to_string_lossy().eq_ignore_ascii_case(ext)).unwrap_or(false)
+}
+
 /// What `begin_ingest` decided for a file.
 pub enum Ingest {
     /// The player opens this file as it is.
@@ -617,8 +655,23 @@ fn why_convert(e: &MediaError) -> Result<String, String> {
 /// scratch dir in tests).
 pub fn begin_ingest(src: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Ingest {
     let name = src.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| src.display().to_string());
+    // A FOLDER is a disc (or the drive holding one): a different shape of
+    // film, with its own module. One entry point, so the picker, the dev
+    // IPC and a remembered choice all take the same road.
+    if src.is_dir() {
+        return super::dvd::begin_disc_ingest(src, ffmpeg_setting, cache_dir);
+    }
     if !src.is_file() {
         return Ingest::Failed(format!("file not found: {}", src.display()));
+    }
+    // A disc IMAGE is a whole filesystem in a file, not a stream: ffmpeg
+    // cannot read one and neither can we. Say what to do instead rather
+    // than letting the player report a container it does not know.
+    if has_extension(src, "iso") {
+        return Ingest::Failed(format!(
+            "{name} is a disc image, which is a whole filesystem in one file rather than a video. Open the disc itself, or the image's {} folder once the image is opened as a drive.",
+            super::dvd::VIDEO_TS
+        ));
     }
     let why = match probe(src) {
         Ok(_) => return Ingest::Direct(src.to_path_buf()),
@@ -825,9 +878,12 @@ mod tests {
     #[test]
     fn ingest_rules_parse_extensions_and_platform_candidates() {
         let r = parse_ingest_rules(crate::embedded_data::MEDIA_INGEST_JSON);
-        for ext in ["webm", "mkv", "mp4", "mov", "m4v", "avi", "mpg", "mpeg", "wmv", "flv", "ogv", "ts"] {
+        for ext in ["webm", "mkv", "mp4", "mov", "m4v", "avi", "mpg", "mpeg", "wmv", "flv", "ogv", "ts", "vob", "m2v", "vro"] {
             assert!(r.video_extensions.iter().any(|e| e == ext), "missing {ext}");
         }
+        // A disc IMAGE is not a video file and must never be offered by the
+        // picker: an image is a filesystem, not a stream.
+        assert!(!r.video_extensions.iter().any(|e| e == "iso"), "a disc image is not a stream");
         assert!(!r.ffmpeg_candidates.is_empty());
         let r2 = parse_ingest_rules("{\"video_extensions\": [\".MP4\"]}");
         assert_eq!(r2.video_extensions, vec!["mp4".to_string()], "lower case, no dot");
@@ -870,6 +926,60 @@ mod tests {
             Ingest::Failed(msg) => assert!(msg.contains("not found"), "{msg}"),
             _ => panic!("a missing file is a failure"),
         }
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// A disc image is refused in words, naming what to do instead, rather
+    /// than being handed to a player that would report an unknown
+    /// container. The file need not be a real image: the extension is the
+    /// whole point, because opening the filesystem inside is what we do not
+    /// do.
+    #[test]
+    fn a_disc_image_is_refused_with_what_to_do_instead() {
+        let d = scratch("iso");
+        let iso = d.join("home_movies.ISO");
+        std::fs::write(&iso, b"not really an image").unwrap();
+        match begin_ingest(&iso, "", &d.join("cache")) {
+            Ingest::Failed(msg) => {
+                assert!(msg.contains("disc image"), "{msg}");
+                assert!(msg.contains("VIDEO_TS"), "the message names the folder to open instead: {msg}");
+                assert!(msg.contains("home_movies.ISO"), "{msg}");
+            }
+            _ => panic!("a disc image is not a video stream"),
+        }
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// The chain a disc title is handed to ffmpeg as, and the key that
+    /// covers every part of it.
+    #[test]
+    fn a_multi_part_film_has_one_concat_input_and_one_key() {
+        let d = scratch("parts");
+        let a = d.join("VTS_01_1.VOB");
+        let b = d.join("VTS_01_2.VOB");
+        std::fs::write(&a, b"aaaa").unwrap();
+        std::fs::write(&b, b"bbbbbb").unwrap();
+        let joined = concat_input(&[a.clone(), b.clone()]).display().to_string();
+        assert!(joined.starts_with("concat:"), "{joined}");
+        assert_eq!(joined.matches('|').count(), 1, "one separator between two parts: {joined}");
+        assert!(joined.contains(&a.display().to_string()) && joined.contains(&b.display().to_string()));
+
+        // One part gives exactly the one-file key, so adding the multi-part
+        // path changed nothing about an ordinary file's cache entry.
+        assert_eq!(cache_key_parts(&[a.clone()]).unwrap(), cache_key(&a).unwrap());
+        // Both parts are in the key: editing the SECOND one re-converts.
+        let k1 = cache_key_parts(&[a.clone(), b.clone()]).unwrap();
+        std::fs::write(&b, b"bbbbbbb").unwrap();
+        assert_ne!(cache_key_parts(&[a.clone(), b.clone()]).unwrap(), k1);
+        // And the order matters: a different chain is a different film.
+        assert_ne!(
+            cache_key_parts(&[a.clone(), b.clone()]).unwrap(),
+            cache_key_parts(&[b.clone(), a.clone()]).unwrap()
+        );
+        assert_eq!(
+            cache_path_in_parts(&d, &[a.clone(), b.clone()]).unwrap(),
+            d.join(format!("{}.webm", cache_key_parts(&[a, b]).unwrap()))
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 

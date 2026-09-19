@@ -1,6 +1,7 @@
 {
   "_comment": "Media ingest rules for in-world video screens (docs/design/media-player.md, 'Transcode on ingest'). video_extensions: what the in-app Open picker lists (lower case, no dot). ffmpeg_candidates: where the app looks for ffmpeg after the Settings > Media path and the PATH environment variable, in order; %NAME% expands to that environment variable on Windows. Edit this file to add a location; nothing here is compiled in except as the fallback copy for an exe shipped without its data folder.",
-  "video_extensions": ["webm", "mkv", "mp4", "mov", "m4v", "avi", "mpg", "mpeg", "wmv", "flv", "ogv", "ts"],
+  "_comment_disc": "vob, m2v and vro are what a video disc and a disc recorder write (MPEG-2 program streams); a whole disc is opened by its folder instead, see docs/design/media-player.md. iso is deliberately absent: a disc image is a filesystem in a file, not a stream, and the app says so if one is handed to it.",
+  "video_extensions": ["webm", "mkv", "mp4", "mov", "m4v", "avi", "mpg", "mpeg", "wmv", "flv", "ogv", "ts", "vob", "m2v", "vro"],
   "ffmpeg_candidates": {
     "windows": [
       "C:\\Apps\\ffmpeg\\bin\\ffmpeg.exe",

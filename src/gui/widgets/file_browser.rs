@@ -83,6 +83,30 @@ pub fn human_size(bytes: u64) -> String {
     }
 }
 
+/// How long a disc-drive answer is reused before the machine is asked
+/// again. The picker redraws every frame and asking an optical drive
+/// whether it holds a disc can spin it up, so the answer is held for a
+/// moment; two seconds is short enough that a disc pushed in while the
+/// picker is open still appears on its own.
+const DISC_ROOT_REFRESH: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// The disc drives holding a disc right now, cached for `DISC_ROOT_REFRESH`.
+/// The list itself comes from `media::dvd::disc_roots`.
+fn disc_roots_cached() -> Vec<(String, PathBuf)> {
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<Option<(std::time::Instant, Vec<(String, PathBuf)>)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+    let mut guard = cache.lock().unwrap();
+    if let Some((asked, roots)) = guard.as_ref() {
+        if asked.elapsed() < DISC_ROOT_REFRESH {
+            return roots.clone();
+        }
+    }
+    let roots = crate::media::dvd::disc_roots();
+    *guard = Some((std::time::Instant::now(), roots.clone()));
+    roots
+}
+
 /// Quick-access roots for the current user + install: (label, path).
 /// Only existing dirs are returned.
 pub fn quick_roots() -> Vec<(String, PathBuf)> {
@@ -116,7 +140,35 @@ pub fn quick_roots() -> Vec<(String, PathBuf)> {
     if exe.is_dir() {
         roots.push(("App folder".to_string(), exe));
     }
+    // A disc in the drive, so a picker can reach a removable drive without
+    // anyone typing a drive letter (2026-09-18, the video-disc work). No
+    // disc, no button: the row simply does not offer one.
+    roots.extend(disc_roots_cached());
     roots
+}
+
+/// The folder a picker may confirm AS A WHOLE, when it is looking at one.
+/// `markers` are directory names that mean "this folder is the thing"
+/// (`VIDEO_TS` for a video disc): the offer stands when the open folder IS
+/// one of them or HOLDS one, and the path returned is the open folder
+/// either way, because both are what a disc player is handed.
+///
+/// `None` (no offer) for everything else, so an ordinary picker is
+/// unchanged and nobody can confirm a folder where a file is wanted.
+pub fn folder_offer(dir: &Path, markers: &[String]) -> Option<PathBuf> {
+    if markers.is_empty() || !dir.is_dir() {
+        return None;
+    }
+    let matches = |name: &str| markers.iter().any(|m| m.eq_ignore_ascii_case(name));
+    if dir.file_name().map(|n| matches(&n.to_string_lossy())).unwrap_or(false) {
+        return Some(dir.to_path_buf());
+    }
+    for entry in std::fs::read_dir(dir).ok()?.flatten() {
+        if matches(&entry.file_name().to_string_lossy()) && entry.path().is_dir() {
+            return Some(dir.to_path_buf());
+        }
+    }
+    None
 }
 
 /// Modal picker state. `Some` in the caller's GuiState = the modal is open.
@@ -140,6 +192,13 @@ pub struct FilePickerState {
     /// path): a video screen adds the game's media folder, for example.
     /// Only existing directories are shown.
     pub extra_roots: Vec<(String, PathBuf)>,
+    /// Directory names that make the OPEN FOLDER pickable as a whole
+    /// (`VIDEO_TS` for a video disc). Empty for an ordinary file picker.
+    /// See `folder_offer`.
+    pub folder_markers: Vec<String>,
+    /// The button that confirms such a folder ("Play disc"). Only drawn
+    /// when a marker matches.
+    pub folder_pick_label: String,
 }
 
 impl FilePickerState {
@@ -158,6 +217,8 @@ impl FilePickerState {
             dir_mode: false,
             pick_verb: "Attach".to_string(),
             extra_roots: Vec::new(),
+            folder_markers: Vec::new(),
+            folder_pick_label: String::new(),
         }
     }
 
@@ -178,6 +239,15 @@ impl FilePickerState {
     /// Add a quick-access root (shown only when the directory exists).
     pub fn with_extra_root(mut self, label: &str, dir: PathBuf) -> Self {
         self.extra_roots.push((label.to_string(), dir));
+        self
+    }
+
+    /// Let the person confirm a WHOLE FOLDER when the one they are looking
+    /// at is named `marker` or holds one (a disc's `VIDEO_TS`), under the
+    /// button text `label`. Files stay pickable exactly as before.
+    pub fn with_folder_marker(mut self, marker: &str, label: &str) -> Self {
+        self.folder_markers.push(marker.to_string());
+        self.folder_pick_label = label.to_string();
         self
     }
 
@@ -312,6 +382,17 @@ pub fn file_picker_modal(
                         .color(theme.text_muted()),
                 );
             }
+            // The whole-folder offer: a disc's VIDEO_TS is one film spread
+            // over numbered files nobody should have to understand, so when
+            // the open folder is a disc the picker offers to play THE DISC.
+            // Drawn above the ordinary confirm row so it reads as the
+            // obvious thing to press when it is there at all.
+            if let Some(folder) = folder_offer(&state.current_dir, &state.folder_markers) {
+                if widgets::Button::primary(&state.folder_pick_label).show(ui, theme) {
+                    result = FilePickerResult::Picked(folder);
+                }
+                ui.add_space(theme.spacing_xs);
+            }
             ui.horizontal(|ui| {
                 // Folder mode confirms the directory currently open; file
                 // mode confirms the selected entry.
@@ -407,6 +488,45 @@ mod tests {
         assert_eq!(human_size(512), "512 B");
         assert_eq!(human_size(2048), "2 KB");
         assert_eq!(human_size(3_250_585), "3.1 MB");
+    }
+
+    /// The whole-folder offer, which is how a video disc is picked: it
+    /// stands on the drive that holds a VIDEO_TS and on the folder itself,
+    /// and nowhere else. Proven able to fail: returning `Some` for any
+    /// directory makes the "an ordinary folder" assertion fire.
+    #[test]
+    fn a_folder_marker_offers_the_disc_from_the_drive_or_the_folder() {
+        let root = tmp("marker");
+        let drive = root.join("disc_drive");
+        let video_ts = drive.join("VIDEO_TS");
+        std::fs::create_dir_all(&video_ts).unwrap();
+        let markers = vec!["VIDEO_TS".to_string()];
+        assert_eq!(folder_offer(&drive, &markers), Some(drive.clone()), "the drive holding it");
+        assert_eq!(folder_offer(&video_ts, &markers), Some(video_ts.clone()), "the folder itself");
+        // Case does not matter: a disc written elsewhere may be lower case.
+        assert_eq!(folder_offer(&video_ts, &["video_ts".to_string()]), Some(video_ts.clone()));
+
+        let plain = root.join("holiday_photos");
+        std::fs::create_dir_all(&plain).unwrap();
+        assert_eq!(folder_offer(&plain, &markers), None, "an ordinary folder offers nothing");
+        assert_eq!(folder_offer(&drive, &[]), None, "a picker with no markers never offers a folder");
+        assert_eq!(folder_offer(&root.join("nowhere"), &markers), None, "a path that is not there");
+        // A FILE named like the marker is not a disc.
+        let faker = root.join("faker");
+        std::fs::create_dir_all(&faker).unwrap();
+        std::fs::write(faker.join("VIDEO_TS"), "not a folder").unwrap();
+        assert_eq!(folder_offer(&faker, &markers), None);
+    }
+
+    /// The quick row never offers a path that is not there, disc drives
+    /// included, and asking twice inside the cache window gives the same
+    /// answer without asking the machine again.
+    #[test]
+    fn quick_roots_are_all_real_directories() {
+        for (label, path) in quick_roots() {
+            assert!(path.is_dir(), "{label} -> {}", path.display());
+        }
+        assert_eq!(disc_roots_cached(), disc_roots_cached(), "the cached answer is stable");
     }
 
     #[test]
