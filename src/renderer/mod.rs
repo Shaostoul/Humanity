@@ -100,6 +100,9 @@ pub mod stars;
 /// two target constructors everything else shares. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
 pub mod surface;
+/// Which depth texture is current, the window's or an off-screen view's.
+/// Extracted from capture.rs on 2026-09-19 - see the file's header for why.
+pub mod view_depth;
 pub mod water;
 
 /// Sun shadow map resolution, texels per side. Module constants (v0.1104)
@@ -283,8 +286,8 @@ pub struct Renderer {
     /// The spare depth buffer for off-screen views (camera screens, the
     /// hi-res screenshot), swapped in around `render_view_onto` so the
     /// window's depth buffer is never recreated per view. See
-    /// `capture::ViewDepth` and `begin_view_depth` / `end_view_depth`.
-    view_depth: capture::ViewDepth,
+    /// `view_depth::ViewDepth` and `begin_view_depth` / `end_view_depth`.
+    view_depth: view_depth::ViewDepth,
     pipeline: Pipeline,
     /// Megashader hot-reload state (v0.924): (path, last seen mtime) of the
     /// on-disk pbr_simple.wgsl; None in stripped installs (feature dormant).
@@ -1868,7 +1871,7 @@ impl Renderer {
             config,
             depth_texture,
             depth_view,
-            view_depth: capture::ViewDepth::None,
+            view_depth: view_depth::ViewDepth::None,
             pipeline,
             #[cfg(feature = "native")]
             shader_hot,
