@@ -171,16 +171,10 @@ pub fn open(
 /// Signature preimage domain. Web MUST use the identical string.
 const DM_SIG_DOMAIN: &str = "hum/dm/v2";
 
-/// Build MY friendship certificate for `grantee_hex` (base64 Dilithium
-/// signature over `pq_crypto::friend_cert_preimage`). Handed to the
-/// grantee via a sealed control message; they present it on every dm_put
-/// addressed to me. Verification lives in relay/core/pq_crypto.rs
-/// (`verify_friend_cert`) because the relay checks it statelessly.
-pub fn build_friend_cert(seed: &[u8], my_hex: &str, grantee_hex: &str) -> String {
-    let dil_seed = pq_crypto::derive_dilithium_seed(seed);
-    let kp = pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
-    B64.encode(kp.sign(pq_crypto::friend_cert_preimage(my_hex, grantee_hex).as_bytes()))
-}
+// Friendship certificates used to be minted here. They now live beside their
+// verifier in `relay::core::pq_crypto` (`build_friend_cert` /
+// `verify_friend_cert` / `friend_cert_preimage`): this module is native-gated,
+// and the relay's own DM tests need to mint one.
 
 /// A parsed, signature-verified inner DM payload.
 #[derive(Debug, Clone)]

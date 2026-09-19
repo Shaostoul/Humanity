@@ -4564,7 +4564,7 @@ mod dm_mailbox_tests {
         st.db.register_name("Bob", &bob_hex).unwrap();
         st.db.set_role(&alice_hex, "verified").unwrap();
         st.db.set_role(&bob_hex, "verified").unwrap();
-        let cert = crate::net::dm_pq::build_friend_cert(&bob_seed, &bob_hex, &alice_hex);
+        let cert = crate::relay::core::pq_crypto::build_friend_cert(&bob_seed, &bob_hex, &alice_hex);
         (alice_hex, bob_hex, cert)
     }
 
@@ -4758,7 +4758,7 @@ mod dm_mailbox_tests {
         let (_stranger_seed, _) = identity(53);
         let (recipient_seed, recipient_hex) = identity(54);
         st.db.register_name("Recipient", &recipient_hex).unwrap();
-        let cert = crate::net::dm_pq::build_friend_cert(&recipient_seed, &recipient_hex, "loner_key");
+        let cert = crate::relay::core::pq_crypto::build_friend_cert(&recipient_seed, &recipient_hex, "loner_key");
         block(async {
             st.rate_limits.write().await.remove("loner_key");
             handle_dm_put(&st, "loner_key", recipient_hex.clone(), envelope(), Some(cert)).await;

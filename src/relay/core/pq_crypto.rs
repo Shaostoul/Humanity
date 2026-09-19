@@ -240,11 +240,21 @@ pub fn derive_kyber_seed(master_seed: &[u8]) -> [u8; KYBER_SEED_LEN] {
 // The grantee presents it on every dm_put addressed to the issuer (and on
 // friends-visibility profile requests). The relay verifies STATELESSLY and
 // stores nothing — a subpoena or breach finds no who-is-friends-with-whom
-// data because it is never recorded. Certs are minted client-side
-// (net::dm_pq::build_friend_cert) and delivered over the sealed mailbox.
+// data because it is never recorded. Certs are minted by the CLIENT (the
+// issuer's seed never leaves their machine) and delivered over the sealed
+// mailbox; `build_friend_cert` below is that minting step.
 // Known v1 limitation (documented): certs do not expire and cannot be
 // server-side revoked; "unfriending" is client-side (your client stops
 // showing them; their mail still lands under the knock budget rules).
+//
+// MINT AND CHECK LIVE TOGETHER ON PURPOSE (2026-09-19). `build_friend_cert`
+// used to sit in `net::dm_pq`, which is native-gated, so the relay's own DM
+// tests reached across a feature boundary to mint a cert and the whole relay
+// test target stopped compiling. Nothing in the builder is native: it is the
+// three primitives already in this file (`derive_dilithium_seed`,
+// `DilithiumKeypair::sign`, `friend_cert_preimage`). Keeping the two halves of
+// one wire format side by side is also how they stay in agreement with the
+// web client, which builds the same string inline.
 
 /// Certificate signature domain. Web MUST use the identical string.
 pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v1";
@@ -252,6 +262,18 @@ pub const FRIEND_CERT_DOMAIN: &str = "hum/friend/v1";
 /// The preimage an issuer signs to authorize a grantee.
 pub fn friend_cert_preimage(issuer_hex: &str, grantee_hex: &str) -> String {
     format!("{FRIEND_CERT_DOMAIN}\n{issuer_hex}\n{grantee_hex}")
+}
+
+/// Mint MY friendship certificate for `grantee_hex`: a base64 Dilithium3
+/// signature over `friend_cert_preimage`, made with the Dilithium key derived
+/// from my BIP39 `seed`. Handed to the grantee via a sealed control message;
+/// they present it on every dm_put addressed to me, and the relay checks it
+/// with `verify_friend_cert` without storing a thing.
+pub fn build_friend_cert(seed: &[u8], my_hex: &str, grantee_hex: &str) -> String {
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    let dil_seed = derive_dilithium_seed(seed);
+    let kp = DilithiumKeypair::from_seed(&dil_seed);
+    B64.encode(kp.sign(friend_cert_preimage(my_hex, grantee_hex).as_bytes()))
 }
 
 /// Verify a friendship certificate: did `issuer_hex` really authorize
@@ -521,13 +543,15 @@ mod tests {
             friend_cert_preimage("AABB", "CCDD"),
             "hum/friend/v1\nAABB\nCCDD"
         );
-        // Real issue + verify.
-        let dil_seed = derive_dilithium_seed(&[0x11u8; 32]);
+        // Real issue + verify, through the SHIPPED minting function rather
+        // than a hand-rolled copy of it: a builder the tests re-implement is a
+        // builder nothing checks.
+        let issuer_master = [0x11u8; 32];
+        let dil_seed = derive_dilithium_seed(&issuer_master);
         let issuer = DilithiumKeypair::from_seed(&dil_seed);
         let issuer_hex = hex::encode(issuer.public_key());
         let grantee_hex = hex::encode(DilithiumKeypair::from_seed(&derive_dilithium_seed(&[0x22u8; 32])).public_key());
-        use base64::{engine::general_purpose::STANDARD as B64, Engine};
-        let cert = B64.encode(issuer.sign(friend_cert_preimage(&issuer_hex, &grantee_hex).as_bytes()));
+        let cert = build_friend_cert(&issuer_master, &issuer_hex, &grantee_hex);
         assert!(verify_friend_cert(&issuer_hex, &grantee_hex, &cert), "valid cert must verify");
         // Wrong grantee, wrong issuer, and garbage all fail.
         assert!(!verify_friend_cert(&issuer_hex, "deadbeef", &cert));
