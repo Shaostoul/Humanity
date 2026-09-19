@@ -306,9 +306,16 @@ mod tests {
     /// loop: if someone re-hardcodes it, the Settings slider silently stops
     /// working, which is exactly the failure the settings-persistence lint
     /// exists to catch on the other end of the wire.
+    ///
+    /// The write itself lives in the sun-shadow section of the celestial
+    /// pass, which was part of `mod.rs` until v0.1319 and is now
+    /// `celestial.rs`. BOTH files are scanned, because that boundary is the
+    /// one this text has actually moved across; a move to a THIRD file still
+    /// fails this test loudly, which is the behaviour we want - a scan that
+    /// quietly finds nothing is a check that cannot fail.
     #[test]
     fn shadow_strength_comes_from_the_renderer_field() {
-        let src = include_str!("mod.rs");
+        let src = concat!(include_str!("mod.rs"), include_str!("celestial.rs"));
         assert!(
             src.contains("su[17] = self.shadow_strength"),
             "su[17] must read the renderer field, not a literal"
