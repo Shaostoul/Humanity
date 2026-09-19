@@ -210,6 +210,31 @@ impl AssetManager {
         Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
     }
 
+    /// As [`parse_gltf_mesh`](Self::parse_gltf_mesh), but the geometry is
+    /// first scaled uniformly to stand `target_height` metres tall (see
+    /// [`GltfCpuMesh::scale_to_height`]).
+    ///
+    /// Machines have TWO model paths, and both must fit or the home changes
+    /// size the first time anything rebuilds it: this one draws the machines
+    /// at world load, and the textured one draws them on every later rebuild
+    /// from the construction editor. Fixing only the rebuild path is how the
+    /// first attempt at this looked, in the capture rig, as though nothing had
+    /// happened at all.
+    #[cfg(feature = "native")]
+    pub fn parse_gltf_mesh_fit_height(
+        &self,
+        device: &wgpu::Device,
+        relative_path: &str,
+        target_height: f32,
+    ) -> Result<crate::renderer::mesh::Mesh, String> {
+        let path = self.resolve_model_path(relative_path);
+        let (document, buffers, _images) = gltf::import(&path)
+            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let mut cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
+        cpu.scale_to_height(target_height);
+        Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
+    }
+
     /// Resolve a model path: `data_dir` first (the distributed/moddable tree,
     /// e.g. data/models/x.glb), then the data dir's PARENT (the dev repo
     /// root, so assets/models/x.gltf works in a checkout). Same rule

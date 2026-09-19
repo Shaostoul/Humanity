@@ -301,7 +301,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     .and_then(|m| {
                         state
                             .asset_manager
-                            .parse_gltf_mesh(&state.renderer.device, m)
+                            // Fitted to the def SIZE height (v0.1324.1): this is the
+                            // path that draws the machines AT WORLD LOAD, which is
+                            // the one a player actually sees.
+                            .parse_gltf_mesh_fit_height(&state.renderer.device, m, sy)
                             .map_err(|e| {
                                 log::warn!(
                                     "machine {} model '{m}' failed: {e}; primitive fallback",
