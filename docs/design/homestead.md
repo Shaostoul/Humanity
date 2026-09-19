@@ -1,5 +1,12 @@
 # Homestead: the fully-fledged player home
 
+> **The ROOM PROGRAM below (section 3) was replaced on 2026-09-19. The current
+> plan, the walkthrough and the screen placements are in
+> [player-home.md](player-home.md).** What survives here and is still accurate:
+> the wall and opening model, the room-identity join, the lighting, plumbing and
+> circuit rules, and the vocabulary. The twelve-room table and its coordinates
+> are history; the acre is twenty-three rooms now.
+
 > Status: BUILT (v0.1023.1-v0.1028.1, 2026-07-28) - build-order increments
 > 1-6 all verified complete: shell, lighting, plumbing/circuits, furniture,
 > honest lighting power (landed early as v0.967), and models (all 15
@@ -63,30 +70,16 @@ Nothing about the bay, the corridor, or the machine plant moves.
 
 ## 3. Room program
 
-House block: x 39..55, z 24..44 (320 m^2), 3 m ceilings, southeast of the bay,
-receiving the corridor aperture on the east shell at z 39..41. Twelve rooms:
-eleven inside the block, plus the console-room annex bumped out of its north
-wall into the bay (the last row):
+**Superseded 2026-09-19.** This section described a twelve-room house in a
+16 by 20 m corner of the acre, with the other 93 percent left as open floor. The
+acre is now partitioned end to end into twenty-three rooms, and the house is a
+21 by 21 m square in the middle of it. The table of rects, the adjacency list and
+the console room's coordinates all moved to
+**[player-home.md](player-home.md)**, which is the live plan and carries the
+reasoning behind it, the walkthrough, and where every in-world screen went.
 
-| Room | Rect (x1..x2, z1..z2) | Size m | Purpose |
-|---|---|---|---|
-| entry | 51..55, 36..44 | 4 x 8 | Mudroom; corridor aperture opens into it |
-| common | 43..51, 36..44 | 8 x 8 | Living + dining, the social heart |
-| kitchen | 39..43, 38..44 | 4 x 6 | Cooking (stove, oven, freezer, sink) |
-| pantry | 39..43, 36..38 | 4 x 2 | Food storage (typed containers) |
-| hall | 41..51, 34..36 | 10 x 2 | Spine to the private wing |
-| bedroom | 39..44, 28..34 | 5 x 6 | Sleep, wardrobe, personal storage |
-| bathroom | 44..47, 31..34 | 3 x 3 | Toilet, sink, shower |
-| wetroom | 44..47, 28..31 | 3 x 3 | Laundry + mirror (appearance editor legacy) |
-| study | 47..51, 28..34 | 4 x 6 | Desk work, books, planning |
-| utility | 39..44, 24..28 | 5 x 4 | Batteries, purifier, water heater, breaker |
-| workshop | 47..55, 24..28 (+51..55, 28..36) | ~48 | Benchwork, tools, 3D printer |
-| console room | 47.5..51, 44..47 | 3.5 x 3 | The battlestation: screens, comms, home systems (annex off the common room) |
-
-Adjacency (edges are doors): corridor > entry > common; common > kitchen >
-pantry; common > hall; hall > bedroom, bathroom, wetroom, study; hall or
-workshop > utility; entry > workshop; kitchen > bay (garden door); workshop >
-bay; utility > bay. Exact rects are editor-tunable; the adjacency is the design.
+Everything from "Room identity" down is about the MECHANISM rather than the plan,
+and is still correct.
 
 Room identity (built, console-room increment): rooms are still DETECTED from the
 walls (`HomeStructure::detect_rooms` flood-fills the plan), but they are no longer
@@ -112,14 +105,14 @@ The household's fixed workstation: displays, comms and the home's systems at a
 glance. Zone type `console_room` (zone_types.ron), rooms.ron entry `console_room`
 (actions: use terminal, open chat, review tasks, federation status, manage saves;
 equipment: wall_screen, desk_monitor, desk, chair), placed in ship_structure.ron as
-zone `console-room` with `room_type: Some("console_room")`. It is a walled 3.5 x 3 m
-annex bumped out of the house's north wall into the greenhouse bay, x 47.5..51.0,
-z 44.0..47.0, entered from the common room through a door at x 48.25..49.15 (that
-door replaced one of the common room's bay windows); its own north wall keeps a
-window onto the garden and it carries one ceiling panel light. It is the planned
-mounting point for the in-world screens (`wall_screen`, `desk_monitor`); those are
-not built yet (no item, machine or mesh exists for them), the rooms.ron equipment
-list names them so the room is ready when they land. Vocabulary, settled here and used
+zone `console-room` with `room_type: Some("console_room")`. Since the 2026-09-19
+redesign it is a 3 by 8 m den in the house's south-east corner (x 52..55,
+z 43..51), reached from the entry or the great room, glazed at its south end onto
+the greenhouse; see [player-home.md](player-home.md). The in-world screens it was
+waiting for exist now (`wall_screen`, `desk_monitor`, both in
+`data/machines/home.ron`); the room carries the web screen, the garden camera and
+a comms desk monitor, and the rest of the household's screens moved out to the
+rooms where they are used. Vocabulary, settled here and used
 everywhere: "console room" is this room; "battlestation" is its colloquial name;
 "command deck" is the mothership bridge (`docs/game/humanity_one.md`) and is never
 the home. "Battlestation" is ALSO, separately, a device role in

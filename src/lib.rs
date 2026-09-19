@@ -2641,10 +2641,22 @@ mod native_app {
                                 // (so "[E] close" works from anywhere, not just at the machine).
                                 state.gui_state.selected_machine = None;
                             } else if !state.gui_state.showroom_active {
-                                // Walk-up to a character station: the wetroom mirror opens the
-                                // appearance editor, the bedroom opens the wardrobe (v0.442).
+                                // Walk-up to a character station (v0.442, rewritten 2026-09-19).
+                                //
+                                // This used to match the room's ID against the literal strings
+                                // "wetroom" and "bedroom". Room ids in the live home come from the
+                                // zone that covers them (`room-bedroom`, `room-wetroom`, ...), so
+                                // neither string ever matched and the whole path was dead: there
+                                // was no way to reach the look editor from inside the world.
+                                //
+                                // It now reads the room's ACTIONS, which are joined from
+                                // data/rooms.ron at load. A room whose type offers
+                                // `customize_appearance` is a mirror (the bedroom's standing
+                                // mirror); one that offers `change_outfit` is a wardrobe (the
+                                // dressing room). Any home anyone authors gets the same stations
+                                // for free by naming a room type, with no code change here.
                                 let p = state.camera.position;
-                                let room = state
+                                let actions = state
                                     .gui_state
                                     .room_bounds
                                     .iter()
@@ -2653,11 +2665,13 @@ mod native_app {
                                             && p.y >= r.min.y && p.y <= r.max.y
                                             && p.z >= r.min.z && p.z <= r.max.z
                                     })
-                                    .map(|r| r.id.clone());
-                                match room.as_deref() {
-                                    Some("wetroom") => open_showroom(state, 1),
-                                    Some("bedroom") => open_showroom(state, 2),
-                                    _ => {}
+                                    .map(|r| r.actions.clone())
+                                    .unwrap_or_default();
+                                let has = |a: &str| actions.iter().any(|x| x == a);
+                                if has("customize_appearance") {
+                                    open_showroom(state, 1);
+                                } else if has("change_outfit") {
+                                    open_showroom(state, 2);
                                 }
                             }
                         }

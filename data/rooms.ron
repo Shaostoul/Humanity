@@ -75,7 +75,10 @@
     "wetroom": (
         name: "Wet Room",
         purpose: "Combined shower, sink, and water recycling facility",
-        actions: ["customize_appearance", "shower", "laundry"],
+        // The appearance station moved to the bedroom's standing mirror (the
+        // dressing sequence bedroom -> dressing room -> wet room, 2026-09-19).
+        // One station per room: this room showers and launders.
+        actions: ["shower", "laundry"],
         access: "private",
         default_color: (0.45, 0.5, 0.55, 1.0),
         default_material: "ceramic_tile",
@@ -101,7 +104,11 @@
     "bedroom": (
         name: "Bedroom",
         purpose: "Personal sleeping quarters with storage for belongings",
-        actions: ["change_outfit", "sleep", "personal_storage"],
+        // `customize_appearance` is what the bedroom's STANDING MIRROR does:
+        // walk up to it and press E and the look editor opens. The operator's
+        // own example of an interface that belongs to its room. Changing
+        // clothes is next door, in the dressing room.
+        actions: ["customize_appearance", "sleep", "personal_storage"],
         access: "private",
         default_color: (0.5, 0.4, 0.3, 1.0),
         default_material: "wood_panel",
@@ -111,6 +118,51 @@
         ambient_sound: "ambient.space_station",
         min_size_m: (2.5, 2.5, 3.0),
         tags: ["rest", "personal"],
+    ),
+    // The three rooms the 2026-09-19 home redesign added. A room type only has
+    // to describe what the room is FOR; the geometry lives in
+    // data/blueprints/ship_structure.ron and points here by `room_type`.
+    "dressing": (
+        name: "Dressing Room",
+        purpose: "Walk-through wardrobe between the bedroom and the wet cells: clothes, boots, kit",
+        actions: ["change_outfit", "personal_storage"],
+        access: "private",
+        default_color: (0.62, 0.55, 0.78, 1.0),
+        default_material: "wood_panel",
+        equipment: ["wardrobe", "shelf", "mirror"],
+        power_draw_watts: 40,
+        requires_life_support: true,
+        ambient_sound: "ambient.space_station",
+        min_size_m: (1.5, 2.5, 2.0),
+        tags: ["rest", "personal"],
+    ),
+    "hall": (
+        name: "Hall",
+        purpose: "The route through the home: every room opens off it, and nothing has to be crossed to reach another",
+        actions: ["review_tasks"],
+        access: "shared",
+        default_color: (0.65, 0.65, 0.65, 1.0),
+        default_material: "wood_panel",
+        equipment: ["bookshelf", "side_table", "rug"],
+        power_draw_watts: 60,
+        requires_life_support: true,
+        ambient_sound: "ambient.space_station",
+        min_size_m: (1.5, 2.5, 3.0),
+        tags: ["circulation"],
+    ),
+    "entry": (
+        name: "Entry",
+        purpose: "Where you arrive and where you leave from: boots, coats, and what you are carrying",
+        actions: ["personal_storage", "review_tasks"],
+        access: "shared",
+        default_color: (0.72, 0.68, 0.60, 1.0),
+        default_material: "wood_panel",
+        equipment: ["coat_rack", "shelf", "side_table"],
+        power_draw_watts: 60,
+        requires_life_support: true,
+        ambient_sound: "ambient.space_station",
+        min_size_m: (1.5, 2.5, 2.0),
+        tags: ["circulation"],
     ),
     "kitchen": (
         name: "Kitchen",
