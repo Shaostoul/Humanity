@@ -379,11 +379,12 @@ validate-data:
 # on world entry (v0.1029-1038) - lives past the last line of this recipe.
 # `just verify-runtime` is the half that boots. Run both before a renderer push.
 #
-# Static gate: both feature builds + lib tests + 8 lints. Boot half: verify-runtime.
+# Static gate: both feature builds + lib tests + the relay test build + 8 lints. Boot half: verify-runtime.
 verify:
     cargo check --features native
     cargo check --features relay --no-default-features
     cargo test --features native --lib
+    just verify-relay-compiles
     just lints
     just rig-tests
     @echo "-- cross-language KATs: a browser and the relay must encode identically --"
@@ -391,6 +392,39 @@ verify:
     just mod-kat
     @echo "OK: verify passed"
     @echo "   (static only - nothing booted the app. For renderer/shader/world changes run: just verify-runtime)"
+
+# The RELAY test target must at least COMPILE. This is not a formality: it had
+# not compiled for some time before 2026-09-19 and nobody noticed, because
+# `verify` only ever built the NATIVE test target. Twenty errors had piled up -
+# test modules reaching for `pollster`, `crate::config` and the renderer's
+# `Vertex` without a native gate - so the feature set CI deploys and the live
+# server runs had no working test battery at all, and 1,508 tests were dark.
+#
+# COMPILE ONLY, deliberately, and here is the arithmetic. Running them costs
+# about 200 s on top of the 53 s compile (measured 2026-09-19), and it would be
+# re-running tests that finished minutes earlier in the same recipe: `native`
+# IMPLIES `relay` in Cargo.toml, so every one of these 1,508 tests already ran
+# in the `cargo test --features native --lib` line above, over the same code.
+# There are ZERO `cfg(feature = "native")` branches anywhere under `src/relay/`,
+# so no relay test can take a different path under the two feature sets; what
+# the relay build changes is which code EXISTS, and that is a compile question.
+#
+# So: `verify` pays 53 s for the gate that catches the real failure class, and
+# the full run lives in `verify-relay` below for when relay code actually
+# changed. If a relay-only behavioural difference ever does appear, move the
+# full run up into `verify` and delete this paragraph.
+#
+# Build the relay test target (~53s): prove the server build's tests still exist.
+verify-relay-compiles:
+    @echo "-- the relay test target must build (CI deploys this feature set) --"
+    cargo test --features relay --no-default-features --lib --no-run
+
+# Worth doing after any change under src/relay/, and before a release, since
+# this is the binary the VPS runs.
+#
+# RUN the relay test battery (~200s): the server build's own 1,508 tests.
+verify-relay:
+    cargo test --features relay --no-default-features --lib
 
 # The BOOT half of verification, and the answer to "ten releases panicked on
 # world entry while verify stayed green". Boots target/release/HumanityOS.exe in

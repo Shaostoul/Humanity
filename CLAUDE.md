@@ -341,7 +341,8 @@ just mine <paths>     # stage ONLY your files                ← do this first
 just ship "message"   # commit what YOU staged + push + sync ← daily driver
 just sync             # force-sync VPS now               ← when CI breaks
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
-just verify           # native+relay checks + lib tests + 8 lints ← before pushing Rust
+just verify           # native+relay checks + lib tests + relay test build + 8 lints ← before pushing Rust
+just verify-relay     # RUN the relay test battery (~200s) ← after changing src/relay/
 just verify-runtime   # BOOTS the exe + enters the world, 3 vantages ← after renderer/shader work (static verify cannot catch boot/world-entry failures; 13 releases shipped that way)
 just validate-data    # one-shot data-loader check (~0.2s)   ← after editing data/
 just build-game       # bump version, compile, archive versioned exe

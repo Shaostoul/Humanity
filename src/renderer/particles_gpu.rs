@@ -326,7 +326,11 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+// Native-only: every test in here asks wgpu for a real adapter through
+// `pollster`, which is a native-feature dependency. The size/layout tests
+// above need no device and stay ungated, so the relay build still checks the
+// GPU particle record shapes.
+#[cfg(all(test, feature = "native"))]
 mod device_tests {
     use super::*;
 

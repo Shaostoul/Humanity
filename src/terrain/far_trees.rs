@@ -815,6 +815,12 @@ mod tests {
     /// binds, so the closed form everyone reaches for first - solve the split
     /// threshold for distance - is answering a question the engine stopped
     /// asking. Measure it.
+    ///
+    /// Native-only because pinning against the SHIPPED defaults means reading
+    /// `AppConfig`, and `crate::config` is a native module (the relay has no
+    /// interactive settings file to default from). The rest of this module's
+    /// tests are pure maths and do run in the relay build.
+    #[cfg(feature = "native")]
     #[test]
     fn the_clamp_is_quiet_at_the_shipped_card_default_and_bites_at_the_ceiling() {
         use super::super::planet_chunks::{

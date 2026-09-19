@@ -294,7 +294,9 @@ pub(crate) fn send_friend_cert(gui_state: &mut GuiState, peer: &str) {
     }
     let Some(seed) = gui_state.private_key_bytes.clone() else { return };
     let me = gui_state.profile_public_key.clone();
-    let cert = crate::net::dm_pq::build_friend_cert(&seed, &me, peer);
+    // The minting step lives with its verifier in relay::core::pq_crypto, so
+    // both feature sets can reach it (the relay's DM tests mint certs too).
+    let cert = crate::relay::core::pq_crypto::build_friend_cert(&seed, &me, peer);
     if send_dm_control(gui_state, peer, crate::net::dm_pq::CTL_FRIEND_CERT, Some(cert)) {
         if let Some(store) = gui_state.dm_store.as_mut() {
             store.mark_cert_sent(peer);

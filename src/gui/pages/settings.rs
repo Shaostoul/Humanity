@@ -4647,19 +4647,26 @@ mod veg_lod_range_tests {
     /// The engine text a "does the renderer actually read this?" scan has to
     /// look at: the whole frame loop (which is several files since the v0.1320
     /// extractions -- `planet_chunks::near_trees::frame_loop_source` owns that
-    /// list) plus the grass layer, which does its own reads.
+    /// list) plus the grass layer, which does its own reads and since
+    /// 2026-09-19 owns a list of its own (`grass::coverage_path_source`).
     ///
     /// Before v0.1320 this was just `src/lib.rs` and grass.rs, and that was
     /// fine only while every vegetation read still lived in one function.
     /// Moving the near-tree block into its own file made the scan conclude the
     /// engine had STOPPED reading `near_tree_budget`: a gate reporting a wiring
-    /// break that was really a file move.
+    /// break that was really a file move. Each side now names its own files,
+    /// so an extraction is one edit in one place instead of a silent blind
+    /// spot here.
     fn engine_source() -> String {
-        let grass = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/terrain/grass.rs"),
+        // The grass half is TWO files since 2026-09-19 (the pure fields moved
+        // to grass_fields.rs), so it comes through the layer's own list rather
+        // than a path spelled out here - the same arrangement, and the same
+        // reason, as `frame_loop_source` above it.
+        format!(
+            "{}\n{}",
+            crate::terrain::planet_chunks::frame_loop_source(),
+            crate::terrain::grass::coverage_path_source()
         )
-        .expect("read src/terrain/grass.rs");
-        format!("{}\n{grass}", crate::terrain::planet_chunks::frame_loop_source())
     }
 
     /// The page makes three claims about the ENGINE, and all three are the

@@ -105,6 +105,78 @@ fn repo() -> &'static Path {
 ///   Eight watch entries added, at measured plus roughly 5% (more for the small
 ///   ones, for the v0.1093 reason: 3% of a 466-line file is 14 lines, which
 ///   would fire on the first honest addition).
+/// - 2026-09-19: SIX RED ENTRIES GO GREEN. Two remain, and they are not
+///   orphans: `gui/pages/chat.rs` (9_053 of 8_000) and `gui/mod.rs` (7_915 of
+///   7_050) were being extracted by another session while this one ran, so
+///   they were deliberately left alone rather than edited underneath it. Every
+///   OTHER entry on this list is green, with room.
+///   The two sessions before this one cleared the two big offenders (lib.rs
+///   19_892 -> 16_211, renderer/mod.rs 5_652 -> 2_742); what was left was six
+///   modest overruns, +58 to +280, and the reason to care is the one the
+///   v0.1320 note gives: `just lints` aborts at the first failure, so ONE red
+///   entry switches off every lint behind it. A small overrun is not a small
+///   problem.
+///   SIX extractions, each its own commit, each a coherent cluster rather than
+///   a slice at a line number:
+///     * `relay/api_market.rs` (705) - the MARKETPLACE. api.rs is one route
+///       table's worth of handlers for about twenty unrelated features, and
+///       trading was three banners (Marketplace, Reviews, Order Book) that are
+///       plainly one feature: a listing has images, a listing has reviews, a
+///       seller's rating summarises them, and the order book is the same goods
+///       offered standing. 4_480 -> 3_819.
+///     * `relay/handlers/stream.rs` (443) - LIVESTREAMING: eleven handlers, a
+///       WebRTC signalling triangle that only makes sense as a set, and their
+///       own test module, which travelled with them. 4_936 -> 4_530.
+///     * `terrain/water_patches.rs` (323) - THE SEA'S OWN PATCH MESHES.
+///       planet_chunks is the quadtree; the water shell borrows all of it and
+///       then builds something else (undisplaced, ocean-masked, no
+///       vegetation). 4_878 -> 4_607.
+///     * `terrain/grass_fields.rs` (238) - THE SWARD'S PURE FIELDS. grass.rs
+///       already said in its own header that the layer is "three pure
+///       functions plus a harvest"; this is the pure functions. 2_705 -> 2_564.
+///     * `renderer/material_bind_groups.rs` (232) - THE GROUP 3 ENTRY LISTS.
+///       materials.rs registers and rewrites material SLOTS; this writes the
+///       sixteen-binding bind groups those slots carry, which was where all the
+///       length was. The v0.1029-v0.1038 rule (touch the layout and EVERY
+///       creation site must carry EVERY binding) travelled with the code rather
+///       than being left behind pointing at functions no longer under it.
+///       602 -> 407.
+///     * `renderer/view_depth.rs` (124) - WHICH DEPTH TEXTURE IS CURRENT, the
+///       window's or an off-screen view's. It was in capture.rs and was never
+///       capture: it is what an off-screen render needs BEFORE any pixels
+///       exist, and its other caller (the in-world camera screens) captures
+///       nothing. 367 -> 277.
+///   Five of the six are `#[path]` CHILD modules with a `pub use` in the
+///   parent, which is now the house pattern for this repo (`grass_mesh`,
+///   `tree_species`, `near_trees` set it): the child sees the parent's private
+///   items through one `use super::*`, and every existing path
+///   (`chunks::water_band`, `api::get_listings`, `grass::grass_density_at`)
+///   keeps resolving, so no call site and no module file needed an edit.
+///   `view_depth` is a sibling instead, because `renderer/mod.rs` names the
+///   `ViewDepth` enum as a field type and a child's `pub(super)` would not
+///   reach it.
+///   THE ONE THING THAT WAS NOT PURE MOTION, and it is the v0.1320 lesson
+///   arriving on schedule in a second place: TWO gates prove a thing by READING
+///   `src/terrain/grass.rs`'s source text (the quality-slider scan inside
+///   `near_grass_density_matches_a_real_sward`, and the Settings page's
+///   `engine_source`). Both named exactly one file, so the grass extraction
+///   would have made each go quietly blind to half of what it guards while
+///   still passing. They now share one list, `grass::coverage_path_files()`,
+///   exactly as the frame loop's three scans share
+///   `near_trees::frame_loop_source()`. ADD ANY FILE YOU EXTRACT FROM THE
+///   COVERAGE PATH TO THAT LIST. It was proved RED before being trusted: a
+///   planted `grass_detail()` call in grass_fields.rs fails the gate naming
+///   `src/terrain/grass_fields.rs:241`.
+///   `materials.rs` (408 of 500) and `capture.rs` (277 of 300) keep their
+///   budgets rather than ratcheting to measured+3%: both are already at the
+///   small-file FLOOR the v0.1093 note argues for, where 3% is a handful of
+///   lines and a click would fire on the first honest addition.
+///   The six new files join at measured + ~40%, not +3%, for that same reason.
+///   IF YOU NEED ROOM NEXT: in `api.rs` the Admin Analytics block (~460 lines)
+///   and the Guilds block (~280) are the next two coherent banners; in
+///   `msg_handlers.rs` it is the GAME-STATE half (`handle_game_join` through
+///   `persist_player_progress`, ~1_060 lines), which has a sibling file named
+///   `handlers/game_state.rs` already waiting for it.
 /// - v0.1319: `renderer/mod.rs` 3_883 -> 2_800, the biggest single click this
 ///   list has taken. The file had reached 5,652 lines (+1_769 over budget) and
 ///   was the second-worst of ELEVEN red entries, which mattered more than the
@@ -312,20 +384,26 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/gui/state_types.rs", 1_880),
     ("src/gui/loaders.rs", 1_650),
     ("src/relay/relay.rs", 6_500),
-    ("src/relay/handlers/msg_handlers.rs", 4_800),
-    ("src/terrain/planet_chunks.rs", 4_820),
-    ("src/terrain/grass.rs", 2_645),
+    ("src/relay/handlers/msg_handlers.rs", 4_660),
+    ("src/relay/handlers/stream.rs", 550),
+    ("src/terrain/planet_chunks.rs", 4_740),
+    ("src/terrain/water_patches.rs", 450),
+    ("src/terrain/grass.rs", 2_640),
+    ("src/terrain/grass_fields.rs", 350),
     ("src/terrain/grass_mesh.rs", 1_000),
     ("src/terrain/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
-    ("src/relay/api.rs", 4_200),
+    ("src/relay/api.rs", 3_930),
+    ("src/relay/api_market.rs", 800),
     ("src/renderer/mod.rs", 2_800),
     ("src/renderer/celestial.rs", 1_950),
     ("src/renderer/scene_draw.rs", 750),
     ("src/renderer/overlay_draw.rs", 550),
     ("src/renderer/surface.rs", 500),
     ("src/renderer/materials.rs", 500),
+    ("src/renderer/material_bind_groups.rs", 350),
     ("src/renderer/capture.rs", 300),
+    ("src/renderer/view_depth.rs", 250),
     ("src/renderer/shadow_cutout.rs", 250),
     ("src/renderer/tree_mesh.rs", 6_400),
     ("src/renderer/tree_species.rs", 750),

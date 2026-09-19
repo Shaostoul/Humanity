@@ -1611,7 +1611,6 @@ mod tests {
     }
 
     #[cfg(feature = "native")]
-    #[cfg(feature = "native")]
     #[test]
     fn mesher_builds_a_lake_sheet_at_shore_min_and_skips_sea() {
         let mut region = flat_region(vec![], vec![]);
@@ -1667,6 +1666,12 @@ mod tests {
         }
     }
 
+    // The gate this test was missing is why the relay test target stopped
+    // compiling: the duplicated `#[cfg]` above was the same attribute applied
+    // twice to the lake test instead of once to each, so this one reached for
+    // `flat_region`/`FLAT_R`/`build_region_meshes` in a build where all three
+    // are configured out.
+    #[cfg(feature = "native")]
     #[test]
     fn mesher_extrudes_a_square_building_on_flat_ground() {
         let h = 20.0f32; // 12..50 -> mid-rise class
